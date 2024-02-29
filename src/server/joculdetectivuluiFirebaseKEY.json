@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "joculdetectivului",
+  "private_key_id": "eae48d5a8b5fa534b5b3d9c5c50be713460d3b40",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC1At+OEOsuz5se\nP3o07WyWTGHumsbHDsCC8gmHKvNhTE/bmuSyq6OGfOWjZOKMnpjRSnEUxnRUj/SG\n38mt0zhI3zZdDZ7TFsMupUrROM4WHgPoaMTTrwxd03JJg1XS6X/6oHSHO5ArZVx7\neUe37XtLpilOfPghK7Jr9aieVD/Hygg9SK2oCfdRnutm24UUvuuQuATR6kLDV3zu\n8tgFaybDTFQn8j0ix+DrDxpjSqxT/nr4dZCk0nZUJiSJ7RXHYiKcGXgpObs9zrWe\nqvT9SUhW5gPHwmL32CHjFaEJDUCDyUzpXnkZG1M+ULWa6ju8O7CDJRP7JzXUGoxT\nqZZh7JD/AgMBAAECggEAAvNXUTYhR0dW8QSPUK6MhjEb/nIxioUB347HdDP8FYT+\nGAddY/uHCXfl1UMrq8Qg8QRrrj2DdSaHWLSW0Z7S9VPMy6r0x94yLJ/56S1/QZq0\nbQwFCcaIMa8dnjBfCNLtOoN11lzteC+evCNnrl+QWapixlF5uqA/G8zY0tjEKn92\nnFEuamEcpbPhwelqHgTTSYSaVcSTXowrAKuD8z2zt5k/+gLqsK20J18fMCqsgzTo\nFKWymllBYl1mKUWD1w92nvXhtBrVCmfUfNfdww6+buTh6CQVa2+nVOFla+7A6onJ\n6N7G+5M/1aduLG+H/b39bQwAG6DIDNzbeFcEQMWXiQKBgQDblHeUL+gTlQF2knz7\nb41CzbKRgoj7eIq9YChnUS1WebdiJvOGScDxbYRUpbO8CBQmwDZi+DacKPIfP/zj\nKYoVpeS8N8A3taZ5rJfs38TXGkLtCT7Or5S2QvIvov8e7jsVkuuJTqjV5xhyQsGq\nT6HFL8od9xKZAi4Wt4+Rusg+uQKBgQDTCL+d4aIThb6JNVQGzjnM1pdpcwcP046/\n+CkfKmnB3R0Rfl1Srs9F7a4NLUEJ6ca9jerRsgVzPfXQpbsNG8SA2FEyzpXgRJ+g\nSSoeRgBgmiqtsn6SflnJ/qyhQsKCJEOfEBjXZXo0zok1dtKwTHRPHNr1CjfBt2LN\nAPc/loYxdwKBgGEaeP8paGIwhOMgyPCQVlHykUNUDKvYlNJGkdeOyJPzY6ueOhdq\nyk559glQ9fjzQaYZXnPJ/Kx2VwyGyZjTp+MG5+5sYS7BwAsSzmTMWEofrPUSH5pb\nf1JSrLNwS44sICjcPhkMlhFyDxeIegiNCqcfCSzTNIBBvIwDRRRXG3LRAoGAdd1O\nACTz+8lYCJQTURW/LIux10BacllrQgadGP38QT14rbuQ7cwakejUrCFZUOsTh+0K\neIHgD2RMtXLKzOB0WK34c9Lz3GUXblNOxce9EDcqnQazMKiHB41I52w87KjKZ716\n0lqn7XRpJ8YsmDCrSUBJflBtobEF6o+eiBJO8rMCgYA3Eh0gzMH5sra1+QkvygPV\nCuHeGtE12Pqv4L7R6VmwvAQQb1CmN0U+fx5RIMYXBRDRtaRUfTeyeKS78iBRO+0g\nYopR+c1m0Bt4XLJhrtZinEEyv94GrejU1xvJJihKxp8gqpNLLT7lhNqhAl2Ffn+i\nnG2BJEIx8i5ylGl2kdBV0A==\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-tk7h9@joculdetectivului.iam.gserviceaccount.com",
+  "client_id": "116713618862152294637",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-tk7h9%40joculdetectivului.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

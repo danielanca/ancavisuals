@@ -1,0 +1,135 @@
+// ChatPage.module.scss
+.chatContainer {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 600px;
+    margin: auto;
+    background-color: #f0f0f0;
+  }
+  .chatRecipientInfo{
+    h3{
+      font-weight: 800;
+    }
+    p{
+      font-size: 0.75rem;
+    }
+  }
+  .messagesContainer {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .message {
+    max-width: 70%;
+    padding: 10px;
+    border-radius: 20px;
+    color: white;
+  }
+  
+  .left {
+    align-self: flex-start;
+    background-color: #007bff;
+    min-width: 3em;
+  }
+  
+  .right {
+    align-self: flex-end;
+    background-color: #4caf50;
+    min-width: 3em;
+  }
+  
+  .inputContainer {
+    display: flex;
+    padding: 10px;
+    background-color: #fff;
+  }
+  
+  .messageInput {
+    flex-grow: 1;
+    margin-right: 10px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+  }
+  
+  .sendButton {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer
+  }
+
+
+  .typingIndicator::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 3px;
+    border-radius: 50%;
+    background-color: grey;
+    animation: typing 1s infinite;
+  }
+  
+  @keyframes typing {
+    0% { opacity: 0.2; }
+    50% { opacity: 1; }
+    100% { opacity: 0.2; }
+  }
+  
+.conversationHeader{
+  height: 33%;
+  background-color: rgb(204, 204, 204);
+  display: flex;
+  align-items: center;
+  column-gap: 4%;
+  padding: 2% 4%;
+}
+.imgProfileWrapper{
+  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  position: relative;
+  padding: 3%;
+  box-shadow: rgba(0, 0, 0, 0.05) 0px 6px 24px 0px, rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;
+  img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+}
+  .suggestedPromptsContainer {
+    margin-top: 20px;
+    display: flex;
+    gap: 6px;
+    background-color: #dadada;
+    height: 30%;
+    flex-direction: column;
+    height: fit-content;
+    .promptButton {
+      background-color: #ffe100;; // Example color
+      color: black;
+      font-weight: bold;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+  
+      &:hover {
+        background-color: #4caf50;; // Darken on hover for visual feedback
+      }
+  
+      &:focus {
+        outline: none; // Remove focus outline for cleaner look, consider accessibility implications
+      }
+    }
+  }
+  

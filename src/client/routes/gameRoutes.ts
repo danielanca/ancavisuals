@@ -2,6 +2,7 @@
 
 import MostWanted from '../components/MostWanted/MostWanted';
 import VideoPlayer from '../components/VideoPlayer/VideoPlayer';
+import ChatPage from '../components/ChatArea/ChatPage';
 import { publicRoutesType } from './types';
 
 
@@ -17,6 +18,11 @@ const gameRoutes :  publicRoutesType[] = [
         layout: null,
         component: VideoPlayer,
     },
+    {
+      path:"game/chat",
+      layout: null,
+      component: ChatPage,
+  },
 
 ]
 
