@@ -6,7 +6,9 @@ import compression from "compression";
 import serveStatic from "serve-static";
 import { createServer as createViteServer } from "vite";
 import { fileURLToPath } from "url";
+import { getChatResponse } from './src/server/chathandler';
 const isTest = process.env.NODE_ENV === "test" || !!process.env.VITE_TEST_BUILD;
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -45,6 +47,7 @@ async function createServer(isProd = process.env.NODE_ENV === "production") {
   // use vite's connect instance as middleware
   // if you use your own express router (express.Router()), you should use router.use
   app.use(vite.middlewares);
+  app.use(express.json());
   const assetsDir = resolve("public");
   const requestHandler = express.static(assetsDir);
   app.use(requestHandler);
@@ -66,6 +69,13 @@ async function createServer(isProd = process.env.NODE_ENV === "production") {
   const devBuildPath = path.join(__dirname, "./src/client/entry-server.tsx");
   const buildModule = isProd ? productionBuildPath : devBuildPath;
   const { render } = await vite.ssrLoadModule(buildModule);
+
+  app.post('/chat', async (req: Request, res: Response) => {
+    console.log('Server received in main:', req.body);
+    const data = req.body;
+    const response = await getChatResponse(data);
+    res.json({ response });  //response as: {status, feedbackMessage}
+});
 
   app.use("*", async (req: Request, res: Response, next: NextFunction) => {
     const url = req.originalUrl;

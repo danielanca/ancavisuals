@@ -1,9 +1,12 @@
+import loadable from '@loadable/component';
 
-import {lazy} from 'react';
+const MostWanted = loadable(() => import('../pages/Mainpage'), { ssr: true });
+const VideoPlayer = loadable(() => import('../components/VideoPlayer/VideoPlayer'), { ssr: true });
+const ChatPage = loadable(() => import('../components/ChatArea/ChatPage'), {
+  ssr: true,
+});
+const AudioPlayer = loadable( ()=> import('../components/AudioPlayer/AudioPlayer'));
 
-const AudioPlayer = lazy( ()=> import('../components/AudioPlayer/AudioPlayer'));
-const VideoPlayer = lazy( ()=> import('../components/VideoPlayer/VideoPlayer'));
-const MostWanted = lazy(() => import('../components/MostWanted/MostWanted'));
 import { publicRoutesType } from './types';
 
 const gameRoutes: publicRoutesType[] = [
@@ -18,6 +21,12 @@ const gameRoutes: publicRoutesType[] = [
     component: VideoPlayer,
   },
   {
+    path: 'game/chat',
+    layout: null,
+    component: ChatPage,
+  },
+];
+
     path: 'game/audio', //game/video will work only on MOBILE VERSION (for a while)
     layout: null,
     component: AudioPlayer,
