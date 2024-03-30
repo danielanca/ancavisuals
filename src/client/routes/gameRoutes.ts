@@ -5,6 +5,8 @@ const VideoPlayer = loadable(() => import('../components/VideoPlayer/VideoPlayer
 const ChatPage = loadable(() => import('../components/ChatArea/ChatPage'), {
   ssr: true,
 });
+const AudioPlayer = loadable( ()=> import('../components/AudioPlayer/AudioPlayer'));
+
 import { publicRoutesType } from './types';
 
 const gameRoutes: publicRoutesType[] = [
@@ -23,6 +25,13 @@ const gameRoutes: publicRoutesType[] = [
     layout: null,
     component: ChatPage,
   },
+];
+
+    path: 'game/audio', //game/video will work only on MOBILE VERSION (for a while)
+    layout: null,
+    component: AudioPlayer,
+  },
+
 ];
 
 export default gameRoutes;
