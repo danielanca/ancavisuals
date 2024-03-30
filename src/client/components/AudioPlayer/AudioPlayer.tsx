@@ -1,56 +1,156 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FaRegCirclePause } from 'react-icons/fa6';
-import { AiOutlineCaretLeft, AiOutlineCaretRight } from 'react-icons/ai';
-import { VscDebugContinue } from 'react-icons/vsc';
-import './AudioPlayer.scss';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faPlay,
+  faAngleLeft,
+  faAngleRight,
+  faPause,
+} from '@fortawesome/free-solid-svg-icons';
+import data, { SongTypes } from './data';
+import { faMusic } from '@fortawesome/free-solid-svg-icons';
+import styles from './AudioPlayer.module.scss';
+import Library from './Library/Library';
 
-const AudioPlayer: React.FC = () => {
+
+const AudioPlayer = () => {
+  const [songs, setSongs] = useState<SongTypes[]>(data());
+  const [currentSong, setCurrentSong] = useState(songs[0]);
   const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const visualizerRef = useRef<HTMLDivElement>(null);
+  const [libraryStatus, setLibraryStatus] = useState(false);
   const contextRef = useRef<AudioContext | null>(null);
+  // const [isDragging, setIsDragging] = useState(false);
+  const [songInfo, setSongInfo] = useState({
+    currentTime: 0,
+    duration: 0,
+    animationPercentage: 0,
+  });
+
+  const audioRef: any = useRef<HTMLAudioElement>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const dataArrayRef: any = useRef<Uint8Array | null>(null);
+
+  const visualizerRef = useRef<HTMLDivElement>(null);
+
+  const isPlayingRef = useRef(isPlaying);
+  const timeUpdateHandler = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    // if(isDragging) return;
+    
+    // const current = audioRef.current.currentTime;
+    // const duration = audioRef.current.duration;
+    // console.log('Finallt:', audioRef.current.currentTime);
+    // const animationPercentage = Math.round((current / duration) * 100);
+    // console.log('Current time:', current, 'Duration:', duration);
+    // setSongInfo({ currentTime: current, duration, animationPercentage });
+
+    const target = e.target as HTMLAudioElement;
+    // // console.log('eTarget duration:', target.duration);
+    const current = target.currentTime;
+     const duration = target.duration;
+    // // console.log('Current time:', audioRef.current.currentTime);
+     const animationPercentage = Math.round((current / duration) * 100);
+    setSongInfo({ currentTime: current, duration, animationPercentage });
+
+    // setSongInfo({ currentTime: 14, duration:18, animationPercentage:33 });
+  };
+
+  const songEndHandler = async () => {
+    let currentIndex = songs.findIndex(song => song.id === currentSong.id);
+    await setCurrentSong(songs[(currentIndex + 1) % songs.length]);
+    if (isPlaying) audioRef.current?.play();
+  };
+
+  const activeLibraryHandler = (nextPrev: SongTypes) => {
+    const newSongs = songs.map(song => ({
+      ...song,
+      active: song.id === nextPrev.id,
+    }));
+    setSongs(newSongs);
+  };
+
+  const dragTouchEndHandler = () =>{
+      // setIsDragging(false);
+  }
 
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.crossOrigin = 'anonymous';
+        audioRef.current.src = currentSong.audio;
+        if (isPlaying) {
+            audioRef.current.play().catch( (error:any) => console.error('Error playing the audio:', error));
+        }
     }
-  }, []);
+}, [currentSong.audio, isPlaying]);
+  const dragHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // setIsDragging(true);
+    const currentTime = Number(e.target.value);
+    console.log('dragHandler called: audioRef current vs. currentTime' , audioRef.current.currentTime, currentTime);
+    audioRef.current.currentTime = currentTime;
+    console.log('Setting currentTime to:', currentTime);
+    setSongInfo({ ...songInfo, currentTime });
+  };
 
-  const playAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.play();
+  const skipTrackHandler = async (direction: string) => {
+    let currentIndex = songs.findIndex(song => song.id === currentSong.id);
+    if (direction === 'skip-forward') {
+      await setCurrentSong(songs[(currentIndex + 1) % songs.length]);
+      activeLibraryHandler(songs[(currentIndex + 1) % songs.length]);
+    } else if (direction === 'skip-back') {
+      if ((currentIndex - 1) % songs.length === -1) {
+        await setCurrentSong(songs[songs.length - 1]);
+        activeLibraryHandler(songs[songs.length - 1]);
+        return;
+      }
+      await setCurrentSong(songs[(currentIndex - 1) % songs.length]);
+      activeLibraryHandler(songs[(currentIndex - 1) % songs.length]);
     }
-  }, []);
+    if (isPlaying) audioRef.current?.play();
+  };
 
-  const pauseAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-  }, []);
+  const getTime = (time: number) =>
+    Math.floor(time / 60) + ':' + ('0' + Math.floor(time % 60)).slice(-2);
+
+  const trackAnim = {
+    transform: `translateX(${songInfo.animationPercentage}%)`,
+  };
 
   const loop = useCallback(() => {
-    if (!isPlaying) return;
-
+    if (!isPlayingRef.current) {
+      console.log('We returning');
+      return;
+    }
     window.requestAnimationFrame(loop);
-
     if (dataArrayRef.current && analyserRef.current) {
       analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-      changeTracks();
+      updateVisualizer(); // Adjusted function name for clarity
     }
-  }, [isPlaying]);
+  }, []);
+
 
   useEffect(() => {
-    if (isPlaying) {
-      playAudio();
-      loop();
-    } else {
-      pauseAudio();
+    console.log('useEffect:', audioRef.current, currentSong.audio);
+    if (audioRef.current && currentSong.audio) {
+      audioRef.current.src = currentSong.audio;
     }
-  }, [isPlaying, playAudio, pauseAudio, loop]);
+  }, [currentSong.audio, audioRef]);
 
+  // useEffect(() => {
+  //   if (audioRef.current.src !== currentSong.audio) {
+  //     audioRef.current.src = currentSong.audio;
+  //   }
+  // }, [currentSong.audio]);
+  
+
+  useEffect(() => {
+    console.log('Called isPlaying Loop', isPlaying);
+    isPlayingRef.current = isPlaying;
+    if (isPlaying) {
+        loop();
+    }
+}, [isPlaying]); 
+
+  
   const preparation = () => {
+    if (contextRef.current) return; 
+
     const audioContext = new (window.AudioContext || window.AudioContext)();
     const analyser = audioContext.createAnalyser();
     const src = audioContext.createMediaElementSource(audioRef.current!);
@@ -59,9 +159,10 @@ const AudioPlayer: React.FC = () => {
     contextRef.current = audioContext;
     analyserRef.current = analyser;
     dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+    
   };
 
-  const changeTracks = () => {
+  const updateVisualizer = () => {
     const visualizer = visualizerRef.current;
     if (visualizer && dataArrayRef.current) {
       for (let i = 0; i < visualizer.children.length; i++) {
@@ -73,290 +174,146 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  const togglePlayer = () => {
-    if (!contextRef.current) {
+  const playSongHandler = () => {
+    if (isPlaying) {
+      audioRef.current?.pause();
+    } else {
+      audioRef.current?.play();
       preparation();
     }
     setIsPlaying(!isPlaying);
   };
 
   return (
-    <div className='container'>
-      <input
-        type='checkbox'
-        defaultValue='None'
-        id='magicButton'
-        name='check'
-      />
-      <label className='main' htmlFor='magicButton' />
-      <div className='coverImage' />
-      <div className='search' />
-      <div className='bodyPlayer' />
-      <div ref={visualizerRef} id='visualizer'>
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-        <div className='track' />
-      </div>
-      <audio
-        src='https://cdn.pixabay.com/download/audio/2023/03/01/audio_74accea696.mp3?filename=trap-beat-dark-autumn-night-141114.mp3'
-        crossOrigin='anonymous'
-        id='audio'
-        ref={audioRef}
-      />
-      <table className='list'>
-        <tbody>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>1</h5>
-            </td>
-            <td className='title'>
-              <h6>Heavydirtysoul</h6>
-            </td>
-            <td className='length'>
-              <h5>3:54</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart' />
-              <label className='zmr' htmlFor='heart' />
-            </td>
-          </tr>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>2</h5>
-            </td>
-            <td className='title'>
-              <h6 style={{ color: '#ff564c' }}>StressedOut</h6>
-            </td>
-            <td className='length'>
-              <h5>3:22</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart1' />
-              <label className='zmr' htmlFor='heart1' />
-            </td>
-          </tr>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>3</h5>
-            </td>
-            <td className='title'>
-              <h6>Ride</h6>
-            </td>
-            <td className='length'>
-              <h5>3:34</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart2' />
-              <label className='zmr' htmlFor='heart2' />
-            </td>
-          </tr>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>4</h5>
-            </td>
-            <td className='title'>
-              <h6>Fairy Local</h6>
-            </td>
-            <td className='length'>
-              <h5>3:27</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart3' />
-              <label className='zmr' htmlFor='heart3' />
-            </td>
-          </tr>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>5</h5>
-            </td>
-            <td className='title'>
-              <h6>Tear in My Heart</h6>
-            </td>
-            <td className='length'>
-              <h5>3:08</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart4' />
-              <label className='zmr' htmlFor='heart4' />
-            </td>
-          </tr>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>6</h5>
-            </td>
-            <td className='title'>
-              <h6>Lane Boy</h6>
-            </td>
-            <td className='length'>
-              <h5>4:13</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart5' />
-              <label className='zmr' htmlFor='heart5' />
-            </td>
-          </tr>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>7</h5>
-            </td>
-            <td className='title'>
-              <h6>The Judge</h6>
-            </td>
-            <td className='length'>
-              <h5>4:57</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart6' />
-              <label className='zmr' htmlFor='heart6' />
-            </td>
-          </tr>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>8</h5>
-            </td>
-            <td className='title'>
-              <h6>Doubt</h6>
-            </td>
-            <td className='length'>
-              <h5>3:11</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart7' />
-              <label className='zmr' htmlFor='heart7' />
-            </td>
-          </tr>
-          <tr className='song'>
-            <td className='nr'>
-              <h5>9</h5>
-            </td>
-            <td className='title'>
-              <h6>Polarize</h6>
-            </td>
-            <td className='length'>
-              <h5>3:46</h5>
-            </td>
-            <td>
-              <input type='checkbox' id='heart8' />
-              <label className='zmr' htmlFor='heart8' />
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div className='shadow' />
-      <div className='bar' />
-      <div className='info'>
-        <h4>STRESSED OUT</h4>
-        <h3>twenty one pilots - Blurryface</h3>
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        {/* left toggle play button */}
-        <button id='left-toggle-play'>
-          <AiOutlineCaretLeft size={40} color='white' title='right' />
-        </button>
-        {/* pause toggle play button */}
-        <button id='toggle-play' onClick={togglePlayer}>
-          {isPlaying ? (
-            <FaRegCirclePause size={40} color='white' />
-          ) : (
-            <VscDebugContinue size={40} color='white' title='play' />
-          )}
-        </button>
-        {/* right toggle play button */}
-        <button id='right-toggle-play'>
-          <AiOutlineCaretRight size={40} color='white' title='left' />
-        </button>
-      </div>
-      <table className='footer'>
-        <tbody>
-          <tr>
-            <td>
-              <input type='checkbox' id='love' />
-              {/* defaultChecked=""  */}
-              <label className='love' htmlFor='love' />
-            </td>
-            <td>
-              <input type='checkbox' id='shuffle' />
-              <label className='shuffle' htmlFor='shuffle' />
-            </td>
-            <td>
-              <input type='checkbox' id='repeat' />
-              {/* defaultChecked=""  */}
-              <label className='repeat' htmlFor='repeat' />
-            </td>
-            <td>
-              <input type='checkbox' id='options' />
-              <label className='options' htmlFor='options' />
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div className='current'>
-        <h2>STRESSED OUT</h2>
+    <div className={styles.mainParentContainer}>
+      <div className={styles.parentContainer}>
+        <Nav
+          libraryStatus={libraryStatus}
+          setLibraryStatus={setLibraryStatus}
+        />
+
+        <div className={styles.songContainer}>
+          <div className={styles.featureCompo}>
+            <img
+              className={styles.songImg}
+              src={currentSong.cover}
+              alt={currentSong.name}
+            />
+          </div>
+         
+           <div ref={visualizerRef} className={styles.visualizer} id='visualizer'>
+          {Array.from({ length: 50 }).map((_, index) => (
+            <div key={index} className={styles.track}></div>
+          ))}
+        </div>
+        </div>
+
+        <div className={styles.audioInfo}>
+          <h2 className={styles.songName}>{currentSong.name}</h2>
+          <h3 className={styles.songArtistName}>{currentSong.artist}</h3>
+        </div>
+        <div className={styles.player}>
+          <div className={styles.timeControl}>
+            <p className={styles.songTime}>{getTime(songInfo.currentTime)}</p>
+            <div
+              style={{
+                background: `linear-gradient(to right, ${currentSong.color[0]}, ${currentSong.color[1]})`,
+                minWidth: '200px',
+              }}
+              className={styles.trackPlayer}
+            >
+              <input
+                min={0}
+                max={songInfo.duration || 0}
+                value={songInfo.currentTime}
+                onChange={dragHandler}
+                onTouchEnd={dragTouchEndHandler}
+                type='range'
+              />
+              <div style={trackAnim} className={styles.animateTrack}></div>
+            </div>
+            <p className={styles.songTime}>
+              {songInfo.duration ? getTime(songInfo.duration) : '00:00'}
+            </p>
+          </div>
+          <PlayerControls isPlaying={isPlaying} skipTrackHandler={skipTrackHandler} playSongHandler={playSongHandler} />
+        </div>
+
+        <Library
+          libraryStatus={libraryStatus}
+          setLibraryStatus={setLibraryStatus}
+          setSongs={setSongs}
+          isPlaying={isPlaying}
+          audioRef={audioRef}
+          songs={songs}
+          setCurrentSong={setCurrentSong}
+        />
+
+        <audio
+          id='audio'
+          onLoadedMetadata={timeUpdateHandler}
+          onTimeUpdate={timeUpdateHandler}
+          src={currentSong.audio}
+          ref={audioRef}
+          onEnded={songEndHandler}
+        />
+
       </div>
     </div>
   );
 };
+
+
+const Nav = ({ setLibraryStatus, libraryStatus }: any) => {
+  return (
+    <nav className={styles.navContainer}>
+      <h1 className={styles.wavesHeading}>Waves</h1>
+      <button
+        onClick={() => {
+          setLibraryStatus(!libraryStatus);
+        }}
+        className={styles.libraryBtn}
+      >
+        Librarie
+        <FontAwesomeIcon icon={faMusic} />
+      </button>
+    </nav>
+  );
+};
+
+
+const PlayerControls = ({isPlaying, skipTrackHandler,playSongHandler} : { isPlaying: boolean, skipTrackHandler: (direction:string)=> void, playSongHandler: ()=> void}) =>{
+  return (<div className={styles.playControl}>
+            <FontAwesomeIcon
+              onClick={() => skipTrackHandler('skip-back')}
+              size='2x'
+              className={styles.skipBack}
+              icon={faAngleLeft}
+            />
+            {!isPlaying ? (
+              <FontAwesomeIcon
+                onClick={playSongHandler}
+                size='2x'
+                className={styles.play}
+                icon={faPlay}
+              />
+            ) : (
+              <FontAwesomeIcon
+                onClick={playSongHandler}
+                size='2x'
+                className={styles.pause}
+                icon={faPause}
+              />
+            )}
+
+            <FontAwesomeIcon
+              onClick={() => skipTrackHandler('skip-forward')}
+              size='2x'
+              className={styles.skipForward}
+              icon={faAngleRight}
+            />
+      </div>)
+
+}
+
 export default AudioPlayer;
