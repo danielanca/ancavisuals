@@ -1,3 +1,4 @@
+
 import {lazy} from 'react';
 
 const AudioPlayer = lazy( ()=> import('../components/AudioPlayer/AudioPlayer'));
@@ -21,6 +22,7 @@ const gameRoutes: publicRoutesType[] = [
     layout: null,
     component: AudioPlayer,
   },
+
 ];
 
 export default gameRoutes;
