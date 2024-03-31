@@ -1,15 +1,7 @@
 import './_library.scss';
 import LibrarySong from './LibrarySong';
 
-const Library = ({
-  songs,
-  setCurrentSong,
-  audioRef,
-  isPlaying,
-  setSongs,
-  setLibraryStatus,
-  libraryStatus,
-}: any) => {
+const Library = ({ songs, setCurrentSong, audioRef, isPlaying, setSongs, setLibraryStatus, libraryStatus }: any) => {
   return (
     <div className={`library ${libraryStatus ? 'active' : ''}`}>
       <h2 className='libraryHeading'>Librarie</h2>

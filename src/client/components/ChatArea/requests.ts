@@ -1,7 +1,4 @@
-import {
-  streamType,
-  departmentType,
-} from 'src/server/gameLogic/detectiveChat/ConversationTypes';
+import { streamType, departmentType } from 'src/server/gameLogic/detectiveChat/ConversationTypes';
 
 export type Message = {
   id: number;

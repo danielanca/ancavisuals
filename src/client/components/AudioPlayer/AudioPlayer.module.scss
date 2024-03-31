@@ -13,7 +13,7 @@
   min-height: 100vh;
 }
 
-.parentContainer{
+.parentContainer {
   max-width: 764px;
   width: 95%;
   margin: auto;
@@ -30,18 +30,16 @@
 
 .visualizer {
   height: 120px;
-	width: 100%;
-	display: flex;
+  width: 100%;
+  display: flex;
   max-width: 300px;
-	align-items: center;
-	justify-content: center;
-	gap: 3px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   position: absolute;
   z-index: 3;
   padding: 0 20px;
 }
-
-
 
 .track {
   width: 3%;
@@ -80,15 +78,14 @@
   cursor: pointer;
 }
 
-
 .navContainer {
   width: 100%;
   min-height: 10vh;
   display: flex;
   justify-content: space-around;
   align-items: center;
-  h1{
-    color:white;
+  h1 {
+    color: white;
   }
   button {
     background: transparent;
@@ -110,7 +107,6 @@
   }
 }
 
-
 .songContainer {
   min-height: 40vh;
   display: flex;
@@ -125,7 +121,7 @@
 }
 
 .featureCompo img {
-  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
   width: 100%;
   object-fit: cover;
   height: 100%;
@@ -135,7 +131,7 @@
   left: 0;
 }
 .featureCompo::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 0;
   left: 0;
@@ -145,8 +141,7 @@
   z-index: 2; /* Overlay above the image */
 }
 
-
-.audioInfo{
+.audioInfo {
   width: 100%;
   max-width: 300px;
   h2 {
@@ -160,7 +155,6 @@
   }
 }
 
-
 @keyframes rotate {
   from {
     transform: rotate(0deg);
@@ -173,7 +167,6 @@
 .rotateSong {
   animation: rotate 20s linear forwards infinite;
 }
-
 
 .player {
   display: flex;
@@ -212,17 +205,15 @@
   }
 
   @media screen and (max-width: 768px) {
-      width: 50%;
+    width: 50%;
   }
 }
-
 
 @media screen and (max-width: 768px) {
   .timeControl {
     width: 90%;
   }
 }
-
 
 input[type='range']:focus {
   outline: none;

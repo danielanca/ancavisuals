@@ -2,10 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import styles from './ChatPage.module.scss';
 import { sendMessage, ChatMessage } from './requests';
-import {
-  ChatResponse,
-  departmentType,
-} from './../../../server/gameLogic/detectiveChat/ConversationTypes';
+import { ChatResponse, departmentType } from './../../../server/gameLogic/detectiveChat/ConversationTypes';
 
 const departmentID_URL = 'forensic';
 const accountID = 'daniel.anca';
@@ -25,21 +22,12 @@ export const ChatPage: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
 
-  const parseHistoryToChatMessages = (
-    historyString: string,
-    departmentId: string
-  ): ChatMessage[] | null => {
+  const parseHistoryToChatMessages = (historyString: string, departmentId: string): ChatMessage[] | null => {
     if (historyString === '') {
       return null;
     }
-    const validDepartmentIds: departmentType[] = [
-      'forensic',
-      'technical',
-      'assistant',
-    ];
-    const isDepartmentIdValid = validDepartmentIds.includes(
-      departmentId as departmentType
-    );
+    const validDepartmentIds: departmentType[] = ['forensic', 'technical', 'assistant'];
+    const isDepartmentIdValid = validDepartmentIds.includes(departmentId as departmentType);
 
     if (isDepartmentIdValid) {
       const messagesArray = historyString.split('\n'); // Split by line breaks
@@ -72,10 +60,7 @@ export const ChatPage: React.FC = () => {
           // In a real application, you'd likely want to mark the message as failed in the UI
           console.error('Failed to send message');
         } else {
-          console.log(
-            'THE DATA HISTORY IS:',
-            response.response.feedbackMessage
-          );
+          console.log('THE DATA HISTORY IS:', response.response.feedbackMessage);
           const parsedMessages = parseHistoryToChatMessages(
             response.response.feedbackMessage.response,
             departmentID_URL
@@ -83,14 +68,9 @@ export const ChatPage: React.FC = () => {
 
           if (parsedMessages !== null) {
             setMessages(parsedMessages);
-            console.log(
-              'Adding to suggested:',
-              response.response.feedbackMessage.suggestedNextPrompts
-            );
+            console.log('Adding to suggested:', response.response.feedbackMessage.suggestedNextPrompts);
           }
-          setSuggestedPrompts(
-            response.response.feedbackMessage.suggestedNextPrompts
-          );
+          setSuggestedPrompts(response.response.feedbackMessage.suggestedNextPrompts);
         }
       });
     };
@@ -117,9 +97,7 @@ export const ChatPage: React.FC = () => {
         // If sending fails, revert the optimistic update (this is a simplified approach)
         // In a real application, you'd likely want to mark the message as failed in the UI
         console.error('Failed to send message');
-        setMessages(prevMessages =>
-          prevMessages.filter(m => m.timestamp !== newMessageOut.timestamp)
-        );
+        setMessages(prevMessages => prevMessages.filter(m => m.timestamp !== newMessageOut.timestamp));
       }
       // If success, the real message will be added through the Firestore listener
 
@@ -156,11 +134,7 @@ export const ChatPage: React.FC = () => {
             key={`${message.timestamp}+${index}`}
             className={`${styles.message} ${message.sender === 'user' ? styles.right : styles.left}`}
           >
-            {message.isTyping ? (
-              <div className={styles.typingIndicator}>Typing...</div>
-            ) : (
-              message.message
-            )}
+            {message.isTyping ? <div className={styles.typingIndicator}>Typing...</div> : message.message}
           </div>
         ))}
       </div>

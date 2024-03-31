@@ -1,5 +1,5 @@
 import publicRoutes from './publicRoutes';
-import shopRoutes from './shopRoutes';
+// import shopRoutes from './shopRoutes';
 import gameRoutes from './gameRoutes';
 import chatRoutes from './chatRoutes';
 
