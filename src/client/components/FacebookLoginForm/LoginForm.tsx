@@ -16,11 +16,7 @@ const LoginForm: React.FC = () => {
     <div className='sign-in_container'>
       <div className='logo-div'>
         <Link to={'/facebook/login'}>
-          <img
-            src={images.facebook_chat.facebookLogo}
-            alt='Logo'
-            className='logo'
-          />
+          <img src={images.facebook_chat.facebookLogo} alt='Logo' className='logo' />
         </Link>
       </div>
       <h2 className={'login_heading'}>Log In to Game</h2>
@@ -51,11 +47,7 @@ const LoginForm: React.FC = () => {
         </div>
 
         <div className='forgotten-account_link_container'>
-          <Link
-            to='/facebook/security-questions'
-            className='forgotten-account_link'
-            target=''
-          >
+          <Link to='/facebook/security-questions' className='forgotten-account_link' target=''>
             Forgotten account?
           </Link>
         </div>

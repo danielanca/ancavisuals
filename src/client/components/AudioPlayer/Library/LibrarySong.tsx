@@ -1,12 +1,4 @@
-const LibrarySong = ({
-  song,
-  songs,
-  setCurrentSong,
-  audioRef,
-  isPlaying,
-  setSongs,
-  id,
-}: any) => {
+const LibrarySong = ({ song, songs, setCurrentSong, audioRef, isPlaying, setSongs, id }: any) => {
   const songSelectHandler = async () => {
     await setCurrentSong(song);
     //active
@@ -28,10 +20,7 @@ const LibrarySong = ({
     if (isPlaying) audioRef.current.play();
   };
   return (
-    <div
-      onClick={songSelectHandler}
-      className={`librarySong ${song.active ? 'selected' : ''}`}
-    >
+    <div onClick={songSelectHandler} className={`librarySong ${song.active ? 'selected' : ''}`}>
       <img src={song.cover} alt={song.name} />
       <div className='songDescription'>
         <h3>{song.name}</h3>

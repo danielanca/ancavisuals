@@ -19,7 +19,7 @@
     "test:watch": "vitest --watch",
     "coverage": "vitest --coverage",
     "typecheck": "tsc --noEmit",
-    "serve": "npm run build && cross-env NODE_ENV=production node ./dist/server",
+    "serve": "cross-env NODE_ENV=production node ./dist/server",
     "serve:local": "vite serve",
     "clean": "rimraf dist/",
     "copy-files": "copyfiles \"public/**/*\" dist && copyfiles -u 2 \"dist/client/**/*\" dist && copyfiles -u 2 \"dist/client/assets/**/*\" dist/public",
