@@ -38,7 +38,7 @@ const Interceptor = () => {
         setTimeout(() => {
           setStatusLines(prevLines => [...prevLines, line]);
         }, delay);
-        delay += 15000; // 1.5 seconds delay for each line
+        delay += 1500; // 1.5 seconds delay for each line
       }
       setTimeout(() => {
         navigate('/game/interceptor/messages');
