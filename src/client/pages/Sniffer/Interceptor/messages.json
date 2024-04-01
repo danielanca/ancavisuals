@@ -1,0 +1,44 @@
+{
+  "0745469907": {
+    "0755999111": [
+      {
+        "timestamp": "2023-12-25T10:00:00",
+        "from": "0745469907",
+        "to": "0755999111",
+        "message": "Ce s-a întâmplat noaptea trecută?",
+        "metadata": {
+          "location": "București"
+        }
+      },
+      {
+        "timestamp": "2023-12-25T10:01:30",
+        "from": "0755999111",
+        "to": "0745469907",
+        "message": "Nu pot vorbi acum. Ne vedem mai târziu.",
+        "metadata": {
+          "location": "Cluj-Napoca"
+        }
+      }
+    ],
+    "0755999112": [
+      {
+        "timestamp": "2023-12-25T10:00:00",
+        "from": "0745469907",
+        "to": "0755999112",
+        "message": "Ce faci ?",
+        "metadata": {
+          "location": "București"
+        }
+      },
+      {
+        "timestamp": "2023-12-25T10:01:30",
+        "from": "0755999112",
+        "to": "0745469907",
+        "message": "Bine .",
+        "metadata": {
+          "location": "Cluj-Napoca"
+        }
+      }
+    ]
+  }
+}

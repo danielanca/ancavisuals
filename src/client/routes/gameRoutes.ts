@@ -7,6 +7,11 @@ const ChatPage = loadable(() => import('../components/ChatArea/ChatPage'), {
 });
 const AudioPlayer = loadable(() => import('../components/AudioPlayer/AudioPlayer'));
 
+const Interceptor = loadable(() => import('../pages/Sniffer/Interceptor/Interceptor'));
+const Messages = loadable(() => import('../pages/Sniffer/Interceptor/Messages'));
+const Conversations = loadable(() => import('../pages/Sniffer/Interceptor/Conversations'));
+const ConversationsInfo = loadable(() => import('../pages/Sniffer/Interceptor/ConversationInfo'));
+
 import { publicRoutesType } from './types';
 
 const gameRoutes: publicRoutesType[] = [
@@ -29,6 +34,26 @@ const gameRoutes: publicRoutesType[] = [
     path: 'game/audio',
     layout: null,
     component: AudioPlayer,
+  },
+  {
+    path: 'game/interceptor',
+    layout: null,
+    component: Interceptor,
+  },
+  {
+    path: 'game/interceptor/messages',
+    layout: null,
+    component: Messages,
+  },
+  {
+    path: 'game/interceptor/number/:scanNR',
+    layout: null,
+    component: Conversations,
+  },
+  {
+    path: 'game/interceptor/conversationsInfo/:scanNR/:otherNumber',
+    layout: null,
+    component: ConversationsInfo,
   },
 ];
 
