@@ -25,7 +25,14 @@ const Messages = () => {
 
         <div className='scanWrapper'>
           <div className='scan'>
-            <input type='text' id='scanNR' value={scanNR} onChange={e => setScanNR(e.target.value)} required />
+            <input
+              autoComplete='off'
+              type='text'
+              id='scanNR'
+              value={scanNR}
+              onChange={e => setScanNR(e.target.value)}
+              required
+            />
           </div>
         </div>
 
