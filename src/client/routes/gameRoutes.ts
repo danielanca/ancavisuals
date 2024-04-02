@@ -11,10 +11,15 @@ const Interceptor = loadable(() => import('../pages/Sniffer/Interceptor/Intercep
 const Messages = loadable(() => import('../pages/Sniffer/Interceptor/Messages'));
 const Conversations = loadable(() => import('../pages/Sniffer/Interceptor/Conversations'));
 const ConversationsInfo = loadable(() => import('../pages/Sniffer/Interceptor/ConversationInfo'));
-
+const Prompt = loadable(() => import('../pages/Prompt/Prompt'));
 import { publicRoutesType } from './types';
 
 const gameRoutes: publicRoutesType[] = [
+  {
+    path: 'game/prompt',
+    layout: null,
+    component: Prompt,
+  },
   {
     path: 'game/most-wanted',
     layout: null,
