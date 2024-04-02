@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import data from './messages.json';
-
-import './Messages.css';
+import styles from './Messages.module.scss';
 
 const Messages = () => {
   const [scanNR, setScanNR] = useState('');
@@ -17,14 +16,14 @@ const Messages = () => {
     }
   };
   return (
-    <div className='messagesContainer'>
-      <div className='messagesWrapper'>
-        <div className='loginTopTitle'>Lorem ipsum, dolor </div>
-        <div className='titleUnderline'> </div>
-        <div className='messTitle'>intercept the following number</div>
+    <div className={styles.messagesContainer}>
+      <div className={styles.messagesWrapper}>
+        <div className={styles.loginTopTitle}>Lorem ipsum, dolor </div>
+        <div className={styles.titleUnderline}> </div>
+        <div className={styles.messTitle}>intercept the following number</div>
 
-        <div className='scanWrapper'>
-          <div className='scan'>
+        <div className={styles.scanWrapper}>
+          <div className={styles.scan}>
             <input
               autoComplete='off'
               type='text'
@@ -36,9 +35,9 @@ const Messages = () => {
           </div>
         </div>
 
-        <div className='error'>{error}</div>
+        <div className={styles.error}>{error}</div>
 
-        <div className='scanBTN'>
+        <div className={styles.scanBTN}>
           <button onClick={handleScan}>SCAN THE NUMBER </button>
         </div>
       </div>

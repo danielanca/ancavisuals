@@ -8,6 +8,7 @@
   min-height: 100vh;
   margin: auto;
   background-color: black;
+  max-width: 450px;
 }
 
 .conversationsInfoWrapper {
@@ -57,7 +58,10 @@
   color: white;
   padding: 0.5rem 0;
 }
-
+.message {
+  border: 2px solid #ffffff;
+  padding: 0.2rem 1rem;
+}
 .received {
   color: white !important;
   font-family: 'M PLUS 1 Code';
@@ -76,11 +80,6 @@
   line-height: 15px;
   letter-spacing: 0em;
   margin-top: 10px;
-}
-
-.message {
-  border: 2px solid #ffffff;
-  padding: 0.2rem 1rem;
 }
 
 .backBtn {
