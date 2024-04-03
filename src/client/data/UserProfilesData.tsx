@@ -6,6 +6,9 @@ export const UserProfilesData = [
     name: "MARINEL ADRIAN",
     dob: "22/11/1994",
     id: 1,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -16,6 +19,9 @@ export const UserProfilesData = [
     name: "ROBERT GABORIC",
     dob: "22/11/1994",
     id: 2,
+    cetatenie: "Romania",
+    judet: "Cluj",
+    oras: "Turda",
     description:
       "Is a notorious drug lord involved in the trafficking of narcotics across international borders. Operating with a vast network of dealers and distributors, he has evaded capture multiple times. His operations extend from manufacturing to distribution, making him a key target for law enforcement agencies.",
     crime: "Drug trafficking, narcotics distribution, organized crime.",
@@ -26,6 +32,9 @@ export const UserProfilesData = [
     name: "MARIAN ZAFINI",
     dob: "22/11/1994",
     id: 3,
+    cetatenie: "Ungaria",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -36,6 +45,9 @@ export const UserProfilesData = [
     name: "XIAN BAGXAN",
     dob: "22/11/1994",
     id: 4,
+    cetatenie: "Ungaria",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",
@@ -46,6 +58,9 @@ export const UserProfilesData = [
     name: "ROBERTO Carlos",
     dob: "22/11/1994",
     id: 5,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a prolific human trafficker involved in the exploitation and smuggling of vulnerable individuals for forced labor and sexual exploitation. Operating within a clandestine network, he preys on the most vulnerable populations, subjecting them to unimaginable suffering and abuse. His criminal enterprises span multiple countries, making him a top priority for international law enforcement agencies.",
     crime: "Human trafficking, forced labor, sexual exploitation.",
@@ -56,6 +71,9 @@ export const UserProfilesData = [
     name: "ELENA IVANOVA",
     dob: "22/11/1994",
     id: 6,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -66,6 +84,9 @@ export const UserProfilesData = [
     name: "ALEXANDER SMITH",
     dob: "22/11/1994",
     id: 7,
+    cetatenie: "Ungaria",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a notorious drug lord involved in the trafficking of narcotics across international borders. Operating with a vast network of dealers and distributors, he has evaded capture multiple times. His operations extend from manufacturing to distribution, making him a key target for law enforcement agencies.",
     crime: "Drug trafficking, narcotics distribution, organized crime.",
@@ -76,6 +97,9 @@ export const UserProfilesData = [
     name: "LUCIA MARTINEZ",
     dob: "22/11/1994",
     id: 8,
+    cetatenie: "Romania",
+    judet: "Cluj",
+    oras: "Turda",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -86,6 +110,9 @@ export const UserProfilesData = [
     name: "MOHAMMED ALI",
     dob: "22/11/1994",
     id: 9,
+    cetatenie: "Irak",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",
@@ -96,6 +123,9 @@ export const UserProfilesData = [
     name: "SOPHIA CHEN",
     dob: "22/11/1994",
     id: 10,
+    cetatenie: "Irak",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a prolific human trafficker involved in the exploitation and smuggling of vulnerable individuals for forced labor and sexual exploitation. Operating within a clandestine network, he preys on the most vulnerable populations, subjecting them to unimaginable suffering and abuse. His criminal enterprises span multiple countries, making him a top priority for international law enforcement agencies.",
     crime: "Human trafficking, forced labor, sexual exploitation.",
@@ -106,6 +136,9 @@ export const UserProfilesData = [
     name: "CARLOS PEREZ",
     dob: "22/11/1994",
     id: 11,
+    cetatenie: "Irak",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -116,6 +149,9 @@ export const UserProfilesData = [
     name: "ANNA KORZUN",
     dob: "22/11/1994",
     id: 12,
+    cetatenie: "Irak",
+    judet: "Cluj",
+    oras: "Turda",
     description:
       "Is a notorious drug lord involved in the trafficking of narcotics across international borders. Operating with a vast network of dealers and distributors, he has evaded capture multiple times. His operations extend from manufacturing to distribution, making him a key target for law enforcement agencies.",
     crime: "Drug trafficking, narcotics distribution, organized crime.",
@@ -126,6 +162,9 @@ export const UserProfilesData = [
     name: "DAVID JOHNSON",
     dob: "22/11/1994",
     id: 13,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -136,6 +175,9 @@ export const UserProfilesData = [
     name: "EMMA WILSON",
     dob: "22/11/1994",
     id: 14,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",
@@ -146,6 +188,9 @@ export const UserProfilesData = [
     name: "YUAN ZHANG",
     dob: "22/11/1994",
     id: 15,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a prolific human trafficker involved in the exploitation and smuggling of vulnerable individuals for forced labor and sexual exploitation. Operating within a clandestine network, he preys on the most vulnerable populations, subjecting them to unimaginable suffering and abuse. His criminal enterprises span multiple countries, making him a top priority for international law enforcement agencies.",
     crime: "Human trafficking, forced labor, sexual exploitation.",
@@ -156,6 +201,9 @@ export const UserProfilesData = [
     name: "SARAH BROWN",
     dob: "22/11/1994",
     id: 16,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -166,6 +214,9 @@ export const UserProfilesData = [
     name: "JAMES DAVIS",
     dob: "22/11/1994",
     id: 17,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a notorious drug lord involved in the trafficking of narcotics across international borders. Operating with a vast network of dealers and distributors, he has evaded capture multiple times. His operations extend from manufacturing to distribution, making him a key target for law enforcement agencies.",
     crime: "Drug trafficking, narcotics distribution, organized crime.",
@@ -176,6 +227,9 @@ export const UserProfilesData = [
     name: "ISABELLA GARCIA",
     dob: "22/11/1994",
     id: 18,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -186,6 +240,9 @@ export const UserProfilesData = [
     name: "MATTHEW MARTINEZ",
     dob: "22/11/1994",
     id: 19,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",
@@ -196,6 +253,9 @@ export const UserProfilesData = [
     name: "AMELIA RODRIGUEZ",
     dob: "22/11/1994",
     id: 20,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a prolific human trafficker involved in the exploitation and smuggling of vulnerable individuals for forced labor and sexual exploitation. Operating within a clandestine network, he preys on the most vulnerable populations, subjecting them to unimaginable suffering and abuse. His criminal enterprises span multiple countries, making him a top priority for international law enforcement agencies.",
     crime: "Human trafficking, forced labor, sexual exploitation.",
@@ -206,6 +266,9 @@ export const UserProfilesData = [
     name: "OLIVER LOPEZ",
     dob: "22/11/1994",
     id: 21,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -216,6 +279,9 @@ export const UserProfilesData = [
     name: "SOFIA GONZALEZ",
     dob: "22/11/1994",
     id: 22,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a notorious drug lord involved in the trafficking of narcotics across international borders. Operating with a vast network of dealers and distributors, he has evaded capture multiple times. His operations extend from manufacturing to distribution, making him a key target for law enforcement agencies.",
     crime: "Drug trafficking, narcotics distribution, organized crime.",
@@ -226,6 +292,9 @@ export const UserProfilesData = [
     name: "NOAH HERNANDEZ",
     dob: "22/11/1994",
     id: 23,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -236,6 +305,9 @@ export const UserProfilesData = [
     name: "EMILY HARRIS",
     dob: "22/11/1994",
     id: 24,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",
@@ -246,6 +318,9 @@ export const UserProfilesData = [
     name: "DANIEL CLARK",
     dob: "22/11/1994",
     id: 25,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a prolific human trafficker involved in the exploitation and smuggling of vulnerable individuals for forced labor and sexual exploitation. Operating within a clandestine network, he preys on the most vulnerable populations, subjecting them to unimaginable suffering and abuse. His criminal enterprises span multiple countries, making him a top priority for international law enforcement agencies.",
     crime: "Human trafficking, forced labor, sexual exploitation.",
@@ -256,6 +331,9 @@ export const UserProfilesData = [
     name: "CHLOE LEWIS",
     dob: "22/11/1994",
     id: 26,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -276,6 +354,9 @@ export const UserProfilesData = [
     name: "AVA WALKER",
     dob: "22/11/1994",
     id: 28,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -286,6 +367,9 @@ export const UserProfilesData = [
     name: "WILLIAM HALL",
     dob: "22/11/1994",
     id: 29,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",
@@ -296,6 +380,9 @@ export const UserProfilesData = [
     name: "OLIVIA YOUNG",
     dob: "22/11/1994",
     id: 30,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a prolific human trafficker involved in the exploitation and smuggling of vulnerable individuals for forced labor and sexual exploitation. Operating within a clandestine network, he preys on the most vulnerable populations, subjecting them to unimaginable suffering and abuse. His criminal enterprises span multiple countries, making him a top priority for international law enforcement agencies.",
     crime: "Human trafficking, forced labor, sexual exploitation.",
@@ -306,6 +393,9 @@ export const UserProfilesData = [
     name: "HENRY ALLEN",
     dob: "22/11/1994",
     id: 31,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -316,6 +406,9 @@ export const UserProfilesData = [
     name: "ABIGAIL KING",
     dob: "22/11/1994",
     id: 32,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a notorious drug lord involved in the trafficking of narcotics across international borders. Operating with a vast network of dealers and distributors, he has evaded capture multiple times. His operations extend from manufacturing to distribution, making him a key target for law enforcement agencies.",
     crime: "Drug trafficking, narcotics distribution, organized crime.",
@@ -326,6 +419,9 @@ export const UserProfilesData = [
     name: "MICHAEL WRIGHT",
     dob: "22/11/1994",
     id: 33,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -336,6 +432,9 @@ export const UserProfilesData = [
     name: "GRACE SCOTT",
     dob: "22/11/1994",
     id: 34,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",
@@ -346,6 +445,9 @@ export const UserProfilesData = [
     name: "JACKSON GREEN",
     dob: "22/11/1994",
     id: 35,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a prolific human trafficker involved in the exploitation and smuggling of vulnerable individuals for forced labor and sexual exploitation. Operating within a clandestine network, he preys on the most vulnerable populations, subjecting them to unimaginable suffering and abuse. His criminal enterprises span multiple countries, making him a top priority for international law enforcement agencies.",
     crime: "Human trafficking, forced labor, sexual exploitation.",
@@ -356,6 +458,9 @@ export const UserProfilesData = [
     name: "MIA ADAMS",
     dob: "22/11/1994",
     id: 36,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -366,6 +471,9 @@ export const UserProfilesData = [
     name: "JACOB BAKER",
     dob: "22/11/1994",
     id: 37,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a notorious drug lord involved in the trafficking of narcotics across international borders. Operating with a vast network of dealers and distributors, he has evaded capture multiple times. His operations extend from manufacturing to distribution, making him a key target for law enforcement agencies.",
     crime: "Drug trafficking, narcotics distribution, organized crime.",
@@ -376,6 +484,9 @@ export const UserProfilesData = [
     name: "ZOEY NELSON",
     dob: "22/11/1994",
     id: 38,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -386,6 +497,9 @@ export const UserProfilesData = [
     name: "ETHAN CARTER",
     dob: "22/11/1994",
     id: 39,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",
@@ -396,6 +510,9 @@ export const UserProfilesData = [
     name: "HANNAH MITCHELL",
     dob: "22/11/1994",
     id: 40,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a prolific human trafficker involved in the exploitation and smuggling of vulnerable individuals for forced labor and sexual exploitation. Operating within a clandestine network, he preys on the most vulnerable populations, subjecting them to unimaginable suffering and abuse. His criminal enterprises span multiple countries, making him a top priority for international law enforcement agencies.",
     crime: "Human trafficking, forced labor, sexual exploitation.",
@@ -406,6 +523,9 @@ export const UserProfilesData = [
     name: "AIDEN PEREZ",
     dob: "22/11/1994",
     id: 41,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled cybercriminal known for his expertise in hacking financial institutions. He operates under various aliases and is proficient in evading law enforcement. With a history of identity theft and credit card fraud, Marin poses a significant threat to online security.",
     crime: "Cybercrime, including hacking financial systems, identity theft, and credit card fraud.",
@@ -416,6 +536,9 @@ export const UserProfilesData = [
     name: "LILY ROBERTS",
     dob: "22/11/1994",
     id: 42,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a notorious drug lord involved in the trafficking of narcotics across international borders. Operating with a vast network of dealers and distributors, he has evaded capture multiple times. His operations extend from manufacturing to distribution, making him a key target for law enforcement agencies.",
     crime: "Drug trafficking, narcotics distribution, organized crime.",
@@ -426,6 +549,9 @@ export const UserProfilesData = [
     name: "LOGAN JACKSON",
     dob: "22/11/1994",
     id: 43,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a skilled con artist specializing in elaborate Ponzi schemes and investment fraud. With a charming demeanor and persuasive tactics, he lures unsuspecting victims into financial scams, causing substantial monetary losses. His schemes often involve false promises of high returns, leaving investors devastated.",
     crime: "Investment fraud, Ponzi schemes, financial scams.",
@@ -436,6 +562,9 @@ export const UserProfilesData = [
     name: "LILY THOMPSON",
     dob: "22/11/1994",
     id: 44,
+    cetatenie: "Romania",
+    judet: "Braila",
+    oras: "Ianca",
     description:
       "Is a dangerous arms dealer known for supplying illegal weapons to various criminal organizations and terrorist groups. Operating covertly, he smuggles weapons across borders, contributing to violent conflicts and instability. His activities pose a significant threat to national security and global peace.",
     crime: "Arms trafficking, illegal weapons distribution, aiding terrorism.",

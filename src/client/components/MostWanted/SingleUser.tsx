@@ -48,8 +48,10 @@ const SingleUser = () => {
 
             <div className={styles.userDetails}>
               <div className={styles.userDOB}>Date of Birth : {user.dob}</div>
-              <div>Cetatenie: ROMANIA</div>
-              <div>Resedinta: Cluj-Napoca, jud.Cluj Romania</div>
+              <div>Cetatenie: {user.cetatenie}</div>
+              <div>
+                Resedinta: {user.oras}, jud. {user.judet}
+              </div>
               <div className={styles.userCrime}> Acuzatie : {user.crime}</div>
             </div>
 
