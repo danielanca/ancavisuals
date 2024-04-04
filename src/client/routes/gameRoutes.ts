@@ -1,6 +1,7 @@
 import loadable from '@loadable/component';
 
 const MostWanted = loadable(() => import('../components/MostWanted/MostWanted'), { ssr: true });
+const SingleUser = loadable(() => import('../components/MostWanted/SingleUser'),{ssr:true});
 const VideoPlayer = loadable(() => import('../components/VideoPlayer/VideoPlayer'), { ssr: true });
 const ChatPage = loadable(() => import('../components/ChatArea/ChatPage'), {
   ssr: true,
@@ -14,6 +15,7 @@ const ConversationsInfo = loadable(() => import('../pages/Sniffer/Interceptor/Co
 const Prompt = loadable(() => import('../pages/Prompt/Prompt'));
 import { publicRoutesType } from './types';
 
+
 const gameRoutes: publicRoutesType[] = [
   {
     path: 'game/prompt',
@@ -24,6 +26,11 @@ const gameRoutes: publicRoutesType[] = [
     path: 'game/most-wanted',
     layout: null,
     component: MostWanted,
+  },
+  {
+    path: 'game/most-wanted/:userID',
+    layout: null,
+    component: SingleUser,
   },
   {
     path: 'game/video', //game/video will work only on MOBILE VERSION (for a while)
