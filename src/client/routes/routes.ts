@@ -2,6 +2,7 @@ import publicRoutes from './publicRoutes';
 import shopRoutes from './shopRoutes';
 import gameRoutes from './gameRoutes';
 import chatRoutes from './chatRoutes';
+import phoneSimulator from './phoneSimulator';
 
 const routes = [
   ...publicRoutes,
@@ -9,6 +10,7 @@ const routes = [
   // ...shopRoutes,
   ...gameRoutes,
   ...chatRoutes,
+  ...phoneSimulator,
 ];
 
 export default routes;
