@@ -3,6 +3,7 @@ import shopRoutes from './shopRoutes';
 import gameRoutes from './gameRoutes';
 import chatRoutes from './chatRoutes';
 import phoneSimulator from './phoneSimulator';
+import crimaDetectivului from './crimaDetectivului';
 
 const routes = [
   ...publicRoutes,
@@ -11,6 +12,7 @@ const routes = [
   ...gameRoutes,
   ...chatRoutes,
   ...phoneSimulator,
+  ...crimaDetectivului,
 ];
 
 export default routes;
