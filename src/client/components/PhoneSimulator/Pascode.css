@@ -1,0 +1,93 @@
+
+.iphone.passcode .inner.passcode {
+	background-color: #191b2c;
+	border-radius: 30px;
+}
+
+.iphone .inner .content .passcode {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.iphone .inner .content .passcode h3 {
+	margin-top: 60px;
+	font-size: 25px;
+}
+
+.iphone .inner .content .passcode .dots {
+	margin-top: 20px;
+	display: flex;
+	gap: 25px;
+}
+
+.iphone .inner .content .passcode .dots .dot {
+	width: 15px;
+	height: 15px;
+	border-radius: 50%;
+	border: 1px solid #fff;
+	transition-duration: 0.1s;
+}
+
+.iphone .inner .content .passcode .keypad {
+	display: flex;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 30px;
+	width: 90%;
+	margin-top: 80px;
+}
+
+.iphone .inner .content .passcode .keypad .key {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background-color: #5c5e6c;
+	border: none;
+	width: 80px;
+	height: 80px;
+	color: #fff;
+	margin-top: -15px;
+	cursor: pointer;
+	transition-duration: 0.2s;
+}
+
+.iphone .inner .content .passcode .keypad .key:active {
+	background-color: #999cb4;
+}
+
+.iphone .inner .content .passcode .keypad .key .num {
+	font-size: 35px;
+	font-weight: 300;
+}
+
+.iphone .inner .content .passcode .keypad .key .num.alone {
+	padding-bottom: 10px
+}
+
+.iphone .inner .content .passcode .keypad .key .letters {
+	font-size: 12px;
+	letter-spacing: 3px;
+}
+
+.iphone .inner .content .bottom {
+	margin-top: 100px;
+	display: flex;
+	font-size: 16px;
+	gap: 170px;
+}
+
+.iphone .inner .content .bottom p {
+	cursor: pointer;
+}
+
+.iphone .inner .content .bottom p:active {	
+	color: #696a75;
+}
+
+
+.iphone.passcode .dash.bottom {
+	top: 64px;
+}
