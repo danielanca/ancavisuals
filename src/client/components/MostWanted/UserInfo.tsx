@@ -10,9 +10,7 @@ function UserInfo() {
           {/* User Name */}
           <div className='flex flex-col font-normal'>
             <span className='text-base text-[#000000]'>Welcome back,</span>
-            <span className='text-base text-[#A3A3A3]'>
-              {'detectiv Daniel Anca'}
-            </span>
+            <span className='text-base text-[#A3A3A3]'>{'detectiv Daniel Anca'}</span>
           </div>
           {/* Filtrează după */}
           <div className='mt-4'>

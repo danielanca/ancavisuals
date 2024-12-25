@@ -1,7 +1,9 @@
+/* eslint-disable react/react-in-jsx-scope */
 import { useState } from "react";
 import { IoPersonSharp } from "react-icons/io5";
 import { FaMapMarkerAlt } from "react-icons/fa";
 import { UserProfilesData } from "../../data/UserProfilesData";
+import { Link } from "react-router-dom";
 
 const USERS_PER_PAGE = 8;
 
@@ -90,7 +92,9 @@ function UsersProfiles() {
         {selectedUsers.map((data, index) => (
           <div key={index} className="border border-[#D9D9D9] p-2 flex my-4">
             <div className="bg-[#D9D9D9] w-16 h-20 flex items-center justify-center mr-4">
-              <img src={data.Img} alt={data.Img} className="w-12 h-16" />
+              <Link to={`/game/most-wanted/${data.id}`}>
+                <img src={data.Img} alt={data.Img} className="w-12 h-16" />{" "}
+              </Link>
             </div>
             <div className="flex flex-col">
               <span className="text-lg font-bold text-[#202A56]">{data.name}</span>

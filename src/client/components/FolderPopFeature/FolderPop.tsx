@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import "./FolderPop.scss";
+import React, { useEffect, useState } from 'react';
+import './FolderPop.scss';
 
 interface FileStylingRule {
   calculateWidth: (folderRect: DOMRect) => number;
@@ -24,7 +24,7 @@ const stylingRules: Record<string, FileStylingRule> = {
     calculateTranslateX: (folderRect: DOMRect, fileRect: DOMRect) =>
       folderRect.right - fileRect.right - fileRect.width * -0.8,
     calculateTranslateY: (folderRect: DOMRect, fileRect: DOMRect) => folderRect.top - fileRect.top,
-    calculateRotation: () => "3",
+    calculateRotation: () => '3',
   },
   file3: {
     calculateWidth: (folderRect: DOMRect) => folderRect.width * 0.5,
@@ -41,12 +41,12 @@ const stylingRules: Record<string, FileStylingRule> = {
     calculateTranslateX: (folderRect: DOMRect, fileRect: DOMRect) =>
       folderRect.right - fileRect.right - fileRect.width * 2.5,
     calculateTranslateY: (folderRect: DOMRect, fileRect: DOMRect) => (folderRect.top - fileRect.top) * -0.41,
-    calculateRotation: () => "-5",
+    calculateRotation: () => '-5',
   },
 };
 
 const applyStyling = () => {
-  const folderFront = document.querySelector(".folderFront");
+  const folderFront = document.querySelector('.folderFront');
 
   if (folderFront instanceof HTMLElement) {
     const folderRect = folderFront.getBoundingClientRect();
@@ -60,10 +60,10 @@ const applyStyling = () => {
         file.style.height = `${rules.calculateHeight(folderRect)}px`;
         file.style.transform = `translate(${rules.calculateTranslateX(
           folderRect,
-          fileRect,
+          fileRect
         )}px, ${rules.calculateTranslateY(folderRect, fileRect)}px)`;
 
-        if (rules.calculateRotation && typeof rules.calculateRotation === "function") {
+        if (rules.calculateRotation && typeof rules.calculateRotation === 'function') {
           file.style.transform += ` rotate(${rules.calculateRotation()}deg)`;
         }
       }
@@ -75,7 +75,7 @@ const deactivateStyling = () => {
   Object.keys(stylingRules).forEach(fileClass => {
     const file = document.querySelector(`.${fileClass}`);
     if (file instanceof HTMLElement) {
-      file.style.transform = "translate(0px, 0px)";
+      file.style.transform = 'translate(0px, 0px)';
     }
   });
 };
@@ -84,27 +84,27 @@ const FolderPop = () => {
 
   const [lastWindowWidth, setLastWidth] = useState(0);
   useEffect(() => {
-    const folder = document.querySelector(".folderFront");
+    const folder = document.querySelector('.folderFront');
     if (folder) {
       const handleClick = () => {
         setIsFolderOpen(prevState => !prevState); // Toggle the state
       };
-      folder.addEventListener("click", handleClick);
+      folder.addEventListener('click', handleClick);
 
-      const files = document.querySelectorAll<HTMLElement>(".file");
-      console.log("isFolderOpen:", isFolderOpen);
+      const files = document.querySelectorAll<HTMLElement>('.file');
+      console.log('isFolderOpen:', isFolderOpen);
 
       files.forEach(file => {
         if (isFolderOpen) {
-          file.classList.add("activated");
+          file.classList.add('activated');
           applyStyling();
         } else {
-          file.classList.remove("activated");
+          file.classList.remove('activated');
           deactivateStyling();
         }
       });
 
-      return () => folder.removeEventListener("click", handleClick);
+      return () => folder.removeEventListener('click', handleClick);
     }
   }, [isFolderOpen]);
 
@@ -117,20 +117,20 @@ const FolderPop = () => {
         setLastWidth(currentWidth);
       }
     };
-    window.addEventListener("resize", onWidthResize);
+    window.addEventListener('resize', onWidthResize);
 
     return () => {
-      window.removeEventListener("resize", onWidthResize);
+      window.removeEventListener('resize', onWidthResize);
     };
   }, []);
 
   return (
-    <div className="folderContainer">
-      <div className="folderFront"></div>
-      <div className="file file1"></div>
-      <div className="file file2"></div>
-      <div className="file file3"></div>
-      <div className="file file4"></div>
+    <div className='folderContainer'>
+      <div className='folderFront'></div>
+      <div className='file file1'></div>
+      <div className='file file2'></div>
+      <div className='file file3'></div>
+      <div className='file file4'></div>
     </div>
   );
 };

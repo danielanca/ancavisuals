@@ -18,12 +18,7 @@ function FacebookChat() {
   }, []);
 
   return (
-    <ChatComponent
-      setContactId={setContactId}
-      chatList={chatList}
-      setChatList={setChatList}
-      contactId={contactId}
-    />
+    <ChatComponent setContactId={setContactId} chatList={chatList} setChatList={setChatList} contactId={contactId} />
   );
 }
 

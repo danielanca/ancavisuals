@@ -7,6 +7,11 @@ import suspect2 from './assets/suspects/Profile Image 2.png';
 import suspect3 from './assets/suspects/Profile Image 3.png';
 import suspect4 from './assets/suspects/Profile Image 4.png';
 import suspect5 from './assets/suspects/Profile Image 5.png';
+import f1 from './assets/most-wanted/fingerprints/fp1.jpg';
+import f2 from './assets/most-wanted/fingerprints/fp2.jpg';
+import f3 from './assets/most-wanted/fingerprints/fp3.jpg';
+import f4 from './assets/most-wanted/fingerprints/fp1.jpg';
+import f5 from './assets/most-wanted/fingerprints/fp2.jpg';
 import ImgAvatar from './assets/facebook-chat/default.jpg';
 import facebookLogo from './assets/facebook-chat/facebook-logo.png';
 import imgChatNone from './assets/facebook-chat/imgChatNone.jpg';
@@ -34,11 +39,11 @@ const images = {
       en: enFlag,
     },
     mock_suspects: {
-      suspect1: suspect1,
-      suspect2: suspect2,
-      suspect3: suspect3,
-      suspect4: suspect4,
-      suspect5: suspect5,
+      suspect1: { profilePicture:suspect1, fingerprint: f1},
+      suspect2: { profilePicture:suspect2, fingerprint: f2},
+      suspect3: { profilePicture:suspect3, fingerprint: f3},
+      suspect4: { profilePicture:suspect4, fingerprint: f4},
+      suspect5: { profilePicture:suspect5, fingerprint: f5},
     },
   },
   facebook_chat: {

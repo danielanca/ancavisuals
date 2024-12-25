@@ -21,6 +21,7 @@ coverage
 
 # API keys and secrets
 .env
+src/server/joculdetectivuluiFirebaseKEY.json
 
 # Dependency directory
 node_modules
