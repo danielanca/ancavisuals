@@ -7,14 +7,7 @@ const Messages = () => {
   const [scanNR, setScanNR] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const handleScan = () => {
-    if (data[scanNR]) {
-      navigate(`/game/interceptor/number/${scanNR}`);
-      setError('');
-    } else {
-      setError('Number not found');
-    }
-  };
+
   return (
     <div className={styles.messagesContainer}>
       <div className={styles.messagesWrapper}>
@@ -36,10 +29,7 @@ const Messages = () => {
         </div>
 
         <div className={styles.error}>{error}</div>
-
-        <div className={styles.scanBTN}>
-          <button onClick={handleScan}>SCAN THE NUMBER </button>
-        </div>
+ 
       </div>
     </div>
   );

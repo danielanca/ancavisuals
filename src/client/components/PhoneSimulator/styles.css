@@ -23,7 +23,6 @@ body, html {
 	align-items: center;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 	font-size: 14px;
-	background-color: #1f2025;
 	color: #ffffff;
 }
 
@@ -408,52 +407,3 @@ a {
 }
 
 
-
-
-@media only screen and (max-width: 500px) {
-
-	html, body {
-		overflow: hidden;
-	}
-
-	.main {
-		transform: scale(0.7);
-	}
-
-	.iphone .inner .content .top {
-		height: 70px !important;
-	}
-
-	.iphone .inner .content .bottom {
-		top: 261% !important;
-		height: 150px !important;
-	}
-
-	.iphone .inner .content .bottom .main {
-    position: relative !important;
-    left: -100px !important;
-    width: 150% !important;
-    bottom: 20px !important;
-		gap: 140px !important;
-	}
-
-	.iphone .inner .content .bottom .main .photos {
-		width: 60px !important;
-		height: 60px !important;
-	}
-
-	.iphone .inner .content .bottom .main .border {
-		width: 80px !important;
-		height: 80px !important;
-	}
-
-	.iphone .inner .content .bottom .main .border .capture {
-		width: 70px !important;
-		height: 70px !important;
-	}
-
-	.iphone .inner .content .bottom .main .rotate {
-		width: 40px !important;
-		height: 35px !important;
-	}
-}

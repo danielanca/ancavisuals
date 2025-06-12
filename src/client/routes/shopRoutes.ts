@@ -1,4 +1,4 @@
-import Mainpage from '../pages/Mainpage';
+import Mainpage from '../pages/Homepage/Mainpage';
 
 import { publicRoutesType } from './types';
 
