@@ -15,15 +15,9 @@ const Footer = () => {
                             <Link to="/portfolio" className="hover:text-gray-400 transition-colors">
                                 Portfolio
                             </Link>
-                            <Link to="/services" className="hover:text-gray-400 transition-colors">
-                                Services
-                            </Link>
-                            <Link to="/investment" className="hover:text-gray-400 transition-colors">
-                                Investment
-                            </Link>
-                            <Link to="/process" className="hover:text-gray-400 transition-colors">
-                                Process
-                            </Link>
+                            {/* <Link to="/pricing" className="hover:text-gray-400 transition-colors">
+                                Pricing
+                            </Link> */}
                             <Link to="/contact" className="hover:text-gray-400 transition-colors">
                                 Inquire
                             </Link>

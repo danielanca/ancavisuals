@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 const Navbar = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     return (
-        <nav className="fixed top-0 left-0 right-0 z-50 p-4 md:p-6 bg-black/20 backdrop-blur-sm">
+        <nav className="fixed top-0 left-0 right-0 z-50 p-4 md:p-8 bg-black/20 backdrop-blur-sm">
             <div className="flex justify-between items-center max-w-7xl mx-auto">
                 {/* Left Navigation - Hidden on mobile, visible on tablet+ */}
                 <div className="hidden lg:flex space-x-6 xl:space-x-8">
@@ -15,12 +15,12 @@ const Navbar = () => {
                     >
                         About
                     </Link>
-                    <Link
+                     {/* <Link
                         to="/pricing"
                         className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
                     >
-                        Pricing & Process
-                    </Link>
+                        Pricing 
+                    </Link>  */}
                     <Link
                         to="/portfolio"
                         className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
@@ -143,14 +143,14 @@ const Navbar = () => {
                             </svg>
                         </Link>
 
-                        <Link
+                        {/* <Link
                             to="/pricing"
                             className="text-3xl font-light tracking-[0.2em] uppercase text-white hover:text-gray-300 transition-colors text-center"
                             onClick={() => setIsMobileMenuOpen(false)}
                         >
                             PRICING &<br />
                             PROCESS
-                        </Link>
+                        </Link> */}
 
                         <Link
                             to="/portfolio"

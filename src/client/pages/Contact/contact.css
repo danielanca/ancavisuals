@@ -1,0 +1,131 @@
+.contact-section {
+  background-color: #000000;
+  color: #fff;
+  padding: 80px 20px;
+  text-align: center;
+  font-family: 'Georgia', serif;
+}
+
+.headline {
+  font-size: 5.5rem;
+  color: #f9e791;
+  margin-bottom: 40px;
+  margin-top: 100px;
+  line-height: 1.2;
+}
+
+.subhead {
+  font-size: 1rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.body-text1 {
+	padding: 15px 250px;
+}
+
+.body-text11 {
+  max-width: 700px;
+  margin: 0 auto;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #ccc;
+  padding: 0 15px;
+}
+
+.body-text a {
+  color: #ccc;
+  text-decoration: underline;
+}
+
+.body-text a:hover {
+  color: #fff;
+}
+
+.footer-note {
+  margin-top: 20px;
+}
+
+
+.form-section {
+  background-color: #1a1a1a;
+  color: #fff;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.form-title {
+  font-size: 2rem;
+  margin-bottom: 30px;
+  color: #f9e791;
+  font-family: 'Georgia', serif;
+}
+
+.contact-form {
+  max-width: 700px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.form-grid input {
+  padding: 12px 15px;
+  border: 1px solid #444;
+  background-color: #2a2a2a;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+textarea {
+  padding: 12px 15px;
+  border: 1px solid #444;
+  background-color: #2a2a2a;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.submit-btn {
+  background-color: #f9e791;
+  color: #1a1a1a;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.submit-btn:hover {
+  background-color: #fff4be;
+}
+
+.notime {
+	font-size: 22px;
+	text-transform: uppercase;
+  margin-top: 50px;
+}
+
+.schedule {
+	margin-top: 20px;
+}
+/* Responsive Grid Layout */
+@media (min-width: 600px) {
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-grid input:nth-child(5) {
+    grid-column: span 2;
+  }
+}

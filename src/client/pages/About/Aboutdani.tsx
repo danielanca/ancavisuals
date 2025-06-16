@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 const Aboutdani = () => {
   return (
      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 grid grid-cols-1 lg:grid-cols-2">
+        <div className="absolute inset-0 grid grid-cols-1 lg:grid-cols-2 pt-110">
           {/* Left side - Text */}
           <div className="bg-black flex items-center justify-center p-8 lg:p-16">
             <div className="text-center lg:text-left">
