@@ -20,9 +20,9 @@ const LibrarySong = ({ song, songs, setCurrentSong, audioRef, isPlaying, setSong
     if (isPlaying) audioRef.current.play();
   };
   return (
-    <div onClick={songSelectHandler} className={`librarySong ${song.active ? 'selected' : ''}`}>
+    <div onClick={songSelectHandler} className={`librarySong ${song.active ? "selected" : ""}`}>
       <img src={song.cover} alt={song.name} />
-      <div className='songDescription'>
+      <div className="songDescription">
         <h3>{song.name}</h3>
         <h4>{song.artist}</h4>
       </div>

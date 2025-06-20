@@ -1,6 +1,6 @@
-import parse from 'html-react-parser';
-import styles from './Footer.module.scss';
-import strings from './../../strings/strings.json';
+import parse from "html-react-parser";
+import styles from "./Footer.module.scss";
+import strings from "./../../strings/strings.json";
 
 export const Footer = () => {
   return (

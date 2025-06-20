@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import data from './messages.json';
-import styles from './Messages.module.scss';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import data from "./messages.json";
+import styles from "./Messages.module.scss";
 
 const Messages = () => {
-  const [scanNR, setScanNR] = useState('');
-  const [error, setError] = useState('');
+  const [scanNR, setScanNR] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   return (
@@ -18,9 +18,9 @@ const Messages = () => {
         <div className={styles.scanWrapper}>
           <div className={styles.scan}>
             <input
-              autoComplete='off'
-              type='text'
-              id='scanNR'
+              autoComplete="off"
+              type="text"
+              id="scanNR"
               value={scanNR}
               onChange={e => setScanNR(e.target.value)}
               required
@@ -29,7 +29,6 @@ const Messages = () => {
         </div>
 
         <div className={styles.error}>{error}</div>
- 
       </div>
     </div>
   );

@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
- 
+import React, { useState } from "react";
+
 const ContactForm: React.FC = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    location: '',
-    date: '',
-    message: '',
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    date: "",
+    message: "",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -18,7 +18,7 @@ const ContactForm: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log(formData);
-    alert('Form submitted!'); 
+    alert("Form submitted!");
   };
 
   return (
@@ -50,7 +50,7 @@ const ContactForm: React.FC = () => {
             onChange={handleChange}
             required
           />
-           <input
+          <input
             type="date"
             name="date"
             placeholder="Event Date"
@@ -66,7 +66,6 @@ const ContactForm: React.FC = () => {
             onChange={handleChange}
             required
           />
-         
         </div>
         <textarea
           name="message"
@@ -76,24 +75,24 @@ const ContactForm: React.FC = () => {
           onChange={handleChange}
           required
         />
-        <button type="submit" className="submit-btn">Send Message</button>
+        <button type="submit" className="submit-btn">
+          Send Message
+        </button>
       </form>
-      
-    <div className="sqs-html-content">
-  <h4 className="notime">No time to type it all out? </h4>
-   <p className="text-center mt-6">
-  <a
-    href="#"
-    className="inline-flex items-center gap-2 px-6 py-3 text-base font-semibold tracking-wide text-black bg-yellow-200 rounded-full hover:bg-yellow-300 transition duration-300 ease-in-out shadow-lg"
-  >
-    <span className="text-xl">📞</span>
-    Schedule a consultation call
-  </a>
-</p>
 
-</div>
+      <div className="sqs-html-content">
+        <h4 className="notime">No time to type it all out? </h4>
+        <p className="text-center mt-6">
+          <a
+            href="#"
+            className="inline-flex items-center gap-2 px-6 py-3 text-base font-semibold tracking-wide text-black bg-yellow-200 rounded-full hover:bg-yellow-300 transition duration-300 ease-in-out shadow-lg"
+          >
+            <span className="text-xl">📞</span>
+            Schedule a consultation call
+          </a>
+        </p>
+      </div>
     </section>
-
   );
 };
 

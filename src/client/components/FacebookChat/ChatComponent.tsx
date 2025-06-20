@@ -1,19 +1,19 @@
-import React from 'react';
-import Aside from '../Aside';
-import Chat from '../Chat';
-import './MainStyle.css';
+import React from "react";
+import Aside from "../Aside";
+import Chat from "../Chat";
+import "./MainStyle.css";
 
-import { TiArrowLeft } from 'react-icons/ti';
+import { TiArrowLeft } from "react-icons/ti";
 
 function ChatComponent({ setContactId, chatList, setChatList, contactId }: any) {
   const handleBackClick = () => {
     setContactId(0);
   };
 
-  const backButton = <TiArrowLeft className='back-icon' onClick={handleBackClick} />;
+  const backButton = <TiArrowLeft className="back-icon" onClick={handleBackClick} />;
 
   return (
-    <div className='container'>
+    <div className="container">
       {contactId < 1 && <Aside setContact={setContactId} chatList={chatList} setChatList={setChatList} />}
 
       {contactId > 0 && (

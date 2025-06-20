@@ -1,7 +1,7 @@
-import React, { Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
-import routes from './routes/routes';
-import { ContextWrapper } from './Context'; // Assuming you have this component
+import React, { Suspense } from "react";
+import { Route, Routes } from "react-router-dom";
+import routes from "./routes/routes";
+import { ContextWrapper } from "./Context"; // Assuming you have this component
 
 export const App = () => {
   return (

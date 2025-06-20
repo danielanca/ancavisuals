@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
-import Header from './Header';
-import Search from './Search';
-import ListContacts from './ListContacts';
+import Header from "./Header";
+import Search from "./Search";
+import ListContacts from "./ListContacts";
 
-import './styles.css';
-import IGetChat from 'src/client/strings/IGetChat';
+import "./styles.css";
+import IGetChat from "src/client/strings/IGetChat";
 
 interface Props {
   setContact: Function;
@@ -14,20 +14,15 @@ interface Props {
 }
 
 const Aside: React.FC<Props> = ({ setContact, chatList, setChatList }) => {
-  const [valueSearch, setValueSearch] = useState('');
+  const [valueSearch, setValueSearch] = useState("");
 
   return (
-    <aside className='aside-container'>
+    <aside className="aside-container">
       <Header />
 
       <Search setValueSearch={setValueSearch} />
 
-      <ListContacts
-        setContact={setContact}
-        valueSearch={valueSearch}
-        chatList={chatList}
-        setChatList={setChatList}
-      />
+      <ListContacts setContact={setContact} valueSearch={valueSearch} chatList={chatList} setChatList={setChatList} />
     </aside>
   );
 };

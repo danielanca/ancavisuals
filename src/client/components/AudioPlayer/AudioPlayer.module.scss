@@ -131,7 +131,7 @@
   left: 0;
 }
 .featureCompo::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -215,10 +215,10 @@
   }
 }
 
-input[type='range']:focus {
+input[type="range"]:focus {
   outline: none;
 }
-input[type='range']::-webkit-slider-thumb {
+input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   height: 16px;
   width: 16px;

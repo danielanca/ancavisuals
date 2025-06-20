@@ -1,10 +1,10 @@
 @font-face {
-  font-family: 'Displace Medium';
-  src: url('../../../fonts/Displace20-Medium.ttf') format('truetype');
+  font-family: "Displace Medium";
+  src: url("../../../fonts/Displace20-Medium.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }
-.myport{
+.myport {
   background-color: #1a1a1a;
 }
 .portfolio-section {
@@ -46,11 +46,10 @@
 .portfolio-title {
   font-size: 2rem;
   line-height: 1.4;
-  font-family: 'Displace Bold', serif;
+  font-family: "Displace Bold", serif;
   font-weight: normal; /* or 500 if available */
   margin-bottom: 20px;
 }
-
 
 .portfolio-desc {
   font-size: 0.9rem;

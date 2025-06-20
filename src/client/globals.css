@@ -6,7 +6,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-.pt-110{
+.pt-110 {
   padding-top: 110px;
 }
 
@@ -89,5 +89,4 @@ body {
 }
 
 @layer base {
- 
 }

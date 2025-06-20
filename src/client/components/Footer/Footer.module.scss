@@ -1,4 +1,4 @@
-@import './../../commons/main.scss';
+@import "./../../commons/main.scss";
 
 :root {
   --blueDetective: #0f183f;
@@ -9,11 +9,11 @@
   --footer-flex-direction: row;
   --footer-logo-wrapper: 200px;
 
-  @include media('<xxl') {
+  @include media("<xxl") {
     --footer-headline-margin-top: 60px;
     --footer-headline-font-size: 16px;
   }
-  @include media('>=xxs', '<lg') {
+  @include media(">=xxs", "<lg") {
     --footer-headline-margin-top: 60px;
     --footer-headline-font-size: 12px;
     --footer-flex-direction: column;
@@ -37,7 +37,7 @@
       color: white;
       text-align: center;
       margin-top: var(--footer-headline-margin-top);
-      font-family: 'Oswald Regular';
+      font-family: "Oswald Regular";
       letter-spacing: 0.5px;
       font-size: var(--footer-headline-font-size);
     }

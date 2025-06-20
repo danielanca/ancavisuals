@@ -1,6 +1,6 @@
-import React from 'react';
-import { useState } from "react"
-import img1 from './img1.jpg';
+import React from "react";
+import { useState } from "react";
+import img1 from "./img1.jpg";
 
 const Allimages = () => {
   return (

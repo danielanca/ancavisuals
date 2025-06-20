@@ -13,7 +13,7 @@
 // 			<h1 id="title">iPhone 12</h1>
 // 			<p id="sub">Recreated in HTML, CSS, JS</p>
 // 		</div>
-		
+
 // 		<div className="main">
 // 			<div className="side left">
 // 				<div className="dash left top"></div>
@@ -34,7 +34,7 @@
 // 					<div className="top">
 // 						<div className="left"></div>
 
-// 						<div className="center" id="center">	
+// 						<div className="center" id="center">
 // 							<div className="mic" id="mic">
 // 							</div>
 
@@ -124,7 +124,7 @@
 // 							</div>
 // 						</div>
 
-// 						<div className="bottom"> 
+// 						<div className="bottom">
 // 							<p>Emergency</p>
 
 // 							<Link to="/main">
@@ -136,7 +136,7 @@
 // 					<div className="dash bottom"></div>
 // 				</div>
 // 			</div>
-			
+
 // 			<div className="side right">
 // 				<div className="dash right top"></div>
 
@@ -150,8 +150,6 @@
 // }
 
 // export default MobilePasscode;
-
-
 
 // import React, { useState, useEffect } from 'react'
 // import { Link } from 'react-router-dom'
@@ -172,12 +170,12 @@
 
 // // 	if (passcodeCount == 6) {
 // // 		setTimeout(function(){
-// // 			window.location.href = "/home.html";	
+// // 			window.location.href = "/home.html";
 
 // // 			var all = document.getElementsByClassName("dot");
 // // 			for (var i = 0; i < all.length; i++) {
 // // 				all[i].style.backgroundColor = "transparent";
-// // 			}					
+// // 			}
 // // 		}, 500);
 // // 	}
 // // }
@@ -197,15 +195,13 @@
 //   setPasscodeCount(prevCount => prevCount < 6 ? prevCount + 1 : prevCount);
 // };
 
-
-
 //   return (
 //     <>
 // 		<div>
 // 			<h1 id="title">iPhone 12</h1>
 // 			<p id="sub">Recreated in HTML, CSS, JS</p>
 // 		</div>
-		
+
 // 		<div className="main">
 // 			<div className="side left">
 // 				<div className="dash left top"></div>
@@ -226,7 +222,7 @@
 // 					<div className="top">
 // 						<div className="left"></div>
 
-// 						<div className="center" id="center">	
+// 						<div className="center" id="center">
 // 							<div className="mic" id="mic">
 // 							</div>
 
@@ -316,7 +312,7 @@
 // 							</div>
 // 						</div>
 
-// 						<div className="bottom"> 
+// 						<div className="bottom">
 // 							<p>Emergency</p>
 
 // 							<Link to="/main">
@@ -328,7 +324,7 @@
 // 					<div className="dash bottom"></div>
 // 				</div>
 // 			</div>
-			
+
 // 			<div className="side right">
 // 				<div className="dash right top"></div>
 
@@ -342,9 +338,6 @@
 // }
 
 // export default MobilePasscode;
-
-
-
 
 // import React, { useState, useEffect } from 'react';
 // import { Link, useNavigate } from 'react-router-dom';
@@ -433,7 +426,7 @@
 //             <div className="dash bottom"></div>
 //           </div>
 //         </div>
-        
+
 //         <div className="side right">
 //           <div className="dash right top"></div>
 //           <div className="side power" onClick={() => alert("Power button clicked")}></div>
@@ -446,11 +439,8 @@
 
 // export default MobilePasscode;
 
-
-
-
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import "./styles.css";
 import "./Pascode.css";
 import wifi from "../../media/assets/phone-simulator/Images/Icons/wifi.png";
@@ -465,7 +455,7 @@ const MobilePasscode: React.FC = () => {
   useEffect(() => {
     if (passcodeCount === 6) {
       setTimeout(() => {
-        navigate('/phone/home');
+        navigate("/phone/home");
         setPasscodeCount(0);
       }, 500);
     }
@@ -473,7 +463,7 @@ const MobilePasscode: React.FC = () => {
 
   const addFilledDot = () => {
     if (isPoweredOn) {
-      setPasscodeCount(prevCount => prevCount < 6 ? prevCount + 1 : prevCount);
+      setPasscodeCount(prevCount => (prevCount < 6 ? prevCount + 1 : prevCount));
     }
   };
 
@@ -483,12 +473,11 @@ const MobilePasscode: React.FC = () => {
 
   // Style for the entire phone, including screen on/off effects
   const phoneStyle = {
-    opacity: isPoweredOn ? '1' : '0', // Control opacity to simulate screen on/off
-    backgroundColor: isPoweredOn ? '' : 'black', // Set background color to black when off
-    backgroundImage: isPoweredOn ? '' : 'none', // Remove any background image when off
-    transition: 'all 0.5s ease' // Smooth transition for changes
+    opacity: isPoweredOn ? "1" : "0", // Control opacity to simulate screen on/off
+    backgroundColor: isPoweredOn ? "" : "black", // Set background color to black when off
+    backgroundImage: isPoweredOn ? "" : "none", // Remove any background image when off
+    transition: "all 0.5s ease", // Smooth transition for changes
   } as React.CSSProperties; // Type assertion for TypeScript
-
 
   return (
     <>
@@ -513,22 +502,26 @@ const MobilePasscode: React.FC = () => {
                 <div className="cam"></div>
               </div>
               <div className="right">
-                <img src={wifi} alt='wifi' className="wifi" />
-                <img src={battery} alt='battery' className="battery" />
+                <img src={wifi} alt="wifi" className="wifi" />
+                <img src={battery} alt="battery" className="battery" />
               </div>
             </div>
             <div className="content">
-              <img src={lock} alt='lock' className="lock" />
+              <img src={lock} alt="lock" className="lock" />
               <div className="passcode">
                 <h3>Enter Passcode</h3>
                 <div className="dots">
                   {[...Array(6)].map((_, index) => (
-                    <div key={index} className="dot" style={{ backgroundColor: index < passcodeCount ? '#fff' : 'transparent' }}></div>
+                    <div
+                      key={index}
+                      className="dot"
+                      style={{ backgroundColor: index < passcodeCount ? "#fff" : "transparent" }}
+                    ></div>
                   ))}
                 </div>
                 <div className="keypad">
-                  {['1', '2ABC', '3DEF', '4GHI', '5JKL', '6MNO', '7PQRS', '8TUV', '9WXYZ', '0'].map((item, index) => (
-                    <button key={index} className={`key ${item === '0' ? 'zero' : ''}`} onClick={addFilledDot}>
+                  {["1", "2ABC", "3DEF", "4GHI", "5JKL", "6MNO", "7PQRS", "8TUV", "9WXYZ", "0"].map((item, index) => (
+                    <button key={index} className={`key ${item === "0" ? "zero" : ""}`} onClick={addFilledDot}>
                       <div className="num">{item[0]}</div>
                       <div className="letters">{item.slice(1)}</div>
                     </button>
@@ -545,7 +538,7 @@ const MobilePasscode: React.FC = () => {
             <div className="dash bottom"></div>
           </div>
         </div>
-        
+
         <div className="side right">
           <div className="dash right top"></div>
           <div className="side power" onClick={togglePower}></div>
@@ -554,6 +547,6 @@ const MobilePasscode: React.FC = () => {
       </div>
     </>
   );
-}
+};
 
 export default MobilePasscode;

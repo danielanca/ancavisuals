@@ -1,8 +1,8 @@
-import { ForensicHandler } from './gameLogic/detectiveChat/forensicHandler.js';
-import { ChatResponse, streamType } from './gameLogic/detectiveChat/ConversationTypes.js';
+import { ForensicHandler } from "./gameLogic/detectiveChat/forensicHandler.js";
+import { ChatResponse, streamType } from "./gameLogic/detectiveChat/ConversationTypes.js";
 interface ChatMessage {
-  sender: 'user' | 'robot';
-  departmentId: 'forensic' | 'technical' | 'assistant';
+  sender: "user" | "robot";
+  departmentId: "forensic" | "technical" | "assistant";
   message: string;
   timestamp: string; // ISO 8601 format
 }
@@ -21,11 +21,11 @@ function getMessageHistory(): ChatMessage[] {
 }
 
 const getChatResponse = async (data: streamType): Promise<RESPONSE_TYPE> => {
-  let status = 'SUCCESS';
+  let status = "SUCCESS";
   let feedbackMessage: ChatResponse;
 
   switch (data.departmentId) {
-    case 'forensic':
+    case "forensic":
       feedbackMessage = await forensicResponse(data);
       break;
     // case 'technical':
@@ -36,7 +36,7 @@ const getChatResponse = async (data: streamType): Promise<RESPONSE_TYPE> => {
       feedbackMessage = await forensicResponse(data);
       break;
   }
-  console.log('Sending ', { status, feedbackMessage });
+  console.log("Sending ", { status, feedbackMessage });
   return { status, feedbackMessage };
 };
 

@@ -1,11 +1,11 @@
-import './_library.scss';
-import LibrarySong from './LibrarySong';
+import "./_library.scss";
+import LibrarySong from "./LibrarySong";
 
 const Library = ({ songs, setCurrentSong, audioRef, isPlaying, setSongs, setLibraryStatus, libraryStatus }: any) => {
   return (
-    <div className={`library ${libraryStatus ? 'active' : ''}`}>
-      <h2 className='libraryHeading'>Librarie</h2>
-      <div className='librarySongs'>
+    <div className={`library ${libraryStatus ? "active" : ""}`}>
+      <h2 className="libraryHeading">Librarie</h2>
+      <div className="librarySongs">
         {songs.map((song: any) => (
           <LibrarySong
             setSongs={setSongs}

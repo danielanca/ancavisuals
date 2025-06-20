@@ -1,4 +1,4 @@
-@import './../../commons/main.scss';
+@import "./../../commons/main.scss";
 
 // ChatPage.module.scss
 .chatContainer {
@@ -69,7 +69,7 @@
 }
 
 .typingIndicator::before {
-  content: '';
+  content: "";
   display: inline-block;
   width: 8px;
   height: 8px;
@@ -115,7 +115,7 @@
     object-fit: cover;
     border-radius: 50%;
 
-    @include media('<xs') {
+    @include media("<xs") {
       width: 70px;
       height: 70px;
     }

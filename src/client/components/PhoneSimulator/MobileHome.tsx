@@ -36,7 +36,7 @@
 // 			<h1 id="title">iPhone 12</h1>
 // 			<p id="sub">Recreated in HTML, CSS, JS</p>
 // 		</div> */}
-		
+
 // 		<div className="main">
 // 			<div className="side left">
 // 				<div className="dash left top"></div>
@@ -49,7 +49,7 @@
 
 // 				<div className="dash left bottom"></div>
 // 			</div>
-      
+
 // 			<div className="iphone home" id="iphone">
 // 				<div className="dash top"></div>
 
@@ -58,7 +58,7 @@
 // 						<div className="left">
 // 							<p className="time">9:41</p>
 // 						</div>
-// 						<div className="center">	
+// 						<div className="center">
 // 							<div className="mic">
 // 							</div>
 
@@ -74,7 +74,6 @@
 // 							<img src={battery} alt='battery' className="battery" />
 // 						</div>
 // 					</div>
-
 
 // 					<div className="content">
 // 						<div className="icons">
@@ -224,7 +223,7 @@
 // 					<div className="dash bottom"></div>
 // 				</div>
 // 			</div>
-			
+
 // 			<div className="side right">
 // 				<div className="dash right top"></div>
 
@@ -242,9 +241,8 @@
 
 // export default MobileHome
 
-
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import "./styles.css";
 import "./MainHome.css";
 import wifi from "../../media/assets/phone-simulator/Images/Icons/wifi.png";
@@ -282,19 +280,21 @@ const MobileHome: React.FC = () => {
   };
 
   const iphoneHomeStyle = {
-    backgroundColor: isPoweredOn ? '' : 'black', // Black background when off
-    backgroundImage: isPoweredOn ? 'url(/src/client/media/assets/phone-simulator/Images/Backgrounds/homescreen.jpeg)' : 'none', // Toggle background image
-    transition: 'background 0.5s ease' // Smooth transition for visual effects
+    backgroundColor: isPoweredOn ? "" : "black", // Black background when off
+    backgroundImage: isPoweredOn
+      ? "url(/src/client/media/assets/phone-simulator/Images/Backgrounds/homescreen.jpeg)"
+      : "none", // Toggle background image
+    transition: "background 0.5s ease", // Smooth transition for visual effects
   };
 
   const innerStyle = {
-    opacity: isPoweredOn ? '1' : '0', // Control opacity to simulate screen on/off
-    transition: 'opacity 0.5s ease'  // Smooth transition for turning on/off
+    opacity: isPoweredOn ? "1" : "0", // Control opacity to simulate screen on/off
+    transition: "opacity 0.5s ease", // Smooth transition for turning on/off
   };
 
   const phoneStyle = {
-    backgroundColor: isPoweredOn ? '' : 'black', // Black background when off
-    transition: 'background-color 0.5s ease'     // Smooth transition for background color
+    backgroundColor: isPoweredOn ? "" : "black", // Black background when off
+    transition: "background-color 0.5s ease", // Smooth transition for background color
   };
 
   return (
@@ -310,7 +310,7 @@ const MobileHome: React.FC = () => {
           <div className="dash left bottom"></div>
         </div>
 
-		<div className="iphone home" id="iphone" style={iphoneHomeStyle}>
+        <div className="iphone home" id="iphone" style={iphoneHomeStyle}>
           <div className="dash top"></div>
 
           <div className="inner" id="inner" style={innerStyle}>
@@ -318,39 +318,39 @@ const MobileHome: React.FC = () => {
               <div className="left">
                 <p className="time">9:41</p>
               </div>
-              <div className="center"> 
+              <div className="center">
                 <div className="mic"></div>
                 <div className="cam"></div>
               </div>
               <div className="right">
-                <img src={wifi} alt='wifi' className="wifi" />
-                <img src={battery} alt='battery' className="battery" />
+                <img src={wifi} alt="wifi" className="wifi" />
+                <img src={battery} alt="battery" className="battery" />
               </div>
             </div>
 
             <div className="content">
               <div className="icons">
                 {[
-                  { src: videoCall, label: 'FaceTime' },
-                  { src: date, label: 'Calendar' },
-                  { src: flower, label: 'Photos' },
-                  { src: camera, label: 'Camera' },
-                  { src: mail, label: 'Mail' },
-                  { src: clock, label: 'Clock' },
-                  { src: map, label: 'Maps' },
-                  { src: weather, label: 'Weather' },
-                  { src: marks, label: 'Reminders' },
-                  { src: notes, label: 'Notes' },
-                  { src: heartbeat, label: 'Stocks' },
-                  { src: zigzag, label: 'News' },
-                  { src: books, label: 'Books' },
-                  { src: AppStore, label: 'App Store' },
-                  { src: Podcasts, label: 'Podcasts' },
-                  { src: tv, label: 'TV' },
-                  { src: health, label: 'Health' },
-                  { src: Home, label: 'Home' },
-                  { src: Wallet, label: 'Wallet' },
-                  { src: Settings, label: 'Settings' }
+                  { src: videoCall, label: "FaceTime" },
+                  { src: date, label: "Calendar" },
+                  { src: flower, label: "Photos" },
+                  { src: camera, label: "Camera" },
+                  { src: mail, label: "Mail" },
+                  { src: clock, label: "Clock" },
+                  { src: map, label: "Maps" },
+                  { src: weather, label: "Weather" },
+                  { src: marks, label: "Reminders" },
+                  { src: notes, label: "Notes" },
+                  { src: heartbeat, label: "Stocks" },
+                  { src: zigzag, label: "News" },
+                  { src: books, label: "Books" },
+                  { src: AppStore, label: "App Store" },
+                  { src: Podcasts, label: "Podcasts" },
+                  { src: tv, label: "TV" },
+                  { src: health, label: "Health" },
+                  { src: Home, label: "Home" },
+                  { src: Wallet, label: "Wallet" },
+                  { src: Settings, label: "Settings" },
                 ].map((app, index) => (
                   <div key={index} className="appContainer">
                     <img src={app.src} alt={app.label} className="app" />
@@ -366,17 +366,17 @@ const MobileHome: React.FC = () => {
               </div>
 
               <div className="dock">
-                <img src={phone} alt='phone' className="app" />
-                <img src={safari} alt='safari' className="app" />
-                <img src={iMessage} alt='iMessage' className="app" />
-                <img src={music} alt='music' className="app" />
+                <img src={phone} alt="phone" className="app" />
+                <img src={safari} alt="safari" className="app" />
+                <img src={iMessage} alt="iMessage" className="app" />
+                <img src={music} alt="music" className="app" />
               </div>
             </div>
 
             <div className="dash bottom"></div>
           </div>
         </div>
-        
+
         <div className="side right">
           <div className="dash right top"></div>
           <div className="side power" onClick={togglePower}></div>
@@ -385,11 +385,9 @@ const MobileHome: React.FC = () => {
       </div>
     </>
   );
-}
+};
 
 export default MobileHome;
-
-
 
 // import React, { useState } from 'react';
 // import { Link } from 'react-router-dom';
@@ -472,7 +470,7 @@ export default MobileHome;
 //             {/* Include other components and app icons as in the previous example */}
 //           </div>
 //         </div>
-        
+
 //         <div className="side right">
 //           <div className="dash right top"></div>
 //           <div className="side power" onClick={togglePower}></div>

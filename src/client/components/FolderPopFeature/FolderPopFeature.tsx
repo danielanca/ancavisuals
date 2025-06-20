@@ -1,5 +1,5 @@
-import FolderPop from './FolderPop';
-import styles from './FolderPopFeature.module.scss';
+import FolderPop from "./FolderPop";
+import styles from "./FolderPopFeature.module.scss";
 
 const FolderPopFeature = () => {
   return (

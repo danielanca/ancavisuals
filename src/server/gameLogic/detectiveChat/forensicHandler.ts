@@ -1,13 +1,13 @@
-import { conversationMapSecond } from './conversationMaps.js';
-import { ConversationState, accountInterface, messageAccount, streamType } from './ConversationTypes.js';
-import { getDynamicDocumentOrCollection, saveDiscussionStateToDB, db } from './getters.js';
+import { conversationMapSecond } from "./conversationMaps.js";
+import { ConversationState, accountInterface, messageAccount, streamType } from "./ConversationTypes.js";
+import { getDynamicDocumentOrCollection, saveDiscussionStateToDB, db } from "./getters.js";
 
 type ChatResponse = {
   response: string;
   suggestedNextPrompts: string[];
   error?: string;
   header?: {
-    state: 'NO_HISTORY_FOUND';
+    state: "NO_HISTORY_FOUND";
     info?: string;
   };
 };
@@ -15,23 +15,23 @@ type ChatResponse = {
 export class ForensicHandler {
   async getHistoryChat(data: any): Promise<ChatResponse> {
     const chatRef = db
-      .collection('accounts')
+      .collection("accounts")
       .doc(data.clientId)
-      .collection('departments')
+      .collection("departments")
       .doc(data.departmentId)
-      .collection('conversations')
-      .doc('current')
-      .collection('messages');
+      .collection("conversations")
+      .doc("current")
+      .collection("messages");
 
     // Fetch the chat history
     try {
-      const snapshot = await chatRef.orderBy('timestamp', 'asc').get();
+      const snapshot = await chatRef.orderBy("timestamp", "asc").get();
       if (snapshot.empty) {
         return {
-          response: '',
+          response: "",
           header: {
-            state: 'NO_HISTORY_FOUND',
-            info: 'No chat history available.',
+            state: "NO_HISTORY_FOUND",
+            info: "No chat history available.",
           },
           suggestedNextPrompts: [...conversationMapSecond.values().next().value[0].triggers],
         };
@@ -43,7 +43,7 @@ export class ForensicHandler {
             let messageData = doc.data();
             return `${messageData.sender}[:] ${messageData.message}`;
           })
-          .join('\n');
+          .join("\n");
 
         let lastMessageData = snapshot.docs[snapshot.docs.length - 1].data();
         // Assuming the last doc contains the last message from the robot
@@ -56,7 +56,7 @@ export class ForensicHandler {
           let messageData = doc.data();
           // Assuming "robot" is the identifier for messages sent by the robot
           // This condition should be adjusted based on how robot messages are identified
-          if (messageData.sender === 'robot') {
+          if (messageData.sender === "robot") {
             lastMessageData = messageData;
             break;
           }
@@ -100,12 +100,12 @@ export class ForensicHandler {
         };
       }
     } catch (error) {
-      console.error('Error fetching chat history:', error);
+      console.error("Error fetching chat history:", error);
       let defaultResponse: ChatResponse = {
-        response: '',
+        response: "",
         header: {
-          info: 'No history found!',
-          state: 'NO_HISTORY_FOUND',
+          info: "No history found!",
+          state: "NO_HISTORY_FOUND",
         },
         suggestedNextPrompts: [conversationMapSecond.values().next().value[0].triggers],
       };
@@ -116,30 +116,30 @@ export class ForensicHandler {
   async forensicResponse(data: streamType): Promise<ChatResponse> {
     const message = data.message?.toLowerCase();
 
-    if (data.message === 'REQUEST_HISTORY') {
+    if (data.message === "REQUEST_HISTORY") {
       return this.getHistoryChat(data);
     }
     let defaultResponse: ChatResponse = {
-      response: 'Can you provide more information or clarify?',
+      response: "Can you provide more information or clarify?",
       suggestedNextPrompts: [...conversationMapSecond.values().next().value[0].triggers],
     };
     const chatRef = db
-      .collection('accounts')
+      .collection("accounts")
       .doc(data.clientId)
-      .collection('departments')
+      .collection("departments")
       .doc(data.departmentId)
-      .collection('conversations')
-      .doc('current')
-      .collection('messages');
+      .collection("conversations")
+      .doc("current")
+      .collection("messages");
 
     await chatRef.add({
-      sender: 'user',
+      sender: "user",
       message: message, // Original message before converting to lowercase
       timestamp: new Date().toISOString(),
     });
 
     if (!message) {
-      return { response: 'No message', suggestedNextPrompts: [''] };
+      return { response: "No message", suggestedNextPrompts: [""] };
     }
 
     for (let [state, steps] of conversationMapSecond.entries()) {
@@ -147,7 +147,7 @@ export class ForensicHandler {
         if (step.triggers.some(trigger => trigger.toLowerCase() === message)) {
           // Match found, return the corresponding response and suggestions
           await chatRef.add({
-            sender: 'robot',
+            sender: "robot",
             message: step.response,
             timestamp: new Date().toISOString(),
           });
