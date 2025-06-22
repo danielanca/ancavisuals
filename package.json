@@ -39,6 +39,7 @@
     "cross-env": "^7.0.3",
     "express": "4.18.2",
     "firebase-admin": "^12.0.0",
+    "font-awesome": "^4.7.0",
     "framer-motion": "^12.18.1",
     "fs": "^0.0.1-security",
     "react": "^18.2.0",

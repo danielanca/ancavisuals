@@ -13,6 +13,7 @@ import Process from './Process';
 import Testimonials from './Testimonials';
 import News from './News';
 import Contact from './Contact';
+import Faq from '../Faq/Faq';
 
 const Mainpage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -27,7 +28,8 @@ const Mainpage = () => {
         <Process />
         <Testimonials />
         <News />
-        <Contact />
+        <Faq />
+        <Contact />       
       <Footer />
     </div>
   );
