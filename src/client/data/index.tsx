@@ -1,10 +1,10 @@
-import messages from './messages.json';
-import contacts from './contacts.json';
-import chat_list from './chat_list.json';
+import messages from "./messages.json";
+import contacts from "./contacts.json";
+import chat_list from "./chat_list.json";
 
-import IContact from '../strings/IContact';
-import IChatList from '../strings/IChatList';
-import IMessage from '../strings/IMessage';
+import IContact from "../strings/IContact";
+import IChatList from "../strings/IChatList";
+import IMessage from "../strings/IMessage";
 
 class Database {
   messages: IMessage[];
@@ -12,9 +12,9 @@ class Database {
   chat_list: IChatList[];
 
   constructor() {
-    const exitsMessages = localStorage.getItem('messages');
-    const exitsContacts = localStorage.getItem('contacts');
-    const exitsChatList = localStorage.getItem('chat_list');
+    const exitsMessages = localStorage.getItem("messages");
+    const exitsContacts = localStorage.getItem("contacts");
+    const exitsChatList = localStorage.getItem("chat_list");
 
     if (!exitsMessages && !exitsContacts && !exitsChatList) {
       this.messages = messages;
@@ -23,16 +23,16 @@ class Database {
 
       this.insertDataLocalStorage();
     } else {
-      this.messages = JSON.parse(exitsMessages || '');
-      this.contacts = JSON.parse(exitsContacts || '');
-      this.chat_list = JSON.parse(exitsChatList || '');
+      this.messages = JSON.parse(exitsMessages || "");
+      this.contacts = JSON.parse(exitsContacts || "");
+      this.chat_list = JSON.parse(exitsChatList || "");
     }
   }
 
   insertDataLocalStorage() {
-    localStorage.setItem('messages', JSON.stringify(this.messages));
-    localStorage.setItem('contacts', JSON.stringify(this.contacts));
-    localStorage.setItem('chat_list', JSON.stringify(this.chat_list));
+    localStorage.setItem("messages", JSON.stringify(this.messages));
+    localStorage.setItem("contacts", JSON.stringify(this.contacts));
+    localStorage.setItem("chat_list", JSON.stringify(this.chat_list));
   }
 
   findMessage(id: number) {
@@ -98,7 +98,7 @@ class Database {
     }
 
     this.chat_list = chatNew;
-    localStorage.setItem('chat_list', JSON.stringify(chatNew));
+    localStorage.setItem("chat_list", JSON.stringify(chatNew));
   }
 
   insertMessage(text: string, contact_id: number) {
@@ -117,7 +117,7 @@ class Database {
     };
 
     messagesAll.push(messageNow);
-    localStorage.setItem('messages', JSON.stringify(messagesAll));
+    localStorage.setItem("messages", JSON.stringify(messagesAll));
     this.updateLastMessage(idNow, contact_id);
   }
 
@@ -133,7 +133,7 @@ class Database {
     }
 
     this.chat_list = chatAll;
-    localStorage.setItem('chat_list', JSON.stringify(chatAll));
+    localStorage.setItem("chat_list", JSON.stringify(chatAll));
   }
 }
 

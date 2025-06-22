@@ -1,10 +1,10 @@
-import Mainpage from '../pages/Homepage/Mainpage';
+import Mainpage from "../pages/Homepage/Mainpage";
 
-import { publicRoutesType } from './types';
+import { publicRoutesType } from "./types";
 
 const adminRoutes: publicRoutesType[] = [
   {
-    path: '',
+    path: "",
     layout: null,
     component: Mainpage,
   },

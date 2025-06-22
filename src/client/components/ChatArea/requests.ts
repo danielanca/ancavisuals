@@ -1,13 +1,13 @@
-import { streamType, departmentType } from 'src/server/gameLogic/detectiveChat/ConversationTypes';
+import { streamType, departmentType } from "src/server/gameLogic/detectiveChat/ConversationTypes";
 
 export type Message = {
   id: number;
   text: string;
-  sender: 'player' | 'robot';
+  sender: "player" | "robot";
 };
 
 export interface ChatMessage {
-  sender: 'user' | 'robot';
+  sender: "user" | "robot";
   departmentId: departmentType;
   message: string;
   timestamp?: string;
@@ -16,11 +16,11 @@ export interface ChatMessage {
 
 export const sendMessage = async (chatMessage: Partial<ChatMessage>) => {
   const streamSend: streamType = {
-    departmentId: 'forensic',
+    departmentId: "forensic",
     message: chatMessage.message,
-    clientId: 'daniel.anca',
+    clientId: "daniel.anca",
   };
-  const response = await fetch('/chat', {
+  const response = await fetch("/chat", {
     ...optionForJSON,
     body: JSON.stringify(streamSend),
   });
@@ -28,8 +28,8 @@ export const sendMessage = async (chatMessage: Partial<ChatMessage>) => {
 };
 
 const optionForJSON = {
-  method: 'POST',
+  method: "POST",
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 };

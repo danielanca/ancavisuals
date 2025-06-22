@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import IMessage from 'src/client/strings/IMessage';
+import React, { useEffect, useRef, useState } from "react";
+import IMessage from "src/client/strings/IMessage";
 
-import { FaCaretDown } from 'react-icons/fa';
+import { FaCaretDown } from "react-icons/fa";
 
-import './styles.css';
+import "./styles.css";
 
 interface Props {
   messages: IMessage[];
@@ -16,14 +16,12 @@ const ListMessages: React.FC<Props> = ({ messages, actionNewMessage }) => {
   const refListMessages = useRef<HTMLDivElement | any>();
 
   const scrollBottomList = () => {
-    const scroll =
-      refListMessages.current?.scrollHeight -
-      refListMessages.current?.clientHeight;
+    const scroll = refListMessages.current?.scrollHeight - refListMessages.current?.clientHeight;
     refListMessages.current?.scrollTo(0, scroll);
   };
 
   useEffect(() => {
-    window.addEventListener('resize', () => {
+    window.addEventListener("resize", () => {
       setHeight(window.innerHeight - 130);
     });
   }, []);
@@ -37,14 +35,11 @@ const ListMessages: React.FC<Props> = ({ messages, actionNewMessage }) => {
   }
 
   const FormatText: React.FC<IPropsFormatText> = ({ text }) => {
-    const textFormat = text.split('\n');
+    const textFormat = text.split("\n");
     return (
       <span>
         {textFormat.map(item => (
-          <p
-            key={item.replaceAll(' ', '') + Math.floor(Math.random() * 1000)}
-            className='textFormat'
-          >
+          <p key={item.replaceAll(" ", "") + Math.floor(Math.random() * 1000)} className="textFormat">
             {item}
           </p>
         ))}
@@ -54,21 +49,21 @@ const ListMessages: React.FC<Props> = ({ messages, actionNewMessage }) => {
 
   return (
     <main
-      id='mainId'
+      id="mainId"
       style={{
         height: height,
       }}
     >
-      <div className='backColor'></div>
-      <div className='backImgChat'></div>
-      <div ref={refListMessages} className='listMessages'>
+      <div className="backColor"></div>
+      <div className="backImgChat"></div>
+      <div ref={refListMessages} className="listMessages">
         {messages.map(item => (
-          <div key={item.id} className={item.send === 0 ? 'notSend' : 'send'}>
-            {item.send === 0 ? <FaCaretDown className='caretNotSend' /> : <></>}
-            <div className={item.send === 0 ? 'areaMsgNotSend' : 'areaMsgSend'}>
+          <div key={item.id} className={item.send === 0 ? "notSend" : "send"}>
+            {item.send === 0 ? <FaCaretDown className="caretNotSend" /> : <></>}
+            <div className={item.send === 0 ? "areaMsgNotSend" : "areaMsgSend"}>
               <FormatText text={item.text} />
             </div>
-            {item.send === 1 ? <FaCaretDown className='caretSend' /> : <></>}
+            {item.send === 1 ? <FaCaretDown className="caretSend" /> : <></>}
           </div>
         ))}
       </div>

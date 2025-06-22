@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 
-import IContact from 'src/client/strings/IContact';
-import IMessage from 'src/client/strings/IMessage';
+import IContact from "src/client/strings/IContact";
+import IMessage from "src/client/strings/IMessage";
 
-import './styles.css';
+import "./styles.css";
 
-import images from '../../media/images';
-import Database from '../../data';
+import images from "../../media/images";
+import Database from "../../data";
 
-import Header from './Header';
-import ListMessage from './ListMessages';
-import AreaSend from './AreaSend';
+import Header from "./Header";
+import ListMessage from "./ListMessages";
+import AreaSend from "./AreaSend";
 
 interface Props {
   contact_id: number;
@@ -37,9 +37,9 @@ const Chat: React.FC<Props> = ({ contact_id, setChatList, backButton }) => {
   }, [contact_id, setChatList]);
 
   return (
-    <section className='chatContainer'>
+    <section className="chatContainer">
       {contact_id > 0 ? (
-        <div className='areaChat'>
+        <div className="areaChat">
           <Header contactInfo={contactInfo} backButton={backButton} />
 
           <ListMessage messages={messages} actionNewMessage={actionMessage} />
@@ -52,19 +52,18 @@ const Chat: React.FC<Props> = ({ contact_id, setChatList, backButton }) => {
           />
         </div>
       ) : (
-        <div className='areaDefault'>
-          <div className='default'>
+        <div className="areaDefault">
+          <div className="default">
             <div
-              className='backImg'
+              className="backImg"
               style={{
                 backgroundImage: `url(${images.facebook_chat.imgChatNone})`,
               }}
             ></div>
             <h1>Mantenha seu celular conectado</h1>
             <p>
-              O Chat conecta ao seu telefone para sincronizar suas mensagens.
-              Para reduzir o uso de dados, conecte seu telefone a uma rede
-              Wi-Fi.
+              O Chat conecta ao seu telefone para sincronizar suas mensagens. Para reduzir o uso de dados, conecte seu
+              telefone a uma rede Wi-Fi.
             </p>
           </div>
         </div>

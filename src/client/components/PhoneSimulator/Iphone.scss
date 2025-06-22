@@ -7,8 +7,8 @@
   align-content: $ac;
 }
 
-@mixin imagen($url: '', $size: cover, $posicion: center, $repeat: no-repeat, $parallax: false) {
-  @if $url != '' {
+@mixin imagen($url: "", $size: cover, $posicion: center, $repeat: no-repeat, $parallax: false) {
+  @if $url != "" {
     background-image: url($url);
   }
   background-size: $size;
@@ -24,20 +24,30 @@ $blanco: #fff;
 $mainColor: #152839;
 $grayDark: #1b1b1b;
 
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap");
 
 @keyframes relojAnalogico {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes shake {
-  0% { transform: rotate(-2deg); }
-  100% { transform: rotate(2deg); }
+  0% {
+    transform: rotate(-2deg);
+  }
+  100% {
+    transform: rotate(2deg);
+  }
 }
 
 @keyframes shake-2 {
-  0% { transform: rotate(-1deg); }
-  100% { transform: rotate(1deg); }
+  0% {
+    transform: rotate(-1deg);
+  }
+  100% {
+    transform: rotate(1deg);
+  }
 }
 
 @keyframes grabarPantalla {
@@ -66,7 +76,6 @@ $grayDark: #1b1b1b;
 //     text-decoration: none;
 //   }
 // }
-
 
 #fixedApp {
   position: fixed;
@@ -103,7 +112,8 @@ $grayDark: #1b1b1b;
           }
 
           .calendarioTabla {
-            .tablaHeader, .tablaContent {
+            .tablaHeader,
+            .tablaContent {
               @include flex($jc: flex-start);
 
               > * {
@@ -284,39 +294,41 @@ $grayDark: #1b1b1b;
     overflow: hidden;
   }
 
-  .nombre, .notificacion {
+  .nombre,
+  .notificacion {
     display: none;
   }
 }
 
-.fixedMenuFixedApp{
+.fixedMenuFixedApp {
   position: fixed;
   width: 190px;
   top: 413px;
   left: 300px;
   border-radius: 15px;
-  background-color: rgba($blanco,.8);
-  .menuOption{
+  background-color: rgba($blanco, 0.8);
+  .menuOption {
     @include flex($jc: space-between);
     padding: 7px 15px;
     font-size: 12px;
     color: $negro;
     cursor: pointer;
     box-sizing: border-box;
-    &.eliminar{
+    &.eliminar {
       color: red;
     }
-    &:not(:last-child){
-      border-bottom: 1px solid rgba($negro,.1);
+    &:not(:last-child) {
+      border-bottom: 1px solid rgba($negro, 0.1);
     }
-    .icono{
+    .icono {
       width: 18px;
       height: 18px;
       margin-left: 10px;
-      svg{
+      svg {
         width: 100%;
         height: 100%;
-        path, circle{
+        path,
+        circle {
           fill: none;
           stroke: currentColor;
           stroke-width: 2;
@@ -327,7 +339,7 @@ $grayDark: #1b1b1b;
     }
   }
 }
-#iOSAlert{
+#iOSAlert {
   @include flex;
   display: none;
   position: absolute;
@@ -335,44 +347,44 @@ $grayDark: #1b1b1b;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba($negro,.3);
+  background-color: rgba($negro, 0.3);
   backdrop-filter: blur(2px);
   z-index: 10;
-  .contenedor{
+  .contenedor {
     max-width: 70%;
     padding-top: 10px;
     border-radius: 10px;
     text-align: center;
-    background-color: rgba($blanco,.95);
-    box-shadow: 0 0 10px 0 rgba($negro,.1);
+    background-color: rgba($blanco, 0.95);
+    box-shadow: 0 0 10px 0 rgba($negro, 0.1);
     box-sizing: border-box;
     transition: cubic-bezier(0.68, -0.55, 0.27, 1.55) all 0.3s;
-    &.hidAnim{
+    &.hidAnim {
       opacity: 0;
       transform: scale(1.1);
     }
-    p{
+    p {
       color: $negro;
       font-size: 12px;
       padding: 0 10px;
-      &.encabezado{
+      &.encabezado {
         font-size: 13px;
         font-weight: 600;
         margin-bottom: 5px;
       }
-      &.mensaje{
+      &.mensaje {
         padding-bottom: 10px;
       }
     }
-    .acciones{
+    .acciones {
       margin-top: 10px;
-      .accion{
+      .accion {
         padding: 10px;
         font-size: 12px;
         color: #6da7ff;
-        border-top: 1px solid rgba($negro,.1);
+        border-top: 1px solid rgba($negro, 0.1);
         cursor: pointer;
-        &.warning{
+        &.warning {
           color: red;
         }
       }
@@ -380,53 +392,51 @@ $grayDark: #1b1b1b;
   }
 }
 
-
-
-.iphoneMock{
-  background-color: brown  !important;
+.iphoneMock {
+  background-color: brown !important;
   border: 1px solid white;
   @include flex;
   width: 100%;
   min-height: 100vh;
-  .container{
+  .container {
     @include flex;
     width: 90%;
     margin: 0 auto;
     padding: 50px 0;
     overflow: hidden;
-    .interactionInfo{
+    .interactionInfo {
       width: 600px;
       margin: 50px;
-      &.hidden{
-        >*{
+      &.hidden {
+        > * {
           opacity: 0;
           transform: translateY(-10px);
         }
       }
-      >*{
+      > * {
         margin-bottom: 10px;
-        transition: ease all .5s;
+        transition: ease all 0.5s;
         @for $i from 1 through 10 {
-          &:nth-child(#{$i}){
-            transition-delay: #{$i * .1s};
+          &:nth-child(#{$i}) {
+            transition-delay: #{$i * 0.1s};
           }
         }
       }
-      h1{
+      h1 {
         font-size: 30px;
         margin-bottom: 20px;
       }
-      .importante{
-        &:before{
+      .importante {
+        &:before {
           content: "*";
           margin-right: 5px;
           color: red;
         }
       }
-      .botones{
+      .botones {
         @include flex($jc: flex-start);
         margin: 20px auto;
-        .boton{
+        .boton {
           padding: 10px 20px;
           margin-right: 20px;
           min-width: 225px;
@@ -438,134 +448,137 @@ $grayDark: #1b1b1b;
           background-color: $grayDark;
           box-sizing: border-box;
           cursor: pointer;
-          &.activo{
-            &:before{
+          &.activo {
+            &:before {
               content: attr(data-back);
             }
           }
-          &:before{
+          &:before {
             content: attr(data-front);
           }
         }
       }
     }
-    .iphone{
+    .iphone {
       width: 320px;
       height: 640px;
       border-radius: 45px;
       position: relative;
       user-select: none;
       transition: ease all 1s;
-      &.initAnimation{
+      &.initAnimation {
         transform: translateY(200px);
         opacity: 0;
-        .bordeColor{
+        .bordeColor {
           transform: rotateY(180deg);
           box-shadow: inset 0 0 7px 1px $blanco;
-          .backSide{
+          .backSide {
             opacity: 1;
             visibility: visible;
             pointer-events: all;
           }
         }
       }
-      &.powerOn{
-        .bordeColor{
-          .bordeNegro{
-            .logo{
+      &.powerOn {
+        .bordeColor {
+          .bordeNegro {
+            .logo {
               opacity: 1;
               transition-delay: 1s;
             }
           }
         }
       }
-      &.arrhe{
-        .bordeColor{
-          .bordeNegro{
-            .logo{
+      &.arrhe {
+        .bordeColor {
+          .bordeNegro {
+            .logo {
               transform: scale(25);
-              transition-duration: .5s;
+              transition-duration: 0.5s;
             }
           }
         }
       }
-      &.showBackSide{
+      &.showBackSide {
         transform: translateY(-10px);
-        .bordeColor{
+        .bordeColor {
           transform: rotateY(180deg);
           box-shadow: inset 0 0 7px 1px $blanco;
-          .backSide{
+          .backSide {
             opacity: 1;
             visibility: visible;
             pointer-events: all;
           }
         }
       }
-      &:before, &:after{
+      &:before,
+      &:after {
         content: "";
         position: absolute;
-        background-color: rgba($blanco,.1);
+        background-color: rgba($blanco, 0.1);
         width: 6px;
         height: 7px;
         z-index: 1;
       }
-      &:before{
+      &:before {
         top: 1px;
         right: 70px;
       }
-      &:after{
+      &:after {
         bottom: -1px;
         left: 70px;
       }
-      .bordeColor{
+      .bordeColor {
         @include flex;
         height: 100%;
         width: 100%;
         background-color: $mainColor;
-        border: 1px solid rgba($blanco,.6);
+        border: 1px solid rgba($blanco, 0.6);
         box-shadow: inset 0 0 3px 1px $blanco;
         border-radius: 45px;
         position: relative;
-        transition: ease all .5s;
-        &:before, &:after{
+        transition: ease all 0.5s;
+        &:before,
+        &:after {
           content: "";
           position: absolute;
           top: 65px;
-          background-color: rgba($blanco,.1);
+          background-color: rgba($blanco, 0.1);
           width: 7px;
           height: 6px;
           z-index: 1;
         }
-        &:before{
+        &:before {
           left: 0px;
         }
-        &:after{
+        &:after {
           right: 0px;
         }
-        .botones{
-          &:before, &:after{
+        .botones {
+          &:before,
+          &:after {
             content: "";
             position: absolute;
             bottom: 65px;
-            background-color: rgba($blanco,.1);
+            background-color: rgba($blanco, 0.1);
             width: 7px;
             height: 6px;
             z-index: 1;
           }
-          &:before{
+          &:before {
             left: 0px;
           }
-          &:after{
+          &:after {
             right: 0px;
           }
-          >*{
+          > * {
             position: absolute;
             left: -3px;
             width: 3px;
             background: linear-gradient(90deg, transparent, $mainColor);
             border-radius: 20px 10px 10px 20px;
           }
-          .touchID{
+          .touchID {
             top: 160px;
             right: -3px;
             left: auto;
@@ -573,19 +586,19 @@ $grayDark: #1b1b1b;
             background: linear-gradient(90deg, $mainColor, transparent);
             border-radius: 10px 20px 20px 10px;
           }
-          .switch{
+          .switch {
             top: 100px;
             height: 25px;
           }
-          .vol{
+          .vol {
             top: 150px;
             height: 45px;
-            &.down{
+            &.down {
               top: 210px;
             }
           }
         }
-        .backSide{
+        .backSide {
           @include flex;
           position: absolute;
           width: calc(100% - 12px);
@@ -597,18 +610,18 @@ $grayDark: #1b1b1b;
           visibility: hidden;
           pointer-events: none;
           overflow: hidden;
-          transition: ease all .3s;
+          transition: ease all 0.3s;
           z-index: 1000;
-          &:before{
+          &:before {
             content: "";
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle farthest-corner at 245px 0px , rgba($blanco,.1), transparent);
+            background: radial-gradient(circle farthest-corner at 245px 0px, rgba($blanco, 0.1), transparent);
           }
-          .camaras{
+          .camaras {
             @include flex(column, $jc: space-between, $ac: space-between);
             position: absolute;
             top: 20px;
@@ -618,9 +631,9 @@ $grayDark: #1b1b1b;
             padding: 10px;
             border-radius: 25px;
             box-sizing: border-box;
-            background: linear-gradient(45deg, rgba($negro,.3), transparent);
-            box-shadow: 1px 1px 10px 0 rgba($negro,.4);
-            &:before{
+            background: linear-gradient(45deg, rgba($negro, 0.3), transparent);
+            box-shadow: 1px 1px 10px 0 rgba($negro, 0.4);
+            &:before {
               content: "";
               position: absolute;
               top: 0;
@@ -628,38 +641,39 @@ $grayDark: #1b1b1b;
               width: 100%;
               height: 100%;
               border-radius: 25px;
-              box-shadow: -10px 0 10px -10px rgba($blanco,.4);
+              box-shadow: -10px 0 10px -10px rgba($blanco, 0.4);
             }
-            .cam{
+            .cam {
               @include flex;
               width: 42px;
               height: 42px;
               border-radius: 50%;
               position: relative;
-              &:nth-child(3){
+              &:nth-child(3) {
                 margin: auto 0;
               }
-              &:before, &:after{
+              &:before,
+              &:after {
                 content: "";
                 position: absolute;
               }
-              &:before{
+              &:before {
                 width: calc(100% + 10px);
                 height: calc(100% + 10px);
                 border-radius: 50%;
                 box-shadow: -2px 2px 8px 0 $negro;
-                background: linear-gradient(45deg, $mainColor 65%, rgba($blanco,.5));
+                background: linear-gradient(45deg, $mainColor 65%, rgba($blanco, 0.5));
               }
-              &:after{
+              &:after {
                 width: 100%;
                 height: 100%;
                 border-radius: 50%;
                 background-color: $grayDark;
-                border: 9px solid rgba($negro,.2);
+                border: 9px solid rgba($negro, 0.2);
                 position: relative;
                 box-sizing: border-box;
               }
-              .lente{
+              .lente {
                 position: absolute;
                 width: 25%;
                 height: 25%;
@@ -669,31 +683,32 @@ $grayDark: #1b1b1b;
                 z-index: 1;
               }
             }
-            .flash, .sensor{
+            .flash,
+            .sensor {
               position: absolute;
               right: 20px;
               width: 22px;
               height: 22px;
               border-radius: 50%;
-              &:before{
+              &:before {
                 content: "";
                 position: absolute;
                 border-radius: 50%;
               }
             }
-            .flash{
+            .flash {
               top: 5px;
               background-color: $blanco;
-              &:before{
+              &:before {
                 width: 100%;
                 height: 100%;
                 background: radial-gradient(#fff291, #ffd5fe);
               }
             }
-            .sensor{
+            .sensor {
               bottom: 5px;
               background-color: $negro;
-              &:before{
+              &:before {
                 top: -3px;
                 right: -7px;
                 width: 3px;
@@ -703,7 +718,7 @@ $grayDark: #1b1b1b;
             }
           }
         }
-        .bordeNegro{
+        .bordeNegro {
           @include flex;
           width: calc(100% - 14px);
           height: calc(100% - 14px);
@@ -711,7 +726,7 @@ $grayDark: #1b1b1b;
           background-color: $negro;
           position: relative;
           overflow: hidden;
-          &:after{
+          &:after {
             content: "";
             position: absolute;
             width: 100%;
@@ -722,7 +737,7 @@ $grayDark: #1b1b1b;
             pointer-events: none;
             z-index: 100;
           }
-          .notch{
+          .notch {
             @include flex;
             position: absolute;
             top: 0;
@@ -732,7 +747,8 @@ $grayDark: #1b1b1b;
             border-bottom-right-radius: 17px;
             background-color: $negro;
             z-index: 100;
-            &:before, &:after{
+            &:before,
+            &:after {
               content: "";
               position: absolute;
               top: 0;
@@ -741,17 +757,17 @@ $grayDark: #1b1b1b;
               border-radius: 50%;
               border: 7px solid transparent;
             }
-            &:before{
+            &:before {
               left: -17px;
               border-right-color: $negro;
               transform: rotate(-50deg);
             }
-            &:after{
+            &:after {
               right: -17px;
               border-left-color: $negro;
               transform: rotate(50deg);
             }
-            .bocina{
+            .bocina {
               @include flex($jc: flex-start);
               width: 40px;
               height: 4px;
@@ -761,23 +777,66 @@ $grayDark: #1b1b1b;
               box-shadow: inset 0px -0.3px 1px 0px #8c8c8c;
               position: relative;
               overflow: hidden;
-              &:before, &:after{
+              &:before,
+              &:after {
                 content: "";
                 position: absolute;
               }
-              &:before{
+              &:before {
                 width: 0;
                 height: 60%;
                 transform: skew(-10deg);
-                box-shadow: 1px 0 0px 0.2px #313131, 2px 0 0px 0.2px #313131, 3px 0 0px 0.2px #313131, 4px 0 0px 0.2px #313131, 5px 0 0px 0.2px #313131, 6px 0 0px 0.2px #313131, 7px 0 0px 0.2px #313131, 8px 0 0px 0.2px #313131, 9px 0 0px 0.2px #313131, 10px 0 0px 0.2px #313131, 11px 0 0px 0.2px #313131, 12px 0 0px 0.2px #313131, 13px 0 0px 0.2px #313131, 14px 0 0px 0.2px #313131, 15px 0 0px 0.2px #313131, 16px 0 0px 0.2px #313131, 17px 0 0px 0.2px #313131, 18px 0 0px 0.2px #313131, 19px 0 0px 0.2px #313131, 20px 0 0px 0.2px #313131, 21px 0 0px 0.2px #313131, 22px 0 0px 0.2px #313131, 23px 0 0px 0.2px #313131, 24px 0 0px 0.2px #313131, 25px 0 0px 0.2px #313131, 26px 0 0px 0.2px #313131, 27px 0 0px 0.2px #313131, 28px 0 0px 0.2px #313131, 29px 0 0px 0.2px #313131, 30px 0 0px 0.2px #313131, 31px 0 0px 0.2px #313131, 32px 0 0px 0.2px #313131, 33px 0 0px 0.2px #313131, 34px 0 0px 0.2px #313131, 35px 0 0px 0.2px #313131, 36px 0 0px 0.2px #313131, 37px 0 0px 0.2px #313131, 38px 0 0px 0.2px #313131, 39px 0 0px 0.2px #313131;
+                box-shadow:
+                  1px 0 0px 0.2px #313131,
+                  2px 0 0px 0.2px #313131,
+                  3px 0 0px 0.2px #313131,
+                  4px 0 0px 0.2px #313131,
+                  5px 0 0px 0.2px #313131,
+                  6px 0 0px 0.2px #313131,
+                  7px 0 0px 0.2px #313131,
+                  8px 0 0px 0.2px #313131,
+                  9px 0 0px 0.2px #313131,
+                  10px 0 0px 0.2px #313131,
+                  11px 0 0px 0.2px #313131,
+                  12px 0 0px 0.2px #313131,
+                  13px 0 0px 0.2px #313131,
+                  14px 0 0px 0.2px #313131,
+                  15px 0 0px 0.2px #313131,
+                  16px 0 0px 0.2px #313131,
+                  17px 0 0px 0.2px #313131,
+                  18px 0 0px 0.2px #313131,
+                  19px 0 0px 0.2px #313131,
+                  20px 0 0px 0.2px #313131,
+                  21px 0 0px 0.2px #313131,
+                  22px 0 0px 0.2px #313131,
+                  23px 0 0px 0.2px #313131,
+                  24px 0 0px 0.2px #313131,
+                  25px 0 0px 0.2px #313131,
+                  26px 0 0px 0.2px #313131,
+                  27px 0 0px 0.2px #313131,
+                  28px 0 0px 0.2px #313131,
+                  29px 0 0px 0.2px #313131,
+                  30px 0 0px 0.2px #313131,
+                  31px 0 0px 0.2px #313131,
+                  32px 0 0px 0.2px #313131,
+                  33px 0 0px 0.2px #313131,
+                  34px 0 0px 0.2px #313131,
+                  35px 0 0px 0.2px #313131,
+                  36px 0 0px 0.2px #313131,
+                  37px 0 0px 0.2px #313131,
+                  38px 0 0px 0.2px #313131,
+                  39px 0 0px 0.2px #313131;
               }
-              &:after{
+              &:after {
                 width: 95%;
                 height: 0;
-                box-shadow: 1px -0.8px 0px 0.2px #313131, 1px 0px 0px 0.2px #313131, 1px 0.8px 0px 0.2px #313131;
+                box-shadow:
+                  1px -0.8px 0px 0.2px #313131,
+                  1px 0px 0px 0.2px #313131,
+                  1px 0.8px 0px 0.2px #313131;
               }
             }
-            .camara{
+            .camara {
               @include flex;
               position: absolute;
               right: 35px;
@@ -785,37 +844,40 @@ $grayDark: #1b1b1b;
               height: 14px;
               border-radius: 50%;
               background-color: $grayDark;
-              &:before, &:after{
+              &:before,
+              &:after {
                 content: "";
                 position: absolute;
                 border-radius: 50%;
               }
-              &:before{
+              &:before {
                 width: calc(100% - 4px);
                 height: calc(100% - 4px);
                 background: radial-gradient($negro, $mainColor 60%);
               }
-              &:after{
+              &:after {
                 width: 4px;
                 height: 4px;
                 margin-top: 2px;
                 margin-right: 2px;
-                background-color: rgba($blanco,.1);
+                background-color: rgba($blanco, 0.1);
               }
             }
           }
-          .logo{
+          .logo {
             position: absolute;
             width: 70px;
             height: 70px;
             opacity: 0;
-            transition: ease all .3s;
-            svg{
+            transition: ease all 0.3s;
+            svg {
               color: $blanco;
             }
           }
-          .mainScreen{
-            @include imagen('https://firebasestorage.googleapis.com/v0/b/fotos-3cba1.appspot.com/o/wallpaper.jpg?alt=media&token=059229cc-3823-4d27-834a-7b62cabd69d2');
+          .mainScreen {
+            @include imagen(
+              "https://firebasestorage.googleapis.com/v0/b/fotos-3cba1.appspot.com/o/wallpaper.jpg?alt=media&token=059229cc-3823-4d27-834a-7b62cabd69d2"
+            );
             width: calc(100% - 14px);
             height: calc(100% - 14px);
             border-radius: 32px;
@@ -825,62 +887,68 @@ $grayDark: #1b1b1b;
             position: relative;
             overflow: hidden;
             transition: ease all 1s;
-            &.bloqueado{
+            &.bloqueado {
               opacity: 0;
               pointer-events: none;
-              transition: ease all .2s;
+              transition: ease all 0.2s;
             }
-            &.blur{
+            &.blur {
               background-image: url(https://firebasestorage.googleapis.com/v0/b/fotos-3cba1.appspot.com/o/wallpaperBlur.jpg?alt=media&token=22c91194-dfa0-4ebb-870e-9f585bf35b01);
-              transition-duration: .5s;
+              transition-duration: 0.5s;
             }
-            &.filterBlur{
-              background-color: rgba($negro,.2);
+            &.filterBlur {
+              background-color: rgba($negro, 0.2);
               filter: blur(5px);
               pointer-events: none;
-              transition-duration: .2s;
-              .appScreen{
-                transform: scale(.9);
-                transition-duration: .2s;
+              transition-duration: 0.2s;
+              .appScreen {
+                transform: scale(0.9);
+                transition-duration: 0.2s;
               }
             }
-            &.shakingApps{
-              .appScreen{
-                .app{
-                  animation: shake .1s linear alternate infinite;
-                  &.widgetFull{
-                    animation: shake-2 .1s linear alternate infinite;
+            &.shakingApps {
+              .appScreen {
+                .app {
+                  animation: shake 0.1s linear alternate infinite;
+                  &.widgetFull {
+                    animation: shake-2 0.1s linear alternate infinite;
                   }
                 }
               }
-              .statusBar{
-                .leftSide, .rightSide{
-                  .operador, .hora, .signal, .datos, .bateria{
+              .statusBar {
+                .leftSide,
+                .rightSide {
+                  .operador,
+                  .hora,
+                  .signal,
+                  .datos,
+                  .bateria {
                     opacity: 0;
                   }
-                  .widgetPlus, .exitShake{
+                  .widgetPlus,
+                  .exitShake {
                     transform: scale(1);
                   }
                 }
               }
-              .appScreen{
-                .wrapperDots{
+              .appScreen {
+                .wrapperDots {
                   padding: 3px 10px;
                   border-radius: 20px;
-                  background-color: rgba($blanco,.5);
-                  .dot{
-                    background-color: rgba($negro,.3);
+                  background-color: rgba($blanco, 0.5);
+                  .dot {
+                    background-color: rgba($negro, 0.3);
                   }
                 }
               }
             }
-            &.widgetScreenOpen{
-              background-color: rgba($negro, .5);
-              .statusBar{
+            &.widgetScreenOpen {
+              background-color: rgba($negro, 0.5);
+              .statusBar {
                 opacity: 0;
               }
             }
-            .buscador{
+            .buscador {
               @include flex;
               width: 100%;
               height: 35px;
@@ -888,18 +956,19 @@ $grayDark: #1b1b1b;
               font-size: 14px;
               border-radius: 10px;
               margin: 10px auto 30px auto;
-              background-color: rgba($blanco,.5);
+              background-color: rgba($blanco, 0.5);
               cursor: not-allowed;
-              .icono{
+              .icono {
                 width: 15px;
                 height: 15px;
                 margin-right: 7px;
                 position: relative;
-                &:before, &:after{
+                &:before,
+                &:after {
                   content: "";
                   position: absolute;
                 }
-                &:before{
+                &:before {
                   top: 0;
                   left: 0;
                   width: 13px;
@@ -908,7 +977,7 @@ $grayDark: #1b1b1b;
                   border: 1px solid currentColor;
                   box-sizing: border-box;
                 }
-                &:after{
+                &:after {
                   bottom: 0;
                   right: 0;
                   width: 1px;
@@ -919,22 +988,24 @@ $grayDark: #1b1b1b;
                 }
               }
             }
-            .statusBar{
+            .statusBar {
               @include flex($jc: space-between);
               height: 20px;
               padding: 5px 20px 0px 20px;
               padding-right: 12px;
-              transition: ease all .1s;
+              transition: ease all 0.1s;
               position: relative;
               z-index: 1;
               cursor: grab;
-              &.onlyLed{
-                .leftSide, .rightSide{
+              &.onlyLed {
+                .leftSide,
+                .rightSide {
                   display: none;
                 }
               }
-              &.camActiv, &.micActiv{
-                &:after{
+              &.camActiv,
+              &.micActiv {
+                &:after {
                   content: "";
                   position: absolute;
                   top: 7px;
@@ -945,25 +1016,25 @@ $grayDark: #1b1b1b;
                   background-color: #00dc54;
                 }
               }
-              &.micActiv{
-                &:after{
+              &.micActiv {
+                &:after {
                   background-color: #ff8e00;
                 }
               }
-              &.mov{
+              &.mov {
                 transform: translateY(-100%);
               }
-              .leftSide{
+              .leftSide {
                 color: $blanco;
                 font-size: 10px;
                 text-transform: uppercase;
                 position: relative;
-                >*{
-                  &.hidden{
+                > * {
+                  &.hidden {
                     display: none;
                   }
                 }
-                .widgetPlus{
+                .widgetPlus {
                   @include flex;
                   position: absolute;
                   top: 0;
@@ -971,43 +1042,47 @@ $grayDark: #1b1b1b;
                   width: 40px;
                   height: 17px;
                   border-radius: 20px;
-                  background-color: rgba($blanco,.5);
+                  background-color: rgba($blanco, 0.5);
                   transform: scale(0);
                   overflow: hidden;
                   cursor: pointer;
-                  transition: ease all .2s;
-                  &:before, &:after{
+                  transition: ease all 0.2s;
+                  &:before,
+                  &:after {
                     position: absolute;
                     content: "";
                     width: 8px;
                     height: 1px;
-                    background-color: rgba($negro, .5);
+                    background-color: rgba($negro, 0.5);
                   }
-                  &:after{
+                  &:after {
                     transform: rotate(90deg);
                   }
                 }
               }
-              .rightSide{
+              .rightSide {
                 @include flex($jc: flex-end);
                 position: relative;
-                .signal{
+                .signal {
                   @include flex;
                   width: 18px;
                   height: 10px;
                   position: relative;
                   overflow: hidden;
-                  &.mid{
-                    &:before{
-                      opacity: .4;
+                  &.mid {
+                    &:before {
+                      opacity: 0.4;
                     }
                   }
-                  &.low{
-                    &:before, &:after, .bar::before{
-                      opacity: .4;
+                  &.low {
+                    &:before,
+                    &:after,
+                    .bar::before {
+                      opacity: 0.4;
                     }
                   }
-                  &:before, &:after{
+                  &:before,
+                  &:after {
                     content: "";
                     position: absolute;
                     bottom: 0;
@@ -1015,16 +1090,17 @@ $grayDark: #1b1b1b;
                     border-radius: 5px;
                     background-color: $blanco;
                   }
-                  &:before{
+                  &:before {
                     right: 0;
                     height: 100%;
                   }
-                  &:after{
+                  &:after {
                     right: 4px;
                     height: 80%;
                   }
-                  .bar{
-                    &:before, &:after{
+                  .bar {
+                    &:before,
+                    &:after {
                       content: "";
                       position: absolute;
                       bottom: 0;
@@ -1032,39 +1108,40 @@ $grayDark: #1b1b1b;
                       border-radius: 5px;
                       background-color: $blanco;
                     }
-                    &:before{
+                    &:before {
                       right: 8px;
                       height: 60%;
                     }
-                    &:after{
+                    &:after {
                       right: 12px;
                       height: 40%;
                     }
                   }
                 }
-                .datos{
+                .datos {
                   margin: 0 3px;
                   color: $blanco;
                   font-size: 10px;
                 }
-                .wifi{
+                .wifi {
                   @include flex;
                   width: 18px;
                   height: 12px;
                   margin: 0 3px;
                   position: relative;
                   overflow: hidden;
-                  &.mid{
-                    &:before{
-                      opacity: .4;
+                  &.mid {
+                    &:before {
+                      opacity: 0.4;
                     }
                   }
-                  &.low{
-                    &:before, &:after{
-                      opacity: .4;
+                  &.low {
+                    &:before,
+                    &:after {
+                      opacity: 0.4;
                     }
                   }
-                  .dot{
+                  .dot {
                     position: absolute;
                     bottom: -2px;
                     width: 4px;
@@ -1073,55 +1150,57 @@ $grayDark: #1b1b1b;
                     border: 2px solid transparent;
                     border-top-color: $blanco;
                   }
-                  &:before, &:after{
+                  &:before,
+                  &:after {
                     content: "";
                     position: absolute;
                     border: 2px solid transparent;
                     border-radius: 50%;
                     border-top-color: $blanco;
                   }
-                  &:before{
+                  &:before {
                     top: 0;
                     width: 100%;
                     height: 8px;
                   }
-                  &:after{
+                  &:after {
                     top: 4px;
                     width: 10px;
                     height: 3px;
                   }
                 }
-                .bateria{
+                .bateria {
                   @include flex;
                   width: 15px;
                   height: 8px;
                   border-radius: 2px;
-                  border: 1px solid rgba($blanco,.5);
+                  border: 1px solid rgba($blanco, 0.5);
                   position: relative;
-                  &.mid{
-                    &:after{
+                  &.mid {
+                    &:after {
                       width: 50%;
                     }
                   }
-                  &.low{
-                    &:after{
+                  &.low {
+                    &:after {
                       width: 20%;
                       background-color: #ffe600;
                     }
                   }
-                  &:before, &:after{
+                  &:before,
+                  &:after {
                     content: "";
                     position: absolute;
                     background-color: $blanco;
                   }
-                  &:before{
+                  &:before {
                     right: -2px;
                     width: 2px;
                     height: 50%;
                     border-top-right-radius: 1px;
                     border-bottom-right-radius: 1px;
                   }
-                  &:after{
+                  &:after {
                     left: 1px;
                     width: 100%;
                     height: 6px;
@@ -1129,7 +1208,7 @@ $grayDark: #1b1b1b;
                     max-width: calc(100% - 2px);
                   }
                 }
-                .exitShake{
+                .exitShake {
                   @include flex;
                   position: absolute;
                   top: 0;
@@ -1139,15 +1218,15 @@ $grayDark: #1b1b1b;
                   font-size: 10px;
                   font-weight: 600;
                   border-radius: 20px;
-                  background-color: rgba($blanco,.5);
+                  background-color: rgba($blanco, 0.5);
                   transform: scale(0);
                   overflow: hidden;
                   cursor: pointer;
-                  transition: ease all .2s;
+                  transition: ease all 0.2s;
                 }
               }
             }
-            .lockScreen{
+            .lockScreen {
               @include flex(column, $jc: space-between);
               position: absolute;
               width: 100%;
@@ -1155,28 +1234,28 @@ $grayDark: #1b1b1b;
               padding: 30px;
               box-sizing: border-box;
               cursor: grab;
-              transition: ease all .4s;
-              &.hidden{
+              transition: ease all 0.4s;
+              &.hidden {
                 opacity: 0;
                 visibility: hidden;
                 transform: translateY(-50%);
               }
-              &:hover{
-                .unlockBar{
+              &:hover {
+                .unlockBar {
                   opacity: 1;
                 }
               }
-              .up{
+              .up {
                 color: $blanco;
                 text-align: center;
-                .lockIcon{
+                .lockIcon {
                   width: 18px;
                   height: 14px;
                   margin: 10px auto 5px auto;
                   border-radius: 2px;
                   background-color: $blanco;
                   position: relative;
-                  &:before{
+                  &:before {
                     content: "";
                     position: absolute;
                     top: -10px;
@@ -1189,50 +1268,51 @@ $grayDark: #1b1b1b;
                     border: 2px solid $blanco;
                   }
                 }
-                .hora{
+                .hora {
                   font-size: 60px;
                   font-weight: 300;
                 }
-                .fecha{
+                .fecha {
                   font-size: 14px;
                 }
               }
-              .down{
+              .down {
                 @include flex($jc: space-between);
                 width: 100%;
-                .sysIcon{
+                .sysIcon {
                   width: 20px;
                   height: 20px;
                   padding: 10px;
                   border-radius: 50%;
-                  background-color: rgba($negro,.5);
+                  background-color: rgba($negro, 0.5);
                   color: $blanco;
                   cursor: pointer;
-                  svg{
+                  svg {
                     width: 100%;
                     height: 100%;
-                    path, circle{
+                    path,
+                    circle {
                       fill: currentColor;
                     }
                   }
                 }
               }
-              .unlockBar{
+              .unlockBar {
                 position: absolute;
                 bottom: 8px;
                 width: 40%;
                 height: 4px;
                 border-radius: 20px;
-                background-color: rgba($blanco,.7);
+                background-color: rgba($blanco, 0.7);
                 opacity: 0;
-                transition: ease all .2s;
-                &:hover{
-                  &:before{
+                transition: ease all 0.2s;
+                &:hover {
+                  &:before {
                     opacity: 1;
                     transform: none;
                   }
                 }
-                &:before{
+                &:before {
                   content: attr(data-msj);
                   position: absolute;
                   bottom: 100%;
@@ -1246,11 +1326,11 @@ $grayDark: #1b1b1b;
                   text-align: center;
                   opacity: 0;
                   transform: translateY(5px);
-                  transition: ease all .1s;
+                  transition: ease all 0.1s;
                 }
               }
             }
-            .appScreen{
+            .appScreen {
               @include flex(column, $jc: space-between);
               position: absolute;
               width: 100%;
@@ -1258,21 +1338,22 @@ $grayDark: #1b1b1b;
               padding: 10px;
               box-sizing: border-box;
               cursor: grab;
-              transition: ease all .4s;
-              &.moveOut{
-                transition-duration: .2s;
+              transition: ease all 0.4s;
+              &.moveOut {
+                transition-duration: 0.2s;
                 transform: translateX(100%);
               }
-              &.hidden{
+              &.hidden {
                 opacity: 0;
                 visibility: hidden;
                 transform: scale(1.5);
               }
-              .app{
+              .app {
                 width: 64px;
                 position: relative;
                 cursor: pointer;
-                .notificacion, .removeApp{
+                .notificacion,
+                .removeApp {
                   @include flex;
                   position: absolute;
                   top: 0;
@@ -1284,20 +1365,20 @@ $grayDark: #1b1b1b;
                   border-radius: 50%;
                   background-color: #de4046;
                 }
-                .removeApp{
+                .removeApp {
                   left: 0;
                   right: auto;
                   background-color: #e6f2ff;
                   cursor: pointer;
-                  &:after{
+                  &:after {
                     content: "";
                     position: absolute;
                     width: 50%;
                     height: 1px;
-                    background-color: rgba($negro,.5);
+                    background-color: rgba($negro, 0.5);
                   }
                 }
-                .icono{
+                .icono {
                   @include imagen;
                   width: 50px;
                   height: 50px;
@@ -1306,7 +1387,7 @@ $grayDark: #1b1b1b;
                   background-color: $blanco;
                   overflow: hidden;
                 }
-                .nombre{
+                .nombre {
                   height: 13px;
                   color: $blanco;
                   font-size: 10px;
@@ -1317,70 +1398,71 @@ $grayDark: #1b1b1b;
                   overflow: hidden;
                 }
               }
-              .mainApps{
+              .mainApps {
                 width: 100%;
                 max-width: 256px;
                 height: calc(100% - 25px - 85px);
                 margin: 0 auto;
                 overflow: hidden;
               }
-              .wrapperApps{
+              .wrapperApps {
                 @include flex(row, nowrap, center, flex-start);
                 width: 100%;
                 height: 100%;
                 transition: ease all 0.2s;
-                .grupo{
+                .grupo {
                   @include flex(row, wrap, flex-start, flex-start, flex-start);
                   width: 100%;
                   height: 100%;
                   min-width: 100%;
-                  .app{
+                  .app {
                     height: 76px;
-                    &.widgetFull{
+                    &.widgetFull {
                       width: 100%;
                       height: calc(76px * 2);
-                      .icono{
+                      .icono {
                         width: 236px;
                         height: calc(100% - 26px);
                       }
                     }
-                    &[data-app="widgetFullCalendario"]{
-                      .icono{
+                    &[data-app="widgetFullCalendario"] {
+                      .icono {
                         @include flex;
                         padding: 10px;
                         box-sizing: border-box;
-                        .eventos{
+                        .eventos {
                           width: calc(100% - 112px);
                           font-size: 12px;
                         }
-                        .calendarioWrapper{
+                        .calendarioWrapper {
                           width: 112px;
-                          .mes{
-                            .mesName{
+                          .mes {
+                            .mesName {
                               color: #d24f54;
                               font-size: 10px;
                               font-weight: 600;
                               letter-spacing: 1px;
                               text-transform: uppercase;
                             }
-                            .calendarioTabla{
-                              .tablaHeader, .tablaContent{
+                            .calendarioTabla {
+                              .tablaHeader,
+                              .tablaContent {
                                 @include flex($jc: flex-start);
-                                >*{
+                                > * {
                                   width: 16px;
                                   text-align: center;
                                   font-size: 8px;
                                   font-weight: 600;
                                 }
                               }
-                              .tablaHeader{
+                              .tablaHeader {
                                 margin: 5px auto;
                               }
-                              .tablaContent{
-                                .diaNum{
+                              .tablaContent {
+                                .diaNum {
                                   @include flex;
                                   height: 16px;
-                                  &.activo{
+                                  &.activo {
                                     color: $blanco;
                                     background-color: #d24f54;
                                     border-radius: 50%;
@@ -1392,44 +1474,44 @@ $grayDark: #1b1b1b;
                         }
                       }
                     }
-                    &.calendarioDinamico{
-                      .fechaWrapper{
+                    &.calendarioDinamico {
+                      .fechaWrapper {
                         @include flex(column);
                         width: 100%;
                         height: 100%;
                         padding: 5px;
                         box-sizing: border-box;
-                        .diaNom{
+                        .diaNom {
                           color: #d24f54;
                           font-size: 10px;
                           font-weight: 600;
                           letter-spacing: 1px;
                           text-transform: uppercase;
                         }
-                        .diaNum{
+                        .diaNum {
                           color: $negro;
                           font-size: 22px;
                           font-weight: 300;
                         }
                       }
                     }
-                    &.relojDinamico{
-                      .relojWrapper{
+                    &.relojDinamico {
+                      .relojWrapper {
                         @include flex;
                         width: 100%;
                         height: 100%;
                         padding: 3px;
                         background-color: $negro;
                         box-sizing: border-box;
-                        .reloj{
+                        .reloj {
                           width: 100%;
                           height: 100%;
                           border-radius: 50%;
                           background-color: $blanco;
                           position: relative;
                           overflow: hidden;
-                          .numeros{
-                            .numero{
+                          .numeros {
+                            .numero {
                               position: absolute;
                               bottom: 50%;
                               left: 0;
@@ -1450,14 +1532,14 @@ $grayDark: #1b1b1b;
                               //     }
                               //   }
                               // }
-                              &:before{
+                              &:before {
                                 content: attr(data-num);
                                 display: block;
                               }
                             }
                           }
-                          .manecillas{
-                            &:before{
+                          .manecillas {
+                            &:before {
                               content: "";
                               position: absolute;
                               top: 0;
@@ -1470,26 +1552,26 @@ $grayDark: #1b1b1b;
                               border-radius: 50%;
                               background-color: $negro;
                             }
-                            .manecilla{
+                            .manecilla {
                               position: absolute;
                               width: 100%;
                               height: 100%;
-                              &.hora{
-                                .barra{
+                              &.hora {
+                                .barra {
                                   animation-duration: 21600s;
-                                  &:before{
+                                  &:before {
                                     height: calc(50% - 10px);
                                   }
                                 }
                               }
-                              &.minutos{
-                                .barra{
+                              &.minutos {
+                                .barra {
                                   animation-duration: 3600s;
                                 }
                               }
-                              &.segundos{
-                                .barra{
-                                  &:before{
+                              &.segundos {
+                                .barra {
+                                  &:before {
                                     background-color: #d24f54;
                                     bottom: 40%;
                                     height: calc(60% - 4px);
@@ -1498,12 +1580,12 @@ $grayDark: #1b1b1b;
                                   }
                                 }
                               }
-                              .barra{
+                              .barra {
                                 position: absolute;
                                 width: 100%;
                                 height: 100%;
                                 animation: relojAnalogico 60s infinite linear;
-                                &:before{
+                                &:before {
                                   content: "";
                                   position: absolute;
                                   bottom: 50%;
@@ -1523,29 +1605,29 @@ $grayDark: #1b1b1b;
                   }
                 }
               }
-              .wrapperDots{
+              .wrapperDots {
                 @include flex;
-                .dot{
+                .dot {
                   width: 8px;
                   height: 8px;
                   margin: 5px;
                   border-radius: 50%;
-                  background-color: rgba($blanco,.5);
-                  &.activo{
+                  background-color: rgba($blanco, 0.5);
+                  &.activo {
                     background-color: $blanco;
                   }
                 }
               }
-              .deckApps{
+              .deckApps {
                 @include flex;
                 width: 100%;
                 padding: 10px 5px;
                 border-radius: 25px;
-                background-color: rgba($blanco,.3);
+                background-color: rgba($blanco, 0.3);
                 box-sizing: border-box;
               }
             }
-            .widgetCenter{
+            .widgetCenter {
               @include flex(column, $jc: flex-start);
               position: absolute;
               width: 100%;
@@ -1553,41 +1635,41 @@ $grayDark: #1b1b1b;
               padding: 10px;
               box-sizing: border-box;
               cursor: grab;
-              transition: ease all .2s;
-              &.hidden{
+              transition: ease all 0.2s;
+              &.hidden {
                 transform: translateX(-100%);
               }
-              .contenido{
+              .contenido {
                 @include flex($ai: stretch, $jc: space-between);
                 width: 100%;
-                .block{
+                .block {
                   @include flex;
                   width: 100%;
                   padding: 10px;
                   border-radius: 15px;
                   box-sizing: border-box;
-                  background-color: rgba($blanco,.5);
-                  &:not(:first-child){
+                  background-color: rgba($blanco, 0.5);
+                  &:not(:first-child) {
                     margin-top: 15px;
                   }
-                  &.midd{
+                  &.midd {
                     width: 48%;
                   }
                 }
-                .actions{
-                  .action{
+                .actions {
+                  .action {
                     @include flex;
                     width: 100%;
                     padding: 10px 0;
-                    border-bottom: 1px solid rgba($negro,.1);
-                    &:first-child{
+                    border-bottom: 1px solid rgba($negro, 0.1);
+                    &:first-child {
                       padding-top: 0;
                     }
-                    &:last-child{
+                    &:last-child {
                       padding-bottom: 0;
                       border: 0;
                     }
-                    .icono{
+                    .icono {
                       @include imagen;
                       width: 40px;
                       height: 40px;
@@ -1595,11 +1677,11 @@ $grayDark: #1b1b1b;
                       border-radius: 10px;
                       background-color: $blanco;
                     }
-                    .textos{
+                    .textos {
                       width: calc(100% - 45px);
-                      p{
+                      p {
                         font-size: 10px;
-                        &.actionName{
+                        &.actionName {
                           color: $negro;
                           font-size: 11px;
                           font-weight: 600;
@@ -1608,47 +1690,47 @@ $grayDark: #1b1b1b;
                     }
                   }
                 }
-                .eventos{
+                .eventos {
                   flex-direction: column-reverse;
                   align-items: flex-start;
                   background-color: $blanco;
-                  .txt{
+                  .txt {
                     padding: 15px 0;
                     font-size: 12px;
                   }
-                  .fechaWrapper{
-                    .diaNom{
+                  .fechaWrapper {
+                    .diaNom {
                       color: #d24f54;
                       font-size: 10px;
                       font-weight: 600;
                       letter-spacing: 1px;
                       text-transform: uppercase;
                     }
-                    .diaNum{
+                    .diaNum {
                       color: $negro;
                       font-size: 22px;
                       font-weight: 300;
                     }
                   }
                 }
-                .bateriaInfo{
+                .bateriaInfo {
                   flex-direction: column;
                   align-items: flex-start;
                   align-content: flex-start;
-                  &:after{
-                    content: attr(data-carga)'%';
+                  &:after {
+                    content: attr(data-carga) "%";
                     color: $negro;
                     font-size: 30px;
                   }
-                  .iconoWrapper{
+                  .iconoWrapper {
                     @include flex;
                     width: 35px;
                     height: 35px;
                     border-radius: 50%;
                     margin-bottom: 20px;
-                    border: 3px solid rgba($negro, .3);
+                    border: 3px solid rgba($negro, 0.3);
                     position: relative;
-                    &:after{
+                    &:after {
                       content: "";
                       position: absolute;
                       width: 100%;
@@ -1659,10 +1741,11 @@ $grayDark: #1b1b1b;
                       border-top-color: transparent;
                       transform: rotate(-35deg);
                     }
-                    svg{
+                    svg {
                       width: 20px;
                       height: 20px;
-                      path, circle{
+                      path,
+                      circle {
                         fill: none;
                         stroke: $grayDark;
                         stroke-width: 2;
@@ -1672,20 +1755,20 @@ $grayDark: #1b1b1b;
                     }
                   }
                 }
-                .tiempoPantalla{
+                .tiempoPantalla {
                   justify-content: space-between;
                   background-color: $blanco;
-                  .timepo{
+                  .timepo {
                     width: 100%;
                     color: $negro;
                     font-size: 20px;
                     text-align: left;
                   }
-                  .app{
+                  .app {
                     @include flex;
                     width: 48%;
                     margin-top: 10px;
-                    .icono{
+                    .icono {
                       @include imagen;
                       width: 30px;
                       height: 30px;
@@ -1693,12 +1776,12 @@ $grayDark: #1b1b1b;
                       border-radius: 7px;
                       background-color: $blanco;
                     }
-                    .textos{
+                    .textos {
                       width: calc(100% - 35px);
-                      p{
+                      p {
                         font-size: 10px;
-                        color: rgba($negro,.3);
-                        &.actionName{
+                        color: rgba($negro, 0.3);
+                        &.actionName {
                           color: $negro;
                           font-size: 11px;
                         }
@@ -1706,35 +1789,37 @@ $grayDark: #1b1b1b;
                     }
                   }
                 }
-                .editButton{
+                .editButton {
                   margin: 20px auto 0 auto;
                   padding: 4px 12px;
                   color: $negro;
                   font-size: 12px;
                   border-radius: 20px;
-                  background-color: rgba($blanco,.5);
+                  background-color: rgba($blanco, 0.5);
                   cursor: not-allowed;
                 }
               }
             }
-            .widgetScreen{
+            .widgetScreen {
               @include flex($ac: flex-end);
               position: absolute;
               bottom: 0;
               width: 100%;
               height: 100%;
-              background-color: rgba($negro,.3);
-              transition: ease transform .2s, ease background-color .3s .2s;
-              &.hidden{
+              background-color: rgba($negro, 0.3);
+              transition:
+                ease transform 0.2s,
+                ease background-color 0.3s 0.2s;
+              &.hidden {
                 transform: translateY(100%);
                 background-color: transparent;
-                .wrapper{
-                  &:before{
+                .wrapper {
+                  &:before {
                     opacity: 0;
                   }
                 }
               }
-              .wrapper{
+              .wrapper {
                 background-color: #eeeeee;
                 width: 100%;
                 height: 90%;
@@ -1742,7 +1827,7 @@ $grayDark: #1b1b1b;
                 border-radius: 25px;
                 position: relative;
                 box-sizing: border-box;
-                &:before{
+                &:before {
                   content: "";
                   position: absolute;
                   left: 50%;
@@ -1751,31 +1836,31 @@ $grayDark: #1b1b1b;
                   border-radius: 20px;
                   background-color: #b2b2b2;
                   transform: translateX(-50%);
-                  transition: ease all .5s .5s;
+                  transition: ease all 0.5s 0.5s;
                 }
-                .buscador{
+                .buscador {
                   color: #666;
                   background-color: #e2e2e2;
                 }
-                .widgetWrapper{
+                .widgetWrapper {
                   @include flex($jc: space-between);
                   width: 100%;
-                  .widget{
+                  .widget {
                     width: 48%;
                     margin-bottom: 15px;
-                    &.full{
+                    &.full {
                       width: 100%;
                     }
-                    .preview{
+                    .preview {
                       @include flex;
                       width: 100%;
                       min-height: 110px;
                       padding: 10px;
                       border-radius: 20px;
                       background-color: $blanco;
-                      box-shadow: 0 2px 10px 0 rgba($negro,.1);
+                      box-shadow: 0 2px 10px 0 rgba($negro, 0.1);
                       box-sizing: border-box;
-                      &:before{
+                      &:before {
                         content: "Aquí iría un widget pero no lo termine xD";
                         display: block;
                         width: 100%;
@@ -1783,7 +1868,7 @@ $grayDark: #1b1b1b;
                         text-align: center;
                       }
                     }
-                    .nombre{
+                    .nombre {
                       margin-top: 5px;
                       color: $negro;
                       font-size: 10px;
@@ -1793,7 +1878,7 @@ $grayDark: #1b1b1b;
                 }
               }
             }
-            .controlCenter{
+            .controlCenter {
               @include flex;
               position: absolute;
               top: 0;
@@ -1801,19 +1886,19 @@ $grayDark: #1b1b1b;
               height: 100%;
               backdrop-filter: blur(15px);
               cursor: grab;
-              transition: cubic-bezier(0.68, -0.55, 0.27, 1.55) all .5s;
-              &.hidden{
+              transition: cubic-bezier(0.68, -0.55, 0.27, 1.55) all 0.5s;
+              &.hidden {
                 opacity: 0;
                 visibility: hidden;
                 pointer-events: none;
                 transform: translateY(-100px);
               }
-              .content{
+              .content {
                 @include flex($jc: space-between);
                 width: 100%;
                 padding: 10px 20px;
                 box-sizing: border-box;
-                .iconWrapper-wX2{
+                .iconWrapper-wX2 {
                   @include flex($jc: space-between, $ac: space-between);
                   width: 120px;
                   height: 120px;
@@ -1821,38 +1906,38 @@ $grayDark: #1b1b1b;
                   border-radius: 20px;
                   color: $blanco;
                   box-sizing: border-box;
-                  &.padding{
+                  &.padding {
                     padding: 10px;
                   }
                 }
-                .iconItem{
+                .iconItem {
                   @include flex;
                   width: 25px;
                   height: 25px;
                   padding: 15px;
                   margin-bottom: 10px;
                   border-radius: 15px;
-                  background-color: rgba($negro,.5);
+                  background-color: rgba($negro, 0.5);
                   position: relative;
                   cursor: pointer;
-                  &.full{
+                  &.full {
                     width: 100%;
                   }
-                  &.lampara{
-                    &.activo{
-                      background-color: rgba($blanco,.9);
-                      svg{
+                  &.lampara {
+                    &.activo {
+                      background-color: rgba($blanco, 0.9);
+                      svg {
                         color: #3777e4;
                       }
                     }
                   }
-                  &.grabarPantalla{
-                    &.activo{
-                      background-color: rgba($blanco,.9);
-                      svg{
+                  &.grabarPantalla {
+                    &.activo {
+                      background-color: rgba($blanco, 0.9);
+                      svg {
                         color: red;
-                        circle{
-                          &.filled{
+                        circle {
+                          &.filled {
                             transform-origin: center;
                             animation: grabarPantalla 1s linear infinite;
                           }
@@ -1860,116 +1945,118 @@ $grayDark: #1b1b1b;
                       }
                     }
                   }
-                  svg{
+                  svg {
                     width: 25px;
                     height: 25px;
                     min-width: 25px;
                     color: $blanco;
-                    path, circle, rect{
+                    path,
+                    circle,
+                    rect {
                       stroke: currentColor;
                       fill: none;
                       stroke-width: 2;
                       stroke-miterlimit: 10;
-                      &.filled{
+                      &.filled {
                         stroke: none;
                         fill: currentColor;
                       }
                     }
                   }
                 }
-                .iconsGroup{
-                  background-color: rgba($negro,.5);
-                  .icon{
+                .iconsGroup {
+                  background-color: rgba($negro, 0.5);
+                  .icon {
                     cursor: pointer;
                     margin: 5px;
-                    &.activo{
-                      .ico{
+                    &.activo {
+                      .ico {
                         background-color: #3777e4;
                       }
                     }
-                    &.modoVuelo{
-                      &.activo{
-                        .ico{
+                    &.modoVuelo {
+                      &.activo {
+                        .ico {
                           background-color: #ff8e00;
                         }
                       }
                     }
-                    &.datosCelulares{
-                      &.activo{
-                        .ico{
+                    &.datosCelulares {
+                      &.activo {
+                        .ico {
                           background-color: #00dc54;
                         }
                       }
                     }
-                    .ico{
+                    .ico {
                       width: 16px;
                       height: 16px;
                       padding: 12px;
                       border-radius: 50%;
-                      background-color: rgba($blanco,.5);
-                      transition: ease all .3s;
-                      svg{
+                      background-color: rgba($blanco, 0.5);
+                      transition: ease all 0.3s;
+                      svg {
                         width: 100%;
                         height: 100%;
                         color: $blanco;
-                        path{
+                        path {
                           fill: currentColor;
                         }
                       }
                     }
-                    .txt{
+                    .txt {
                       display: none;
                     }
                   }
                 }
-                .musicWdg{
+                .musicWdg {
                   align-content: center;
                   justify-content: center;
-                  background-color: rgba($negro,.5);
-                  p{
+                  background-color: rgba($negro, 0.5);
+                  p {
                     text-align: center;
                     font-size: 14px;
-                    &.artistName{
+                    &.artistName {
                       font-size: 12px;
-                      color: rgba($blanco,.5);
+                      color: rgba($blanco, 0.5);
                     }
                   }
-                  .icons{
+                  .icons {
                     @include flex($jc: space-between);
                     width: 100%;
                     margin-top: 20px;
-                    .icon{
+                    .icon {
                       width: 20px;
                       height: 20px;
-                      svg{
+                      svg {
                         width: 100%;
                         height: 100%;
-                        path{
+                        path {
                           fill: currentColor;
                         }
                       }
                     }
                   }
                 }
-                .displayOptions{
-                  .actionIcon{
-                    transition: ease all .3s;
-                    &.activo{
-                      background-color: rgba($blanco,.9);
-                      &.lockOrientacion{
-                        .lockIcon{
+                .displayOptions {
+                  .actionIcon {
+                    transition: ease all 0.3s;
+                    &.activo {
+                      background-color: rgba($blanco, 0.9);
+                      &.lockOrientacion {
+                        .lockIcon {
                           background-color: #d24f54;
-                          &:before{
+                          &:before {
                             border-color: #d24f54;
                           }
                         }
-                        svg{
+                        svg {
                           color: #d24f54;
                         }
                       }
                     }
                   }
-                  .lockIcon{
+                  .lockIcon {
                     position: absolute;
                     width: 8px;
                     height: 6px;
@@ -1977,7 +2064,7 @@ $grayDark: #1b1b1b;
                     background-color: $blanco;
                     margin-right: 2px;
                     margin-top: 4px;
-                    &:before{
+                    &:before {
                       content: "";
                       position: absolute;
                       top: -4px;
@@ -1990,67 +2077,68 @@ $grayDark: #1b1b1b;
                       border: 2px solid $blanco;
                     }
                   }
-                  .moon{
-                    &.activo{
-                      svg{
-                        path{
+                  .moon {
+                    &.activo {
+                      svg {
+                        path {
                           fill: #7c517c;
                         }
                       }
                     }
-                    svg{
-                      path{
+                    svg {
+                      path {
                         fill: $blanco;
                       }
                     }
                   }
-                  .duplicate{
+                  .duplicate {
                     flex-wrap: nowrap;
-                    p{
+                    p {
                       font-size: 10px;
                       margin-left: 10px;
                     }
                   }
                 }
-                .fullBars{
-                  .fullBar{
+                .fullBars {
+                  .fullBar {
                     align-content: flex-end;
                     height: calc(100% - 30px);
                     overflow: hidden;
                     cursor: default;
-                    &.volumen{
-                      &:before{
+                    &.volumen {
+                      &:before {
                         height: 45%;
                       }
                     }
-                    &:before{
+                    &:before {
                       content: "";
                       position: absolute;
                       bottom: 0;
                       width: 100%;
                       height: 100%;
-                      background-color: rgba($blanco,.9);
+                      background-color: rgba($blanco, 0.9);
                     }
-                    svg{
-                      color: rgba($negro,.4);
+                    svg {
+                      color: rgba($negro, 0.4);
                       position: relative;
                     }
                   }
                 }
-                .textGroup{
+                .textGroup {
                   color: $blanco;
                   font-size: 12px;
                   text-align: center;
                   margin-bottom: 20px;
-                  .icono{
+                  .icono {
                     width: 25px;
                     height: 25px;
                     margin: 10px auto;
                     color: $blanco;
-                    svg{
+                    svg {
                       width: 100%;
                       height: 100%;
-                      path, circle{
+                      path,
+                      circle {
                         fill: none;
                         stroke-width: 2;
                         stroke: currentColor;
@@ -2059,7 +2147,7 @@ $grayDark: #1b1b1b;
                       }
                     }
                   }
-                  .link{
+                  .link {
                     display: inline-block;
                     margin-top: 5px;
                     color: #3777e4;
@@ -2067,23 +2155,23 @@ $grayDark: #1b1b1b;
                   }
                 }
               }
-              .hiddenCC{
+              .hiddenCC {
                 position: absolute;
                 bottom: 0;
                 width: 100%;
                 height: 25px;
                 text-align: center;
-                &:before{
+                &:before {
                   content: "";
                   display: inline-block;
                   width: 150px;
                   height: 4px;
                   border-radius: 20px;
-                  background-color: rgba($blanco,.7);
+                  background-color: rgba($blanco, 0.7);
                 }
               }
             }
-            .camaraApp{
+            .camaraApp {
               background-color: #000;
               position: absolute;
               top: 0;
@@ -2096,14 +2184,14 @@ $grayDark: #1b1b1b;
               height: 100%;
               overflow: hidden;
               box-sizing: border-box;
-              transition: ease all .2s;
+              transition: ease all 0.2s;
               cursor: grab;
-              &:hover{
-                &:after{
+              &:hover {
+                &:after {
                   background-color: $blanco;
                 }
               }
-              &:after{
+              &:after {
                 content: "";
                 position: absolute;
                 bottom: 10px;
@@ -2111,28 +2199,28 @@ $grayDark: #1b1b1b;
                 width: 120px;
                 height: 4px;
                 border-radius: 20px;
-                background-color: rgba($blanco,.1);
+                background-color: rgba($blanco, 0.1);
                 transform: translateX(-50%);
-                transition: ease all .5s;
+                transition: ease all 0.5s;
               }
-              &.hidden{
+              &.hidden {
                 width: 0;
                 height: 0;
                 opacity: 0;
                 border-radius: 50%;
                 pointer-events: none;
-                transition-duration: .3s;
+                transition-duration: 0.3s;
               }
-              .camIco{
+              .camIco {
                 @include flex;
                 width: 20px;
                 height: 20px;
                 border-radius: 50%;
-                background-color: rgba($blanco,.1);
-                svg{
+                background-color: rgba($blanco, 0.1);
+                svg {
                   width: 50%;
                   height: 50%;
-                  path{
+                  path {
                     fill: none;
                     stroke: $blanco;
                     stroke-width: 4;
@@ -2140,57 +2228,62 @@ $grayDark: #1b1b1b;
                   }
                 }
               }
-              .topBar{
+              .topBar {
                 @include flex($jc: space-between, $ac: flex-start);
                 width: 100%;
                 height: 50px;
                 padding: 0 20px;
                 box-sizing: border-box;
-                .chevronUp, .flash, .circles{
-                  svg{
+                .chevronUp,
+                .flash,
+                .circles {
+                  svg {
                     width: 80%;
                     height: 80%;
                   }
                 }
-                .flash, .circles{
+                .flash,
+                .circles {
                   background-color: transparent;
                 }
               }
-              .camaraArea{
+              .camaraArea {
                 @include flex;
                 width: 100%;
                 height: 400px;
                 position: relative;
-                &:before, &:after{
+                &:before,
+                &:after {
                   content: "";
                   position: absolute;
                   z-index: 1;
                 }
-                &:before{
+                &:before {
                   width: calc(100% / 3);
                   height: 100%;
-                  border-left: 1px solid rgba($blanco,.3);
-                  border-right: 1px solid rgba($blanco,.3);
+                  border-left: 1px solid rgba($blanco, 0.3);
+                  border-right: 1px solid rgba($blanco, 0.3);
                 }
-                &:after{
+                &:after {
                   width: 100%;
                   height: calc(100% / 3);
-                  border-top: 1px solid rgba($blanco,.3);
-                  border-bottom: 1px solid rgba($blanco,.3);
+                  border-top: 1px solid rgba($blanco, 0.3);
+                  border-bottom: 1px solid rgba($blanco, 0.3);
                 }
-                video{
+                video {
                   width: 100%;
                   height: 100%;
                   object-fit: cover;
                 }
               }
-              .modosCamara{
+              .modosCamara {
                 @include flex($wrap: nowrap);
                 width: 100%;
                 height: 30px;
                 overflow: hidden;
                 position: relative;
-                &:before, &:after{
+                &:before,
+                &:after {
                   content: "";
                   position: absolute;
                   top: 0;
@@ -2198,44 +2291,44 @@ $grayDark: #1b1b1b;
                   height: 100%;
                   z-index: 1;
                 }
-                &:before{
+                &:before {
                   left: 0;
                   background: linear-gradient(90deg, $negro, transparent);
                 }
-                &:after{
+                &:after {
                   right: 0;
                   background: linear-gradient(90deg, transparent, $negro);
                 }
-                .modo{
+                .modo {
                   min-width: max-content;
                   margin: 0 10px;
                   color: $blanco;
                   font-size: 10px;
                   text-transform: uppercase;
-                  &.activo{
+                  &.activo {
                     color: #a69c5e;
                   }
                 }
               }
-              .obturadorArea{
+              .obturadorArea {
                 @include flex($jc: space-between);
                 width: 100%;
                 padding: 10px 20px;
                 box-sizing: border-box;
-                .imgPreview{
+                .imgPreview {
                   @include imagen;
                   background-color: red;
                   width: 40px;
                   height: 40px;
                   border-radius: 3px;
                 }
-                .obturador{
+                .obturador {
                   @include flex;
                   width: 50px;
                   height: 50px;
                   border-radius: 50%;
                   background-color: $blanco;
-                  &:before{
+                  &:before {
                     content: "";
                     width: calc(100% - 8px);
                     height: calc(100% - 8px);
@@ -2243,7 +2336,7 @@ $grayDark: #1b1b1b;
                     border-radius: 50%;
                   }
                 }
-                .camIco{
+                .camIco {
                   width: 30px;
                   height: 30px;
                 }
@@ -2252,29 +2345,30 @@ $grayDark: #1b1b1b;
           }
         }
       }
-      .logo{
+      .logo {
         width: 80px;
         height: 80px;
         position: relative;
-        svg{
+        svg {
           width: 100%;
           height: 100%;
-          color: rgba($negro,.3);
-          path{
+          color: rgba($negro, 0.3);
+          path {
             fill: currentColor;
           }
         }
       }
     }
-    @media only screen and (max-width: 700px){
-      .interactionInfo{
-        p, h1{
+    @media only screen and (max-width: 700px) {
+      .interactionInfo {
+        p,
+        h1 {
           text-align: center;
         }
-        .botones{
+        .botones {
           flex-direction: column;
           justify-content: center;
-          .boton{
+          .boton {
             margin-right: 0;
             margin-bottom: 20px;
           }

@@ -22,7 +22,7 @@
 
 .fb-chat--bubbles span {
   display: inline-block;
-  background-color: #B6B5BA;
+  background-color: #b6b5ba;
   width: 15px;
   height: 15px;
   border-radius: 100%;
@@ -47,10 +47,10 @@
 @keyframes bob {
   10% {
     transform: translateY(-10px);
-    background-color: #9E9DA2;
+    background-color: #9e9da2;
   }
   50% {
     transform: translateY(0);
-    background-color: #B6B5BA;
+    background-color: #b6b5ba;
   }
 }

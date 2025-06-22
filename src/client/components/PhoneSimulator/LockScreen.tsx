@@ -6,7 +6,6 @@
 // import torch from "../Images/Icons/torch.png"
 // import camera from "../Images/Icons/camera.png"
 
-
 // function LockScreen() {
 //   return (
 //     <>
@@ -14,7 +13,7 @@
 // 			<h1 id="title">iPhone 12</h1>
 // 			<p id="sub">Recreated in HTML, CSS, JS</p>
 // 		</div>
-		
+
 // 		<div className="main">
 // 			<div className="side left">
 // 				<div className="dash left top"></div>
@@ -36,7 +35,7 @@
 // 						<div className="left">
 // 							{/* <p>Spectrum</p> */}
 // 						</div>
-// 						<div className="center" id="center">	
+// 						<div className="center" id="center">
 // 							<div className="mic" id="mic">
 // 							</div>
 
@@ -69,7 +68,7 @@
 // 						<button className="torch" id="torchBtn" onclick="changeColorTorch()">
 // 							<img src={torch} alt='torch' id="torchImg" />
 // 						</button>
-						
+
 // 						<Link to={"/main"}>
 // 							<button className="camera" id="cameraBtn">
 // 								<img src={camera} alt='camera' id="cameraImg" />
@@ -86,7 +85,7 @@
 // 					<div className="dash bottom"></div>
 // 				</div>
 // 			</div>
-			
+
 // 			<div className="side right">
 // 				<div className="dash right top"></div>
 
@@ -102,8 +101,6 @@
 
 // export default LockScreen;
 
-
-
 // import { useState, useRef } from 'react'
 // import { Link, useNavigate } from 'react-router-dom'
 // import "./styles.css"
@@ -113,18 +110,15 @@
 // import torch from "../../media/assets/phone-simulator/Images/Icons/torch.png"
 // import camera from "../../media/assets/phone-simulator/Images/Icons/camera.png"
 
-
-
 // const LockScreen: React.FC = () => {
-	
-  
+
 //   return (
 //     <>
 // 		{/* <div>
 // 			<h1 id="title">iPhone 12</h1>
 // 			<p id="sub">Recreated in HTML, CSS, JS</p>
 // 		</div> */}
-		
+
 // 		<div className="main">
 // 			<div className="side left">
 // 				<div className="dash left top"></div>
@@ -146,7 +140,7 @@
 // 						<div className="left">
 // 							{/* <p>Spectrum</p> */}
 // 						</div>
-// 						<div className="center" id="center">	
+// 						<div className="center" id="center">
 // 							<div className="mic" id="mic">
 // 							</div>
 
@@ -179,7 +173,7 @@
 // 						<button className="torch" id="torchBtn">
 // 							<img src={torch} alt='torch' id="torchImg" />
 // 						</button>
-						
+
 // 						<Link to={"/phone/lock-screen"}>
 // 							<button className="camera" id="cameraBtn">
 // 								<img src={camera} alt='camera' id="cameraImg" />
@@ -192,11 +186,10 @@
 // 						<div className="home"></div>
 // 					</Link>
 
-
 // 					<div className="dash bottom"></div>
 // 				</div>
 // 			</div>
-			
+
 // 			<div className="side right">
 // 				<div className="dash right top"></div>
 
@@ -212,11 +205,8 @@
 
 // export default LockScreen;
 
-
-
-
-import { useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import "./styles.css";
 import wifi from "../../media/assets/phone-simulator/Images/Icons/wifi.png";
 import battery from "../../media/assets/phone-simulator/Images/Icons/battery.png";
@@ -230,13 +220,13 @@ const LockScreen: React.FC = () => {
   const iphoneRef = useRef<HTMLDivElement>(null);
 
   const togglePower = () => {
-    setIsPoweredOn(!isPoweredOn);  // Toggle power state
+    setIsPoweredOn(!isPoweredOn); // Toggle power state
   };
 
   // Optional: Apply styles directly in CSS for better separation of concerns
   const screenStyle = {
-    opacity: isPoweredOn ? '1' : '0',  // Control opacity to simulate screen on/off
-    transition: 'opacity 0.5s ease'   // Smooth transition for turning on/off
+    opacity: isPoweredOn ? "1" : "0", // Control opacity to simulate screen on/off
+    transition: "opacity 0.5s ease", // Smooth transition for turning on/off
   };
 
   return (
@@ -252,7 +242,7 @@ const LockScreen: React.FC = () => {
           <div className="dash left bottom"></div>
         </div>
 
-        <div className="iphone" ref={iphoneRef} style={{ opacity: isPoweredOn ? '1' : '0.1' }}>
+        <div className="iphone" ref={iphoneRef} style={{ opacity: isPoweredOn ? "1" : "0.1" }}>
           <div className="dash top"></div>
           <div className="inner" style={screenStyle}>
             <div className="top">
@@ -263,27 +253,29 @@ const LockScreen: React.FC = () => {
               </div>
               <div className="right">
                 <div className="container">
-                  <img src={wifi} alt='wifi' className="wifi" />
-                  <img src={battery} alt='battery' className="battery" />
+                  <img src={wifi} alt="wifi" className="wifi" />
+                  <img src={battery} alt="battery" className="battery" />
                 </div>
               </div>
             </div>
             <div className="content" id="content">
-              <img src={lock} alt='lock' className="lock" />
+              <img src={lock} alt="lock" className="lock" />
               <h1 className="time">9:41</h1>
               <h1 className="date">Tuesday, January 9</h1>
             </div>
             <div className="buttons" id="bottom">
               <button className="torch" id="torchBtn">
-                <img src={torch} alt='torch' id="torchImg" />
+                <img src={torch} alt="torch" id="torchImg" />
               </button>
               <Link to={"/phone/lock-screen"}>
                 <button className="camera" id="cameraBtn">
-                  <img src={camera} alt='camera' id="cameraImg" />
+                  <img src={camera} alt="camera" id="cameraImg" />
                 </button>
               </Link>
             </div>
-            <p className="swipe" id="swipe">Touch bar to unlock</p>
+            <p className="swipe" id="swipe">
+              Touch bar to unlock
+            </p>
             <Link to={"/phone/passcode"}>
               <div className="home"></div>
             </Link>
@@ -299,6 +291,6 @@ const LockScreen: React.FC = () => {
       </div>
     </>
   );
-}
+};
 
 export default LockScreen;

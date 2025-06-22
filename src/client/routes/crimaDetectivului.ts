@@ -1,10 +1,9 @@
-
-import { publicRoutesType } from './types';
-import CrimaDetectivului from '../components/CrimaDetectivului/CrimaDetectivului';
+import { publicRoutesType } from "./types";
+import CrimaDetectivului from "../components/CrimaDetectivului/CrimaDetectivului";
 
 const chatRoutes: publicRoutesType[] = [
   {
-    path: '/crima-detectivului',
+    path: "/crima-detectivului",
     layout: null,
     component: CrimaDetectivului,
   },

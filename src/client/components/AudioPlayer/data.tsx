@@ -1,6 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 
-import trapbeat from './../../media/audiofiles/trap-beat.mp3';
+import trapbeat from "./../../media/audiofiles/trap-beat.mp3";
 
 export interface SongTypes {
   name: string;
@@ -15,20 +15,20 @@ export interface SongTypes {
 function chillHop() {
   return [
     {
-      name: 'Beaver Creek',
-      cover: 'https://chillhop.com/wp-content/uploads/2020/09/0255e8b8c74c90d4a27c594b3452b2daafae608d-1024x1024.jpg',
-      artist: 'Aso, Middle School, Aviino',
+      name: "Beaver Creek",
+      cover: "https://chillhop.com/wp-content/uploads/2020/09/0255e8b8c74c90d4a27c594b3452b2daafae608d-1024x1024.jpg",
+      artist: "Aso, Middle School, Aviino",
       audio: trapbeat,
-      color: ['#205950', '#2ab3bf'],
+      color: ["#205950", "#2ab3bf"],
       id: uuidv4(),
       active: true,
     },
     {
-      name: 'Beaver Creek xxxx',
-      cover: 'https://chillhop.com/wp-content/uploads/2020/09/0255e8b8c74c90d4a27c594b3452b2daafae608d-1024x1024.jpg',
-      artist: 'Aso, Middle School, Aviino',
+      name: "Beaver Creek xxxx",
+      cover: "https://chillhop.com/wp-content/uploads/2020/09/0255e8b8c74c90d4a27c594b3452b2daafae608d-1024x1024.jpg",
+      artist: "Aso, Middle School, Aviino",
       audio: trapbeat,
-      color: ['#205950', '#2ab3bf'],
+      color: ["#205950", "#2ab3bf"],
       id: uuidv4(),
       active: true,
     },
