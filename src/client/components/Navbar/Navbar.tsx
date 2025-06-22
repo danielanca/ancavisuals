@@ -111,7 +111,7 @@ const Navbar = () => {
           }`}
         >
           {/* Header */}
-          <div className='flex justify-between items-start'>
+          <div className='flex items-start justify-end'>
             <div>
               <h1 className='text-2xl tracking-[0.3em] uppercase mb-1'>
                 <span className='font-bold text-white'>Anca</span>
@@ -119,11 +119,6 @@ const Navbar = () => {
               </h1>
               <p className='text-sm md:text-base tracking-widest uppercase text-gray-400 italic'>Look. Feel. Save.</p>
             </div>
-            <button onClick={() => setIsMobileMenuOpen(false)} className='text-white hover:text-gray-300'>
-              <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
-              </svg>
-            </button>
           </div>
 
           {/* Navigation Links - Centered */}
@@ -210,7 +205,7 @@ const Navbar = () => {
                 className='inline-block text-lg font-light tracking-[0.3em] uppercase text-white border-b border-white pb-2 hover:text-gray-300 hover:border-gray-300 transition-colors'
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                INQUIRE
+                SOLICITA-NE
               </Link>
             </div>
 

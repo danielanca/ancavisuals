@@ -11,7 +11,7 @@ const Aboutdani = () => {
           <div className='text-center lg:text-left'>
             <h1 className='text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-extralight tracking-[0.05em] leading-[0.9]'>
               DESPRE <br />
-              <span className='text-4xl md:text-6xl lg:text-7xl xl:text-8xl'>DANI</span>
+              <span className='text-4xl md:text-6xl lg:text-7xl xl:text-8xl'>familia ANCA</span>
             </h1>
           </div>
         </div>

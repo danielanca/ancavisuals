@@ -19,7 +19,7 @@ const Footer = () => {
                                 Pricing
                             </Link> */}
               <Link to='/contact' className='hover:text-gray-400 transition-colors'>
-                Inquire
+                SOLICITA-NE
               </Link>
             </div>
           </nav>

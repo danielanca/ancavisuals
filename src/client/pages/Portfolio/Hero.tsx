@@ -7,7 +7,7 @@ const phrases = [
   2500,
   'Clipe care rămân vii.',
   2500,
-  'Viziunea mea, amintirile tale.',
+  'Viziunea noastră, amintirile tale.',
   2500,
 ];
 
@@ -36,9 +36,8 @@ const Portfoliohero = () => {
         </h1>
 
         <p className='mt-6 text-lg md:text-xl text-neutral-300 max-w-2xl mx-auto'>
-          I don’t just take photos. I frame feelings, light, and little moments that whisper the truth of your story.
+          Povestea ta merită mai mult decât o fotografie. Merită o emoție capturată în lumină.
         </p>
-
         <motion.div
           key='underline'
           initial={{ scaleX: 0 }}
