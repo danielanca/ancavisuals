@@ -9,25 +9,24 @@ const Approach = () => {
         <div className='grid lg:grid-cols-2 gap-20 items-center'>
           <div className='space-y-8'>
             <h3 className='text-3xl md:text-4xl font-light tracking-[0.05em] leading-tight'>
-              CAPTURING SOULS,
+              CAPTĂM SUFLETE,
               <br />
-              NOT JUST SMILES
+              NU DOAR ZÂMBETE
             </h3>
             <div className='space-y-6 text-gray-300 leading-relaxed'>
               <p className='text-lg'>
-                In a world obsessed with perfection, I believe in the raw beauty of authentic imperfection. The laugh
-                lines that map a lifetime of joy, the tears that speak of overwhelming love, the quiet moments between
-                the grand gestures that reveal who you truly are.
+                Într-o lume obsedată de perfecțiune, noi credem în frumusețea autentică a imperfecțiunii. În liniile
+                zâmbetelor care spun o poveste, în lacrimile care vorbesc despre iubire, în tăcerile dintre gesturi –
+                acolo e magia.
               </p>
               <p>
-                Film photography forces us to slow down, to be present, to truly see. Each frame costs something, so
-                every click matters. This intentionality creates images that breathe with life, that age like fine wine,
-                becoming more precious with each passing year.
+                Fotografia pe film ne învață să încetinim, să fim cu adevărat prezenți. Fiecare cadru contează. De
+                aceea, alegem să surprindem viața așa cum este ea: sinceră, vie, emoționantă.
               </p>
               <p>
-                My approach is documentary-style with an artistic soul. I'm not just capturing what happened—I'm
-                preserving the essence of who you are, the energy between you, the love that fills the spaces between
-                words. These aren't just photographs; they're heirlooms for generations yet to come.
+                Abordarea noastră e documentară, dar cu suflet. Nu doar imortalizăm evenimente – ci păstrăm esența
+                voastră, energia dintre voi, iubirea care nu se vede cu ochiul liber, dar se simte. Acestea nu sunt
+                simple fotografii. Sunt amintiri vii, moșteniri pentru inimile care vor veni.
               </p>
             </div>
             <div className='pt-6'>
