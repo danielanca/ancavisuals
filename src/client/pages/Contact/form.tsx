@@ -84,11 +84,11 @@ const ContactForm: React.FC = () => {
         <h4 className='notime'>No time to type it all out? </h4>
         <p className='text-center mt-6'>
           <a
-            href='#'
+            href='tel:+40745469907'
             className='inline-flex items-center gap-2 px-6 py-3 text-base font-semibold tracking-wide text-black bg-yellow-200 rounded-full hover:bg-yellow-300 transition duration-300 ease-in-out shadow-lg'
           >
             <span className='text-xl'>📞</span>
-            Schedule a consultation call
+            SUNĂ-NE ACUM
           </a>
         </p>
       </div>
