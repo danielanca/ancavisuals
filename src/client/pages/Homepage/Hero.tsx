@@ -24,7 +24,7 @@ const Hero = () => {
             onCanPlayThrough={() => setIsVideoLoaded(true)}
           >
             <source
-              src='https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4'
+              src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FStillHear.mp4?alt=media&token=f1faf511-b749-4e9a-bd9e-9e3f204aa4b1'
               type='video/mp4'
             />
             <source src='https://www.w3schools.com/html/mov_bbb.mp4' type='video/mp4' />
