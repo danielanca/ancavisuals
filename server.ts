@@ -72,8 +72,8 @@ async function createServer(isProd = process.env.NODE_ENV === 'production') {
   app.post('/chat', async (req: Request, res: Response) => {
     console.log('Server received in main:', req.body);
     const data = req.body;
-    const response = await getChatResponse(data);
-    res.json({ response }); //response as: {status, feedbackMessage}
+    // const response = await getChatResponse(data);
+    // res.json({ response }); //response as: {status, feedbackMessage}
   });
 
   app.use('*', async (req: Request, res: Response, next: NextFunction) => {
