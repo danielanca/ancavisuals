@@ -60,7 +60,7 @@ const Navbar = () => {
             <span className='font-bold text-white'>Anca</span>
             <span className='font-light text-gray-300'>Visuals</span>
           </div>
-          <p className='text-sm md:text-base tracking-widest uppercase text-gray-400 italic'>
+          <p className='text-xs md:text-base tracking-widest uppercase text-gray-400 italic'>
             You feel it. We frame it.
           </p>
         </Link>

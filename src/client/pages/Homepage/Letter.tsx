@@ -64,7 +64,7 @@ const Letter = () => {
         <div className='relative'>
           <div className='aspect-[4/5] relative'>
             <img
-              src='https://images.squarespace-cdn.com/content/v1/6536d7241d25f545badd3b3f/78f7cbf2-b84d-4865-bdae-5b507244d582/000062.jpg?format=2500w'
+              src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FRimini-94.jpg?alt=media&token=42067803-f0cb-42f7-8b1b-4c262fcd7281'
               alt='Portrait of Alma, film photographer'
               width='500'
               height='600'
@@ -72,8 +72,8 @@ const Letter = () => {
             />
             <div className='absolute -bottom-6 -right-6 w-32 h-32 bg-white rounded-sm shadow-lg flex items-center justify-center'>
               <div className='text-center'>
-                <div className='text-2xl font-light'>10+</div>
-                <div className='text-xs tracking-wider uppercase'>Years</div>
+                <div className='text-2xl font-light'>3+ ani</div>
+                <div className='text-xs tracking-wider uppercase'>experienta</div>
               </div>
             </div>
           </div>

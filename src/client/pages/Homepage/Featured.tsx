@@ -68,6 +68,54 @@ const featuredImages: FeaturedImage[] = [
     colSpan: 'col-span-2 lg:col-span-4',
     aspect: 'aspect-[2/1]',
   },
+  {
+    src: 'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FAndradaAnca%2FPoze-2318.jpg?alt=media&token=9ec3cdd4-5850-47f6-8830-efcfeccf5666 ',
+    alt: 'Lifestyle portrait session',
+    colSpan: 'col-span-2',
+    aspect: 'aspect-[5/8]',
+  },
+  {
+    src: 'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FAndradaAnca%2FPoze-2338.jpg?alt=media&token=c97ff626-0049-4f0d-baf5-8318593e1994 ',
+    alt: 'Destination wedding landscape',
+    colSpan: 'col-span-2 lg:col-span-4',
+    aspect: 'aspect-[4/6]',
+  },
+  {
+    src: 'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FAndradaAnca%2FPoze-2342.jpg?alt=media&token=fcc7edfa-58ac-497a-8457-97dc9f0bb318',
+    alt: 'Destination wedding landscape',
+    colSpan: 'col-span-2 lg:col-span-4',
+    aspect: 'aspect-[4/6]',
+  },
+  {
+    src: 'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FAndradaAnca%2FPoze-2315.jpg?alt=media&token=2966ffae-cd87-436c-aa24-b8b764185ae7',
+    alt: 'Destination wedding landscape',
+    colSpan: 'col-span-2 lg:col-span-4',
+    aspect: 'aspect-[5/3]',
+  },
+  {
+    src: 'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Feggsparty%2Fmulaje-20.jpg?alt=media&token=5781c4d2-3d9e-4402-a197-fc00480ecf68',
+    alt: 'Destination wedding landscape',
+    colSpan: 'col-span-2 lg:col-span-4',
+    aspect: 'aspect-[5/3]',
+  },
+  {
+    src: 'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FSibiu%20Botez%2FArian-145.jpg?alt=media&token=b5df3cc4-ea1e-4495-898e-d75d0e06a576',
+    alt: 'Destination wedding landscape',
+    colSpan: 'col-span-2 lg:col-span-4',
+    aspect: 'aspect-[3/5]',
+  },
+  {
+    src: 'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FSibiu%20Botez%2FArian-170.jpg?alt=media&token=d6db4aaa-6185-4818-8a10-b45589302f9d',
+    alt: 'Destination wedding landscape',
+    colSpan: 'col-span-2 lg:col-span-4',
+    aspect: 'aspect-[6/4]',
+  },
+  {
+    src: 'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FSibiu%20Botez%2FPoza1-106.jpg?alt=media&token=12023380-4ce0-4522-86aa-dfb1ed74176d',
+    alt: 'Destination wedding landscape',
+    colSpan: 'col-span-2 lg:col-span-4',
+    aspect: 'aspect-[5/3]',
+  },
 ];
 
 const Featured = () => {

@@ -30,28 +30,37 @@ const Approach = () => {
               </p>
             </div>
             <div className='pt-6'>
-              <Link
+              {/* <Link
                 to='/despre'
                 className='inline-block text-sm tracking-[0.2em] uppercase border-b border-white pb-1 hover:border-gray-400 transition-colors'
               >
                 Learn More About My Approach →
-              </Link>
+              </Link> */}
             </div>
           </div>
           <div className='grid grid-cols-2 gap-6'>
             <div className='space-y-6'>
               <div className='aspect-[3/4] group cursor-pointer'>
                 <img
-                  src='https://images.squarespace-cdn.com/content/v1/6536d7241d25f545badd3b3f/88b207ef-d29a-41b5-a44d-cbf7b32d5636/annie-dustin-previews-13.jpg?format=1500w'
+                  src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FGermania%2FBiserica-434.jpg?alt=media&token=8f5a963e-84fe-4796-bd01-3d7879e5eae7'
                   alt='Behind the scenes film photography'
                   width='400'
                   height='500'
                   className='w-full h-full object-cover rounded-sm transition-transform duration-500 group-hover:scale-105'
                 />
               </div>
-              <div className='aspect-square group cursor-pointer'>
+              <div className='aspect-[4/3] group cursor-pointer'>
                 <img
-                  src='https://images.squarespace-cdn.com/content/v1/6536d7241d25f545badd3b3f/3be0b38f-83e4-499a-9eff-b8105b984b6c/kiki-doug-portfolio-1.jpg?format=1500w'
+                  src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FGermania%2FBiserica-0860.jpg?alt=media&token=56ef1e2f-ce6d-42c8-ac65-297341ee3e26'
+                  alt='Vintage film camera collection'
+                  width='400'
+                  height='400'
+                  className='w-full h-full object-cover rounded-sm transition-transform duration-500 group-hover:scale-105'
+                />
+              </div>
+              <div className='aspect-[2/4] group cursor-pointer'>
+                <img
+                  src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FGermania%2FPoza1-1997.jpg?alt=media&token=34dbef53-4ce9-49b5-927b-0bee2b553a60'
                   alt='Vintage film camera collection'
                   width='400'
                   height='400'
@@ -62,7 +71,7 @@ const Approach = () => {
             <div className='space-y-6 pt-12'>
               <div className='aspect-square group cursor-pointer'>
                 <img
-                  src='https://images.squarespace-cdn.com/content/v1/6536d7241d25f545badd3b3f/4ba8d68b-ab7c-4382-9428-d8441d610073/AC_5607_Portra+800_030861-R1-023-10.jpg?format=2500w'
+                  src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FGermania%2FBiserica-473.jpg?alt=media&token=17e4056a-2e8c-4b8c-9a17-167d0223ed89'
                   alt='Film development process'
                   width='400'
                   height='400'
@@ -71,7 +80,16 @@ const Approach = () => {
               </div>
               <div className='aspect-[4/3] group cursor-pointer'>
                 <img
-                  src='https://images.squarespace-cdn.com/content/v1/6536d7241d25f545badd3b3f/b1c915fd-d1df-4dc2-a2e9-129bbcbca946/provence-france-elopement-62.jpg?format=2500w'
+                  src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FGermania%2FBiserica-1093.jpg?alt=media&token=dc102677-6eee-40c0-a797-1d7855093e05'
+                  alt='Artistic film photography setup'
+                  width='400'
+                  height='300'
+                  className='w-full h-full object-cover rounded-sm transition-transform duration-500 group-hover:scale-105'
+                />
+              </div>
+              <div className='col-span-2 aspect-[4/7] group cursor-pointer'>
+                <img
+                  src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FGermania%2FPoza1-2006.jpg?alt=media&token=48e679db-c6fc-4160-8b61-392c7b33d4f7'
                   alt='Artistic film photography setup'
                   width='400'
                   height='300'

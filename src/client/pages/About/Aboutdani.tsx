@@ -19,7 +19,7 @@ const Aboutdani = () => {
         {/* Right side - Image */}
         <div className='relative h-64 lg:h-full'>
           <img
-            src='https://images.squarespace-cdn.com/content/v1/6536d7241d25f545badd3b3f/1f315059-74b5-4aa7-9783-e3b660d0d593/superlove-branding--1.jpg?format=2500w'
+            src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FDespreNoi%2FMitre-165-2.jpg?alt=media&token=c011ba14-aaa8-4770-aa19-9781d8262013'
             alt='Alexa standing on a cliff overlooking dramatic landscape'
             className='object-cover'
           />
