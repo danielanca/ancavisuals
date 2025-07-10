@@ -45,7 +45,7 @@ summary {
   font-size: 20px;
   color: #f4f4f6;
   display: flex;
-  justify-item: space-between;
+  justify-items: space-between;
   align-items: center;
   margin-bottom: 15px;
 }
