@@ -6,7 +6,7 @@ import compression from 'compression';
 import serveStatic from 'serve-static';
 import { createServer as createViteServer } from 'vite';
 import { fileURLToPath } from 'url';
-import { getChatResponse } from './src/server/chathandler';
+// import { getChatResponse } from './src/server/chathandler';
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
 
 const __filename = fileURLToPath(import.meta.url);
@@ -72,8 +72,8 @@ async function createServer(isProd = process.env.NODE_ENV === 'production') {
   app.post('/chat', async (req: Request, res: Response) => {
     console.log('Server received in main:', req.body);
     const data = req.body;
-    const response = await getChatResponse(data);
-    res.json({ response }); //response as: {status, feedbackMessage}
+    // const response = await getChatResponse(data);
+    // res.json({ response }); //response as: {status, feedbackMessage}
   });
 
   app.use('*', async (req: Request, res: Response, next: NextFunction) => {
