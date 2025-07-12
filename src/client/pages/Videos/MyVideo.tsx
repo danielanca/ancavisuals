@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Plyr from 'plyr';
 import 'plyr/dist/plyr.css';
-import './video.css'; 
+import './video.css';
 
 interface MyVideoProps {
   src: string;
@@ -9,40 +9,41 @@ interface MyVideoProps {
 }
 
 const MyVideo: React.FC<MyVideoProps> = ({ src, poster }) => {
-  const playerRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (playerRef.current) {
-      const player = new Plyr(playerRef.current, {
-        controls: [
-          'play',
-          'progress',
-          'current-time',
-          'mute',
-          'volume',
-          'settings',
-          'fullscreen',
-        ],
-        settings: ['quality', 'speed'],
-      });
+    if (!containerRef.current) return;
 
-      return () => {
-        player.destroy();
-      };
-    }
-  }, []);
+    const player = new Plyr(containerRef.current.querySelector('video')!, {
+      controls: [
+        'play',
+        'progress',
+        'current-time',
+        'mute',
+        'volume',
+        'settings',
+        'fullscreen',
+      ],
+      settings: ['quality', 'speed'],
+    });
+
+    return () => {
+      player.destroy();
+    };
+  }, [src]);
 
   return (
     <div className="video-wrapper">
-      <video
-        ref={playerRef}
-        className="plyr-react plyr"
-        playsInline
-        controls
-        poster={poster}
-      >
-        <source src={src} type="video/mp4" />
-      </video>
+      <div ref={containerRef}>
+        <video
+          className="plyr-react plyr"
+          playsInline
+          poster={poster}
+          preload="metadata"
+        >
+          <source src={src} type="video/mp4" />
+        </video>
+      </div>
     </div>
   );
 };

@@ -12,6 +12,14 @@
   box-sizing: border-box;
 }
 
+@media (max-width: 768px) {
+  .video-wrapper {
+    padding: 1rem;
+    min-height: auto;
+    height: unset; 
+  }
+}
+
 .plyr {
   width: 100%;
   max-width: 960px;
