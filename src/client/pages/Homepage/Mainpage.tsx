@@ -14,14 +14,15 @@ import Testimonials from "./Testimonials";
 import News from "./News";
 import Contact from "./Contact";
 import Faq from "../Faq/Faq";
+import MyVideo from "../Videos/MyVideo";
 
 const Mainpage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar />
-        <Hero />
-        <Featured />
+        <Hero />       
+        <Featured />        
         <Philosophy />
         <Approach />
         <Letter />
@@ -29,6 +30,7 @@ const Mainpage = () => {
         <Testimonials />
         <News />
         <Faq />
+         <MyVideo src="https://www.w3schools.com/html/mov_bbb.mp4" poster="https://www.w3schools.com/html/mov_bbb.jpg" />
         <Contact />       
       <Footer />
     </div>

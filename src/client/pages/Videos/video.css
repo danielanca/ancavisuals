@@ -1,0 +1,28 @@
+:root {
+  --plyr-color-main: #ff3c00;
+}
+
+.video-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #111, #222);
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.plyr {
+  width: 100%;
+  max-width: 960px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  background-color: #000;
+}
+ 
+video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
