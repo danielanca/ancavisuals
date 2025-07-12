@@ -14,6 +14,7 @@ import Testimonials from "./Testimonials";
 import News from "./News";
 import Contact from "./Contact";
 import Faq from "../Faq/Faq";
+import MyVideo from "../Videos/MyVideo";
 
 const Mainpage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -25,6 +26,8 @@ const Mainpage = () => {
         <Philosophy />
         <Approach />
         <Letter />
+        <MyVideo src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FBucurestiNunta.mp4?alt=media&token=74d6a5b5-0906-45e1-950c-9632bba7889b" poster="https://example.com/poster.jpg" />
+        <MyVideo src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FClaudiu%20Scurt.mp4?alt=media&token=c79e0f29-501f-4efb-be3a-73f52b3d2e38" poster="https://example.com/poster.jpg" />
         <Process />
         <Testimonials />
         <News />
