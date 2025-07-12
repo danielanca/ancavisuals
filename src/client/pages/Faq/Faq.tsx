@@ -1,8 +1,6 @@
-import React from 'react';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import 'font-awesome/css/font-awesome.min.css';
+import React, { useState } from 'react';
 import './faq.css';
+import 'font-awesome/css/font-awesome.min.css';
 
 interface FAQ {
   question: string;
@@ -56,18 +54,18 @@ const Faq = () => {
 
   return (
     <div className='faq-section'>
-      <header>
-        <h2>Întrebări frecvente</h2>
-        <p>Răspunsuri la cele mai des întâlnite întrebări.</p>
+      <header className='faq-header'>
+        <h2 className='faq-title'>Întrebări frecvente</h2>
+        <p className='faq-subtitle'>Răspunsuri la cele mai des întâlnite întrebări.</p>
       </header>
       {faqs.map((faq, index) => (
         <div key={index} className='faq-item'>
-          <summary onClick={() => toggleDetails(index)}>
-            <h4>{faq.question}</h4>
-            <span className={`fa fa-chevron-down ${openIndex === index ? 'open' : ''}`} />
+          <summary className='faq-summary' onClick={() => toggleDetails(index)}>
+            <h4 className='faq-question'>{faq.question}</h4>
+            <span className={`fa fa-chevron-down faq-icon ${openIndex === index ? 'open' : ''}`} />
           </summary>
-          {openIndex === index && <p>{faq.answer}</p>}
-          <hr />
+          {openIndex === index && <p className='faq-answer'>{faq.answer}</p>}
+          <hr className='faq-divider' />
         </div>
       ))}
     </div>
