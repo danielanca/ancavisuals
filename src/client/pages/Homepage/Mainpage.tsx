@@ -35,7 +35,6 @@ const Mainpage = () => {
         poster=''
       />
       <Faq />
-      <Contact />
       <Footer />
     </div>
   );
