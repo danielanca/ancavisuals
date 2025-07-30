@@ -28,6 +28,11 @@ const publicRoutes: publicRoutesType[] = [
     layout: null,
     component: Contact,
   },
+  {
+    path: '/oferta',
+    layout: null,
+    component: Contact,
+  },
 ];
 
 export default publicRoutes;
