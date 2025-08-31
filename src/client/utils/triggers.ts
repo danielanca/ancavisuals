@@ -14,10 +14,10 @@ export const sendTriggerEmail = async ({ typeEvent, url }: EventsTrigger) => {
       throw new Error('Invalid input: typeEvent and url are required and url must be valid.');
     }
 
-    if (!isProd) {
-      console.error('You are on the local host, so we dont send the email');
-      return;
-    }
+    // if (!isProd) {
+    //   console.error('You are on the local host, so we dont send the email');
+    //   return;
+    // }
     const response = await fetch(`${destination}/triggerEvent`, {
       method: 'POST',
       headers: {
