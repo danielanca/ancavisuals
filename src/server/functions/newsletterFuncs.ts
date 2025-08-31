@@ -1,13 +1,13 @@
+// src/server/functions/newsletterFuncs.ts
 import { Response, Request } from 'express';
-import { db } from '../firestoreInit';
+import { db } from '../firestoreInit.js'; // <-- .js
 import { subscriberProps } from '../types/newsletterTypes';
-import { applyCORSpolicy } from '../constants/corsFunc';
-import { getTimestamp } from '../constants/utils';
+import { applyCORSpolicy } from '../constants/corsFunc.js'; // <-- .js
+import { getTimestamp } from '../constants/utils.js'; // <-- .js
 
 export const subscribeToNewsletter = async (request: Request, response: Response) => {
   applyCORSpolicy(response);
-  let subscriberData: subscriberProps = request.body;
-  console.log('subscribe to newsletter test:', request);
+  const subscriberData: subscriberProps = request.body;
   await databasePost(subscriberData);
   response.send({ subscribeToNewsletter: 'SUBSCRIBED' });
 };
