@@ -45,3 +45,4 @@ dist/**/*
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+src/server/diniubire_servicekey.json
