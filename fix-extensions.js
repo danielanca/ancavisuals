@@ -1,110 +1,91 @@
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
+// fix-extensions.js  (rulează după build)
+// Node ESM (package.json "type":"module").
 
-// Convert __filename and __dirname for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// 🔧 Setări
+import { promises as fs } from 'fs';
+import path from 'path';
+import url from 'url';
 
-// Define source and target directories
-const targetDir = path.resolve(__dirname, "dist/src/server");
-const serviceKeySourcePath = path.resolve(__dirname, "src/server/diniubire_servicekey.json");
-const serviceKeyTargetPath = path.resolve(targetDir, "diniubire_servicekey.json");
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const SERVER_DIST = path.resolve(__dirname, 'dist', 'src', 'server');
 
-// Function to add .js extensions to local imports
-async function addJsExtensions(dir) {
+// EXTENSII pe care NU vrem să le atingem (au deja extensie sau nu sunt JS)
+const EXT_OK = /\.(mjs|cjs|js|json|node|wasm|css|map)$/i;
+
+// Adaugă .js doar la spec-urile relative fără extensie
+function normalizeSpec(spec) {
+  if (!spec.startsWith('./') && !spec.startsWith('../')) return spec; // doar relative
+  if (EXT_OK.test(spec)) return spec; // are deja extensie
+  if (spec.endsWith('/')) return spec; // import folder → lăsăm în pace
+  return `${spec}.js`;
+}
+
+// Patch pentru import/export statice:  import … from '…';   export … from '…';
+function patchStaticImports(code) {
+  // … from '...'
+  code = code.replace(
+    /(from\s*['"])(\.{1,2}\/[^'"]+)(['"])/g,
+    (_m, p1, spec, p3) => `${p1}${normalizeSpec(spec)}${p3}`
+  );
+
+  // import '...'; (bare side-effect importuri relative)
+  code = code.replace(
+    /(^\s*import\s*['"])(\.{1,2}\/[^'"]+)(['"]\s*;?)/gm,
+    (_m, p1, spec, p3) => `${p1}${normalizeSpec(spec)}${p3}`
+  );
+
+  return code;
+}
+
+// Patch pentru import-uri dinamice: import('…')
+function patchDynamicImports(code) {
+  return code.replace(
+    /(import\(\s*['"])(\.{1,2}\/[^'"]+)(['"]\s*\))/g,
+    (_m, p1, spec, p3) => `${p1}${normalizeSpec(spec)}${p3}`
+  );
+}
+
+async function patchFile(filePath) {
+  let code = await fs.readFile(filePath, 'utf8');
+  const before = code;
+  code = patchStaticImports(code);
+  code = patchDynamicImports(code);
+  if (code !== before) {
+    await fs.writeFile(filePath, code, 'utf8');
+    return true;
+  }
+  return false;
+}
+
+async function walk(dir, acc = []) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const e of entries) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      await walk(full, acc);
+    } else if (e.isFile() && full.endsWith('.js')) {
+      acc.push(full);
+    }
+  }
+  return acc;
+}
+
+async function main() {
   try {
-    const files = await fs.readdir(dir, { withFileTypes: true });
-    for (const file of files) {
-      if (file.isDirectory()) {
-        await addJsExtensions(path.join(dir, file.name));
-      } else if (file.name.endsWith(".js")) {
-        const filePath = path.join(dir, file.name);
-        await fixFileImports(filePath);
+    const jsFiles = await walk(SERVER_DIST);
+    let changed = 0;
+    for (const f of jsFiles) {
+      const ok = await patchFile(f);
+      if (ok) {
+        changed++;
+        console.log(`Fixed imports in ${f}`);
       }
     }
+    console.log(`Done. Patched ${changed}/${jsFiles.length} server files.`);
   } catch (err) {
-    console.error(`Error reading directory ${dir}:`, err);
+    console.error('fix-extensions failed:', err);
+    process.exit(1);
   }
 }
 
-// Function to fix import statements in .js files
-async function fixFileImports(filePath) {
-  try {
-    const data = await fs.readFile(filePath, "utf8");
-    const fixedData = data.replace(/(import\s+.*?from\s+['"])(\.\/|\.\.\/)([^'"]+)(['"])/g, (match, p1, p2, p3, p4) => {
-      // Only modify local file imports
-      if (!p3.endsWith(".js")) {
-        return `${p1}${p2}${p3}.js${p4}`;
-      }
-      return match;
-    });
-    await fs.writeFile(filePath, fixedData, "utf8");
-    console.log(`Fixed imports in ${filePath}`);
-  } catch (err) {
-    console.error(`Error reading file ${filePath}:`, err);
-  }
-}
-
-// Function to copy the JSON file to the target directory
-async function copyServiceKey() {
-  try {
-    await fs.copyFile(serviceKeySourcePath, serviceKeyTargetPath);
-    console.log(`Copied ${serviceKeySourcePath} to ${serviceKeyTargetPath}`);
-  } catch (err) {
-    console.error(`Error copying file: ${serviceKeySourcePath}`, err);
-  }
-}
-
-// Main function to perform all operations
-async function main() {
-  await copyServiceKey(); // Copy the service key file
-  await addJsExtensions(targetDir); // Fix .js extensions in the specified directory
-}
-
-main().catch(err => console.error(err));
-
-// import fs from "fs/promises";
-// import path from "path";
-// import { fileURLToPath } from "url";
-
-// // Convert __filename and __dirname for ES modules
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-
-// const targetDir = path.resolve(__dirname, "dist/src/server");
-
-// async function addJsExtensions(dir) {
-//   try {
-//     const files = await fs.readdir(dir, { withFileTypes: true });
-//     for (const file of files) {
-//       if (file.isDirectory()) {
-//         await addJsExtensions(path.join(dir, file.name));
-//       } else if (file.name.endsWith(".js")) {
-//         const filePath = path.join(dir, file.name);
-//         await fixFileImports(filePath);
-//       }
-//     }
-//   } catch (err) {
-//     console.error(`Error reading directory ${dir}:`, err);
-//   }
-// }
-
-// async function fixFileImports(filePath) {
-//   try {
-//     const data = await fs.readFile(filePath, "utf8");
-//     const fixedData = data.replace(/(import\s+.*?from\s+['"])(\.\/|\.\.\/)([^'"]+)(['"])/g, (match, p1, p2, p3, p4) => {
-//       // Only modify local file imports
-//       if (!p3.endsWith(".js")) {
-//         return `${p1}${p2}${p3}.js${p4}`;
-//       }
-//       return match;
-//     });
-//     await fs.writeFile(filePath, fixedData, "utf8");
-//     console.log(`Fixed imports in ${filePath}`);
-//   } catch (err) {
-//     console.error(`Error reading file ${filePath}:`, err);
-//   }
-// }
-
-// addJsExtensions(targetDir);
+await main();
