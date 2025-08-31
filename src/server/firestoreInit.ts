@@ -5,7 +5,7 @@ import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const serviceAccountPath = path.join(__dirname, 'diniubire_servicekey.json');
+const serviceAccountPath = path.join(__dirname, 'joculdetectivuluiFirebaseKEY.json');
 
 // Initialize Firebase App
 try {
