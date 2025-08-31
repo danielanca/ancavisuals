@@ -1,3 +1,4 @@
+import 'dotenv/config'; // <- PRIMA linie!
 import { readFileSync, existsSync, statSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
