@@ -5,7 +5,7 @@ import express from 'express';
 import compression from 'compression';
 import serveStatic from 'serve-static';
 import { createServer as createViteServer } from 'vite';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 // import { getChatResponse } from './src/server/chathandler';
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
 
@@ -32,6 +32,14 @@ const getStyleSheets = async () => {
 
 async function createServer(isProd = process.env.NODE_ENV === 'production') {
   const app = express();
+
+  const apiPath = isProd
+    ? pathToFileURL(resolve('./src/server/routes/api.js')).href
+    : pathToFileURL(resolve('./src/server/routes/api.ts')).href;
+
+  const apiModule = await import(apiPath);
+  const { triggerEvent } = apiModule;
+  app.post('/triggerEvent', triggerEvent);
   // Create Vite server in middleware mode and configure the app type as
   // 'custom', disabling Vite's own HTML serving logic so parent server
   // can take control

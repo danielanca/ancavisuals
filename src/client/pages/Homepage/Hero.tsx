@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { sendTriggerEmail } from '../../../client/utils/triggers';
 
 const Hero = () => {
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
@@ -8,6 +8,7 @@ const Hero = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowVideo(true);
+      sendTriggerEmail({ typeEvent: 'HeroVideo_START', url: window.location.pathname });
     }, 2500); // 2 secunde întârziere
 
     return () => clearTimeout(timer);
