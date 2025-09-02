@@ -1,0 +1,185 @@
+body {
+  background-color: #1e1e1e;
+  color: #fefefe;
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 2rem;
+}
+
+.booking-container {
+  background-color: #121212;
+  max-width: 600px;
+  margin: auto;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(244, 211, 94, 0.15);
+}
+
+.booking-container h2 {
+  color: #f4d35e;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.input-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.input-group select {
+  background-color: #2b2b2b;
+  color: #fefefe;
+  border: 1px solid #444;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 1rem;
+  min-width: 100px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  text-align: center;
+  text-align-last: center;
+}
+
+.input-group select:focus {
+  outline: none;
+  border-color: #f4d35e;
+  box-shadow: 0 0 0 2px rgba(244, 211, 94, 0.4);
+}
+
+.input-group button {
+  background-color: #f4d35e;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.error {
+  color: #f87171;
+  background: #2b2b2b;
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.booking-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 1rem;
+}
+
+.booking-form input,
+.booking-form textarea {
+  padding: 10px;
+  background: #2b2b2b;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.booking-form input[readonly] {
+  background: #3a3a3a;
+}
+
+.booking-form button {
+  background: #f4d35e;
+  color: #000;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* styles.css — adaugă/ajustează */
+
+.opt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.opt-card {
+  background: #1c1c1c;
+  border: 1px solid #2a2a2a;
+  border-radius: 16px;
+  padding: 12px;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+  user-select: none;
+}
+.opt-card:hover {
+  transform: translateY(-2px);
+}
+.opt-card.is-checked {
+  border-color: #f4d35e;
+  box-shadow: 0 0 0 3px rgba(244, 211, 94, 0.25);
+}
+
+.opt-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.opt-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.opt-label {
+  font-weight: 600;
+}
+.opt-price {
+  color: #bbb;
+  font-size: 0.9rem;
+}
+.badge-free {
+  background: #2a7a2a;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.opt-previews {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.opt-thumb {
+  width: 100%;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+  background: #111;
+}
+.opt-video-wrap {
+  grid-column: span 3; /* video pe lățimea cardului */
+  position: relative;
+  height: 160px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+}
+.opt-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
