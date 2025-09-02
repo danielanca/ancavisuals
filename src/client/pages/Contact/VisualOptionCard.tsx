@@ -1,78 +1,79 @@
-// VisualOptionCard.tsx
-import { useRef, useState } from 'react';
-import type { CustomOption } from './packages';
+// src/client/pages/Contact/VisualOptionCard.tsx
+import React from 'react';
+import type { PackageOption } from './packages'; // <— exista deja in repo, CUSTOM_OPTIONS: PackageOption[]
 
-type Props = {
-  opt: CustomOption;
-  checked: boolean;
-  onChange: () => void;
+// descriere minimală pt elementele vizuale (imagini / gif / video)
+type Visual = {
+  kind: 'img' | 'gif' | 'video';
+  src: string;
+  alt?: string;
+  poster?: string; // pt video
 };
 
-export default function VisualOptionCard({ opt, checked, onChange }: Props) {
-  const [hover, setHover] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+type Props = {
+  opt: PackageOption & { visuals?: Visual[] };
+  checked: boolean;
+  onToggle: () => void;
+};
 
-  const onEnter = () => {
-    setHover(true);
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
-    }
-  };
-  const onLeave = () => {
-    setHover(false);
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
-    }
-  };
-
+export default function VisualOptionCard({ opt, checked, onToggle }: Props) {
   return (
-    <label
-      className={`opt-card ${checked ? 'is-checked' : ''}`}
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
-      onTouchStart={onEnter}
-    >
-      <div className='opt-header'>
-        <input type='checkbox' checked={checked} onChange={onChange} aria-checked={checked} />
-        <div className='opt-title'>
-          <span className='opt-label'>{opt.label}</span>
-          <span className='opt-price'>
-            {opt.free ? <span className='badge-free'>GRATUIT</span> : `${opt.price} RON`}
+    <label className='visual-option' style={{ display: 'block', cursor: 'pointer' }}>
+      <input type='checkbox' checked={checked} onChange={onToggle} style={{ marginRight: 8 }} />
+      <div className='content'>
+        <div className='header' style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span className='title' style={{ fontWeight: 600 }}>
+            {opt.label}
+          </span>
+          <span className='price' style={{ opacity: 0.8 }}>
+            {opt.price} RON
           </span>
         </div>
-      </div>
 
-      <div className='opt-previews'>
-        {opt.visuals.map((v, idx) =>
-          v.type === 'image' ? (
-            <img
-              key={idx}
-              src={v.src}
-              alt={v.alt || opt.label}
-              loading='lazy'
-              className='opt-thumb'
-              draggable={false}
-            />
-          ) : (
-            <div className='opt-video-wrap' key={idx}>
-              <video
-                ref={videoRef}
-                className='opt-video'
-                muted
-                loop
-                playsInline
-                preload='metadata'
-                poster={v.poster}
-                // redă DOAR când e hover/touch (evităm CPU mare în listă)
-              />
-              {/* setăm sursa doar când e hover, ca să nu încarce degeaba */}
-              {hover && <source src={v.src} type='video/webm' />}
-              {/* dacă vrei mp4 fallback:
-                 {hover && <source src="/assets/video/preview.mp4" type="video/mp4" />} */}
-            </div>
-          )
+        {opt.visuals && opt.visuals.length > 0 && (
+          <div
+            className='gallery'
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+              gap: 8,
+              marginTop: 8,
+            }}
+          >
+            {opt.visuals.map((v: Visual, idx: number) => {
+              if (v.kind === 'img' || v.kind === 'gif') {
+                return (
+                  <img
+                    key={idx}
+                    src={v.src}
+                    alt={v.alt ?? opt.label}
+                    loading='lazy'
+                    style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8 }}
+                  />
+                );
+              }
+              // video preview / loop
+              return (
+                <video
+                  key={idx}
+                  src={v.src}
+                  poster={v.poster}
+                  autoPlay
+                  muted
+                  playsInline
+                  loop
+                  preload='metadata'
+                  style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8 }}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {opt.description && (
+          <p className='desc' style={{ marginTop: 8, opacity: 0.8 }}>
+            {opt.description}
+          </p>
         )}
       </div>
     </label>

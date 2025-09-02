@@ -423,7 +423,7 @@ export default function BookingWizard() {
                         if (opt.key === 'photo') setPhoto(!photo);
                         else if (opt.key === 'video') setVideo(!video);
                       };
-                      return <VisualOptionCard key={opt.key} opt={opt as any} checked={checked} onChange={toggle} />;
+                      return <VisualOptionCard key={opt.key} opt={opt as any} checked={checked} onToggle={toggle} />;
                     })}
                   </div>
                 </div>
