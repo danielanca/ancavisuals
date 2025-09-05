@@ -255,8 +255,8 @@ export default function BookingWizard() {
           </div>
           <p style={{ fontSize: 12, color: '#888' }}>Data selectată: {selectedFormattedDate}</p>
           {errors.date && <p className='error'>{errors.date}</p>}
-          {isAvailable === true && <p className='ok'>Suntem disponibili în acea zi 🎉</p>}
-          <div style={{ marginTop: 12 }}>
+          {isAvailable === true && <p className='ok'>Suntem disponibili în data de {selectedFormattedDate} 🎉</p>}
+          <div className='input-group' style={{ marginTop: 12 }}>
             <button disabled={isAvailable !== true} onClick={goNext}>
               Continuă
             </button>
@@ -289,9 +289,39 @@ export default function BookingWizard() {
               />{' '}
               Botez
             </label>
+            <label>
+              <input
+                type='radio'
+                name='eventType'
+                value='botez'
+                checked={eventType === 'botez'}
+                onChange={() => setEventType('botez')}
+              />{' '}
+              Majorat
+            </label>
+            <label>
+              <input
+                type='radio'
+                name='eventType'
+                value='botez'
+                checked={eventType === 'botez'}
+                onChange={() => setEventType('botez')}
+              />{' '}
+              Cununie Civila / Logodna
+            </label>
+            <label>
+              <input
+                type='radio'
+                name='eventType'
+                value='botez'
+                checked={eventType === 'botez'}
+                onChange={() => setEventType('botez')}
+              />{' '}
+              Altceva
+            </label>
           </div>
           {errors.eventType && <p className='error'>{errors.eventType}</p>}
-          <div style={{ marginTop: 12 }}>
+          <div className='input-group' style={{ marginTop: 12 }}>
             <button onClick={goBack}>Înapoi</button>
             <button onClick={goNext}>Continuă</button>
           </div>
@@ -303,22 +333,46 @@ export default function BookingWizard() {
         <>
           <h3>3) Detalii de contact</h3>
           <form
+            autoComplete='on' // permite managerului de profil să propună date salvate
             onSubmit={e => {
               e.preventDefault();
               goNext();
             }}
             className='booking-form'
           >
-            <input type='text' placeholder='Numele tău' value={fullName} onChange={e => setFullName(e.target.value)} />
+            <label htmlFor='contact-name' className='sr-only'>
+              Numele tău
+            </label>
             <input
+              id='contact-name'
+              type='text'
+              placeholder='Numele tău'
+              name='name' // token standard
+              autoComplete='name' // declanșează sugestiile din browser
+              autoCapitalize='words'
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              inputMode='text'
+            />
+
+            <label htmlFor='contact-phone' className='sr-only'>
+              Numărul tău de telefon
+            </label>
+            <input
+              id='contact-phone'
               type='tel'
               placeholder='Numărul tău de telefon'
+              name='tel' // token standard
+              autoComplete='tel' // poate fi și "tel-national" dacă vrei format local
+              inputMode='tel'
               value={phone}
               onChange={e => setPhone(e.target.value)}
             />
+
             {errors.fullName && <p className='error'>{errors.fullName}</p>}
             {errors.phone && <p className='error'>{errors.phone}</p>}
-            <div style={{ marginTop: 12 }}>
+
+            <div className='input-group' style={{ marginTop: 12 }}>
               <button type='button' onClick={goBack}>
                 Înapoi
               </button>
@@ -433,7 +487,7 @@ export default function BookingWizard() {
               <p className='total-price'>Preț estimativ: {price} RON</p>
             </div>
 
-            <div style={{ marginTop: 12 }}>
+            <div className='input-group' style={{ marginTop: 12 }}>
               <button onClick={goBack}>Înapoi</button>
               <button onClick={submitBooking}>Trimite cererea</button>
             </div>
