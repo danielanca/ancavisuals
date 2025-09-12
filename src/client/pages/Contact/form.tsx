@@ -1,8 +1,11 @@
 import './styles.css';
+import './segmented.scss';
 import { useEffect, useMemo, useState } from 'react';
-import { PACKAGES, CUSTOM_OPTIONS } from './packages';
+import { PACKAGES } from './packages';
 import VisualOptionCard from './VisualOptionCard';
 import LocationField, { PlaceLite } from './LocationField';
+import PackageTiles from './PackageTiles';
+import { PACKAGES_NEW } from './packages';
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
 // ---------- Vite env ----------
 const IS_PROD = import.meta.env.PROD;
@@ -267,59 +270,28 @@ export default function BookingWizard() {
       {/* Step 2 */}
       {step === 2 && (
         <>
-          <h3>2) Tipul evenimentului</h3>
-          <div className='input-group'>
-            <label>
-              <input
-                type='radio'
-                name='eventType'
-                value='nunta'
-                checked={eventType === 'nunta'}
-                onChange={() => setEventType('nunta')}
-              />{' '}
-              Nuntă
-            </label>
-            <label>
-              <input
-                type='radio'
-                name='eventType'
-                value='botez'
-                checked={eventType === 'botez'}
-                onChange={() => setEventType('botez')}
-              />{' '}
-              Botez
-            </label>
-            <label>
-              <input
-                type='radio'
-                name='eventType'
-                value='botez'
-                checked={eventType === 'botez'}
-                onChange={() => setEventType('botez')}
-              />{' '}
-              Majorat
-            </label>
-            <label>
-              <input
-                type='radio'
-                name='eventType'
-                value='botez'
-                checked={eventType === 'botez'}
-                onChange={() => setEventType('botez')}
-              />{' '}
-              Cununie Civila / Logodna
-            </label>
-            <label>
-              <input
-                type='radio'
-                name='eventType'
-                value='botez'
-                checked={eventType === 'botez'}
-                onChange={() => setEventType('botez')}
-              />{' '}
-              Altceva
-            </label>
-          </div>
+          <fieldset className='tiles'>
+            <legend>2) Tipul evenimentului</legend>
+
+            {[
+              { id: 'evt-nunta', label: 'Nuntă', value: 'nunta' },
+              { id: 'evt-botez', label: 'Botez', value: 'botez' },
+              { id: 'evt-majorat', label: 'Majorat', value: 'majorat' },
+              { id: 'evt-cununie', label: 'Cununie Civilă / Logodnă', value: 'cununie' },
+              { id: 'evt-altceva', label: 'Altceva', value: 'altceva' },
+            ].map((o, i) => (
+              <div className='tile' key={o.id}>
+                <input type='radio' name='eventType' id={o.id} value={o.value} defaultChecked={i === 0} />
+                <label htmlFor={o.id}>
+                  <span className='title'>{o.label}</span>
+                  <span className='check' aria-hidden>
+                    ✓
+                  </span>
+                </label>
+              </div>
+            ))}
+          </fieldset>
+
           {errors.eventType && <p className='error'>{errors.eventType}</p>}
           <div className='input-group' style={{ marginTop: 12 }}>
             <button onClick={goBack}>Înapoi</button>

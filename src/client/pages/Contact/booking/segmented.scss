@@ -1,0 +1,90 @@
+.tiles {
+  --card: #1b1b1b;
+  --card-hover: #222;
+  --stroke: rgba(255, 255, 255, 0.08);
+  --accent: #f1cf56;
+  --text: #fafafa;
+  --muted: #cfcfcf;
+
+  border: 0;
+  margin: 12px 0 24px;
+
+  legend {
+    margin-bottom: 12px;
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+
+  .tile {
+    position: relative;
+
+    input[type='radio'] {
+      position: absolute;
+      opacity: 0;
+      inset: 0;
+    }
+
+    label {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: 16px;
+      padding: 16px 14px;
+      color: var(--muted);
+      cursor: pointer;
+      transition:
+        transform 0.12s ease,
+        background-color 0.12s ease,
+        border-color 0.12s ease,
+        color 0.12s ease,
+        box-shadow 0.12s ease;
+
+      .title {
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+      .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        border: 2px solid var(--stroke);
+        display: inline-grid;
+        place-items: center;
+        font-weight: 900;
+        opacity: 0;
+        transform: scale(0.8);
+      }
+    }
+
+    label:hover {
+      background: var(--card-hover);
+      color: var(--text);
+    }
+
+    input[type='radio']:checked + label {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(241, 207, 86, 0.22);
+      color: var(--text);
+    }
+
+    input[type='radio']:checked + label .check {
+      opacity: 1;
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #1a1a1a;
+      transform: scale(1);
+    }
+
+    input[type='radio']:focus-visible + label {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(241, 207, 86, 0.35);
+    }
+  }
+}

@@ -1,0 +1,173 @@
+/* PackageTiles.module.scss */
+.pkg-tiles {
+  --bg: #0e0e0e;
+  --card: #1b1b1b;
+  --card-hover: #222;
+  --stroke: rgba(255, 255, 255, 0.08);
+  --text: #f8fafc;
+  --muted: #cfd8e3;
+  --accent: #f1cf56; /* aur brand */
+  --accent-ink: #1b1b1b;
+  --ring: 0 0 0 3px rgba(241, 207, 86, 0.35);
+
+  border: 0;
+  margin: 8px 0 18px;
+
+  legend {
+    margin-bottom: 12px;
+    color: var(--text);
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .tile {
+    position: relative;
+
+    input[type='checkbox'] {
+      position: absolute;
+      opacity: 0;
+      inset: 0;
+      pointer-events: none; /* focus vizibil pe label */
+    }
+
+    label {
+      display: grid;
+      gap: 10px;
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: 16px;
+      padding: 14px 14px 12px;
+      color: var(--muted);
+      cursor: pointer;
+      transition:
+        background-color 0.15s,
+        border-color 0.15s,
+        box-shadow 0.15s,
+        color 0.15s;
+
+      .title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .title {
+          font-weight: 700;
+          color: var(--text);
+        }
+
+        .badge {
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          background: linear-gradient(180deg, var(--accent), #e1be3f);
+          color: var(--accent-ink);
+          padding: 2px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(0, 0, 0, 0.12);
+        }
+      }
+
+      .meta-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+
+        .price {
+          font-weight: 800;
+          color: var(--text);
+        }
+      }
+    }
+
+    label:hover {
+      background: var(--card-hover);
+    }
+    input[type='checkbox']:checked + label {
+      border-color: var(--accent);
+      box-shadow: var(--ring);
+    }
+    input[type='checkbox']:focus-visible + label {
+      outline: none;
+      box-shadow: var(--ring);
+      border-color: var(--accent);
+    }
+
+    /* Dropdown detalii */
+    .expander {
+      margin-top: 8px;
+      background: #121212;
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      overflow: clip;
+
+      summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        list-style: none;
+        cursor: pointer;
+        padding: 10px 12px;
+        user-select: none;
+        transition:
+          background-color 0.15s,
+          border-color 0.15s;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .label::after {
+        content: attr(data-closed);
+        color: var(--text);
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+      &[open] .label::after {
+        content: attr(data-open);
+      }
+
+      .content {
+        padding: 10px 12px 12px;
+        color: var(--muted);
+        border-top: 1px solid var(--stroke);
+        line-height: 1.5;
+      }
+
+      summary:hover {
+        background: var(--card-hover);
+      }
+      summary:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(241, 207, 86, 0.35) inset;
+        border-radius: 12px;
+      }
+    }
+
+    /* leagă vizual când e selectat */
+    &.checked .expander {
+      border-color: rgba(241, 207, 86, 0.35);
+    }
+  }
+
+  .total {
+    margin-top: 14px;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    color: var(--muted);
+
+    strong {
+      color: var(--text);
+      font-size: 18px;
+    }
+  }
+}

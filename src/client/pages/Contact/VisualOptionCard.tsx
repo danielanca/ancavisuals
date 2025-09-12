@@ -1,5 +1,3 @@
-// src/client/pages/Contact/VisualOptionCard.tsx
-import React from 'react';
 import type { PackageOption } from './packages'; // <— exista deja in repo, CUSTOM_OPTIONS: PackageOption[]
 
 // descriere minimală pt elementele vizuale (imagini / gif / video)

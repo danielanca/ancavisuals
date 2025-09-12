@@ -1,0 +1,228 @@
+// src/booking/BookingWizard.tsx
+import React, { useEffect, useMemo, useState } from 'react';
+import './styles.css';
+import './segmented.scss';
+
+import { PACKAGES, CUSTOM_OPTIONS, PACKAGES_NEW } from '../packages'; // păstrezi fișierul tău
+import { safeTrigger, BOOKING_TO } from './utils/api';
+import { normalizePackages } from './utils/normalize';
+import { formatDate, parseTimeToMinutes } from './utils/time';
+import { PHONE_RE } from './utils/validators';
+import { Step, EventType, Errors, PlaceLite } from './types';
+
+// Steps
+import Step1Date from './steps/Step1Date';
+import Step2EventType from './steps/Step2EventType';
+import Step3Contact from './steps/Step3Contact';
+import Step4Details from './steps/Step4Details';
+
+const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
+
+export default function BookingWizard() {
+  const [step, setStep] = useState<Step>(1);
+
+  // Step 1 – data
+  const [day, setDay] = useState(1);
+  const [month, setMonth] = useState(0);
+  const [year, setYear] = useState(2025);
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const [isAvailable, setIsAvailable] = useState<null | boolean>(null);
+
+  // Step 2 – tip
+  const [eventType, setEventType] = useState<EventType>('nunta');
+
+  // Step 3 – contact
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // Step 4 – locație + timp + pachet
+  const [location, setLocation] = useState('');
+  const [placeId, setPlaceId] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+
+  // Pachete din PACKAGES/NEW – poți ignora PACKAGES (radiouri) dacă rămâi doar pe tiles
+  const packagesNormalized = useMemo(() => normalizePackages(PACKAGES_NEW), []);
+  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+
+  const [showCustom, setShowCustom] = useState(false);
+  const [photo, setPhoto] = useState(false);
+  const [video, setVideo] = useState(false);
+
+  const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState<Errors>({});
+
+  const selectedFormattedDate = useMemo(() => formatDate(day, month, year), [day, month, year]);
+
+  useEffect(() => {
+    fetch('/bookedDates.json')
+      .then(r => r.json())
+      .then((data: string[]) => setBookedDates(data.map(d => d.trim())))
+      .catch(() => setBookedDates([]));
+  }, []);
+
+  const validateStep = (s: Step) => {
+    const errs: Errors = {};
+    if (s === 1 && isAvailable !== true) errs.date = 'Verifică disponibilitatea înainte să continui.';
+    if (s === 2 && !eventType) errs.eventType = 'Alege tipul de eveniment.';
+    if (s === 3) {
+      if (!fullName.trim()) errs.fullName = 'Completează numele.';
+      if (!phone || !PHONE_RE.test(phone)) errs.phone = 'Număr de telefon invalid.';
+    }
+    if (s === 4) {
+      if (!location.trim()) errs.location = 'Completează locația.';
+      if (!startTime) errs.startTime = 'Alege ora de început.';
+      if (!endTime) errs.endTime = 'Alege ora de sfârșit.';
+      if (!selectedPackages.length && !showCustom) errs.package = 'Alege cel puțin un pachet sau personalizează.';
+      if (startTime && endTime && startTime === endTime) errs.endTime = 'Start și final nu pot fi egale.';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const goNext = () => validateStep(step) && setStep(s => (s < 5 ? ((s + 1) as Step) : s));
+  const goBack = () => setStep(s => (s > 1 ? ((s - 1) as Step) : s));
+
+  const totalPrice = useMemo(() => {
+    const byId = new Map(packagesNormalized.map(p => [p.id, p]));
+    const tilesSum = selectedPackages.reduce((sum, id) => sum + (byId.get(id)?.price ?? 0), 0);
+    const customSum = showCustom ? (photo ? 1500 : 0) + (video ? 1300 : 0) : 0;
+    return tilesSum + customSum;
+  }, [packagesNormalized, selectedPackages, showCustom, photo, video]);
+
+  const submitBooking = async () => {
+    if (!validateStep(4)) return setStep(4);
+    const subject = `Cerere ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
+    const payload = {
+      to: BOOKING_TO,
+      subject,
+      html: `
+        <h2>Cerere nouă</h2>
+        <ul>
+          <li><b>Data:</b> ${selectedFormattedDate}</li>
+          <li><b>Eveniment:</b> ${eventType}</li>
+          <li><b>Nume:</b> ${fullName}</li>
+          <li><b>Telefon:</b> ${phone}</li>
+          <li><b>Locație:</b> ${location}</li>
+          <li><b>Interval:</b> ${startTime} – ${endTime}</li>
+          <li><b>Preț estimativ:</b> ${totalPrice} RON</li>
+        </ul>
+      `,
+      booking: {
+        date: selectedFormattedDate,
+        eventType,
+        fullName,
+        phone,
+        location,
+        placeId,
+        startTime,
+        endTime,
+        packages: selectedPackages,
+        custom: showCustom ? { photo, video } : null,
+        price: totalPrice,
+      },
+    };
+    const resp = await safeTrigger(payload);
+    if (resp?.ok) setSubmitted(true);
+    else alert('A apărut o problemă la trimitere.');
+  };
+
+  return (
+    <div className='booking-container'>
+      <h2>Rezervare & Disponibilitate</h2>
+
+      {/* stepper */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        {[1, 2, 3, 4, 5].map(s => (
+          <div
+            key={s}
+            style={{ width: 10, height: 10, borderRadius: 999, background: step >= s ? '#f4d35e' : '#444' }}
+          />
+        ))}
+      </div>
+
+      {step === 1 && (
+        <>
+          <Step1Date
+            day={day}
+            month={month}
+            year={year}
+            setDay={setDay}
+            setMonth={setMonth}
+            setYear={setYear}
+            bookedDates={bookedDates}
+            isAvailable={isAvailable}
+            setIsAvailable={setIsAvailable}
+            setErrors={setErrors}
+          />
+          {errors.date && <p className='error'>{errors.date}</p>}
+          {isAvailable === true && <p className='ok'>Suntem disponibili în data de {selectedFormattedDate} 🎉</p>}
+          <div className='input-group' style={{ marginTop: 12 }}>
+            <button disabled={isAvailable !== true} onClick={goNext}>
+              Continuă
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <Step2EventType />
+          {errors.eventType && <p className='error'>{errors.eventType}</p>}
+          <div className='input-group' style={{ marginTop: 12 }}>
+            <button onClick={goBack}>Înapoi</button>
+            <button onClick={goNext}>Continuă</button>
+          </div>
+        </>
+      )}
+
+      {step === 3 && (
+        <>
+          <Step3Contact
+            fullName={fullName}
+            setFullName={setFullName}
+            phone={phone}
+            setPhone={setPhone}
+            errors={errors}
+            goNext={goNext}
+            goBack={goBack}
+          />
+        </>
+      )}
+
+      {step === 4 && (
+        <Step4Details
+          MAPS_KEY={MAPS_KEY}
+          location={location}
+          setLocation={setLocation}
+          placeId={placeId}
+          setPlaceId={setPlaceId}
+          startTime={startTime}
+          setStartTime={setStartTime}
+          endTime={endTime}
+          setEndTime={setEndTime}
+          errors={errors}
+          packagesNormalized={packagesNormalized}
+          selectedPackages={selectedPackages}
+          setSelectedPackages={setSelectedPackages}
+          showCustom={showCustom}
+          setShowCustom={setShowCustom}
+          photo={photo}
+          setPhoto={setPhoto}
+          video={video}
+          setVideo={setVideo}
+          totalPrice={totalPrice}
+          submitBooking={submitBooking}
+          goBack={goBack}
+        />
+      )}
+
+      {(step === 5 || submitted) && (
+        <div style={{ marginTop: 16 }}>
+          <h3>5 Cererea nu a fost trimisă!</h3>
+          <p>Deoarece încă lucrăm la acest formular. Sună-ne la 0745 xxx xxx – {selectedFormattedDate}.</p>
+        </div>
+      )}
+    </div>
+  );
+}
