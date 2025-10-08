@@ -41,3 +41,17 @@ export const PACKAGES_NEW: Pkg[] = [
   { id: 'second', title: 'Al doilea fotograf', price: 600, note: 'Acoperire simultană pregătiri + sală.' },
   { id: 'express', title: 'Predare Express (7 zile)', price: 300, note: 'Livrare prioritară.', recommended: true },
 ];
+export const CUSTOM_OPTIONS: PackageOption[] = [
+  {
+    key: 'photo',
+    label: 'Fotograf',
+    description: 'Include încă un videograf cadou!',
+    price: 1500,
+  },
+  {
+    key: 'video',
+    label: 'Videograf',
+    description: 'Include încă un fotograf cadou!',
+    price: 1800,
+  },
+];

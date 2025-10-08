@@ -1,23 +1,35 @@
 // PackageTiles.tsx
 import React, { useMemo } from 'react';
-import { PACKAGES_NEW, Pkg } from '../../packages';
+import { PACKAGES_NEW } from '../../packages';
 import styles from './PackageTiles.module.scss';
 
+// tip „compatibil” minim cu ce randezi
+type PackageLike = {
+  id: string;
+  title: string;
+  price: number;
+  recommended?: boolean;
+  note?: React.ReactNode | string;
+};
+
 type Props = {
+  packages?: PackageLike[]; // ← NOU (opțional)
   selected: string[]; // ex. ["photo"]
   onChange: (next: string[]) => void; // propagă în wizard
 };
 
 const fmtRON = (n: number) => n.toLocaleString('ro-RO');
 
-export default function PackageTiles({ selected, onChange }: Props) {
+export default function PackageTiles({ packages, selected, onChange }: Props) {
+  const list = packages ?? PACKAGES_NEW; // ← dacă nu primește, folosește default
+
   const toggle = (id: string) => {
     onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
   };
 
   const total = useMemo(
-    () => selected.reduce((sum, id) => sum + (PACKAGES_NEW.find(p => p.id === id)?.price || 0), 0),
-    [selected]
+    () => selected.reduce((sum, id) => sum + (list.find(p => p.id === id)?.price || 0), 0),
+    [selected, list]
   );
 
   return (
@@ -25,7 +37,7 @@ export default function PackageTiles({ selected, onChange }: Props) {
       <legend>Alege pachetul/pachetele</legend>
 
       <div className={styles.grid}>
-        {PACKAGES_NEW.map(p => {
+        {list.map(p => {
           const checked = selected.includes(p.id);
           const inputId = `pkg-${p.id}`;
           return (

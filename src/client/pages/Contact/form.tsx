@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { PACKAGES } from './packages';
 import VisualOptionCard from './VisualOptionCard';
 import LocationField, { PlaceLite } from './LocationField';
-import PackageTiles from './PackageTiles';
-import { PACKAGES_NEW } from './packages';
+import PackageTiles from './../Contact/booking/components/PackageTiles';
+import { PACKAGES_NEW, CUSTOM_OPTIONS } from './packages';
+
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
 // ---------- Vite env ----------
 const IS_PROD = import.meta.env.PROD;

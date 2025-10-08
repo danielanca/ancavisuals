@@ -1,6 +1,6 @@
 // Step4.tsx (fragment relevant)
 import React, { useState, useMemo } from 'react';
-import PackageTiles from './PackageTiles';
+import PackageTiles from '../../pages/Contact/booking/components/PackageTiles';
 import { PACKAGES, PACKAGES_NEW } from './packages';
 
 export default function Step4({ step, goBack, submit }: { step: number; goBack: () => void; submit: () => void }) {
