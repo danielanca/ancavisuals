@@ -4,8 +4,10 @@ import LocationField from '../../LocationField';
 import type { PlaceLite, PkgInfo } from '../types';
 import { pad2, parseTimeToMinutes } from '../utils/time';
 import PackageTiles from '../components/PackageTiles';
+import styles from '../components/CustomOptions.module.scss';
 
 const fmtRON = (n: number) => n.toLocaleString('ro-RO');
+
 
 export default function Step4Details({
   MAPS_KEY,
@@ -30,6 +32,7 @@ export default function Step4Details({
   totalPrice,
   submitBooking,
   goBack,
+  loading,
 }: any) {
   const durationInfo = React.useMemo(() => {
     const s = parseTimeToMinutes(startTime);
@@ -42,7 +45,7 @@ export default function Step4Details({
   }, [startTime, endTime]);
 
   return (
-    <>
+    <>    
       <h3>4) Locație, interval & pachet</h3>
       <div className='booking-form' style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* Locație */}
@@ -110,36 +113,47 @@ export default function Step4Details({
             onChange={setSelectedPackages}
           />
 
-          {/* Opțional: “personalizat” */}
-          <div style={{ marginTop: 8 }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <input type='checkbox' checked={showCustom} onChange={e => setShowCustom(e.target.checked)} />
-              <span>Configurează personalizat (foto/video)</span>
-            </label>
+        <div className={styles['custom-config']}>
+  {/* Switch for Custom Configuration */}
+  <label className={styles['custom-config__switch']}>
+    <span>Configurează personalizat (foto/video)</span>
+    <input
+      type="checkbox"
+      checked={showCustom}
+      onChange={e => setShowCustom(e.target.checked)}
+    />
+    <span className={styles['custom-config__slider']} />
+  </label>
 
-            {showCustom && (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: 10,
-                  marginTop: 10,
-                }}
-              >
-                <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type='checkbox' checked={photo} onChange={() => setPhoto((v: boolean) => !v)} />
-                  <span>Fotografie (+1.500 RON)</span>
-                </label>
-                <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type='checkbox' checked={video} onChange={() => setVideo((v: boolean) => !v)} />
-                  <span>Videografie (+1.300 RON)</span>
-                </label>
-                <p style={{ gridColumn: '1/-1', fontStyle: 'italic', color: '#f4d35e', margin: 0 }}>
-                  Album inclus bonus în modul personalizat.
-                </p>
-              </div>
-            )}
-          </div>
+  {showCustom && (
+    <div className={styles['custom-config__options']}>
+      {/* Photo Option Card */}
+      <div
+        className={`${styles['custom-config__option']} ${
+          photo ? styles.selected : ''
+        }`}
+        onClick={() => setPhoto((v: boolean) => !v)}
+      >
+        <span>Fotografie (+1.500 RON)</span>
+      </div>
+
+      {/* Video Option Card */}
+      <div
+        className={`${styles['custom-config__option']} ${
+          video ? styles.selected : ''
+        }`}
+        onClick={() => setVideo((v: boolean) => !v)}
+      >
+        <span>Videografie (+1.300 RON)</span>
+      </div>
+
+      <p className={styles['custom-config__note']}>
+        Album inclus bonus în modul personalizat.
+      </p>
+    </div>
+  )}
+</div>
+
 
           {errors.package && <p className='error'>{errors.package}</p>}
           <p className='total-price'>Preț estimativ: {fmtRON(totalPrice)} RON</p>
@@ -147,7 +161,21 @@ export default function Step4Details({
 
         <div className='input-group' style={{ marginTop: 12, display: 'flex', gap: 8 }}>
           <button onClick={goBack}>Înapoi</button>
-          <button onClick={submitBooking}>Trimite cererea</button>
+          <button
+            onClick={submitBooking}
+            disabled={loading}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              opacity: loading ? 0.7 : 1,
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Trimite cererea
+            {loading && <span className="btn-loader"></span>}
+          </button>
+
         </div>
       </div>
     </>

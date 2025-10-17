@@ -41,7 +41,7 @@ export default function Step1Date({
 
   return (
     <>
-      <h3>1) Alege data</h3>
+      <h3>1) Choose date</h3>
       <div className='input-group'>
         <select value={day} onChange={e => setDay(parseInt(e.target.value))}>
           {days.map(d => (

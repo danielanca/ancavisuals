@@ -1,7 +1,7 @@
 // src/booking/utils/api.ts
 const IS_PROD = import.meta.env.PROD;
 const API_BASE = ''; // same-origin
-export const BOOKING_TO = import.meta.env.VITE_BOOKING_EMAIL ?? 'you@example.com';
+export const BOOKING_TO = import.meta.env.VITE_BOOKING_EMAIL ?? 'suryaaa090@gmail.com';
 
 export async function safeTrigger(payload: any) {
   try {

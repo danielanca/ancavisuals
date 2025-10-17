@@ -5,7 +5,7 @@ import '../segmented.scss';
 export default function Step2EventType() {
   return (
     <fieldset className='tiles'>
-      <legend>2) Tipul evenimentului</legend>
+      <legend>2) Event type</legend>
       {[
         { id: 'evt-nunta', label: 'Nuntă', value: 'nunta' },
         { id: 'evt-botez', label: 'Botez', value: 'botez' },

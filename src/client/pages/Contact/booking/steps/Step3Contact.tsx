@@ -4,7 +4,7 @@ import React from 'react';
 export default function Step3Contact({ fullName, setFullName, phone, setPhone, errors, goNext, goBack }: any) {
   return (
     <>
-      <h3>3) Detalii de contact</h3>
+      <h3>3) contact details</h3>
       <form
         autoComplete='on'
         onSubmit={e => {

@@ -1,8 +1,7 @@
 // src/booking/BookingWizard.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef,useState } from 'react';
 import './styles.css';
 import './segmented.scss';
-
 import { PACKAGES, CUSTOM_OPTIONS, PACKAGES_NEW } from '../packages'; // păstrezi fișierul tău
 import { safeTrigger, BOOKING_TO } from './utils/api';
 import { normalizePackages } from './utils/normalize';
@@ -50,7 +49,14 @@ export default function BookingWizard() {
   const [video, setVideo] = useState(false);
 
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const thankYouRef = useRef<HTMLDivElement | null>(null);
   const [errors, setErrors] = useState<Errors>({});
+  const [bookingData, setBookingData] = useState<{
+    date: string;
+    totalPrice: number;
+    fullName: string;
+  } | null>(null);
 
   const selectedFormattedDate = useMemo(() => formatDate(day, month, year), [day, month, year]);
 
@@ -90,46 +96,64 @@ export default function BookingWizard() {
     return tilesSum + customSum;
   }, [packagesNormalized, selectedPackages, showCustom, photo, video]);
 
-  const submitBooking = async () => {
-    if (!validateStep(4)) return setStep(4);
-    const subject = `Cerere ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
-    const payload = {
-      to: BOOKING_TO,
-      subject,
-      html: `
-        <h2>Cerere nouă</h2>
-        <ul>
-          <li><b>Data:</b> ${selectedFormattedDate}</li>
-          <li><b>Eveniment:</b> ${eventType}</li>
-          <li><b>Nume:</b> ${fullName}</li>
-          <li><b>Telefon:</b> ${phone}</li>
-          <li><b>Locație:</b> ${location}</li>
-          <li><b>Interval:</b> ${startTime} – ${endTime}</li>
-          <li><b>Preț estimativ:</b> ${totalPrice} RON</li>
-        </ul>
-      `,
-      booking: {
-        date: selectedFormattedDate,
-        eventType,
-        fullName,
-        phone,
-        location,
-        placeId,
-        startTime,
-        endTime,
-        packages: selectedPackages,
-        custom: showCustom ? { photo, video } : null,
-        price: totalPrice,
-      },
-    };
-    const resp = await safeTrigger(payload);
-    if (resp?.ok) setSubmitted(true);
-    else alert('A apărut o problemă la trimitere.');
+ const submitBooking = async () => {
+  if (!validateStep(4)) {
+    setStep(4);
+    return;
+  }
+
+  setLoading(true);
+  
+  const subject = `Cerere ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
+  const payload = {
+    to: BOOKING_TO,
+    subject,
+    html: `
+      <h2>Cerere nouă</h2>
+      <ul>
+        <li><b>Data:</b> ${selectedFormattedDate}</li>
+        <li><b>Eveniment:</b> ${eventType}</li>
+        <li><b>Nume:</b> ${fullName}</li>
+        <li><b>Telefon:</b> ${phone}</li>
+        <li><b>Locație:</b> ${location}</li>
+        <li><b>Interval:</b> ${startTime} – ${endTime}</li>
+        <li><b>Preț estimativ:</b> ${totalPrice} RON</li>
+      </ul>
+    `,
+    booking: {
+      date: selectedFormattedDate,
+      eventType,
+      fullName,
+      phone,
+      location,
+      placeId,
+      startTime,
+      endTime,
+      packages: selectedPackages,
+      custom: showCustom ? { photo, video } : null,
+      price: totalPrice,
+    },
   };
+
+  const resp = await safeTrigger(payload);
+
+  if (resp?.ok) {
+    setBookingData({ date: selectedFormattedDate, totalPrice, fullName });
+    setSubmitted(true);
+    setStep(5);
+    setTimeout(() => {
+    window.scrollTo({ top: window.innerHeight * 0.75, behavior: 'smooth' });
+  }, 150);
+  } else {
+    alert('A apărut o problemă la trimitere.');
+  }
+    setLoading(false);
+};
+
 
   return (
     <div className='booking-container'>
-      <h2>Rezervare & Disponibilitate</h2>
+      <h2>Booking & availability</h2>
 
       {/* stepper */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -156,7 +180,7 @@ export default function BookingWizard() {
             setErrors={setErrors}
           />
           {errors.date && <p className='error'>{errors.date}</p>}
-          {isAvailable === true && <p className='ok'>Suntem disponibili în data de {selectedFormattedDate} 🎉</p>}
+          {isAvailable === true && <p className='ok'>We are available on {selectedFormattedDate} 🎉</p>}
           <div className='input-group' style={{ marginTop: 12 }}>
             <button disabled={isAvailable !== true} onClick={goNext}>
               Continuă
@@ -212,17 +236,32 @@ export default function BookingWizard() {
           video={video}
           setVideo={setVideo}
           totalPrice={totalPrice}
+          loading={loading}
           submitBooking={submitBooking}
           goBack={goBack}
         />
       )}
 
-      {(step === 5 || submitted) && (
+ {step === 5 && submitted && bookingData && (
+  <div className="thank-you-msg">
+    <div className="thank-you-card">
+      <div className="thank-you-icon">🎉</div>
+      <h3>Thank you, {bookingData.fullName}!</h3>
+      <p>Your booking for <strong>{bookingData.date}</strong> has been received.</p>
+      <p>Total price: <strong>{bookingData.totalPrice.toLocaleString('ro-RO')} RON</strong></p>
+      <p>We’ll contact you shortly to confirm the details.</p>
+    </div>
+  </div>
+)}
+
+
+
+      {/* {(step === 5 || submitted) && (
         <div style={{ marginTop: 16 }}>
-          <h3>5 Cererea nu a fost trimisă!</h3>
-          <p>Deoarece încă lucrăm la acest formular. Sună-ne la 0745 xxx xxx – {selectedFormattedDate}.</p>
-        </div>
-      )}
+          <h3>Your request was not sent!</h3>
+<p>We are still working on this form. Please call us at 0745 xxx xxx – {selectedFormattedDate}.</p>
+ </div>
+      )} */}
     </div>
   );
 }
