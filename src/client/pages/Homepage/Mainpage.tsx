@@ -9,6 +9,7 @@ import Featured from './Featured';
 import Philosophy from './Philosophy';
 import Approach from './Approach';
 import Letter from './Letter';
+import CTAPreview from './CTAPreview/CTAPreview';
 import Process from './Process';
 import Testimonials from './Testimonials';
 import News from './News';
@@ -22,6 +23,7 @@ const Mainpage = () => {
     <div className='min-h-screen bg-black text-white'>
       <Navbar />
       <Hero />
+      <CTAPreview />
       <Featured />
       <Philosophy />
       <Approach />

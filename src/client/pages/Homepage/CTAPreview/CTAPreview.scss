@@ -1,0 +1,352 @@
+/* =========================
+   Configurator Teaser
+   Match vizual Booking & availability
+   ========================= */
+
+$config-bg: #111111;
+$config-card-radius: 40px;
+$config-border-gold: #f4d067;
+$config-gold: #f4d067;
+$config-gold-soft: #fde68a;
+$config-text-main: #ffffff;
+$config-text-muted: #9ca3af;
+$config-btn-grey: #252525;
+$config-btn-grey-border: #3a3a3a;
+
+.config-teaser {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 32px 40px 30px;
+  background: $config-bg;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.9);
+  color: $config-text-main;
+  text-align: left;
+  border: 1px solid rgba($config-border-gold, 0.18);
+  position: relative;
+  border-radius: 8px;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease,
+    transform 0.25s ease, background 0.25s ease;
+  cursor: default;
+
+  &--glow {
+    animation: teaserGlow 3s ease-in-out infinite;
+  }
+
+  &:hover {
+    box-shadow: 0 28px 96px rgba(0, 0, 0, 1);
+    border-color: rgba($config-border-gold, 0.26);
+    transform: translateY(-1px);
+    background: #0e0e0e;
+  }
+
+  /* TITLU */
+
+  &__heading {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 400;
+    color: $config-gold;
+    margin-bottom: 4px;
+  }
+
+  &__step-label {
+    text-align: center;
+    font-size: 13px;
+    color: $config-text-muted;
+    margin-bottom: 22px;
+  }
+
+  /* EVENT BUTTONS – pill ca în wizard */
+
+  &__event-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 22px;
+
+    @media (max-width: 900px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 520px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__event-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-radius: 999px;
+    background: $config-btn-grey;
+    border: 1px solid $config-btn-grey-border;
+    color: $config-text-main;
+    font-size: 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.18s ease-out;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.7);
+
+    &:hover {
+      border-color: rgba($config-gold, 0.4);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.9);
+      background: #2b2b2b;
+      color: $config-text-main;
+    }
+
+    &--active {
+      border: 2px solid $config-gold;
+      background: #151515;
+      box-shadow: 0 0 26px rgba($config-gold, 0.26);
+      color: $config-gold-soft;
+    }
+  }
+
+  &__event-label {
+    flex: 1;
+    line-height: 1.3;
+    text-align: left;
+  }
+
+  &__event-check {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1px solid rgba(185, 185, 185, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+  }
+
+  &__event-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: $config-gold;
+    box-shadow: 0 0 12px rgba($config-gold, 1);
+  }
+
+  /* OFERTA */
+
+  &__offer-label {
+    margin-top: 6px;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: $config-gold;
+  }
+
+  &__price {
+    margin-top: 4px;
+
+    span {
+      display: block;
+      font-size: 12px;
+      color: $config-text-muted;
+
+      strong {
+        font-weight: 500;
+        color: $config-text-main;
+      }
+    }
+
+    strong {
+      display: block;
+      font-size: 34px;
+      font-weight: 600;
+      line-height: 1.1;
+      color: $config-gold-soft;
+    }
+  }
+
+  &__text {
+    font-size: 12px;
+    color: $config-text-muted;
+    margin-top: 8px;
+    margin-bottom: 18px;
+  }
+
+  /* SLIDER */
+
+  &__slider-wrap {
+    position: relative;
+    margin-top: 6px;
+    cursor: pointer;
+  }
+
+  &__slider-fill {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    height: 8px;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background: radial-gradient(circle at center, $config-gold, transparent);
+    opacity: 0.42;
+    pointer-events: none;
+    transition: width 0.12s ease-out;
+    filter: blur(3px);
+  }
+
+  &__slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    background: transparent;
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
+    margin: 0;
+
+    &::-webkit-slider-runnable-track {
+      height: 8px;
+      border-radius: 999px;
+      background: #232323;
+    }
+
+    &::-moz-range-track {
+      height: 8px;
+      border-radius: 999px;
+      background: #232323;
+    }
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 26px;
+      height: 26px;
+      margin-top: -9px;
+      border-radius: 999px;
+      background: $config-gold;
+      border: none;
+      box-shadow: 0 0 22px rgba($config-gold, 0.9);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    &::-moz-range-thumb {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: $config-gold;
+      border: none;
+      box-shadow: 0 0 22px rgba($config-gold, 0.9);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    &:hover::-webkit-slider-thumb,
+    &:active::-webkit-slider-thumb,
+    &:hover::-moz-range-thumb,
+    &:active::-moz-range-thumb {
+      transform: scale(1.06);
+      box-shadow: 0 0 28px rgba($config-gold, 1);
+    }
+  }
+
+  &__scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: #6b7280;
+    margin-top: 4px;
+  }
+
+  /* AFLI PE LOC */
+
+  &__instant-label {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: $config-gold;
+  }
+
+  /* CTA BUTTON */
+
+  &__btn {
+    margin-top: 10px;
+    padding: 14px 48px;
+    border: none;
+    border-radius: 999px;
+    background: $config-gold;
+    color: #111111;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 1);
+    transition: all 0.16s ease-out;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 20px 52px rgba(0, 0, 0, 1);
+      background: lighten($config-gold, 4%);
+    }
+
+    &:active {
+      transform: translateY(1px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9);
+      background: darken($config-gold, 4%);
+    }
+  }
+
+  &__btn--pulse {
+    position: relative;
+    overflow: visible;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: -4px;
+      border-radius: inherit;
+      border: 1px solid rgba($config-gold, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      animation: btnPulse 1.9s ease-out infinite;
+    }
+  }
+}
+
+/* ANIMATIONS */
+
+@keyframes teaserGlow {
+  0% {
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.9),
+      0 0 16px rgba($config-gold, 0.08);
+    border-color: rgba($config-gold, 0.16);
+  }
+  50% {
+    box-shadow: 0 28px 96px rgba(0, 0, 0, 1), 0 0 24px rgba($config-gold, 0.18);
+    border-color: rgba($config-gold, 0.32);
+  }
+  100% {
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.9),
+      0 0 16px rgba($config-gold, 0.08);
+    border-color: rgba($config-gold, 0.16);
+  }
+}
+
+@keyframes btnPulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+
+.config-teaser__outer-wrap {
+  margin-top: 80px;
+  margin-bottom: 120px;
+}
