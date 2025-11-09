@@ -76,3 +76,93 @@
   cursor: pointer;
   transform: rotate(40deg);
 }
+
+
+
+
+/* -------- Step 2: Event type tiles -------- */
+
+.event-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 10px 0 6px;
+}
+
+@media (max-width: 720px) {
+  .event-type-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.event-type-tile {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  border: 1px solid #3a3a3a;
+  background: #1a1a1a;
+  color: #fff;
+  text-align: left;
+  padding: 14px 18px;
+  border-radius: 16px;          /* dacă vrei full-pill: 999px */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .12s ease;
+  box-shadow: 0 10px 24px rgba(0,0,0,.6);
+}
+
+.event-type-tile:hover {
+  background: #232323;
+  border-color: rgba(244, 208, 103, .45);
+  box-shadow: 0 14px 36px rgba(0,0,0,.85);
+  transform: translateY(-1px);
+}
+
+.event-type-tile--active {
+  background: #151515;
+  border: 2px solid #f4d067;    /* gold */
+  box-shadow: 0 0 22px rgba(244, 208, 103, .22);
+}
+
+.event-type-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.event-type-label {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.event-type-desc {
+  font-size: 14px;
+  color: #9ca3af;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+/* mic „checkbox” rotund in dreapta */
+.event-type-check {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(185,185,185,.85);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.event-type-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #f4d067;
+  box-shadow: 0 0 12px rgba(244, 208, 103, 1);
+}

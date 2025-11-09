@@ -9,8 +9,6 @@ import "./styles.css";
 import "./segmented.scss";
 
 import {
-  PACKAGES,
-  CUSTOM_OPTIONS,
   PACKAGES_NEW,
 } from "../packages";
 import { safeTrigger, BOOKING_TO } from "./utils/api";
@@ -28,6 +26,7 @@ import Step1Date from "./steps/Step1Date";
 import Step2EventType from "./steps/Step2EventType";
 import Step3Contact from "./steps/Step3Contact";
 import Step4Details from "./steps/Step4Details";
+
 
 const MAPS_KEY = import.meta.env
   .VITE_GOOGLE_MAPS_BROWSER_KEY as string;
@@ -102,7 +101,7 @@ function expandBookedDates(
 
 export default function BookingWizard() {
   const [step, setStep] = useState<Step>(1);
-
+  const [saveContactConsent, setSaveContactConsent] = useState(true);
   // Step 1 – data
   const [day, setDay] = useState(1);
   const [month, setMonth] = useState(0); // 0-based
@@ -157,37 +156,112 @@ export default function BookingWizard() {
     [day, month, year]
   );
 
-  /* ---------- Load bookedDates.json from Firebase ---------- */
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const fileRef = ref(
-          storage,
-          "ancavisuals/bookedDates/bookedDates.json"
-        );
-        const bytes = await getBytes(fileRef);
-        const text = new TextDecoder("utf-8").decode(
-          bytes
-        );
-        const json = JSON.parse(
-          text
-        ) as BookedDatesFile;
 
-        const dates = expandBookedDates(json);
-        console.log("Loaded booked dates:", dates);
-        setBookedDates(dates);
-      } catch (err) {
-        console.error(
-          "Failed to load booked dates:",
-          err
-        );
-        setBookedDates([]);
-      }
-    };
+/* ---------- Load bookedDates.json from Firebase Storage ---------- */
 
-    load();
-  }, []);
+useEffect(() => {
+  const load = async () => {
+    try {
+      console.log("[BookingWizard] Loading bookedDates.json from Firebase...");
+
+      const fileRef = ref(
+        storage,
+        "ancavisuals/bookedDates/bookedDates.json"
+      );
+
+      // luam conținutul binar prin SDK (evităm fetch direct pe URL)
+      const bytes = await getBytes(fileRef);
+      const text = new TextDecoder("utf-8").decode(bytes);
+
+      const json = JSON.parse(text) as BookedDatesFile;
+      const dates = expandBookedDates(json); // => ["2026-02-21", ...];
+
+      console.log("[BookingWizard] Loaded booked dates:", dates);
+      setBookedDates(dates);
+    } catch (err) {
+      console.error("[BookingWizard] Failed to load booked dates:", err);
+      setBookedDates([]);
+    }
+  };
+
+  load();
+}, []);
+
+
+const handleContactStepNext = async () => {
+  // Validare rapidă pentru pasul 3
+  const errs: Errors = {};
+
+  if (!fullName.trim()) {
+    errs.fullName = "Completează numele.";
+  }
+  if (!phone || !PHONE_RE.test(phone)) {
+    errs.phone = "Număr de telefon invalid.";
+  }
+
+  if (Object.keys(errs).length > 0) {
+    setErrors((prev) => ({ ...prev, ...errs }));
+    return;
+  }
+
+  // Curățăm erorile legate de contact
+  setErrors((prev) => ({
+    ...prev,
+    fullName: "",
+    phone: "",
+  }));
+
+  // Trimitem lead-ul imediat, doar dacă și-a dat acordul
+  if (saveContactConsent) {
+    try {
+      const subject = `Lead rapid – ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
+
+      const payload = {
+        to: BOOKING_TO,
+        subject,
+        html: `
+          <h2>Lead rapid din configurator</h2>
+          <ul>
+            <li><b>Data (selectată până acum):</b> ${selectedFormattedDate}</li>
+            <li><b>Eveniment:</b> ${eventType}</li>
+            <li><b>Nume:</b> ${fullName}</li>
+            <li><b>Telefon:</b> ${phone}</li>
+            <li><b>A acceptat salvarea datelor:</b> DA</li>
+          </ul>
+          <p><i>Acest lead a fost trimis la finalul pasului 3 (contact), chiar dacă utilizatorul nu a finalizat configuratorul.</i></p>
+        `,
+        booking: {
+          date: selectedFormattedDate,
+          eventType,
+          fullName,
+          phone,
+          location,
+          placeId,
+          startTime,
+          endTime,
+          packages: selectedPackages,
+          custom: showCustom ? { photo, video } : null,
+          price: totalPrice,
+          partial: true,
+          saveContactConsent: true,
+        },
+      };
+
+      // non-blocking, nu ținem user-ul să aștepte
+      safeTrigger(payload).catch((err) => {
+        console.error("Partial lead send failed (non-blocking):", err);
+      });
+    } catch (err) {
+      console.error("Error building partial lead:", err);
+    }
+  }
+
+  // Oricum mergem mai departe în wizard
+  setStep(4);
+};
+
+
 
   /* ---------- Validation ---------- */
 
@@ -288,48 +362,34 @@ export default function BookingWizard() {
   /* ---------- Submit ---------- */
 
   const submitBooking = async () => {
-    if (!validateStep(4)) {
-      setStep(4);
-      return;
-    }
+  if (!validateStep(4)) {
+    setStep(4);
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    const subject = `Cerere ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
-    const payload = {
-      to: BOOKING_TO,
-      subject,
-      html: `
-        <h2>Cerere nouă</h2>
-        <ul>
-          <li><b>Data:</b> ${selectedFormattedDate}</li>
-          <li><b>Eveniment:</b> ${eventType}</li>
-          <li><b>Nume:</b> ${fullName}</li>
-          <li><b>Telefon:</b> ${phone}</li>
-          <li><b>Locație:</b> ${location}</li>
-          <li><b>Interval:</b> ${startTime} – ${endTime}</li>
-          <li><b>Preț estimativ:</b> ${totalPrice} RON</li>
-        </ul>
-      `,
-      booking: {
-        date: selectedFormattedDate,
-        eventType,
-        fullName,
-        phone,
-        location,
-        placeId,
-        startTime,
-        endTime,
-        packages: selectedPackages,
-        custom: showCustom
-          ? { photo, video }
-          : null,
-        price: totalPrice,
-      },
-    };
+  const subject = `Cerere ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
+  const payload = {
+    to: BOOKING_TO,
+    subject,
+    html: `...`,
+    booking: {
+      date: selectedFormattedDate,
+      eventType,
+      fullName,
+      phone,
+      location,
+      placeId,
+      startTime,
+      endTime,
+      packages: selectedPackages,
+      custom: showCustom ? { photo, video } : null,
+      price: totalPrice,
+    },
+  };
 
-    const resp = await safeTrigger(payload);
-
+  const resp = await safeTrigger(payload);
     if (resp?.ok) {
       setBookingData({
         date: selectedFormattedDate,
@@ -461,14 +521,14 @@ export default function BookingWizard() {
       {step === 3 && (
         <Step3Contact
           fullName={fullName}
-          setFullName={
-            setFullName
-          }
+          setFullName={setFullName}
           phone={phone}
           setPhone={setPhone}
           errors={errors}
-          goNext={goNext}
           goBack={goBack}
+          saveConsent={saveContactConsent}
+          setSaveConsent={setSaveContactConsent}
+          onSubmitContact={handleContactStepNext}
         />
       )}
 

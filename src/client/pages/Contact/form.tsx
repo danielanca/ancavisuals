@@ -105,10 +105,11 @@ export default function BookingWizard() {
 
   // Load booked dates
   useEffect(() => {
-    fetch('/bookedDates.json')
-      .then(r => r.json())
-      .then((data: string[]) => setBookedDates(data.map(d => d.trim())))
-      .catch(() => setBookedDates([]));
+    console.log('local bookedDates)');
+    // fetch('/bookedDates.json')
+    //   .then(r => r.json())
+    //   .then((data: string[]) => setBookedDates(data.map(d => d.trim())))
+    //   .catch(() => setBookedDates([]));
   }, []);
 
   // Check availability
