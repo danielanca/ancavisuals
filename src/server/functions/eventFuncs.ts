@@ -24,7 +24,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     await transport.sendMail({
       from: emailAuth.email,
-      to: `${adminUser.email}, suryaaa090@gmail.com`,
+      to: `${adminUser.email}`,
       subject: `New Event - ${todayString} ${triggerData.typeEvent}`,
       html: payload.html,
       //html: renderTriggerClick(triggerData.typeEvent, triggerData.url, triggerData.browserVersion),
