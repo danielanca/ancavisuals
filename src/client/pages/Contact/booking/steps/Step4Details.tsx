@@ -115,7 +115,7 @@ export default function Step4Details({
 
         <div className={styles['custom-config']}>
   {/* Switch for Custom Configuration */}
-  <label className={styles['custom-config__switch']}>
+  {/* <label className={styles['custom-config__switch']}>
     <span>Configurează personalizat (foto/video)</span>
     <input
       type="checkbox"
@@ -123,40 +123,14 @@ export default function Step4Details({
       onChange={e => setShowCustom(e.target.checked)}
     />
     <span className={styles['custom-config__slider']} />
-  </label>
+  </label> } */}
 
-  {showCustom && (
-    <div className={styles['custom-config__options']}>
-      {/* Photo Option Card */}
-      <div
-        className={`${styles['custom-config__option']} ${
-          photo ? styles.selected : ''
-        }`}
-        onClick={() => setPhoto((v: boolean) => !v)}
-      >
-        <span>Fotografie (+1.500 RON)</span>
-      </div>
-
-      {/* Video Option Card */}
-      <div
-        className={`${styles['custom-config__option']} ${
-          video ? styles.selected : ''
-        }`}
-        onClick={() => setVideo((v: boolean) => !v)}
-      >
-        <span>Videografie (+1.300 RON)</span>
-      </div>
-
-      <p className={styles['custom-config__note']}>
-        Album inclus bonus în modul personalizat.
-      </p>
-    </div>
-  )}
+  
 </div>
 
 
           {errors.package && <p className='error'>{errors.package}</p>}
-          <p className='total-price'>Preț estimativ: {fmtRON(totalPrice)} RON</p>
+          <p className='total-price'>Preț: {fmtRON(totalPrice)} RON</p>
         </div>
 
         <div className='input-group' style={{ marginTop: 12, display: 'flex', gap: 8 }}>

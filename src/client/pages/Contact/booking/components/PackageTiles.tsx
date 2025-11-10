@@ -174,10 +174,6 @@ export default function PackageTiles({ packages, selected, onChange }: Props) {
         })}
       </div>
 
-      <div className={styles.total}>
-        <span>Preț estimativ:</span>
-        <strong>{fmtRON(total)} RON</strong>
-      </div>
     </fieldset>
   );
 }

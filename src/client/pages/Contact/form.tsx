@@ -437,7 +437,7 @@ export default function BookingWizard() {
                 </label>
               ))}
 
-              {packageType === 'custom' && (
+              {/* {packageType === 'custom' && (
                 <div style={{ marginTop: '0.5rem' }}>
                   <p style={{ fontStyle: 'italic', color: '#f4d35e' }}>
                     Surpriză: alegi foto sau video și primești automat și partenerul – fără costuri!
@@ -455,10 +455,10 @@ export default function BookingWizard() {
                     })}
                   </div>
                 </div>
-              )}
+              )} */}
 
               {errors.package && <p className='error'>{errors.package}</p>}
-              <p className='total-price'>Preț estimativ: {price} RON</p>
+              <p className='total-price'>Preț: {price} RON</p>
             </div>
 
             <div className='input-group' style={{ marginTop: 12 }}>

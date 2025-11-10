@@ -25,7 +25,7 @@ export const PACKAGES_NEW: Pkg[] = [
   {
     id: 'photo',
     title: 'Fotografie',
-    price: 100,
+    price: 1500,
     type: 'photo',
     note: 'Acoperire completă; 500 - 800 fotografii editate.',
     samples: [
@@ -37,7 +37,7 @@ export const PACKAGES_NEW: Pkg[] = [
   {
     id: 'video',
     title: 'Videografie',
-    price: 1300,
+    price: 2500,
     type: 'video',
     note: 'Filmări 4K; highlight 3–5 min + clip lung.',
     samples: [
@@ -49,7 +49,7 @@ export const PACKAGES_NEW: Pkg[] = [
   {
     id: 'album',
     title: 'Album 15×10 cm',
-    price: 400,
+    price: 200,
     type: 'photo',
     note: '100 poze, hârtie foto premium.',
     samples: [
@@ -59,44 +59,27 @@ export const PACKAGES_NEW: Pkg[] = [
     ],
   },
   {
-    id: 'second',
-    title: 'Al doilea fotograf',
-    price: 600,
+    id: 'photobooth',
+    title: 'Fotocabina / Photo Booth',
+    price: 1200,
     type: 'photo',
-    note: 'Acoperire simultană pregătiri + sală.',
+    note: 'Foto cabina pe perioada evenimentului.',
     samples: [
-      'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FGermania%2FBiserica-0860.jpg?alt=media&token=56ef1e2f-ce6d-42c8-ac65-297341ee3e26',
-      'https://picsum.photos/300/200?random=11',
-      'https://picsum.photos/300/200?random=12',
+      'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fvideobooth%2Ffotocabina.webp?alt=media&token=5a23fd34-3dba-4823-8e8e-56902c8224cf',
     ],
   },
   {
-    id: 'express',
-    title: 'Predare Express (7 zile)',
-    price: 300,
+    id: 'videobooth',
+    title: 'Video Cabina 360 / VideoBooth 360',
+    price: 1200,
     type: 'photo',
-    note: 'Livrare prioritară.',
+    note: 'Video cabina pe perioada evenimentului.',
     recommended: true,
     samples: [
-      'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FSibiu%20Botez%2FArian-170.jpg?alt=media&token=d6db4aaa-6185-4818-8a10-b45589302f9d',
-      'https://picsum.photos/300/200?random=14',
-      'https://picsum.photos/300/200?random=15',
+      'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fvideobooth%2Fvidoebooth.avif?alt=media&token=ab8a3f18-cac8-460c-a253-5d89a6b8a5f1',
     ],
   },
 ];
 
 
-export const CUSTOM_OPTIONS: PackageOption[] = [
-  {
-    key: 'photo',
-    label: 'Fotograf',
-    description: 'Include încă un videograf cadou!',
-    price: 1500,
-  },
-  {
-    key: 'video',
-    label: 'Videograf',
-    description: 'Include încă un fotograf cadou!',
-    price: 1800,
-  },
-];
+
