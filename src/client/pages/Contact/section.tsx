@@ -15,21 +15,14 @@ const Contacthero = () => {
         BUNĂ, OAMENI FRUMOȘI!
       </motion.h1>
 
-      <h2 className='subhead'>TRIMITE-NE UN MESAJ.</h2>
+      <h2 className='subhead'>SALUTARE</h2>
 
-      <div className='px-0 py-[15px] sm:px-[250px]'>
+      <div className="px-0 py-[15px] sm:px-[250px]">
         <p>
-          Spune-ne ce urmează în viața voastră! Știm că nu e mereu ușor să scrii tot ce ai în gând, dar fiecare detaliu
-          ne ajută să înțelegem mai bine cum vedeți ziua voastră specială. După ce apeși butonul de trimitere, noi —
-          Dani și Estera, două suflete pasionate de povești și oameni — vom citi cu bucurie tot și îți vom răspunde în
-          cel mult 24 de ore.
+          Configurează-ți pachetul exact cum ai nevoie, vezi instant prețul, ce este inclus și dacă suntem disponibili în ziua ta.
         </p>
         <p>
-          Dacă preferi să sari peste email, poți <a href='#'>programa un apel video</a> în care povestim despre idei,
-          prețuri și disponibilitate. Abia așteptăm să vă cunoaștem și să vă fim aproape în ziua voastră!
-        </p>
-        <p className='footer-note'>
-          Să ajungă cu bine mesajul tău în inboxul nostru, și fie să înceapă o frumoasă colaborare 🙏
+          Iar dacă ai întrebări speciale, lasă-ne două rânduri în formular și revenim rapid cu o ofertă clară și sinceră.
         </p>
       </div>
     </section>
