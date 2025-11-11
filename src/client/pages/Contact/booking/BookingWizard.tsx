@@ -420,7 +420,7 @@ const handleContactStepNext = async () => {
 
   return (
     <div className="booking-container">
-      <h2>Booking & availability</h2>
+      <h2>VERIFICA DISPONIBILITATEA & PRET</h2>
 
       {/* stepper */}
       <div

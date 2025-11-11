@@ -115,7 +115,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
 
   return (
     <>
-      <p className="step-title">1) Choose date</p>
+      <p className="step-title">1) Spune-ne data evenimentului</p>
 
       <div className="input-group date-select-group">
         {/* Zi */}

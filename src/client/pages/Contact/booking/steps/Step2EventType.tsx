@@ -12,7 +12,7 @@ const Step2EventType: React.FC<Step2EventTypeProps> = ({
 }) => {
   return (
     <div>
-      <p className="step-title">2) Event type</p>
+      <p className="step-title">2) Tipul evenimentului</p>
 
       {/* Folosim stilurile existente din segmented.scss */}
       <div className="segmented">

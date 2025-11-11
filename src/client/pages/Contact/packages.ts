@@ -25,7 +25,7 @@ export const PACKAGES_NEW: Pkg[] = [
   {
     id: 'photo',
     title: 'Fotografie',
-    price: 1500,
+    price: 2500,
     type: 'photo',
     note: 'Acoperire completă; 500 - 800 fotografii editate.',
     samples: [
@@ -37,9 +37,9 @@ export const PACKAGES_NEW: Pkg[] = [
   {
     id: 'video',
     title: 'Videografie',
-    price: 2500,
+    price: 1500,
     type: 'video',
-    note: 'Filmări 4K; highlight 3–5 min + clip lung.',
+    note: 'Filmări 4K; highlight 3–5 min + clip lung. (3-7 ore)',
     samples: [
       'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fvideos%2FFaraPOVText.mp4?alt=media&token=b6ea3ef1-13a1-4617-b246-f10a47d9b8e8',
       'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FBucurestiNunta.mp4?alt=media&token=74d6a5b5-0906-45e1-950c-9632bba7889b',

@@ -17,13 +17,12 @@ const Contacthero = () => {
 
       <h2 className='subhead'>SALUTARE</h2>
 
-      <div className="px-0 py-[15px] sm:px-[250px]">
-        <p>
-          Configurează-ți pachetul exact cum ai nevoie, vezi instant prețul, ce este inclus și dacă suntem disponibili în ziua ta.
-        </p>
-        <p>
-          Iar dacă ai întrebări speciale, lasă-ne două rânduri în formular și revenim rapid cu o ofertă clară și sinceră.
-        </p>
+      <div className="px-0 py-[20px] sm:px-[250px] text-[17px] leading-relaxed text-gray-200">
+      <p className="mb-3 text-[18px] sm:text-[19px] font-medium text-gray-100">
+        În câteva minute îți poți configura pachetul perfect pentru ziua ta, exact așa cum îl imaginezi. Vezi pe loc prețul,
+        disponibilitatea și tot ce este inclus — transparent, clar și adaptat nevoilor tale reale. Nu trebuie să aștepți un
+        email, nu trebuie să ghicești: ai totul în fața ta.
+      </p>
       </div>
     </section>
   );
