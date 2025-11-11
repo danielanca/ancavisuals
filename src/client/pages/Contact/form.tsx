@@ -5,7 +5,7 @@ import { PACKAGES } from './packages';
 import VisualOptionCard from './VisualOptionCard';
 import LocationField, { PlaceLite } from './LocationField';
 import PackageTiles from './../Contact/booking/components/PackageTiles';
-import { PACKAGES_NEW, CUSTOM_OPTIONS } from './packages';
+import { PACKAGES_NEW } from './packages';
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
 // ---------- Vite env ----------
@@ -119,17 +119,6 @@ export default function BookingWizard() {
     setErrors(ok ? {} : { date: 'Ne pare rău, suntem deja ocupați în acea zi.' });
   };
 
-  // Price calc
-  useEffect(() => {
-    const selected = PACKAGES.find(p => p.key === packageType);
-    if (selected) setPrice(selected.price);
-    else {
-      let total = 0;
-      if (photo) total += CUSTOM_OPTIONS.find(o => o.key === 'photo')?.price || 0;
-      if (video) total += CUSTOM_OPTIONS.find(o => o.key === 'video')?.price || 0;
-      setPrice(total);
-    }
-  }, [packageType, photo, video]);
 
   // Duration calc (informativ)
   const durationInfo = useMemo(() => {
