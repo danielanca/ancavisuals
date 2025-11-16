@@ -1,16 +1,9 @@
 // src/booking/BookingWizard.tsx
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 import "./segmented.scss";
 
-import {
-  PACKAGES_NEW,
-} from "../packages";
+import { PACKAGES_NEW } from "../packages";
 import { safeTrigger, BOOKING_TO } from "./utils/api";
 import { normalizePackages } from "./utils/normalize";
 import { formatDate } from "./utils/time";
@@ -27,9 +20,7 @@ import Step2EventType from "./steps/Step2EventType";
 import Step3Contact from "./steps/Step3Contact";
 import Step4Details from "./steps/Step4Details";
 
-
-const MAPS_KEY = import.meta.env
-  .VITE_GOOGLE_MAPS_BROWSER_KEY as string;
+const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
 
 /* ---------- bookedDates.json types & helpers ---------- */
 
@@ -64,27 +55,17 @@ function toDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function expandBookedDates(
-  data: BookedDatesFile
-): string[] {
+function expandBookedDates(data: BookedDatesFile): string[] {
   const set = new Set<string>();
   if (!data?.dates) return [];
 
   for (const entry of data.dates) {
     if ("date" in entry && entry.date) {
       set.add(entry.date);
-    } else if (
-      "startDate" in entry &&
-      "endDate" in entry &&
-      entry.startDate &&
-      entry.endDate
-    ) {
+    } else if ("startDate" in entry && "endDate" in entry && entry.startDate && entry.endDate) {
       const start = new Date(entry.startDate);
       const end = new Date(entry.endDate);
-      if (
-        !isNaN(start.getTime()) &&
-        !isNaN(end.getTime())
-      ) {
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
         const cur = new Date(start);
         while (cur <= end) {
           set.add(toDateKey(cur));
@@ -97,24 +78,69 @@ function expandBookedDates(
   return Array.from(set);
 }
 
+/* ---------- helpers locale (durată & HTML final) ---------- */
+const toMinutes = (t: string) => {
+  if (!t) return null;
+  const [hh, mm] = t.split(":").map(Number);
+  return Number.isNaN(hh) || Number.isNaN(mm) ? null : hh * 60 + mm;
+};
+
+const getDurationInfo = (startTime: string, endTime: string) => {
+  const s = toMinutes(startTime);
+  const e = toMinutes(endTime);
+  if (s == null || e == null) return { hours: null as number | null, overnight: false };
+  const overnight = e < s;
+  const mins = overnight ? 24 * 60 - s + e : e - s;
+  const hours = Math.round((mins / 60) * 10) / 10;
+  return { hours, overnight };
+};
+
+const buildHtmlFinal = (args: {
+  selectedFormattedDate: string;
+  eventType: string;
+  fullName: string;
+  phone: string;
+  location: string;
+  startTime: string;
+  endTime: string;
+  overnight: boolean;
+  durationHours: number | null;
+  totalPrice: number;
+  selectedPackages: string[];
+  showCustom: boolean;
+  photo: boolean;
+  video: boolean;
+}) => `
+  <h2>Cerere nouă</h2>
+  <ul>
+    <li><b>Data:</b> ${args.selectedFormattedDate}</li>
+    <li><b>Eveniment:</b> ${args.eventType}</li>
+    <li><b>Nume:</b> ${args.fullName}</li>
+    <li><b>Telefon:</b> ${args.phone}</li>
+    <li><b>Locație:</b> ${args.location}</li>
+    <li><b>Interval:</b> ${args.startTime} – ${args.endTime}${args.overnight ? " (peste miezul nopții)" : ""}</li>
+    <li><b>Durată estimată:</b> ${args.durationHours ?? "-" } h</li>
+    <li><b>Pachete selectate:</b> ${args.selectedPackages.join(", ") || "-"}</li>
+    ${args.showCustom ? `<li><b>Custom:</b> foto=${args.photo ? "da" : "nu"}, video=${args.video ? "da" : "nu"}</li>` : ""}
+    <li><b>Preț estimativ:</b> ${Number(args.totalPrice).toLocaleString("ro-RO")} RON</li>
+  </ul>
+`;
+
 /* ------------------ Booking Wizard ------------------ */
 
 export default function BookingWizard() {
   const [step, setStep] = useState<Step>(1);
   const [saveContactConsent, setSaveContactConsent] = useState(true);
+
   // Step 1 – data
   const [day, setDay] = useState(1);
   const [month, setMonth] = useState(0); // 0-based
   const [year, setYear] = useState(2025);
-  const [bookedDates, setBookedDates] = useState<string[]>(
-    []
-  );
-  const [isAvailable, setIsAvailable] =
-    useState<null | boolean>(null);
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const [isAvailable, setIsAvailable] = useState<null | boolean>(null);
 
   // Step 2 – tip eveniment
-  const [eventType, setEventType] =
-    useState<EventType>("nunta");
+  const [eventType, setEventType] = useState<EventType>("nunta");
 
   // Step 3 – contact
   const [fullName, setFullName] = useState("");
@@ -122,18 +148,12 @@ export default function BookingWizard() {
 
   // Step 4 – locație + timp + pachet
   const [location, setLocation] = useState("");
-  const [placeId, setPlaceId] = useState<string | null>(
-    null
-  );
+  const [placeId, setPlaceId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
-  const packagesNormalized = useMemo(
-    () => normalizePackages(PACKAGES_NEW),
-    []
-  );
-  const [selectedPackages, setSelectedPackages] =
-    useState<string[]>([]);
+  const packagesNormalized = useMemo(() => normalizePackages(PACKAGES_NEW), []);
+  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
 
   const [showCustom, setShowCustom] = useState(false);
   const [photo, setPhoto] = useState(false);
@@ -141,96 +161,191 @@ export default function BookingWizard() {
 
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const thankYouRef =
-    useRef<HTMLDivElement | null>(null);
+  const thankYouRef = useRef<HTMLDivElement | null>(null);
   const [errors, setErrors] = useState<Errors>({});
-  const [bookingData, setBookingData] =
-    useState<{
-      date: string;
-      totalPrice: number;
-      fullName: string;
-    } | null>(null);
+  const [bookingData, setBookingData] = useState<{
+    date: string;
+    totalPrice: number;
+    fullName: string;
+  } | null>(null);
 
-  const selectedFormattedDate = useMemo(
-    () => formatDate(day, month, year),
-    [day, month, year]
-  );
+  const selectedFormattedDate = useMemo(() => formatDate(day, month, year), [day, month, year]);
 
+  /* ---------- Load bookedDates.json from Firebase Storage ---------- */
+  useEffect(() => {
+    const load = async () => {
+      try {
+        console.log("[BookingWizard] Loading bookedDates.json from Firebase...");
 
+        const fileRef = ref(storage, "ancavisuals/bookedDates/bookedDates.json");
+        const bytes = await getBytes(fileRef);
+        const text = new TextDecoder("utf-8").decode(bytes);
 
-/* ---------- Load bookedDates.json from Firebase Storage ---------- */
+        const json = JSON.parse(text) as BookedDatesFile;
+        const dates = expandBookedDates(json); // => ["2026-02-21", ...];
 
-useEffect(() => {
-  const load = async () => {
-    try {
-      console.log("[BookingWizard] Loading bookedDates.json from Firebase...");
+        console.log("[BookingWizard] Loaded booked dates:", dates);
+        setBookedDates(dates);
+      } catch (err) {
+        console.error("[BookingWizard] Failed to load booked dates:", err);
+        setBookedDates([]);
+      }
+    };
 
-      const fileRef = ref(
-        storage,
-        "ancavisuals/bookedDates/bookedDates.json"
-      );
+    load();
+  }, []);
 
-      // luam conținutul binar prin SDK (evităm fetch direct pe URL)
-      const bytes = await getBytes(fileRef);
-      const text = new TextDecoder("utf-8").decode(bytes);
+  const handleContactStepNext = async () => {
+    // Validare rapidă pentru pasul 3
+    const errs: Errors = {};
+    if (!fullName.trim()) errs.fullName = "Completează numele.";
+    if (!phone || !PHONE_RE.test(phone)) errs.phone = "Număr de telefon invalid.";
 
-      const json = JSON.parse(text) as BookedDatesFile;
-      const dates = expandBookedDates(json); // => ["2026-02-21", ...];
+    if (Object.keys(errs).length > 0) {
+      setErrors((prev) => ({ ...prev, ...errs }));
+      return;
+    }
 
-      console.log("[BookingWizard] Loaded booked dates:", dates);
-      setBookedDates(dates);
-    } catch (err) {
-      console.error("[BookingWizard] Failed to load booked dates:", err);
-      setBookedDates([]);
+    // Curățăm erorile legate de contact
+    setErrors((prev) => ({ ...prev, fullName: "", phone: "" }));
+
+    // Trimitem lead-ul imediat, doar dacă și-a dat acordul
+    if (saveContactConsent) {
+      try {
+        const subject = `Lead rapid – ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
+
+        const payload = {
+          to: BOOKING_TO,
+          subject,
+          html: `
+            <h2>Lead rapid din configurator</h2>
+            <ul>
+              <li><b>Data (selectată până acum):</b> ${selectedFormattedDate}</li>
+              <li><b>Eveniment:</b> ${eventType}</li>
+              <li><b>Nume:</b> ${fullName}</li>
+              <li><b>Telefon:</b> ${phone}</li>
+              <li><b>A acceptat salvarea datelor:</b> DA</li>
+            </ul>
+            <p><i>Acest lead a fost trimis la finalul pasului 3 (contact), chiar dacă utilizatorul nu a finalizat configuratorul.</i></p>
+          `,
+          booking: {
+            date: selectedFormattedDate,
+            eventType,
+            fullName,
+            phone,
+            location,
+            placeId,
+            startTime,
+            endTime,
+            packages: selectedPackages, // array string[]
+            custom: showCustom ? { photo, video } : null,
+            price: totalPrice,
+            partial: true,
+            saveContactConsent: true,
+          },
+        };
+
+        // non-blocking
+        safeTrigger(payload).catch((err) => {
+          console.error("Partial lead send failed (non-blocking):", err);
+        });
+      } catch (err) {
+        console.error("Error building partial lead:", err);
+      }
+    }
+
+     // 🔥 Google Ads conversion – LEAD RAPID
+    if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
+      (window as any).gtag("event", "conversion", {
+        send_to: "AW-10941123412/ww8eCM7HiakYENSWkeEo",
+        value: 1.0, // sau 1.0 fix dacă vrei doar număr de conversii
+        currency: "RON",
+        transaction_id: "",       // poți pune un ID unic dacă ai
+      });}
+    // Oricum mergem mai departe în wizard
+    setStep(4);
+  };
+
+  /* ---------- Validation ---------- */
+  const validateStep = (s: Step) => {
+    const errs: Errors = {};
+
+    if (s === 1 && isAvailable !== true) {
+      errs.date = "Verifică disponibilitatea înainte să continui.";
+    }
+
+    if (s === 2 && !eventType) {
+      errs.eventType = "Alege tipul de eveniment.";
+    }
+
+    if (s === 3) {
+      if (!fullName.trim()) errs.fullName = "Completează numele.";
+      if (!phone || !PHONE_RE.test(phone)) errs.phone = "Număr de telefon invalid.";
+    }
+
+    if (s === 4) {
+      if (!location.trim()) errs.location = "Completează locația.";
+      if (!startTime) errs.startTime = "Alege ora de început.";
+      if (!endTime) errs.endTime = "Alege ora de sfârșit.";
+      if (!selectedPackages.length && !showCustom) errs.package = "Alege cel puțin un pachet sau personalizează.";
+      if (startTime && endTime && startTime === endTime) errs.endTime = "Start și final nu pot fi egale.";
+    }
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const goNext = () => {
+    if (validateStep(step)) {
+      setStep((s) => (s < 5 ? ((s + 1) as Step) : s));
     }
   };
 
-  load();
-}, []);
+  const goBack = () => {
+    setStep((s) => (s > 1 ? ((s - 1) as Step) : s));
+  };
 
+  /* ---------- Total price ---------- */
+  const totalPrice = useMemo(() => {
+    const byId = new Map(packagesNormalized.map((p) => [p.id, p]));
+    const tilesSum = selectedPackages.reduce((sum, id) => sum + (byId.get(id)?.price ?? 0), 0);
+    const customSum = showCustom ? (photo ? 1500 : 0) + (video ? 1300 : 0) : 0;
+    return tilesSum + customSum;
+  }, [packagesNormalized, selectedPackages, showCustom, photo, video]);
 
-const handleContactStepNext = async () => {
-  // Validare rapidă pentru pasul 3
-  const errs: Errors = {};
+  /* ---------- Submit ---------- */
+  const submitBooking = async () => {
+    if (!validateStep(4)) {
+      setStep(4);
+      return;
+    }
 
-  if (!fullName.trim()) {
-    errs.fullName = "Completează numele.";
-  }
-  if (!phone || !PHONE_RE.test(phone)) {
-    errs.phone = "Număr de telefon invalid.";
-  }
-
-  if (Object.keys(errs).length > 0) {
-    setErrors((prev) => ({ ...prev, ...errs }));
-    return;
-  }
-
-  // Curățăm erorile legate de contact
-  setErrors((prev) => ({
-    ...prev,
-    fullName: "",
-    phone: "",
-  }));
-
-  // Trimitem lead-ul imediat, doar dacă și-a dat acordul
-  if (saveContactConsent) {
+    setLoading(true);
     try {
-      const subject = `Lead rapid – ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
+      const { hours, overnight } = getDurationInfo(startTime, endTime);
+
+      const subject = `Cerere ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
+      const html = buildHtmlFinal({
+        selectedFormattedDate,
+        eventType,
+        fullName,
+        phone,
+        location,
+        startTime,
+        endTime,
+        overnight,
+        durationHours: hours,
+        totalPrice,
+        selectedPackages,
+        showCustom,
+        photo,
+        video,
+      });
 
       const payload = {
         to: BOOKING_TO,
         subject,
-        html: `
-          <h2>Lead rapid din configurator</h2>
-          <ul>
-            <li><b>Data (selectată până acum):</b> ${selectedFormattedDate}</li>
-            <li><b>Eveniment:</b> ${eventType}</li>
-            <li><b>Nume:</b> ${fullName}</li>
-            <li><b>Telefon:</b> ${phone}</li>
-            <li><b>A acceptat salvarea datelor:</b> DA</li>
-          </ul>
-          <p><i>Acest lead a fost trimis la finalul pasului 3 (contact), chiar dacă utilizatorul nu a finalizat configuratorul.</i></p>
-        `,
+        html, // HTML complet, nu "..."
         booking: {
           date: selectedFormattedDate,
           eventType,
@@ -240,196 +355,46 @@ const handleContactStepNext = async () => {
           placeId,
           startTime,
           endTime,
-          packages: selectedPackages,
+          packages: selectedPackages, // array string[]
           custom: showCustom ? { photo, video } : null,
           price: totalPrice,
-          partial: true,
-          saveContactConsent: true,
         },
       };
 
-      // non-blocking, nu ținem user-ul să aștepte
-      safeTrigger(payload).catch((err) => {
-        console.error("Partial lead send failed (non-blocking):", err);
-      });
-    } catch (err) {
-      console.error("Error building partial lead:", err);
-    }
-  }
-
-  // Oricum mergem mai departe în wizard
-  setStep(4);
-};
-
-
-
-  /* ---------- Validation ---------- */
-
-  const validateStep = (s: Step) => {
-    const errs: Errors = {};
-
-    if (s === 1 && isAvailable !== true) {
-      errs.date =
-        "Verifică disponibilitatea înainte să continui.";
-    }
-
-    if (s === 2 && !eventType) {
-      errs.eventType =
-        "Alege tipul de eveniment.";
-    }
-
-    if (s === 3) {
-      if (!fullName.trim())
-        errs.fullName = "Completează numele.";
-      if (!phone || !PHONE_RE.test(phone))
-        errs.phone =
-          "Număr de telefon invalid.";
-    }
-
-    if (s === 4) {
-      if (!location.trim())
-        errs.location =
-          "Completează locația.";
-      if (!startTime)
-        errs.startTime =
-          "Alege ora de început.";
-      if (!endTime)
-        errs.endTime =
-          "Alege ora de sfârșit.";
-      if (
-        !selectedPackages.length &&
-        !showCustom
-      )
-        errs.package =
-          "Alege cel puțin un pachet sau personalizează.";
-      if (
-        startTime &&
-        endTime &&
-        startTime === endTime
-      )
-        errs.endTime =
-          "Start și final nu pot fi egale.";
-    }
-
-    setErrors(errs);
-    return (
-      Object.keys(errs).length === 0
-    );
-  };
-
-  const goNext = () => {
-    if (validateStep(step)) {
-      setStep((s) =>
-        s < 5 ? ((s + 1) as Step) : s
-      );
-    }
-  };
-
-  const goBack = () => {
-    setStep((s) =>
-      s > 1 ? ((s - 1) as Step) : s
-    );
-  };
-
-  /* ---------- Total price ---------- */
-
-  const totalPrice = useMemo(() => {
-    const byId = new Map(
-      packagesNormalized.map((p) => [p.id, p])
-    );
-
-    const tilesSum =
-      selectedPackages.reduce(
-        (sum, id) =>
-          sum + (byId.get(id)?.price ?? 0),
-        0
-      );
-
-    const customSum = showCustom
-      ? (photo ? 1500 : 0) +
-        (video ? 1300 : 0)
-      : 0;
-
-    return tilesSum + customSum;
-  }, [
-    packagesNormalized,
-    selectedPackages,
-    showCustom,
-    photo,
-    video,
-  ]);
-
-  /* ---------- Submit ---------- */
-
-  const submitBooking = async () => {
-  if (!validateStep(4)) {
-    setStep(4);
-    return;
-  }
-
-  setLoading(true);
-
-  const subject = `Cerere ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
-  const payload = {
-    to: BOOKING_TO,
-    subject,
-    html: `...`,
-    booking: {
-      date: selectedFormattedDate,
-      eventType,
-      fullName,
-      phone,
-      location,
-      placeId,
-      startTime,
-      endTime,
-      packages: selectedPackages,
-      custom: showCustom ? { photo, video } : null,
-      price: totalPrice,
-    },
-  };
-
-  const resp = await safeTrigger(payload);
-    if (resp?.ok) {
-      setBookingData({
-        date: selectedFormattedDate,
-        totalPrice,
-        fullName,
-      });
-      setSubmitted(true);
-      setStep(5);
-
-      setTimeout(() => {
-        window.scrollTo({
-          top:
-            window.innerHeight *
-            0.75,
-          behavior: "smooth",
+      const resp = await safeTrigger(payload);
+      if (resp?.ok) {
+        setBookingData({
+          date: selectedFormattedDate,
+          totalPrice,
+          fullName,
         });
-      }, 150);
-    } else {
-      alert(
-        "A apărut o problemă la trimitere."
-      );
-    }
+        setSubmitted(true);
+        setStep(5);
 
-    setLoading(false);
+        setTimeout(() => {
+          window.scrollTo({
+            top: window.innerHeight * 0.75,
+            behavior: "smooth",
+          });
+        }, 150);
+      } else {
+        alert("A apărut o problemă la trimitere.");
+      }
+    } catch (err) {
+      console.error("Final booking send failed:", err);
+      alert("Nu am putut trimite cererea (eroare de rețea/serviciu).");
+    } finally {
+      setLoading(false);
+    }
   };
 
   /* ---------- Render ---------- */
-
   return (
     <div className="booking-container">
       <h2>VERIFICA DISPONIBILITATEA & PRET</h2>
 
       {/* stepper */}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          marginBottom: 12,
-        }}
-      >
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         {[1, 2, 3, 4, 5].map((s) => (
           <div
             key={s}
@@ -437,10 +402,7 @@ const handleContactStepNext = async () => {
               width: 10,
               height: 10,
               borderRadius: 999,
-              background:
-                step >= s
-                  ? "#f4d35e"
-                  : "#444",
+              background: step >= s ? "#f4d35e" : "#444",
             }}
           />
         ))}
@@ -460,27 +422,10 @@ const handleContactStepNext = async () => {
             setIsAvailable={setIsAvailable}
             setErrors={setErrors}
           />
-          {errors.date && (
-            <p className="error">
-              {errors.date}
-            </p>
-          )}
-          {isAvailable === true && (
-            <p className="ok">
-              We are available on{" "}
-              {selectedFormattedDate} 🎉
-            </p>
-          )}
-          <div
-            className="input-group"
-            style={{ marginTop: 12 }}
-          >
-            <button
-              disabled={
-                isAvailable !== true
-              }
-              onClick={goNext}
-            >
+          {errors.date && <p className="error">{errors.date}</p>}
+          {isAvailable === true && <p className="ok">We are available on {selectedFormattedDate} 🎉</p>}
+          <div className="input-group" style={{ marginTop: 12 }}>
+            <button disabled={isAvailable !== true} onClick={goNext}>
               Continuă
             </button>
           </div>
@@ -489,31 +434,11 @@ const handleContactStepNext = async () => {
 
       {step === 2 && (
         <>
-          <Step2EventType
-            eventType={eventType}
-            setEventType={
-              setEventType
-            }
-          />
-          {errors.eventType && (
-            <p className="error">
-              {errors.eventType}
-            </p>
-          )}
-          <div
-            className="input-group"
-            style={{ marginTop: 12 }}
-          >
-            <button
-              onClick={goBack}
-            >
-              Înapoi
-            </button>
-            <button
-              onClick={goNext}
-            >
-              Continuă
-            </button>
+          <Step2EventType eventType={eventType} setEventType={setEventType} />
+          {errors.eventType && <p className="error">{errors.eventType}</p>}
+          <div className="input-group" style={{ marginTop: 12 }}>
+            <button onClick={goBack}>Înapoi</button>
+            <button onClick={goNext}>Continuă</button>
           </div>
         </>
       )}
@@ -536,101 +461,46 @@ const handleContactStepNext = async () => {
         <Step4Details
           MAPS_KEY={MAPS_KEY}
           location={location}
-          setLocation={
-            setLocation
-          }
+          setLocation={setLocation}
           placeId={placeId}
-          setPlaceId={
-            setPlaceId
-          }
-          startTime={
-            startTime
-          }
-          setStartTime={
-            setStartTime
-          }
+          setPlaceId={setPlaceId}
+          startTime={startTime}
+          setStartTime={setStartTime}
           endTime={endTime}
-          setEndTime={
-            setEndTime
-          }
+          setEndTime={setEndTime}
           errors={errors}
-          packagesNormalized={
-            packagesNormalized
-          }
-          selectedPackages={
-            selectedPackages
-          }
-          setSelectedPackages={
-            setSelectedPackages
-          }
-          showCustom={
-            showCustom
-          }
-          setShowCustom={
-            setShowCustom
-          }
+          packagesNormalized={packagesNormalized}
+          selectedPackages={selectedPackages}
+          setSelectedPackages={setSelectedPackages}
+          showCustom={showCustom}
+          setShowCustom={setShowCustom}
           photo={photo}
           setPhoto={setPhoto}
           video={video}
           setVideo={setVideo}
-          totalPrice={
-            totalPrice
-          }
+          totalPrice={totalPrice}
           loading={loading}
-          submitBooking={
-            submitBooking
-          }
+          submitBooking={submitBooking}
           goBack={goBack}
         />
       )}
 
-      {step === 5 &&
-        submitted &&
-        bookingData && (
-          <div
-            className="thank-you-msg"
-            ref={thankYouRef}
-          >
-            <div className="thank-you-card">
-              <div className="thank-you-icon">
-                🎉
-              </div>
-              <h3>
-                Thank you,{" "}
-                {
-                  bookingData.fullName
-                }
-                !
-              </h3>
-              <p>
-                Your booking
-                for{" "}
-                <strong>
-                  {
-                    bookingData.date
-                  }
-                </strong>{" "}
-                has been
-                received.
-              </p>
-              <p>
-                Total price:{" "}
-                <strong>
-                  {bookingData.totalPrice.toLocaleString(
-                    "ro-RO"
-                  )}{" "}
-                  RON
-                </strong>
-              </p>
-              <p>
-                We’ll contact
-                you shortly
-                to confirm
-                the details.
-              </p>
-            </div>
-          </div>
-        )}
+     {step === 5 && submitted && bookingData && (
+      <div className="thank-you-msg" ref={thankYouRef}>
+        <div className="thank-you-card">
+          <div className="thank-you-icon">🎉</div>
+          <h3>Mulțumim, {bookingData.fullName}!</h3>
+          <p>
+            Rezervarea ta pentru <strong>{bookingData.date}</strong> a fost înregistrată cu succes.
+          </p>
+          <p>
+            Preț total: <strong>{bookingData.totalPrice.toLocaleString("ro-RO")} RON</strong>
+          </p>
+          <p>Te vom contacta în curând pentru confirmarea detaliilor.</p>
+        </div>
+      </div>
+)}
+
     </div>
   );
 }

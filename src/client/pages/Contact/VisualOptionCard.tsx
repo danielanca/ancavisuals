@@ -1,4 +1,4 @@
-import type { PackageOption } from './packages'; // <— exista deja in repo, CUSTOM_OPTIONS: PackageOption[]
+import type { PackageOption } from './packages'; 
 
 // descriere minimală pt elementele vizuale (imagini / gif / video)
 type Visual = {

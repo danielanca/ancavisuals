@@ -49,8 +49,19 @@ async function safeTrigger(payload: any) {
 }
 
 // ---------- Component ----------
+// ---------- Component ----------
 type Step = 1 | 2 | 3 | 4 | 5;
-type EventType = 'nunta' | 'botez';
+
+// sursa unică de adevăr pt opțiuni — tipizată corect:
+const EVENT_OPTIONS = [
+  { id: 'evt-nunta',   label: 'Nuntă',                         value: 'nunta'   },
+  { id: 'evt-botez',   label: 'Botez',                         value: 'botez'   },
+  { id: 'evt-majorat', label: 'Majorat',                       value: 'majorat' },
+  { id: 'evt-cununie', label: 'Cununie Civilă / Logodnă',      value: 'cununie' },
+  { id: 'evt-altceva', label: 'Altceva',                       value: 'altceva' },
+] as const;
+
+type EventType = (typeof EVENT_OPTIONS)[number]['value']; // "nunta" | "botez" | "majorat" | "cununie" | "altceva"
 
 export default function BookingWizard() {
   const [step, setStep] = useState<Step>(1);
@@ -195,9 +206,12 @@ export default function BookingWizard() {
     };
 
     const resp = await safeTrigger({ to: BOOKING_TO, subject, html, booking });
-    if (resp?.ok) setSubmitted(true);
-    else alert('A apărut o problemă la trimitere.');
-  };
+    if (resp?.ok) {
+      setSubmitted(true);
+      setStep(5); // mergi la pasul 5 pe succes
+    } else {
+      alert('A apărut o problemă la trimitere.');
+    }
 
   // ---------- UI ----------
   return (
@@ -258,38 +272,37 @@ export default function BookingWizard() {
         </>
       )}
 
-      {/* Step 2 */}
-      {step === 2 && (
-        <>
-          <fieldset className='tiles'>
-            <legend>2) Tipul evenimentului</legend>
+   {/* Step 2 */}
+{step === 2 && (
+  <>
+    <fieldset className='tiles'>
+      <legend>2) Tipul evenimentului</legend>
 
-            {[
-              { id: 'evt-nunta', label: 'Nuntă', value: 'nunta' },
-              { id: 'evt-botez', label: 'Botez', value: 'botez' },
-              { id: 'evt-majorat', label: 'Majorat', value: 'majorat' },
-              { id: 'evt-cununie', label: 'Cununie Civilă / Logodnă', value: 'cununie' },
-              { id: 'evt-altceva', label: 'Altceva', value: 'altceva' },
-            ].map((o, i) => (
-              <div className='tile' key={o.id}>
-                <input type='radio' name='eventType' id={o.id} value={o.value} defaultChecked={i === 0} />
-                <label htmlFor={o.id}>
-                  <span className='title'>{o.label}</span>
-                  <span className='check' aria-hidden>
-                    ✓
-                  </span>
-                </label>
-              </div>
-            ))}
-          </fieldset>
+      {EVENT_OPTIONS.map(o => (
+        <div className='tile' key={o.id}>
+          <input
+            type='radio'
+            name='eventType'
+            id={o.id}
+            value={o.value}
+            checked={eventType === o.value}
+            onChange={(e) => setEventType(e.currentTarget.value as EventType)}
+          />
+          <label htmlFor={o.id}>
+            <span className='title'>{o.label}</span>
+            <span className='check' aria-hidden>✓</span>
+          </label>
+        </div>
+      ))}
+    </fieldset>
 
-          {errors.eventType && <p className='error'>{errors.eventType}</p>}
-          <div className='input-group' style={{ marginTop: 12 }}>
-            <button onClick={goBack}>Înapoi</button>
-            <button onClick={goNext}>Continuă</button>
-          </div>
-        </>
-      )}
+    {errors.eventType && <p className='error'>{errors.eventType}</p>}
+    <div className='input-group' style={{ marginTop: 12 }}>
+      <button onClick={goBack}>Înapoi</button>
+      <button onClick={goNext}>Continuă</button>
+    </div>
+  </>
+)}
 
       {/* Step 3 */}
       {step === 3 && (
@@ -365,8 +378,6 @@ export default function BookingWizard() {
               language='ro'
               region='RO'
             />
-            {errors.location && <p className='error'>{errors.location}</p>}
-
             {errors.location && <p className='error'>{errors.location}</p>}
 
             <div className='time-range' style={{ display: 'flex', gap: 12 }}>
@@ -459,15 +470,21 @@ export default function BookingWizard() {
       )}
 
       {/* Step 5 */}
-      {(step === 5 || submitted) && (
+      {step === 5 && (
         <div style={{ marginTop: 16 }}>
-          <h3>5 Cererea nu a fost trimisa!</h3>
-          <p>
-            Deoarece inca lucram la acest formular sa functioneze perfect. Contacteaza-ne la 0745469907{' '}
-            {selectedFormattedDate}.
-          </p>
+          {submitted ? (
+            <>
+              <h3>✔ Cererea a fost trimisă!</h3>
+              <p>Îți mulțumim. Revenim în scurt timp pe {phone || 'telefon'} / email.</p>
+            </>
+          ) : (
+            <>
+              <h3>❌ Cererea nu a fost trimisă</h3>
+              <p>Ne poți suna direct la 0745469907 pentru rezervare în {selectedFormattedDate}.</p>
+            </>
+          )}
         </div>
       )}
     </div>
   );
-}
+}}
