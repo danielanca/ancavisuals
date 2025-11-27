@@ -28,3 +28,6 @@ code {
 html {
   scroll-behavior: smooth;
 }
+.fingerprint#uc-privacy-button {
+  display: none !important;
+}
