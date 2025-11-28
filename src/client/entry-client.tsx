@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+// ⬇️ pune la loc importul CLASIC:
 import { HelmetProvider } from "react-helmet-async";
 import { App } from "./App";
 import "./index.css";

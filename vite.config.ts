@@ -16,6 +16,9 @@ const isProd = process.env.NODE_ENV === "production";
 export default defineConfig({
   plugins: [react()],
   server: { port: 3000 },
+  ssr: {
+    noExternal: ["react-helmet-async"],
+  },
   build: {
     minify: false,
   },
