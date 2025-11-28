@@ -111,7 +111,7 @@ export default function PortfolioGallery() {
                 className="pg-load-more-btn"
                 type="button"
               >
-                Load more
+                MAI MULTE POZE
               </button>
             </div>
           )}
