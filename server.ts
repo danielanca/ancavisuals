@@ -7,6 +7,7 @@ import compression from 'compression';
 import serveStatic from 'serve-static';
 import { createServer as createViteServer, type ViteDevServer } from 'vite';
 import { fileURLToPath, pathToFileURL } from 'url';
+import albumRouter from './src/server/routes/album.routes';
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
 const isProd = process.env.NODE_ENV === 'production';
@@ -55,6 +56,9 @@ async function createServer() {
   const requestHandler = express.static(assetsDir);
   app.use(requestHandler);
   app.use('/public', requestHandler);
+  app.use("/api/album", albumRouter);
+
+
 
   let vite: ViteDevServer | undefined;
   let template: string;

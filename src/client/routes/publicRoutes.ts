@@ -4,7 +4,7 @@ const Mainpage = loadable(() => import('../pages/Homepage/Mainpage'), { ssr: tru
 const Aboutme = loadable(() => import('../pages/About/Aboutme'), { ssr: true });
 const Portfolio = loadable(() => import('../pages/Portfolio/Portfolio'), { ssr: true });
 const Contact = loadable(() => import('../pages/Contact/Contacts'), { ssr: true });
-
+const MediaAlbumPage = loadable(() => import('../pages/MediaDownload/MediaAlbumPage'), { ssr: true });
 import { publicRoutesType } from './types';
 
 const publicRoutes: publicRoutesType[] = [
@@ -33,6 +33,12 @@ const publicRoutes: publicRoutesType[] = [
     layout: null,
     component: Contact,
   },
+  {
+    path: '/media/:slug',
+    layout: null,
+    component: MediaAlbumPage,
+  },
+  
 ];
 
 export default publicRoutes;
