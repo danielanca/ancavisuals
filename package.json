@@ -20,7 +20,7 @@
     "test:watch": "vitest --watch",
     "coverage": "vitest --coverage",
     "typecheck": "tsc --noEmit",
-    "serve": "cross-env NODE_ENV=production node ./dist/server",
+    "serve": "cross-env NODE_ENV=production node ./dist/server.js",
     "serve:local": "vite serve",
     "env:check": "node -e \"console.log('B64 len =',(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64||'').length);console.log('PATH =',process.env.FIREBASE_SERVICE_ACCOUNT_PATH||null);console.log('PORT =',process.env.PORT||null)\"",
     "env:sa": "node -e \"const s=process.env.FIREBASE_SERVICE_ACCOUNT_BASE64||''; if(!s){console.log('no B64');process.exit(1)} const sa=JSON.parse(Buffer.from(s,'base64').toString('utf8')); console.log(sa.project_id, sa.client_email)\"",
