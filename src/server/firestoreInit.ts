@@ -34,6 +34,8 @@ function init() {
   } else {
     throw new Error('No Firebase Admin credentials.');
   }
+  console.log("[firebase-admin] projectId:", getApps()[0].options.projectId);
+
 }
 
 export function firestore(): Firestore {

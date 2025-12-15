@@ -17,25 +17,21 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     .replace(/-/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
-  async function loadSection(section: string, isVideo = false) {
-    try {
-      const files = await listFiles(`${basePath}/${section}`);
-      const objects = files.Objects.filter((obj) => !obj.IsDirectory);
+ async function loadSection(section: string, isVideo = false) {
+  try {
+    const objects = (await listFiles(`${basePath}/${section}`)).filter((o: any) => !o.IsDirectory);
 
-      if (objects.length === 0) return isVideo ? null : [];
+    if (objects.length === 0) return isVideo ? null : [];
 
-      if (isVideo) {
-        const file = objects[0].ObjectName;
-        return signBunnyUrl(`/${slug}/${section}/${file}`);
-      }
-
-      return objects.map((o) =>
-        signBunnyUrl(`/${slug}/${section}/${o.ObjectName}`)
-      );
-    } catch {
-      return isVideo ? null : [];
+    if (isVideo) {
+      return signBunnyUrl(`/${slug}/${section}/${objects[0].ObjectName}`);
     }
+
+    return objects.map((o: any) => signBunnyUrl(`/${slug}/${section}/${o.ObjectName}`));
+  } catch {
+    return isVideo ? null : [];
   }
+}
 
   return {
     slug,

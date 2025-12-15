@@ -5,6 +5,8 @@ const Aboutme = loadable(() => import('../pages/About/Aboutme'), { ssr: true });
 const Portfolio = loadable(() => import('../pages/Portfolio/Portfolio'), { ssr: true });
 const Contact = loadable(() => import('../pages/Contact/Contacts'), { ssr: true });
 const MediaAlbumPage = loadable(() => import('../pages/MediaDownload/MediaAlbumPage'), { ssr: true });
+const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), { ssr: true });
+
 import { publicRoutesType } from './types';
 
 const publicRoutes: publicRoutesType[] = [
@@ -38,6 +40,11 @@ const publicRoutes: publicRoutesType[] = [
     layout: null,
     component: MediaAlbumPage,
   },
+  {
+  path: "/share/:id",
+  layout: null,
+  component: SharePage,
+},
   
 ];
 
