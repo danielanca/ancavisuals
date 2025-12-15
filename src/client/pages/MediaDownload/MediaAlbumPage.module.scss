@@ -1,0 +1,302 @@
+.page {
+  min-height: 100vh;
+  background: #050509;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 1rem 4rem;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.meta {
+  margin: 0 0 18px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.divider {
+  height: 1px;
+  margin: 18px 0 18px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.14)
+  );
+  border-radius: 999px;
+}
+
+.sectionTitle {
+  margin: 28px 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.sectionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.pickBtn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0;
+  border: none;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: #e5e7eb;
+  color: #000000;
+  cursor: pointer;
+}
+
+.pickHint {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.emptyPrint {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.selectBanner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 14px 0 18px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: rgba(5, 5, 9, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+}
+
+.selectBannerLeft {
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.04em;
+  font-size: 14px;
+}
+
+.selectStrong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.selectBannerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.bannerBtn {
+  padding: 0.65rem 1.2rem;
+  border-radius: 0;
+  border: none;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: #e5e7eb;
+  color: #000000;
+  cursor: pointer;
+}
+
+.bannerBtnSecondary {
+  padding: 0.65rem 1.1rem;
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+}
+
+.mediaCenter {
+  display: flex;
+  justify-content: center;
+}
+
+.videoWrap {
+  width: 100%;
+  max-width: 980px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+}
+
+.video {
+  width: 100%;
+  display: block;
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 3rem;
+}
+
+.downloadBtn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0;
+  border: none;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: #e5e7eb;
+  color: #000000;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .selectBanner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .selectBannerActions {
+    justify-content: space-between;
+  }
+
+  .sectionRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.rowActions {
+  display: inline-flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pickBtnSecondary {
+  padding: 0.75rem 1.25rem;
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+}
+
+.shareBox {
+  margin: 10px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(5, 5, 9, 0.72);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+}
+
+.shareTitle {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  margin-bottom: 10px;
+}
+
+.shareRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shareInput {
+  flex: 1;
+  min-width: 240px;
+  padding: 10px 12px;
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.shareBtn {
+  padding: 0.65rem 1.1rem;
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 14px 0 12px;
+}
+
+.pagerBottom {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  margin: 14px 0 0;
+}
+
+.pagerInfo {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+}
+
+.pagerBtn {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.pagerBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.pagerBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.pagerBtnGhost {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+}
+
+.pagerBtnGhost:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+}

@@ -7,6 +7,10 @@ import compression from 'compression';
 import serveStatic from 'serve-static';
 import { createServer as createViteServer, type ViteDevServer } from 'vite';
 import { fileURLToPath, pathToFileURL } from 'url';
+import albumRouter from './src/server/routes/album.routes';
+import fileRouter from './src/server/routes/file.routes';
+import downloadRouter from './src/server/routes/download.routes';
+import shareRouter from "./src/server/routes/share.routes";
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
 const isProd = process.env.NODE_ENV === 'production';
@@ -36,6 +40,7 @@ async function createServer() {
 
   app.set('trust proxy', true);
   app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
 
@@ -53,8 +58,14 @@ async function createServer() {
   // --- Static assets from /public ---
   const assetsDir = resolve('public');
   const requestHandler = express.static(assetsDir);
+  
   app.use(requestHandler);
   app.use('/public', requestHandler);
+  app.use("/api/album", albumRouter);
+  app.use("/f", fileRouter);
+  app.use("/api/download", downloadRouter);
+  app.use("/api/share", shareRouter);
+
 
   let vite: ViteDevServer | undefined;
   let template: string;

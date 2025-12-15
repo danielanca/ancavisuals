@@ -1,0 +1,226 @@
+$pg-gap: 16px;
+$pg-radius: 18px;
+$pg-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+$pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
+
+.pg-section {
+  width: 100%;
+  background: #050509;
+}
+
+.pg-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 1rem;
+}
+
+.pg-masonry {
+  column-count: 1;
+  column-gap: $pg-gap;
+
+  @media (min-width: 640px) {
+    column-count: 2;
+  }
+
+  @media (min-width: 1024px) {
+    column-count: 3;
+  }
+}
+
+.pg-item {
+  display: block;
+  width: 100%;
+  margin: 0 0 $pg-gap;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: $pg-radius;
+  overflow: hidden;
+  box-shadow: $pg-shadow;
+  break-inside: avoid;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pg-item:hover {
+    transform: translateY(-2px);
+    box-shadow: $pg-shadow-hover;
+  }
+
+  .pg-item:hover .pg-img {
+    transform: scale(1.03);
+    filter: none;
+  }
+}
+
+.pg-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  transition: transform 0.32s ease, filter 0.24s ease;
+  filter: none;
+}
+
+
+.pg-itemSelectable {
+  cursor: pointer;
+}
+
+.pg-itemOn {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.pg-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-weight: 700;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.pg-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  transition: transform 0.32s ease, filter 0.24s ease;
+}
+
+.pg-load-more {
+  text-align: center;
+  margin-top: 2.5rem;
+}
+
+.pg-load-more-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0;
+  border: none;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: #e5e7eb !important;
+  color: #000000;
+  cursor: pointer;
+  animation: pg-glow-fast 0.6s ease-in-out infinite;
+  transition: transform 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pg-glow-fast {
+  0% {
+    background: #e5e7eb;
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0), 0 0 0 rgba(255, 255, 255, 0);
+  }
+  50% {
+    background: #ffffff;
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.9), 0 0 14px rgba(255, 255, 255, 0.8);
+  }
+  100% {
+    background: #e5e7eb;
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0), 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.lbBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.lbModal {
+  position: relative;
+  width: min(1200px, 100%);
+  max-height: 90vh;
+  display: grid;
+  place-items: center;
+}
+
+.lbImg {
+  max-width: 100%;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  border-radius: 18px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #050509;
+}
+
+.lbClose {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(5, 5, 9, 0.78);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lbNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 46px;
+  height: 62px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(5, 5, 9, 0.72);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 42px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lbNav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lbPrev {
+  left: -8px;
+}
+
+.lbNext {
+  right: -8px;
+}
+
+.lbCounter {
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 10px;
+  background: rgba(5, 5, 9, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
