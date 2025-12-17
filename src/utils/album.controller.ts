@@ -18,7 +18,11 @@ const isSafeFile = (name: string) => {
 };
 
 export async function getAlbum(req: Request, res: Response) {
-  const slug = String(req.params.slug || "");
+ const slug = String(req.params.slug || "");
+
+  const exists = await albumExists(slug);
+  if (!exists) return res.status(404).json({ error: "Album not found" });
+
   const album = await loadAlbum(slug);
   if (!album) return res.status(404).json({ error: "Album not found" });
 
@@ -31,6 +35,10 @@ export async function getAlbum(req: Request, res: Response) {
 
 export async function downloadSelectedPhotos(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
+
+  const exists = await albumExists(slug);
+  if (!exists) return res.status(404).send("album_not_found");
+
   const raw = String(req.body?.items || "[]");
 
   let items: string[] = [];
@@ -64,8 +72,13 @@ export async function downloadSelectedPhotos(req: Request, res: Response) {
   await archive.finalize();
 }
 
+
 export async function postPrintSelection(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
+
+  const exists = await albumExists(slug);
+  if (!exists) return res.status(404).json({ error: "album_not_found" });
+
   const itemsRaw = req.body?.items;
 
   const items = Array.isArray(itemsRaw) ? itemsRaw.map(String) : [];
@@ -77,4 +90,58 @@ export async function postPrintSelection(req: Request, res: Response) {
 
   await savePrintSelection(slug, clean);
   return res.json({ ok: true, count: clean.length });
+}
+
+const albumRootPath = (slug: string) =>
+  `https://storage.bunnycdn.com/${storageZone}/${encodeURIComponent(slug)}/`;
+async function albumExists(slug: string) {
+  const r = await axios.get(albumRootPath(slug), {
+    headers: { AccessKey: storageKey },
+    validateStatus: () => true,
+  });
+
+  if (r.status === 404) return false;
+  if (r.status >= 200 && r.status < 300) return true;
+
+  throw new Error(`meta_check_failed:${r.status}`);
+}
+
+
+type BunnyListItem = {
+  ObjectName: string;
+  IsDirectory: boolean;
+};
+
+const isSafeSlug = (slug: string) => /^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug);
+
+async function bunnyListDir(path: string) {
+  const clean = path.replace(/^\/+/, "").replace(/\/?$/, "/");
+  const url = `https://storage.bunnycdn.com/${storageZone}/${clean}`;
+
+  const r = await axios.get(url, {
+    headers: { AccessKey: storageKey },
+    validateStatus: () => true,
+  });
+
+  if (r.status === 404) return null;
+  if (r.status < 200 || r.status >= 300) {
+    throw new Error(`bunny_list_failed:${r.status}`);
+  }
+
+  return r.data as BunnyListItem[];
+}
+
+async function albumHasExpectedFolders(slug: string) {
+  if (!isSafeSlug(slug)) return false;
+
+  const items = await bunnyListDir(slug);
+  if (!items || items.length === 0) return false;
+
+  const dirs = new Set(
+    items
+      .filter((x) => x.IsDirectory)
+      .map((x) => String(x.ObjectName || "").toLowerCase())
+  );
+
+  return ["photos", "shortvideo", "longvideo"].every((d) => dirs.has(d));
 }

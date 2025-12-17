@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import styles from "./MediaAlbumPage.module.scss";
 import type { Album } from "./AlbumTypes";
+import AlbumNotFound from "./AlbumNotFound";
+
 
 type AlbumWithPrint = Album & {
   print?: string[];
@@ -296,9 +298,7 @@ export default function MediaAlbumPage() {
 
   if (!album)
     return (
-      <div className={styles.page}>
-        <div className={styles.container}>Album inexistent.</div>
-      </div>
+      <AlbumNotFound />
     );
 
   const galleryPhotos = mode === "print" ? printPagePhotos : album.photos;
