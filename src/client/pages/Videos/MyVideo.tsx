@@ -13,9 +13,7 @@ const MyVideo: React.FC<MyVideoProps> = ({ src, poster, previewTime = 3 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerRef = useRef<Plyr | null>(null);
 
-  const [computedPoster, setComputedPoster] = useState<string | undefined>(
-    poster
-  );
+  const [computedPoster, setComputedPoster] = useState<string | undefined>(poster);
 
   // 1️⃣ Inițializează Plyr
   useEffect(() => {
@@ -25,15 +23,7 @@ const MyVideo: React.FC<MyVideoProps> = ({ src, poster, previewTime = 3 }) => {
 
     try {
       player = new Plyr(videoRef.current, {
-        controls: [
-          "play",
-          "progress",
-          "current-time",
-          "mute",
-          "volume",
-          "settings",
-          "fullscreen",
-        ],
+        controls: ["play", "progress", "current-time", "mute", "volume", "settings", "fullscreen"],
         settings: ["quality", "speed"],
       });
 
@@ -74,11 +64,7 @@ const MyVideo: React.FC<MyVideoProps> = ({ src, poster, previewTime = 3 }) => {
           tmpVideo.addEventListener("loadedmetadata", () => resolve(), {
             once: true,
           });
-          tmpVideo.addEventListener(
-            "error",
-            () => reject(new Error("Failed to load video")),
-            { once: true }
-          );
+          tmpVideo.addEventListener("error", () => reject(new Error("Failed to load video")), { once: true });
         });
 
         if (cancelled) return;
@@ -86,7 +72,7 @@ const MyVideo: React.FC<MyVideoProps> = ({ src, poster, previewTime = 3 }) => {
         const targetTime = Math.min(previewTime, tmpVideo.duration || previewTime);
         tmpVideo.currentTime = targetTime;
 
-        await new Promise<void>((resolve) => {
+        await new Promise<void>(resolve => {
           tmpVideo.addEventListener("seeked", () => resolve(), { once: true });
         });
 
@@ -126,7 +112,7 @@ const MyVideo: React.FC<MyVideoProps> = ({ src, poster, previewTime = 3 }) => {
         ref={videoRef}
         className="plyr-react plyr"
         playsInline
-        controls          // 👈 important ca fallback
+        controls // 👈 important ca fallback
         poster={computedPoster}
         preload="metadata"
       >

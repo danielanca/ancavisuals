@@ -21,9 +21,7 @@ export async function listFiles(path: string) {
   const cleanPath = path.replace(/^\/+/, "") + "/"; // ALWAYS end with /
 
   const res = await storageClient.get(cleanPath);
-  return Array.isArray(res.data)
-    ? res.data
-    : res.data?.Objects ?? [];
+  return Array.isArray(res.data) ? res.data : res.data?.Objects ?? [];
 }
 
 export function buildCdnUrl(path: string) {

@@ -13,25 +13,23 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     return null;
   }
 
-  const title = slug
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const title = slug.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
- async function loadSection(section: string, isVideo = false) {
-  try {
-    const objects = (await listFiles(`${basePath}/${section}`)).filter((o: any) => !o.IsDirectory);
+  async function loadSection(section: string, isVideo = false) {
+    try {
+      const objects = (await listFiles(`${basePath}/${section}`)).filter((o: any) => !o.IsDirectory);
 
-    if (objects.length === 0) return isVideo ? null : [];
+      if (objects.length === 0) return isVideo ? null : [];
 
-    if (isVideo) {
-      return signBunnyUrl(`/${slug}/${section}/${objects[0].ObjectName}`);
+      if (isVideo) {
+        return signBunnyUrl(`/${slug}/${section}/${objects[0].ObjectName}`);
+      }
+
+      return objects.map((o: any) => signBunnyUrl(`/${slug}/${section}/${o.ObjectName}`));
+    } catch {
+      return isVideo ? null : [];
     }
-
-    return objects.map((o: any) => signBunnyUrl(`/${slug}/${section}/${o.ObjectName}`));
-  } catch {
-    return isVideo ? null : [];
   }
-}
 
   return {
     slug,

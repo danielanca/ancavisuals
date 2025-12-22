@@ -1,4 +1,4 @@
-import publicRoutes from './publicRoutes';
+import publicRoutes from "./publicRoutes";
 
 const routes = [...publicRoutes];
 

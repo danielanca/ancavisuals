@@ -40,7 +40,9 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   overflow: hidden;
   box-shadow: $pg-shadow;
   break-inside: avoid; // ⬅️ important pentru masonry
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
 
   &:hover {
     transform: translateY(-2px);
@@ -58,7 +60,9 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   width: 100%;
   height: auto;
   object-fit: cover;
-  transition: transform 0.32s ease, filter 0.24s ease;
+  transition:
+    transform 0.32s ease,
+    filter 0.24s ease;
 }
 
 .pg-load-more {

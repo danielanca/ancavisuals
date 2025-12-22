@@ -1,16 +1,16 @@
-import React from 'react';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 
 const Bio = () => {
   return (
-    <section className='py-24 lg:py-32 px-6 bg-amber-50 text-black'>
-      <div className='max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center'>
-        <div className='space-y-8'>
-          <h2 className='text-4xl md:text-5xl lg:text-6xl font-extralight tracking-[0.05em] mb-8 text-gray-900'>
+    <section className="py-24 lg:py-32 px-6 bg-amber-50 text-black">
+      <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
+        <div className="space-y-8">
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-extralight tracking-[0.05em] mb-8 text-gray-900">
             Salutare
           </h2>
-          <div className='space-y-6 text-base md:text-lg leading-relaxed text-gray-800'>
+          <div className="space-y-6 text-base md:text-lg leading-relaxed text-gray-800">
             <p>
               Bună! Noi suntem echipa Anca Visuals – un duo simpatic (speram noi), organizat și ușor de iubit (zic
               clienții noștri). Ne-am cunoscut la volei, într-o sală cu lumină cam proastă, dar cu priviri bune. Dani
@@ -50,12 +50,12 @@ const Bio = () => {
             </p>
           </div>
         </div>
-        <div className='relative'>
-          <div className='aspect-[4/5] relative'>
+        <div className="relative">
+          <div className="aspect-[4/5] relative">
             <img
-              src='https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FDespreNoi%2FPoze-218.jpg?alt=media&token=c515b80e-3026-420b-bf4f-d05e850548ed'
-              alt='Alexa in her element, camera in hand, natural light'
-              className='w-full h-full object-cover rounded-sm shadow-2xl'
+              src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FDespreNoi%2FPoze-218.jpg?alt=media&token=c515b80e-3026-420b-bf4f-d05e850548ed"
+              alt="Alexa in her element, camera in hand, natural light"
+              className="w-full h-full object-cover rounded-sm shadow-2xl"
             />
           </div>
         </div>

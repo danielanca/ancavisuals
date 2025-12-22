@@ -32,14 +32,12 @@ export default function PortfolioGallery() {
         const folderRef = ref(storage, FOLDER_PATH);
         const res = await listAll(folderRef);
 
-        const urls = await Promise.all(
-          res.items.map((itemRef) => getDownloadURL(itemRef))
-        );
+        const urls = await Promise.all(res.items.map(itemRef => getDownloadURL(itemRef)));
 
         // poți schimba sortarea dacă vrei altă ordine
         urls.sort();
 
-        setImages(urls.map((src) => ({ src })));
+        setImages(urls.map(src => ({ src })));
       } catch (error) {
         console.error("[Gallery] error loading images:", error);
       } finally {
@@ -50,17 +48,12 @@ export default function PortfolioGallery() {
     fetchImages();
   }, []);
 
-  const lightboxSlides = useMemo(
-    () => images.map((img) => ({ src: img.src })),
-    [images]
-  );
+  const lightboxSlides = useMemo(() => images.map(img => ({ src: img.src })), [images]);
 
   if (loading) {
     return (
       <section className="pg-section">
-        <div className="pg-container text-gray-300">
-          Loading photos...
-        </div>
+        <div className="pg-container text-gray-300">Loading photos...</div>
       </section>
     );
   }
@@ -92,12 +85,7 @@ export default function PortfolioGallery() {
                 data-aos-delay={i * 40}
                 onClick={() => setIndex(i)}
               >
-                <img
-                  src={img.src}
-                  alt={`Portofoliu foto ${i + 1}`}
-                  loading="lazy"
-                  className="pg-img"
-                />
+                <img src={img.src} alt={`Portofoliu foto ${i + 1}`} loading="lazy" className="pg-img" />
               </button>
             ))}
           </div>
@@ -105,9 +93,7 @@ export default function PortfolioGallery() {
           {visibleCount < images.length && (
             <div className="pg-load-more">
               <button
-                onClick={() =>
-                  setVisibleCount((prev) => prev + LOAD_MORE_STEP)
-                }
+                onClick={() => setVisibleCount(prev => prev + LOAD_MORE_STEP)}
                 className="pg-load-more-btn"
                 type="button"
               >

@@ -20,10 +20,10 @@ export const sendEmail = functions.https.onRequest(async (request, response) => 
     EMAILTO_CLIENT: "EMPTY",
     invoiceNumberID: "EMPTY",
   };
-  const data = JSON.parse(request.body);  
+  const data = JSON.parse(request.body);
   await postOrderToDB(invoiceNumberID, data, getDateAndHour());
   let cartProd = JSON.parse(data.cartProducts);
-  let downloadURL = data.downloadURL; 
+  let downloadURL = data.downloadURL;
   functions.logger.info("Data from client:", data);
   transport
     .sendMail({

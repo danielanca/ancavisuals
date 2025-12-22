@@ -30,7 +30,7 @@ const Step3Contact: React.FC<Step3ContactProps> = ({
       <h3>3) Detalii de contact</h3>
       <form
         autoComplete="on"
-        onSubmit={(e) => {
+        onSubmit={e => {
           e.preventDefault();
           onSubmitContact(); // delegăm logica în BookingWizard
         }}
@@ -47,7 +47,7 @@ const Step3Contact: React.FC<Step3ContactProps> = ({
           autoCapitalize="words"
           placeholder="Numele tău"
           value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
+          onChange={e => setFullName(e.target.value)}
           inputMode="text"
         />
 
@@ -62,19 +62,15 @@ const Step3Contact: React.FC<Step3ContactProps> = ({
           inputMode="tel"
           placeholder="Numărul tău de telefon"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={e => setPhone(e.target.value)}
         />
 
         {/* Checkbox: acord salvare date */}
         <label className="consent-label">
-          <input
-            type="checkbox"
-            checked={saveConsent}
-            onChange={(e) => setSaveConsent(e.target.checked)}
-          />
+          <input type="checkbox" checked={saveConsent} onChange={e => setSaveConsent(e.target.checked)} />
           <span>
-            Sunt de acord ca datele mele de contact să fie salvate pentru a primi
-            o ofertă personalizată și informații legate de disponibilitate.
+            Sunt de acord ca datele mele de contact să fie salvate pentru a primi o ofertă personalizată și informații
+            legate de disponibilitate.
           </span>
         </label>
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import "./CTAPreview.scss"
+import "./CTAPreview.scss";
 
 type EventTypeId = "nunta" | "botez" | "majorat" | "logodna";
 
@@ -42,7 +42,7 @@ const ConfiguratorTeaser: React.FC = () => {
     if (!sliderAnimating) return;
 
     const interval = setInterval(() => {
-      setValue((prev) => {
+      setValue(prev => {
         const next = prev + STEP;
         return next > MAX ? MIN : next;
       });
@@ -55,7 +55,7 @@ const ConfiguratorTeaser: React.FC = () => {
   useEffect(() => {
     if (!autoCycle) return;
 
-    let currentIndex = EVENT_TYPES.findIndex((t) => t.id === selectedType);
+    let currentIndex = EVENT_TYPES.findIndex(t => t.id === selectedType);
     if (currentIndex === -1) currentIndex = 0;
 
     const interval = setInterval(() => {
@@ -99,96 +99,78 @@ const ConfiguratorTeaser: React.FC = () => {
     goToConfigurator();
   };
 
-  const currentLabel =
-    EVENT_TYPES.find((t) => t.id === selectedType)?.label || "EVENIMENT";
+  const currentLabel = EVENT_TYPES.find(t => t.id === selectedType)?.label || "EVENIMENT";
 
   return (
     <div className="config-teaser__outer-wrap">
-    <div className="config-teaser config-teaser--glow">
-      <div className="config-teaser__heading">
-        VERIFICARE DISPONIBILITATE & REZERVARE
+      <div className="config-teaser config-teaser--glow">
+        <div className="config-teaser__heading">VERIFICARE DISPONIBILITATE & REZERVARE</div>
+        <div className="config-teaser__step-label">
+          Vezi în câteva secunde cât ar putea costa pachetul tău. Click pentru a deschide configuratorul complet.
+        </div>
+
+        {/* Event type pills */}
+        <div className="config-teaser__event-grid">
+          {EVENT_TYPES.map(type => {
+            const isActive = type.id === selectedType;
+            return (
+              <button
+                key={type.id}
+                type="button"
+                className={"config-teaser__event-btn" + (isActive ? " config-teaser__event-btn--active" : "")}
+                onClick={() => handleSelectType(type.id)}
+              >
+                <span className="config-teaser__event-label">{type.label}</span>
+                <span className="config-teaser__event-check">
+                  {isActive && <span className="config-teaser__event-dot" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="config-teaser__offer-label">OFERTA NOASTRĂ</div>
+
+        <div className="config-teaser__price">
+          <span>
+            Demonstrație pentru <strong>{currentLabel}</strong> — configurabilă în următorul pas:
+          </span>
+          <strong>{value.toLocaleString("ro-RO")} RON</strong>
+        </div>
+
+        <p className="config-teaser__text">
+          Slider-ul și tipurile de eveniment îți arată că oferta este flexibilă. Apasă oriunde pe acest modul pentru a
+          deschide configuratorul și a-ți calcula prețul exact.
+        </p>
+
+        {/* Slider (click = navigate) */}
+        <div className="config-teaser__slider-wrap" onClick={handleSliderInteract}>
+          <div className="config-teaser__slider-fill" style={{ width: `${percentage}%` }} />
+          <input
+            type="range"
+            min={MIN}
+            max={MAX}
+            step={STEP}
+            value={value}
+            onChange={handleSliderChange}
+            onMouseDown={handleSliderInteract}
+            onTouchStart={handleSliderInteract}
+            className="config-teaser__slider"
+          />
+        </div>
+
+        <div className="config-teaser__scale">
+          <span>Start simplu</span>
+          <span>Pachet complet & premium</span>
+        </div>
+
+        {/* AFLI PE LOC + CTA */}
+        <div className="config-teaser__instant-label">AFLI PE LOC</div>
+
+        <button className="config-teaser__btn config-teaser__btn--pulse" onClick={handleOpenConfigurator}>
+          Continuă în Configurator
+        </button>
       </div>
-      <div className="config-teaser__step-label">
-        Vezi în câteva secunde cât ar putea costa pachetul tău. Click pentru a
-        deschide configuratorul complet.
-      </div>
-
-      {/* Event type pills */}
-      <div className="config-teaser__event-grid">
-        {EVENT_TYPES.map((type) => {
-          const isActive = type.id === selectedType;
-          return (
-            <button
-              key={type.id}
-              type="button"
-              className={
-                "config-teaser__event-btn" +
-                (isActive ? " config-teaser__event-btn--active" : "")
-              }
-              onClick={() => handleSelectType(type.id)}
-            >
-              <span className="config-teaser__event-label">{type.label}</span>
-              <span className="config-teaser__event-check">
-                {isActive && <span className="config-teaser__event-dot" />}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="config-teaser__offer-label">OFERTA NOASTRĂ</div>
-
-      <div className="config-teaser__price">
-        <span>
-          Demonstrație pentru <strong>{currentLabel}</strong> — configurabilă în
-          următorul pas:
-        </span>
-        <strong>{value.toLocaleString("ro-RO")} RON</strong>
-      </div>
-
-      <p className="config-teaser__text">
-        Slider-ul și tipurile de eveniment îți arată că oferta este flexibilă.
-        Apasă oriunde pe acest modul pentru a deschide configuratorul și a-ți
-        calcula prețul exact.
-      </p>
-
-      {/* Slider (click = navigate) */}
-      <div
-        className="config-teaser__slider-wrap"
-        onClick={handleSliderInteract}
-      >
-        <div
-          className="config-teaser__slider-fill"
-          style={{ width: `${percentage}%` }}
-        />
-        <input
-          type="range"
-          min={MIN}
-          max={MAX}
-          step={STEP}
-          value={value}
-          onChange={handleSliderChange}
-          onMouseDown={handleSliderInteract}
-          onTouchStart={handleSliderInteract}
-          className="config-teaser__slider"
-        />
-      </div>
-
-      <div className="config-teaser__scale">
-        <span>Start simplu</span>
-        <span>Pachet complet & premium</span>
-      </div>
-
-      {/* AFLI PE LOC + CTA */}
-      <div className="config-teaser__instant-label">AFLI PE LOC</div>
-
-      <button
-        className="config-teaser__btn config-teaser__btn--pulse"
-        onClick={handleOpenConfigurator}
-      >
-        Continuă în Configurator
-      </button>
-    </div>
     </div>
   );
 };

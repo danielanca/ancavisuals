@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation } from 'swiper/modules';
-import 'swiper/css';
-import 'swiper/css/navigation';
-import styles from './PackageTiles.module.scss';
-import { PACKAGES_NEW } from '../../packages';
+import React, { useEffect, useMemo, useRef, useState, memo } from "react";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Navigation } from "swiper/modules";
+import "swiper/css";
+import "swiper/css/navigation";
+import styles from "./PackageTiles.module.scss";
+import { PACKAGES_NEW } from "../../packages";
 
 type PackageLike = {
   id: string;
@@ -13,7 +13,7 @@ type PackageLike = {
   recommended?: boolean;
   note?: React.ReactNode | string;
   samples?: string[];
-  type?: 'photo' | 'video';
+  type?: "photo" | "video";
 };
 
 type Props = {
@@ -22,8 +22,7 @@ type Props = {
   onChange: (next: string[]) => void;
 };
 
-const fmtRON = (n: number) => n.toLocaleString('ro-RO');
-
+const fmtRON = (n: number) => n.toLocaleString("ro-RO");
 
 // ✅ Define hook outside (so it's stable, not re-created each render)
 function useInViewAutoplay(ref: React.RefObject<HTMLVideoElement>) {
@@ -39,7 +38,7 @@ function useInViewAutoplay(ref: React.RefObject<HTMLVideoElement>) {
           el.pause();
         }
       },
-      { threshold: 0.9 }
+      { threshold: 0.9 },
     );
 
     observer.observe(el);
@@ -52,17 +51,7 @@ const VideoSlide = memo(({ src }: { src: string }) => {
   const ref = useRef<HTMLVideoElement | null>(null);
   useInViewAutoplay(ref);
 
-  return (
-    <video
-      ref={ref}
-      src={src}
-      muted
-      loop
-      playsInline
-      preload="none"
-      className={styles.slideMedia}
-    />
-  );
+  return <video ref={ref} src={src} muted loop playsInline preload="none" className={styles.slideMedia} />;
 });
 VideoSlide.displayName = "VideoSlide";
 
@@ -75,18 +64,16 @@ export default function PackageTiles({ packages, selected, onChange }: Props) {
   };
 
   const toggleNote = (id: string) => {
-    setExpandedNotes(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
+    setExpandedNotes(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
   };
 
   const total = useMemo(
     () => selected.reduce((sum, id) => sum + (list.find(p => p.id === id)?.price || 0), 0),
-    [selected, list]
+    [selected, list],
   );
 
   return (
-    <fieldset className={styles['pkg-tiles']}>
+    <fieldset className={styles["pkg-tiles"]}>
       <legend>Alege pachetul/pachetele</legend>
 
       <div className={styles.grid}>
@@ -94,10 +81,7 @@ export default function PackageTiles({ packages, selected, onChange }: Props) {
           const checked = selected.includes(p.id);
 
           return (
-            <div
-              className={`${styles.tile} ${checked ? styles.checked : ''}`}
-              key={p.id}
-            >
+            <div className={`${styles.tile} ${checked ? styles.checked : ""}`} key={p.id}>
               <input
                 type="checkbox"
                 id={`pkg-${p.id}`}
@@ -131,7 +115,7 @@ export default function PackageTiles({ packages, selected, onChange }: Props) {
                     >
                       {p.samples.map((url, idx) => (
                         <SwiperSlide key={idx}>
-                          {p.type === 'video' ? (
+                          {p.type === "video" ? (
                             <VideoSlide src={url} />
                           ) : (
                             <img
@@ -154,16 +138,10 @@ export default function PackageTiles({ packages, selected, onChange }: Props) {
                       onClick={() => toggleNote(p.id)}
                       aria-expanded={expandedNotes.includes(p.id)}
                     >
-                      {expandedNotes.includes(p.id)
-                        ? 'Hide details'
-                        : 'Show details'}
+                      {expandedNotes.includes(p.id) ? "Hide details" : "Show details"}
                     </button>
 
-                    <div
-                      className={`${styles.content} ${
-                        expandedNotes.includes(p.id) ? styles.open : ''
-                      }`}
-                    >
+                    <div className={`${styles.content} ${expandedNotes.includes(p.id) ? styles.open : ""}`}>
                       {p.note}
                     </div>
                   </div>

@@ -7,17 +7,15 @@
   overflow: hidden;
   background: radial-gradient(1200px 700px at 20% 10%, rgba(254, 198, 38, 0.14), transparent 55%),
     radial-gradient(900px 600px at 80% 30%, rgba(44, 131, 119, 0.16), transparent 55%),
-    radial-gradient(800px 500px at 50% 90%, rgba(255, 255, 255, 0.08), transparent 60%),
-    #0b0f14;
+    radial-gradient(800px 500px at 50% 90%, rgba(255, 255, 255, 0.08), transparent 60%), #0b0f14;
 }
 
 .bubbles {
   position: absolute;
   inset: -30%;
-  background:
-    radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.10) 0 18px, transparent 19px),
+  background: radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.1) 0 18px, transparent 19px),
     radial-gradient(circle at 35% 55%, rgba(255, 255, 255, 0.08) 0 26px, transparent 27px),
-    radial-gradient(circle at 70% 35%, rgba(255, 255, 255, 0.10) 0 22px, transparent 23px),
+    radial-gradient(circle at 70% 35%, rgba(255, 255, 255, 0.1) 0 22px, transparent 23px),
     radial-gradient(circle at 85% 60%, rgba(255, 255, 255, 0.07) 0 34px, transparent 35px),
     radial-gradient(circle at 55% 20%, rgba(255, 255, 255, 0.06) 0 16px, transparent 17px),
     radial-gradient(circle at 45% 80%, rgba(255, 255, 255, 0.08) 0 28px, transparent 29px);
@@ -28,9 +26,15 @@
 }
 
 @keyframes drift {
-  0% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(2%, -2%, 0) scale(1.02); }
-  100% { transform: translate3d(0, 0, 0) scale(1); }
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(2%, -2%, 0) scale(1.02);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
 
 .card {
@@ -78,7 +82,7 @@
   padding: 0.9rem 1rem;
   border-radius: 16px;
   background: rgba(0, 0, 0, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.84);
   font-size: 0.98rem;
 }
@@ -112,7 +116,10 @@
   text-decoration: none;
   font-weight: 700;
   letter-spacing: 0.01em;
-  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease;
   user-select: none;
 }
 

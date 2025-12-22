@@ -4,7 +4,6 @@ import routes from "./routes/routes";
 import { ContextWrapper } from "./Context"; // Assuming you have this component
 
 export const App = () => {
-
   useEffect(() => {
     // Funcție care șterge dialogul de privacy dacă există
     const removeUcDialog = () => {
@@ -46,5 +45,3 @@ export const App = () => {
 };
 
 export default App;
-
-

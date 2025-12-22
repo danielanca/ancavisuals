@@ -1,51 +1,50 @@
-import loadable from '@loadable/component';
+import loadable from "@loadable/component";
 
-const Mainpage = loadable(() => import('../pages/Homepage/Mainpage'), { ssr: true });
-const Aboutme = loadable(() => import('../pages/About/Aboutme'), { ssr: true });
-const Portfolio = loadable(() => import('../pages/Portfolio/Portfolio'), { ssr: true });
-const Contact = loadable(() => import('../pages/Contact/Contacts'), { ssr: true });
-const MediaAlbumPage = loadable(() => import('../pages/MediaDownload/MediaAlbumPage'), { ssr: true });
+const Mainpage = loadable(() => import("../pages/Homepage/Mainpage"), { ssr: true });
+const Aboutme = loadable(() => import("../pages/About/Aboutme"), { ssr: true });
+const Portfolio = loadable(() => import("../pages/Portfolio/Portfolio"), { ssr: true });
+const Contact = loadable(() => import("../pages/Contact/Contacts"), { ssr: true });
+const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), { ssr: true });
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), { ssr: true });
 
-import { publicRoutesType } from './types';
+import { publicRoutesType } from "./types";
 
 const publicRoutes: publicRoutesType[] = [
   {
-    path: '',
+    path: "",
     layout: null,
     component: Mainpage,
   },
   {
-    path: '/despre',
+    path: "/despre",
     layout: null,
     component: Aboutme,
   },
   {
-    path: '/portofoliu',
+    path: "/portofoliu",
     layout: null,
     component: Portfolio,
   },
   {
-    path: '/contact',
+    path: "/contact",
     layout: null,
     component: Contact,
   },
   {
-    path: '/oferta',
+    path: "/oferta",
     layout: null,
     component: Contact,
   },
   {
-    path: '/media/:slug',
+    path: "/media/:slug",
     layout: null,
     component: MediaAlbumPage,
   },
   {
-  path: "/share/:id",
-  layout: null,
-  component: SharePage,
-},
-  
+    path: "/share/:id",
+    layout: null,
+    component: SharePage,
+  },
 ];
 
 export default publicRoutes;

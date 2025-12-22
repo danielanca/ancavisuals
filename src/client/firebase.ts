@@ -1,10 +1,10 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, getIdTokenResult, signOut } from 'firebase/auth';
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged, getIdTokenResult, signOut } from "firebase/auth";
 
-import { getAnalytics, isSupported as analyticsIsSupported } from 'firebase/analytics';
-import 'firebase/storage';
-import { getStorage } from 'firebase/storage';
-import { getFirestore } from 'firebase/firestore';
+import { getAnalytics, isSupported as analyticsIsSupported } from "firebase/analytics";
+import "firebase/storage";
+import { getStorage } from "firebase/storage";
+import { getFirestore } from "firebase/firestore";
 
 let analytics: any;
 
@@ -15,7 +15,7 @@ const firebaseConfig = {
   storageBucket: "joculdetectivului.appspot.com",
   messagingSenderId: "245201277429",
   appId: "1:245201277429:web:d68ff347883c18838b90bc",
-  measurementId: "G-SXPFYH4Q3X"
+  measurementId: "G-SXPFYH4Q3X",
 };
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -25,7 +25,7 @@ const storage = getStorage(app);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   analyticsIsSupported().then(isSupported => {
     if (isSupported) {
       analytics = getAnalytics(app);
@@ -42,15 +42,15 @@ export const monitorAuthState = (onLogout: () => void) => {
         const expirationTime = tokenResult.expirationTime;
 
         // You can use this information to check expiration
-        console.log('Token expiration time:', expirationTime);
+        console.log("Token expiration time:", expirationTime);
 
         // Set up logic to refresh the token or handle logout
         // Firebase will handle automatic token refreshing by default.
       } catch (error) {
-        console.error('Error fetching token result:', error);
+        console.error("Error fetching token result:", error);
       }
     } else {
-      console.log('User is logged out');
+      console.log("User is logged out");
       onLogout(); // Perform logout logic
     }
   });

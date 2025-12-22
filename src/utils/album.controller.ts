@@ -18,7 +18,7 @@ const isSafeFile = (name: string) => {
 };
 
 export async function getAlbum(req: Request, res: Response) {
- const slug = String(req.params.slug || "");
+  const slug = String(req.params.slug || "");
 
   const exists = await albumExists(slug);
   if (!exists) return res.status(404).json({ error: "Album not found" });
@@ -28,7 +28,7 @@ export async function getAlbum(req: Request, res: Response) {
 
   const saved = await readPrintSelection(slug);
   const clean = Array.from(new Set(saved.filter(isSafeFile)));
-  const print = clean.map((f) => signBunnyUrl(`/${slug}/photos/${f}`));
+  const print = clean.map(f => signBunnyUrl(`/${slug}/photos/${f}`));
 
   return res.json({ ...album, print });
 }
@@ -72,7 +72,6 @@ export async function downloadSelectedPhotos(req: Request, res: Response) {
   await archive.finalize();
 }
 
-
 export async function postPrintSelection(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
 
@@ -92,8 +91,7 @@ export async function postPrintSelection(req: Request, res: Response) {
   return res.json({ ok: true, count: clean.length });
 }
 
-const albumRootPath = (slug: string) =>
-  `https://storage.bunnycdn.com/${storageZone}/${encodeURIComponent(slug)}/`;
+const albumRootPath = (slug: string) => `https://storage.bunnycdn.com/${storageZone}/${encodeURIComponent(slug)}/`;
 async function albumExists(slug: string) {
   const r = await axios.get(albumRootPath(slug), {
     headers: { AccessKey: storageKey },
@@ -105,7 +103,6 @@ async function albumExists(slug: string) {
 
   throw new Error(`meta_check_failed:${r.status}`);
 }
-
 
 type BunnyListItem = {
   ObjectName: string;
@@ -131,17 +128,102 @@ async function bunnyListDir(path: string) {
   return r.data as BunnyListItem[];
 }
 
-async function albumHasExpectedFolders(slug: string) {
-  if (!isSafeSlug(slug)) return false;
+const fileNameFromUrl = (src: string) => {
+  const p = new URL(src).pathname;
+  const last = p.split("/").pop() || "";
+  return decodeURIComponent(last);
+};
 
-  const items = await bunnyListDir(slug);
-  if (!items || items.length === 0) return false;
+export async function downloadAll(req: Request, res: Response) {
+  const slug = String(req.params.slug || "");
+  const album = await loadAlbum(slug).catch(() => null);
 
-  const dirs = new Set(
-    items
-      .filter((x) => x.IsDirectory)
-      .map((x) => String(x.ObjectName || "").toLowerCase())
-  );
+  if (!album || !Array.isArray(album.photos) || album.photos.length === 0) {
+    return res.status(404).json({ error: "Album not found or empty" });
+  }
 
-  return ["photos", "shortvideo", "longvideo"].every((d) => dirs.has(d));
+  const base = `${req.protocol}://${req.get("host")}`;
+
+  const toAbsUrl = (src: string) => {
+    try {
+      return new URL(src).toString();
+    } catch {
+      return new URL(src, base).toString();
+    }
+  };
+
+  const candidates = album.photos
+    .map((src) => ({ src, abs: toAbsUrl(src), name: (() => {
+      try {
+        return fileNameFromUrl(toAbsUrl(src));
+      } catch {
+        return "";
+      }
+    })() }))
+    .filter((x) => isSafeFile(x.name));
+
+  const tryStream = async (url: string) => {
+    const r = await axios.get(url, { responseType: "stream", validateStatus: () => true });
+    if (r.status >= 200 && r.status < 300) return r.data;
+    return null;
+  };
+
+  let first: { name: string; stream: any } | null = null;
+
+  for (const c of candidates) {
+    try {
+      const s1 = await tryStream(c.abs);
+      if (s1) {
+        first = { name: c.name, stream: s1 };
+        break;
+      }
+
+      const signed = signBunnyUrl(`${slug}/${c.name}`);
+      const s2 = await tryStream(signed);
+      if (s2) {
+        first = { name: c.name, stream: s2 };
+        break;
+      }
+    } catch {}
+  }
+
+  if (!first) {
+    return res.status(502).json({ error: "Could not fetch any photos for zipping" });
+  }
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="${slug}-toate-pozele.zip"`);
+
+  const archive = archiver("zip", { zlib: { level: 9 } });
+
+  archive.on("error", () => {
+    try {
+      res.status(500).end();
+    } catch {}
+  });
+
+  archive.pipe(res);
+
+  archive.append(first.stream, { name: first.name });
+
+  for (const c of candidates) {
+    if (c.name === first.name) continue;
+
+    try {
+      const s1 = await tryStream(c.abs);
+      if (s1) {
+        archive.append(s1, { name: c.name });
+        continue;
+      }
+
+      const signed = signBunnyUrl(`${slug}/${c.name}`);
+      const s2 = await tryStream(signed);
+      if (s2) {
+        archive.append(s2, { name: c.name });
+      }
+    } catch {}
+  }
+
+  await archive.finalize();
 }
+

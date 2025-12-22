@@ -209,7 +209,7 @@ export const renderClientMail = (cartProd: any, invoiceNumberID: any, data: any)
                </table></td> 
              </tr> 
            </table></td> 
-         </tr>`
+         </tr>`,
     )}` +
     `
                      <tr> 
@@ -222,10 +222,10 @@ export const renderClientMail = (cartProd: any, invoiceNumberID: any, data: any)
                               <td align="right" class="es-m-txt-r" style="padding:0;Margin:0;padding-top:10px;padding-bottom:20px"><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Subtotal:&nbsp;<strong>${
                                 data.cartSum
                               } RON</strong><br>Taxa Transport:&nbsp;<strong>${
-      data.shippingTax
-    } RON</strong><br>Total (TVA inclus):&nbsp;<strong>${
-      Number(data.cartSum) + Number(data.shippingTax)
-    } RON</strong></p></td> 
+                                data.shippingTax
+                              } RON</strong><br>Total (TVA inclus):&nbsp;<strong>${
+                                Number(data.cartSum) + Number(data.shippingTax)
+                              } RON</strong></p></td> 
                              </tr> 
                            </table></td> 
                          </tr> 
@@ -241,14 +241,14 @@ export const renderClientMail = (cartProd: any, invoiceNumberID: any, data: any)
                               <td align="left" style="padding:0;Margin:0"><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Client: <strong>${
                                 data.firstName
                               } ${
-      data.lastName
-    }</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Comanda :&nbsp;<strong>${invoiceNumberID}</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Data facturarii:&nbsp;<strong>${getDateAndHour()}</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Metoda de plata:&nbsp;<strong>${
-      data.paymentMethod
-    }</strong><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Locatie easybox?:&nbsp;<strong>${
-      data.lockerName
-    }</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Telefon:&nbsp;<strong>${
-      data.phoneNo
-    }</strong></p></td> 
+                                data.lastName
+                              }</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Comanda :&nbsp;<strong>${invoiceNumberID}</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Data facturarii:&nbsp;<strong>${getDateAndHour()}</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Metoda de plata:&nbsp;<strong>${
+                                data.paymentMethod
+                              }</strong><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Locatie easybox?:&nbsp;<strong>${
+                                data.lockerName
+                              }</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Telefon:&nbsp;<strong>${
+                                data.phoneNo
+                              }</strong></p></td> 
                              </tr> 
                            </table></td> 
                          </tr> 
@@ -261,8 +261,8 @@ export const renderClientMail = (cartProd: any, invoiceNumberID: any, data: any)
                               <td align="left" class="es-m-txt-l" style="padding:0;Margin:0"><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Curier: <strong>${
                                 data.deliveryName
                               }</strong></p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Adresa de livrare:</p><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px"><strong>${
-      data.deliveryAddress
-    },<br>${data.city},<br>${data.county}</strong></p></td> 
+                                data.deliveryAddress
+                              },<br>${data.city},<br>${data.county}</strong></p></td> 
                              </tr> 
                            </table></td> 
                          </tr> 

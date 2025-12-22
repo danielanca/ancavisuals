@@ -40,7 +40,7 @@ export const sendEmail = functions.https.onRequest(async (request, response) => 
   console.log("DANUUUUUUUUUUUUUUUUUUT", data);
   await postOrderToDB(invoiceNumberID, data, getDateAndHour());
   let cartProd = JSON.parse(data.cartProducts);
-  let downloadURL = data.downloadURL; 
+  let downloadURL = data.downloadURL;
 
   if (!data.emailAddress) {
     console.error("No recipients defined");

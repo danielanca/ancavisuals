@@ -49,8 +49,7 @@ export const createShare = async (req: Request, res: Response) => {
   const rec = await createShareRecord(slug, clean, 7);
   const base = `${req.protocol}://${req.get("host")}`;
 
-return res.json({ id: rec.id, expiresAt: rec.expiresAt, count: rec.items.length });
-
+  return res.json({ id: rec.id, expiresAt: rec.expiresAt, count: rec.items.length });
 };
 
 export const getShare = async (req: Request, res: Response) => {
@@ -60,7 +59,7 @@ export const getShare = async (req: Request, res: Response) => {
 
     if (Date.now() > rec.expiresAt) return res.status(410).json({ error: "expired" });
 
-    const urls = rec.items.map((f) => signBunnyUrl(`/${rec.slug}/photos/${f}`));
+    const urls = rec.items.map(f => signBunnyUrl(`/${rec.slug}/photos/${f}`));
 
     return res.json({
       id: rec.id,

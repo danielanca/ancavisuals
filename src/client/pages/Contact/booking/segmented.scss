@@ -36,7 +36,8 @@
   background: #f4d067;
   color: #111111;
   border-color: #f4d067;
-  box-shadow: 0 0 20px rgba(244, 208, 103, 0.35),
+  box-shadow:
+    0 0 20px rgba(244, 208, 103, 0.35),
     0 12px 32px rgba(0, 0, 0, 0.95);
   transform: translateY(-1px);
 }
@@ -46,23 +47,22 @@
   outline-offset: 2px;
 }
 
-
 /* Formularul să nu mai forțeze centrare pe tot conținutul */
 .booking-form {
   display: flex;
   flex-direction: column;
-  align-items: stretch;      /* important */
-  text-align: left;          /* text la stânga în interior */
+  align-items: stretch; /* important */
+  text-align: left; /* text la stânga în interior */
 }
 
 /* Labelul de consimțământ ancorat corect */
 .consent-label {
-  align-self: flex-start;    /* nu mai ia centrare de la părinte */
+  align-self: flex-start; /* nu mai ia centrare de la părinte */
   display: flex;
   align-items: flex-start;
   gap: 10px;
   margin-top: 12px;
-  max-width: 520px;          /* să nu fugă pe lățimi mari */
+  max-width: 520px; /* să nu fugă pe lățimi mari */
   font-size: 13px;
   color: #9ca3af;
   text-align: left;

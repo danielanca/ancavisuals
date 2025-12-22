@@ -15,13 +15,16 @@ export async function createShareRecord(slug: string, items: string[], days: num
   const id = makeId();
   const expiresAt = Date.now() + days * 24 * 60 * 60 * 1000;
 
-  await db.collection("shares").doc(id).set({
-    slug,
-    items,
-    expiresAt,
-    expiresAtTs: Timestamp.fromMillis(expiresAt),
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  await db
+    .collection("shares")
+    .doc(id)
+    .set({
+      slug,
+      items,
+      expiresAt,
+      expiresAtTs: Timestamp.fromMillis(expiresAt),
+      createdAt: FieldValue.serverTimestamp(),
+    });
 
   return { id, slug, items, expiresAt };
 }

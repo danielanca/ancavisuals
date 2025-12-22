@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 export type PlaceLite = {
   id: string;
@@ -26,23 +26,23 @@ const loadMaps = (() => {
   let promise: Promise<void> | null = null;
   return (apiKey: string, language?: string) => {
     // deja există
-    if (typeof window !== 'undefined' && (window as any).google?.maps) {
+    if (typeof window !== "undefined" && (window as any).google?.maps) {
       return Promise.resolve();
     }
     if (!promise) {
       promise = new Promise<void>((resolve, reject) => {
-        const s = document.createElement('script');
+        const s = document.createElement("script");
         const params = new URLSearchParams({
           key: apiKey,
-          libraries: 'places',
-          v: 'weekly',
-          loading: 'async', // best practice
+          libraries: "places",
+          v: "weekly",
+          loading: "async", // best practice
           ...(language ? { language } : {}),
         });
         s.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
         s.async = true;
         s.defer = true;
-        s.onerror = () => reject(new Error('Failed to load Google Maps JS'));
+        s.onerror = () => reject(new Error("Failed to load Google Maps JS"));
         s.onload = () => resolve();
         document.head.appendChild(s);
       });
@@ -59,7 +59,7 @@ function waitFor(test: () => boolean, timeout = 5000, step = 50) {
         resolve();
       } else if (Date.now() - start >= timeout) {
         clearInterval(it);
-        reject(new Error('timeout'));
+        reject(new Error("timeout"));
       }
     }, step);
   });
@@ -68,14 +68,14 @@ function waitFor(test: () => boolean, timeout = 5000, step = 50) {
 async function ensurePlaces(apiKey: string, language?: string) {
   await loadMaps(apiKey, language);
   const gmaps: any = (window as any).google?.maps;
-  if (!gmaps) throw new Error('google.maps not present after load');
+  if (!gmaps) throw new Error("google.maps not present after load");
 
   if (cachedPlacesLib) return cachedPlacesLib;
 
   // 1) Noul API (dacă e disponibil)
-  if (typeof gmaps.importLibrary === 'function') {
+  if (typeof gmaps.importLibrary === "function") {
     try {
-      cachedPlacesLib = await gmaps.importLibrary('places');
+      cachedPlacesLib = await gmaps.importLibrary("places");
       return cachedPlacesLib;
     } catch {
       // continuăm cu fallback
@@ -95,20 +95,20 @@ async function ensurePlaces(apiKey: string, language?: string) {
 
   console.error(
     "[Maps] google.maps este prezent, dar 'places' încă lipsește. " +
-      'Verifică să nu existe un alt loader care a pornit fără `libraries=places`.'
+      "Verifică să nu existe un alt loader care a pornit fără `libraries=places`.",
   );
-  throw new Error('Places library not available');
+  throw new Error("Places library not available");
 }
 
 // ---------------- Component ----------------
 export default function LocationField({
   apiKey,
-  value = '', // default safe
+  value = "", // default safe
   onChange,
   onSelect,
-  placeholder = 'Caută locația exactă…',
-  language = 'ro',
-  region = 'RO',
+  placeholder = "Caută locația exactă…",
+  language = "ro",
+  region = "RO",
   includedPrimaryTypes,
   className,
 }: Props) {
@@ -135,7 +135,7 @@ export default function LocationField({
       })
       .catch(e => {
         console.error(e);
-        setErr('Nu s-a putut încărca Google Maps.');
+        setErr("Nu s-a putut încărca Google Maps.");
       });
     return () => {
       mounted = false;
@@ -143,7 +143,7 @@ export default function LocationField({
     };
   }, [apiKey, language]);
 
-  const query = useMemo(() => (value ?? '').toString().trim(), [value]);
+  const query = useMemo(() => (value ?? "").toString().trim(), [value]);
 
   // fetch predictions
   useEffect(() => {
@@ -177,11 +177,11 @@ export default function LocationField({
           // Ca fallback ultim, încearcă să nu oprești UX-ul (returnează nimic)
           setSuggestions([]);
           setOpen(false);
-          setErr('Autocomplete (Places New) indisponibil în această încărcare.');
+          setErr("Autocomplete (Places New) indisponibil în această încărcare.");
         }
       } catch (e) {
         console.error(e);
-        setErr('Autocomplete a eșuat.');
+        setErr("Autocomplete a eșuat.");
         setOpen(false);
       } finally {
         setLoading(false);
@@ -200,18 +200,18 @@ export default function LocationField({
       const place = prediction.toPlace();
       if (place.fetchFields) {
         await place.fetchFields({
-          fields: ['id', 'displayName', 'formattedAddress', 'location'],
+          fields: ["id", "displayName", "formattedAddress", "location"],
         });
       }
 
-      const id = (place as any).id || (prediction?.id as string) || (prediction?.place_id as string) || '';
+      const id = (place as any).id || (prediction?.id as string) || (prediction?.place_id as string) || "";
       const displayName = (place as any).displayName?.text;
       const formattedAddress = (place as any).formattedAddress;
       const loc = (place as any).location;
-      const latlng = typeof loc?.toJSON === 'function' ? loc.toJSON() : loc?.toJSON?.() ?? loc;
+      const latlng = typeof loc?.toJSON === "function" ? loc.toJSON() : loc?.toJSON?.() ?? loc;
 
       // 🔥 setează și value-ul din input prin onChange
-      const selectedText = formattedAddress || displayName || prediction?.text?.text || '';
+      const selectedText = formattedAddress || displayName || prediction?.text?.text || "";
       onChange(selectedText);
 
       onSelect({
@@ -225,14 +225,14 @@ export default function LocationField({
       tokenRef.current = new places.AutocompleteSessionToken();
     } catch (e) {
       console.error(e);
-      setErr('Nu s-au putut încărca detaliile locului.');
+      setErr("Nu s-au putut încărca detaliile locului.");
     }
   }
 
   return (
-    <div className={className} style={{ position: 'relative' }}>
+    <div className={className} style={{ position: "relative" }}>
       <input
-        type='text'
+        type="text"
         placeholder={placeholder}
         value={value}
         onChange={e => {
@@ -241,70 +241,70 @@ export default function LocationField({
           activeIndex.current = -1;
         }}
         onFocus={() =>
-          (value ?? '').length >= 3 && Array.isArray(suggestions) && suggestions.length > 0 && setOpen(true)
+          (value ?? "").length >= 3 && Array.isArray(suggestions) && suggestions.length > 0 && setOpen(true)
         }
         onKeyDown={e => {
           if (!open || !Array.isArray(suggestions) || suggestions.length === 0) return;
-          if (e.key === 'ArrowDown') {
+          if (e.key === "ArrowDown") {
             e.preventDefault();
             activeIndex.current = Math.min(activeIndex.current + 1, suggestions.length - 1);
             return;
           }
-          if (e.key === 'ArrowUp') {
+          if (e.key === "ArrowUp") {
             e.preventDefault();
             activeIndex.current = Math.max(activeIndex.current - 1, 0);
             return;
           }
-          if (e.key === 'Enter') {
+          if (e.key === "Enter") {
             e.preventDefault();
             const idx = activeIndex.current >= 0 ? activeIndex.current : 0;
             handleSelect(suggestions[idx]);
             return;
           }
-          if (e.key === 'Escape') {
+          if (e.key === "Escape") {
             setOpen(false);
           }
         }}
-        autoComplete='off'
+        autoComplete="off"
       />
 
       {open && (
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             zIndex: 20,
             left: 0,
             right: 0,
-            top: '100%',
+            top: "100%",
             marginTop: 4,
             borderRadius: 8,
-            background: '#1f1f1f',
-            border: '1px solid #2a2a2a',
-            boxShadow: '0 6px 24px rgba(0,0,0,0.4)',
+            background: "#1f1f1f",
+            border: "1px solid #2a2a2a",
+            boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
             maxHeight: 280,
-            overflowY: 'auto',
+            overflowY: "auto",
           }}
           onMouseDown={e => e.preventDefault()}
         >
           {loading && <div style={{ padding: 10, opacity: 0.8 }}>Se încarcă…</div>}
-          {err && <div style={{ padding: 10, color: '#ff8080' }}>{err}</div>}
+          {err && <div style={{ padding: 10, color: "#ff8080" }}>{err}</div>}
 
           {!loading &&
             !err &&
             Array.isArray(suggestions) &&
             suggestions.length > 0 &&
             suggestions.map((sug: any, i: number) => {
-              const t = sug.placePrediction?.text?.text || '';
-              const sec = sug.placePrediction?.secondaryText?.text || '';
+              const t = sug.placePrediction?.text?.text || "";
+              const sec = sug.placePrediction?.secondaryText?.text || "";
               const isActive = i === activeIndex.current;
               return (
                 <div
                   key={`${t}-${sec}-${i}`}
                   onClick={() => handleSelect(sug)}
                   style={{
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                    background: isActive ? '#2a2a2a' : 'transparent',
+                    padding: "10px 12px",
+                    cursor: "pointer",
+                    background: isActive ? "#2a2a2a" : "transparent",
                   }}
                 >
                   <div style={{ fontWeight: 600 }}>{t}</div>

@@ -1,5 +1,5 @@
 // src/booking/utils/normalize.ts
-import type { PkgInfo } from '../types';
+import type { PkgInfo } from "../types";
 
 export function normalizePackages(rawList: any[]): PkgInfo[] {
   const out = (rawList || []).map(raw => {
@@ -7,7 +7,7 @@ export function normalizePackages(rawList: any[]): PkgInfo[] {
     const title = String(raw.title ?? raw.label ?? raw.name ?? id).trim();
     const priceNum = Number(raw.price ?? raw.amount ?? raw.cost ?? 0);
     const price = Number.isFinite(priceNum) ? priceNum : 0;
-    const note = (raw.note ?? raw.description ?? raw.details ?? '') as string | undefined;
+    const note = (raw.note ?? raw.description ?? raw.details ?? "") as string | undefined;
     const recommended = Boolean(raw.recommended ?? raw.isRecommended ?? raw.featured);
     return { id, title, price, note, recommended };
   });

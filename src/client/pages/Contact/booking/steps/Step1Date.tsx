@@ -25,7 +25,7 @@ const MONTHS_RO = [
   "Septembrie",
   "Octombrie",
   "Noiembrie",
-  "Decembrie"
+  "Decembrie",
 ];
 
 function toKey(day: number, monthZeroBased: number, year: number): string {
@@ -48,12 +48,9 @@ const Step1Date: React.FC<Step1DateProps> = ({
   bookedDates,
   isAvailable,
   setIsAvailable,
-  setErrors
+  setErrors,
 }) => {
-  const maxDays = useMemo(
-    () => daysInMonth(year, month),
-    [year, month]
-  );
+  const maxDays = useMemo(() => daysInMonth(year, month), [year, month]);
 
   // dacă schimbă luna/anul și ziua iese din range, o clamp-uiască în useEffect (nu în render)
   useEffect(() => {
@@ -65,10 +62,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxDays]);
 
-  const humanDate = useMemo(
-    () => `${day} ${MONTHS_RO[month]} ${year}`,
-    [day, month, year]
-  );
+  const humanDate = useMemo(() => `${day} ${MONTHS_RO[month]} ${year}`, [day, month, year]);
 
   const handleDayChange = (value: string) => {
     const d = Number(value);
@@ -104,8 +98,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
     if (isBooked) {
       setIsAvailable(false);
       setErrors({
-        date:
-          "Ne pare rău, această dată este deja rezervată. Te rugăm să alegi o altă zi."
+        date: "Ne pare rău, această dată este deja rezervată. Te rugăm să alegi o altă zi.",
       });
     } else {
       setIsAvailable(true);
@@ -119,11 +112,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
 
       <div className="input-group date-select-group">
         {/* Zi */}
-        <select
-          className="date-select"
-          value={day}
-          onChange={(e) => handleDayChange(e.target.value)}
-        >
+        <select className="date-select" value={day} onChange={e => handleDayChange(e.target.value)}>
           {Array.from({ length: maxDays }).map((_, i) => {
             const d = i + 1;
             return (
@@ -135,11 +124,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
         </select>
 
         {/* Lună */}
-        <select
-          className="date-select"
-          value={month}
-          onChange={(e) => handleMonthChange(e.target.value)}
-        >
+        <select className="date-select" value={month} onChange={e => handleMonthChange(e.target.value)}>
           {MONTHS_RO.map((label, index) => (
             <option key={label} value={index}>
               {label}
@@ -148,11 +133,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
         </select>
 
         {/* An */}
-        <select
-          className="date-select"
-          value={year}
-          onChange={(e) => handleYearChange(e.target.value)}
-        >
+        <select className="date-select" value={year} onChange={e => handleYearChange(e.target.value)}>
           {Array.from({ length: 7 }).map((_, i) => {
             const y = 2024 + i;
             return (
@@ -164,33 +145,18 @@ const Step1Date: React.FC<Step1DateProps> = ({
         </select>
 
         {/* Buton Verifică */}
-        <button
-          type="button"
-          className="verify-btn"
-          onClick={handleCheckAvailability}
-        >
+        <button type="button" className="verify-btn" onClick={handleCheckAvailability}>
           Verifică
         </button>
       </div>
 
       <p className="selected-date-label">
-        Data selectată:{" "}
-        <span className="selected-date-value">
-          {humanDate}
-        </span>
+        Data selectată: <span className="selected-date-value">{humanDate}</span>
       </p>
 
-      {isAvailable === true && (
-        <p className="ok">
-          Suntem disponibili pe {humanDate} 🎉
-        </p>
-      )}
+      {isAvailable === true && <p className="ok">Suntem disponibili pe {humanDate} 🎉</p>}
 
-      {isAvailable === false && (
-        <p className="error">
-          Ne pare rău, {humanDate} este deja rezervată.
-        </p>
-      )}
+      {isAvailable === false && <p className="error">Ne pare rău, {humanDate} este deja rezervată.</p>}
     </>
   );
 };

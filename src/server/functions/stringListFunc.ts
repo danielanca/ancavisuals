@@ -13,7 +13,7 @@ export const getStringsList = functions.https.onRequest((request, response) => {
       .collection("list")
       .doc(requestType)
       .get()
-      .then((result) => response.send({ resultSent: result.data() }));
+      .then(result => response.send({ resultSent: result.data() }));
   } catch (error) {
     response.send({ errorSent: error });
   }
@@ -31,7 +31,7 @@ export const sendStringsList = functions.https.onRequest((request, response) => 
       .collection("list")
       .doc(requestType)
       .set(JSON.parse(payload), { merge: true })
-      .then((result) => response.send({ resultSent: true, timeStamp: result }));
+      .then(result => response.send({ resultSent: true, timeStamp: result }));
   } catch (error) {
     response.send({ errorSent: error });
   }

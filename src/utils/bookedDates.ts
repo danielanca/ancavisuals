@@ -61,10 +61,7 @@ export async function loadBookedDates(): Promise<Set<string>> {
   if (bookedDatesCache) return bookedDatesCache;
 
   try {
-    const fileRef = ref(
-      storage,
-      "ancavisuals/bookedDates/bookedDates.json"
-    );
+    const fileRef = ref(storage, "ancavisuals/bookedDates/bookedDates.json");
     const url = await getDownloadURL(fileRef);
     const res = await fetch(url);
     const data = (await res.json()) as BookedDatesFile;
@@ -82,8 +79,7 @@ export async function loadBookedDates(): Promise<Set<string>> {
  * Verifică dacă o dată (Date sau string "YYYY-MM-DD") este ocupată.
  */
 export async function isDateBooked(input: Date | string): Promise<boolean> {
-  const key =
-    typeof input === "string" ? input : toDateKey(input);
+  const key = typeof input === "string" ? input : toDateKey(input);
   const set = await loadBookedDates();
   return set.has(key);
 }

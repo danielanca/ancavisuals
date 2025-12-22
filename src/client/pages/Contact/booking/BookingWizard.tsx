@@ -119,7 +119,7 @@ const buildHtmlFinal = (args: {
     <li><b>Telefon:</b> ${args.phone}</li>
     <li><b>Locație:</b> ${args.location}</li>
     <li><b>Interval:</b> ${args.startTime} – ${args.endTime}${args.overnight ? " (peste miezul nopții)" : ""}</li>
-    <li><b>Durată estimată:</b> ${args.durationHours ?? "-" } h</li>
+    <li><b>Durată estimată:</b> ${args.durationHours ?? "-"} h</li>
     <li><b>Pachete selectate:</b> ${args.selectedPackages.join(", ") || "-"}</li>
     ${args.showCustom ? `<li><b>Custom:</b> foto=${args.photo ? "da" : "nu"}, video=${args.video ? "da" : "nu"}</li>` : ""}
     <li><b>Preț estimativ:</b> ${Number(args.totalPrice).toLocaleString("ro-RO")} RON</li>
@@ -202,12 +202,12 @@ export default function BookingWizard() {
     if (!phone || !PHONE_RE.test(phone)) errs.phone = "Număr de telefon invalid.";
 
     if (Object.keys(errs).length > 0) {
-      setErrors((prev) => ({ ...prev, ...errs }));
+      setErrors(prev => ({ ...prev, ...errs }));
       return;
     }
 
     // Curățăm erorile legate de contact
-    setErrors((prev) => ({ ...prev, fullName: "", phone: "" }));
+    setErrors(prev => ({ ...prev, fullName: "", phone: "" }));
 
     // Trimitem lead-ul imediat, doar dacă și-a dat acordul
     if (saveContactConsent) {
@@ -246,7 +246,7 @@ export default function BookingWizard() {
         };
 
         // non-blocking
-        safeTrigger(payload).catch((err) => {
+        safeTrigger(payload).catch(err => {
           console.error("Partial lead send failed (non-blocking):", err);
         });
       } catch (err) {
@@ -254,14 +254,15 @@ export default function BookingWizard() {
       }
     }
 
-     // 🔥 Google Ads conversion – LEAD RAPID
+    // 🔥 Google Ads conversion – LEAD RAPID
     if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
       (window as any).gtag("event", "conversion", {
         send_to: "AW-10941123412/ww8eCM7HiakYENSWkeEo",
         value: 1.0, // sau 1.0 fix dacă vrei doar număr de conversii
         currency: "RON",
-        transaction_id: "",       // poți pune un ID unic dacă ai
-      });}
+        transaction_id: "", // poți pune un ID unic dacă ai
+      });
+    }
     // Oricum mergem mai departe în wizard
     setStep(4);
   };
@@ -297,17 +298,17 @@ export default function BookingWizard() {
 
   const goNext = () => {
     if (validateStep(step)) {
-      setStep((s) => (s < 5 ? ((s + 1) as Step) : s));
+      setStep(s => (s < 5 ? ((s + 1) as Step) : s));
     }
   };
 
   const goBack = () => {
-    setStep((s) => (s > 1 ? ((s - 1) as Step) : s));
+    setStep(s => (s > 1 ? ((s - 1) as Step) : s));
   };
 
   /* ---------- Total price ---------- */
   const totalPrice = useMemo(() => {
-    const byId = new Map(packagesNormalized.map((p) => [p.id, p]));
+    const byId = new Map(packagesNormalized.map(p => [p.id, p]));
     const tilesSum = selectedPackages.reduce((sum, id) => sum + (byId.get(id)?.price ?? 0), 0);
     const customSum = showCustom ? (photo ? 1500 : 0) + (video ? 1300 : 0) : 0;
     return tilesSum + customSum;
@@ -395,7 +396,7 @@ export default function BookingWizard() {
 
       {/* stepper */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {[1, 2, 3, 4, 5].map((s) => (
+        {[1, 2, 3, 4, 5].map(s => (
           <div
             key={s}
             style={{
@@ -485,22 +486,21 @@ export default function BookingWizard() {
         />
       )}
 
-     {step === 5 && submitted && bookingData && (
-      <div className="thank-you-msg" ref={thankYouRef}>
-        <div className="thank-you-card">
-          <div className="thank-you-icon">🎉</div>
-          <h3>Mulțumim, {bookingData.fullName}!</h3>
-          <p>
-            Rezervarea ta pentru <strong>{bookingData.date}</strong> a fost înregistrată cu succes.
-          </p>
-          <p>
-            Preț total: <strong>{bookingData.totalPrice.toLocaleString("ro-RO")} RON</strong>
-          </p>
-          <p>Te vom contacta în curând pentru confirmarea detaliilor.</p>
+      {step === 5 && submitted && bookingData && (
+        <div className="thank-you-msg" ref={thankYouRef}>
+          <div className="thank-you-card">
+            <div className="thank-you-icon">🎉</div>
+            <h3>Mulțumim, {bookingData.fullName}!</h3>
+            <p>
+              Rezervarea ta pentru <strong>{bookingData.date}</strong> a fost înregistrată cu succes.
+            </p>
+            <p>
+              Preț total: <strong>{bookingData.totalPrice.toLocaleString("ro-RO")} RON</strong>
+            </p>
+            <p>Te vom contacta în curând pentru confirmarea detaliilor.</p>
+          </div>
         </div>
-      </div>
-)}
-
+      )}
     </div>
   );
 }

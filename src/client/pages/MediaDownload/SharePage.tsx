@@ -38,9 +38,24 @@ export default function SharePage() {
     })();
   }, [id]);
 
-  if (loading) return <div className={styles.page}><div className={styles.container}>Se încarcă...</div></div>;
-  if (expired) return <div className={styles.page}><div className={styles.container}>Link expirat.</div></div>;
-  if (!data) return <div className={styles.page}><div className={styles.container}>Link invalid.</div></div>;
+  if (loading)
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>Se încarcă...</div>
+      </div>
+    );
+  if (expired)
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>Link expirat.</div>
+      </div>
+    );
+  if (!data)
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>Link invalid.</div>
+      </div>
+    );
 
   return (
     <div className={styles.page}>

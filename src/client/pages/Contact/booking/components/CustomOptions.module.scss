@@ -11,8 +11,8 @@
     font-weight: 500;
     user-select: none;
 
-    input[type='checkbox'] {
-      display: none;  
+    input[type="checkbox"] {
+      display: none;
     }
 
     & .custom-config__slider {
@@ -24,7 +24,7 @@
       transition: background 0.3s;
 
       &::before {
-        content: '';
+        content: "";
         position: absolute;
         width: 20px;
         height: 20px;
@@ -44,7 +44,7 @@
       left: 28px;
     }
   }
- 
+
   &__options {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

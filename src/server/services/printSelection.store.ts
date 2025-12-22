@@ -3,17 +3,14 @@ import { firestore } from "../firestoreInit";
 const COL = "printSelections";
 
 export async function savePrintSelection(slug: string, items: string[]) {
-  await firestore()
-    .collection(COL)
-    .doc(slug)
-    .set(
-      {
-        slug,
-        items,
-        updatedAt: Date.now(),
-      },
-      { merge: true }
-    );
+  await firestore().collection(COL).doc(slug).set(
+    {
+      slug,
+      items,
+      updatedAt: Date.now(),
+    },
+    { merge: true },
+  );
 }
 
 export async function readPrintSelection(slug: string): Promise<string[]> {

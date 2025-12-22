@@ -1,9 +1,9 @@
-import { Request, Response } from 'express';
-import { applyCORSpolicy } from '../constants/corsFunc';
-import { transportOptions } from '../constants/emailCons';
-import { emailAuth, adminUser } from '../constants/credentials';
-import nodemailer from 'nodemailer';
-import { fetchIpInfo, getClientIp } from '../../utils/ipinfo';
+import { Request, Response } from "express";
+import { applyCORSpolicy } from "../constants/corsFunc";
+import { transportOptions } from "../constants/emailCons";
+import { emailAuth, adminUser } from "../constants/credentials";
+import nodemailer from "nodemailer";
+import { fetchIpInfo, getClientIp } from "../../utils/ipinfo";
 
 const transport = nodemailer.createTransport(transportOptions);
 
@@ -14,8 +14,8 @@ interface TypeEvent {
 }
 
 const isLocalIp = (ip: string): boolean => {
-  const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-  return normalized === '127.0.0.1' || normalized === '::1' || normalized === 'localhost';
+  const normalized = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+  return normalized === "127.0.0.1" || normalized === "::1" || normalized === "localhost";
 };
 
 export const triggerEvent = async (request: Request, response: Response) => {
@@ -37,24 +37,24 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const ipInfo = await fetchIpInfo(clientIp);
 
     const locationParts = [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(
-      (value: string | undefined): value is string => typeof value === 'string' && value.length > 0
+      (value: string | undefined): value is string => typeof value === "string" && value.length > 0,
     );
-    const location = locationParts.length > 0 ? locationParts.join(', ') : '-';
+    const location = locationParts.length > 0 ? locationParts.join(", ") : "-";
 
     const metadataHtml = `
       <hr/>
       <h3>Request metadata</h3>
       <ul>
-        <li><b>IP</b>: ${ipInfo?.ip ?? clientIp ?? '-'}</li>
+        <li><b>IP</b>: ${ipInfo?.ip ?? clientIp ?? "-"}</li>
         <li><b>Location</b>: ${location}</li>
-        <li><b>Coordinates</b>: ${ipInfo?.loc ?? '-'}</li>
-        <li><b>Timezone</b>: ${ipInfo?.timezone ?? '-'}</li>
-        <li><b>Org</b>: ${ipInfo?.org ?? '-'}</li>
-        <li><b>Hostname</b>: ${ipInfo?.hostname ?? '-'}</li>
+        <li><b>Coordinates</b>: ${ipInfo?.loc ?? "-"}</li>
+        <li><b>Timezone</b>: ${ipInfo?.timezone ?? "-"}</li>
+        <li><b>Org</b>: ${ipInfo?.org ?? "-"}</li>
+        <li><b>Hostname</b>: ${ipInfo?.hostname ?? "-"}</li>
       </ul>
     `;
 
-    const emailHtml = `${payload.html ?? ''}${metadataHtml}`;
+    const emailHtml = `${payload.html ?? ""}${metadataHtml}`;
 
     await transport.sendMail({
       from: emailAuth.email,
@@ -64,10 +64,10 @@ export const triggerEvent = async (request: Request, response: Response) => {
       // html: renderTriggerClick(triggerData.typeEvent, triggerData.url, triggerData.browserVersion),
     });
 
-    console.log('Trigger email sent successfully.');
-    response.status(200).send('Email sent successfully.');
+    console.log("Trigger email sent successfully.");
+    response.status(200).send("Email sent successfully.");
   } catch (error) {
-    console.error('Error sending trigger email:', error);
-    response.status(500).send('Server error occurred.');
+    console.error("Error sending trigger email:", error);
+    response.status(500).send("Server error occurred.");
   }
 };

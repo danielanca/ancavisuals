@@ -21,7 +21,7 @@ const getOrdersAdmin = async () => {
   let ordersArray: any[] = [];
 
   const snapshot = await collection.get();
-  snapshot.forEach((doc) => {
+  snapshot.forEach(doc => {
     ordersArray.push(doc.data());
   });
   functions.logger.info(` ORDERS ARRAY IS:  ${ordersArray}`);

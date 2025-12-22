@@ -1,0 +1,184 @@
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 12px 0 14px;
+  padding: 12px 14px;
+  background: rgba(5, 5, 9, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 100%;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+.left,
+.right {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.left {
+  justify-content: flex-start;
+}
+
+.right {
+  justify-content: flex-end;
+}
+
+.pg {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pgLabel {
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.pgInput {
+  width: 64px;
+  padding: 10px 12px;
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  outline: none;
+  text-align: center;
+  min-height: 42px;
+}
+
+.pgInput:focus {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.pgTotal {
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    border-color 0.12s ease;
+  min-height: 42px;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.icon {
+  line-height: 1;
+  font-size: 18px;
+}
+
+.label {
+  line-height: 1;
+}
+
+.row2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  min-height: 42px;
+  white-space: nowrap;
+  min-width: 0;
+  justify-self: start;
+}
+
+.btnGhost:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.meta {
+  margin-left: auto;
+}
+
+.metaStrong {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+@media (max-width: 640px) {
+  .bar {
+    padding: 10px 10px;
+  }
+
+  .left,
+  .right {
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 10px 10px;
+  }
+
+  .label {
+    display: none;
+  }
+
+  .pgInput {
+    width: 56px;
+  }
+
+  .row2 {
+    grid-template-columns: 1fr;
+  }
+
+  .btnGhost {
+    justify-self: stretch;
+  }
+
+  .meta {
+    justify-self: start;
+  }
+}

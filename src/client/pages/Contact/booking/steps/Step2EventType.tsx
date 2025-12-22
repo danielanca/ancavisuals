@@ -6,29 +6,18 @@ interface Step2EventTypeProps {
   setEventType: (type: EventType) => void;
 }
 
-const Step2EventType: React.FC<Step2EventTypeProps> = ({
-  eventType,
-  setEventType,
-}) => {
+const Step2EventType: React.FC<Step2EventTypeProps> = ({ eventType, setEventType }) => {
   return (
     <div>
       <p className="step-title">2) Tipul evenimentului</p>
 
       {/* Folosim stilurile existente din segmented.scss */}
       <div className="segmented">
-        <button
-          type="button"
-          className={eventType === "nunta" ? "active" : ""}
-          onClick={() => setEventType("nunta")}
-        >
+        <button type="button" className={eventType === "nunta" ? "active" : ""} onClick={() => setEventType("nunta")}>
           Nuntă
         </button>
 
-        <button
-          type="button"
-          className={eventType === "botez" ? "active" : ""}
-          onClick={() => setEventType("botez")}
-        >
+        <button type="button" className={eventType === "botez" ? "active" : ""} onClick={() => setEventType("botez")}>
           Botez
         </button>
 

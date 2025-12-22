@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { v4 as uuid } from 'uuid';
+import React, { useEffect, useState } from "react";
+import { v4 as uuid } from "uuid";
 
 const generateUserID = () => {
-  return 'BRWD-' + uuid().slice(0, 8);
+  return "BRWD-" + uuid().slice(0, 8);
 };
 export const getUserBrowser = () => {
   return navigator.userAgent;
@@ -22,18 +22,18 @@ export function useOnScreen(ref: React.MutableRefObject<HTMLDivElement>) {
 }
 
 export function useAttachUserID() {
-  let userID = localStorage.getItem('uuidA');
+  let userID = localStorage.getItem("uuidA");
   if (!userID) {
     userID = generateUserID();
-    localStorage.setItem('uuidA', JSON.stringify(userID));
-  } else userID = localStorage.getItem('uuidA');
+    localStorage.setItem("uuidA", JSON.stringify(userID));
+  } else userID = localStorage.getItem("uuidA");
 
   return userID;
 }
 
 export const useOutsideClicker = (
   ref: React.MutableRefObject<null> | React.MutableRefObject<HTMLDivElement>,
-  callback: () => void
+  callback: () => void,
 ) => {
   const handleClick = (e: MouseEvent) => {
     if (ref != null) {
@@ -44,10 +44,10 @@ export const useOutsideClicker = (
   };
 
   useEffect(() => {
-    document.addEventListener('click', handleClick);
+    document.addEventListener("click", handleClick);
 
     return () => {
-      document.removeEventListener('click', handleClick);
+      document.removeEventListener("click", handleClick);
     };
   });
 };

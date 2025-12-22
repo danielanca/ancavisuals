@@ -238,7 +238,7 @@ export const renderAdminTemplate = (cartProd: any, invoiceNumberID: any, data: a
            </table></td> 
          </tr> 
        </table></td> 
-     </tr>`
+     </tr>`,
     )}` +
     `
                  <tr> 
