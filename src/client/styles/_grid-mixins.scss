@@ -1,0 +1,91 @@
+@use 'sass:math';
+
+@mixin col-auto {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+@mixin col-size($size, $breakpoint: null) {
+
+  @if $breakpoint == 'sm' {
+    @media (min-width: 576px) {
+      flex: 0 0 auto;
+      width: percentage(math.div($size, 12));
+    }
+  } @else if $breakpoint == 'md' {
+    @media (min-width: 768px) {
+      flex: 0 0 auto;
+      width: percentage(math.div($size, 12));
+    }
+  }@else if $breakpoint == 'lg' {
+    @media (min-width: 992px) { /* Large devices (large desktops, 992px and up) */
+      flex: 0 0 auto;
+      width: percentage(math.div($size, 12));
+    }
+  } @else if $breakpoint == 'xl' {
+    @media (min-width: 1200px) { /* Extra large devices (extra large desktops, 1200px and up) */
+      flex: 0 0 auto;
+      width: percentage(math.div($size, 12));
+    }
+  }
+
+  flex: 0 0 auto;
+  width: percentage(math.div($size,12));
+}
+
+// Example usage of col-size mixin for specific sizes
+// @mixin col-1 { @include col-size(1); }
+// @mixin col-2 { @include col-size(2); }
+// ... and so on for other sizes
+
+
+@mixin row {
+  --bs-gutter-x: 1.5rem;
+  --bs-gutter-y: 0;
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: calc(-1 * var(--bs-gutter-y));
+  margin-right: calc(-0.5 * var(--bs-gutter-x));
+  margin-left: calc(-0.5 * var(--bs-gutter-x));
+
+  > * {
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 100%;
+    padding-right: calc(var(--bs-gutter-x) * 0.5);
+    padding-left: calc(var(--bs-gutter-x) * 0.5);
+    margin-top: var(--bs-gutter-y);
+  }
+}
+
+@mixin container {
+  width: 100%;
+  padding-right: var(--bs-gutter-x, 0.75rem);
+  padding-left: var(--bs-gutter-x, 0.75rem);
+  margin-right: auto;
+  margin-left: auto;
+
+  @media (min-width: 576px) {
+    max-width: 540px;
+  }
+  @media (min-width: 768px) {
+    max-width: 720px;
+  }
+  @media (min-width: 992px) {
+    max-width: 960px;
+  }
+  @media (min-width: 1200px) {
+    max-width: 1140px;
+  }
+  @media (min-width: 1400px) {
+    max-width: 1320px;
+  }
+}
+
+@mixin container-fluid {
+  width: 100%;
+  padding-right: var(--bs-gutter-x, 0.75rem);
+  padding-left: var(--bs-gutter-x, 0.75rem);
+  margin-right: auto;
+  margin-left: auto;
+}

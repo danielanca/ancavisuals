@@ -3,6 +3,14 @@ import { Route, Routes } from "react-router-dom";
 import routes from "./routes/routes";
 import { ContextWrapper } from "./Context"; // Assuming you have this component
 
+
+import CheckAuth from "./components/AdminArea/checkAuth";
+import RequireAuth from "./components/AdminArea/RequireAuth";
+import Login from "./components/AdminArea/Login";
+import { AuthProvider } from "./components/context/AuthProvider";
+import Dashboard from "./components/AdminArea/Dashboard";
+
+
 export const App = () => {
   useEffect(() => {
     // Funcție care șterge dialogul de privacy dacă există
@@ -33,14 +41,34 @@ export const App = () => {
 
   return (
     <ContextWrapper>
-      <Suspense fallback={<div>LOADING URS...</div>}>
+    <AuthProvider>
+      <Suspense fallback={<div>Loading...</div>}>
         <Routes>
-          {routes.map((route, index) => (
-            <Route key={index} path={route.path} element={<route.component />} />
+  
+          {/* Public / general routes */}
+          {routes.map((route) => (
+            <Route
+              key={route.path}
+              path={route.path}
+              element={<route.component />}
+            />
           ))}
+  
+          {/* Auth-protected admin routes */}
+          <Route element={<RequireAuth />}>
+            <Route path="/admin" element={<Dashboard />} />
+          </Route>
+  
+          {/* Login-only routes */}
+          <Route element={<CheckAuth />}>
+            <Route path="/login" element={<Login />} />
+          </Route>
+  
         </Routes>
       </Suspense>
-    </ContextWrapper>
+    </AuthProvider>
+  </ContextWrapper>
+  
   );
 };
 
