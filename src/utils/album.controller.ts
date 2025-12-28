@@ -2,12 +2,14 @@ import type { Request, Response } from "express";
 import archiver from "archiver";
 import axios from "axios";
 import { loadAlbum } from "../server/services/album.services";
-import { readPrintSelection } from "../server/services/printSelection.store";
+import { readPrintSelection, savePrintSelection } from "../server/services/printSelection.store";
 import { signBunnyUrl } from "./signBunnyUrl";
-import { savePrintSelection } from "../server/services/printSelection.store";
 
 const storageZone = process.env.BUNNY_STORAGE_ZONE!;
 const storageKey = process.env.BUNNY_STORAGE_KEY!;
+
+// Cheia secretă pentru acces admin (ștergere definitivă poze)
+const ADMIN_SECRET_KEY = "ankvisuals1994"; // parola ta
 
 const isSafeFile = (name: string) => {
   if (!name) return false;
@@ -16,6 +18,8 @@ const isSafeFile = (name: string) => {
   if (name.length > 180) return false;
   return /\.(jpg|jpeg|png|webp)$/i.test(name);
 };
+
+const isSafeSlug = (slug: string) => /^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug);
 
 export async function getAlbum(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
@@ -83,15 +87,71 @@ export async function postPrintSelection(req: Request, res: Response) {
   const items = Array.isArray(itemsRaw) ? itemsRaw.map(String) : [];
   const clean = Array.from(new Set(items.filter(isSafeFile)));
 
-  if (!slug) return res.status(400).json({ error: "missing_slug" });
-  if (clean.length === 0) return res.status(400).json({ error: "no_files" });
   if (clean.length > 2000) return res.status(413).json({ error: "too_many_files" });
 
   await savePrintSelection(slug, clean);
   return res.json({ ok: true, count: clean.length });
 }
 
+// NOU: Ștergere definitivă a unei poze din album
+export async function deletePhoto(req: Request, res: Response) {
+  const slug = String(req.params.slug || "");
+  const { filename } = req.body;
+
+  // Verificare cheie admin
+  const providedKey = req.headers["x-admin-key"];
+  if (providedKey !== ADMIN_SECRET_KEY) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+
+  if (!slug || !isSafeSlug(slug)) {
+    return res.status(400).json({ error: "invalid_slug" });
+  }
+
+  if (!filename || typeof filename !== "string" || !isSafeFile(filename)) {
+    return res.status(400).json({ error: "invalid_filename" });
+  }
+
+  try {
+    const exists = await albumExists(slug);
+    if (!exists) return res.status(404).json({ error: "album_not_found" });
+
+    // Ștergem fișierul fizic din Bunny Storage
+    const deleteUrl = `https://storage.bunnycdn.com/${storageZone}/${slug}/photos/${encodeURIComponent(filename)}`;
+
+    const deleteRes = await axios.delete(deleteUrl, {
+      headers: { AccessKey: storageKey },
+    });
+
+    if (deleteRes.status !== 200) {
+      console.error("Bunny delete failed:", deleteRes.status, deleteRes.data);
+      return res.status(500).json({ error: "failed_to_delete_file" });
+    }
+
+    // Actualizăm selecția de imprimare (eliminăm poza dacă era acolo)
+    const currentPrint = await readPrintSelection(slug);
+    const updatedPrint = currentPrint.filter((f: string) => f !== filename);
+    if (updatedPrint.length !== currentPrint.length) {
+      await savePrintSelection(slug, updatedPrint);
+    }
+
+    // Returnăm albumul actualizat
+    const album = await loadAlbum(slug);
+    if (!album) return res.status(500).json({ error: "failed_to_reload_album" });
+
+    const saved = await readPrintSelection(slug);
+    const clean = Array.from(new Set(saved.filter(isSafeFile)));
+    const print = clean.map((f: string) => signBunnyUrl(`/${slug}/photos/${f}`));
+
+    return res.json({ ...album, print });
+  } catch (error) {
+    console.error("Delete photo error:", error);
+    return res.status(500).json({ error: "server_error" });
+  }
+}
+
 const albumRootPath = (slug: string) => `https://storage.bunnycdn.com/${storageZone}/${encodeURIComponent(slug)}/`;
+
 async function albumExists(slug: string) {
   const r = await axios.get(albumRootPath(slug), {
     headers: { AccessKey: storageKey },
@@ -104,126 +164,40 @@ async function albumExists(slug: string) {
   throw new Error(`meta_check_failed:${r.status}`);
 }
 
-type BunnyListItem = {
-  ObjectName: string;
-  IsDirectory: boolean;
-};
+export async function downloadAll(req: Request, res: Response) {
+  const slug = String(req.params.slug || "");
+  const zipFile = "photos.zip";
 
-const isSafeSlug = (slug: string) => /^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug);
+  const ok = await bunnyHasFileInDir(slug, zipFile);
 
-async function bunnyListDir(path: string) {
-  const clean = path.replace(/^\/+/, "").replace(/\/?$/, "/");
-  const url = `https://storage.bunnycdn.com/${storageZone}/${clean}`;
+  if (!ok) {
+    return res.status(409).json({
+      error: "ZipNotReady",
+      message: "photos.zip lipsește. Creează-l în Bunny: click dreapta pe folderul 'photos' -> Compress -> nume 'photos'.",
+      expectedPath: `${slug}/${zipFile}`,
+    });
+  }
+
+  const zipPath = `${slug}/photos.zip`;
+  const downloadName = `${slug}-toate-pozele.zip`;
+
+  return res.redirect(
+    302,
+    `/api/download?path=${encodeURIComponent(zipPath)}&name=${encodeURIComponent(downloadName)}`
+  );
+}
+
+async function bunnyHasFileInDir(dir: string, fileName: string) {
+  const cleanDir = dir.replace(/^\/+/, "").replace(/\/+$/, "");
+  const url = `https://storage.bunnycdn.com/${storageZone}/${cleanDir}/`;
 
   const r = await axios.get(url, {
     headers: { AccessKey: storageKey },
     validateStatus: () => true,
   });
 
-  if (r.status === 404) return null;
-  if (r.status < 200 || r.status >= 300) {
-    throw new Error(`bunny_list_failed:${r.status}`);
-  }
+  if (r.status !== 200) return false;
 
-  return r.data as BunnyListItem[];
+  const entries = (r.data as any[]) ?? [];
+  return entries.some((e) => !e.IsDirectory && e.ObjectName === fileName);
 }
-
-const fileNameFromUrl = (src: string) => {
-  const p = new URL(src).pathname;
-  const last = p.split("/").pop() || "";
-  return decodeURIComponent(last);
-};
-
-export async function downloadAll(req: Request, res: Response) {
-  const slug = String(req.params.slug || "");
-  const album = await loadAlbum(slug).catch(() => null);
-
-  if (!album || !Array.isArray(album.photos) || album.photos.length === 0) {
-    return res.status(404).json({ error: "Album not found or empty" });
-  }
-
-  const base = `${req.protocol}://${req.get("host")}`;
-
-  const toAbsUrl = (src: string) => {
-    try {
-      return new URL(src).toString();
-    } catch {
-      return new URL(src, base).toString();
-    }
-  };
-
-  const candidates = album.photos
-    .map((src) => ({ src, abs: toAbsUrl(src), name: (() => {
-      try {
-        return fileNameFromUrl(toAbsUrl(src));
-      } catch {
-        return "";
-      }
-    })() }))
-    .filter((x) => isSafeFile(x.name));
-
-  const tryStream = async (url: string) => {
-    const r = await axios.get(url, { responseType: "stream", validateStatus: () => true });
-    if (r.status >= 200 && r.status < 300) return r.data;
-    return null;
-  };
-
-  let first: { name: string; stream: any } | null = null;
-
-  for (const c of candidates) {
-    try {
-      const s1 = await tryStream(c.abs);
-      if (s1) {
-        first = { name: c.name, stream: s1 };
-        break;
-      }
-
-      const signed = signBunnyUrl(`${slug}/${c.name}`);
-      const s2 = await tryStream(signed);
-      if (s2) {
-        first = { name: c.name, stream: s2 };
-        break;
-      }
-    } catch {}
-  }
-
-  if (!first) {
-    return res.status(502).json({ error: "Could not fetch any photos for zipping" });
-  }
-
-  res.setHeader("Content-Type", "application/zip");
-  res.setHeader("Content-Disposition", `attachment; filename="${slug}-toate-pozele.zip"`);
-
-  const archive = archiver("zip", { zlib: { level: 9 } });
-
-  archive.on("error", () => {
-    try {
-      res.status(500).end();
-    } catch {}
-  });
-
-  archive.pipe(res);
-
-  archive.append(first.stream, { name: first.name });
-
-  for (const c of candidates) {
-    if (c.name === first.name) continue;
-
-    try {
-      const s1 = await tryStream(c.abs);
-      if (s1) {
-        archive.append(s1, { name: c.name });
-        continue;
-      }
-
-      const signed = signBunnyUrl(`${slug}/${c.name}`);
-      const s2 = await tryStream(signed);
-      if (s2) {
-        archive.append(s2, { name: c.name });
-      }
-    } catch {}
-  }
-
-  await archive.finalize();
-}
-

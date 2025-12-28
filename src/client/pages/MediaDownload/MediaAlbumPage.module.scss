@@ -26,7 +26,7 @@
 
 .divider {
   height: 1px;
-  margin: 18px 0 18px;
+  margin: 18px 0;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.14));
   border-radius: 999px;
 }
@@ -48,116 +48,19 @@
   margin-top: 22px;
 }
 
-.pickBtn {
-  padding: 0.75rem 1.5rem;
-  border-radius: 0;
-  border: none;
-  font-size: 0.9rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: #e5e7eb;
-  color: #000000;
-  cursor: pointer;
-}
-
-.pickHint {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-  letter-spacing: 0.06em;
-}
-
-.emptyPrint {
-  margin: 10px 0 0;
-  color: rgba(255, 255, 255, 0.62);
-}
-
-.selectBanner {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  margin: 14px 0 18px;
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  background: rgba(5, 5, 9, 0.92);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
-}
-
-.selectBannerLeft {
-  color: rgba(255, 255, 255, 0.9);
-  letter-spacing: 0.04em;
-  font-size: 14px;
-}
-
-.selectStrong {
-  color: #ffffff;
-  font-weight: 700;
-}
-
-.selectBannerActions {
+.rowActions {
   display: inline-flex;
-  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
-.bannerBtn {
-  padding: 0.65rem 1.2rem;
-  border-radius: 0;
-  border: none;
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: #e5e7eb;
-  color: #000000;
-  cursor: pointer;
-}
-
-.bannerBtnSecondary {
-  padding: 0.65rem 1.1rem;
-  border-radius: 0;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
-  color: rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-}
-
-.mediaCenter {
-  display: flex;
-  justify-content: center;
-}
-
-.videoWrap {
-  width: 100%;
-  max-width: 980px;
-  border-radius: 18px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
-}
-
-.video {
-  width: 100%;
-  display: block;
-}
-
-.actions {
-  margin-top: 14px;
-  display: flex;
-  justify-content: center;
-  margin-bottom: 3rem;
-}
-
+/* Butoane comune */
+.pickBtn,
 .downloadBtn {
   padding: 0.75rem 1.5rem;
-  border-radius: 0;
   border: none;
+  border-radius: 0;
   font-size: 0.9rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -167,38 +70,106 @@
   text-decoration: none;
 }
 
-@media (max-width: 640px) {
-  .selectBanner {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .selectBannerActions {
-    justify-content: space-between;
-  }
-
-  .sectionRow {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-
-.rowActions {
-  display: inline-flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.pickBtnSecondary {
-  padding: 0.75rem 1.25rem;
-  border-radius: 0;
+.pickBtnSecondary,
+.shareBtn {
+  padding: 0.65rem 1.1rem;
   border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.9);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
+/* Banner mod activ */
+.modeBanner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(10, 10, 10, 0.75);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* Zona estompată */
+.dimmedArea {
+  filter: blur(2.5px) brightness(0.75);
+  opacity: 0.9;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Pager */
+.pager,
+.pagerBottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 14px 0;
+}
+
+.pagerBottom {
+  justify-content: center;
+}
+
+.pagerInfo {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+}
+
+.pagerBtn {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.pagerBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.pagerBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.pagerBtnGhost {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+}
+
+.pagerBtnGhost:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+/* Galerie principală */
+.photosScroller {
+  height: min(72vh, 860px);
+  overflow: auto;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Share box */
 .shareBox {
   margin: 10px 0 18px;
   padding: 12px 14px;
@@ -226,126 +197,10 @@
   flex: 1;
   min-width: 240px;
   padding: 10px 12px;
-  border-radius: 0;
   border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.9);
-}
-
-.shareBtn {
-  padding: 0.65rem 1.1rem;
-  border-radius: 0;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
-  color: rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-}
-
-.pager {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  margin: 14px 0 12px;
-}
-
-.pagerBottom {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
-  margin: 14px 0 0;
-}
-
-.pagerInfo {
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.92rem;
-  letter-spacing: 0.02em;
-}
-
-.pagerBtn {
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(0, 0, 0, 0.35);
-  color: #fff;
-  cursor: pointer;
-  transition:
-    transform 0.12s ease,
-    background 0.12s ease,
-    border-color 0.12s ease;
-}
-
-.pagerBtn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.32);
-  background: rgba(0, 0, 0, 0.5);
-}
-
-.pagerBtn:disabled {
-  opacity: 0.45;
-  cursor: default;
-  transform: none;
-}
-
-.pagerBtnGhost {
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-  cursor: pointer;
-}
-
-.pagerBtnGhost:hover {
-  border-color: rgba(255, 255, 255, 0.32);
-}
-
-.galleryViewport {
-  max-height: min(70vh, 900px);
-  height: min(70vh, 900px);
-  overflow: hidden;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
-  padding: 10px;
-}
-
-@media (max-width: 640px) {
-  .galleryViewport {
-    height: 65vh;
-    max-height: 65vh;
-    padding: 8px;
-  }
-}
-
-.photosScroller {
-  height: min(72vh, 860px);
-  overflow: auto;
-  padding: 10px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.modeBanner {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(10, 10, 10, 0.75);
-  backdrop-filter: blur(8px);
-  color: #fff;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-}
-
-.dimmedArea {
-  filter: blur(2.5px) brightness(0.75);
-  opacity: 0.9;
-  pointer-events: none;
-  user-select: none;
 }
 
 .shareError {
@@ -353,4 +208,327 @@
   border-radius: 10px;
   background: rgba(255, 0, 0, 0.08);
   border: 1px solid rgba(255, 0, 0, 0.25);
+}
+
+/* Video */
+.mediaCenter {
+  display: flex;
+  justify-content: center;
+}
+
+.videoWrap {
+  width: 100%;
+  max-width: 980px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+}
+
+.video {
+  width: 100%;
+  display: block;
+}
+
+.actions {
+  margin: 14px 0 3rem;
+  display: flex;
+  justify-content: center;
+}
+
+.emptyPrint {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* SECȚIUNEA POZE DE IMPRIMAT – GRID CU X ROȘU (versiunea finală îmbunătățită) */
+.printPhotosGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+  padding: 0 8px;
+}
+
+.printPhotoWrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  aspect-ratio: 1 / 1;
+  background: #000;
+}
+
+.printPhotoImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* X roșu – varianta cea mai bună (păstrată din ultima definiție) */
+.removePrintBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 0, 0, 0.9);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+  transition: all 0.2s ease;
+}
+
+.removePrintBtn:hover {
+  background: #ff0000;
+  transform: scale(1.15);
+}
+
+.removePrintBtn:active {
+  transform: scale(0.95);
+}
+
+/* Buton reset toate – varianta finală */
+.resetAllPrintBtn {
+  background: #ff4444;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.resetAllPrintBtn:hover {
+  background: #cc0000;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .sectionRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowActions {
+    justify-content: stretch;
+  }
+
+  .rowActions > * {
+    flex: 1;
+  }
+}
+
+.deletePhotoBtn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 0, 0, 0.92);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+  transition: all 0.2s ease;
+}
+
+.deletePhotoBtn:hover {
+  background: #ff0000;
+  transform: scale(1.18);
+}
+
+.deletePhotoBtn:active {
+  transform: scale(0.95);
+}
+
+
+
+.adminBar {
+  margin: 10px 0 20px;
+  text-align: center;
+}
+
+.adminLoginBtn {
+  padding: 10px 18px;
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.adminActive {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.adminLogoutBtn {
+  padding: 6px 12px;
+  background: #991b1b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.deletePhotoBtn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 0, 0, 0.92);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+  transition: all 0.2s ease;
+}
+
+.deletePhotoBtn:hover {
+  background: #ff0000;
+  transform: scale(1.18);
+}
+
+.deletePhotoBtn:active {
+  transform: scale(0.95);
+}
+
+.adminGalleryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 10px;
+}
+
+.adminPhotoWrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  aspect-ratio: 1 / 1;
+  background: #000;
+}
+
+.adminPhotoImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Reutilizăm același stil pentru 🗑️ */
+.deletePhotoBtn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 0, 0, 0.92);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+  transition: all 0.2s ease;
+}
+
+.deletePhotoBtn:hover {
+  background: #ff0000;
+  transform: scale(1.18);
+}
+
+.deletePhotoBtn:active {
+  transform: scale(0.95);
+}
+
+.adminGalleryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 10px;
+}
+
+.adminPhotoWrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  aspect-ratio: 1 / 1;
+  background: #000;
+}
+
+.adminPhotoImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.deletePhotoBtn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 0, 0, 0.92);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+  transition: all 0.2s ease;
+}
+
+.deletePhotoBtn:hover {
+  background: #ff0000;
+  transform: scale(1.18);
+}
+
+.deletePhotoBtn:active {
+  transform: scale(0.95);
 }

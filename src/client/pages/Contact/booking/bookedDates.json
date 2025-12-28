@@ -1,0 +1,141 @@
+{
+  "updatedAt": "2026-01-01",
+  "dates": [
+    {
+      "date": "2026-01-07",
+      "type": "EVENIMENT",
+      "label": "BIS cu Social Media",
+      "price": "",
+      "phone": "",
+      "status": "booked"
+    },
+    {
+      "date": "2026-01-18",
+      "type": "EVENIMENT",
+      "label": "Foto + fotocabină",
+      "price": "",
+      "phone": "+40747463198",
+      "status": "booked"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "EVENIMENT",
+      "label": "Vine Ancuța",
+      "price": "",
+      "phone": "",
+      "status": "booked"
+    },
+    {
+      "date": "2026-02-21",
+      "type": "BOTEZ",
+      "label": "",
+      "price": "1600 RON",
+      "phone": "+4915510644549",
+      "status": "booked"
+    },
+    {
+      "date": "2026-04-26",
+      "type": "EVENIMENT",
+      "label": "",
+      "price": "700 EUR + motorină (avans achitat)",
+      "phone": "+40762857976",
+      "status": "booked"
+    },
+    {
+      "date": "2026-05-16",
+      "type": "NUNTĂ",
+      "label": "Sibiu",
+      "price": "",
+      "phone": "+40770693765",
+      "status": "booked"
+    },
+    {
+      "date": "2026-05-17",
+      "type": "NUNTĂ",
+      "label": "Teiuș, Alba",
+      "price": "4000 RON",
+      "phone": "+40756259762",
+      "status": "booked"
+    },
+    {
+      "date": "2026-05-22",
+      "type": "NUNTĂ",
+      "label": "Arad",
+      "price": "800 EUR (120 EUR avans)",
+      "phone": "+40755114581",
+      "status": "booked"
+    },
+    {
+      "date": "2026-06-09",
+      "type": "CONCEDIU",
+      "label": "Concediu - Nunta Emma",
+      "price": "",
+      "phone": "",
+      "status": "unavailable"
+    },
+    {
+      "date": "2026-06-13",
+      "type": "NUNTĂ",
+      "label": "Nunta Emma",
+      "price": "",
+      "phone": "",
+      "status": "booked"
+    },
+    {
+      "date": "2026-06-19",
+      "type": "CONCEDIU",
+      "label": "Concediu - Nunta Emma",
+      "price": "",
+      "phone": "",
+      "status": "unavailable"
+    },
+    {
+      "date": "2026-08-08",
+      "type": "NUNTĂ",
+      "label": "",
+      "price": "4000 RON + 100 RON motorină (500 RON avans)",
+      "phone": "+40760764610",
+      "status": "booked"
+    },
+    {
+      "date": "2026-08-22",
+      "type": "NUNTĂ",
+      "label": "Cluj / Iara (include fotobooth)",
+      "price": "3300 RON + fotobooth 920 RON (achitat)",
+      "phone": "+40747455763",
+      "status": "booked"
+    },
+    {
+      "date": "2026-09-12",
+      "type": "NUNTĂ",
+      "label": "",
+      "price": "",
+      "phone": "+40786898723",
+      "status": "booked"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "NUNTĂ",
+      "label": "",
+      "price": "",
+      "phone": "+40755658920",
+      "status": "booked"
+    },
+    {
+      "date": "2026-10-24",
+      "type": "NUNTĂ",
+      "label": "Raul Oltean",
+      "price": "1250 RON achitat, rămas 1000 EUR",
+      "phone": "",
+      "status": "booked"
+    },
+    {
+      "date": "2027-07-24",
+      "type": "NUNTĂ",
+      "label": "",
+      "price": "",
+      "phone": "+32470537773",
+      "status": "booked"
+    }
+  ]
+}
