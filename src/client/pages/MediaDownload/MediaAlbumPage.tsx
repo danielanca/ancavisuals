@@ -459,31 +459,44 @@ export default function MediaAlbumPage() {
         )}
 
         {/* Titlul cu 10 click-uri pentru a afișa butonul admin */}
-        <h1
-          className={styles.title}
-          style={{ cursor: "pointer" }}
-          onClick={() => {
-            if (!(window as any).adminClickCount) {
-              (window as any).adminClickCount = 0;
-              (window as any).adminClickTimeout = null;
-            }
+<h1
+  className={styles.title}
+  style={{ cursor: "pointer" }}
+  onClick={() => {
+    // Inițializăm contorul
+    if (!(window as any).adminClickCount) {
+      (window as any).adminClickCount = 0;
+      (window as any).adminClickTimeout = null;
+    }
 
-            (window as any).adminClickCount++;
+    (window as any).adminClickCount++;
 
-            if ((window as any).adminClickTimeout) clearTimeout((window as any).adminClickTimeout);
-            (window as any).adminClickTimeout = setTimeout(() => {
-              (window as any).adminClickCount = 0;
-            }, 3000);
+    // Reset contor dacă trec >3 sec între click-uri
+    if ((window as any).adminClickTimeout) clearTimeout((window as any).adminClickTimeout);
+    (window as any).adminClickTimeout = setTimeout(() => {
+      (window as any).adminClickCount = 0;
+    }, 3000);
 
-            if ((window as any).adminClickCount >= 10) {
-              setShowAdminButton(true);
-              alert("🔓 Butonul de acces admin a apărut mai sus!");
-              (window as any).adminClickCount = 0;
-            }
-          }}
-        >
-          {album.title}
-        </h1>
+    // La 10 click-uri → toggle admin
+    if ((window as any).adminClickCount >= 10) {
+      if (isAdmin) {
+        // Ești deja admin → deconectare
+        setIsAdmin(false);
+        setAdminKey("");
+        localStorage.removeItem(`adminKey_${slug}`);
+        alert("🔓 Mod admin dezactivat.");
+        window.location.reload();
+      } else {
+        // Nu ești admin → afișăm butonul de login
+        setShowAdminButton(true);
+        alert("🔓 Butonul de acces admin a apărut mai sus!");
+      }
+      (window as any).adminClickCount = 0;
+    }
+  }}
+>
+  {album.title}
+</h1>
 
         <p className={styles.meta}>
           {album.photos?.length ?? 0} fotografii
