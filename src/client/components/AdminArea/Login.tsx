@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "./Login.module.scss";
 
-import useAuth from "../hooks/useAuth";
+import useAuth from "../hooks/hooks/useAuth";
 import { setJWT } from "../../utils/functions";
 
 // ⬇️ Firebase Auth
