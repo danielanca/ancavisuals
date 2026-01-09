@@ -6,6 +6,7 @@ import type { Album } from "./AlbumTypes";
 import AlbumNotFound from "./AlbumNotFound";
 import AlbumPager from "../Portfolio/AlbumPager";
 
+
 type AlbumWithPrint = Album & {
   print?: string[];
 };
@@ -389,6 +390,18 @@ export default function MediaAlbumPage() {
     form.remove();
   };
 
+  const downloadPrintDynamic = () => {
+  if (!slug || !printCount) return;
+
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = `/api/album/${slug}/download-print-dynamic`;
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+};
+
+
   const createShareLink = async () => {
     if (!slug || selectedDownload.size === 0) return;
     setCreatingShare(true);
@@ -666,6 +679,15 @@ export default function MediaAlbumPage() {
           ) : (
             <p className={styles.emptyPrint}>Nu ai selectat încă poze pentru imprimat.</p>
           )}
+          {printCount > 0 && (
+  <button
+    type="button"
+    className={styles.pickBtnSecondary}
+    onClick={downloadPrintDynamic}
+  >
+    Descarcă pozele pentru imprimare
+  </button>
+)}
 
           {album.shortvideo && (
             <>

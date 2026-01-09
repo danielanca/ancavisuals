@@ -6,7 +6,8 @@ const Portfolio = loadable(() => import("../pages/Portfolio/Portfolio"), { ssr: 
 const Contact = loadable(() => import("../pages/Contact/Contacts"), { ssr: true });
 const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), { ssr: true });
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), { ssr: true });
-const Login = loadable(() => import("../components/AdminArea/Login"),  { ssr: true});
+const InvitationLanding = loadable(() => import("../pages/InvitationLanding/InvitationLanding"), { ssr: true });
+
 import { publicRoutesType } from "./types";
 
 const publicRoutes: publicRoutesType[] = [
@@ -44,8 +45,12 @@ const publicRoutes: publicRoutesType[] = [
     path: "/share/:id",
     layout: null,
     component: SharePage,
-  }
- 
+  },
+  {
+    path: "/invitatie/:id",
+    layout: null,
+    component: InvitationLanding,
+  },
 ];
 
 export default publicRoutes;

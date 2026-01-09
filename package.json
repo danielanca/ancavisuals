@@ -29,6 +29,8 @@
     "format": "prettier --write src types"
   },
   "dependencies": {
+    "@fontsource/cairo": "^5.2.7",
+    "@fontsource/cinzel": "^5.2.8",
     "@fortawesome/fontawesome-free": "^6.5.1",
     "@fortawesome/fontawesome-svg-core": "^6.5.1",
     "@fortawesome/free-solid-svg-icons": "^6.5.1",
@@ -84,6 +86,7 @@
     "@types/google.maps": "^3.58.1",
     "@types/loadable__component": "^5",
     "@types/node": "^20.11.5",
+    "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^7.0.1",
     "@types/react": "^18.2.34",
     "@types/react-dom": "^18.2.14",
@@ -101,9 +104,10 @@
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
-    "html-react-parser": "^5.0.11",
+    "html-react-parser": "^5.2.11",
     "include-media": "^2.0.0",
     "jsdom": "^22.1.0",
+    "node-fetch": "^3.3.2",
     "postcss": "8.4.31",
     "prettier": "^3.2.4",
     "rimraf": "^5.0.5",
