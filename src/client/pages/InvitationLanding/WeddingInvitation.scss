@@ -1,0 +1,411 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #fdfdfd;
+  color: #111;
+  font-family: 'Cairo', sans-serif;
+  min-height: 100vh;
+  padding: 0 18px;
+}
+
+.container {
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  justify-content: space-between;
+  text-align: center;
+}
+
+.header {
+  margin-top: 2rem;
+}
+
+.names {
+  font-family: 'Cinzel', serif;
+  font-size: 2.4rem;
+  line-height: 1.1;
+  color: #c62828;
+  margin-bottom: 0.3em;
+}
+
+.heart {
+  font-size: 1.6em;
+  color: #c62828;
+  margin: 0 0.4em;
+}
+
+.event-date {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #c62828;
+  margin: 1.2rem 0 1rem;
+  letter-spacing: 3px;
+  line-height: 1.2;
+
+  span {
+    font-size: 1.4rem;
+    font-weight: 400;
+    color: #555;
+    display: block;
+    margin-top: 0.4rem;
+  }
+}
+
+.tagline {
+  font-size: 1.1rem;
+  color: #444;
+  font-style: italic;
+  line-height: 1.45;
+  margin: 1.8rem 0 3rem;
+}
+
+.countdown-section {
+  margin: 2rem 0 3rem;
+}
+
+.countdown-title {
+  font-size: 1.15rem;
+  color: #c62828;
+  margin-bottom: 1.6rem;
+}
+
+.timer {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.unit {
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 14px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.number {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: #c62828;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.label {
+  font-size: 0.72rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.rsvp-section {
+  margin-top: auto;
+  padding-top: 2.5rem;
+}
+
+.rsvp-title {
+  font-size: 1.25rem;
+  color: #222;
+  margin-bottom: 1.4rem;
+}
+
+.rsvp-field {
+  margin: 1.6rem 0;
+  text-align: left;
+}
+
+.rsvp-field label {
+  display: block;
+  font-size: 1rem;
+  color: #333;
+  margin-bottom: 0.8rem;
+}
+
+.number-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.number-selector button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #ddd;
+  background: white;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #c62828;
+}
+
+.number-selector button:disabled {
+  color: #ccc;
+}
+
+.number-selector span {
+  min-width: 30px;
+  text-align: center;
+}
+
+select,
+textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: 'Cairo', sans-serif;
+  background: white;
+  color: #333;
+  line-height: 1.5;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #c62828;
+  box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.1);
+}
+
+textarea::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+.messages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 1rem;
+}
+
+.message-option {
+  padding: 12px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &.selected {
+    border-color: #c62828;
+    background: #fff5f5;
+  }
+}
+
+.names-container {
+  margin-top: 1.2rem;
+}
+
+.name-field {
+  margin-bottom: 1rem;
+}
+
+.name-field label {
+  display: block;
+  font-size: 0.95rem;
+  color: #555;
+  margin-bottom: 0.4rem;
+}
+
+.name-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: 'Cairo', sans-serif;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 2rem 0 1.5rem;
+}
+
+.btn {
+  padding: 16px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+  color: white;
+}
+
+.btn-accept {
+  background: #2e7d32;
+}
+
+.btn-accept:active {
+  background: #1b5e20;
+  transform: scale(0.98);
+}
+
+.btn-decline {
+  background: #c62828;
+}
+
+.btn-decline:active {
+  background: #a50e0e;
+  transform: scale(0.98);
+}
+
+.calendar-btn {
+  background: #4285f4;
+  color: white;
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.calendar-btn:active {
+  background: #3367d6;
+}
+
+.location-section {
+  margin: 2.5rem 0 3rem;
+}
+
+.location-title {
+  font-size: 1.35rem;
+  color: #c62828;
+  margin-bottom: 1.2rem;
+}
+
+.location-card {
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  margin-bottom: 1.5rem;
+}
+
+.venue-icon {
+  font-size: 3.5rem;
+  color: #c62828;
+  margin-bottom: 0.8rem;
+  opacity: 0.9;
+}
+
+.venue-name {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #222;
+  margin-bottom: 0.2rem;
+}
+
+.venue-type {
+  font-size: 1rem;
+  color: #666;
+  margin-bottom: 0.3rem;
+}
+
+.venue-address {
+  font-size: 1rem;
+  color: #555;
+  margin-bottom: 1.2rem;
+}
+
+.directions-btn {
+  background: #1976d2;
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  color: white;
+  margin-top: 0.8rem;
+}
+
+.directions-btn:active {
+  background: #1565c0;
+  transform: scale(0.98);
+}
+
+.redirect-note {
+  font-size: 0.8rem;
+  color: #777;
+  margin-top: 0.6rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.small-note {
+  font-size: 0.85rem;
+  color: #777;
+  margin-top: 1rem;
+  font-style: italic;
+}
+
+.cazare-info {
+  margin: 2rem 0 1rem;
+  font-size: 0.95rem;
+  color: #555;
+  line-height: 1.6;
+}
+
+.note {
+  margin-top: 1.8rem;
+  font-size: 0.85rem;
+  color: #777;
+}
+
+.reminder-text {
+  margin: 1rem 0;
+  font-size: 0.95rem;
+  color: #c62828;
+  font-weight: 600;
+}
+
+.status-message {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.status-vin {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-nu {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.change-btn {
+  margin-top: 1rem;
+  background: #757575;
+  color: white;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.change-btn:hover {
+  background: #616161;
+}
