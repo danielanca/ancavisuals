@@ -4,12 +4,11 @@ import routes from "./routes/routes";
 import { ContextWrapper } from "./Context"; // Assuming you have this component
 
 import CheckAuth from "./components/AdminArea/checkAuth";
-import CheckUserAuth from "./components/AdminArea/EventDashboard/checkUserAuth"
 import RequireAuth from "./components/AdminArea/RequireAuth";
 import Login from "./components/AdminArea/Login";
 import { AuthProvider } from "./components/context/AuthProvider";
 import Dashboard from "./components/AdminArea/Dashboard";
-import CreateEventDashboard from "./components/AdminArea/EventDashboard/createEvent";
+import CreateEventDashboard from "./components/AdminArea/EventDashboard/CreateEvent";
 
 
 export const App = () => {
@@ -57,17 +56,13 @@ export const App = () => {
           {/* Auth-protected admin routes */}
           <Route element={<RequireAuth />}>
             <Route path="/admin" element={<Dashboard />} />
+            <Route path="/create-event" element={<CreateEventDashboard />} />
           </Route>
 
 
           {/* Login-only routes */}
           <Route element={<CheckAuth />}>
             <Route path="/login" element={<Login />} />
-          </Route>
-
-          {/* Event Dashboard routes */}
-          <Route element={<CheckUserAuth />}>
-            <Route path="/create-event" element={<CreateEventDashboard />} />
           </Route>
           
           

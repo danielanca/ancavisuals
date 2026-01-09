@@ -11,6 +11,9 @@ import albumRouter from './src/server/routes/album.routes';
 import fileRouter from './src/server/routes/file.routes';
 import downloadRouter from './src/server/routes/download.routes';
 import shareRouter from "./src/server/routes/share.routes";
+import createEventRouter  from "./src/server/routes/event.route";
+import seeEventRouter from "./src/server/routes/event.route";
+
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
 const isProd = process.env.NODE_ENV === 'production';
@@ -43,6 +46,7 @@ async function createServer() {
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
+  
 
   // --- API routes ---
   const apiUrl = isProd
@@ -65,6 +69,8 @@ async function createServer() {
   app.use("/f", fileRouter);
   app.use("/api/download", downloadRouter);
   app.use("/api/share", shareRouter);
+  app.use("/api/create-invite",createEventRouter);
+  app.use("/api/see-invite",seeEventRouter);
 
 
   let vite: ViteDevServer | undefined;

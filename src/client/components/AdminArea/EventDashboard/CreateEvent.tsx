@@ -21,27 +21,44 @@ const CreateEventDashboard = () => {
   const [loading, setLoading] = useState(false);
 
   const watchAll = watch();
-
   const onSubmit = async (data: EventFormData) => {
     const user = auth.currentUser;
     if (!user) return alert("You must be logged in");
-
+  
     try {
       setLoading(true);
-      const docRef = await addDoc(collection(db, "events"), {
-        ...data,
-        hostId: user.uid,
-        createdAt: Timestamp.now(),
+  
+      const res = await fetch("/api/create-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...data,// pass host ID
+          receivers: [
+            {
+              name: "Test",
+              email: "test@example.com",
+              phone: "08000000000",
+            },
+          ],
+        }),
       });
-
-      navigate(`/events/${docRef.id}`);
+  
+      if (!res.ok) {
+        throw new Error("Request failed");
+      }
+  
+      const json = await res.json();
+      console.log("Event created:", json);
     } catch (error) {
       console.error(error);
-      alert("Failed to create event");
+      alert("Failed to create event"+error);
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <div className={styles.wrapper}>
