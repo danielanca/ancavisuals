@@ -1,0 +1,127 @@
+.wrapper {
+    min-height: 100vh;
+    background-color: #f4f5f7;
+    padding: 24px;
+  }
+  
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  
+  .title {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  
+  .card {
+    background-color: #ffffff;
+    border-radius: 18px;
+    box-shadow: rgba(0, 0, 0, 0.08) 0px 6px 20px;
+  }
+  
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 24px;
+  }
+  
+  @media (min-width: 768px) {
+    .grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  
+  .form {
+    display: flex;
+    flex-direction: column;
+    row-gap: 16px;
+  }
+  
+  .group {
+    display: flex;
+    flex-direction: column;
+  
+    label {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+  
+    input,
+    textarea {
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s ease;
+  
+      &:focus {
+        border-color: #000;
+      }
+    }
+  
+    textarea {
+      resize: none;
+      min-height: 110px;
+    }
+  }
+  
+  .row {
+    display: flex;
+    column-gap: 16px;
+  }
+  
+  .button {
+    margin-top: 8px;
+    padding: 14px;
+    border-radius: 14px;
+    background-color: #000;
+    color: blue;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  
+    &:hover {
+      opacity: 0.85;
+    }
+  
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+  
+  .preview {
+    background-color: #f0f1f3;
+    border-radius: 18px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  
+  .previewLabel {
+    font-size: 12px;
+    color: #6b7280;
+  }
+  
+  .previewDescription {
+    font-size: 14px;
+    color: #4b5563;
+    margin-top: 8px;
+  }
+  
+  .previewMeta {
+    margin-top: 16px;
+    font-size: 14px;
+  
+    p {
+      margin-bottom: 6px;
+    }
+  }
+  
