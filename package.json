@@ -27,7 +27,7 @@
     "clean": "rimraf dist/",
     "copy-files": "copyfiles \"public/**/*\" dist && copyfiles -u 2 \"dist/client/**/*\" dist && copyfiles -u 2 \"dist/client/assets/**/*\" dist/public",
     "format": "prettier --write src types",
-    "servepm2": "pm2-runtime start ecosystem.config.js",
+    "servepm2": "pm2-runtime start ecosystem.config.cjs",
     "pm2:dev": "pm2 start ecosystem.config.js --watch",
     "pm2:stop": "pm2 stop ancavisuals"
   },
