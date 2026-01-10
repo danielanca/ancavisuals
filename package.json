@@ -26,7 +26,10 @@
     "env:sa": "node -e \"const s=process.env.FIREBASE_SERVICE_ACCOUNT_BASE64||''; if(!s){console.log('no B64');process.exit(1)} const sa=JSON.parse(Buffer.from(s,'base64').toString('utf8')); console.log(sa.project_id, sa.client_email)\"",
     "clean": "rimraf dist/",
     "copy-files": "copyfiles \"public/**/*\" dist && copyfiles -u 2 \"dist/client/**/*\" dist && copyfiles -u 2 \"dist/client/assets/**/*\" dist/public",
-    "format": "prettier --write src types"
+    "format": "prettier --write src types",
+    "servepm2": "pm2-runtime start ecosystem.config.js",
+    "pm2:dev": "pm2 start ecosystem.config.js --watch",
+    "pm2:stop": "pm2 stop ancavisuals"
   },
   "dependencies": {
     "@fontsource/cairo": "^5.2.7",
@@ -108,6 +111,7 @@
     "include-media": "^2.0.0",
     "jsdom": "^22.1.0",
     "node-fetch": "^3.3.2",
+    "pm2": "^6.0.14",
     "postcss": "8.4.31",
     "prettier": "^3.2.4",
     "rimraf": "^5.0.5",
