@@ -1,0 +1,272 @@
+@use 'sass:math';
+
+// Variabile & Mixins
+$bg: #0a0a0c;
+$gold: #d4b88a;
+$gold-dark: #b89e7a;
+$text-light: #f0e0c0;
+$text-muted: #d0c0a0;
+$text-subtle: #a08c6a;
+
+$transition: all 0.35s ease;
+$shadow-glow: 0 10px 40px rgba(212, 184, 138, 0.35);
+
+// Base
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.qr-moments-page {
+  min-height: 100vh;
+  background: $bg;
+  color: $text-light;
+  font-family: 'Poppins', system-ui, sans-serif;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(212,163,115,0.06) 0%, transparent 60%),
+    radial-gradient(circle at 80% 70%, rgba(180,140,200,0.04) 0%, transparent 60%);
+  background-attachment: fixed;
+  
+  // Restrictiune mobile-first + centrat pe desktop
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+
+  .header {
+    text-align: center;
+    padding: 44px 0 40px;
+
+    .logo {
+      font-family: 'Great Vibes', cursive;
+      font-size: 3.8rem;
+      color: $gold;
+      letter-spacing: 3px;
+      text-shadow: 0 2px 10px rgba(212,184,138,0.25);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.4rem;
+      color: $gold-dark;
+      font-style: italic;
+      opacity: 0.9;
+      margin-bottom: 10px;
+    }
+
+    .event-name {
+      font-size: 1.35rem;
+      color: $text-muted;
+      font-weight: 500;
+      margin: 20px 0 36px;
+    }
+  }
+
+  .tabs {
+    display: flex;
+    background: rgba(20,20,25,0.75);
+    border-radius: 20px;
+    overflow: hidden;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba($gold, 0.15);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    margin-bottom: 44px;
+
+    .tab {
+      flex: 1;
+      padding: 20px 12px;
+      border: none;
+      background: none;
+      color: $gold-dark;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: $transition;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+
+      &:hover {
+        color: $text-light;
+      }
+
+      &.active {
+        color: $text-light;
+        background: rgba($gold, 0.12);
+        font-weight: 600;
+
+        .tab-icon {
+          opacity: 1;
+          transform: scale(1.12);
+          color: $gold;
+        }
+      }
+
+      .tab-icon {
+        font-size: 2.2rem;
+        opacity: 0.8;
+        transition: $transition;
+      }
+    }
+  }
+
+  .content {
+    flex: 1;
+
+    .content-section {
+      text-align: center;
+      padding: 24px 0;
+
+      &.fade-in {
+        animation: fadeIn 0.7s ease forwards;
+      }
+
+      h2 {
+        font-family: 'Cormorant Garamond', serif;
+        font-size: 2.1rem;
+        color: $text-light;
+        margin-bottom: 18px;
+        text-shadow: 0 1px 6px rgba($gold, 0.15);
+      }
+
+      .info-text {
+        font-size: 1.02rem;
+        color: $text-muted;
+        line-height: 1.6;
+        margin-bottom: 36px;
+        opacity: 0.92;
+      }
+
+      .upload-btn {
+        background: linear-gradient(135deg, $gold, $gold-dark);
+        color: $bg;
+        border: none;
+        width: 100%;
+        padding: 22px;
+        border-radius: 999px;
+        font-size: 1.2rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: $shadow-glow;
+        transition: $transition;
+
+        &:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 18px 50px rgba($gold, 0.45);
+        }
+      }
+
+      .hint {
+        font-size: 0.88rem;
+        color: $text-subtle;
+        margin-top: 28px;
+      }
+    }
+  }
+
+  .footer {
+    text-align: center;
+    font-size: 0.92rem;
+    color: $text-subtle;
+    margin-top: 64px;
+    opacity: 0.8;
+  }
+}
+
+// Keyframes (în afara nesting-ului principal)
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.preview-gallery {
+  margin: 24px 0;
+  padding: 16px;
+  background: rgba(30, 30, 35, 0.6);
+  border-radius: 12px;
+
+  h3 {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+    color: $text-muted;
+  }
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.preview-item {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1 / 1; // pătrat pentru poze
+  background: #222;
+
+  .preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(220, 38, 38, 0.9);
+    transform: scale(1.1);
+  }
+}
+
+.upload-all-btn {
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  color: white;
+  border: none;
+  width: 100%;
+  padding: 16px;
+  border-radius: 999px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 16px;
+  transition: all 0.3s;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(74, 222, 128, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
