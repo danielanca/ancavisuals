@@ -13,8 +13,13 @@ import downloadRouter from './src/server/routes/download.routes';
 import shareRouter from "./src/server/routes/share.routes";
 import createEventRouter  from "./src/server/routes/event.route";
 import seeEventRouter from "./src/server/routes/event.route";
+import multer from 'multer';
+import fetch from 'node-fetch';
 
-
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max per fișier
+});
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -71,6 +76,58 @@ async function createServer() {
   app.use("/api/share", shareRouter);
   app.use("/api/create-invite",createEventRouter);
   app.use("/api/see-invite",seeEventRouter);
+
+app.post('/api/upload-qr-moment', upload.array('files', 25), async (req: Request, res: Response) => {
+  const { eventId, type } = req.body;
+  const files = req.files as Express.Multer.File[];
+
+  if (!eventId || !files?.length) {
+    return res.status(400).json({ error: 'Lipsește eventId sau fișiere' });
+  }
+
+  // Credențiale Bunny din .env (copiază Password-ul din FTP & API access)
+  const bunnyHostname = 'storage.bunnycdn.com';
+  const storageZone = 'ancavisuals-romania'; // numele zonei tale exact din dashboard
+  const accessKey = process.env.BUNNY_STORAGE_PASSWORD;
+
+  if (!accessKey) {
+    console.error('Lipsește BUNNY_STORAGE_PASSWORD în .env');
+    return res.status(500).json({ error: 'Configurare server eronată' });
+  }
+
+  try {
+    const uploadPromises = files.map(async (file) => {
+      const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${file.originalname.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const bunnyPath = `/${storageZone}/${eventId}/${type}/${safeFileName}`;
+
+      const response = await fetch(`https://${bunnyHostname}${bunnyPath}`, {
+        method: 'PUT',
+        headers: {
+          'AccessKey': accessKey,
+          'Content-Type': 'application/octet-stream',
+        },
+        body: file.buffer,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Bunny upload failed for ${file.originalname}: ${response.status}`);
+      }
+
+      return safeFileName;
+    });
+
+    const uploadedFiles = await Promise.all(uploadPromises);
+
+    res.status(200).json({
+      success: true,
+      uploadedCount: uploadedFiles.length,
+      message: 'Fișiere încărcate cu succes pe Bunny!',
+    });
+  } catch (error: any) {
+    console.error('Bunny upload error:', error);
+    res.status(500).json({ error: 'Eroare la upload pe Bunny' });
+  }
+});
 
 
   let vite: ViteDevServer | undefined;
