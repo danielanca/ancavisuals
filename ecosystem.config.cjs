@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: "ancavisuals",
-      script: "dist/server-app/server.js",
+      script: "dist/server.js",
       exec_mode: "fork",
       cwd: "/var/www/vhosts/ancavisuals.ro/httpdocs",
       env: {
