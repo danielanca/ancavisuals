@@ -2,13 +2,13 @@ module.exports = {
   apps: [
     {
       name: "ancavisuals",
-      script: "server.ts",
-      interpreter: "node",
-      interpreter_args: "--loader tsx",
+      script: "dist/server-app/server.js",
+      exec_mode: "fork",
+      cwd: "/var/www/vhosts/ancavisuals.ro/httpdocs",
       env: {
         NODE_ENV: "production",
         PORT: 1994
       }
     }
   ]
-}
+};
