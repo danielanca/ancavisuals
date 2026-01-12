@@ -148,9 +148,9 @@ async function createServer() {
   });
 
   const port = process.env.PORT || 1994;
-  app.listen(Number(port), '0.0.0.0', () => {
-    console.log(`App is listening on http://localhost:${port}`);
-  });
+  app.listen(Number(port), '127.0.0.1', () => {
+  console.log(`App is listening on http://127.0.0.1:${port}`);
+});
 }
 
 createServer();

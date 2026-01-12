@@ -1,12 +1,29 @@
 import type { Request, Response } from "express";
 import archiver from "archiver";
 import axios from "axios";
+import { Readable } from "stream";
 import { loadAlbum } from "../server/services/album.services";
 import { readPrintSelection, savePrintSelection } from "../server/services/printSelection.store";
 import { signBunnyUrl } from "./signBunnyUrl";
+import { getFirestore } from "firebase-admin/firestore";
+import fetch from "node-fetch";
+import { db } from "../server/firestoreInit"; // firestore init
+
 
 const storageZone = process.env.BUNNY_STORAGE_ZONE!;
 const storageKey = process.env.BUNNY_STORAGE_KEY!;
+const STORAGE_HOST = "https://storage.bunnycdn.com";
+
+type AlbumData = {
+  slug: string;
+  title: string;
+  photos: string[];
+  featured?: string[];
+  print?: string[];
+  shortvideo?: string;
+  longvideo?: string;
+};
+
 
 // Cheia secretă pentru acces admin (ștergere definitivă poze)
 const ADMIN_SECRET_KEY = "ankvisuals1994"; // parola ta
@@ -200,4 +217,43 @@ async function bunnyHasFileInDir(dir: string, fileName: string) {
 
   const entries = (r.data as any[]) ?? [];
   return entries.some((e) => !e.IsDirectory && e.ObjectName === fileName);
+}
+
+
+export async function downloadPrintDynamic(req: Request, res: Response) {
+  const slug = String(req.params.slug || "");
+
+  const snap = await db.collection("printSelections").doc(slug).get();
+  const items = snap.data()?.items as string[] | undefined;
+
+  if (!items || items.length === 0) {
+    return res.status(404).json({ error: "No print selection" });
+  }
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="poze-imprimare-${slug}.zip"`
+  );
+  res.setHeader("Cache-Control", "no-store");
+
+  const archive = archiver("zip", { zlib: { level: 9 } });
+  archive.pipe(res);
+
+  for (const file of items) {
+    const storagePath = `${slug}/photos/${file}`;
+    const url = `${STORAGE_HOST}/${storageZone}/${storagePath}`;
+
+    const r = await fetch(url, {
+      headers: {
+        AccessKey: storageKey,
+      },
+    });
+
+    if (!r.ok || !r.body) continue;
+
+    archive.append(r.body as any, { name: file });
+  }
+
+  await archive.finalize();
 }
