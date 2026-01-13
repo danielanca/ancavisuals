@@ -47,10 +47,11 @@ const publicRoutes: publicRoutesType[] = [
     component: SharePage,
   },
   {
-    path: "/invitatie/:id",
+    path: "/invitatie/:slug",
     layout: null,
     component: InvitationLanding,
   },
+
 ];
 
 export default publicRoutes;

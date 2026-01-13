@@ -99,7 +99,7 @@ export async function createEvent(req: Request, res: Response) {
       return res.status(409).json({ error: "Generated slug already exists, try again" });
     }
 
-    const eventUrl = `/invitation/${slug}`;
+    const eventUrl = `/${slug}`;
 
     const eventData = {
       ...data,
