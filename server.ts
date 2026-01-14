@@ -12,6 +12,7 @@ import fileRouter from './src/server/routes/file.routes';
 import downloadRouter from './src/server/routes/download.routes';
 import shareRouter from "./src/server/routes/share.routes";
 import eventRouter  from "./src/server/routes/event.route";
+import multer from 'multer';
 
 const upload = multer({
   storage: multer.memoryStorage(),
