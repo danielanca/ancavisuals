@@ -13,7 +13,7 @@ const CheckAuth: React.FC = () => {
 
   // If already logged in, skip the login page
   return auth?.authorise ? (
-    <Navigate to="/admin" state={{ from: location }} replace />
+    <Navigate to="/create-event" state={{ from: location }} replace />
   ) : (
     <Outlet />
   );
