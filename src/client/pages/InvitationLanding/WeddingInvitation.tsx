@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import './WeddingInvitation.scss';
 import parse from 'html-react-parser';
 
 const WeddingInvitation = () => {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
 
+  const [isVerified, setIsVerified] = useState(false);
   const [eventData, setEventData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -24,25 +26,41 @@ const WeddingInvitation = () => {
     seconds: '??',
   });
 
-  // Fetch event data from backend
+  // Check if guest is verified (runs unconditionally)
   useEffect(() => {
-    if (!slug) {
-      setFetchError("No event identifier found in URL");
-      setLoading(false);
+    const verified = searchParams.get('verified') === 'true';
+    const token = searchParams.get('token');
+
+    // Prevent infinite redirect loop
+    const isOnInvitationPath = window.location.pathname.includes('/invitation');
+
+    if (!verified || !token) {
+      if (isOnInvitationPath) {
+        window.location.href = `/invitatie/${slug}`;
+      }
       return;
     }
+
+    setIsVerified(true);
+  }, [slug, searchParams]);
+
+  // Fetch event data from backend
+  useEffect(() => {
+    if (!slug || !isVerified) return;
 
     const fetchEvent = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/event/${slug}`);
+        setFetchError(null);
+
+        const response = await fetch(`/api/event/${slug}`); // ← plural "events" to match backend
 
         if (!response.ok) {
           throw new Error(`Error ${response.status}: ${await response.text()}`);
         }
 
         const json = await response.json();
-        setEventData(json.data || json); // adjust based on your response shape
+        setEventData(json.data || json);
       } catch (err: any) {
         console.error("Failed to load invitation:", err);
         setFetchError(err.message || "Could not load the invitation");
@@ -52,11 +70,11 @@ const WeddingInvitation = () => {
     };
 
     fetchEvent();
-  }, [slug]);
+  }, [slug, isVerified]);
 
   // Countdown based on real event date
   useEffect(() => {
-    if (!eventData?.eventDate) return;
+    if (!eventData?.eventDate || !isVerified) return;
 
     const weddingDate = new Date(eventData.eventDate);
 
@@ -85,7 +103,7 @@ const WeddingInvitation = () => {
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [eventData?.eventDate]);
+  }, [eventData?.eventDate, isVerified]);
 
   // Load saved RSVP status from localStorage
   useEffect(() => {
@@ -120,7 +138,7 @@ const WeddingInvitation = () => {
     };
 
     try {
-      const res = await fetch(`/api/events/${slug}/rsvp`, {
+      const res = await fetch(`/api/event/${slug}/rsvp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -146,7 +164,11 @@ const WeddingInvitation = () => {
     }
   };
 
-  // Loading & error states
+  // Loading & error states (AFTER all hooks)
+  if (!isVerified) {
+    return <div>Verifying access...</div>;
+  }
+
   if (loading) {
     return <div className="loading-message">Loading your invitation...</div>;
   }
