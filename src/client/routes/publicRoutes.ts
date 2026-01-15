@@ -8,6 +8,8 @@ const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumP
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), { ssr: true });
 const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerification"), { ssr: true });
 const InvitationLanding = loadable(() => import("../pages/InvitationLanding/InvitationLanding"), { ssr: true });
+const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMoments"), { ssr: true });
+
 
 import { publicRoutesType } from "./types";
 
@@ -57,7 +59,11 @@ const publicRoutes: publicRoutesType[] = [
     layout: null,
     component: InvitationLanding,      // ← Your existing invitation component
   },
-
+  {
+    path: "/qr-moments/:eventDate",
+    layout: null,
+    component: QRMomentsPage,
+  },
 ];
 
 export default publicRoutes;
