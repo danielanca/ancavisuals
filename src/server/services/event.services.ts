@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
 import { generateEventSlug } from "../../utils/eventUrl"; // assuming you have this
 import { firestore } from "../firestoreInit";
 import admin from "firebase-admin";
@@ -227,5 +228,77 @@ export async function getAllEvents(req: Request, res: Response) {
   } catch (err) {
     console.error("Get all events error:", err);
     return res.status(500).json({ error: "Failed to fetch events" });
+  }
+}
+
+// Add this function to your existing backend file
+export async function verifyGuest(req: Request, res: Response) {
+  try {
+    const { slug } = req.params;  // matches your :id route
+    const { name, phone } = req.body;
+
+    if (!slug || !phone) {
+      return res.status(400).json({ error: "Slug and phone required" });
+    }
+
+    const eventRef = firestore().collection(EVENTS_COLLECTION).doc(slug);
+    const eventSnap = await eventRef.get();
+
+    if (!eventSnap.exists) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = eventSnap.data()!;
+    
+    // Normalize phone for comparison
+    const normalizedPhone = phone.toString().trim().replace(/\s+/g, '').replace(/^\+?/, '');
+    
+    // Check if guest exists
+    const guest = event.initialGuests?.find((g: Guest) => 
+      String(g.phone).trim().replace(/\s+/g, '').replace(/^\+?/, '') === normalizedPhone
+    );
+
+    if (!guest) {
+      return res.status(403).json({ 
+        error: "Phone number not found in guest list",
+        hint: `Please check your number or contact the couple ${guest}`
+      });
+    }
+
+    // Optional: also check name similarity (fuzzy match)
+    const nameMatch = guest.name.toLowerCase().includes(name.toLowerCase().trim()) ||
+                     name.toLowerCase().trim().includes(guest.name.toLowerCase());
+
+    if (!nameMatch) {
+      return res.status(403).json({ 
+        error: "Name doesn't match our records for this phone number",
+        expectedName: guest.name
+      });
+    }
+
+    // Generate short-lived verification token (good security)
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+/*
+    // Store token (optional - for extra security)
+    await eventRef.collection('guestTokens').doc(token).set({
+      guestName: guest.name,
+      guestPhone: guest.phone,
+      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      used: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    */
+
+    return res.json({
+      success: true,
+      token,
+      guestName: guest.name,
+      message: "Welcome! You're verified as a guest."
+    });
+
+  } catch (err) {
+    console.error("Guest verification error:", err);
+    return res.status(500).json({ error: "Verification failed" });
   }
 }

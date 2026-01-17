@@ -6,6 +6,7 @@ const Portfolio = loadable(() => import("../pages/Portfolio/Portfolio"), { ssr: 
 const Contact = loadable(() => import("../pages/Contact/Contacts"), { ssr: true });
 const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), { ssr: true });
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), { ssr: true });
+const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerification"), { ssr: true });
 const InvitationLanding = loadable(() => import("../pages/InvitationLanding/InvitationLanding"), { ssr: true });
 const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMoments"), { ssr: true });
 
@@ -51,7 +52,12 @@ const publicRoutes: publicRoutesType[] = [
   {
     path: "/invitatie/:slug",
     layout: null,
-    component: InvitationLanding,
+    component: GuestVerificationPage,
+  },
+  {
+    path: "/invitatie/:slug/invitation",
+    layout: null,
+    component: InvitationLanding,      // ← Your existing invitation component
   },
   {
     path: "/qr-moments/:eventDate",
