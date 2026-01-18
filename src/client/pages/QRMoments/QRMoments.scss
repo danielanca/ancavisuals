@@ -383,3 +383,91 @@ $transition: all 0.35s ease;
     color: white;
   }
 }
+
+/* ── WhatsApp-style Waveform (during recording & preview) ──────────────────────── */
+
+.waveform-container {
+  background: white;
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin: 20px 0 32px;
+  border: 1px solid rgba($primary-red, 0.15);
+  box-shadow: $shadow-soft;
+}
+
+.waveform-wrapper {
+  position: relative;
+  height: 64px;
+  background: rgba($primary-red, 0.05);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.waveform {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    $primary-red 0px,
+    $primary-red 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  animation: wave 1.6s linear infinite;
+  opacity: 0.45;
+}
+
+.waveform-progress {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, $primary-red, $primary-red-light);
+  width: 0%;
+  transition: width 0.15s linear;
+}
+
+.recording-active .waveform {
+  animation-play-state: running;
+  opacity: 0.7;
+}
+
+.audio-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.play-pause-btn {
+  width: 56px;
+  height: 56px;
+  background: $primary-red;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+
+  &.playing {
+    background: $primary-red-light;
+  }
+
+  &:hover {
+    transform: scale(1.1);
+  }
+}
+
+.duration {
+  font-size: 1.05rem;
+  color: $text-muted;
+  font-weight: 500;
+}
+
+@keyframes wave {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-8px); }
+}

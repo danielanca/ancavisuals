@@ -95,17 +95,35 @@ app.post('/api/upload-qr-moment', upload.array('files', 25), async (req: Request
   try {
     const uploadPromises = files.map(async (file) => {
       const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${file.originalname.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-      const bunnyPath = `/${storageZone}/${eventId}/${type}/${safeFileName}`;
+      const folderName =  "qr-moment"
+      let detectedType: 'photo' | 'video' | 'audio';
 
+      const mime = file.mimetype.toLowerCase();
+      const ext = file.originalname.toLowerCase().split('.').pop() || '';
+    
+      if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+        detectedType = 'photo';
+      } else if (mime.startsWith('video/') && ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
+        detectedType = 'video';
+      } else if (mime.startsWith('audio/') && ['mp3', 'wav', 'm4a', 'ogg', 'aac', 'webm'].includes(ext)) {
+        detectedType = 'audio';
+      } else {
+        // Unknown / unsupported file type → reject or fallback
+        throw new Error(`Unsupported file type: ${file.mimetype} (${file.originalname})`);
+      }
+      
+      const bunnyPath = `/${storageZone}/${eventId}/${folderName}/${detectedType}/${safeFileName}`;
+
+      console.log(+" : "+mime);
       const response = await fetch(`https://${bunnyHostname}${bunnyPath}`, {
-        method: 'PUT',
-        headers: {
-          'AccessKey': accessKey,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: file.buffer,
-      });
-
+          method: 'PUT',
+          headers: {
+            'AccessKey': accessKey,
+            'Content-Type': 'application/octet-stream',
+          },
+          body: file.buffer,
+        });
+      
       if (!response.ok) {
         throw new Error(`Bunny upload failed for ${file.originalname}: ${response.status}`);
       }

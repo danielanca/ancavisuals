@@ -11,14 +11,28 @@ const QRMomentsPage: React.FC = () => {
   // Audio-specific states
   const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [isRecording, setIsRecording] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [recordingTimeLeft, setRecordingTimeLeft] = useState(60);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
-  const [recordingTimeLeft, setRecordingTimeLeft] = useState(60); // 60 seconds max
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Replace with real event ID (e.g., from useParams or context)
-  const eventId = "wedding-ana-matei-11072026"; // Temporary example
+  // Helper Functions
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+
+  // Replace with real event ID later
+  const eventId = "wedding-ana-matei-11072026";
 
   const openFilePicker = (accept: string) => {
     const input = document.createElement('input');
@@ -43,7 +57,6 @@ const QRMomentsPage: React.FC = () => {
     });
 
     setSelectedFiles(prev => [...prev, ...validFiles]);
-
     const newPreviews = validFiles.map(file => URL.createObjectURL(file));
     setPreviews(prev => [...prev, ...newPreviews]);
   };
@@ -57,11 +70,11 @@ const QRMomentsPage: React.FC = () => {
     });
   };
 
-  // ── Audio Recording Logic ───────────────────────────────────────────────
+  // ── Audio Recording & Playback ──────────────────────────────────────────────
   const requestMicPermission = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop()); // release immediately
+      stream.getTracks().forEach(track => track.stop());
       setAudioPermission('granted');
     } catch (err) {
       console.error("Microphone permission denied:", err);
@@ -71,21 +84,19 @@ const QRMomentsPage: React.FC = () => {
 
   const startRecording = async () => {
     try {
-      // Clean up any previous recording
-      if (audioPreviewUrl) {
-        URL.revokeObjectURL(audioPreviewUrl);
-        setAudioPreviewUrl(null);
-      }
+      // Clean up previous audio
+      if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(null);
       setAudioBlob(null);
+      setCurrentTime(0);
+      setDuration(0);
       audioChunksRef.current = [];
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = (e) => {
-        audioChunksRef.current.push(e.data);
-      };
+      mediaRecorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
 
       mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
@@ -93,19 +104,16 @@ const QRMomentsPage: React.FC = () => {
         const url = URL.createObjectURL(blob);
         setAudioPreviewUrl(url);
 
-        // Add to upload queue
-        const audioFile = new File([blob], `voice-message-${Date.now()}.webm`, { type: 'audio/webm' });
+        const audioFile = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
         setSelectedFiles(prev => [...prev, audioFile]);
         setPreviews(prev => [...prev, url]);
-
-        audioChunksRef.current = [];
       };
 
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingTimeLeft(60);
 
-      // Auto-stop after 60 seconds
+      // Auto-stop after 60s
       const timer = setInterval(() => {
         setRecordingTimeLeft(prev => {
           if (prev <= 1) {
@@ -123,25 +131,54 @@ const QRMomentsPage: React.FC = () => {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
   };
 
-  // Check permission status when switching to audio tab
-  useEffect(() => {
-    if (activeTab === 'audio') {
-      navigator.permissions
-        .query({ name: 'microphone' as PermissionName })
-        .then(permissionStatus => {
-          setAudioPermission(permissionStatus.state as any);
-          permissionStatus.onchange = () => {
-            setAudioPermission(permissionStatus.state as any);
-          };
-        })
-        .catch(() => setAudioPermission('unknown'));
+  const togglePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play().catch(e => console.error("Playback error:", e));
+      }
+      setIsPlaying(!isPlaying);
     }
+  };
+
+  // Update time & duration
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleLoaded = () => setDuration(audio.duration || 0);
+    const handleEnded = () => setIsPlaying(false);
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoaded);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoaded);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [audioPreviewUrl]);
+
+  // Permission check on tab switch
+  useEffect(() => {
+    if (activeTab !== 'audio') return;
+
+    navigator.permissions
+      .query({ name: 'microphone' as PermissionName })
+      .then(status => {
+        setAudioPermission(status.state as any);
+        status.onchange = () => setAudioPermission(status.state as any);
+      })
+      .catch(() => setAudioPermission('unknown'));
   }, [activeTab]);
 
   const handleUploadAll = async () => {
@@ -153,7 +190,7 @@ const QRMomentsPage: React.FC = () => {
     const formData = new FormData();
     formData.append('eventId', eventId);
     formData.append('type', activeTab === 'photos' ? 'photo' : activeTab === 'videos' ? 'video' : 'audio');
-
++
     selectedFiles.forEach(file => formData.append('files', file));
 
     try {
@@ -167,12 +204,13 @@ const QRMomentsPage: React.FC = () => {
       const result = await response.json();
       setUploadMessage(`Success! ${result.uploadedCount} file(s) uploaded! 🎉`);
 
-      // Clean up
       previews.forEach(URL.revokeObjectURL);
       setSelectedFiles([]);
       setPreviews([]);
       setAudioBlob(null);
       setAudioPreviewUrl(null);
+      setIsPlaying(false);
+      setCurrentTime(0);
     } catch (err) {
       setUploadMessage('Upload error. Please check your connection.');
     } finally {
@@ -279,9 +317,9 @@ const QRMomentsPage: React.FC = () => {
         {activeTab === 'audio' && (
           <section className="content-section fade-in">
             <h2>Speak from the heart 💌</h2>
-            <p className="info-text" onClick={requestMicPermission}>
-              Record a beautiful voice message for the couple (max 60 seconds) {audioPermission}
-            </p> 
+            <p className="info-text">
+              Record a beautiful voice message for the couple (max 60 seconds)
+            </p>
 
             {audioPermission === 'unknown' && (
               <div className="permission-check">
@@ -310,8 +348,11 @@ const QRMomentsPage: React.FC = () => {
 
             {isRecording && (
               <div className="recording-active">
+                <div className="waveform-wrapper">
+                  <div className="waveform"></div>
+                </div>
                 <div className="recording-timer">
-                  Recording... {recordingTimeLeft.toString().padStart(2, '0')} seconds left
+                  {recordingTimeLeft.toString().padStart(2, '0')} seconds left
                 </div>
                 <button className="stop-btn" onClick={stopRecording}>
                   Stop & Preview
@@ -322,7 +363,27 @@ const QRMomentsPage: React.FC = () => {
             {audioBlob && audioPreviewUrl && (
               <div className="audio-preview">
                 <h3>Voice Message Preview</h3>
-                <audio controls src={audioPreviewUrl} className="audio-player" />
+
+                {/* WhatsApp-style waveform container */}
+                <div className="waveform-container">
+                  <div className="waveform-wrapper">
+                    <div className="waveform"></div>
+                    <div
+                      className="waveform-progress"
+                      style={{ width: `${(currentTime / duration) * 100 || 0}%` }}
+                    ></div>
+                  </div>
+
+                  <div className="audio-controls">
+                    <button className={`play-pause-btn ${isPlaying ? 'playing' : ''}`} onClick={togglePlayPause}>
+                      {isPlaying ? '❚❚' : '▶'}
+                    </button>
+                    <span className="duration">
+                      {formatDuration(currentTime)} / {formatDuration(duration)}
+                    </span>
+                  </div>
+                </div>
+
                 <button
                   className="clear-audio-btn"
                   onClick={() => {
@@ -331,6 +392,9 @@ const QRMomentsPage: React.FC = () => {
                     setAudioPreviewUrl(null);
                     setSelectedFiles([]);
                     setPreviews([]);
+                    setIsPlaying(false);
+                    setCurrentTime(0);
+                    setDuration(0);
                   }}
                 >
                   Delete and Record Again
@@ -338,7 +402,6 @@ const QRMomentsPage: React.FC = () => {
               </div>
             )}
 
-            {/* Upload button appears only when there's audio */}
             {selectedFiles.length > 0 && (
               <button
                 className="upload-all-btn"
@@ -361,6 +424,18 @@ const QRMomentsPage: React.FC = () => {
       <footer className="footer">
         Created with love by <strong>Anca Visuals</strong>
       </footer>
+
+      {/* Hidden audio element for playback */}
+      {audioPreviewUrl && (
+        <audio
+          ref={audioRef}
+          src={audioPreviewUrl}
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+          onEnded={() => setIsPlaying(false)}
+          style={{ display: 'none' }}
+        />
+      )}
     </div>
   );
 };
