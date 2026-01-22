@@ -12,6 +12,7 @@ import fileRouter from './src/server/routes/file.routes';
 import downloadRouter from './src/server/routes/download.routes';
 import shareRouter from "./src/server/routes/share.routes";
 import eventRouter  from "./src/server/routes/event.route";
+import QRRouter from "./src/server/routes/QRMoment.routes";
 import multer from 'multer';
 
 const upload = multer({
@@ -73,6 +74,7 @@ async function createServer() {
   app.use("/api/download", downloadRouter);
   app.use("/api/share", shareRouter);
   app.use("/api/event",eventRouter);
+  app.use("/api/urlcheck",QRRouter);
 
 app.post('/api/upload-qr-moment', upload.array('files', 25), async (req: Request, res: Response) => {
   const { eventId, type } = req.body;

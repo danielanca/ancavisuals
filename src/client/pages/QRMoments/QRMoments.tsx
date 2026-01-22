@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom'; // ← Added this import
 import './QRMoments.scss';
 
 // Wizard component (embedded here for simplicity – you can move to separate file)
@@ -60,6 +61,10 @@ const QRWizard = ({ onClose }: { onClose: () => void }) => {
 };
 
 const QRMomentsPage: React.FC = () => {
+  const [eventInfo, setEventInfo] = useState<any | null>(null);
+  const [firstVisit, setFirstVisit] = useState<boolean | null>(null);
+  const [folderExists, setFolderExists] = useState<boolean | null>(null); 
+  const { eventDate } = useParams<{ eventDate: string }>(); // ← Get eventDate from URL
   const [activeTab, setActiveTab] = useState<'photos' | 'videos' | 'audio'>('photos');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -87,10 +92,76 @@ const QRMomentsPage: React.FC = () => {
   const previewSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const previewAnalyserRef = useRef<AnalyserNode | null>(null);
 
+  const navigate = useNavigate(); // ← This creates the navigate function
+  //const apiKey = process.env.BUNNY_STORAGE_KEY!;
+
   // Wizard state
   const [showWizard, setShowWizard] = useState(() => {
     return localStorage.getItem('qr-moments-wizard-seen') !== 'true';
   });
+
+// First check DB to see if this is first visit
+useEffect(() => {
+  const checkDBForFirstVisit = async () => {
+    try {
+      const response = await fetch(`/api/urlcheck/${eventDate}`, {
+        method: "GET",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFirstVisit(data.urlFound); 
+        setEventInfo(data.data);
+      }
+    } catch (err) {
+      console.error("Failed to check first visit:", err);
+      setFirstVisit(false); // fallback
+    }
+  };
+
+  checkDBForFirstVisit();
+}, [eventDate]);
+
+// Second useEffect: only run checkFolder AFTER firstVisit is set
+useEffect(() => {
+  // Only run when firstVisit is no longer null (i.e., DB check finished)
+  if (firstVisit === null) return;
+
+  const checkFolder = async () => {
+    if (!eventDate) {
+      setFolderExists(false);
+      return;
+    }
+
+    try {
+      const bunnyApiUrl = `https://storage.bunnycdn.com/ancavisuals-romania/${eventDate}/`;
+      const response = await fetch(bunnyApiUrl, {
+        method: 'GET',
+        headers: {
+          'AccessKey': "0ce832c7-6666-4cd6-a6a2d9ebe38b-319e-4998",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Folder "exists" only if it has content (files or subfolders)
+        if (Array.isArray(data) && data.length > 0) {
+          setFolderExists(true);
+        } else {
+          // Empty array → folder is empty or never existed
+          setFolderExists(false);
+        }
+      } else {
+        setFolderExists(false);
+      }
+    } catch (err) {
+      console.error('Failed to check folder existence:', err);
+      setFolderExists(false);
+    }
+  };
+
+  checkFolder();
+}, [firstVisit, eventDate]);
 
   // Helper Functions
   const formatDuration = (seconds: number) => {
@@ -100,7 +171,7 @@ const QRMomentsPage: React.FC = () => {
   };
 
   // Replace with real event ID later
-  const eventId = "wedding-ana-matei-11072026";
+  const eventId = eventDate;
 
   const openFilePicker = (accept: string) => {
     const input = document.createElement('input');
@@ -380,7 +451,7 @@ const drawWaveform = () => {
     setUploadMessage(null);
 
     const formData = new FormData();
-    formData.append('eventId', eventId);
+    formData.append('eventId', eventId!);
     formData.append('type', activeTab === 'photos' ? 'photo' : activeTab === 'videos' ? 'video' : 'audio');
 
     selectedFiles.forEach(file => formData.append('files', file));
@@ -410,6 +481,32 @@ const drawWaveform = () => {
     }
   };
 
+
+
+
+  // Show loading while checking folder
+  if (folderExists === null) {
+    return;
+  }
+
+// Show 404 if folder does not exist
+if (!folderExists || !firstVisit) {
+  return (
+    <div className="not-found-container">
+      <h1>404 - Event Not Found</h1>
+      <p>The event with date <strong>"{eventDate}"</strong> does not exist.</p>
+      <button className="go-home-btn" onClick={() => navigate('/')}>
+        Go Home
+      </button>
+      <p className="subtle-accent">
+        If you think this is an error, please contact the couple.
+      </p>
+    </div>
+  );
+}
+
+
+
   return (
     <>
       {/* Wizard – shows only on first visit */}
@@ -427,7 +524,7 @@ const drawWaveform = () => {
         <header className="header">
           <h1 className="logo">QR Moments</h1>
           <p className="subtitle">Momente autentice, surprinse de voi</p>
-          <h2 className="event-name">Nunta Ana & Matei • 11 Iulie 2026</h2>
+          <h2 className="event-name">{eventInfo.bride} & {eventInfo.groom} • {eventInfo.eventDate}</h2>
         </header>
 
         {/* Tabs */}
