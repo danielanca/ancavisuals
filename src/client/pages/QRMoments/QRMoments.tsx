@@ -63,7 +63,6 @@ const QRWizard = ({ onClose }: { onClose: () => void }) => {
 const QRMomentsPage: React.FC = () => {
   const [eventInfo, setEventInfo] = useState<any | null>(null);
   const [firstVisit, setFirstVisit] = useState<boolean | null>(null);
-  const [folderExists, setFolderExists] = useState<boolean | null>(null); 
   const { eventDate } = useParams<{ eventDate: string }>(); // ← Get eventDate from URL
   const [activeTab, setActiveTab] = useState<'photos' | 'videos' | 'audio'>('photos');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -122,48 +121,7 @@ useEffect(() => {
   checkDBForFirstVisit();
 }, [eventDate]);
 
-// Second useEffect: only run checkFolder AFTER firstVisit is set
-useEffect(() => {
-  // Only run when firstVisit is no longer null (i.e., DB check finished)
-  if (firstVisit === null) return;
-
-  const checkFolder = async () => {
-    if (!eventDate) {
-      setFolderExists(false);
-      return;
-    }
-
-    try {
-      const bunnyApiUrl = `https://storage.bunnycdn.com/ancavisuals-romania/${eventDate}/`;
-      const response = await fetch(bunnyApiUrl, {
-        method: 'GET',
-        headers: {
-          'AccessKey': "0ce832c7-6666-4cd6-a6a2d9ebe38b-319e-4998",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Folder "exists" only if it has content (files or subfolders)
-        if (Array.isArray(data) && data.length > 0) {
-          setFolderExists(true);
-        } else {
-          // Empty array → folder is empty or never existed
-          setFolderExists(false);
-        }
-      } else {
-        setFolderExists(false);
-      }
-    } catch (err) {
-      console.error('Failed to check folder existence:', err);
-      setFolderExists(false);
-    }
-  };
-
-  checkFolder();
-}, [firstVisit, eventDate]);
-
-  // Helper Functions
+// Helper Functions
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -485,12 +443,12 @@ const drawWaveform = () => {
 
 
   // Show loading while checking folder
-  if (folderExists === null) {
+  if (firstVisit === null) {
     return;
   }
 
 // Show 404 if folder does not exist
-if (!folderExists || !firstVisit) {
+if (!firstVisit) {
   return (
     <div className="not-found-container">
       <h1>404 - Event Not Found</h1>
@@ -499,7 +457,7 @@ if (!folderExists || !firstVisit) {
         Go Home
       </button>
       <p className="subtle-accent">
-        If you think this is an error, please contact the couple.
+        If you think this is an error, please contact the couple. {firstVisit}
       </p>
     </div>
   );
@@ -523,7 +481,7 @@ if (!folderExists || !firstVisit) {
         {/* Header */}
         <header className="header">
           <h1 className="logo">QR Moments</h1>
-          <p className="subtitle">Momente autentice, surprinse de voi</p>
+          <p className="subtitle">{eventInfo.message}</p>
           <h2 className="event-name">{eventInfo.bride} & {eventInfo.groom} • {eventInfo.eventDate}</h2>
         </header>
 
