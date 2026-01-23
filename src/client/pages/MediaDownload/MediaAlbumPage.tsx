@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams } from "react-router-dom";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import styles from "./MediaAlbumPage.module.scss";
@@ -262,13 +262,11 @@ export default function MediaAlbumPage() {
     setMode("none");
   };
 
-  const onDimmedTap = (e: ReactMouseEvent<HTMLDivElement>) => {
+  const onDimmedTap = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (mode === "none") return;
 
     const el = e.target as HTMLElement | null;
     if (!el) return;
-
-    if (el.closest("button, a, input, textarea, select, video, label")) return;
 
     dimTapCountRef.current += 1;
 
@@ -276,7 +274,7 @@ export default function MediaAlbumPage() {
     dimTapTimerRef.current = window.setTimeout(() => {
       dimTapCountRef.current = 0;
       dimTapTimerRef.current = null;
-    }, 900);
+    }, 1200);
 
     if (dimTapCountRef.current >= 3) {
       dimTapCountRef.current = 0;
@@ -680,7 +678,7 @@ export default function MediaAlbumPage() {
           </>
         )}
 
-        <div className={mode !== "none" ? styles.dimmedArea : undefined} onClick={onDimmedTap}>
+        <div className={mode !== "none" ? styles.dimmedArea : undefined} onPointerDown={onDimmedTap}>
           <div className={styles.sectionRow}>
             <h2 className={styles.sectionTitle}>Poze de imprimat{printCount ? ` (${printCount})` : ""}</h2>
 

@@ -102,9 +102,15 @@
 .dimmedArea {
   filter: blur(2.5px) brightness(0.75);
   opacity: 0.9;
-  pointer-events: none;
+  pointer-events: auto;
   user-select: none;
+  touch-action: manipulation;
+
+  * {
+    pointer-events: none;
+  }
 }
+
 
 /* Pager */
 .pager,
