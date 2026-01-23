@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useParams } from "react-router-dom";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import styles from "./MediaAlbumPage.module.scss";
 import type { Album } from "./AlbumTypes";
 import AlbumNotFound from "./AlbumNotFound";
 import AlbumPager from "../Portfolio/AlbumPager";
-
 
 type AlbumWithPrint = Album & {
   print?: string[];
@@ -90,6 +89,9 @@ export default function MediaAlbumPage() {
   const hydratedRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
 
+  const dimTapCountRef = useRef(0);
+  const dimTapTimerRef = useRef<number | null>(null);
+
   const [stats, setStats] = useState<null | {
     photosCount: number;
     photosBytesTotal: number;
@@ -165,7 +167,7 @@ export default function MediaAlbumPage() {
   }, [shareUrl]);
 
   const pageNames = useMemo(() => pagePhotos.map(fileNameFromUrl), [pagePhotos]);
-  const allOnPageSelected = mode !== "none" && pageNames.length > 0 && pageNames.every(n => activeSelected.has(n));
+  const allOnPageSelected = mode !== "none" && pageNames.length > 0 && pageNames.every((n) => activeSelected.has(n));
 
   const setPage = (updater: (p: number) => number) => {
     if (mode === "download") setDownloadPage(updater);
@@ -175,17 +177,17 @@ export default function MediaAlbumPage() {
 
   const toggleSelectPage = () => {
     if (mode === "print") {
-      setSelectedPrint(prev => {
+      setSelectedPrint((prev) => {
         const next = new Set(prev);
-        if (allOnPageSelected) pageNames.forEach(n => next.delete(n));
-        else pageNames.forEach(n => next.add(n));
+        if (allOnPageSelected) pageNames.forEach((n) => next.delete(n));
+        else pageNames.forEach((n) => next.add(n));
         return next;
       });
     } else if (mode === "download") {
-      setSelectedDownload(prev => {
+      setSelectedDownload((prev) => {
         const next = new Set(prev);
-        if (allOnPageSelected) pageNames.forEach(n => next.delete(n));
-        else pageNames.forEach(n => next.add(n));
+        if (allOnPageSelected) pageNames.forEach((n) => next.delete(n));
+        else pageNames.forEach((n) => next.add(n));
         return next;
       });
     }
@@ -260,16 +262,40 @@ export default function MediaAlbumPage() {
     setMode("none");
   };
 
+  const onDimmedTap = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (mode === "none") return;
+
+    const el = e.target as HTMLElement | null;
+    if (!el) return;
+
+    if (el.closest("button, a, input, textarea, select, video, label")) return;
+
+    dimTapCountRef.current += 1;
+
+    if (dimTapTimerRef.current) window.clearTimeout(dimTapTimerRef.current);
+    dimTapTimerRef.current = window.setTimeout(() => {
+      dimTapCountRef.current = 0;
+      dimTapTimerRef.current = null;
+    }, 900);
+
+    if (dimTapCountRef.current >= 3) {
+      dimTapCountRef.current = 0;
+      if (dimTapTimerRef.current) window.clearTimeout(dimTapTimerRef.current);
+      dimTapTimerRef.current = null;
+      closeMode();
+    }
+  };
+
   const togglePhoto = (src: string) => {
     const name = fileNameFromUrl(src);
     if (mode === "print") {
-      setSelectedPrint(prev => {
+      setSelectedPrint((prev) => {
         const next = new Set(prev);
         next.has(name) ? next.delete(name) : next.add(name);
         return next;
       });
     } else if (mode === "download") {
-      setSelectedDownload(prev => {
+      setSelectedDownload((prev) => {
         const next = new Set(prev);
         next.has(name) ? next.delete(name) : next.add(name);
         return next;
@@ -287,7 +313,7 @@ export default function MediaAlbumPage() {
         body: JSON.stringify({ items: Array.from(selectedPrint) }),
       });
       if (res.ok) {
-        const refreshed = await fetch(`/api/album/${slug}`).then(r => r.json());
+        const refreshed = await fetch(`/api/album/${slug}`).then((r) => r.json());
         setAlbum(refreshed);
         setMode("none");
       }
@@ -300,10 +326,10 @@ export default function MediaAlbumPage() {
   const removeFromPrint = async (fileName: string) => {
     if (!album || !slug) return;
 
-    const newPrintUrls = (album.print ?? []).filter(url => fileNameFromUrl(url) !== fileName);
+    const newPrintUrls = (album.print ?? []).filter((url) => fileNameFromUrl(url) !== fileName);
     const newPrintNames = newPrintUrls.map(fileNameFromUrl);
 
-    setAlbum(prev => prev ? { ...prev, print: newPrintUrls } : null);
+    setAlbum((prev) => (prev ? { ...prev, print: newPrintUrls } : null));
 
     try {
       await fetch(`/api/album/${slug}/print-selection`, {
@@ -312,7 +338,7 @@ export default function MediaAlbumPage() {
         body: JSON.stringify({ items: newPrintNames }),
       });
     } catch {
-      const refreshed = await fetch(`/api/album/${slug}`).then(r => r.json());
+      const refreshed = await fetch(`/api/album/${slug}`).then((r) => r.json());
       setAlbum(refreshed);
     }
   };
@@ -321,7 +347,7 @@ export default function MediaAlbumPage() {
   const resetAllPrint = async () => {
     if (!album || !slug || !window.confirm("Sigur vrei să elimini TOATE pozele din selecția de imprimare?")) return;
 
-    setAlbum(prev => prev ? { ...prev, print: [] } : null);
+    setAlbum((prev) => (prev ? { ...prev, print: [] } : null));
 
     try {
       await fetch(`/api/album/${slug}/print-selection`, {
@@ -330,7 +356,7 @@ export default function MediaAlbumPage() {
         body: JSON.stringify({ items: [] }),
       });
     } catch {
-      const refreshed = await fetch(`/api/album/${slug}`).then(r => r.json());
+      const refreshed = await fetch(`/api/album/${slug}`).then((r) => r.json());
       setAlbum(refreshed);
     }
   };
@@ -341,13 +367,16 @@ export default function MediaAlbumPage() {
 
     const fileName = fileNameFromUrl(signedUrl);
 
-    if (!window.confirm(
-      `ȘTERGI DEFINITIV POZA:\n\n"${fileName}"\n\n` +
-      `• Fișierul va fi șters fizic de pe server\n` +
-      `• Va dispărea din toate secțiunile\n` +
-      `• Acțiunea este IREVERSEBILĂ!\n\n` +
-      `Confirmi?`
-    )) return;
+    if (
+      !window.confirm(
+        `ȘTERGI DEFINITIV POZA:\n\n"${fileName}"\n\n` +
+          `• Fișierul va fi șters fizic de pe server\n` +
+          `• Va dispărea din toate secțiunile\n` +
+          `• Acțiunea este IREVERSEBILĂ!\n\n` +
+          `Confirmi?`
+      )
+    )
+      return;
 
     try {
       const res = await fetch(`/api/album/${slug}/delete-photo`, {
@@ -391,16 +420,15 @@ export default function MediaAlbumPage() {
   };
 
   const downloadPrintDynamic = () => {
-  if (!slug || !printCount) return;
+    if (!slug || !printCount) return;
 
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = `/api/album/${slug}/download-print-dynamic`;
-  document.body.appendChild(form);
-  form.submit();
-  form.remove();
-};
-
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = `/api/album/${slug}/download-print-dynamic`;
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+  };
 
   const createShareLink = async () => {
     if (!slug || selectedDownload.size === 0) return;
@@ -414,10 +442,21 @@ export default function MediaAlbumPage() {
         body: JSON.stringify({ slug, items: Array.from(selectedDownload) }),
       });
       const text = await res.text().catch(() => "");
-      if (!res.ok) { setShareError(`Share failed (${res.status})`); return; }
+      if (!res.ok) {
+        setShareError(`Share failed (${res.status})`);
+        return;
+      }
       let data: any;
-      try { data = JSON.parse(text); } catch { setShareError("Invalid response"); return; }
-      if (!data?.id) { setShareError("Missing id"); return; }
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setShareError("Invalid response");
+        return;
+      }
+      if (!data?.id) {
+        setShareError("Missing id");
+        return;
+      }
       const url = `${window.location.origin}/share/${data.id}`;
       setShareUrl(url);
       await navigator.clipboard.writeText(url).catch(() => {});
@@ -432,7 +471,11 @@ export default function MediaAlbumPage() {
     if (!slug) return;
     (async () => {
       const res = await fetch(`/api/album/${slug}`);
-      if (!res.ok) { setAlbum(null); setLoading(false); return; }
+      if (!res.ok) {
+        setAlbum(null);
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
       setAlbum(data);
       setLoading(false);
@@ -472,44 +515,44 @@ export default function MediaAlbumPage() {
         )}
 
         {/* Titlul cu 10 click-uri pentru a afișa butonul admin */}
-<h1
-  className={styles.title}
-  style={{ cursor: "pointer" }}
-  onClick={() => {
-    // Inițializăm contorul
-    if (!(window as any).adminClickCount) {
-      (window as any).adminClickCount = 0;
-      (window as any).adminClickTimeout = null;
-    }
+        <h1
+          className={styles.title}
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            // Inițializăm contorul
+            if (!(window as any).adminClickCount) {
+              (window as any).adminClickCount = 0;
+              (window as any).adminClickTimeout = null;
+            }
 
-    (window as any).adminClickCount++;
+            (window as any).adminClickCount++;
 
-    // Reset contor dacă trec >3 sec între click-uri
-    if ((window as any).adminClickTimeout) clearTimeout((window as any).adminClickTimeout);
-    (window as any).adminClickTimeout = setTimeout(() => {
-      (window as any).adminClickCount = 0;
-    }, 3000);
+            // Reset contor dacă trec >3 sec între click-uri
+            if ((window as any).adminClickTimeout) clearTimeout((window as any).adminClickTimeout);
+            (window as any).adminClickTimeout = setTimeout(() => {
+              (window as any).adminClickCount = 0;
+            }, 3000);
 
-    // La 10 click-uri → toggle admin
-    if ((window as any).adminClickCount >= 10) {
-      if (isAdmin) {
-        // Ești deja admin → deconectare
-        setIsAdmin(false);
-        setAdminKey("");
-        localStorage.removeItem(`adminKey_${slug}`);
-        alert("🔓 Mod admin dezactivat.");
-        window.location.reload();
-      } else {
-        // Nu ești admin → afișăm butonul de login
-        setShowAdminButton(true);
-        alert("🔓 Butonul de acces admin a apărut mai sus!");
-      }
-      (window as any).adminClickCount = 0;
-    }
-  }}
->
-  {album.title}
-</h1>
+            // La 10 click-uri → toggle admin
+            if ((window as any).adminClickCount >= 10) {
+              if (isAdmin) {
+                // Ești deja admin → deconectare
+                setIsAdmin(false);
+                setAdminKey("");
+                localStorage.removeItem(`adminKey_${slug}`);
+                alert("🔓 Mod admin dezactivat.");
+                window.location.reload();
+              } else {
+                // Nu ești admin → afișăm butonul de login
+                setShowAdminButton(true);
+                alert("🔓 Butonul de acces admin a apărut mai sus!");
+              }
+              (window as any).adminClickCount = 0;
+            }
+          }}
+        >
+          {album.title}
+        </h1>
 
         <p className={styles.meta}>
           {album.photos?.length ?? 0} fotografii
@@ -532,9 +575,11 @@ export default function MediaAlbumPage() {
 
               {mode === "none" ? (
                 <div className={styles.rowActions}>
-                  <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
-                    Modifică selecția pentru imprimare
-                  </button>
+                  {totalPhotos > 0 && (
+                    <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
+                      Modifică selecția pentru imprimare
+                    </button>
+                  )}
                   <button className={styles.pickBtnSecondary} type="button" onClick={openDownloadMode}>
                     Selectează poze pentru descărcare
                   </button>
@@ -588,10 +633,10 @@ export default function MediaAlbumPage() {
               shownCount={galleryPhotos.length}
               allOnPageSelected={allOnPageSelected}
               onFirst={() => setPage(() => 1)}
-              onPrev={() => setPage(p => Math.max(1, p - 1))}
-              onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
               onLast={() => setPage(() => totalPages)}
-              onGoTo={p => setPage(() => p)}
+              onGoTo={(p) => setPage(() => p)}
               onToggleSelectPage={toggleSelectPage}
             />
 
@@ -635,14 +680,16 @@ export default function MediaAlbumPage() {
           </>
         )}
 
-        <div className={mode !== "none" ? styles.dimmedArea : undefined}>
+        <div className={mode !== "none" ? styles.dimmedArea : undefined} onClick={onDimmedTap}>
           <div className={styles.sectionRow}>
             <h2 className={styles.sectionTitle}>Poze de imprimat{printCount ? ` (${printCount})` : ""}</h2>
 
             <div className={styles.rowActions}>
-              <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
-                Modifică selecția pentru imprimare
-              </button>
+              {totalPhotos > 0 && (
+                <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
+                  Modifică selecția pentru imprimare
+                </button>
+              )}
 
               {printCount > 0 && (
                 <button type="button" className={styles.resetAllPrintBtn} onClick={resetAllPrint}>
@@ -680,14 +727,14 @@ export default function MediaAlbumPage() {
             <p className={styles.emptyPrint}>Nu ai selectat încă poze pentru imprimat.</p>
           )}
           {printCount > 0 && (
-  <button
-    type="button"
-    className={styles.pickBtnSecondary}
-    onClick={downloadPrintDynamic}
-  >
-    Descarcă pozele pentru imprimare
-  </button>
-)}
+            <button
+              type="button"
+              className={styles.pickBtnSecondary}
+              onClick={downloadPrintDynamic}
+            >
+              Descarcă pozele pentru imprimare
+            </button>
+          )}
 
           {album.shortvideo && (
             <>
