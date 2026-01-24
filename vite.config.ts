@@ -12,6 +12,12 @@ const test = {
   watch: false,
 } as UserConfig['test'];
 
+import path from 'path';
+
+const keyPath = path.resolve('./localhost-key.pem');
+const certPath = path.resolve('./localhost.pem');
+const hasSSL = fs.existsSync(keyPath) && fs.existsSync(certPath);
+
 // https://vitejs.dev/config/
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -20,9 +26,9 @@ export default defineConfig({
 
   // Server config: HTTPS only in production or if explicitly enabled
   server: {
-    https: isProd ? {
-      key: fs.readFileSync('./localhost-key.pem'), // you can remove these lines if you don't have certs
-      cert: fs.readFileSync('./localhost.pem'),
+    https: isProd && hasSSL ? {
+      key: hasSSL ? fs.readFileSync(keyPath) : undefined,
+      cert: hasSSL ? fs.readFileSync(certPath) : undefined,
     } : false,
     host: 'localhost',
     port: 3000,
