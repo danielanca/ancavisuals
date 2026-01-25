@@ -71,7 +71,7 @@ const QRMomentsPage: React.FC = () => {
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
 
   // Audio-specific states
-  const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -558,8 +558,8 @@ if (!firstVisit) {
                 </div>
               )}
 
-              {audioPermission === 'granted' && !isRecording && !audioBlob && (
-                <button className="record-btn" onClick={startRecording}>
+              {(audioPermission === 'granted' || audioPermission === 'prompt') && !isRecording && !audioBlob && (
+                <button className="upload-btn" onClick={startRecording}>
                   Start Recording
                 </button>
               )}
