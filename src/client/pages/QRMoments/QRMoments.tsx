@@ -71,7 +71,7 @@ const QRMomentsPage: React.FC = () => {
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
 
   // Audio-specific states
-  const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -364,18 +364,18 @@ const drawWaveform = () => {
     analyser.getByteTimeDomainData(dataArray);
 
     ctx.fillStyle = "#1a1a1c"; // soft dark cream background
-    ctx.fillRect(0, 0, canvas!.width, canvas!.height);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.lineWidth = 2;
     ctx.strokeStyle = "#9b2d30"; // wine red line
     ctx.beginPath();
 
-    const sliceWidth = canvas!.width / bufferLength;
+    const sliceWidth = canvas.width / bufferLength;
     let x = 0;
 
     for (let i = 0; i < bufferLength; i++) {
       const v = dataArray[i] / 128.0;
-      const y = (v * canvas!.height) / 2;
+      const y = (v * canvas.height) / 2;
 
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -383,7 +383,7 @@ const drawWaveform = () => {
       x += sliceWidth;
     }
 
-    ctx.lineTo(canvas!.width, canvas!.height / 2);
+    ctx.lineTo(canvas.width, canvas.height / 2);
     ctx.stroke();
   };
 
@@ -536,7 +536,7 @@ if (!firstVisit) {
             <section className="content-section fade-in">
               <h2>Speak from the heart 💌</h2>
               <p className="info-text">
-                Record a beautiful voice message for the couple (max 60 seconds)
+                Record a beautiful voice message for the couple (max 60 seconds) {audioPermission}
               </p>
 
               {audioPermission === 'unknown' && (
@@ -558,11 +558,13 @@ if (!firstVisit) {
                 </div>
               )}
 
-              {audioPermission === 'granted' && !isRecording && !audioBlob && (
-                <button className="record-btn" onClick={startRecording}>
+              {(audioPermission === 'granted' || audioPermission === 'prompt') && !isRecording && !audioBlob && (
+                <button className="upload-btn" onClick={startRecording}>
                   Start Recording
                 </button>
               )}
+
+    
 
               {isRecording && (
                 <div className="recording-active">
