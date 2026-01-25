@@ -203,12 +203,23 @@ useEffect(() => {
       mediaRecorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const recordedMimeType = mediaRecorder.mimeType || 'audio/mp4';
+
+        const blob = new Blob(audioChunksRef.current, { type: recordedMimeType });
+
+        //const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
         setAudioPreviewUrl(url);
+        const extension = recordedMimeType.includes('mp4') ? 'm4a' : 'webm';
 
-        const audioFile = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+        const audioFile = new File(
+          [blob],
+          `voice-${Date.now()}.${extension}`,
+          { type: recordedMimeType }
+        );
+        
+        //const audioFile = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
         setSelectedFiles(prev => [...prev, audioFile]);
         setPreviews(prev => [...prev, url]);
 
