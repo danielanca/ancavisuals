@@ -599,7 +599,7 @@ if (!firstVisit) {
 
                   <div className="audio-controls">
                     <button className={`play-pause-btn ${isPlaying ? 'playing' : ''}`} onClick={togglePlayPause}>
-                      {isPlaying ? '❚❚' : '▶'}
+                      {isPlaying ? '❚❚ ' : '▶ '}
                     </button>
                     <span className="duration">
                       {formatDuration(currentTime)} / {formatDuration(duration)}
