@@ -150,6 +150,30 @@ $transition: all 0.35s ease;
           box-shadow: 0 18px 50px rgba($primary-red, 0.35);
         }
       }
+      .play-pause-btn,.duration{
+        font-size: 2.5rem;
+        font-weight: 600;
+      }
+      .clear-audio-btn {
+        //padding:10px 0px;
+        background: linear-gradient(135deg, $primary-red, $primary-red-light);
+        color: white;
+        border: none;
+        width: 100%;
+        padding: 22px;
+        margin:15px 0;
+        border-radius: 999px;
+        font-size: 1.2rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: $shadow-soft;
+        transition: $transition;
+
+        &:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 18px 50px rgba($primary-red, 0.35);
+        }
+      }
     }
   }
 
