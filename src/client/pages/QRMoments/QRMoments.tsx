@@ -130,7 +130,6 @@ useEffect(() => {
 
   // Replace with real event ID later
   const eventId = eventDate;
-
   const openFilePicker = (accept: string) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -636,9 +635,9 @@ if (!firstVisit) {
                     {selectedFiles[index]?.type.startsWith('image/') ? (
                       <img src={previewUrl} alt="preview" className="preview-img" />
                     ) : selectedFiles[index]?.type.startsWith('video/') ? (
-                      <video src={previewUrl} className="preview-img" controls muted />
+                      <video src={previewUrl} className="preview-img" muted />
                     ) : selectedFiles[index]?.type.startsWith('audio/') ? (
-                      <audio controls src={previewUrl} className="preview-img" />
+                      <audio src={previewUrl} className="preview-img" />
                     ) : null}
                     <button
                       className="remove-btn"
