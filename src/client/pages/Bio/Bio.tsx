@@ -26,12 +26,14 @@ const Bio: React.FC = () => {
 
       <main>
         <div className="container">
+          <div className="top">
           <h2 className="brand-repeat">ANCA VISUALS</h2>
           <p className="subtitle">Fotografie & Videografie Evenimente.</p>
 
           <a href="#contact" className="cta-big">
             Verificare disponibilitate & rezervare →
           </a>
+          </div>
 
           {/* Service items – styled like screenshot */}
           <div className="service-items">
