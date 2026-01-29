@@ -6,6 +6,8 @@ import { firestore } from "../firestoreInit";
 import admin from "firebase-admin";
 import { getDateAndHour } from "../constants/utils";
 
+
+const STORAGE_HOST = "https://storage.bunnycdn.com";
 const storageZone = process.env.BUNNY_STORAGE_ZONE!;
 const storageKey = process.env.BUNNY_STORAGE_KEY!;
 
@@ -47,6 +49,5 @@ async function checkFolderExist(eventDate:string){
 
   return false;
 
-
-
 }
+
