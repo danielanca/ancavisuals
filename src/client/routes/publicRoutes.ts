@@ -9,6 +9,7 @@ const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), { s
 const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerification"), { ssr: true });
 const InvitationLanding = loadable(() => import("../pages/InvitationLanding/InvitationLanding"), { ssr: true });
 const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMoments"), { ssr: true });
+const BioPage =  loadable(() => import("../pages/Bio/bio"), { ssr: true });
 
 
 import { publicRoutesType } from "./types";
@@ -63,6 +64,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/qr-moments/:eventDate",
     layout: null,
     component: QRMomentsPage,
+  },
+  {
+    path: "/bio",
+    layout: null,
+    component: BioPage,
   },
 ];
 
