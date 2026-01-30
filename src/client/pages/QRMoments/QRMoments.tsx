@@ -99,6 +99,8 @@ const QRMomentsPage: React.FC = () => {
     return localStorage.getItem('qr-moments-wizard-seen') !== 'true';
   });
 
+  const [clickTime, setClickTime] = useState(0);
+
 // First check DB to see if this is first visit
 useEffect(() => {
   const checkDBForFirstVisit = async () => {
@@ -449,7 +451,17 @@ const drawWaveform = () => {
     }
   };
 
+const clearCookie = () => {
+    let increase = clickTime + 1;
 
+    if(clickTime <= 8){
+       setClickTime(increase);
+    }else{
+      setClickTime(0);
+      localStorage.removeItem('qr-moments-wizard-seen');
+      setShowWizard(true);
+    }
+}
 
 
   // Show loading while checking folder
@@ -490,7 +502,7 @@ if (!firstVisit) {
       <div className="qr-moments-page">
         {/* Header */}
         <header className="header">
-          <h1 className="logo">QR Moments</h1>
+          <h1 className="logo" onClick={clearCookie}>QR Moments</h1>
           <p className="subtitle">{eventInfo.message}</p>
           <h2 className="event-name">{eventInfo.bride} & {eventInfo.groom} • {eventInfo.eventDate}</h2>
         </header>
