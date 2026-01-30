@@ -24,7 +24,7 @@ $transition: all 0.35s ease;
   background: $bg-light;
   color: $text-dark;
   font-family: 'Cairo', system-ui, sans-serif;
-  padding: 32px 20px;
+  padding: 12px 20px;
   display: flex;
   flex-direction: column;
   max-width: 480px;
@@ -32,14 +32,14 @@ $transition: all 0.35s ease;
 
   .header {
     text-align: center;
-    padding: 44px 0 20px;
+    padding: 10px 0 10px;
 
     .logo {
       font-family: 'Cinzel', serif;
       font-size: 2.8em;
       color: $primary-red;
       letter-spacing: 3px;
-      margin-bottom: 6px;
+      margin-bottom: 3px;
     }
 
     .subtitle {
@@ -48,14 +48,14 @@ $transition: all 0.35s ease;
       color: $primary-red-light;
       font-style: italic;
       opacity: 0.9;
-      margin-bottom: 10px;
+      margin-bottom: 5px;
     }
 
     .event-name {
       font-size: 1.35rem;
       color: $text-muted;
       font-weight: 500;
-      margin: 20px 0 36px;
+      margin: 10px 0 16px;
     }
   }
 
@@ -66,7 +66,7 @@ $transition: all 0.35s ease;
     overflow: hidden;
     border: 1px solid rgba($primary-red, 0.15);
     box-shadow: $shadow-soft;
-    margin-bottom: 30px;
+    margin-bottom: 5px;
 
     .tab {
       flex: 1;
@@ -112,7 +112,7 @@ $transition: all 0.35s ease;
 
     .content-section {
       text-align: center;
-      padding: 24px 0;
+      padding: 10px 0;
 
       &.fade-in {
         animation: fadeIn 0.7s ease forwards;
@@ -122,14 +122,14 @@ $transition: all 0.35s ease;
         font-family: 'Cinzel', serif;
         font-size: 2.1rem;
         color: $primary-red;
-        margin-bottom: 18px;
+        margin-bottom: 8px;
       }
 
       .info-text {
         font-size: 1.02rem;
         color: $text-muted;
         line-height: 1.6;
-        margin-bottom: 36px;
+        margin-bottom: 10px;
       }
 
       .upload-btn {
@@ -137,7 +137,7 @@ $transition: all 0.35s ease;
         color: white;
         border: none;
         width: 100%;
-        padding: 22px;
+        padding:10px 22px;
         border-radius: 999px;
         font-size: 1.2rem;
         font-weight: 600;
@@ -181,7 +181,7 @@ $transition: all 0.35s ease;
     text-align: center;
     font-size: 0.92rem;
     color: $text-muted;
-    margin-top: 64px;
+    margin-top: 14px;
     opacity: 0.8;
   }
 }
@@ -199,7 +199,7 @@ $transition: all 0.35s ease;
 }
 
 .preview-gallery {
-  margin: 24px 0;
+  margin: 10px 0;
   padding: 16px;
   background: white;
   border-radius: 12px;
@@ -217,7 +217,7 @@ $transition: all 0.35s ease;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .preview-item {
@@ -269,7 +269,7 @@ $transition: all 0.35s ease;
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 16px;
+  margin-top: 10px;
   transition: all 0.3s;
 
   &:hover:not(:disabled) {
