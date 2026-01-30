@@ -48,8 +48,9 @@ export async function getAlbum(req: Request, res: Response) {
   if (!album) return res.status(404).json({ error: "Album not found" });
 
   const saved = await readPrintSelection(slug);
+  const photoPath = await checkPreviewExist(slug);
   const clean = Array.from(new Set(saved.filter(isSafeFile)));
-  const print = clean.map(f => signBunnyUrl(`/${slug}/photos/${f}`));
+  const print = clean.map(f => signBunnyUrl(`/${slug}/${photoPath}/${f}`));
 
   return res.json({ ...album, print });
 }
@@ -81,8 +82,10 @@ export async function downloadSelectedPhotos(req: Request, res: Response) {
   const archive = archiver("zip", { zlib: { level: 6 } });
   archive.pipe(res);
 
+  const photoPath = await checkPreviewExist(slug);
+
   for (const file of files) {
-    const url = `https://storage.bunnycdn.com/${storageZone}/${slug}/photos/${encodeURIComponent(file)}`;
+    const url = `https://storage.bunnycdn.com/${storageZone}/${slug}/${photoPath}/${encodeURIComponent(file)}`;
     const r = await axios.get(url, {
       responseType: "stream",
       headers: { AccessKey: storageKey },
@@ -133,8 +136,10 @@ export async function deletePhoto(req: Request, res: Response) {
     const exists = await albumExists(slug);
     if (!exists) return res.status(404).json({ error: "album_not_found" });
 
+    const photoPath = await checkPreviewExist(slug);
+
     // Ștergem fișierul fizic din Bunny Storage
-    const deleteUrl = `https://storage.bunnycdn.com/${storageZone}/${slug}/photos/${encodeURIComponent(filename)}`;
+    const deleteUrl = `https://storage.bunnycdn.com/${storageZone}/${slug}/${photoPath}/${encodeURIComponent(filename)}`;
 
     const deleteRes = await axios.delete(deleteUrl, {
       headers: { AccessKey: storageKey },
@@ -158,7 +163,7 @@ export async function deletePhoto(req: Request, res: Response) {
 
     const saved = await readPrintSelection(slug);
     const clean = Array.from(new Set(saved.filter(isSafeFile)));
-    const print = clean.map((f: string) => signBunnyUrl(`/${slug}/photos/${f}`));
+    const print = clean.map((f: string) => signBunnyUrl(`/${slug}/${photoPath}/${f}`));
 
     return res.json({ ...album, print });
   } catch (error) {
@@ -240,8 +245,10 @@ export async function downloadPrintDynamic(req: Request, res: Response) {
   const archive = archiver("zip", { zlib: { level: 9 } });
   archive.pipe(res);
 
+  const photoPath = await checkPreviewExist(slug);
+
   for (const file of items) {
-    const storagePath = `${slug}/photos/${file}`;
+    const storagePath = `${slug}/${photoPath}/${file}`;
     const url = `${STORAGE_HOST}/${storageZone}/${storagePath}`;
 
     const r = await fetch(url, {
@@ -256,4 +263,18 @@ export async function downloadPrintDynamic(req: Request, res: Response) {
   }
 
   await archive.finalize();
+}
+
+async function checkPreviewExist(slug:string){
+  const photoPreview=  `${STORAGE_HOST}/${storageZone}/${slug}/photos_preview/`;
+  const result = await axios.get(photoPreview, {
+    headers: { AccessKey: storageKey },
+    validateStatus: () => true,
+  });
+  
+  if(result.status == 200 && result.data.length > 0){
+    return "photos_preview";
+  }else{
+    return "photos";
+  }
 }
