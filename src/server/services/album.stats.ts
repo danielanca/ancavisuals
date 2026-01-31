@@ -45,7 +45,7 @@ export async function getAlbumStats(req: Request, res: Response) {
   let dir = slug;
 
   try {
-    const first = album.photos?.[0];
+    const first = album.originalPhoto?.[0];
     if (first) {
       const p = new URL(first).pathname.replace(/^\/+/, "");
       const parts = p.split("/");

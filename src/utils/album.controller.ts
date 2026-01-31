@@ -273,7 +273,7 @@ async function checkPreviewExist(slug:string){
   });
   
   if(result.status == 200 && result.data.length > 0){
-    return "photos_preview";
+    return "photos";
   }else{
     return "photos";
   }

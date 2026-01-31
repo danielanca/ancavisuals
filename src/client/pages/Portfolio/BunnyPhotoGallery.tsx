@@ -3,6 +3,7 @@ import { FixedSizeGrid as Grid } from "react-window";
 import styles from "./BunnyPhotoGallery.module.scss";
 
 type Props = {
+  orgPhoto : string[];
   photos: string[];
   variant?: "section" | "plain";
   selectable?: boolean;
@@ -53,6 +54,7 @@ const useElementSize = () => {
 };
 
 export default function BunnyPhotoGallery({
+  orgPhoto,
   photos,
   variant = "section",
   selectable = false,
@@ -300,7 +302,7 @@ export default function BunnyPhotoGallery({
     </div>
   );
 
-  const activeSrc = lightboxIndex === null ? null : photos[lightboxIndex] ?? null;
+  const activeSrc = lightboxIndex === null ? null : orgPhoto[lightboxIndex] ?? null;
 
   const lightboxImg = activeSrc
     ? withOptimizer(activeSrc, { width: 1600, quality: 86, format: "auto", sharpen: false })

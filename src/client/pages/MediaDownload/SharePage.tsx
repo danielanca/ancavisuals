@@ -70,7 +70,7 @@ export default function SharePage() {
           </a>
         </div>
 
-        <BunnyPhotoGallery photos={data.photos} variant="plain" />
+        <BunnyPhotoGallery orgPhoto={data.photos} photos={data.photos} variant="plain" />
       </div>
     </div>
   );
