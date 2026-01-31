@@ -28,7 +28,6 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
       if (isVideo) {
         return signBunnyUrl(`/${slug}/${section}/${objects[0].ObjectName}`);
       }
-      console.log(objects);
       return objects.map((o: any) => signBunnyUrl(`/${slug}/${section}/${o.ObjectName}`));
     } catch {
       return isVideo ? null : [];
