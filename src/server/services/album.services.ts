@@ -17,7 +17,7 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
 
   async function loadSection(section: string, isVideo = false) {
     if(section == "photos_preview"){
-       section = await checkPreviewExist(section);
+       section = await checkPreviewExist(slug);
     }
     try {
       
