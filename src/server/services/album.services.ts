@@ -35,7 +35,7 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     slug,
     title,
     featured: await loadSection("featured"),
-    photos: await loadSection("photos"),
+    photos: await loadSection("photos_preview"),
     shortvideo: await loadSection("shortvideo", true),
     longvideo: await loadSection("longvideo", true),
   };
