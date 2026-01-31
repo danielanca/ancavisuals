@@ -1,5 +1,5 @@
 import { signBunnyUrl } from "../../../src/utils/signBunnyUrl";
-import { listFiles } from "./bunny.service";
+import { listFiles,checkPreviewExist} from "./bunny.service";
 import type { Album } from "./../../client/pages/MediaDownload/AlbumTypes";
 
 export async function loadAlbum(slug: string): Promise<Album | null> {
@@ -16,15 +16,18 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
   const title = slug.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
   async function loadSection(section: string, isVideo = false) {
+    if(section == "photos_preview"){
+       section = await checkPreviewExist(section);
+    }
     try {
+      
       const objects = (await listFiles(`${basePath}/${section}`)).filter((o: any) => !o.IsDirectory);
-
+      
       if (objects.length === 0) return isVideo ? null : [];
 
       if (isVideo) {
         return signBunnyUrl(`/${slug}/${section}/${objects[0].ObjectName}`);
       }
-
       return objects.map((o: any) => signBunnyUrl(`/${slug}/${section}/${o.ObjectName}`));
     } catch {
       return isVideo ? null : [];

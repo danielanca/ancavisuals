@@ -36,6 +36,21 @@ export async function listFiles(path: string) {
   return Array.isArray(res.data) ? res.data : res.data?.Objects ?? [];
 }
 
+
+
+export async function checkPreviewExist(slug:string){
+  const photoPreview=  `https://storage.bunnycdn.com//${storageZone}/${slug}/photos_preview/`;
+  const result = await axios.get(photoPreview, {
+    headers: { AccessKey: apiKey },
+    validateStatus: () => true,
+  });
+  
+  if(result.status == 200 && result.data.length > 0){
+    return "photos_preview";
+  }else{
+    return "photos";
+  }
+}
 // export async function listFiles(path: string) {
 //   const cleanPath = path.replace(/^\/+/, "");
 //   const fullPath = `/${storageZone}/${cleanPath}/`;
