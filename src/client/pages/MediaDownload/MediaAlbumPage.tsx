@@ -521,7 +521,7 @@ export default function MediaAlbumPage() {
         {album.featured?.length > 0 && (
           <>
             <h2 className={styles.sectionTitle}>Selectate</h2>
-            <BunnyPhotoGallery photos={album.featured} variant="plain" />
+            <BunnyPhotoGallery orgPhoto={album.originalPhoto} photos={album.featured} variant="plain" />
           </>
         )}
 
@@ -624,6 +624,7 @@ export default function MediaAlbumPage() {
               ) : (
                 <BunnyPhotoGallery
                   photos={galleryPhotos}
+                  orgPhoto = {album.originalPhoto!}
                   variant="plain"
                   selectable={mode !== "none"}
                   selected={activeSelected}

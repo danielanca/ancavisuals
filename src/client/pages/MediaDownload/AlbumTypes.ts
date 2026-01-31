@@ -3,6 +3,7 @@ export interface Album {
   title: string;
   featured: string[];
   photos: string[];
+  originalPhoto: string[];
   shortvideo?: string | null;
   longvideo?: string | null;
 }
