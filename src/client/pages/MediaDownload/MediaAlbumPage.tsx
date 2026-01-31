@@ -44,6 +44,7 @@ const fmtBytes = (n: number) => {
   }
   return `${v.toFixed(i === 0 ? 0 : 2)} ${u[i]}`;
 };
+
 const fileNameFromUrl = (src: string) => {
   const p = new URL(src).pathname;
   const last = p.split("/").pop() || "";
@@ -157,6 +158,27 @@ export default function MediaAlbumPage() {
     const start = (safePage - 1) * pageSize;
     return album.photos.slice(start, start + pageSize);
   }, [album?.photos, safePage, pageSize]);
+
+  const galleryPhotos = pagePhotos;
+
+  const originalByName = useMemo(() => {
+    const m = new Map<string, string>();
+    (album?.originalPhoto ?? []).forEach((u) => m.set(fileNameFromUrl(u), u));
+    return m;
+  }, [album?.originalPhoto]);
+
+  const galleryOrgPhotos = useMemo(() => {
+    if (!galleryPhotos.length) return [];
+    if (!album?.originalPhoto?.length) return galleryPhotos;
+    return galleryPhotos.map((u) => originalByName.get(fileNameFromUrl(u)) ?? u);
+  }, [galleryPhotos, album?.originalPhoto, originalByName]);
+
+  const featuredOrgPhotos = useMemo(() => {
+    const featured = album?.featured ?? [];
+    if (!featured.length) return [];
+    if (!album?.originalPhoto?.length) return featured;
+    return featured.map((u) => originalByName.get(fileNameFromUrl(u)) ?? u);
+  }, [album?.featured, album?.originalPhoto, originalByName]);
 
   useEffect(() => {
     photosTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -483,7 +505,6 @@ export default function MediaAlbumPage() {
   if (loading) return <div className={styles.page}><div className={styles.container}>Se încarcă...</div></div>;
   if (!album) return <AlbumNotFound />;
 
-  const galleryPhotos = pagePhotos;
   const downloadCount = selectedDownload.size;
 
   return (
@@ -562,7 +583,7 @@ export default function MediaAlbumPage() {
         {album.featured?.length > 0 && (
           <>
             <h2 className={styles.sectionTitle}>Selectate</h2>
-            <BunnyPhotoGallery orgPhoto={album.originalPhoto} photos={album.featured} variant="plain" />
+            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" />
           </>
         )}
 
@@ -666,8 +687,9 @@ export default function MediaAlbumPage() {
                 </div>
               ) : (
                 <BunnyPhotoGallery
+                  key={`${slug}:${safePage}`}
                   photos={galleryPhotos}
-                  orgPhoto = {album.originalPhoto!}
+                  orgPhoto={galleryOrgPhotos}
                   variant="plain"
                   selectable={mode !== "none"}
                   selected={activeSelected}

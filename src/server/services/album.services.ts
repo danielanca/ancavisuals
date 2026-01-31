@@ -5,42 +5,38 @@ import type { Album } from "./../../client/pages/MediaDownload/AlbumTypes";
 export async function loadAlbum(slug: string): Promise<Album | null> {
   const basePath = slug;
 
-  let folder;
   try {
-    folder = await listFiles(basePath);
-  } catch (err) {
-    console.error("Album not found:", slug);
+    await listFiles(basePath);
+  } catch {
     return null;
   }
 
-  const title = slug.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  const title = slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-  async function loadSection(section: string, isVideo = false) {
-    if(section == "photos_preview"){
-       section = await checkPreviewExist(slug);
-    }
+  const loadSection = async (section: string, isVideo = false) => {
     try {
-      
-      const objects = (await listFiles(`${basePath}/${section}`)).filter((o: any) => !o.IsDirectory);
-      
+      const objects = await listFiles(`${slug}/${section}`);
       if (objects.length === 0) return isVideo ? null : [];
-
-      if (isVideo) {
-        return signBunnyUrl(`/${slug}/${section}/${objects[0].ObjectName}`);
-      }
+      if (isVideo) return signBunnyUrl(`/${slug}/${section}/${objects[0].ObjectName}`);
       return objects.map((o: any) => signBunnyUrl(`/${slug}/${section}/${o.ObjectName}`));
     } catch {
       return isVideo ? null : [];
     }
-  }
+  };
+
+  const hasPreview = await checkPreviewExist(`${slug}/photos_preview`);
+
+  const photos = hasPreview ? await loadSection("photos_preview") : await loadSection("photos");
+  const originalPhoto = await loadSection("photos");
 
   return {
     slug,
     title,
     featured: await loadSection("featured"),
-    photos: await loadSection("photos_preview"),
-    originalPhoto : await loadSection("photos"),
+    photos,
+    originalPhoto,
     shortvideo: await loadSection("shortvideo", true),
     longvideo: await loadSection("longvideo", true),
   };
 }
+
