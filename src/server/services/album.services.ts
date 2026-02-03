@@ -29,8 +29,6 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
   const photos = hasPreview ? await loadSection("photos_preview") : await loadSection("photos");
   const originalPhoto = await loadSection("photos");
 
-  console.log(photos);
-
   return {
     slug,
     title,
