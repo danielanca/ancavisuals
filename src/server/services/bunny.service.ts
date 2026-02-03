@@ -39,17 +39,17 @@ export async function listFiles(path: string) {
 
 
 export async function checkPreviewExist(slug:string){
-  const photoPreview=  `https://storage.bunnycdn.com//${storageZone}/${slug}/photos_preview/`;
+  const photoPreview=  `https://storage.bunnycdn.com/${storageZone}/${slug}/photos_preview/`;
   const result = await axios.get(photoPreview, {
     headers: { AccessKey: apiKey },
     validateStatus: () => true,
   });
   
   if(result.status == 200 && result.data.length > 0){
-    return "photos_preview";
-  }else{
-    return "photos";
+    return true;
   }
+
+  return false;
 }
 // export async function listFiles(path: string) {
 //   const cleanPath = path.replace(/^\/+/, "");

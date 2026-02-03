@@ -24,10 +24,12 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     }
   };
 
-  const hasPreview = await checkPreviewExist(`${slug}/photos_preview`);
+  const hasPreview = await checkPreviewExist(slug);
 
   const photos = hasPreview ? await loadSection("photos_preview") : await loadSection("photos");
   const originalPhoto = await loadSection("photos");
+
+  console.log(photos);
 
   return {
     slug,
