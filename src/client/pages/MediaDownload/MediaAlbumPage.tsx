@@ -170,7 +170,7 @@ export default function MediaAlbumPage() {
   const galleryOrgPhotos = useMemo(() => {
     if (!galleryPhotos.length) return [];
     if (!album?.originalPhoto?.length) return galleryPhotos;
-    return album?.originalPhoto.map((u) => originalByName.get(fileNameFromUrl(u)) ?? u);
+    return galleryPhotos.map((u) => originalByName.get(fileNameFromUrl(u)) ?? u);
   }, [galleryPhotos, album?.originalPhoto, originalByName]);
 
   const featuredOrgPhotos = useMemo(() => {
