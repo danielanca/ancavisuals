@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { useParams } from "react-router-dom";
+import { useParams,useSearchParams } from "react-router-dom";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import styles from "./MediaAlbumPage.module.scss";
 import type { Album } from "./AlbumTypes";
@@ -60,6 +60,9 @@ const buildDownloadUrl = (signedUrl: string, name: string) => {
 
 export default function MediaAlbumPage() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const pageFromUrl = Number(searchParams.get("page") ?? "1");
 
   const [album, setAlbum] = useState<AlbumWithPrint | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,7 +147,7 @@ export default function MediaAlbumPage() {
   const pageSize = isMobile ? 36 : 50;
   const totalPages = Math.max(1, Math.ceil(totalPhotos / pageSize));
 
-  const activePage = mode === "download" ? downloadPage : mode === "print" ? printPage : browsePage;
+  const activePage = mode === "download" ? downloadPage : mode === "print" ? printPage : pageFromUrl;
   const safePage = clamp(activePage, 1, totalPages);
 
   useEffect(() => {
@@ -192,9 +195,20 @@ export default function MediaAlbumPage() {
   const allOnPageSelected = mode !== "none" && pageNames.length > 0 && pageNames.every((n) => activeSelected.has(n));
 
   const setPage = (updater: (p: number) => number) => {
+    const nextPage = updater(safePage);
+
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set("page", String(nextPage));
+        return p;
+      },
+      { replace: false } // 👈 important: keeps browser history
+    );
+
     if (mode === "download") setDownloadPage(updater);
     else if (mode === "print") setPrintPage(updater);
-    else setBrowsePage(updater);
+   // else setBrowsePage(updater);
   };
   
 
