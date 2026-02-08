@@ -5,6 +5,7 @@ import styles from "./MediaAlbumPage.module.scss";
 import type { Album } from "./AlbumTypes";
 import AlbumNotFound from "./AlbumNotFound";
 import AlbumPager from "../Portfolio/AlbumPager";
+import DeliveryForm from './DeliveryForm';
 
 type AlbumWithPrint = Album & {
   print?: string[];
@@ -103,6 +104,10 @@ export default function MediaAlbumPage() {
     longVideoBytes: number;
     bytesTotalAll: number;
   }>(null);
+
+
+  //Delivery Form
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   // Încarcă starea admin din localStorage la mount
   useEffect(() => {
@@ -593,6 +598,24 @@ export default function MediaAlbumPage() {
           {album.shortvideo ? " · video scurt" : ""}
           {album.longvideo ? " · film complet" : ""}
         </p>
+
+        <div className="action-buttons">
+           <button className="btn btn-outline" onClick={() => setIsFormOpen(true)}>
+                Fill up delivery address
+           </button>
+        </div>
+
+        {isFormOpen && (
+        <DeliveryForm
+          albumId={slug || "hello"}
+          onClose={() => setIsFormOpen(false)}
+          onSuccess={() => {
+            setIsFormOpen(false);
+            // optional: show toast "Address saved"
+          }}
+        />
+      )}
+
         <div className={styles.divider} />
 
         {album.featured?.length > 0 && (

@@ -3,7 +3,7 @@ import archiver from "archiver";
 import axios from "axios";
 import { Readable } from "stream";
 import { loadAlbum } from "../server/services/album.services";
-import { readPrintSelection, savePrintSelection } from "../server/services/printSelection.store";
+import { readPrintSelection, savePrintSelection,saveDeliveryAddress } from "../server/services/printSelection.store";
 import { signBunnyUrl } from "./signBunnyUrl";
 import { getFirestore } from "firebase-admin/firestore";
 import fetch from "node-fetch";
@@ -277,4 +277,12 @@ async function checkPreviewExist(slug:string){
   }else{
     return "photos";
   }
+}
+
+export async function addDeliveryAddress(req:Request,res:Response){
+  const {albumId} = req.params;
+  const {address} = req.body;
+ // await saveDeliveryAddress(address.albumId,address.deliveryAddress);
+console.log(address);
+console.log(slug);
 }
