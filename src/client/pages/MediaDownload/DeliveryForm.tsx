@@ -22,6 +22,8 @@ export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
     street : "",
     city : ""});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Add state
+const [showSuccess, setShowSuccess] = useState(false);
 
   const validate = () => {
     const newErrors = {
@@ -41,14 +43,18 @@ export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
     e.preventDefault();
     const validationErrors = validate();
 
-    if (Object.keys(validationErrors).length > 0) {
+    if (
+      validationErrors.fullName !== "" ||
+      validationErrors.city !== ""
+      || validationErrors.phone !== "" 
+      || validationErrors.street !== ""
+      ) {
       console.log(validationErrors);
       setErrors(validationErrors);
+      return;
     }
     try {
-      // Your API call here
-      onSuccess?.();
-      setForm(initialForm);
+     // onSuccess?.();
       const res = await fetch(`/api/album/${albumId}/delivery-address`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,12 +68,12 @@ export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
       });
       
       if (res.ok) {
-          console.log(res);
+        setShowSuccess(true);   
+        setForm(initialForm);
       }
 
     } catch (err) {
       console.error(err);
-      // show error toast in real app
     } finally {
       setIsSubmitting(false);
     }
@@ -78,10 +84,23 @@ export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
       <div className={styles.dialog} onClick={e => e.stopPropagation()}>
         <div className={styles.header}>
           <h2 className={styles.title}>Delivery Address</h2>
+          <button
+            type="button"
+            className={styles.closeBtn}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
         <div className={styles.content}>
-          <form className={styles.form}  onSubmit={handleSubmit}>
+        {showSuccess ? (
+          <div className={styles.successBanner}>
+          ✓ Delivery address saved successfully!
+           </div>
+          ): (
+          <form className={styles.form}>
             <div className={styles.group}>
               <label className={`${styles.label} ${styles.required}`}>Full Name</label>
               <input
@@ -136,14 +155,27 @@ export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
               </div>
             </div>
 
-            <button
-              type="submit"
-              className={styles.submitBtn}
-              disabled={isSubmitting} 
-            >
-              {isSubmitting ? 'Saving...' : 'Save address'}
-            </button>
+            <div className={styles.formActions}>
+              <button
+                type="button"
+                className={styles.btnCancel}
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className={styles.btnSave}
+                //disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : 'Save address'}
+              </button>
+            </div>
           </form>
+          ) }
         </div>
       </div>
     </div>

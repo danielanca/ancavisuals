@@ -19,8 +19,12 @@
   }
   
   .header {
+    position: relative;
     padding: 20px 24px;
     border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
   
   .title {
@@ -107,4 +111,95 @@
     color: #dc2626;
     font-size: 13px;
     margin-top: 4px;
+  }
+
+  .closeBtn {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    width: 32px;
+    height: 32px;
+    background: none;
+    border: none;
+    font-size: 28px;
+    font-weight: 300;
+    color: #6b7280;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    border-radius: 50%;
+    transition: all 0.15s;
+  
+    &:hover {
+      color: #374151;
+      background: #f3f4f6;
+    }
+
+    &:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+  }
+
+  .formActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  .btnCancel,
+  .btnSave {
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+    min-width: 100px;
+  }
+  .btnCancel {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+  
+    &:hover:not(:disabled) {
+      background: #e5e7eb;
+      border-color: #9ca3af;
+    }
+  
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .btnSave {
+    background: #4f46e5;
+    color: white;
+    border: none;
+  
+    &:hover:not(:disabled) {
+      background: #4338ca;
+    }
+  
+    &:disabled {
+      background: #a5b4fc;
+      cursor: not-allowed;
+    }
+  }
+
+  .successBanner {
+    background: #ecfdf5;
+    color: #065f46;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #a7f3d0;
   }
