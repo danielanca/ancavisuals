@@ -280,9 +280,34 @@ async function checkPreviewExist(slug:string){
 }
 
 export async function addDeliveryAddress(req:Request,res:Response){
-  const {albumId} = req.params;
-  const {address} = req.body;
- // await saveDeliveryAddress(address.albumId,address.deliveryAddress);
-console.log(address);
-console.log(slug);
+  try {
+    const { slug } = req.params;
+    const data = req.body;
+
+    // Basic validation (you can make it more strict)
+    if (!data.fullName || !data.phone || !data.street || !data.city) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: fullName, phone, street, city',
+      });
+    }
+    await saveDeliveryAddress(slug, {
+      fullName: data.fullName,
+      phone: data.phone,
+      street: data.street,
+      city: data.city,
+      easybox: data.easybox,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Delivery address saved successfully',
+    });
+  } catch (error) {
+    console.error('Error saving delivery address:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to save delivery address',
+    });
+  }
 }

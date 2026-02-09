@@ -41,7 +41,6 @@ export async function saveDeliveryAddress(
       'city': address.city.trim(),
       'easybox': address.easybox?.trim() || null,
       deliveryAddressUpdatedAt: Date.now(),
-      updatedAt: Date.now(),
     }
 })
     .catch((err) => {

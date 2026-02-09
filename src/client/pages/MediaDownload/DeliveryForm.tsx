@@ -53,8 +53,11 @@ export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          albumId : albumId,
-          deliveryAddress:form
+          fullName: form.fullName,
+          phone: form.phone,
+          street: form.street,
+          city: form.city,
+          easybox: form.easybox || null,
         }),
       });
       
