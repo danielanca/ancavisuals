@@ -3,7 +3,7 @@ import archiver from "archiver";
 import axios from "axios";
 import { Readable } from "stream";
 import { loadAlbum } from "../server/services/album.services";
-import { readPrintSelection, savePrintSelection } from "../server/services/printSelection.store";
+import { readPrintSelection, savePrintSelection,saveDeliveryAddress } from "../server/services/printSelection.store";
 import { signBunnyUrl } from "./signBunnyUrl";
 import { getFirestore } from "firebase-admin/firestore";
 import fetch from "node-fetch";
@@ -276,5 +276,38 @@ async function checkPreviewExist(slug:string){
     return "photos";
   }else{
     return "photos";
+  }
+}
+
+export async function addDeliveryAddress(req:Request,res:Response){
+  try {
+    const { slug } = req.params;
+    const data = req.body;
+
+    // Basic validation (you can make it more strict)
+    if (!data.fullName || !data.phone || !data.street || !data.city) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: fullName, phone, street, city',
+      });
+    }
+    await saveDeliveryAddress(slug, {
+      fullName: data.fullName,
+      phone: data.phone,
+      street: data.street,
+      city: data.city,
+      easybox: data.easybox,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Delivery address saved successfully',
+    });
+  } catch (error) {
+    console.error('Error saving delivery address:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to save delivery address',
+    });
   }
 }
