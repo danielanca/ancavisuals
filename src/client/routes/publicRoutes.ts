@@ -10,7 +10,7 @@ const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/
 const InvitationLanding = loadable(() => import("../pages/InvitationLanding/InvitationLanding"), { ssr: true });
 const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMoments"), { ssr: true });
 const BioPage =  loadable(() => import("../pages/Bio/Bio"), { ssr: true });
-
+const AddressListWrapper = loadable( () => import("../pages/DeliveryAddress/AddressListWrapper"),{ ssr: false });
 
 import { publicRoutesType } from "./types";
 
@@ -70,6 +70,11 @@ const publicRoutes: publicRoutesType[] = [
     layout: null,
     component: BioPage,
   },
+  {
+  path: "/delivery-address/:slug",
+    layout:null,
+    component:AddressListWrapper
+  }
 ];
 
 export default publicRoutes;

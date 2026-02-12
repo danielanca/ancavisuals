@@ -255,6 +255,18 @@
   gap: 16px;
   margin: 20px 0;
   padding: 0 8px;
+
+  /* Force 2 columns on small screens (≤ 640px) */
+  @media (max-width: 640px) {
+    grid-template-columns: repeat(2, 1fr);     /* exactly 2 per row */
+    gap: 12px;                                 /* slightly smaller gap for mobile */
+    padding: 0 4px;                            /* less side padding */
+  }
+
+  /* Optional: even smaller screens (very narrow phones) */
+  @media (max-width: 360px) {
+    grid-template-columns: 1fr;                /* 1 column if really tiny */
+  }
 }
 
 .printPhotoWrapper {
@@ -559,48 +571,50 @@
     color: #111827;
   }
 
-  .action-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
+}
+
+
+.actionButtons {
+  display: flex;
+  gap: 1.5rem;
+  margin: 1.5rem 0;
 }
 
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
+  padding: 0.8rem 1.8rem;
+  border-radius: 10px;
   font-weight: 500;
-  border-radius: 0.5rem;
-  transition: all 0.15s ease;
   cursor: pointer;
+  transition: all 0.22s ease;
+}
 
-  &:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+.btnOutline {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.38);
   }
 }
 
-.btn-outline {
-  border: 1px solid #d1d5db;
-  background-color: white;
-  color: #374151;
+.fillAction {
+  border-color: #6366f1;
+  color: #c7d2fe;
 
   &:hover {
-    background-color: #f9fafb;
-    color: #111827;
-    border-color: #9ca3af;
+    background: rgba(99, 102, 241, 0.18);
+    border-color: #818cf8;
   }
 }
 
-.btn-primary {
-  background-color: #4f46e5;
-  color: white;
-  border: none;
+.viewAction {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.88);
 
   &:hover {
-    background-color: #4338ca;
+    background: rgba(255, 255, 255, 0.07);
   }
 }

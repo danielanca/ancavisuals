@@ -6,6 +6,7 @@ import type { Album } from "./AlbumTypes";
 import AlbumNotFound from "./AlbumNotFound";
 import AlbumPager from "../Portfolio/AlbumPager";
 import DeliveryForm from './DeliveryForm';
+import DeliveryAddressModal from "../DeliveryAddress/AddressList";
 
 type AlbumWithPrint = Album & {
   print?: string[];
@@ -108,6 +109,7 @@ export default function MediaAlbumPage() {
 
   //Delivery Form
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
 
   // Încarcă starea admin din localStorage la mount
   useEffect(() => {
@@ -599,11 +601,21 @@ export default function MediaAlbumPage() {
           {album.longvideo ? " · film complet" : ""}
         </p>
 
-        <div className="action-buttons">
-           <button className="btn btn-outline" onClick={() => setIsFormOpen(true)}>
-                Fill up delivery address
-           </button>
-        </div>
+        <div className={styles.actionButtons}>
+  <button 
+    className={`${styles.btn} ${styles.btnOutline} ${styles.fillAction}`}
+    onClick={() => setIsFormOpen(true)}
+  >
+    Fill up delivery address
+  </button>
+
+  <button 
+    className={`${styles.btn} ${styles.btnOutline} ${styles.viewAction}`}
+    onClick={() => setShowDeliveryModal(true)}
+  >
+    View Delivery Address
+  </button>
+</div>
 
         {isFormOpen && (
         <DeliveryForm
@@ -615,6 +627,14 @@ export default function MediaAlbumPage() {
           }}
         />
       )}
+
+{showDeliveryModal && (
+  <DeliveryAddressModal
+    slug={slug || ""}
+    isOpen={showDeliveryModal}
+    onClose={() => setShowDeliveryModal(false)}
+  />
+)}
 
         <div className={styles.divider} />
 
