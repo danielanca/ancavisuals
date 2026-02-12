@@ -68,3 +68,10 @@ export async function saveDeliveryAddress(
       throw err;
     });
 }
+
+export async function readDeliveryAddress(slug: string): Promise<string[]> {
+  const snap = await firestore().collection(COL).doc(slug).get();
+  if (!snap.exists) return [];
+  const data = snap.data() as any;
+  return data;
+}

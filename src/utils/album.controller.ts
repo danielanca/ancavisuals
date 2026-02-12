@@ -3,7 +3,7 @@ import archiver from "archiver";
 import axios from "axios";
 import { Readable } from "stream";
 import { loadAlbum } from "../server/services/album.services";
-import { readPrintSelection, savePrintSelection,saveDeliveryAddress } from "../server/services/printSelection.store";
+import { readPrintSelection, savePrintSelection,saveDeliveryAddress,readDeliveryAddress } from "../server/services/printSelection.store";
 import { signBunnyUrl } from "./signBunnyUrl";
 import { getFirestore } from "firebase-admin/firestore";
 import fetch from "node-fetch";
@@ -310,4 +310,24 @@ export async function addDeliveryAddress(req:Request,res:Response){
       error: 'Failed to save delivery address',
     });
   }
+}
+
+export async function getDeliveryAddress(req:Request,res:Response){
+  try {
+    const { slug } = req.params;
+    const result = await readDeliveryAddress(slug);
+    console.log(result);
+    return res.status(200).json({
+      data : result,
+      success: true,
+      message: 'Delivery address fetched successfully',
+    });
+  } catch (error) {
+    console.error('Error fetching delivery address:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch delivery address',
+    });
+  }
+
 }
