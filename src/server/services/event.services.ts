@@ -4,6 +4,7 @@ import { generateEventSlug } from "../../utils/eventUrl"; // assuming you have t
 import { firestore } from "../firestoreInit";
 import admin from "firebase-admin";
 import { getDateAndHour } from "../constants/utils";
+//import { Request } from "node-fetch";
 
 interface Host {
   name: string;
@@ -57,8 +58,19 @@ interface CreateEventBody {
   maxChildrenPerInvite?: number;
 }
 
+interface BookedDate {
+  date: string,
+  type: string,
+  label: string,
+  price: string,
+  phone: string,
+  status: string
+  dbStore : string
+}
+
 const EVENTS_COLLECTION = "events";
 const RSVPS_SUBCOLLECTION = "rsvps";
+const BOOK_COLLECTION = "bookedDates";
 
 export async function createEvent(req: Request, res: Response) {
   try {
@@ -301,4 +313,31 @@ export async function verifyGuest(req: Request, res: Response) {
     console.error("Guest verification error:", err);
     return res.status(500).json({ error: "Verification failed" });
   }
+}
+
+export async function bookEventDate(req:Request,res:Response){
+
+  try{
+      const data = req.body as BookedDate;      
+      const path = `${data.dbStore}`;
+
+      const eventRef = firestore()
+      .collection(BOOK_COLLECTION)
+      .doc("2026")
+      .collection(path)   // ← subcollection per date
+      .doc();
+      
+      await eventRef.set(data, { merge: true }); // merge = safe update if exists
+      return res.status(200).json({
+        success: true,
+        message : "Date added successfully"
+      });
+
+  }catch(err){
+      console.error(err);
+      return res.status(500).json({error: "Date could not be added",
+        message :err
+      })
+  }
+
 }

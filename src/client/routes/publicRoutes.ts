@@ -4,6 +4,7 @@ const Mainpage = loadable(() => import("../pages/Homepage/Mainpage"), { ssr: tru
 const Aboutme = loadable(() => import("../pages/About/Aboutme"), { ssr: true });
 const Portfolio = loadable(() => import("../pages/Portfolio/Portfolio"), { ssr: true });
 const Contact = loadable(() => import("../pages/Contact/Contacts"), { ssr: true });
+const AdminBook = loadable(() => import("../pages/Contact/booking/AdminBook"), { ssr: true });
 const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), { ssr: true });
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), { ssr: true });
 const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerification"), { ssr: true });
@@ -39,6 +40,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/oferta",
     layout: null,
     component: Contact,
+  },
+  {
+    path: "/contact/admin",
+    layout: null,
+    component: AdminBook,
   },
   {
     path: "/media/:slug",

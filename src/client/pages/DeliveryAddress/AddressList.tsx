@@ -36,7 +36,7 @@ export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
         const json = await res.json();
         setData(json.data?.deliveryAddress || null);
       } catch (err: any) {
-        setError(err.message || 'Could not load delivery information');
+        setError(err.message || 'Nu s-au putut încărca informațiile de livrare');
       } finally {
         setLoading(false);
       }
@@ -54,7 +54,7 @@ export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.dialog} onClick={e => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Delivery Address Details</h2>
+          <h2 className={styles.title}>Detalii adresă de livrare</h2>
           <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
             ×
           </button>
@@ -62,51 +62,51 @@ export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
 
         <div className={styles.content}>
           {loading ? (
-            <div className={styles.loading}>Loading delivery details...</div>
+            <div className={styles.loading}>Se încarcă detaliile de livrare...</div>
           ) : error ? (
             <div className={styles.error}>{error}</div>
           ) : !data || Object.keys(data).length === 0 ? (
             <div className={styles.empty}>
-              No delivery address has been submitted for this album yet.
+              Nu a fost încă trimisă nicio adresă de livrare pentru acest album.
             </div>
           ) : (
             <div className={styles.addressView}>
               <div className={styles.section}>
-                <h3 className={styles.sectionTitle}>Recipient</h3>
+                <h3 className={styles.sectionTitle}>Destinatar</h3>
                 <div className={styles.field}>
-                  <span className={styles.fieldLabel}>Full Name</span>
+                  <span className={styles.fieldLabel}>Nume și prenume</span>
                   <span className={styles.fieldValue}>{data.fullName}</span>
                 </div>
                 <div className={styles.field}>
-                  <span className={styles.fieldLabel}>Phone Number</span>
+                  <span className={styles.fieldLabel}>Număr de telefon</span>
                   <span className={styles.fieldValue}>{data.phone}</span>
                 </div>
               </div>
 
               <div className={styles.section}>
-                <h3 className={styles.sectionTitle}>Delivery Location</h3>
+                <h3 className={styles.sectionTitle}>Loc de livrare</h3>
                 <div className={styles.field}>
-                  <span className={styles.fieldLabel}>Street Address</span>
+                  <span className={styles.fieldLabel}>Adresă stradală</span>
                   <span className={styles.fieldValue}>{data.street}</span>
                 </div>
                 <div className={styles.field}>
-                  <span className={styles.fieldLabel}>City</span>
+                  <span className={styles.fieldLabel}>Localitate</span>
                   <span className={styles.fieldValue}>{data.city}</span>
                 </div>
                 {data.easybox && (
                   <div className={styles.field}>
-                    <span className={styles.fieldLabel}>Easybox LockerRoom</span>
+                    <span className={styles.fieldLabel}>Easybox / Locker</span>
                     <span className={`${styles.fieldValue} ${styles.mono}`}>
                       {data.easybox}
                     </span>
-                    <span className={styles.note}>(locker pickup location)</span>
+                    <span className={styles.note}>(punct de ridicare locker)</span>
                   </div>
                 )}
               </div>
 
               <div className={styles.footer}>
                 <div className={styles.timestamp}>
-                  Last updated: {formatDate(data.deliveryAddressUpdatedAt)}
+                  Ultima actualizare: {formatDate(data.deliveryAddressUpdatedAt)}
                 </div>
               </div>
             </div>

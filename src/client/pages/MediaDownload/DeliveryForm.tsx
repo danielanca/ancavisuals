@@ -32,10 +32,10 @@ const [showSuccess, setShowSuccess] = useState(false);
         street : "",
         city : ""
     };
-    if (!form.fullName.trim()) newErrors.fullName = 'Full name is required';
-    if (!form.phone.trim()) newErrors.phone = 'Phone number is required';
-    if (!form.street.trim()) newErrors.street = 'Street address is required';
-    if (!form.city.trim()) newErrors.city = 'City is required';
+    if (!form.fullName.trim()) newErrors.fullName = 'Numele și prenumele sunt obligatorii';
+    if (!form.phone.trim()) newErrors.phone = 'Numărul de telefon este obligatoriu';
+    if (!form.street.trim()) newErrors.street = 'Adresa stradală este obligatorie';
+    if (!form.city.trim()) newErrors.city = 'Localitatea este obligatorie';
     return newErrors;
   };
 
@@ -83,7 +83,7 @@ const [showSuccess, setShowSuccess] = useState(false);
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.dialog} onClick={e => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Delivery Address</h2>
+          <h2 className={styles.title}>Adresă de livrare</h2>
           <button
             type="button"
             className={styles.closeBtn}
@@ -97,12 +97,12 @@ const [showSuccess, setShowSuccess] = useState(false);
         <div className={styles.content}>
         {showSuccess ? (
           <div className={styles.successBanner}>
-          ✓ Delivery address saved successfully!
+          ✓ Adresa de livrare a fost salvată cu succes!
            </div>
           ): (
           <form className={styles.form}>
             <div className={styles.group}>
-              <label className={`${styles.label} ${styles.required}`}>Full Name</label>
+              <label className={`${styles.label} ${styles.required}`}>Nume și prenume</label>
               <input
                 className={styles.input}
                 value={form.fullName}
@@ -112,7 +112,7 @@ const [showSuccess, setShowSuccess] = useState(false);
             </div>
 
             <div className={styles.group}>
-              <label className={`${styles.label} ${styles.required}`}>Phone Number</label>
+              <label className={`${styles.label} ${styles.required}`}>Număr de telefon</label>
               <input
                 className={styles.input}
                 type="tel"
@@ -123,7 +123,7 @@ const [showSuccess, setShowSuccess] = useState(false);
             </div>
 
             <div className={styles.group}>
-              <label className={`${styles.label} ${styles.required}`}>Street Address</label>
+              <label className={`${styles.label} ${styles.required}`}>Adresă stradală</label>
               <input
                 className={styles.input}
                 value={form.street}
@@ -133,7 +133,7 @@ const [showSuccess, setShowSuccess] = useState(false);
             </div>
 
             <div className={styles.group}>
-              <label className={`${styles.label} ${styles.required}`}>City</label>
+              <label className={`${styles.label} ${styles.required}`}>Localitate</label>
               <input
                 className={styles.input}
                 value={form.city}
@@ -143,15 +143,15 @@ const [showSuccess, setShowSuccess] = useState(false);
             </div>
 
             <div className={styles.group}>
-              <label className={styles.label}>Easybox LockerRoom (optional)</label>
+              <label className={styles.label}>Easybox / Locker (opțional)</label>
               <input
                 className={styles.input}
                 value={form.easybox}
                 onChange={e => setForm({ ...form, easybox: e.target.value })}
-                placeholder="e.g. Easybox București Mall – #1245"
+                placeholder="ex. Easybox București Mall – #1245"
               />
               <div className={styles.help}>
-                Leave empty if you prefer home delivery
+                Lasă gol dacă dorești livrare la domiciliu
               </div>
             </div>
 
@@ -162,7 +162,7 @@ const [showSuccess, setShowSuccess] = useState(false);
                 onClick={onClose}
                 disabled={isSubmitting}
               >
-                Cancel
+                Anulează
               </button>
 
               <button
@@ -171,7 +171,7 @@ const [showSuccess, setShowSuccess] = useState(false);
                 className={styles.btnSave}
                 //disabled={isSubmitting}
               >
-                {isSubmitting ? 'Saving...' : 'Save address'}
+                {isSubmitting ? 'Se salvează...' : 'Salvează adresa'}
               </button>
             </div>
           </form>
