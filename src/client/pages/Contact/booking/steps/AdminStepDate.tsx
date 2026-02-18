@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from "react";
+import styles from "../AdminBook.module.scss";
 
 interface Step1DateProps {
   day: number;
@@ -91,47 +92,26 @@ const Step1Date: React.FC<Step1DateProps> = ({
     }
   };
 
+  const handleCheckAvailability = () => {
+    const key = toKey(day, month, year);
+    const isBooked = bookedDates.includes(key);
 
-  const getMonthDate = (checkDate:string) => {
-    let getDate = Number(checkDate.split("-")[2]);
-    let getMonth = Number(checkDate.split("-")[1]);
-    let wordMonth =  MONTHS_RO[getMonth];
-    return `${getDate} ${wordMonth}`;
-  }
-  const handleCheckAvailability = async () => {
-
-    try {
-      const res = await fetch(`/api/event/date-available`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-         date : `${year}-${month+1}-${day}`,
-         dbStore : getMonthDate(`${year}-${month}-${day}`)
-     }),
+    if (isBooked) {
+      setIsAvailable(false);
+      setErrors({
+        date: "Ne pare rău, această dată este deja rezervată. Te rugăm să alegi o altă zi.",
       });
-      let data = await res.json();
-      if (!data.available) {
-        setIsAvailable(false);
-        setErrors({
-          date: "Ne pare rău, această dată este deja rezervată. Te rugăm să alegi o altă zi.",
-        });
-      }else{
-        setIsAvailable(true);
-        setErrors({});
-      }
-    } catch (err) {
-      console.error(err);
+    } else {
+      setIsAvailable(true);
+      setErrors({});
     }
-
   };
 
   return (
     <>
-      <p className="step-title">1) Spune-ne data evenimentului</p>
-
-      <div className="input-group date-select-group">
+      <div className={styles.dateSelectGroup}>
         {/* Zi */}
-        <select className="date-select" value={day} onChange={e => handleDayChange(e.target.value)}>
+        <select className={styles.dateSelect} value={day} onChange={e => handleDayChange(e.target.value)}>
           {Array.from({ length: maxDays }).map((_, i) => {
             const d = i + 1;
             return (
@@ -143,7 +123,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
         </select>
 
         {/* Lună */}
-        <select className="date-select" value={month} onChange={e => handleMonthChange(e.target.value)}>
+        <select className={styles.dateSelect} value={month} onChange={e => handleMonthChange(e.target.value)}>
           {MONTHS_RO.map((label, index) => (
             <option key={label} value={index}>
               {label}
@@ -152,7 +132,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
         </select>
 
         {/* An */}
-        <select className="date-select" value={year} onChange={e => handleYearChange(e.target.value)}>
+        <select className={styles.dateSelect} value={year} onChange={e => handleYearChange(e.target.value)}>
           {Array.from({ length: 7 }).map((_, i) => {
             const y = 2024 + i;
             return (
@@ -162,21 +142,17 @@ const Step1Date: React.FC<Step1DateProps> = ({
             );
           })}
         </select>
-
-        {/* Buton Verifică */}
-        <button type="button" className="verify-btn" onClick={handleCheckAvailability}>
-          Verifică
-        </button>
       </div>
 
-      <p className="selected-date-label">
-        Data selectată: <span className="selected-date-value">{humanDate}</span>
-      </p>
-
-      {isAvailable === true && <p className="ok">Suntem disponibili pe {humanDate} 🎉</p>}
-
-      {isAvailable === false && <p className="error">Ne pare rău, {humanDate} este deja rezervată.</p>}
-    </>
+      {isAvailable !== null && (
+  <div style={{ 
+    color: 'white',
+    textAlign: 'center'
+  }}>
+    {isAvailable ? '✓ Disponibil' : '✗ Occupat – alege altă dată'}
+  </div>
+)}
+  </>
   );
 };
 

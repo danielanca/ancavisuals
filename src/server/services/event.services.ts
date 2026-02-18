@@ -315,29 +315,123 @@ export async function verifyGuest(req: Request, res: Response) {
   }
 }
 
-export async function bookEventDate(req:Request,res:Response){
 
-  try{
-      const data = req.body as BookedDate;      
-      const path = `${data.dbStore}`;
 
-      const eventRef = firestore()
-      .collection(BOOK_COLLECTION)
-      .doc("2026")
-      .collection(path)   // ← subcollection per date
-      .doc();
-      
-      await eventRef.set(data, { merge: true }); // merge = safe update if exists
-      return res.status(200).json({
-        success: true,
-        message : "Date added successfully"
+
+
+
+export async function checkAvailability(req: Request, res: Response) {
+  try {
+    const { date, dbStore } = req.body as { date: string; dbStore: string };
+
+    // Basic input validation
+    if (!date || !dbStore) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: date and dbStore',
       });
+    }
 
-  }catch(err){
-      console.error(err);
-      return res.status(500).json({error: "Date could not be added",
-        message :err
-      })
+    const year = date.split('-')[0];
+    const documentId = dbStore.trim();
+
+    const docRef = firestore()
+      .collection(BOOK_COLLECTION)
+      .doc(year)
+      .collection('days')
+      .doc(documentId);
+
+    const docSnap = await docRef.get();
+
+    if (docSnap.exists) {
+      return res.status(201).json({
+        success: true,
+        available: false,
+        message: 'This date is already booked',
+        date,
+        bookedBy: docSnap.data()?.title || 'Unknown' // optional: show title if you want
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      available: true,
+      message: 'Date is available',
+      date
+    });
+
+  } catch (err: any) {
+    console.error('Availability check failed:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to check availability'
+    });
   }
+}
 
+// ───────────────────────────────────────────────
+// 2. BOOK DATE (only succeeds if available)
+// ───────────────────────────────────────────────
+export async function bookDate(req: Request, res: Response) {
+  try {
+    const data = req.body as {
+      date: string;
+      title: string;
+      desc?: string;
+      dbStore: string;
+      phone?: string;
+      price?:string;
+    };
+
+    // Required fields validation
+    if (!data.date || !data.title || !data.dbStore || !data.price || !data.phone){
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: date, title, phone, price'
+      });
+    }
+
+    const year = data.date.split('-')[0];
+    const documentId = data.dbStore.trim();
+
+    const docRef = firestore()
+      .collection(BOOK_COLLECTION)
+      .doc(year)
+      .collection('days')
+      .doc(documentId);
+
+    // Check availability first (atomic-friendly with transaction possible later)
+    const docSnap = await docRef.get();
+
+    if (docSnap.exists) {
+      return res.status(409).json({  // 409 Conflict
+        success: false,
+        error: 'This date is already booked',
+        date: data.date
+      });
+    }
+
+    // Prepare data to save
+    const bookingData = {
+      ...data,
+      //createdAt: FieldValue.serverTimestamp(),
+     // updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    await docRef.set(bookingData);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Date booked successfully',
+      date: data.date,
+      title: data.title
+    });
+
+  } catch (err: any) {
+    console.error('Booking failed:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create booking'
+    });
+  }
 }
