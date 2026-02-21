@@ -147,7 +147,7 @@ export default function AdminBook() {
     const params = new URLSearchParams({
       action: 'TEMPLATE',
       text: title,
-      dates: `${start}/${end}`,
+      dates: `${start}`,
       details: description ? `Descriere: ${description}\nTelefon: ${phone}\nPreț: ${price}` : '',
       location: '', // add if you have venue
     });
