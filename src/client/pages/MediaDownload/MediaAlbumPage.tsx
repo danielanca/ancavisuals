@@ -56,8 +56,22 @@ const fileNameFromUrl = (src: string) => {
 const getPathFromSignedUrl = (signedUrl: string) => new URL(signedUrl).pathname.replace(/^\/+/, "");
 
 const buildDownloadUrl = (signedUrl: string, name: string) => {
+
+
   const path = getPathFromSignedUrl(signedUrl);
   return `/api/download?path=${encodeURIComponent(path)}&name=${encodeURIComponent(name)}`;
+};
+
+const getSwissUrl = async (slug: string) => {
+const res = await fetch(`/api/album/${slug}/delivery-address`);
+
+if(res.ok){
+  if (!res.ok) throw new Error('Failed to load address');
+        
+  const json = await res.json();
+ return json.data.swissLink;
+}
+return "";
 };
 
 export default function MediaAlbumPage() {
@@ -116,6 +130,9 @@ const [showUrlModal, setShowUrlModal] = useState(false);
 const [customUrl, setCustomUrl] = useState("");           // ← value in the input
 const clickTimeoutRef = useRef<number | null>(null);
 
+const [swissLink, setSwissLink] = useState<string | null>(null);
+const [swissLoading, setSwissLoading] = useState(true);
+
 
 
   //Delivery Form
@@ -146,6 +163,27 @@ const clickTimeoutRef = useRef<number | null>(null);
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setStats(d))
       .catch(() => setStats(null));
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+  
+    let cancelled = false;
+  
+    (async () => {
+      try {
+        setSwissLoading(true);
+        const url = await getSwissUrl(slug);
+        if (!cancelled) setSwissLink(url || null);
+      } catch (err) {
+        console.error("Failed to load swiss link", err);
+        if (!cancelled) setSwissLink(null);
+      } finally {
+        if (!cancelled) setSwissLoading(false);
+      }
+    })();
+  
+    return () => { cancelled = true; };
   }, [slug]);
 
   const downloadAllPhotos = () => {
@@ -519,6 +557,7 @@ const clickTimeoutRef = useRef<number | null>(null);
   };
 
 const setDownloadLink = () => {
+  getSwissUrl(slug!);
  if (clickTimeoutRef.current) {
       window.clearTimeout(clickTimeoutRef.current);
     }
@@ -940,7 +979,7 @@ const setDownloadLink = () => {
                 </div>
               </div>
               <div className={styles.actions}>
-                <a className={styles.downloadBtn} href={buildDownloadUrl(album.shortvideo, `${album.slug}-film-scurt.mp4`)}>
+                <a className={styles.downloadBtn} href={swissLink!}>
                   {"DESCARCĂ VIDEO" + (stats?.shortVideoBytes ? ` (${fmtBytes(stats.shortVideoBytes)})` : "")}
                 </a>
               </div>
@@ -956,7 +995,7 @@ const setDownloadLink = () => {
                 </div>
               </div>
               <div className={styles.actions}>
-                <a className={styles.downloadBtn} href={buildDownloadUrl(album.longvideo, `${album.slug}-film-complet.mp4`)}>
+                <a className={styles.downloadBtn} href={swissLink!}>
                   {"DESCARCĂ FILMUL COMPLET" + (stats?.longVideoBytes ? ` (${fmtBytes(stats.longVideoBytes)})` : "")}
                 </a>
 
