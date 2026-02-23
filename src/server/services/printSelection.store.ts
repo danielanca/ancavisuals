@@ -75,3 +75,17 @@ export async function readDeliveryAddress(slug: string): Promise<string[]> {
   const data = snap.data() as any;
   return data;
 }
+
+
+
+export async function addLink(slug: string,link: string){
+  await firestore()
+    .collection(COL)
+    .doc(slug)
+    .update({
+      swissLink: link
+})
+    .catch((err) => {
+      throw err;
+    });
+}

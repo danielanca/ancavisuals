@@ -3,7 +3,7 @@ import archiver from "archiver";
 import axios from "axios";
 import { Readable } from "stream";
 import { loadAlbum } from "../server/services/album.services";
-import { readPrintSelection, savePrintSelection,saveDeliveryAddress,readDeliveryAddress } from "../server/services/printSelection.store";
+import { readPrintSelection, savePrintSelection,saveDeliveryAddress,readDeliveryAddress,addLink } from "../server/services/printSelection.store";
 import { signBunnyUrl } from "./signBunnyUrl";
 import { getFirestore } from "firebase-admin/firestore";
 import fetch from "node-fetch";
@@ -330,4 +330,43 @@ export async function getDeliveryAddress(req:Request,res:Response){
     });
   }
 
+}
+export async function addSwissLink(req: Request, res: Response) {
+  try {
+    const { slug } = req.params;
+
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing slug in URL',
+      });
+    }
+
+    const data = req.body;
+
+    // Decide on ONE field name — here we use "link" consistently
+    if (!data.link) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: link',
+      });
+    }
+
+    // Make sure this function exists and accepts (slug: string, link: string)
+    await addLink(slug, data.link);
+
+    console.log(`Swiss link added → ${slug}: ${data.link}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Swiss link saved successfully',
+    });
+  } catch (error) {
+    console.error('Error saving swiss link:', error);
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to save swiss link',
+    });
+  }
 }

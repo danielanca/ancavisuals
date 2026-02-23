@@ -141,13 +141,13 @@ export default function AdminBook() {
 
     // Parse date – assumes full-day event (adjust if you have time)
     const [y, m, d] = date.split('-');
-    const start = `${y}${m}${d}T000000Z`; // midnight UTC
+    const start = `${y}${m}${d}`; // midnight UTC
     const end   = `${y}${m}${d}T235959Z`; // end of day UTC
 
     const params = new URLSearchParams({
       action: 'TEMPLATE',
       text: title,
-      dates: `${start}`,
+      date:start,
       details: description ? `Descriere: ${description}\nTelefon: ${phone}\nPreț: ${price}` : '',
       location: '', // add if you have venue
     });

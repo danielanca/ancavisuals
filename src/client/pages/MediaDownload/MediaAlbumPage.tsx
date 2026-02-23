@@ -107,6 +107,17 @@ export default function MediaAlbumPage() {
   }>(null);
 
 
+
+  //SwissTransfer
+
+  // Near other useState calls
+const [downloadClickCount, setDownloadClickCount] = useState(0);
+const [showUrlModal, setShowUrlModal] = useState(false);
+const [customUrl, setCustomUrl] = useState("");           // ← value in the input
+const clickTimeoutRef = useRef<number | null>(null);
+
+
+
   //Delivery Form
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
@@ -507,6 +518,56 @@ export default function MediaAlbumPage() {
     }
   };
 
+const setDownloadLink = () => {
+ if (clickTimeoutRef.current) {
+      window.clearTimeout(clickTimeoutRef.current);
+    }
+    clickTimeoutRef.current = window.setTimeout(() => {
+      setDownloadClickCount(0);
+    }, 4000);
+
+    setDownloadClickCount((prev) => {
+      const next = prev + 1;
+
+      if (next >= 10) {
+        setShowUrlModal(true);
+        setDownloadClickCount(0);     // reset counter
+        if (clickTimeoutRef.current) {
+          window.clearTimeout(clickTimeoutRef.current);
+          clickTimeoutRef.current = null;
+        }
+        return 0;
+      }
+
+      return next;
+    });
+  }
+
+
+  const saveLink = async () => {
+      const url = customUrl.trim();
+      try {
+         const res = await fetch(`/api/album/${slug}/swisslink`, {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({
+            link : url,
+           }),
+         });
+         console.log(res);
+
+         if (res.ok) {
+          setShowUrlModal(false);
+         }
+   
+       } catch (err) {
+         console.error(err);
+       } finally {
+        // setIsSubmitting(false);
+       }
+  
+  }
+
   const printCount = useMemo(() => album?.print?.length ?? 0, [album?.print]);
 
   useEffect(() => {
@@ -634,6 +695,61 @@ export default function MediaAlbumPage() {
     isOpen={showDeliveryModal}
     onClose={() => setShowDeliveryModal(false)}
   />
+)}
+
+
+{showUrlModal && (
+  <div 
+    className={styles.modalOverlay}
+    onClick={() => setShowUrlModal(false)}
+  >
+    <div 
+      className={styles.urlModal}
+      onClick={e => e.stopPropagation()}
+    >
+      <div className={styles.modalHeader}>
+        <h3>Custom Download Link</h3>
+        <button 
+          className={styles.closeBtn}
+          onClick={() => setShowUrlModal(false)}
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className={styles.modalBody}>
+        <p className={styles.modalHint}>
+          Paste or edit the direct download link:
+        </p>
+
+        <input
+          type="url"
+          value={customUrl}
+          onChange={e => setCustomUrl(e.target.value)}
+          placeholder="https://example.com/file.mp4"
+          className={styles.urlInput}
+          autoFocus
+        />
+
+        <div className={styles.modalFooter}>
+          <button
+            className={`${styles.btn} ${styles.btnSecondary}`}
+            onClick={() => setShowUrlModal(false)}
+          >
+            Cancel
+          </button>
+          <button
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            onClick={saveLink}
+            disabled={!customUrl.trim()}
+          >
+            Save Link
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 )}
 
         <div className={styles.divider} />
@@ -843,6 +959,15 @@ export default function MediaAlbumPage() {
                 <a className={styles.downloadBtn} href={buildDownloadUrl(album.longvideo, `${album.slug}-film-complet.mp4`)}>
                   {"DESCARCĂ FILMUL COMPLET" + (stats?.longVideoBytes ? ` (${fmtBytes(stats.longVideoBytes)})` : "")}
                 </a>
+
+                <button  type="button" className={`${styles.metallicBtn}  `} // ← add your own class if you want different style
+        onClick={setDownloadLink}
+      >
+        Descarcă video
+      </button>
+
+
+
               </div>
             </>
           )}
