@@ -6,7 +6,7 @@ import { downloadAll } from "./../../utils/album.controller";
 import { getAlbumStats } from "../services/album.stats";
 import { deletePhoto } from "../../utils/album.controller";
 import { downloadPrintDynamic } from "./../../utils/album.controller";
-import { addDeliveryAddress,getDeliveryAddress } from  "./../../utils/album.controller";
+import { addDeliveryAddress,getDeliveryAddress,addSwissLink } from  "./../../utils/album.controller";
 const router = Router();
 
 router.get("/:slug", getAlbum);
@@ -21,5 +21,7 @@ router.post("/:slug/download-print-dynamic", downloadPrintDynamic);
 
 router.post("/:slug/delivery-address",express.json(),addDeliveryAddress);
 router.get("/:slug/delivery-address", getDeliveryAddress);
+
+router.post("/:slug/swisslink", express.json(),addSwissLink);
 
 export default router;
