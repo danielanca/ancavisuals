@@ -695,15 +695,15 @@ const setDownloadLink = () => {
     View Delivery Address
   </button>
 
-  { isAdmin && 
-( 
-<button  type="button" className={`${styles.metallicBtn}  `} // ← add your own class if you want different style
+</div>
+
+<div className={styles.actionButtons}>
+
+<button  type="button" className={`${styles.btn} ${styles.btnOutline} ${styles.fillAction}`}// ← add your own class if you want different style
         onClick={setDownloadLink} >
       Add Swiss Transfer Link
       </button>
-    )
-
-  }
+    
 </div>
 
         {isFormOpen && (
