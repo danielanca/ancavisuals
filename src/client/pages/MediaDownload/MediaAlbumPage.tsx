@@ -558,28 +558,7 @@ const [swissLoading, setSwissLoading] = useState(true);
 
 const setDownloadLink = () => {
   getSwissUrl(slug!);
- if (clickTimeoutRef.current) {
-      window.clearTimeout(clickTimeoutRef.current);
-    }
-    clickTimeoutRef.current = window.setTimeout(() => {
-      setDownloadClickCount(0);
-    }, 4000);
-
-    setDownloadClickCount((prev) => {
-      const next = prev + 1;
-
-      if (next >= 10) {
-        setShowUrlModal(true);
-        setDownloadClickCount(0);     // reset counter
-        if (clickTimeoutRef.current) {
-          window.clearTimeout(clickTimeoutRef.current);
-          clickTimeoutRef.current = null;
-        }
-        return 0;
-      }
-
-      return next;
-    });
+  setShowUrlModal(true);
   }
 
 
@@ -715,6 +694,16 @@ const setDownloadLink = () => {
   >
     View Delivery Address
   </button>
+
+  { isAdmin && 
+( 
+<button  type="button" className={`${styles.metallicBtn}  `} // ← add your own class if you want different style
+        onClick={setDownloadLink} >
+      Add Swiss Transfer Link
+      </button>
+    )
+
+  }
 </div>
 
         {isFormOpen && (
@@ -986,28 +975,19 @@ const setDownloadLink = () => {
             </>
           )}
 
-          {album.longvideo && (
+          {swissLink && (
             <>
               <h2 className={styles.sectionTitle}>Film complet</h2>
               <div className={styles.mediaCenter}>
                 <div className={styles.videoWrap}>
-                  <video className={styles.video} controls playsInline preload="metadata" src={album.longvideo} />
-                </div>
+                <img src="https://img.youtube.com/vi/sA8VXDYePwA/maxresdefault.jpg" alt="Static video frame"className={styles.video}/>
+  </div>
               </div>
               <div className={styles.actions}>
                 <a className={styles.downloadBtn} href={swissLink!}>
                   {"DESCARCĂ FILMUL COMPLET" + (stats?.longVideoBytes ? ` (${fmtBytes(stats.longVideoBytes)})` : "")}
                 </a>
-
-                <button  type="button" className={`${styles.metallicBtn}  `} // ← add your own class if you want different style
-        onClick={setDownloadLink}
-      >
-        Descarcă video
-      </button>
-
-
-
-              </div>
+                  </div>
             </>
           )}
         </div>
