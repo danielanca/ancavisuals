@@ -698,12 +698,14 @@ const setDownloadLink = () => {
 </div>
 
 <div className={styles.actionButtons}>
-
+{ isAdmin && (
 <button  type="button" className={`${styles.btn} ${styles.btnOutline} ${styles.fillAction}`}// ← add your own class if you want different style
         onClick={setDownloadLink} >
       Add Swiss Transfer Link
       </button>
+)
     
+}
 </div>
 
         {isFormOpen && (
