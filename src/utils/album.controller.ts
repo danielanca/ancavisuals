@@ -316,7 +316,6 @@ export async function getDeliveryAddress(req:Request,res:Response){
   try {
     const { slug } = req.params;
     const result = await readDeliveryAddress(slug);
-    console.log(result);
     return res.status(200).json({
       data : result,
       success: true,
@@ -354,8 +353,6 @@ export async function addSwissLink(req: Request, res: Response) {
 
     // Make sure this function exists and accepts (slug: string, link: string)
     await addLink(slug, data.link);
-
-    console.log(`Swiss link added → ${slug}: ${data.link}`);
 
     return res.status(200).json({
       success: true,

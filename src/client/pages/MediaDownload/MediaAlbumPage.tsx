@@ -685,14 +685,14 @@ const setDownloadLink = () => {
     className={`${styles.btn} ${styles.btnOutline} ${styles.fillAction}`}
     onClick={() => setIsFormOpen(true)}
   >
-    Fill up delivery address
+    Adresa de livrare a completării
   </button>
 
   <button 
     className={`${styles.btn} ${styles.btnOutline} ${styles.viewAction}`}
     onClick={() => setShowDeliveryModal(true)}
   >
-    View Delivery Address
+    Vezi adresa de livrare
   </button>
 
 </div>
