@@ -65,19 +65,19 @@ export default function AlbumPager({
             <span className={styles.icon} aria-hidden="true">
               «
             </span>
-            <span className={styles.label}>First</span>
+            <span className={styles.label}>Primul</span>
           </button>
 
           <button className={styles.btn} type="button" onClick={onPrev} disabled={disabled || currentPage <= 1}>
             <span className={styles.icon} aria-hidden="true">
               ‹
             </span>
-            <span className={styles.label}>Prev</span>
+            <span className={styles.label}>Anterior</span>
           </button>
         </div>
 
         <div className={styles.pg}>
-          <span className={styles.pgLabel}>Pg</span>
+          <span className={styles.pgLabel}>Pagina</span>
           <input
             className={styles.pgInput}
             inputMode="numeric"
@@ -101,7 +101,7 @@ export default function AlbumPager({
             onClick={onNext}
             disabled={disabled || currentPage >= totalPages}
           >
-            <span className={styles.label}>Next</span>
+            <span className={styles.label}>Următorul</span>
             <span className={styles.icon} aria-hidden="true">
               ›
             </span>
@@ -113,7 +113,7 @@ export default function AlbumPager({
             onClick={onLast}
             disabled={disabled || currentPage >= totalPages}
           >
-            <span className={styles.label}>Last</span>
+            <span className={styles.label}>Ultimul</span>
             <span className={styles.icon} aria-hidden="true">
               »
             </span>
