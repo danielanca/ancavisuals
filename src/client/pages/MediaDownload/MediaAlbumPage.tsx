@@ -48,9 +48,15 @@ const fmtBytes = (n: number) => {
 };
 
 const fileNameFromUrl = (src: string) => {
-  const p = new URL(src).pathname;
-  const last = p.split("/").pop() || "";
-  return decodeURIComponent(last);
+  try {
+    const p = new URL(src).pathname;
+    const last = p.split("/").pop() || "";
+    return decodeURIComponent(last);
+  } catch {
+    const clean = src.split("?")[0].split("#")[0];
+    const last = clean.split("/").pop() || clean;
+    return decodeURIComponent(last);
+  }
 };
 
 const getPathFromSignedUrl = (signedUrl: string) => new URL(signedUrl).pathname.replace(/^\/+/, "");
@@ -226,6 +232,12 @@ const [swissLoading, setSwissLoading] = useState(true);
     return m;
   }, [album?.originalPhoto]);
 
+  const previewByName = useMemo(() => {
+    const m = new Map<string, string>();
+    (album?.photos ?? []).forEach((u) => m.set(fileNameFromUrl(u), u));
+    return m;
+  }, [album?.photos]);
+
   const galleryOrgPhotos = useMemo(() => {
     if (!galleryPhotos.length) return [];
     if (!album?.originalPhoto?.length) return galleryPhotos;
@@ -238,6 +250,16 @@ const [swissLoading, setSwissLoading] = useState(true);
     if (!album?.originalPhoto?.length) return featured;
     return featured.map((u) => originalByName.get(fileNameFromUrl(u)) ?? u);
   }, [album?.featured, album?.originalPhoto, originalByName]);
+
+  const printPhotos = useMemo(() => {
+    return (album?.print ?? []).map((item) => {
+      const fileName = fileNameFromUrl(item);
+      return {
+        fileName,
+        src: previewByName.get(fileName) ?? item,
+      };
+    });
+  }, [album?.print, previewByName]);
 
   useEffect(() => {
     photosTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -926,27 +948,24 @@ const setDownloadLink = () => {
 
           {printCount > 0 ? (
             <div className={styles.printPhotosGrid}>
-              {album.print!.map((src) => {
-                const fileName = fileNameFromUrl(src);
-                return (
-                  <div key={src} className={styles.printPhotoWrapper}>
-                    <img
-                      src={src}
-                      alt={`Poză pentru imprimare: ${fileName}`}
-                      className={styles.printPhotoImg}
-                      loading="lazy"
-                    />
-                    <button
-                      className={styles.removePrintBtn}
-                      onClick={() => removeFromPrint(fileName)}
-                      aria-label={`Elimină ${fileName} din lista de imprimare`}
-                      title="Elimină din lista de imprimare"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                );
-              })}
+              {printPhotos.map(({ fileName, src }) => (
+                <div key={fileName} className={styles.printPhotoWrapper}>
+                  <img
+                    src={src}
+                    alt={`Poză pentru imprimare: ${fileName}`}
+                    className={styles.printPhotoImg}
+                    loading="lazy"
+                  />
+                  <button
+                    className={styles.removePrintBtn}
+                    onClick={() => removeFromPrint(fileName)}
+                    aria-label={`Elimină ${fileName} din lista de imprimare`}
+                    title="Elimină din lista de imprimare"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
           ) : (
             <p className={styles.emptyPrint}>Nu ai selectat încă poze pentru imprimat.</p>
