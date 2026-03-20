@@ -1,31 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // ← Added this import
+import { useParams, useNavigate } from 'react-router-dom';
+import parse from 'html-react-parser';
 import './QRMoments.scss';
 
-// Wizard component (embedded here for simplicity – you can move to separate file)
 const QRWizard = ({ onClose }: { onClose: () => void }) => {
   const [step, setStep] = useState(0);
 
   const steps = [
     {
-      title: "Bine ai venit la QR Moments!",
-      content: "Aici poți încărca poze, clipuri și mesaje vocale pentru miri. Tot ce surprindeți voi devine parte din povestea nunții!",
-      icon: "✨"
+      title: 'Bine ai venit la QR Moments!',
+      content: 'Aici poți încărca poze, clipuri și mesaje vocale pentru miri. Tot ce surprindeți voi devine parte din povestea nunții!',
+      icon: '✨'
     },
     {
-      title: "Cum funcționează?",
-      content: "Alege tipul de conținut (Poze, Video sau Mesaj), apoi apasă butonul mare pentru a selecta fișierele de pe telefon sau cameră.",
-      icon: "📱"
+      title: 'Cum funcționează?',
+      content: 'Alege tipul de conținut (Poze, Video sau Mesaj), apoi apasă butonul mare pentru a selecta fișierele de pe telefon sau cameră.',
+      icon: '📱'
     },
     {
-      title: "Pentru mesaje vocale",
-      content: "Permite accesul la microfon, apasă „Începe înregistrarea”, vorbește din inimă (max 60 sec), apoi „Stop & Preview” și „Trimite mesajul”!",
-      icon: "🎤"
+      title: 'Pentru mesaje vocale',
+      content: 'Permite accesul la microfon, apasă „Începe înregistrarea", vorbește din inimă (max 60 sec), apoi „Stop & Previzualizare" și „Trimite mesajul"!',
+      icon: '🎤'
     },
     {
-      title: "Gata de trimis!",
-      content: "După ce ai selectat tot, apasă „Trimite toate” — fișierele ajung instant la miri. Ei vor fi emoționați să vadă ce ați surprins!",
-      icon: "❤️"
+      title: 'Gata de trimis!',
+      content: 'După ce ai selectat tot, apasă „Trimite toate" — fișierele ajung instant la miri. Ei vor fi emoționați să vadă ce ați surprins!',
+      icon: '❤️'
     }
   ];
 
@@ -34,9 +34,9 @@ const QRWizard = ({ onClose }: { onClose: () => void }) => {
       <div className="qr-wizard-modal">
         <button className="wizard-close" onClick={onClose}>×</button>
 
-        <div className="wizard-icon">{steps[step].icon}</div>
-        <h2 className="wizard-title">{steps[step].title}</h2>
-        <p className="wizard-text">{steps[step].content}</p>
+        <div className="wizard-icon">{parse(steps[step].icon)}</div>
+        <h2 className="wizard-title">{parse(steps[step].title)}</h2>
+        <p className="wizard-text">{parse(steps[step].content)}</p>
 
         <div className="wizard-progress">
           {steps.map((_, i) => (
@@ -46,13 +46,13 @@ const QRWizard = ({ onClose }: { onClose: () => void }) => {
 
         <div className="wizard-buttons">
           <button className="wizard-skip" onClick={onClose}>
-            Sari peste
+            {parse('Sari peste')}
           </button>
           <button className="wizard-next" onClick={() => {
             if (step < steps.length - 1) setStep(step + 1);
             else onClose();
           }}>
-            {step === steps.length - 1 ? 'Începe acum' : 'Următorul'}
+            {step === steps.length - 1 ? parse('Începe acum') : parse('Următorul')}
           </button>
         </div>
       </div>
@@ -63,14 +63,13 @@ const QRWizard = ({ onClose }: { onClose: () => void }) => {
 const QRMomentsPage: React.FC = () => {
   const [eventInfo, setEventInfo] = useState<any | null>(null);
   const [firstVisit, setFirstVisit] = useState<boolean | null>(null);
-  const { eventDate } = useParams<{ eventDate: string }>(); // ← Get eventDate from URL
+  const { eventDate } = useParams<{ eventDate: string }>();
   const [activeTab, setActiveTab] = useState<'photos' | 'videos' | 'audio'>('photos');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
 
-  // Audio-specific states
   const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -85,53 +84,49 @@ const QRMomentsPage: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null); // for recording waveform
-  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null); // for preview waveform
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewAudioContextRef = useRef<AudioContext | null>(null);
   const previewSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const previewAnalyserRef = useRef<AnalyserNode | null>(null);
 
-  const navigate = useNavigate(); // ← This creates the navigate function
-  //const apiKey = process.env.BUNNY_STORAGE_KEY!;
+  const navigate = useNavigate();
 
-  // Wizard state
   const [showWizard, setShowWizard] = useState(() => {
     return localStorage.getItem('qr-moments-wizard-seen') !== 'true';
   });
 
   const [clickTime, setClickTime] = useState(0);
 
-// First check DB to see if this is first visit
-useEffect(() => {
-  const checkDBForFirstVisit = async () => {
-    try {
-      const response = await fetch(`/api/urlcheck/${eventDate}`, {
-        method: "GET",
-      });
+  useEffect(() => {
+    const checkDBForFirstVisit = async () => {
+      try {
+        const response = await fetch(`/api/urlcheck/${eventDate}`, {
+          method: 'GET',
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        setFirstVisit(data.urlFound); 
-        setEventInfo(data.data);
+        if (response.ok) {
+          const data = await response.json();
+          setFirstVisit(data.urlFound);
+          setEventInfo(data.data);
+        }
+      } catch (err) {
+        console.error('Failed to check first visit:', err);
+        setFirstVisit(false);
       }
-    } catch (err) {
-      console.error("Failed to check first visit:", err);
-      setFirstVisit(false); // fallback
-    }
-  };
+    };
 
-  checkDBForFirstVisit();
-}, [eventDate]);
+    checkDBForFirstVisit();
+  }, [eventDate]);
 
-// Helper Functions
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Replace with real event ID later
   const eventId = eventDate;
+
   const openFilePicker = (accept: string) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -161,21 +156,19 @@ useEffect(() => {
 
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-
     setPreviews(prev => {
       URL.revokeObjectURL(prev[index]);
       return prev.filter((_, i) => i !== index);
     });
   };
 
-  // ── Audio Recording & Playback ──────────────────────────────────────────────
   const requestMicPermission = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
       setAudioPermission('granted');
     } catch (err) {
-      console.error("Microphone permission denied:", err);
+      console.error('Microphone permission denied:', err);
       setAudioPermission('denied');
     }
   };
@@ -191,24 +184,42 @@ useEffect(() => {
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const audioContext = new AudioContextClass();
+
+      // FIX #4 — Safari necesită resume() după creare
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048; // larger for smoother wave
+      analyser.fftSize = 2048;
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      const mediaRecorder = new MediaRecorder(stream);
+      // FIX #2 — detectare corectă mimeType pentru Safari vs Chrome
+      const mimeType = MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : '';
+
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
       mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
 
       mediaRecorder.onstop = () => {
         const recordedMimeType = mediaRecorder.mimeType || 'audio/mp4';
-
         const blob = new Blob(audioChunksRef.current, { type: recordedMimeType });
-
-        //const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
         setAudioPreviewUrl(url);
@@ -219,8 +230,7 @@ useEffect(() => {
           `voice-${Date.now()}.${extension}`,
           { type: recordedMimeType }
         );
-        
-        //const audioFile = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+
         setSelectedFiles(prev => [...prev, audioFile]);
         setPreviews(prev => [...prev, url]);
 
@@ -245,7 +255,7 @@ useEffect(() => {
       }, 1000);
 
     } catch (err) {
-      console.error("Failed to start recording:", err);
+      console.error('Failed to start recording:', err);
       setAudioPermission('denied');
     }
   };
@@ -265,25 +275,23 @@ useEffect(() => {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play().catch(e => console.error("Playback error:", e));
+        audioRef.current.play().catch(e => console.error('Playback error:', e));
       }
       setIsPlaying(!isPlaying);
     }
   };
 
-// Start drawing waveform when canvas is ready (during recording or preview)
-useEffect(() => {
-  if ((isRecording && canvasRef.current) || (audioPreviewUrl && previewCanvasRef.current)) {
-    drawWaveform();
-  }
-}, [isRecording, audioPreviewUrl]); // run when recording starts or preview appears
+  useEffect(() => {
+    if ((isRecording && canvasRef.current) || (audioPreviewUrl && previewCanvasRef.current)) {
+      drawWaveform();
+    }
+  }, [isRecording, audioPreviewUrl]);
 
-useEffect(() => {
-  if (audioPreviewUrl && previewCanvasRef.current && isPlaying) {
-    drawWaveform();
-  }
-}, [isPlaying]); // re-trigger on every play/pause
-  // Update time & duration
+  useEffect(() => {
+    if (audioPreviewUrl && previewCanvasRef.current && isPlaying) {
+      drawWaveform();
+    }
+  }, [isPlaying]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -304,9 +312,14 @@ useEffect(() => {
     };
   }, [audioPreviewUrl]);
 
-  // Permission check on tab switch
+  // FIX #3 — Safari nu suportă permissions.query pentru microfon
   useEffect(() => {
     if (activeTab !== 'audio') return;
+
+    if (!navigator.permissions || typeof navigator.permissions.query !== 'function') {
+      setAudioPermission('unknown');
+      return;
+    }
 
     navigator.permissions
       .query({ name: 'microphone' as PermissionName })
@@ -317,102 +330,95 @@ useEffect(() => {
       .catch(() => setAudioPermission('unknown'));
   }, [activeTab]);
 
-// Real-time waveform drawing (both during recording and preview)
-const drawWaveform = () => {
-  let canvas: HTMLCanvasElement | null = null;
-  let analyser: AnalyserNode | null = analyserRef.current;
-  let audioContext: AudioContext | null = null;
+  const drawWaveform = () => {
+    let canvas: HTMLCanvasElement | null = null;
+    let analyser: AnalyserNode | null = analyserRef.current;
 
-  if (isRecording) {
-    canvas = canvasRef.current;
-  } else if (audioPreviewUrl && previewCanvasRef.current && audioRef.current) {
-    canvas = previewCanvasRef.current;
+    if (isRecording) {
+      canvas = canvasRef.current;
+    } else if (audioPreviewUrl && previewCanvasRef.current && audioRef.current) {
+      canvas = previewCanvasRef.current;
 
-    // For preview: create analyser & source ONLY ONCE per new preview (fixes flat wave after delete/record again)
-    if (!previewAnalyserRef.current) {
-      try {
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        previewAudioContextRef.current = audioContext;
+      if (!previewAnalyserRef.current) {
+        try {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          const audioContext = new AudioContextClass();
 
-        const source = audioContext.createMediaElementSource(audioRef.current);
-        previewSourceRef.current = source;
+          // FIX #4 — Safari resume
+          if (audioContext.state === 'suspended') {
+            audioContext.resume();
+          }
 
-        const newAnalyser = audioContext.createAnalyser();
-        newAnalyser.fftSize = 2048;
-        newAnalyser.smoothingTimeConstant = 0.85;
-        source.connect(newAnalyser);
-        source.connect(audioContext.destination); // ensure sound plays normally
-        previewAnalyserRef.current = newAnalyser;
+          previewAudioContextRef.current = audioContext;
 
-        analyser = newAnalyser;
-      } catch (err) {
-        console.error("Failed to create preview analyser:", err);
-        return;
+          const source = audioContext.createMediaElementSource(audioRef.current);
+          previewSourceRef.current = source;
+
+          const newAnalyser = audioContext.createAnalyser();
+          newAnalyser.fftSize = 2048;
+          newAnalyser.smoothingTimeConstant = 0.85;
+          source.connect(newAnalyser);
+          source.connect(audioContext.destination);
+          previewAnalyserRef.current = newAnalyser;
+
+          analyser = newAnalyser;
+        } catch (err) {
+          console.error('Failed to create preview analyser:', err);
+          return;
+        }
+      } else {
+        analyser = previewAnalyserRef.current;
       }
-    } else {
-      analyser = previewAnalyserRef.current;
-    }
-  }
-
-  if (!canvas || !analyser) {
-    console.warn("Canvas or analyser not ready");
-    return;
-  }
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    console.warn("Canvas context not available");
-    return;
-  }
-
-  const bufferLength = analyser.frequencyBinCount;
-  const dataArray = new Uint8Array(bufferLength);
-
-  const draw = () => {
-    if (!ctx || !analyser) return;
-
-    animationFrameRef.current = requestAnimationFrame(draw);
-
-    analyser.getByteTimeDomainData(dataArray);
-
-    ctx.fillStyle = "#1a1a1c"; // soft dark cream background
-    ctx.fillRect(0, 0, canvas!.width, canvas!.height);
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#9b2d30"; // wine red line
-    ctx.beginPath();
-
-    const sliceWidth = canvas!.width / bufferLength;
-    let x = 0;
-
-    for (let i = 0; i < bufferLength; i++) {
-      const v = dataArray[i] / 128.0;
-      const y = (v * canvas!.height) / 2;
-
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-
-      x += sliceWidth;
     }
 
-    ctx.lineTo(canvas!.width, canvas!.height / 2);
-    ctx.stroke();
+    if (!canvas || !analyser) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // FIX #6 — canvas width trebuie să fie număr, nu "100%"
+    canvas.width = canvas.offsetWidth || 300;
+    canvas.height = canvas.offsetHeight || 150;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const draw = () => {
+      if (!ctx || !analyser) return;
+
+      animationFrameRef.current = requestAnimationFrame(draw);
+      analyser.getByteTimeDomainData(dataArray);
+
+      ctx.fillStyle = '#1a1a1c';
+      ctx.fillRect(0, 0, canvas!.width, canvas!.height);
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#9b2d30';
+      ctx.beginPath();
+
+      const sliceWidth = canvas!.width / bufferLength;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = (v * canvas!.height) / 2;
+
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+
+        x += sliceWidth;
+      }
+
+      ctx.lineTo(canvas!.width, canvas!.height / 2);
+      ctx.stroke();
+    };
+
+    draw();
+
+    return () => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    };
   };
-
-  draw();
-
-  // Cleanup only when preview ends or component unmounts
-  return () => {
-    if (audioContext && !isRecording) {
-      audioContext.close();
-      previewAudioContextRef.current = null;
-      previewAnalyserRef.current = null;
-      previewSourceRef.current = null;
-    }
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-  };
-};
-
 
   const handleUploadAll = async () => {
     if (selectedFiles.length === 0) return;
@@ -435,7 +441,7 @@ const drawWaveform = () => {
       if (!response.ok) throw new Error('Upload failed');
 
       const result = await response.json();
-      setUploadMessage(`Success! ${result.uploadedCount} file(s) uploaded! 🎉`);
+      setUploadMessage(`Succes! ${result.uploadedCount} fișier(e) încărcate! 🎉`);
 
       previews.forEach(URL.revokeObjectURL);
       setSelectedFiles([]);
@@ -445,51 +451,45 @@ const drawWaveform = () => {
       setIsPlaying(false);
       setCurrentTime(0);
     } catch (err) {
-      setUploadMessage('Upload error. Please check your connection.');
+      setUploadMessage('Eroare la încărcare. Te rugăm verifică conexiunea.');
     } finally {
       setUploading(false);
     }
   };
 
-const clearCookie = () => {
-    let increase = clickTime + 1;
+  const clearCookie = () => {
+    const newCount = clickTime + 1;
 
-    if(clickTime <= 8){
-       setClickTime(increase);
-    }else{
+    if (newCount >= 10) {
       setClickTime(0);
       localStorage.removeItem('qr-moments-wizard-seen');
       setShowWizard(true);
+    } else {
+      setClickTime(newCount);
     }
-}
+  };
 
-
-  // Show loading while checking folder
   if (firstVisit === null) {
-    return;
+    return null;
   }
 
-// Show 404 if folder does not exist
-if (!firstVisit) {
-  return (
-    <div className="not-found-container">
-      <h1>404 - Event Not Found</h1>
-      <p>The event with date <strong>"{eventDate}"</strong> does not exist.</p>
-      <button className="go-home-btn" onClick={() => navigate('/')}>
-        Go Home
-      </button>
-      <p className="subtle-accent">
-        If you think this is an error, please contact the couple. {firstVisit}
-      </p>
-    </div>
-  );
-}
-
-
+  if (!firstVisit) {
+    return (
+      <div className="not-found-container">
+        <h1>{parse('404 - Eveniment negăsit')}</h1>
+        <p>{parse(`Evenimentul cu data <strong>„${eventDate}"</strong> nu există.`)}</p>
+        <button className="go-home-btn" onClick={() => navigate('/')}>
+          {parse('Înapoi acasă')}
+        </button>
+        <p className="subtle-accent">
+          {parse('Dacă crezi că este o eroare, te rugăm contactează cuplul.')}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
-      {/* Wizard – shows only on first visit */}
       {showWizard && (
         <QRWizard
           onClose={() => {
@@ -500,50 +500,50 @@ if (!firstVisit) {
       )}
 
       <div className="qr-moments-page">
-        {/* Header */}
         <header className="header">
-          <h1 className="logo" onClick={clearCookie}>QR Moments</h1>
-          <p className="subtitle">{eventInfo.message}</p>
-          <h2 className="event-name">{eventInfo.bride} & {eventInfo.groom} • {eventInfo.eventDate}</h2>
+          <h1 className="logo" onClick={clearCookie}>{parse('QR Moments')}</h1>
+          <p className="subtitle">{parse(eventInfo.message ?? '')}</p>
+          <h2 className="event-name">
+            {parse(`${eventInfo.bride} & ${eventInfo.groom} • ${eventInfo.eventDate}`)}
+          </h2>
         </header>
 
-        {/* Tabs */}
         <div className="tabs">
           <button
             className={`tab ${activeTab === 'photos' ? 'active' : ''}`}
             onClick={() => setActiveTab('photos')}
           >
-            <span className="tab-icon">📸</span>
-            Poze
+            <span className="tab-icon">{parse('📸')}</span>
+            {parse('Poze')}
           </button>
           <button
             className={`tab ${activeTab === 'videos' ? 'active' : ''}`}
             onClick={() => setActiveTab('videos')}
           >
-            <span className="tab-icon">🎥</span>
-            Video
+            <span className="tab-icon">{parse('🎥')}</span>
+            {parse('Video')}
           </button>
           <button
             className={`tab ${activeTab === 'audio' ? 'active' : ''}`}
             onClick={() => setActiveTab('audio')}
           >
-            <span className="tab-icon">🎤</span>
-            Mesaj
+            <span className="tab-icon">{parse('🎤')}</span>
+            {parse('Mesaj')}
           </button>
         </div>
 
-        {/* Content */}
         <main className="content">
-          {/* Tab-specific content */}
           {activeTab === 'photos' || activeTab === 'videos' ? (
             <section className="content-section fade-in">
               <h2>
-                {activeTab === 'photos' ? 'Moments through your eyes ✨' : 'Capture the magic in motion 🎬'}
+                {activeTab === 'photos'
+                  ? parse('Momente prin ochii tăi ✨')
+                  : parse('Surprinde magia în mișcare 🎬')}
               </h2>
               <p className="info-text">
                 {activeTab === 'photos'
-                  ? 'Select your photos, review them, and send to the couple!'
-                  : 'Choose short clips – max 60 seconds recommended'}
+                  ? parse('Selectează pozele tale, previzualizează-le și trimite-le cuplului!')
+                  : parse('Alege clipuri scurte – maxim 60 de secunde recomandat')}
               </p>
 
               <button
@@ -551,69 +551,82 @@ if (!firstVisit) {
                 onClick={() => openFilePicker(activeTab === 'photos' ? 'image/*' : 'video/*')}
                 disabled={uploading}
               >
-                Choose {activeTab === 'photos' ? 'Photos' : 'Videos'}
+                {activeTab === 'photos' ? parse('Alege Poze') : parse('Alege Clipuri')}
               </button>
             </section>
           ) : activeTab === 'audio' ? (
             <section className="content-section fade-in">
-              <h2>Speak from the heart 💌</h2>
+              <h2>{parse('Vorbește din suflet 💌')}</h2>
               <p className="info-text">
-                Record a beautiful voice message for the couple (max 60 seconds)
+                {parse('Înregistrează un mesaj vocal frumos pentru cuplu (maxim 60 de secunde)')}
               </p>
 
               {audioPermission === 'unknown' && (
                 <div className="permission-check">
-                  <p>We need microphone access to record your message.</p>
+                  <p>{parse('Avem nevoie de acces la microfon pentru a înregistra mesajul tău.')}</p>
                   <button className="permission-btn" onClick={requestMicPermission}>
-                    Allow Microphone Access
+                    {parse('Permite accesul la microfon')}
                   </button>
                 </div>
               )}
 
               {audioPermission === 'denied' && (
                 <div className="permission-denied">
-                  <p>Microphone access is blocked.</p>
-                  <p>Please enable it in your browser settings.</p>
+                  <p>{parse('Accesul la microfon este blocat.')}</p>
+                  <p>{parse('Te rugăm să îl activezi din setările browserului.')}</p>
                   <button className="permission-btn retry" onClick={requestMicPermission}>
-                    Try Again
+                    {parse('Încearcă din nou')}
                   </button>
                 </div>
               )}
 
               {(audioPermission === 'granted' || audioPermission === 'prompt') && !isRecording && !audioBlob && (
                 <button className="upload-btn" onClick={startRecording}>
-                  Start Recording
+                  {parse('Începe înregistrarea')}
                 </button>
               )}
 
               {isRecording && (
                 <div className="recording-active">
                   <div className="waveform-canvas-wrapper">
-                    <canvas ref={canvasRef} width="100%" height="150" className="waveform-canvas"></canvas>
+                    {/* FIX #6 — width/height ca style, nu atribute */}
+                    <canvas
+                      ref={canvasRef}
+                      className="waveform-canvas"
+                      style={{ width: '100%', height: '150px' }}
+                    />
                   </div>
                   <div className="recording-timer">
-                    Recording... {recordingTimeLeft.toString().padStart(2, '0')} seconds left
+                    {parse(`Se înregistrează... ${recordingTimeLeft.toString().padStart(2, '0')} secunde rămase`)}
                   </div>
                   <button className="stop-btn" onClick={stopRecording}>
-                    Stop & Preview
+                    {parse('Stop & Previzualizare')}
                   </button>
                 </div>
               )}
 
               {audioBlob && audioPreviewUrl && (
                 <div className="audio-preview">
-                  <h3>Voice Message Preview</h3>
+                  <h3>{parse('Previzualizare mesaj vocal')}</h3>
 
                   <div className="waveform-canvas-wrapper">
-                    <canvas ref={previewCanvasRef} width="100%" height="150" className="waveform-canvas"></canvas>
+                    {/* FIX #6 — width/height ca style, nu atribute */}
+                    <canvas
+                      ref={previewCanvasRef}
+                      className="waveform-canvas"
+                      style={{ width: '100%', height: '150px' }}
+                    />
                   </div>
 
                   <div className="audio-controls">
-                    <button className={`play-pause-btn ${isPlaying ? 'playing' : ''}`} onClick={togglePlayPause}>
-                      {isPlaying ? '❚❚ ' : '▶ '}
+                    <button
+                      className={`play-pause-btn ${isPlaying ? 'playing' : ''}`}
+                      onClick={togglePlayPause}
+                    >
+                      {isPlaying ? '❚❚' : '▶'}
                     </button>
                     <span className="duration">
-                      {formatDuration(currentTime)} / {formatDuration(duration)}
+                      {parse(`${formatDuration(currentTime)} / ${formatDuration(duration)}`)}
                     </span>
                   </div>
 
@@ -630,22 +643,21 @@ if (!firstVisit) {
                       setDuration(0);
                     }}
                   >
-                    Delete and Record Again
+                    {parse('Șterge și înregistrează din nou')}
                   </button>
                 </div>
               )}
             </section>
           ) : null}
 
-          {/* Shared Preview Gallery & Upload Button */}
           {previews.length > 0 && (
             <div className="preview-gallery">
-              <h3>Selected Files ({previews.length})</h3>
+              <h3>{parse(`Fișiere selectate (${previews.length})`)}</h3>
               <div className="preview-grid">
                 {previews.map((previewUrl, index) => (
                   <div key={index} className="preview-item">
                     {selectedFiles[index]?.type.startsWith('image/') ? (
-                      <img src={previewUrl} alt="preview" className="preview-img" />
+                      <img src={previewUrl} alt="previzualizare" className="preview-img" />
                     ) : selectedFiles[index]?.type.startsWith('video/') ? (
                       <video src={previewUrl} className="preview-img" muted />
                     ) : selectedFiles[index]?.type.startsWith('audio/') ? (
@@ -654,7 +666,7 @@ if (!firstVisit) {
                     <button
                       className="remove-btn"
                       onClick={() => removeFile(index)}
-                      aria-label="Remove file"
+                      aria-label="Elimină fișierul"
                     >
                       ×
                     </button>
@@ -667,23 +679,24 @@ if (!firstVisit) {
                 onClick={handleUploadAll}
                 disabled={uploading || selectedFiles.length === 0}
               >
-                {uploading ? 'Uploading...' : `Send All (${selectedFiles.length})`}
+                {uploading
+                  ? parse('Se încarcă...')
+                  : parse(`Trimite toate (${selectedFiles.length})`)}
               </button>
             </div>
           )}
 
           {uploadMessage && (
-            <p className={uploadMessage.includes('Success') ? 'successMsg' : 'errorMsg'}>
-              {uploadMessage}
+            <p className={uploadMessage.includes('Succes') ? 'successMsg' : 'errorMsg'}>
+              {parse(uploadMessage)}
             </p>
           )}
         </main>
 
         <footer className="footer">
-          Created with love by <strong>Anca Visuals</strong>
+          {parse('Creat cu drag de <strong>Anca Visuals</strong>')}
         </footer>
 
-        {/* Hidden audio element for playback */}
         {audioPreviewUrl && (
           <audio
             ref={audioRef}
