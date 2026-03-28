@@ -15,6 +15,8 @@ type Props = {
   onLast: () => void;
   onGoTo: (page: number) => void;
   onToggleSelectPage: () => void;
+  mobileColumns?: 1 | 2;
+  onMobileColumnsChange?: (columns: 1 | 2) => void;
 };
 
 export default function AlbumPager({
@@ -31,6 +33,8 @@ export default function AlbumPager({
   onLast,
   onGoTo,
   onToggleSelectPage,
+  mobileColumns,
+  onMobileColumnsChange,
 }: Props) {
   const [value, setValue] = useState(String(currentPage));
 
@@ -47,12 +51,12 @@ export default function AlbumPager({
   }, [currentPage, pageSize, shownCount, totalItems]);
 
   const go = () => {
-    const n = Number(value);
-    if (!Number.isFinite(n)) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
       setValue(String(currentPage));
       return;
     }
-    const clamped = Math.min(Math.max(1, Math.floor(n)), totalPages);
+    const clamped = Math.min(Math.max(1, Math.floor(number)), totalPages);
     setValue(String(clamped));
     onGoTo(clamped);
   };
@@ -62,16 +66,12 @@ export default function AlbumPager({
       <div className={styles.row}>
         <div className={styles.left}>
           <button className={styles.btn} type="button" onClick={onFirst} disabled={disabled || currentPage <= 1}>
-            <span className={styles.icon} aria-hidden="true">
-              «
-            </span>
+            <span className={styles.icon} aria-hidden="true">«</span>
             <span className={styles.label}>Primul</span>
           </button>
 
           <button className={styles.btn} type="button" onClick={onPrev} disabled={disabled || currentPage <= 1}>
-            <span className={styles.icon} aria-hidden="true">
-              ‹
-            </span>
+            <span className={styles.icon} aria-hidden="true">‹</span>
             <span className={styles.label}>Anterior</span>
           </button>
         </div>
@@ -83,9 +83,9 @@ export default function AlbumPager({
             inputMode="numeric"
             pattern="[0-9]*"
             value={value}
-            onChange={e => setValue(e.target.value.replace(/[^\d]/g, ""))}
-            onKeyDown={e => {
-              if (e.key === "Enter") go();
+            onChange={(event) => setValue(event.target.value.replace(/[^\d]/g, ""))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") go();
             }}
             onBlur={go}
             disabled={disabled}
@@ -95,28 +95,14 @@ export default function AlbumPager({
         </div>
 
         <div className={styles.right}>
-          <button
-            className={styles.btn}
-            type="button"
-            onClick={onNext}
-            disabled={disabled || currentPage >= totalPages}
-          >
+          <button className={styles.btn} type="button" onClick={onNext} disabled={disabled || currentPage >= totalPages}>
             <span className={styles.label}>Următorul</span>
-            <span className={styles.icon} aria-hidden="true">
-              ›
-            </span>
+            <span className={styles.icon} aria-hidden="true">›</span>
           </button>
 
-          <button
-            className={styles.btn}
-            type="button"
-            onClick={onLast}
-            disabled={disabled || currentPage >= totalPages}
-          >
+          <button className={styles.btn} type="button" onClick={onLast} disabled={disabled || currentPage >= totalPages}>
             <span className={styles.label}>Ultimul</span>
-            <span className={styles.icon} aria-hidden="true">
-              »
-            </span>
+            <span className={styles.icon} aria-hidden="true">»</span>
           </button>
         </div>
       </div>
@@ -131,6 +117,32 @@ export default function AlbumPager({
         <div className={styles.meta}>
           <span className={styles.metaStrong}>{info}</span>
         </div>
+
+        {onMobileColumnsChange && (
+          <div className={styles.gridToggle}>
+            <button
+              className={`${styles.gridBtn} ${mobileColumns === 1 ? styles.gridBtnActive : ''}`}
+              type="button"
+              onClick={() => onMobileColumnsChange(1)}
+              aria-label="1 coloană"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+              </svg>
+            </button>
+            <button
+              className={`${styles.gridBtn} ${mobileColumns === 2 ? styles.gridBtnActive : ''}`}
+              type="button"
+              onClick={() => onMobileColumnsChange(2)}
+              aria-label="2 coloane"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="4" width="8" height="16" rx="2" />
+                <rect x="13" y="4" width="8" height="16" rx="2" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
