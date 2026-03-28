@@ -530,3 +530,80 @@ $font-body:       'DM Sans', sans-serif;
     transform: translateY(0);
   }
 }
+
+
+// ── GRID TOGGLE ─────────────────────────────────────────
+.gridToggle {
+  display: flex;
+  gap: 4px;
+
+  @media (min-width: 641px) {
+    display: none;
+  }
+}
+
+.gridBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: none;
+  border: 1px solid $border;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color $transition, color $transition, border-color $transition;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background-color: $surface-hover;
+    color: $text-primary;
+  }
+}
+
+.gridBtnActive {
+  background-color: $surface;
+  border-color: $accent;
+  color: $text-primary;
+}
+
+
+// ── GRID TOGGLE (print section) ──────────────────────────
+.gridToggle {
+  display: none;
+  gap: 6px;
+  margin-bottom: 12px;
+ 
+  @media (max-width: 640px) {
+    display: flex;
+  }
+}
+ 
+.gridBtn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+ 
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+ 
+.gridBtnActive {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.5);
+}

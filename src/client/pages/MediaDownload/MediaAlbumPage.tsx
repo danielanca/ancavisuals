@@ -25,7 +25,7 @@ type GalleryState = {
   downloadPage: number;
   selectedPrint: Set<string>;
   selectedDownload: Set<string>;
-  shareUrl: string | null; 
+  shareUrl: string | null;
   shareError: string | null;
 };
 
@@ -161,6 +161,42 @@ const getSwissUrl = async (slug: string) => {
   }
   return "";
 };
+
+// ── MOBILE COLUMNS TOGGLE ────────────────────────────────────────────────────
+
+function MobileColumnsToggle({
+  mobileColumns,
+  onMobileColumnsChange,
+}: {
+  mobileColumns: 1 | 2;
+  onMobileColumnsChange: (columns: 1 | 2) => void;
+}) {
+  return (
+    <div className={styles.gridToggle}>
+      <button
+        className={`${styles.gridBtn} ${mobileColumns === 1 ? styles.gridBtnActive : ""}`}
+        type="button"
+        onClick={() => onMobileColumnsChange(1)}
+        aria-label="1 coloană"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+        </svg>
+      </button>
+      <button
+        className={`${styles.gridBtn} ${mobileColumns === 2 ? styles.gridBtnActive : ""}`}
+        type="button"
+        onClick={() => onMobileColumnsChange(2)}
+        aria-label="2 coloane"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <rect x="3" y="4" width="8" height="16" rx="2" />
+          <rect x="13" y="4" width="8" height="16" rx="2" />
+        </svg>
+      </button>
+    </div>
+  );
+}
 
 // ── COMPONENT ────────────────────────────────────────────────────────────────
 
@@ -413,11 +449,38 @@ export default function MediaAlbumPage() {
     }
   };
 
+  const scrollToPhoto = useCallback((src: string) => {
+    const photoElement = document.querySelector<HTMLElement>(`[data-photo-src="${CSS.escape(src)}"]`);
+    if (photoElement) {
+      photoElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, []);
+
   const openLightbox = useCallback((src: string) => {
     if (mode !== "none") return;
-    const index = galleryPhotos.indexOf(src);
+    const index = album?.photos?.indexOf(src) ?? -1;
     if (index !== -1) setLightboxIndex(index);
-  }, [mode, galleryPhotos]);
+  }, [mode, album?.photos]);
+
+  const closeLightbox = useCallback(() => {
+    if (lightboxIndex === null || !album?.photos) return;
+
+    const absoluteIndex = lightboxIndex;
+    const targetPage = Math.ceil((absoluteIndex + 1) / pageSize);
+    const targetSrc = album.photos[absoluteIndex];
+
+    setLightboxIndex(null);
+
+    if (targetPage !== safePage) {
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev);
+        params.set("page", String(targetPage));
+        return params;
+      }, { replace: false });
+    }
+
+    setTimeout(() => scrollToPhoto(targetSrc), 120);
+  }, [lightboxIndex, album?.photos, pageSize, safePage, setSearchParams, scrollToPhoto]);
 
   const downloadAllPhotos = () => {
     if (!slug || !album?.photos?.length) return;
@@ -585,12 +648,12 @@ export default function MediaAlbumPage() {
 
         <OnboardingWizard />
 
-        {lightboxIndex !== null && (
+        {lightboxIndex !== null && album?.photos && (
           <PhotoLightbox
-            photos={galleryPhotos}
+            photos={album.photos}
             currentIndex={lightboxIndex}
-            onClose={() => setLightboxIndex(null)}
-            onNext={() => setLightboxIndex((prev) => (prev !== null ? Math.min(galleryPhotos.length - 1, prev + 1) : 0))}
+            onClose={closeLightbox}
+            onNext={() => setLightboxIndex((prev) => (prev !== null ? Math.min(album.photos!.length - 1, prev + 1) : 0))}
             onPrev={() => setLightboxIndex((prev) => (prev !== null ? Math.max(0, prev - 1) : 0))}
             selectedPrint={selectedPrint}
             onTogglePrint={(fileName) => dispatch({ type: "TOGGLE_PHOTO", mode: "print", name: fileName })}
@@ -822,6 +885,7 @@ export default function MediaAlbumPage() {
                           loading="lazy"
                           onClick={() => openLightbox(src)}
                           style={{ cursor: 'pointer' }}
+                          data-photo-src={src}
                           {...(galleryPhotos.indexOf(src) === 0 ? { 'data-onboarding': 'photo' } : {})}
                         />
                         <button
@@ -871,21 +935,25 @@ export default function MediaAlbumPage() {
           </div>
 
           {printCount > 0 ? (
-            <div className={styles.printPhotosGrid}>
-              {printPhotos.map(({ fileName, src }) => (
-                <div key={fileName} className={styles.printPhotoWrapper}>
-                  <img src={src} alt={`Poză pentru imprimare: ${fileName}`} className={styles.printPhotoImg} loading="lazy" />
-                  <button
-                    className={styles.removePrintBtn}
-                    onClick={() => removeFromPrint(fileName)}
-                    aria-label={`Elimină ${fileName} din lista de imprimare`}
-                    title="Elimină din lista de imprimare"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+            <>
+              <MobileColumnsToggle mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} />
+              <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
+                {printPhotos.map(({ fileName, src }) => (
+                  <div key={fileName} className={styles.printPhotoWrapper}>
+                    <img src={src} alt={`Poză pentru imprimare: ${fileName}`} className={styles.printPhotoImg} loading="lazy" />
+                    <button
+                      className={styles.removePrintBtn}
+                      onClick={() => removeFromPrint(fileName)}
+                      aria-label={`Elimină ${fileName} din lista de imprimare`}
+                      title="Elimină din lista de imprimare"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <MobileColumnsToggle mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} />
+            </>
           ) : (
             <p className={styles.emptyPrint}>Nu ai selectat încă poze pentru imprimat.</p>
           )}
@@ -930,5 +998,5 @@ export default function MediaAlbumPage() {
         </div>
       </div>
     </div>
-  ); 
+  );
 }

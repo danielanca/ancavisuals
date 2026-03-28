@@ -3,13 +3,14 @@ import { FixedSizeGrid as Grid } from "react-window";
 import styles from "./BunnyPhotoGallery.module.scss";
 
 type Props = {
-  orgPhoto : string[];
+  orgPhoto: string[];
   photos: string[];
   variant?: "section" | "plain";
   selectable?: boolean;
   selected?: Set<string>;
   getKey?: (src: string) => string;
   onToggle?: (src: string) => void;
+  onPhotoClick?: (src: string) => void;
   virtualized?: boolean;
   scrollable?: boolean;
 };
@@ -36,18 +37,18 @@ const useElementSize = () => {
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const element = ref.current;
+    if (!element) return;
     if (typeof ResizeObserver === "undefined") return;
 
-    const ro = new ResizeObserver(entries => {
-      const cr = entries[0]?.contentRect;
-      if (!cr) return;
-      setSize({ width: Math.floor(cr.width), height: Math.floor(cr.height) });
+    const resizeObserver = new ResizeObserver(entries => {
+      const contentRect = entries[0]?.contentRect;
+      if (!contentRect) return;
+      setSize({ width: Math.floor(contentRect.width), height: Math.floor(contentRect.height) });
     });
 
-    ro.observe(el);
-    return () => ro.disconnect();
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
   }, []);
 
   return { ref, size };
@@ -61,55 +62,26 @@ export default function BunnyPhotoGallery({
   selected,
   getKey,
   onToggle,
+  onPhotoClick,
   virtualized = false,
   scrollable = false,
 }: Props) {
   const [visible, setVisible] = useState(90);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(isMobileNow());
 
   const { ref: viewportRef, size } = useElementSize();
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 640px)");
-    const onChange = () => setIsMobile(mq.matches);
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const onChange = () => setIsMobile(mediaQuery.matches);
     onChange();
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    mediaQuery.addEventListener("change", onChange);
+    return () => mediaQuery.removeEventListener("change", onChange);
   }, []);
 
   useEffect(() => {
     setVisible(90);
-    setLightboxIndex(null);
   }, [photos]);
-
-  useEffect(() => {
-    if (lightboxIndex === null) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightboxIndex(null);
-      if (e.key === "ArrowRight") setLightboxIndex(i => (i === null ? null : Math.min(i + 1, photos.length - 1)));
-      if (e.key === "ArrowLeft") setLightboxIndex(i => (i === null ? null : Math.max(i - 1, 0)));
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [lightboxIndex, photos.length]);
-
-  const openLightboxByIndex = (idx: number) => {
-    if (idx < 0 || idx >= photos.length) return;
-    setLightboxIndex(idx);
-  };
-
-  const openLightbox = (src: string) => {
-    const idx = photos.indexOf(src);
-    if (idx >= 0) setLightboxIndex(idx);
-  };
 
   const dpr = typeof window !== "undefined" ? Math.min(2, window.devicePixelRatio || 1) : 1;
 
@@ -117,10 +89,10 @@ export default function BunnyPhotoGallery({
 
   const columnCount = useMemo(() => {
     if (isMobile) return 2;
-    const w = size.width;
-    if (w >= 1100) return 5;
-    if (w >= 900) return 4;
-    if (w >= 640) return 3;
+    const width = size.width;
+    if (width >= 1100) return 5;
+    if (width >= 900) return 4;
+    if (width >= 640) return 3;
     return 2;
   }, [isMobile, size.width]);
 
@@ -181,12 +153,13 @@ export default function BunnyPhotoGallery({
         key={src}
         className={cls}
         type="button"
+        data-photo-src={src}
         onClick={() => {
           if (selectable) {
             onToggle?.(src);
             return;
           }
-          openLightbox(src);
+          onPhotoClick?.(src);
         }}
       >
         {selectable && <div className={styles["pg-check"]}>{isOn ? "✓" : ""}</div>}
@@ -221,22 +194,20 @@ export default function BunnyPhotoGallery({
 
   const columns = useMemo(() => {
     const cols = Array.from({ length: colCount }, () => [] as string[]);
-    for (let i = 0; i < visiblePhotos.length; i += 1) {
-      cols[i % colCount].push(visiblePhotos[i]);
+    for (let index = 0; index < visiblePhotos.length; index += 1) {
+      cols[index % colCount].push(visiblePhotos[index]);
     }
     return cols;
   }, [visiblePhotos, colCount]);
 
   const masonry = (
-    <>
-      <div className={styles.pgColumns}>
-        {columns.map((col, idx) => (
-          <div key={idx} className={styles.pgColumn}>
-            {col.map(renderItem)}
-          </div>
-        ))}
-      </div>
-    </>
+    <div className={styles.pgColumns}>
+      {columns.map((col, index) => (
+        <div key={index} className={styles.pgColumn}>
+          {col.map(renderItem)}
+        </div>
+      ))}
+    </div>
   );
 
   const virtualGrid = (
@@ -283,12 +254,13 @@ export default function BunnyPhotoGallery({
                   className={cls}
                   type="button"
                   style={{ width: tileW, height: tileH }}
+                  data-photo-src={src}
                   onClick={() => {
                     if (selectable) {
                       onToggle?.(src);
                       return;
                     }
-                    openLightboxByIndex(index);
+                    onPhotoClick?.(src);
                   }}
                 >
                   {selectable && <div className={styles["pg-check"]}>{isOn ? "✓" : ""}</div>}
@@ -302,61 +274,13 @@ export default function BunnyPhotoGallery({
     </div>
   );
 
-  const activeSrc = lightboxIndex === null ? null : orgPhoto[lightboxIndex] ?? null;
-
-  const lightboxImg = activeSrc
-    ? withOptimizer(activeSrc, { width: 1600, quality: 86, format: "auto", sharpen: false })
-    : null;
-
   const content = canVirtual ? virtualGrid : masonry;
 
-  return (
-    <>
-      {variant === "plain" ? (
-        content
-      ) : (
-        <section className={styles["pg-section"]}>
-          <div className={styles["pg-container"]}>{content}</div>
-        </section>
-      )}
-
-      {lightboxImg && (
-        <div className={styles.lbBackdrop} onClick={() => setLightboxIndex(null)}>
-          <div className={styles.lbModal} onClick={e => e.stopPropagation()}>
-            <button className={styles.lbClose} type="button" onClick={() => setLightboxIndex(null)}>
-              ×
-            </button>
-
-            <img className={styles.lbImg} src={lightboxImg} alt="" />
-
-            {photos.length > 1 && (
-              <>
-                <button
-                  className={`${styles.lbNav} ${styles.lbPrev}`}
-                  type="button"
-                  onClick={() => setLightboxIndex(i => (i === null ? null : Math.max(i - 1, 0)))}
-                  disabled={lightboxIndex === 0}
-                >
-                  ‹
-                </button>
-
-                <button
-                  className={`${styles.lbNav} ${styles.lbNext}`}
-                  type="button"
-                  onClick={() => setLightboxIndex(i => (i === null ? null : Math.min(i + 1, photos.length - 1)))}
-                  disabled={lightboxIndex === photos.length - 1}
-                >
-                  ›
-                </button>
-
-                <div className={styles.lbCounter}>
-                  {lightboxIndex! + 1}/{photos.length}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </>
+  return variant === "plain" ? (
+    content
+  ) : (
+    <section className={styles["pg-section"]}>
+      <div className={styles["pg-container"]}>{content}</div>
+    </section>
   );
 }
