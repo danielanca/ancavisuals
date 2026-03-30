@@ -8,7 +8,7 @@ const Hero = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowVideo(true);
-      sendTriggerEmail({ typeEvent: "HeroVideo_START", url: window.location.pathname });
+      sendTriggerEmail({ typeEvent: "Vizitator site", url: window.location.pathname });
     }, 2500); // 2 secunde întârziere
 
     return () => clearTimeout(timer);

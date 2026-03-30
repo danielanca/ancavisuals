@@ -19,7 +19,7 @@ const Navbar = () => {
                         to="/pricing"
                         className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
                     >
-                        Pricing 
+                        Pricing
                     </Link>  */}
           <Link
             to="/portofoliu"
@@ -127,15 +127,6 @@ const Navbar = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </Link>
-
-            {/* <Link
-                            to="/pricing"
-                            className="text-3xl font-light tracking-[0.2em] uppercase text-white hover:text-gray-300 transition-colors text-center"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                            PRICING &<br />
-                            PROCESS
-                        </Link> */}
 
             <Link
               to="/portofoliu"

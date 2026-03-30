@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Pagini principale -->
+  <url>
+    <loc>https://www.ancavisuals.ro/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.ancavisuals.ro/despre</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.ancavisuals.ro/portofoliu</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.ancavisuals.ro/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Fotograf Nuntă -->
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-sibiu</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-cluj</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-alba-iulia</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-turda</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-arad</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-brasov</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-targu-mures</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-ludus</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-campia-turzii</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-nunta-oradea</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+
+  <!-- Fotograf Botez -->
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-sibiu</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-cluj</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-alba-iulia</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-turda</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-arad</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-brasov</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-targu-mures</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-ludus</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-campia-turzii</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-botez-oradea</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <!-- Fotograf Majorat -->
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-sibiu</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-cluj</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-alba-iulia</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-turda</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-arad</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-brasov</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-targu-mures</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-ludus</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-campia-turzii</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.ancavisuals.ro/fotograf-majorat-oradea</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+</urlset>

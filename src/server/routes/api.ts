@@ -39,6 +39,20 @@ export const sendEmail = async (request: Request, response: Response) => {
     invoiceNumberID: String(invoiceNumberID),
   };
 
+  const data = request.body;
+  if (!data) {
+    return response.status(400).json({ error: "Missing request body" });
+  }
+
+  let cartProd: any;
+  try {
+    cartProd = JSON.parse(data.cartProducts);
+  } catch {
+    return response.status(400).json({ error: "Invalid cartProducts JSON" });
+  }
+
+  const downloadURL = data.downloadURL;
+
   const transmitToAdmin = () => {
     transport
       .sendMail({
@@ -50,14 +64,16 @@ export const sendEmail = async (request: Request, response: Response) => {
       .then((responseToAdmin: any) => {
         ResponseData.EMAILTO_ADMIN = responseToAdmin;
         response.send(ResponseData);
+      })
+      .catch((err: any) => {
+        console.error("Failed to send admin email:", err);
+        if (!response.headersSent) {
+          response.status(500).json({ error: "Failed to send admin email" });
+        }
       });
   };
-  console.log("The request body is here:", request.body);
-  const data = request.body;
-  console.log("DANUUUUUUUUUUUUUUUUUUT", data);
+
   await postOrderToDB(invoiceNumberID, data, getDateAndHour());
-  let cartProd = JSON.parse(data.cartProducts);
-  let downloadURL = data.downloadURL;
 
   if (!data.emailAddress) {
     console.error("No recipients defined");
@@ -74,12 +90,9 @@ export const sendEmail = async (request: Request, response: Response) => {
     .then((emailClientResponse: any) => {
       ResponseData.EMAILTO_CLIENT = emailClientResponse;
       transmitToAdmin();
+    })
+    .catch((err: any) => {
+      console.error("Failed to send client email:", err);
+      transmitToAdmin();
     });
-
-  // console.log("All good");
-  // const dataResponse = {
-  //   message: "The order was sent!",
-  // };
-  // // // Sending JSON response
-  // return response.status(200).json(data);
 };
