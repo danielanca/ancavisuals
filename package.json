@@ -44,6 +44,7 @@
     "env:sa": "node -e \"const s=process.env.FIREBASE_SERVICE_ACCOUNT_BASE64||''; if(!s){console.log('no B64');process.exit(1)} const sa=JSON.parse(Buffer.from(s,'base64').toString('utf8')); console.log(sa.project_id, sa.client_email)\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@fontsource/cairo": "^5.2.7",
     "@fontsource/cinzel": "^5.2.8",
     "@fortawesome/fontawesome-free": "^6.5.1",

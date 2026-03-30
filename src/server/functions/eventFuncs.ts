@@ -36,6 +36,11 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     const ipInfo = await fetchIpInfo(clientIp);
 
+    if (ipInfo && ipInfo.country !== "RO") {
+      response.status(204).send();
+      return;
+    }
+
     const locationParts = [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(
       (value: string | undefined): value is string => typeof value === "string" && value.length > 0,
     );

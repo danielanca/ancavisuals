@@ -7,6 +7,7 @@ import CheckAuth from "./components/AdminArea/checkAuth";
 import RequireAuth from "./components/AdminArea/RequireAuth";
 import Login from "./components/AdminArea/Login";
 import { AuthProvider } from "./components/context/AuthProvider";
+// import ChatWidget from "./components/ChatWidget/ChatWidget";
 import Dashboard from "./components/AdminArea/Dashboard";
 import CreateEventDashboard from "./components/AdminArea/EventDashboard/CreateEvent";
 
@@ -70,6 +71,7 @@ export const App = () => {
         </Routes>
       </Suspense>
       </AuthProvider>
+      {/* <ChatWidget /> */}
     </ContextWrapper>
   );
 };

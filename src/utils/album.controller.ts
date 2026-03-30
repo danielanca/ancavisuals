@@ -5,7 +5,6 @@ import { Readable } from "stream";
 import { loadAlbum } from "../server/services/album.services";
 import { readPrintSelection, savePrintSelection,saveDeliveryAddress,readDeliveryAddress,addLink } from "../server/services/printSelection.store";
 import { signBunnyUrl } from "./signBunnyUrl";
-import { getFirestore } from "firebase-admin/firestore";
 import fetch from "node-fetch";
 import { db } from "../server/firestoreInit"; // firestore init
 
@@ -86,11 +85,16 @@ export async function downloadSelectedPhotos(req: Request, res: Response) {
 
   for (const file of files) {
     const url = `https://storage.bunnycdn.com/${storageZone}/${slug}/${photoPath}/${encodeURIComponent(file)}`;
-    const r = await axios.get(url, {
-      responseType: "stream",
-      headers: { AccessKey: storageKey },
-    });
-    archive.append(r.data, { name: file });
+    try {
+      const r = await axios.get(url, {
+        responseType: "stream",
+        headers: { AccessKey: storageKey },
+      });
+      archive.append(r.data, { name: file });
+    } catch (err) {
+      console.error(`Failed to fetch file for zip: ${file}`, err);
+      // Skip this file but continue building the zip
+    }
   }
 
   await archive.finalize();
@@ -273,7 +277,7 @@ async function checkPreviewExist(slug:string){
   });
   
   if(result.status == 200 && result.data.length > 0){
-    return "photos";
+    return "photos_preview";
   }else{
     return "photos";
   }
