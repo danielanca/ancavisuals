@@ -6,6 +6,7 @@ import Footer from "../../components/Navbar/Footer";
 import { getCityBySlug, getServiceBySlug } from "./locationData";
 import pricesData from "../../data/prices.json";
 import { sendTriggerEmail } from "../../utils/triggers";
+import PortfolioGallery from "../Portfolio/PortfolioGallery";
 
 const PACKAGES = [
   ...pricesData.services.map(s => ({ title: s.title, price: `${s.price} RON`, note: s.note })),
@@ -86,17 +87,25 @@ const LocationPage: React.FC<Props> = ({ citySlug, serviceSlug }) => {
       </section>
 
       {/* About city */}
-      <section className="max-w-3xl mx-auto px-6 py-16 text-center">
-        <h2 className="text-2xl md:text-3xl font-light tracking-wide mb-6">
-          {service.nameLong} în {city.name}
-        </h2>
-        <p className="text-gray-400 leading-relaxed text-base md:text-lg">
-          Anca Visuals acoperă evenimente în {city.name} și împrejurimi —{" "}
-          {city.description}. Indiferent de locație, aducem același nivel de
-          profesionalism, echipament de top și o abordare discretă care lasă
-          momentele să se desfășoare natural.
-        </p>
+      <section className="py-16 text-center">
+        <div style={{ maxWidth: "620px", margin: "0 auto", padding: "0 2rem" }}>
+          <h2 className="text-2xl md:text-3xl font-light tracking-wide mb-6">
+            {service.nameLong} în {city.name}
+          </h2>
+          <p className="text-gray-400 leading-relaxed text-base md:text-lg">
+            <strong className="text-white">Anca Visuals</strong> acoperă evenimente în{" "}
+            <strong className="text-white">{city.name}</strong> și împrejurimi —{" "}
+            <span dangerouslySetInnerHTML={{ __html: city.description }} />. Indiferent de locație, aducem același nivel de
+            profesionalism, echipament de top și o abordare discretă care lasă
+            momentele să se desfășoare natural.
+          </p>
+        </div>
       </section>
+
+      <section className="max-w-5xl mx-auto px-6 pb-4">
+        <h2 className="text-2xl font-light tracking-wide text-center mb-4">Din portofoliul nostru</h2>
+      </section>
+      <PortfolioGallery />
 
       {/* Packages */}
       <section className="max-w-4xl mx-auto px-6 pb-16">
