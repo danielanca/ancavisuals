@@ -1,0 +1,53 @@
+{
+  "packages": [
+    {
+      "id": "photo",
+      "title": "Fotografie",
+      "price": 500,
+      "type": "photo",
+      "note": "Acoperire completă; 500 - 800 fotografii editate.",
+      "recommended": false
+    },
+    {
+      "id": "video",
+      "title": "Videografie",
+      "price": 300,
+      "type": "video",
+      "note": "Filmări 4K; highlight 3–5 min + clip lung. (3-7 ore)",
+      "recommended": false
+    },
+    {
+      "id": "album",
+      "title": "Album 15×10 cm",
+      "price": 40,
+      "type": "photo",
+      "note": "100 poze, hârtie foto premium.",
+      "recommended": false
+    },
+    {
+      "id": "photobooth",
+      "title": "Fotocabina / Photo Booth",
+      "price": 250,
+      "type": "photo",
+      "note": "Foto cabina pe perioada evenimentului.",
+      "recommended": false,
+      "participantTiers": [
+        { "label": "Sub 200 persoane",    "max": 200,             "extra": 0,  "extraNote": "Prețul include toată materia primă necesară (hârtie foto, consumabile) pentru până la 200 de participanți." },
+        { "label": "200 – 500 persoane", "min": 200, "max": 500, "extra": 30, "extraNote": "Suplimentul de 30 EUR acoperă materia primă suplimentară (hârtie foto, consumabile) necesară pentru un număr mare de participanți." },
+        { "label": "Peste 500 persoane", "min": 500,             "extra": 60, "extraNote": "Suplimentul de 60 EUR acoperă materia primă suplimentară (hârtie foto, consumabile) necesară pentru un număr foarte mare de participanți." }
+      ]
+    },
+    {
+      "id": "videobooth",
+      "title": "Video Cabina 360 / VideoBooth 360",
+      "price": 250,
+      "type": "photo",
+      "note": "Video cabina pe perioada evenimentului.",
+      "recommended": true
+    }
+  ],
+  "customOption": {
+    "photo": 300,
+    "video": 260
+  }
+}

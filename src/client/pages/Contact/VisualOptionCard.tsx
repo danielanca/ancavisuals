@@ -24,7 +24,7 @@ export default function VisualOptionCard({ opt, checked, onToggle }: Props) {
             {opt.label}
           </span>
           <span className="price" style={{ opacity: 0.8 }}>
-            {opt.price} RON
+            {opt.price} EUR
           </span>
         </div>
 

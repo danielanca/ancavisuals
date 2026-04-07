@@ -183,7 +183,7 @@ export default function BookingWizard() {
         <li><b>Pachet:</b> ${packageType}${
           packageType === "custom" ? ` (foto=${photo ? "da" : "nu"}, video=${video ? "da" : "nu"})` : ""
         }</li>
-        <li><b>Preț estimativ:</b> ${price} RON</li>
+        <li><b>Preț estimativ:</b> ${price} EUR</li>
       </ul>
     `;
 
@@ -459,7 +459,7 @@ export default function BookingWizard() {
               )} */}
 
                 {errors.package && <p className="error">{errors.package}</p>}
-                <p className="total-price">Preț: {price} RON</p>
+                <p className="total-price">Preț: {price} EUR</p>
               </div>
 
               <div className="input-group" style={{ marginTop: 12 }}>

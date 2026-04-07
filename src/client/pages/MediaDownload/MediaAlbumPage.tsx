@@ -103,7 +103,7 @@ export default function MediaAlbumPage() {
   const [adminKey, setAdminKey] = useState("");
   const [showAdminButton, setShowAdminButton] = useState(false);
 
-  const [isMobile, setIsMobile] = useState(isMobileNow());
+  const [isMobile, setIsMobile] = useState(false);
 
   const [browsePage, setBrowsePage] = useState(1);
   const [printPage, setPrintPage] = useState(1);

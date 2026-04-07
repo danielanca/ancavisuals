@@ -92,37 +92,15 @@ const Step1Date: React.FC<Step1DateProps> = ({
   };
 
 
-  const getMonthDate = (checkDate:string) => {
-    let getDate = Number(checkDate.split("-")[2]);
-    let getMonth = Number(checkDate.split("-")[1]);
-    let wordMonth =  MONTHS_RO[getMonth];
-    return `${getDate} ${wordMonth}`;
-  }
-  const handleCheckAvailability = async () => {
-
-    try {
-      const res = await fetch(`/api/event/date-available`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-         date : `${year}-${month+1}-${day}`,
-         dbStore : getMonthDate(`${year}-${month}-${day}`)
-     }),
-      });
-      let data = await res.json();
-      if (!data.available) {
-        setIsAvailable(false);
-        setErrors({
-          date: "Ne pare rău, această dată este deja rezervată. Te rugăm să alegi o altă zi.",
-        });
-      }else{
-        setIsAvailable(true);
-        setErrors({});
-      }
-    } catch (err) {
-      console.error(err);
+  const handleCheckAvailability = () => {
+    const key = toKey(day, month, year);
+    if (bookedDates.includes(key)) {
+      setIsAvailable(false);
+      setErrors({ date: "Ne pare rău, această dată este deja rezervată. Te rugăm să alegi o altă zi." });
+    } else {
+      setIsAvailable(true);
+      setErrors({});
     }
-
   };
 
   return (

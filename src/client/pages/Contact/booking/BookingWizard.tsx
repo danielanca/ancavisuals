@@ -4,6 +4,7 @@ import "./styles.css";
 import "./segmented.scss";
 
 import { PACKAGES_NEW } from "../packages";
+import pricesData from "../../../../data/prices.json";
 import { safeTrigger, BOOKING_TO } from "./utils/api";
 import { normalizePackages } from "./utils/normalize";
 import { formatDate } from "./utils/time";
@@ -122,7 +123,7 @@ const buildHtmlFinal = (args: {
     <li><b>Durată estimată:</b> ${args.durationHours ?? "-"} h</li>
     <li><b>Pachete selectate:</b> ${args.selectedPackages.join(", ") || "-"}</li>
     ${args.showCustom ? `<li><b>Custom:</b> foto=${args.photo ? "da" : "nu"}, video=${args.video ? "da" : "nu"}</li>` : ""}
-    <li><b>Preț estimativ:</b> ${Number(args.totalPrice).toLocaleString("ro-RO")} RON</li>
+    <li><b>Preț estimativ:</b> ${Number(args.totalPrice).toLocaleString("ro-RO")} EUR</li>
   </ul>
 `;
 
@@ -135,7 +136,7 @@ export default function BookingWizard() {
   // Step 1 – data
   const [day, setDay] = useState(1);
   const [month, setMonth] = useState(0); // 0-based
-  const [year, setYear] = useState(2025);
+  const [year, setYear] = useState(2026);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [isAvailable, setIsAvailable] = useState<null | boolean>(null);
 
@@ -259,7 +260,7 @@ export default function BookingWizard() {
       (window as any).gtag("event", "conversion", {
         send_to: "AW-10941123412/ww8eCM7HiakYENSWkeEo",
         value: 1.0, // sau 1.0 fix dacă vrei doar număr de conversii
-        currency: "RON",
+        currency: "EUR",
         transaction_id: "", // poți pune un ID unic dacă ai
       });
     }
@@ -310,7 +311,7 @@ export default function BookingWizard() {
   const totalPrice = useMemo(() => {
     const byId = new Map(packagesNormalized.map(p => [p.id, p]));
     const tilesSum = selectedPackages.reduce((sum, id) => sum + (byId.get(id)?.price ?? 0), 0);
-    const customSum = showCustom ? (photo ? 1500 : 0) + (video ? 1300 : 0) : 0;
+    const customSum = showCustom ? (photo ? pricesData.customOption.photo : 0) + (video ? pricesData.customOption.video : 0) : 0;
     return tilesSum + customSum;
   }, [packagesNormalized, selectedPackages, showCustom, photo, video]);
 
@@ -495,7 +496,7 @@ export default function BookingWizard() {
               Rezervarea ta pentru <strong>{bookingData.date}</strong> a fost înregistrată cu succes.
             </p>
             <p>
-              Preț total: <strong>{bookingData.totalPrice.toLocaleString("ro-RO")} RON</strong>
+              Preț total: <strong>{bookingData.totalPrice.toLocaleString("ro-RO")} EUR</strong>
             </p>
             <p>Te vom contacta în curând pentru confirmarea detaliilor.</p>
           </div>

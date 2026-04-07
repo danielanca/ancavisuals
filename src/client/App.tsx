@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
+import AncaChat from "./components/AncaChat/AncaChat";
 import routes from "./routes/routes";
 import { ContextWrapper } from "./Context"; // Assuming you have this component
 
@@ -9,6 +10,7 @@ import Login from "./components/AdminArea/Login";
 import { AuthProvider } from "./components/context/AuthProvider";
 import Dashboard from "./components/AdminArea/Dashboard";
 import CreateEventDashboard from "./components/AdminArea/EventDashboard/CreateEvent";
+import BookedCalendar from "./pages/Admin/BookedCalendar";
 
 
 export const App = () => {
@@ -42,6 +44,7 @@ export const App = () => {
   return (
     <ContextWrapper>
       <AuthProvider>
+      <AncaChat />
       <Suspense fallback={<div>LOADING URS...</div>}>
         <Routes>
            {/* Public / general routes */}
@@ -56,6 +59,7 @@ export const App = () => {
           {/* Auth-protected admin routes */}
           <Route element={<RequireAuth />}>
             <Route path="/admin" element={<Dashboard />} />
+            <Route path="/admin/calendar" element={<BookedCalendar />} />
             <Route path="/create-event" element={<CreateEventDashboard />} />
           </Route>
 

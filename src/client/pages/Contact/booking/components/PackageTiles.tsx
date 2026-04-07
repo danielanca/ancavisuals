@@ -99,7 +99,7 @@ export default function PackageTiles({ packages, selected, onChange }: Props) {
                   </div>
 
                   <div className="meta-row">
-                    <span className="price">{fmtRON(p.price)} RON</span>
+                    <span className="price">{fmtRON(p.price)} EUR</span>
                   </div>
                 </label>
 
@@ -154,7 +154,7 @@ export default function PackageTiles({ packages, selected, onChange }: Props) {
 
       <div className={styles.total}>
         <span>Preț estimativ:</span>
-        <strong>{fmtRON(total)} RON</strong>
+        <strong>{fmtRON(total)} EUR</strong>
       </div>
     </fieldset>
   );
