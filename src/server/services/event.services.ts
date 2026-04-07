@@ -3,7 +3,6 @@ import crypto from "crypto";
 import { generateEventSlug } from "../../utils/eventUrl"; // assuming you have this
 import { firestore } from "../firestoreInit";
 import admin from "firebase-admin";
-import { getDateAndHour } from "../constants/utils";
 //import { Request } from "node-fetch";
 
 interface Host {
@@ -271,9 +270,9 @@ export async function verifyGuest(req: Request, res: Response) {
     );
 
     if (!guest) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: "Phone number not found in guest list",
-        hint: `Please check your number or contact the couple ${guest}`
+        hint: "Please check your number or contact the couple"
       });
     }
 

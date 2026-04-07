@@ -35,7 +35,13 @@ router.get("/", async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
   res.setHeader("Cache-Control", "no-store");
 
-  Readable.fromWeb(upstream.body as any).pipe(res);
+  const readable = Readable.fromWeb(upstream.body as any);
+  readable.on("error", (err) => {
+    console.error("Download stream error:", err);
+    if (!res.headersSent) res.status(502).send("Stream failed");
+    else res.destroy();
+  });
+  readable.pipe(res);
 });
 
 export default router;

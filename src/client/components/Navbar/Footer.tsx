@@ -15,9 +15,6 @@ const Footer = () => {
               <Link to="/portofoliu" className="hover:text-gray-400 transition-colors">
                 Portofoliu
               </Link>
-              {/* <Link to="/pricing" className="hover:text-gray-400 transition-colors">
-                                Pricing
-                            </Link> */}
               <Link to="/contact" className="hover:text-gray-400 transition-colors">
                 SOLICITA-NE
               </Link>

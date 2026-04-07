@@ -1,10 +1,6 @@
 import { Request, Response } from "express";
 import axios from "axios";
-import crypto from "crypto";
-import { generateEventSlug } from "../../utils/eventUrl"; // assuming you have this
 import { firestore } from "../firestoreInit";
-import admin from "firebase-admin";
-import { getDateAndHour } from "../constants/utils";
 
 
 const STORAGE_HOST = "https://storage.bunnycdn.com";

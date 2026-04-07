@@ -1,784 +1,609 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+// ── TOKENS ──────────────────────────────────────────────
+$bg:              #111111;
+$surface:         #1c1c1c;
+$surface-hover:   #242424;
+$border:          #2a2a2a;
+$text-primary:    #ffffff;
+$text-muted:      #777777;
+$text-label:      #aaaaaa;
+$accent:          #3d6ef5;
+$accent-hover:    #2d5ee0;
+$danger:          #e04444;
+$radius-btn:      999px;
+$radius-card:     12px;
+$transition:      0.2s ease;
+$font-display:    'DM Serif Display', serif;
+$font-body:       'DM Sans', sans-serif;
+
+// ── PAGE ────────────────────────────────────────────────
 .page {
+  background-color: $bg;
+  color: $text-primary;
+  font-family: $font-body;
   min-height: 100vh;
-  background: #050509;
-  color: rgba(255, 255, 255, 0.92);
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 3rem 1rem 4rem;
-}
+  padding: 0 32px 80px;
 
-.title {
-  margin: 0 0 8px;
-  font-size: 34px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-.meta {
-  margin: 0 0 18px;
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-  letter-spacing: 0.06em;
-}
-
-.divider {
-  height: 1px;
-  margin: 18px 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.14));
-  border-radius: 999px;
-}
-
-.sectionTitle {
-  margin: 28px 0 14px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.88);
-}
-
-.sectionRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-top: 22px;
-}
-
-.rowActions {
-  display: inline-flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-/* Butoane comune */
-.pickBtn,
-.downloadBtn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0;
-  font-size: 0.9rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: #e5e7eb;
-  color: #000000;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.pickBtnSecondary,
-.shareBtn {
-  padding: 0.65rem 1.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-/* Banner mod activ */
-.modeBanner {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(10, 10, 10, 0.75);
-  backdrop-filter: blur(8px);
-  color: #fff;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-}
-
-/* Zona estompată */
-.dimmedArea {
-  filter: blur(2.5px) brightness(0.75);
-  opacity: 0.9;
-  pointer-events: auto;
-  user-select: none;
-  touch-action: manipulation;
-
-  * {
-    pointer-events: none;
+  @media (max-width: 768px) {
+    padding: 0 16px 60px;
   }
 }
 
+// ── TITLE ───────────────────────────────────────────────
+.title {
+  font-family: $font-display;
+  font-size: clamp(32px, 5vw, 60px);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -1px;
+  color: $text-primary;
+  margin-top: 32px;
+  margin-bottom: 8px;
+  max-width: 700px;
+  animation: fadeInUp 0.6s ease both;
+}
 
-/* Pager */
-.pager,
-.pagerBottom {
+.meta {
+  font-size: 14px;
+  color: $text-muted;
+  margin-bottom: 24px;
+  animation: fadeInUp 0.6s ease 0.1s both;
+
+  strong {
+    color: $text-primary;
+    font-weight: 600;
+  }
+}
+
+// ── DIVIDER ─────────────────────────────────────────────
+.divider {
+  height: 1px;
+  background-color: $border;
+  margin: 28px 0;
+}
+
+// ── ACTION BUTTONS ROW ──────────────────────────────────
+.actionButtons {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  margin-bottom: 12px;
+}
+
+// ── BUTTONS ─────────────────────────────────────────────
+.btn {
+  display: inline-flex;
   align-items: center;
-  margin: 14px 0;
-}
-
-.pagerBottom {
-  justify-content: center;
-}
-
-.pagerInfo {
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.92rem;
-  letter-spacing: 0.02em;
-}
-
-.pagerBtn {
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(0, 0, 0, 0.35);
-  color: #fff;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: $radius-btn;
+  font-family: $font-body;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+  border: none;
+  transition: background-color $transition, opacity $transition, transform $transition;
+  white-space: nowrap;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
 
-.pagerBtn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.32);
-  background: rgba(0, 0, 0, 0.5);
+.btnOutline {
+  background: none;
+  border: 1px solid $border;
+  color: $text-primary;
+
+  &:hover:not(:disabled) {
+    background-color: $surface;
+  }
 }
 
-.pagerBtn:disabled {
-  opacity: 0.45;
-  cursor: default;
-  transform: none;
+.btnPrimary {
+  background-color: $accent;
+  color: #ffffff;
+
+  &:hover:not(:disabled) {
+    background-color: $accent-hover;
+    transform: translateY(-1px);
+  }
 }
 
-.pagerBtnGhost {
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-  cursor: pointer;
+.btnSecondary {
+  background-color: $surface;
+  color: $text-primary;
+
+  &:hover:not(:disabled) {
+    background-color: $surface-hover;
+  }
 }
 
-.pagerBtnGhost:hover {
-  border-color: rgba(255, 255, 255, 0.32);
+.btnDanger {
+  background-color: $danger;
+  color: #ffffff;
+
+  &:hover:not(:disabled) {
+    background-color: darken($danger, 8%);
+  }
 }
 
-/* Galerie principală */
+.fillAction {
+  composes: btn btnPrimary;
+}
+
+.viewAction {
+  composes: btn btnOutline;
+}
+
+// ── SECTION ROW ─────────────────────────────────────────
+.sectionRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.sectionTitle {
+  font-family: $font-display;
+  font-size: clamp(20px, 3vw, 28px);
+  font-weight: 400;
+  color: $text-primary;
+  letter-spacing: -0.5px;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+// ── PICK BUTTONS ────────────────────────────────────────
+.pickBtn {
+  composes: btn btnPrimary;
+}
+
+.pickBtnSecondary {
+  composes: btn btnOutline;
+}
+
+.pickBtnSecondary + .sectionTitle,
+.pickBtnSecondary ~ .sectionRow {
+  margin-top: 48px;
+}
+
+.resetAllPrintBtn {
+  composes: btn btnDanger;
+  font-size: 13px;
+}
+
+// ── PHOTOS SCROLLER ─────────────────────────────────────
 .photosScroller {
-  height: min(72vh, 860px);
-  overflow: auto;
-  padding: 10px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 32px;
 }
 
-/* Share box */
+// ── ADMIN GALLERY GRID ──────────────────────────────────
+.adminGalleryGrid {
+  columns: 3;
+  column-gap: 12px;
+
+  @media (max-width: 1100px) {
+    columns: 2;
+  }
+
+  @media (max-width: 640px) {
+    columns: 1;
+  }
+
+  &[data-columns="2"] {
+    @media (max-width: 640px) {
+      columns: 2;
+    }
+  }
+}
+
+.adminPhotoWrapper {
+  break-inside: avoid;
+  position: relative;
+  margin-bottom: 12px;
+  border-radius: $radius-card;
+  overflow: hidden;
+}
+
+.adminPhotoImg {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+.deletePhotoBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.75);
+  border: none;
+  color: #ffffff;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity $transition, background-color $transition;
+
+  .adminPhotoWrapper:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    background-color: $danger;
+  }
+}
+
+// ── DIMMED AREA ─────────────────────────────────────────
+.dimmedArea {
+  opacity: 0.35;
+  pointer-events: none;
+  transition: opacity $transition;
+}
+
+// ── PRINT PHOTOS GRID ───────────────────────────────────
+.printPhotosGrid {
+  columns: 3;
+  column-gap: 12px;
+  margin-bottom: 20px;
+
+  @media (max-width: 1100px) {
+    columns: 2;
+  }
+
+  @media (max-width: 640px) {
+    columns: 1;
+  }
+
+  &[data-columns="2"] {
+    @media (max-width: 640px) {
+      columns: 2;
+    }
+  }
+}
+
+.printPhotoWrapper {
+  break-inside: avoid;
+  position: relative;
+  margin-bottom: 12px;
+  border-radius: $radius-card;
+  overflow: hidden;
+}
+
+.printPhotoImg {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+.removePrintBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.7);
+  border: none;
+  color: #ffffff;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity $transition, background-color $transition;
+
+  .printPhotoWrapper:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    background-color: $danger;
+  }
+}
+
+.emptyPrint {
+  font-size: 14px;
+  color: $text-muted;
+  margin-bottom: 24px;
+}
+
+// ── SHARE BOX ───────────────────────────────────────────
 .shareBox {
-  margin: 10px 0 18px;
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(5, 5, 9, 0.72);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+  background-color: $surface;
+  border: 1px solid $border;
+  border-radius: $radius-card;
+  padding: 20px;
+  margin-bottom: 24px;
 }
 
 .shareTitle {
-  font-size: 12px;
-  letter-spacing: 0.14em;
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-label;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.72);
-  margin-bottom: 10px;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
 }
 
 .shareRow {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .shareInput {
   flex: 1;
-  min-width: 240px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.9);
+  min-width: 200px;
+  background-color: $bg;
+  border: 1px solid $border;
+  border-radius: $radius-btn;
+  padding: 10px 16px;
+  color: $text-primary;
+  font-family: $font-body;
+  font-size: 13px;
+  outline: none;
+}
+
+.shareBtn {
+  composes: btn btnOutline;
+  padding: 10px 18px;
+  font-size: 13px;
 }
 
 .shareError {
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255, 0, 0, 0.08);
-  border: 1px solid rgba(255, 0, 0, 0.25);
+  font-size: 13px;
+  color: $danger;
 }
 
-/* Video */
+// ── MEDIA ───────────────────────────────────────────────
 .mediaCenter {
   display: flex;
   justify-content: center;
+  margin-bottom: 16px;
 }
 
 .videoWrap {
-  width: 100%;
-  max-width: 980px;
-  border-radius: 18px;
+  border-radius: $radius-card;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+  background-color: $surface;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-width: 720px;
 }
 
 .video {
-  width: 100%;
   display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .actions {
-  margin: 14px 0 3rem;
   display: flex;
   justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
 }
 
-.emptyPrint {
-  margin: 10px 0 0;
-  color: rgba(255, 255, 255, 0.62);
+.downloadBtn {
+  composes: btn btnPrimary;
+  text-decoration: none;
+  font-size: 13px;
 }
 
-/* SECȚIUNEA POZE DE IMPRIMAT – GRID CU X ROȘU (versiunea finală îmbunătățită) */
-.printPhotosGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-  margin: 20px 0;
-  padding: 0 8px;
-
-  /* Force 2 columns on small screens (≤ 640px) */
-  @media (max-width: 640px) {
-    grid-template-columns: repeat(2, 1fr);     /* exactly 2 per row */
-    gap: 12px;                                 /* slightly smaller gap for mobile */
-    padding: 0 4px;                            /* less side padding */
-  }
-
-  /* Optional: even smaller screens (very narrow phones) */
-  @media (max-width: 360px) {
-    grid-template-columns: 1fr;                /* 1 column if really tiny */
-  }
+// ── ADMIN TEMP BUTTON ───────────────────────────────────
+.adminTempButton {
+  margin-bottom: 16px;
 }
 
-.printPhotoWrapper {
-  position: relative;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  aspect-ratio: 1 / 1;
-  background: #000;
+.adminTempBtn {
+  composes: btn btnOutline;
+  border-color: $accent;
+  color: $accent;
+  font-size: 13px;
 }
 
-.printPhotoImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* X roșu – varianta cea mai bună (păstrată din ultima definiție) */
-.removePrintBtn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 0, 0, 0.9);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  font-size: 22px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
-  transition: all 0.2s ease;
-}
-
-.removePrintBtn:hover {
-  background: #ff0000;
-  transform: scale(1.15);
-}
-
-.removePrintBtn:active {
-  transform: scale(0.95);
-}
-
-/* Buton reset toate – varianta finală */
-.resetAllPrintBtn {
-  background: #ff4444;
-  color: white;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
-}
-
-.resetAllPrintBtn:hover {
-  background: #cc0000;
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .sectionRow {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .rowActions {
-    justify-content: stretch;
-  }
-
-  .rowActions > * {
-    flex: 1;
-  }
-}
-
-.deletePhotoBtn {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 0, 0, 0.92);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  font-size: 20px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
-  transition: all 0.2s ease;
-}
-
-.deletePhotoBtn:hover {
-  background: #ff0000;
-  transform: scale(1.18);
-}
-
-.deletePhotoBtn:active {
-  transform: scale(0.95);
-}
-
-
-
-.adminBar {
-  margin: 10px 0 20px;
-  text-align: center;
-}
-
-.adminLoginBtn {
-  padding: 10px 18px;
-  background: #333;
-  color: #fff;
-  border: 1px solid #555;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.95rem;
-}
-
-.adminActive {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: #4ade80;
-  font-weight: 600;
-}
-
-.adminLogoutBtn {
-  padding: 6px 12px;
-  background: #991b1b;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.deletePhotoBtn {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 0, 0, 0.92);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  font-size: 20px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
-  transition: all 0.2s ease;
-}
-
-.deletePhotoBtn:hover {
-  background: #ff0000;
-  transform: scale(1.18);
-}
-
-.deletePhotoBtn:active {
-  transform: scale(0.95);
-}
-
-.adminGalleryGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-  padding: 10px;
-}
-
-.adminPhotoWrapper {
-  position: relative;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  aspect-ratio: 1 / 1;
-  background: #000;
-}
-
-.adminPhotoImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Reutilizăm același stil pentru 🗑️ */
-.deletePhotoBtn {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 0, 0, 0.92);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  font-size: 20px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
-  transition: all 0.2s ease;
-}
-
-.deletePhotoBtn:hover {
-  background: #ff0000;
-  transform: scale(1.18);
-}
-
-.deletePhotoBtn:active {
-  transform: scale(0.95);
-}
-
-.adminGalleryGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-  padding: 10px;
-}
-
-.adminPhotoWrapper {
-  position: relative;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  aspect-ratio: 1 / 1;
-  background: #000;
-}
-
-.adminPhotoImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.deletePhotoBtn {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 0, 0, 0.92);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  font-size: 20px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
-  transition: all 0.2s ease;
-}
-
-.deletePhotoBtn:hover {
-  background: #ff0000;
-  transform: scale(1.18);
-}
-
-.deletePhotoBtn:active {
-  transform: scale(0.95);
-}
-
-
-.album-header {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding: 2rem 0;
-  border-bottom: 1px solid #e5e7eb;
-
-  @media (min-width: 640px) {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .metadata {
-    font-size: 1.125rem;
-    font-weight: 500;
-    color: #111827;
-  }
-
-}
-
-
-.actionButtons {
-  display: flex;
-  gap: 1.5rem;
-  margin: 1.5rem 0;
-}
-
-.btn {
-  padding: 0.8rem 1.8rem;
-  border-radius: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.22s ease;
-}
-
-.btnOutline {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.38);
-  }
-}
-
-.fillAction {
-  border-color: #6366f1;
-  color: #c7d2fe;
-
-  &:hover {
-    background: rgba(99, 102, 241, 0.18);
-    border-color: #818cf8;
-  }
-}
-
-.viewAction {
-  border-color: rgba(255, 255, 255, 0.22);
-  color: rgba(255, 255, 255, 0.88);
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.07);
-  }
-}
-
-
-
-//swisss
-.metallicBtn {
-  position: relative;
-  overflow: hidden;
-  padding: 12px 28px;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #e2e8f0;
-  background: linear-gradient(145deg, #1e293b, #334155);
-  border: 1px solid #475569;
-  border-radius: 12px;
-  cursor: pointer;
-  box-shadow: 
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    0 4px 12px rgba(0,0,0,0.4);
-  transition: all 0.25s ease;
-
-  &:before {
-    content: '';
-    position: absolute;
-    top: 0; left: -100%;
-    width: 50%; height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255,255,255,0.15),
-      transparent
-    );
-    transition: left 0.6s;
-  }
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 
-      inset 0 1px 0 rgba(255,255,255,0.12),
-      0 10px 25px rgba(0,0,0,0.5);
-    
-    &:before {
-      left: 100%;
-    }
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  .btnText {
-    position: relative;
-    z-index: 1;
-  }
-}
-
+// ── MODAL OVERLAY ───────────────────────────────────────
 .modalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 1000;
+  padding: 24px;
   backdrop-filter: blur(4px);
 }
 
 .urlModal {
-  background: white;
-  border-radius: 16px;
+  background-color: $surface;
+  border: 1px solid $border;
+  border-radius: $radius-card;
   width: 100%;
-  max-width: 480px;
-  margin: 20px;
+  max-width: 520px;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+  animation: fadeInUp 0.2s ease both;
 }
 
 .modalHeader {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #eee;
-  background: #f8f9fa;
-}
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid $border;
 
-.modalHeader h3 {
-  margin: 0;
-  font-size: 1.4rem;
-  color: #1a1a1a;
+  h3 {
+    font-family: $font-display;
+    font-size: 20px;
+    font-weight: 400;
+    color: $text-primary;
+  }
 }
 
 .closeBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   background: none;
-  border: none;
-  font-size: 1.8rem;
-  color: #777;
+  border: 1px solid $border;
+  color: $text-muted;
+  font-size: 18px;
   cursor: pointer;
-  padding: 0 8px;
-  line-height: 1;
-  &:hover { color: #000; }
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color $transition, color $transition;
+
+  &:hover {
+    background-color: $surface-hover;
+    color: $text-primary;
+  }
 }
 
 .modalBody {
-  padding: 24px;
+  padding: 20px 24px 24px;
 }
 
 .modalHint {
-  margin: 0 0 12px 0;
-  color: #555;
-  font-size: 0.95rem;
+  font-size: 13px;
+  color: $text-muted;
+  margin-bottom: 12px;
 }
 
 .urlInput {
-  color:black;
   width: 100%;
-  padding: 14px 16px;
-  font-size: 1rem;
-  border: 2px solid #ddd;
+  background-color: $bg;
+  border: 1px solid $border;
   border-radius: 10px;
+  padding: 12px 16px;
+  color: $text-primary;
+  font-family: $font-body;
+  font-size: 14px;
   outline: none;
-  transition: all 0.2s;
+  transition: border-color $transition;
+  margin-bottom: 20px;
 
   &:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: $accent;
   }
 }
 
 .modalFooter {
   display: flex;
-  gap: 12px;
   justify-content: flex-end;
-  margin-top: 28px;
+  gap: 10px;
 }
 
-.btnPrimary {
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-
-  &:hover { background: #2563eb; }
-  &:disabled {
-    background: #94a3b8;
-    cursor: not-allowed;
+// ── ANIMATIONS ──────────────────────────────────────────
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.btnSecondary {
-  background: #f1f5f9;
-  color: #334155;
-  border: 1px solid #cbd5e1;
-  padding: 12px 24px;
-  border-radius: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
 
-  &:hover { background: #e2e8f0; }
+// ── GRID TOGGLE ─────────────────────────────────────────
+.gridToggle {
+  display: flex;
+  gap: 4px;
+
+  @media (min-width: 641px) {
+    display: none;
+  }
+}
+
+.gridBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: none;
+  border: 1px solid $border;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color $transition, color $transition, border-color $transition;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background-color: $surface-hover;
+    color: $text-primary;
+  }
+}
+
+.gridBtnActive {
+  background-color: $surface;
+  border-color: $accent;
+  color: $text-primary;
+}
+
+
+// ── GRID TOGGLE (print section) ──────────────────────────
+.gridToggle {
+  display: none;
+  gap: 6px;
+  margin-bottom: 12px;
+ 
+  @media (max-width: 640px) {
+    display: flex;
+  }
+}
+ 
+.gridBtn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+ 
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+ 
+.gridBtnActive {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.5);
 }

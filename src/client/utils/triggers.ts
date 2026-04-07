@@ -31,13 +31,16 @@ export const sendTriggerEmail = async ({ typeEvent, url }: EventsTrigger) => {
       }),
     });
 
+    if (response.status === 204) {
+      console.log("[Trigger] Email nesimplu — ești pe local sau vizitator din afara României. Nu s-a trimis.");
+      return response;
+    }
+
     if (!response.ok) {
       throw new Error(`Server error: ${response.statusText}`);
     }
 
-    console.log("Email trigger sent successfully.");
-    const text = response.text();
-    console.log(text);
+    console.log("[Trigger] Email trimis cu succes.");
     return response;
   } catch (error) {
     console.error("Error sending trigger email:", error);

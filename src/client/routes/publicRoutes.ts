@@ -1,4 +1,7 @@
 import loadable from "@loadable/component";
+import React from "react";
+import { ALL_LOCATION_ROUTES } from "../pages/LocationSEO/locationData";
+import { LocationPageWrapper } from "../pages/LocationSEO/LocationPage";
 
 const Mainpage = loadable(() => import("../pages/Homepage/Mainpage"), { ssr: true });
 const Aboutme = loadable(() => import("../pages/About/Aboutme"), { ssr: true });
@@ -77,10 +80,17 @@ const publicRoutes: publicRoutesType[] = [
     component: BioPage,
   },
   {
-  path: "/delivery-address/:slug",
-    layout:null,
-    component:AddressListWrapper
-  }
+    path: "/delivery-address/:slug",
+    layout: null,
+    component: AddressListWrapper,
+  },
+  // Location SEO pages — 30 combinations (10 cities × 3 services)
+  ...ALL_LOCATION_ROUTES.map(({ path, citySlug, serviceSlug }) => {
+    const Component: React.FC = () =>
+      React.createElement(LocationPageWrapper, { citySlug, serviceSlug });
+    Component.displayName = `LocationPage_${serviceSlug}_${citySlug}`;
+    return { path, layout: null, component: Component };
+  }),
 ];
 
 export default publicRoutes;

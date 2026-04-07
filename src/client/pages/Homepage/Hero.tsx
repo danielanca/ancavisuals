@@ -14,7 +14,7 @@ const Hero = () => {
       if (!alreadySent) {
         const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
         document.cookie = `${COOKIE_KEY}=1; expires=${expires}; path=/`;
-        sendTriggerEmail({ typeEvent: "HeroVideo_START", url: window.location.pathname });
+        sendTriggerEmail({ typeEvent: "Vizitator site", url: window.location.pathname });
       }
     }, 2500);
 
