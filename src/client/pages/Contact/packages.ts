@@ -42,7 +42,15 @@ const PACKAGE_SAMPLES: Record<string, string[]> = {
   ],
 };
 
+export const PACKAGES: PackageOption[] = pricesData.packages.map(pkg => ({
+  key: pkg.id,
+  label: pkg.title,
+  description: pkg.note ?? "",
+  price: pkg.price,
+}));
+
 export const PACKAGES_NEW: Pkg[] = pricesData.packages.map(pkg => ({
   ...pkg,
+  type: pkg.type as "photo" | "video" | undefined,
   samples: PACKAGE_SAMPLES[pkg.id] ?? [],
 }));

@@ -226,16 +226,10 @@ export default function MediaAlbumPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
 
-  const [browsePage, setBrowsePage] = useState(1);
-  const [printPage, setPrintPage] = useState(1);
-  const [downloadPage, setDownloadPage] = useState(1);
-
   const photosTopRef = useRef<HTMLDivElement | null>(null);
   const shareBoxRef = useRef<HTMLDivElement | null>(null);
-
   const hydratedRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
-
   const dimTapCountRef = useRef(0);
   const dimTapTimerRef = useRef<number | null>(null);
 
@@ -246,13 +240,6 @@ export default function MediaAlbumPage() {
     longVideoBytes: number;
     bytesTotalAll: number;
   }>(null);
-
-  const photosTopRef = useRef<HTMLDivElement | null>(null);
-  const shareBoxRef = useRef<HTMLDivElement | null>(null);
-  const hydratedRef = useRef(false);
-  const persistTimerRef = useRef<number | null>(null);
-  const dimTapCountRef = useRef(0);
-  const dimTapTimerRef = useRef<number | null>(null);
 
   // ── DERIVED STATE ──────────────────────────────────────────────────────────
 
