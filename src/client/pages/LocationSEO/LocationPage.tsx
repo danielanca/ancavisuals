@@ -9,8 +9,8 @@ import { sendTriggerEmail } from "../../utils/triggers";
 import PortfolioGallery from "../Portfolio/PortfolioGallery";
 
 const PACKAGES = [
-  ...pricesData.services.map(s => ({ title: s.title, price: `${s.price} RON`, note: s.note })),
-  { title: "Foto + Video", price: `${pricesData.services.find(s => s.id === "photo")!.price + pricesData.services.find(s => s.id === "video")!.price} RON`, note: "Pachet complet recomandat" },
+  ...pricesData.packages.map(s => ({ title: s.title, price: `${s.price} EUR`, note: s.note })),
+  { title: "Foto + Video", price: `${pricesData.packages.find(s => s.id === "photo")!.price + pricesData.packages.find(s => s.id === "video")!.price} EUR`, note: "Pachet complet recomandat" },
 ];
 
 interface Props {
@@ -39,13 +39,13 @@ const LocationPage: React.FC<Props> = ({ citySlug, serviceSlug }) => {
     name: "Anca Visuals",
     description: metaDescription,
     url: canonicalUrl,
-    telephone: "+40700000000",
+    telephone: "+40745469907",
     areaServed: {
       "@type": "City",
       name: city.name,
     },
     serviceType: service.nameLong,
-    priceRange: `${Math.min(...pricesData.services.map(s => s.price))} RON - ${pricesData.services.find(s => s.id === "photo")!.price + pricesData.services.find(s => s.id === "video")!.price} RON`,
+    priceRange: `${Math.min(...pricesData.packages.map(s => s.price))} EUR - ${pricesData.packages.find(s => s.id === "photo")!.price + pricesData.packages.find(s => s.id === "video")!.price} EUR`,
     image: "https://www.ancavisuals.ro/android-chrome-512x512.png",
     sameAs: [
       "https://instagram.com/ancavisuals",
