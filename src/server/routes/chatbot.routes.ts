@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import pricesData from "../../data/prices.json";
+import pricesData from "../../data/prices.json" with { type: "json" };
 
 const router = Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

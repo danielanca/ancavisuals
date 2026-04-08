@@ -1,4 +1,4 @@
-import pricesData from "../../data/prices.json";
+import pricesData from "../../data/prices.json" with { type: "json" };
 
 const p = (id: string) => pricesData.packages.find(pkg => pkg.id === id)?.price ?? 0;
 
