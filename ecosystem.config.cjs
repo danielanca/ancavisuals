@@ -1,10 +1,16 @@
+const path = require("path");
+const fs = require("fs");
+
+const serverCwd = "/var/www/vhosts/ancavisuals.ro/httpdocs";
+const cwd = fs.existsSync(serverCwd) ? serverCwd : __dirname;
+
 module.exports = {
   apps: [
     {
       name: "ancavisuals",
       script: "dist/server.js",
       exec_mode: "fork",
-      cwd: "/var/www/vhosts/ancavisuals.ro/httpdocs",
+      cwd,
       env: {
         NODE_ENV: "production",
         VITE_GOOGLE_MAPS_BROWSER_KEY: "AIzaSyBAd_AGvtxO0ULtSbPeTMcyZ2csARrSgXU",
@@ -17,7 +23,7 @@ module.exports = {
         IPINFO_TOKEN: "f8c1bf7eef0517",
         BUNNY_STORAGE_PASSWORD: "0ce832c7-6666-4cd6-a6a2d9ebe38b-319e-4998",
         ANTHROPIC_API_KEY: "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",
-        FIREBASE_SERVICE_ACCOUNT_PATH: "/var/www/vhosts/ancavisuals.ro/httpdocs/sa.json",
+        FIREBASE_SERVICE_ACCOUNT_PATH: path.join(cwd, "sa.json"),
         PORT: 1994
       }
     }
