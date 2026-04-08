@@ -1,4 +1,8 @@
-import pricesData from "../../data/prices.json";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pricesData: { packages: { id: string; price: number; [key: string]: any }[] } = JSON.parse(readFileSync(join(__dirname, "../../data/prices.json"), "utf-8"));
 
 const p = (id: string) => pricesData.packages.find(pkg => pkg.id === id)?.price ?? 0;
 
