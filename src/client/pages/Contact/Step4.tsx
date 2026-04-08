@@ -28,7 +28,7 @@ export default function Step4({ step, goBack, submit }: { step: number; goBack: 
         <button
           type="button"
           onClick={submit}
-          aria-label={`Trimite cererea cu total ${total.toLocaleString("ro-RO")} RON`}
+          aria-label={`Trimite cererea cu total ${total.toLocaleString("ro-RO")} EUR`}
         >
           Trimite cererea
         </button>

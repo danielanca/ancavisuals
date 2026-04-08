@@ -126,7 +126,7 @@ export default function Step4Details({
           </div>
 
           {errors.package && <p className="error">{errors.package}</p>}
-          <p className="total-price">Preț: {fmtRON(totalPrice)} RON</p>
+          <p className="total-price">Preț: {fmtRON(totalPrice)} EUR</p>
         </div>
 
         <div className="input-group" style={{ marginTop: 12, display: "flex", gap: 8 }}>

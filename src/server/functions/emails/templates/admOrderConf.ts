@@ -231,7 +231,7 @@ export const renderAdminTemplate = (cartProd: any, invoiceNumberID: any, data: a
               <td align="left" style="padding:0;Margin:0;width:85px"> 
                <table cellpadding="0" cellspacing="0" width="100%" role="presentation" style="mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse;border-spacing:0px"> 
                  <tr> 
-                  <td align="right" style="padding:0;Margin:0"><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">${item.price} RON</p></td> 
+                  <td align="right" style="padding:0;Margin:0"><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">${item.price} EUR</p></td> 
                  </tr> 
                </table></td> 
              </tr> 
@@ -250,11 +250,11 @@ export const renderAdminTemplate = (cartProd: any, invoiceNumberID: any, data: a
                          <tr> 
                           <td align="right" class="es-m-txt-r" style="padding:0;Margin:0;padding-top:10px;padding-bottom:20px"><p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:21px;color:#333333;font-size:14px">Subtotal:&nbsp;<strong>${
                             data.cartSum
-                          } RON</strong><br>Taxa Transport:&nbsp;<strong>${
+                          } EUR</strong><br>Taxa Transport:&nbsp;<strong>${
                             data.shippingTax
-                          } RON</strong><br>Total (TVA inclus):&nbsp;<strong>${
+                          } EUR</strong><br>Total (TVA inclus):&nbsp;<strong>${
                             Number(data.cartSum) + Number(data.shippingTax)
-                          } RON</strong></p></td> 
+                          } EUR</strong></p></td> 
                          </tr> 
                        </table></td> 
                      </tr> 

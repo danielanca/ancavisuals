@@ -28,10 +28,10 @@ $font-body:       'DM Sans', sans-serif;
 .container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 32px 80px;
+  padding: 32px 32px 80px;
 
   @media (max-width: 768px) {
-    padding: 0 16px 60px;
+    padding: 16px 16px 60px;
   }
 }
 
@@ -43,7 +43,7 @@ $font-body:       'DM Sans', sans-serif;
   line-height: 1.05;
   letter-spacing: -1px;
   color: $text-primary;
-  margin-top: 32px;
+  margin-top: 0;
   margin-bottom: 8px;
   max-width: 700px;
   animation: fadeInUp 0.6s ease both;
@@ -304,23 +304,20 @@ $font-body:       'DM Sans', sans-serif;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: rgba(0, 0, 0, 0.7);
-  border: none;
-  color: #ffffff;
+  background-color: rgba(0, 0, 0, 0.6);
+  border: 1.5px solid #f59e0b;
+  color: #f59e0b;
   font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity $transition, background-color $transition;
-
-  .printPhotoWrapper:hover & {
-    opacity: 1;
-  }
+  opacity: 1;
+  transition: background-color $transition, color $transition;
 
   &:hover {
-    background-color: $danger;
+    background-color: #f59e0b;
+    color: #000000;
   }
 }
 

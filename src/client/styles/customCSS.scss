@@ -2,6 +2,11 @@
 
 /* ===== Global utilities & typography (no vendor imports here) ===== */
 
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
 .centerTextTitle {
   text-align: center;
   font-family: "Roboto Medium";

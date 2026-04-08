@@ -1,0 +1,7 @@
+.wrap { display:grid; place-items:center; min-height:40vh; }
+.spinner { width:32px; height:32px; border-radius:50%;
+  border:3px solid rgba(0,0,0,.15); border-top-color: currentColor;
+  animation: spin .8s linear infinite;
+}
+.text { margin-top:10px; font-weight:600; opacity:.7; }
+@keyframes spin { to { transform: rotate(360deg); } }

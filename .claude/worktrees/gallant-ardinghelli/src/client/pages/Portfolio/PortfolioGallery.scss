@@ -1,0 +1,117 @@
+$pg-gap: 16px;
+$pg-radius: 18px;
+$pg-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+$pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
+
+.pg-section {
+  width: 100%;
+  background: #050509;
+}
+
+.pg-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 1rem;
+}
+
+// Masonry column layout – fără găuri
+.pg-masonry {
+  column-count: 1;
+  column-gap: $pg-gap;
+
+  @media (min-width: 640px) {
+    column-count: 2;
+  }
+
+  @media (min-width: 1024px) {
+    column-count: 3;
+  }
+}
+
+.pg-item {
+  display: block;
+  width: 100%;
+  margin: 0 0 $pg-gap;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: $pg-radius;
+  overflow: hidden;
+  box-shadow: $pg-shadow;
+  break-inside: avoid; // ⬅️ important pentru masonry
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $pg-shadow-hover;
+
+    .pg-img {
+      transform: scale(1.03);
+      filter: saturate(1.06);
+    }
+  }
+}
+
+.pg-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  transition:
+    transform 0.32s ease,
+    filter 0.24s ease;
+}
+
+.pg-load-more {
+  text-align: center;
+  margin-top: 2.5rem;
+}
+.pg-load-more-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0;
+  border: none;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: #e5e7eb !important; // gri deschis
+  color: #000000;
+  cursor: pointer;
+
+  // animație de glow rapid (gri -> alb)
+  animation: pg-glow-fast 0.6s ease-in-out infinite;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pg-glow-fast {
+  0% {
+    background: #e5e7eb; // gri deschis
+    box-shadow:
+      0 0 0 rgba(255, 255, 255, 0),
+      0 0 0 rgba(255, 255, 255, 0);
+  }
+  50% {
+    background: #ffffff; // alb
+    box-shadow:
+      0 0 6px rgba(255, 255, 255, 0.9),
+      0 0 14px rgba(255, 255, 255, 0.8);
+  }
+  100% {
+    background: #e5e7eb;
+    box-shadow:
+      0 0 0 rgba(255, 255, 255, 0),
+      0 0 0 rgba(255, 255, 255, 0);
+  }
+}

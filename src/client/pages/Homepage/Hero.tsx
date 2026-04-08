@@ -6,10 +6,17 @@ const Hero = () => {
   const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
+    const COOKIE_KEY = "hero_trigger_sent";
+    const alreadySent = document.cookie.split(";").some(c => c.trim().startsWith(COOKIE_KEY + "="));
+
     const timer = setTimeout(() => {
       setShowVideo(true);
-      sendTriggerEmail({ typeEvent: "Vizitator site", url: window.location.pathname });
-    }, 2500); // 2 secunde întârziere
+      if (!alreadySent) {
+        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
+        document.cookie = `${COOKIE_KEY}=1; expires=${expires}; path=/`;
+        sendTriggerEmail({ typeEvent: "Vizitator site", url: window.location.pathname });
+      }
+    }, 2500);
 
     return () => clearTimeout(timer);
   }, []);

@@ -1,0 +1,246 @@
+// ========================
+//  Wedding Event Creation
+// ========================
+
+$page-bg: #f8f9fc;
+$accent: #9b2d30;           // elegant dark red / wine
+$accent-light: #c24144;
+$text-dark: #1f2937;
+$text-muted: #6b7280;
+
+.page {
+  min-height: 100vh;
+  background: $page-bg;
+  padding: 40px 20px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+
+  h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: $text-dark;
+    margin-bottom: 8px;
+  }
+
+  p {
+    color: $text-muted;
+    font-size: 1.1rem;
+  }
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+
+  @media (min-width: 992px) {
+    grid-template-columns: 1.1fr 0.9fr;
+  }
+}
+
+.formSection {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+}
+
+.formGroup {
+  margin-bottom: 24px;
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: $text-dark;
+  }
+
+  input, textarea {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: all 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: $accent;
+      box-shadow: 0 0 0 3px rgba($accent, 0.12);
+    }
+  }
+}
+
+.inputError {
+  border-color: #dc2626 !important;
+}
+
+.errorText {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-top: 6px;
+  display: block;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+
+  @media (min-width: 640px) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.formActions {
+  display: flex;
+  gap: 16px;
+  margin-top: 32px;
+  justify-content: flex-end;
+}
+
+.btnPrimary,
+.btnSecondary,
+.btnCreate {
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btnPrimary {
+  background: $accent;
+  color: black;
+
+  &:hover {
+    background: darken($accent, 8%);
+  }
+}
+
+.btnSecondary {
+  background: #e5e7eb;
+  color: #374151;
+
+  &:hover {
+    background: #d1d5db;
+  }
+}
+
+.btnCreate {
+  background: linear-gradient(135deg, $accent 0%, $accent-light 100%);
+  color: black;
+  font-size: 1.1rem;
+  padding: 16px 36px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba($accent, 0.3);
+  }
+}
+
+.loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  &::before {
+    content: "";
+    width: 18px;
+    height: 18px;
+    border: 3px solid white;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// ── Preview ────────────────────────────────────────
+
+.previewSection {
+  display: none;
+
+  @media (min-width: 992px) {
+    display: block;
+    position: sticky;
+    top: 40px;
+    align-self: start;
+  }
+}
+
+.previewCard {
+  background: white;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.08);
+  border: 1px solid rgba($accent, 0.08);
+}
+
+.previewHeader {
+  text-align: center;
+  color: $text-muted;
+  font-size: 0.9rem;
+  margin-bottom: 24px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.invitationMock {
+  text-align: center;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #fff8f8 0%, #fffaf5 100%);
+  border-radius: 16px;
+  border: 1px dashed rgba($accent, 0.3);
+}
+
+.namesBig {
+  font-family: "Playfair Display", serif;
+  font-size: 3.2rem;
+  color: $accent;
+  margin-bottom: 16px;
+  line-height: 1.1;
+}
+
+.tagline {
+  font-size: 1.3rem;
+  color: #4b5563;
+  font-style: italic;
+  margin: 16px 0 28px;
+}
+
+.dateBlock {
+  margin: 32px 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: $text-dark;
+}
+
+.date {
+  font-size: 1.8rem;
+  margin-bottom: 8px;
+}
+
+.time {
+  color: $accent;
+  font-weight: 500;
+}
+
+.venue, .city {
+  margin-top: 16px;
+  font-size: 1.15rem;
+  color: #374151;
+}

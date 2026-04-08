@@ -135,7 +135,7 @@ const ConfiguratorTeaser: React.FC = () => {
           <span>
             Demonstrație pentru <strong>{currentLabel}</strong> — configurabilă în următorul pas:
           </span>
-          <strong>{value.toLocaleString("ro-RO")} RON</strong>
+          <strong>{value.toLocaleString("ro-RO")} EUR</strong>
         </div>
 
         <p className="config-teaser__text">

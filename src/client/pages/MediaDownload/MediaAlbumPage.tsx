@@ -217,7 +217,7 @@ export default function MediaAlbumPage() {
   const [adminKey, setAdminKey] = useState("");
   const [showAdminButton, setShowAdminButton] = useState(false);
 
-  const [isMobile, setIsMobile] = useState(isMobileNow());
+  const [isMobile, setIsMobile] = useState(false);
   const [swissLink, setSwissLink] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
@@ -226,6 +226,13 @@ export default function MediaAlbumPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
 
+  const photosTopRef = useRef<HTMLDivElement | null>(null);
+  const shareBoxRef = useRef<HTMLDivElement | null>(null);
+  const hydratedRef = useRef(false);
+  const persistTimerRef = useRef<number | null>(null);
+  const dimTapCountRef = useRef(0);
+  const dimTapTimerRef = useRef<number | null>(null);
+
   const [stats, setStats] = useState<null | {
     photosCount: number;
     photosBytesTotal: number;
@@ -233,13 +240,6 @@ export default function MediaAlbumPage() {
     longVideoBytes: number;
     bytesTotalAll: number;
   }>(null);
-
-  const photosTopRef = useRef<HTMLDivElement | null>(null);
-  const shareBoxRef = useRef<HTMLDivElement | null>(null);
-  const hydratedRef = useRef(false);
-  const persistTimerRef = useRef<number | null>(null);
-  const dimTapCountRef = useRef(0);
-  const dimTapTimerRef = useRef<number | null>(null);
 
   // ── DERIVED STATE ──────────────────────────────────────────────────────────
 

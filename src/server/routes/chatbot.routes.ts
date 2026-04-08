@@ -1,17 +1,15 @@
 import { Router, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const pricesData = require("../../client/data/prices.json") as typeof import("../../client/data/prices.json");
+import pricesData from "../../data/prices.json";
 
 const router = Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const photoPrice = pricesData.services.find(s => s.id === "photo")!.price;
-const videoPrice = pricesData.services.find(s => s.id === "video")!.price;
+const photoPrice = pricesData.packages.find((s: any) => s.id === "photo")!.price;
+const videoPrice = pricesData.packages.find((s: any) => s.id === "video")!.price;
 
-const servicesText = pricesData.services
-  .map(s => `- ${s.title}: ${s.price} RON — ${s.note}`)
+const servicesText = pricesData.packages
+  .map((s: any) => `- ${s.title}: ${s.price} EUR — ${s.note}`)
   .join("\n");
 
 const SYSTEM_PROMPT = `Ești asistentul virtual al Anca Visuals, un studio profesionist de fotografie și videografie din România.
@@ -22,8 +20,8 @@ SERVICII ȘI PREȚURI:
 ${servicesText}
 
 PACHETE COMBINATE (orientativ):
-- Doar fotografie: de la ${photoPrice} RON
-- Foto + video: de la ${photoPrice + videoPrice} RON
+- Doar fotografie: de la ${photoPrice} EUR
+- Foto + video: de la ${photoPrice + videoPrice} EUR
 - Foto + video + extras (album, booth etc.): prețul variază în funcție de opțiuni
 
 TIPURI DE EVENIMENTE ACOPERITE:
