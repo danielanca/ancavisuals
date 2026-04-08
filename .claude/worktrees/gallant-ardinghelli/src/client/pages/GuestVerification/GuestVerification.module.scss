@@ -1,0 +1,71 @@
+.verificationContainer {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f8f9fc 0%, #e2e8f0 100%);
+    padding: 20px;
+  }
+  
+  .card {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    text-align: center;
+  }
+  
+  .title {
+    font-size: 2rem;
+    color: #9b2d30;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+  
+  .inputGroup {
+    margin-bottom: 20px;
+    text-align: left;
+  
+    label { font-weight: 500; margin-bottom: 8px; display: block; }
+    input { 
+      width: 100%; 
+      padding: 14px; 
+      border: 2px solid #e2e8f0; 
+      border-radius: 12px; 
+      font-size: 16px;
+      &:focus { border-color: #9b2d30; outline: none; }
+    }
+  }
+  
+  .error {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+  
+  .submitBtn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #9b2d30, #c24144);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+  
+    &:hover:not(:disabled) { transform: translateY(-2px); }
+    &:disabled { opacity: 0.6; cursor: not-allowed; }
+  }
+  
+  .helpText {
+    margin-top: 24px;
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.5;
+  }

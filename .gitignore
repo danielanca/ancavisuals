@@ -21,6 +21,7 @@ coverage
 
 # API keys and secrets
 
+sa.json
 src/server/joculdetectivuluiFirebaseKEY.json
 
 # Dependency directory

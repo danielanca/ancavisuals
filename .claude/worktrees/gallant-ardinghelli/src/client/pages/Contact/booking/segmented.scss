@@ -1,0 +1,101 @@
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.segmented button {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid #3a3a3a;
+  background: #1f1f1f;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.12s ease;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.65);
+  white-space: nowrap;
+}
+
+.segmented button:hover {
+  background: #262626;
+  border-color: rgba(244, 211, 94, 0.5);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.9);
+  transform: translateY(-1px);
+}
+
+.segmented button.active {
+  background: #f4d067;
+  color: #111111;
+  border-color: #f4d067;
+  box-shadow:
+    0 0 20px rgba(244, 208, 103, 0.35),
+    0 12px 32px rgba(0, 0, 0, 0.95);
+  transform: translateY(-1px);
+}
+
+.segmented button:focus-visible {
+  outline: 2px solid #f4d067;
+  outline-offset: 2px;
+}
+
+/* Formularul să nu mai forțeze centrare pe tot conținutul */
+.booking-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch; /* important */
+  text-align: left; /* text la stânga în interior */
+}
+
+/* Labelul de consimțământ ancorat corect */
+.consent-label {
+  align-self: flex-start; /* nu mai ia centrare de la părinte */
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  max-width: 520px; /* să nu fugă pe lățimi mari */
+  font-size: 13px;
+  color: #9ca3af;
+  text-align: left;
+}
+
+/* Checkbox */
+.consent-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: #f4d35e;
+  flex-shrink: 0;
+}
+
+/* Titlu + text */
+.consent-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e5e7eb;
+  margin-bottom: 2px;
+}
+
+.consent-text {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #9ca3af;
+}
+
+/* Mobile: asigură-te că stă frumos pe o coloană */
+@media (max-width: 640px) {
+  .consent-label {
+    max-width: 100%;
+  }
+}

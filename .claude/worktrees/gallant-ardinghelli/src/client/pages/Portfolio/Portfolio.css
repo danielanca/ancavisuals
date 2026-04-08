@@ -1,0 +1,85 @@
+@font-face {
+  font-family: "Displace Medium";
+  src: url("../../../fonts/Displace20-Medium.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+.myport {
+  background-color: #1a1a1a;
+}
+.portfolio-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 20px;
+  flex-wrap: wrap;
+  gap: 20px;
+  background-color: #1a1a1a;
+  text-align: center;
+}
+
+.portfolio-images {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.portfolio-images img {
+  width: 150px;
+  height: auto;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.portfolio-center {
+  max-width: 300px;
+  padding: 0 20px;
+}
+
+.portfolio-subtitle {
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  color: #888;
+  margin-bottom: 10px;
+}
+
+.portfolio-title {
+  font-size: 2rem;
+  line-height: 1.4;
+  font-family: "Displace Bold", serif;
+  font-weight: normal; /* or 500 if available */
+  margin-bottom: 20px;
+}
+
+.portfolio-desc {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #888;
+  font-weight: 300;
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .portfolio-section {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .portfolio-images {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .portfolio-images img {
+    width: 100px;
+  }
+
+  .portfolio-title {
+    font-size: 1.5rem;
+  }
+
+  .portfolio-desc {
+    font-size: 0.85rem;
+  }
+}

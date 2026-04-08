@@ -1,0 +1,91 @@
+@import url("https://fonts.googleapis.com/css2?family=M+PLUS+1+Code&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap");
+@import "./../../../commons/main.scss";
+.conversationsContainer {
+  width: 100%;
+  max-width: 100rem;
+  height: 100%;
+  min-height: 100vh;
+  margin: auto;
+  background-color: black;
+  max-width: 450px;
+}
+
+.conversationsWrapper {
+  padding: 2rem 0;
+}
+
+.loginTopTitle {
+  width: 100%;
+  color: white;
+  font-size: 15px;
+  font-family: "M PLUS 1 Code";
+  font-weight: 400;
+  text-align: center;
+}
+
+.titleUnderline {
+  width: 80%;
+  height: 1px;
+  margin: auto;
+  background-color: #00ff0a;
+}
+
+.divConv {
+  padding: 3rem;
+  @include media("<xs") {
+    padding: 1rem;
+  }
+}
+
+.titleOne {
+  font-family: "M PLUS 1 Code";
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 15px;
+  letter-spacing: 0em;
+  text-align: left;
+  color: #00ff0a;
+}
+
+.titleTwo {
+  font-family: "M PLUS 1 Code";
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 15px;
+  letter-spacing: 0em;
+  text-align: left;
+  color: white;
+  padding: 0.5rem 0;
+}
+
+.activitate {
+  width: 100%;
+  height: 100%;
+  background-color: #343434;
+  text-align: left;
+  padding: 0.8rem 1rem;
+}
+
+.activitate button {
+  width: 100%;
+  max-width: 475px;
+  height: 100%;
+  margin: auto;
+  background-color: #252525;
+  border: 2px solid #636363;
+  color: #00ff0a;
+  font-family: "M PLUS 1 Code";
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 15px;
+  letter-spacing: 0em;
+  text-align: left;
+  padding: 0.5rem 1rem;
+}
+
+.activitate button:hover {
+  border: 2px solid white;
+  transition: all 0.2s;
+  cursor: pointer;
+}
