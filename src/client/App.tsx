@@ -1,6 +1,7 @@
 import React, { Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import AncaChat from "./components/AncaChat/AncaChat";
+import { useLocation } from "react-router-dom";
 import routes from "./routes/routes";
 import { ContextWrapper } from "./Context"; // Assuming you have this component
 
@@ -9,11 +10,17 @@ import RequireAuth from "./components/AdminArea/RequireAuth";
 import Login from "./components/AdminArea/Login";
 import { AuthProvider } from "./components/context/AuthProvider";
 import Dashboard from "./components/AdminArea/Dashboard";
-import CreateEventDashboard from "./components/AdminArea/EventDashboard/CreateEvent";
+import CreateEventWedding from "./components/AdminArea/EventDashboard/CreateEvent";
+import AdminBook from "./pages/Contact/booking/AdminBook";
 import BookedCalendar from "./pages/Admin/BookedCalendar";
 
 
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media"];
+
 export const App = () => {
+  const location = useLocation();
+  const showChat = !HIDE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
+
   useEffect(() => {
     // Funcție care șterge dialogul de privacy dacă există
     const removeUcDialog = () => {
@@ -44,7 +51,7 @@ export const App = () => {
   return (
     <ContextWrapper>
       <AuthProvider>
-      <AncaChat />
+      {showChat && <AncaChat />}
       <Suspense fallback={<div>LOADING URS...</div>}>
         <Routes>
            {/* Public / general routes */}
@@ -60,7 +67,8 @@ export const App = () => {
           <Route element={<RequireAuth />}>
             <Route path="/admin" element={<Dashboard />} />
             <Route path="/admin/calendar" element={<BookedCalendar />} />
-            <Route path="/create-event" element={<CreateEventDashboard />} />
+            <Route path="/admin/create-event" element={<AdminBook />} />
+            <Route path="/admin/create-event-wedding" element={<CreateEventWedding />} />
           </Route>
 
 

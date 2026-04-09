@@ -38,12 +38,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     loading: true,
   });
 
-  // 1) Fast authorise hint from cookie (client only) to avoid initial flicker
+  // 1) Cookie hint: menține loading=true până Firebase confirmă — nu setăm authorise din cookie
+  // (cookie-ul expirat/invalid ar lăsa accesul deschis înainte ca onAuthStateChanged să răspundă)
   useEffect(() => {
     if (!isBrowser()) return;
+    // dacă nu există deloc cookie, putem opri loading imediat (cu siguranță neautentificat)
     const hasJWT = Boolean(getCookie("jwt"));
-    // only set authorise hint if we don't yet have a user
-    setState((s) => (s.user ? s : { ...s, authorise: hasJWT }));
+    if (!hasJWT) {
+      setState((s) => (s.user ? s : { ...s, loading: false }));
+    }
+    // dacă există cookie, așteptăm onAuthStateChanged să confirme
   }, []);
 
   // 2) Track auth user (login/logout)

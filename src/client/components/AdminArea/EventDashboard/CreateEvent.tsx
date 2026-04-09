@@ -8,7 +8,7 @@ import styles from "./CreateEvent.module.scss";
 
 interface Host {
   name: string;
-  role?: string; // e.g. "Bride", "Groom", "Mother of the Bride"
+  role?: string;
   phone?: string;
   email?: string;
 }
@@ -17,7 +17,7 @@ interface Guest {
   name: string;
   phone?: string;
   email?: string;
-  relation?: string; // family, friend, colleague, etc.
+  relation?: string;
   plusOneAllowed?: boolean;
 }
 
@@ -54,18 +54,18 @@ const CreateEvent = () => {
   } = useForm<WeddingEventForm>({
     defaultValues: {
       coupleNames: "",
-      weddingTitle: "Our Wedding Celebration",
-      tagline: "We decided to say 'I do' and we want you by our side",
+      weddingTitle: "Nunta Noastră",
+      tagline: "Am decis să spunem «Da» și vrem să fii alături de noi",
       hosts: [
-        { name: "", role: "Bride" },
-        { name: "", role: "Groom" },
+        { name: "", role: "Mireasă" },
+        { name: "", role: "Mire" },
       ],
       initialGuests: [],
     },
     mode: "onChange",
   });
 
-  const formValues = watch(); // ← Critical for live preview!
+  const formValues = watch();
 
   const { fields: hostFields, append: appendHost, remove: removeHost } = useFieldArray({
     control,
@@ -80,7 +80,7 @@ const CreateEvent = () => {
   const onSubmit = async (data: WeddingEventForm) => {
     const user = auth.currentUser;
     if (!user) {
-      alert("Please sign in to create your wedding event");
+      alert("Te rugăm să te autentifici pentru a crea evenimentul");
       return;
     }
 
@@ -101,16 +101,14 @@ const CreateEvent = () => {
 
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText || "Failed to create event");
+        throw new Error(errorText || "Evenimentul nu a putut fi creat");
       }
 
       const result = await res.json();
-
-      // Redirect to guest management page
       navigate(`/invitatie/${result.slug}`);
-    } catch (err: any) {
-      console.error("Event creation error:", err);
-      alert("Couldn't create event\n" + (err.message || "Unknown error"));
+    } catch (error: any) {
+      console.error("Eroare creare eveniment:", error);
+      alert("Evenimentul nu a putut fi creat\n" + (error.message || "Eroare necunoscută"));
     } finally {
       setLoading(false);
     }
@@ -120,21 +118,22 @@ const CreateEvent = () => {
     <div className={styles.page}>
       <div className={styles.container}>
         <header className={styles.header}>
-          <h1>Create Your Dream Wedding Invitation</h1>
-          <p>Step {step} of 4 • Let's make it perfect together</p>
+          <h1>Creează Invitația de Nuntă</h1>
+          <p>Pasul {step} din 4 • Să o facem perfectă împreună</p>
         </header>
 
         <form onSubmit={handleSubmit(onSubmit)} className={styles.form}>
           <div className={styles.contentGrid}>
-            {/* LEFT - Form content */}
+            {/* STÂNGA - Formular */}
             <div className={styles.formSection}>
-              {/* STEP 1: Couple & Basic Info */}
+
+              {/* PAS 1: Cuplu & Info de bază */}
               {step === 1 && (
                 <>
                   <div className={styles.formGroup}>
-                    <label>Couple Names (as displayed) *</label>
+                    <label>Numele cuplului (cum apare pe invitație) *</label>
                     <input
-                      {...register("coupleNames", { required: "Couple names are required" })}
+                      {...register("coupleNames", { required: "Numele cuplului este obligatoriu" })}
                       placeholder="Estera & Daniel"
                       className={errors.coupleNames ? styles.inputError : ""}
                     />
@@ -144,65 +143,65 @@ const CreateEvent = () => {
                   </div>
 
                   <div className={styles.formGroup}>
-                    <label>Wedding Title</label>
-                    <input {...register("weddingTitle")} placeholder="Our Wedding Day" />
+                    <label>Titlul evenimentului</label>
+                    <input {...register("weddingTitle")} placeholder="Nunta Noastră" />
                   </div>
 
                   <div className={styles.formGroup}>
-                    <label>Romantic Tagline</label>
-                    <input {...register("tagline")} placeholder="Two hearts, one promise..." />
+                    <label>Mesaj romantic</label>
+                    <input {...register("tagline")} placeholder="Două inimi, o promisiune..." />
                   </div>
 
                   <div className={styles.formRow}>
                     <div className={styles.formGroup}>
-                      <label>Date *</label>
+                      <label>Data *</label>
                       <input
                         type="date"
-                        {...register("eventDate", { required: "Date is required" })}
+                        {...register("eventDate", { required: "Data este obligatorie" })}
                         className={errors.eventDate ? styles.inputError : ""}
                       />
                     </div>
                     <div className={styles.formGroup}>
-                      <label>Ceremony Time *</label>
+                      <label>Ora ceremoniei *</label>
                       <input
                         type="time"
-                        {...register("ceremonyTime", { required: "Time is required" })}
+                        {...register("ceremonyTime", { required: "Ora este obligatorie" })}
                         className={errors.ceremonyTime ? styles.inputError : ""}
                       />
                     </div>
                   </div>
 
                   <button type="button" className={styles.btnPrimary} onClick={() => setStep(2)}>
-                    Next → Hosts & Details
+                    Înainte → Gazde & Detalii
                   </button>
                 </>
               )}
 
-              {/* STEP 2: Hosts */}
+              {/* PAS 2: Gazde */}
               {step === 2 && (
                 <>
-                  <h3 className={styles.sectionTitle}>Who is hosting?</h3>
-                  <p className={styles.sectionHelp}>Usually the couple, sometimes parents too</p>
+                  <h3 className={styles.sectionTitle}>Cine organizează evenimentul?</h3>
+                  <p className={styles.sectionHelp}>De obicei cuplul, uneori și părinții</p>
 
                   {hostFields.map((field, index) => (
                     <div key={field.id} className={styles.hostRow}>
                       <div className={styles.formGroup}>
-                        <label>Name *</label>
+                        <label>Nume *</label>
                         <input
-                          {...register(`hosts.${index}.name` as const, { required: "Name is required" })}
+                          {...register(`hosts.${index}.name` as const, { required: "Numele este obligatoriu" })}
                           placeholder="Estera Popescu"
                         />
                       </div>
 
                       <div className={styles.formGroup}>
-                        <label>Role</label>
+                        <label>Rol</label>
                         <select {...register(`hosts.${index}.role` as const)}>
-                          <option value="Bride">Bride</option>
-                          <option value="Groom">Groom</option>
-                          <option value="Bride's Parents">Bride's Parents</option>
-                          <option value="Groom's Parents">Groom's Parents</option>
-                          <option value="Family">Family</option>
-                          <option value="Other">Other</option>
+                          <option value="Mireasă">Mireasă</option>
+                          <option value="Mire">Mire</option>
+                          <option value="Părinții miresei">Părinții miresei</option>
+                          <option value="Părinții mirelui">Părinții mirelui</option>
+                          <option value="Familie">Familie</option>
+                          <option value="Altul">Altul</option>
                         </select>
                       </div>
 
@@ -212,7 +211,7 @@ const CreateEvent = () => {
                           className={styles.btnRemove}
                           onClick={() => removeHost(index)}
                         >
-                          Remove
+                          Șterge
                         </button>
                       )}
                     </div>
@@ -221,99 +220,99 @@ const CreateEvent = () => {
                   <button
                     type="button"
                     className={styles.btnAdd}
-                    onClick={() => appendHost({ name: "", role: "Other" })}
+                    onClick={() => appendHost({ name: "", role: "Altul" })}
                   >
-                    + Add another host/parent
+                    + Adaugă gazdă / părinte
                   </button>
 
                   <div className={styles.formActions}>
                     <button type="button" className={styles.btnSecondary} onClick={() => setStep(1)}>
-                      ← Back
+                      ← Înapoi
                     </button>
                     <button type="button" className={styles.btnPrimary} onClick={() => setStep(3)}>
-                      Next → Venues & Style
+                      Înainte → Locații & Stil
                     </button>
                   </div>
                 </>
               )}
 
-              {/* STEP 3: Venues & Style */}
+              {/* PAS 3: Locații & Stil */}
               {step === 3 && (
                 <>
                   <div className={styles.formGroup}>
-                    <label>Main City *</label>
+                    <label>Orașul principal *</label>
                     <input
-                      {...register("city", { required: "City is required" })}
+                      {...register("city", { required: "Orașul este obligatoriu" })}
                       placeholder="Cluj-Napoca"
                     />
                   </div>
 
                   <div className={styles.formGroup}>
-                    <label>Reception Venue *</label>
+                    <label>Locația recepției *</label>
                     <input
-                      {...register("receptionVenue", { required: "Reception venue is required" })}
-                      placeholder="Hap & Hap Restaurant, Str. Memorandumului 8"
+                      {...register("receptionVenue", { required: "Locația recepției este obligatorie" })}
+                      placeholder="Restaurant Hap & Hap, Str. Memorandumului 8"
                     />
                   </div>
 
                   <div className={styles.formRow}>
                     <div className={styles.formGroup}>
-                      <label>Civil Ceremony (optional)</label>
-                      <input {...register("civilCeremony")} placeholder="Cluj-Napoca City Hall" />
+                      <label>Cununie civilă (opțional)</label>
+                      <input {...register("civilCeremony")} placeholder="Primăria Cluj-Napoca" />
                     </div>
                     <div className={styles.formGroup}>
-                      <label>Religious Ceremony (optional)</label>
-                      <input {...register("religiousCeremony")} placeholder="St. Michael's Church" />
+                      <label>Cununie religioasă (opțional)</label>
+                      <input {...register("religiousCeremony")} placeholder="Biserica Sf. Mihail" />
                     </div>
                   </div>
 
                   <div className={styles.formGroup}>
-                    <label>Dress Code (optional)</label>
-                    <input {...register("dressCode")} placeholder="Formal • Cocktail • Elegant chic" />
+                    <label>Cod vestimentar (opțional)</label>
+                    <input {...register("dressCode")} placeholder="Formal • Cocktail • Elegant" />
                   </div>
 
                   <div className={styles.formGroup}>
-                    <label>Welcome Message (optional)</label>
+                    <label>Mesaj de bun venit (opțional)</label>
                     <textarea
                       {...register("welcomeMessage")}
-                      placeholder="We are thrilled to share this special day with you..."
+                      placeholder="Suntem încântați să împărțim această zi specială cu voi..."
                       rows={3}
                     />
                   </div>
 
                   <div className={styles.formGroup}>
-                    <label>RSVP Deadline (optional)</label>
+                    <label>Termen confirmare prezență (opțional)</label>
                     <input type="date" {...register("rsvpDeadline")} />
                   </div>
 
                   <div className={styles.formActions}>
                     <button type="button" className={styles.btnSecondary} onClick={() => setStep(2)}>
-                      ← Back
+                      ← Înapoi
                     </button>
                     <button type="button" className={styles.btnPrimary} onClick={() => setStep(4)}>
-                      Next → Guests & Finish
+                      Înainte → Invitați & Finalizare
                     </button>
                   </div>
                 </>
               )}
 
-              {/* STEP 4: Initial Guests + Create */}
+              {/* PAS 4: Invitați & Creare */}
               {step === 4 && (
                 <div className={styles.finalStep}>
-                  <h3>Invite Your Loved Ones</h3>
+                  <h3>Invită-ți Cei Dragi</h3>
                   <p className={styles.sectionHelp}>
-                    Add your first guests here. You can manage more later.
+                    Adaugă primii invitați aici. Poți gestiona mai mulți ulterior.
                   </p>
 
                   {guestFields.map((field, index) => (
                     <div key={field.id} className={styles.guestRow}>
                       <input
                         {...register(`initialGuests.${index}.name` as const)}
-                        placeholder="Guest Full Name"
+                        placeholder="Numele complet al invitatului"
                       />
                       <input
                         {...register(`initialGuests.${index}.phone` as const)}
-                        placeholder="Phone (optional)"
+                        placeholder="Telefon (opțional)"
                       />
                       <button
                         type="button"
@@ -330,26 +329,25 @@ const CreateEvent = () => {
                     className={styles.btnAdd}
                     onClick={() => appendGuest({ name: "" })}
                   >
-                    + Add Guest
+                    + Adaugă invitat
                   </button>
 
                   <div className={styles.formActions}>
                     <button type="button" className={styles.btnSecondary} onClick={() => setStep(3)}>
-                      ← Back
+                      ← Înapoi
                     </button>
-
                     <button type="submit" className={styles.btnCreate} disabled={loading}>
-                      {loading ? "Creating..." : "✨ Create Wedding & Start Inviting ✨"}
+                      {loading ? "Se creează..." : "✨ Creează Nunta & Trimite Invitații ✨"}
                     </button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* RIGHT - Live Preview */}
+            {/* DREAPTA - Previzualizare live */}
             <div className={styles.previewSection}>
               <div className={styles.previewCard}>
-                <div className={styles.previewHeader}>Live Invitation Preview</div>
+                <div className={styles.previewHeader}>Previzualizare Invitație</div>
 
                 <div className={styles.invitationMock}>
                   <div className={styles.namesBig}>
@@ -357,29 +355,28 @@ const CreateEvent = () => {
                   </div>
 
                   <div className={styles.tagline}>
-                    {formValues.tagline ||
-                      "We warmly invite you to celebrate our love together"}
+                    {formValues.tagline || "Vă invităm cu drag să celebrați iubirea noastră împreună"}
                   </div>
 
                   <div className={styles.dateBlock}>
                     <div className={styles.date}>
                       {formValues.eventDate
-                        ? new Date(formValues.eventDate).toLocaleDateString("en-GB", {
+                        ? new Date(formValues.eventDate).toLocaleDateString("ro-RO", {
                             day: "2-digit",
                             month: "long",
                             year: "numeric",
                           })
-                        : "23 May 2028"}
+                        : "23 Mai 2028"}
                     </div>
 
                     {formValues.ceremonyTime && (
-                      <div className={styles.time}>Ceremony at {formValues.ceremonyTime}</div>
+                      <div className={styles.time}>Ceremonie la ora {formValues.ceremonyTime}</div>
                     )}
                   </div>
 
                   {formValues.receptionVenue && (
                     <div className={styles.venue}>
-                      Reception @ {formValues.receptionVenue}
+                      Recepție @ {formValues.receptionVenue}
                     </div>
                   )}
 
@@ -389,11 +386,11 @@ const CreateEvent = () => {
 
                   {formValues.hosts?.length > 0 && (
                     <div className={styles.hostsPreview}>
-                      Hosted by:{" "}
+                      Organizat de:{" "}
                       {formValues.hosts
                         .map((h) => h.name)
                         .filter(Boolean)
-                        .join(" & ") || "The Happy Couple"}
+                        .join(" & ") || "Cuplul Fericit"}
                     </div>
                   )}
                 </div>

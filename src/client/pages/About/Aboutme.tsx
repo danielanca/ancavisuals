@@ -6,9 +6,6 @@ import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import Aboutdani from "./Aboutdani";
 import Bio from "./Bio";
-import Profile from "./Profile";
-import Values from "./Values";
-import Ourlife from "./Ourlife";
 
 const Aboutme = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -17,9 +14,6 @@ const Aboutme = () => {
       <Navbar />
       <Aboutdani />
       <Bio />
-      {/* <Profile />
-      <Values /> */}
-      {/* <Ourlife /> */}
       <Footer />
     </div>
   );

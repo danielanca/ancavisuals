@@ -19,10 +19,11 @@ interface ChatNode {
 const DATE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 
 export default function AncaChat() {
-  const [isOpen, setIsOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("anca_chat_open") === "true";
-  });
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    setIsOpen(localStorage.getItem("anca_chat_open") === "true");
+  }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [inputText, setInputText] = useState("");

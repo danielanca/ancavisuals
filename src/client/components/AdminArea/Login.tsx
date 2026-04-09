@@ -48,7 +48,7 @@ const Login = () => {
         authorise: true,
       }));
 
-      navigate("/admin", { replace: true });
+      navigate("/admin", { replace: true }); // redirecționare corectă după login
     } catch (err: any) {
       const code = err?.code || "";
       if (code === "auth/invalid-credential" || code === "auth/wrong-password") {

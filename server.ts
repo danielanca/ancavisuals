@@ -15,6 +15,7 @@ import eventRouter  from "./src/server/routes/event.route";
 import QRRouter from "./src/server/routes/QRMoment.routes";
 import assistantChatRouter from "./src/server/routes/assistantChat.routes";
 import adminCalendarRouter from "./src/server/routes/adminCalendar.routes";
+import adminEventsRouter from "./src/server/routes/adminEvents.routes";
 import chatbotRouter from "./src/server/routes/chatbot.routes";
 import multer from 'multer';
 
@@ -80,6 +81,7 @@ async function createServer() {
   app.use("/api/urlcheck",QRRouter);
   app.use("/api/assistant", assistantChatRouter);
   app.use("/api/admin", adminCalendarRouter);
+  app.use("/api/admin", adminEventsRouter);
   app.use("/api/chatbot", chatbotRouter);
 
 app.post('/api/upload-qr-moment', upload.array('files', 25), async (req: Request, res: Response) => {

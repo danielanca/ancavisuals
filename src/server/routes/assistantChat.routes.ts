@@ -3,21 +3,36 @@ import { CHAT_NODES, FALLBACK_NODE, ChatNode } from "../data/assistantChatData";
 import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestoreInit";
 
+/** ============================================================
+ *  CONSTANTE
+ * ============================================================ */
 const DATE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+const FIREBASE_BUCKET = "joculdetectivului.appspot.com";
+const BOOKED_DATES_FILE = "ancavisuals/bookedDates/bookedDates.json";
+const MIN_VALID_YEAR = 2024;
+const MIN_MONTH = 1;
+const MAX_MONTH = 12;
+const MIN_DAY = 1;
+const MAX_DAY = 31;
+
+const MONTHS_RO = [
+  "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
+  "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie",
+];
 
 function parseDate(input: string): string | null {
   const m = input.trim().match(DATE_RE);
   if (!m) return null;
   const d = parseInt(m[1]), mo = parseInt(m[2]), y = parseInt(m[3]);
-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 2024) return null;
+  if (mo < MIN_MONTH || mo > MAX_MONTH || d < MIN_DAY || d > MAX_DAY || y < MIN_VALID_YEAR) return null;
   return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 async function getBookedDates(): Promise<string[]> {
   try {
-    firestore(); // asigură inițializarea Firebase Admin
-    const bucket = getStorage().bucket("joculdetectivului.appspot.com");
-    const [contents] = await bucket.file("ancavisuals/bookedDates/bookedDates.json").download();
+    firestore();
+    const bucket = getStorage().bucket(FIREBASE_BUCKET);
+    const [contents] = await bucket.file(BOOKED_DATES_FILE).download();
     const data = JSON.parse(contents.toString());
     const set = new Set<string>();
     for (const entry of data?.dates ?? []) {
@@ -61,8 +76,7 @@ router.post("/message", async (req, res) => {
     if (dateKey) {
       const bookedDates = await getBookedDates();
       const [y, mo, d] = dateKey.split("-");
-      const months = ["Ianuarie","Februarie","Martie","Aprilie","Mai","Iunie","Iulie","August","Septembrie","Octombrie","Noiembrie","Decembrie"];
-      const humanDate = `${parseInt(d)} ${months[parseInt(mo) - 1]} ${y}`;
+      const humanDate = `${parseInt(d)} ${MONTHS_RO[parseInt(mo) - 1]} ${y}`;
       const node: ChatNode = bookedDates.includes(dateKey)
         ? {
             id: "data_ocupata",

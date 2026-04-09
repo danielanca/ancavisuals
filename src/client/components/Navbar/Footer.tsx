@@ -36,15 +36,15 @@ const Footer = () => {
             <p>Licensed and insured professional photographer serving worldwide.</p>
             <div className="flex justify-center space-x-4 mt-4">
               <Link to="/privacy" className="hover:text-gray-400 transition-colors">
-                Privacy Policy
+                Politică de Confidențialitate
               </Link>
               <span>•</span>
               <Link to="/terms" className="hover:text-gray-400 transition-colors">
-                Terms of Service
+                Termeni și Condiții
               </Link>
               <span>•</span>
               <Link to="/copyright" className="hover:text-gray-400 transition-colors">
-                Copyright Info
+                Copyright
               </Link>
             </div>
           </div>
