@@ -1,13 +1,8 @@
 // components/AdminArea/Login.tsx
-// @ts-nocheck
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import useAuth from "../hooks/hooks/useAuth";
-import { setJWT } from "../../utils/functions";
-
-import { auth } from "../../firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
 
 const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -15,7 +10,7 @@ const Login = () => {
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
 
-  const { setAuth } = useAuth();
+  const { signIn } = useAuth();
   const navigate = useNavigate();
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,21 +29,8 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth, form.email, form.password);
-      const token = await cred.user.getIdToken(true);
-
-      const ok = await setJWT("jwt", token, 1);
-      if (!ok) throw new Error("Nu s-a putut seta sesiunea.");
-
-      setAuth((prev) => ({
-        ...prev,
-        email: form.email,
-        password: "",
-        accessToken: token,
-        authorise: true,
-      }));
-
-      navigate("/admin", { replace: true }); // redirecționare corectă după login
+      await signIn(form.email, form.password);
+      navigate("/admin", { replace: true });
     } catch (err: any) {
       const code = err?.code || "";
       if (code === "auth/invalid-credential" || code === "auth/wrong-password") {

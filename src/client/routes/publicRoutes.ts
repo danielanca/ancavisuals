@@ -18,7 +18,14 @@ const PrivacyPage = loadable(() => import("../pages/Privacy/Privacy"), { ssr: tr
 const TermsPage = loadable(() => import("../pages/Terms/Terms"), { ssr: true });
 const AddressListWrapper = loadable( () => import("../pages/DeliveryAddress/AddressListWrapper"),{ ssr: false });
 
-import { publicRoutesType } from "./types";
+type LayoutType = React.ComponentType | null;
+type ComponentType = React.ComponentType;
+
+interface publicRoutesType {
+  path: string;
+  layout: LayoutType;
+  component: ComponentType;
+}
 
 const publicRoutes: publicRoutesType[] = [
 

@@ -157,7 +157,7 @@ app.post('/api/upload-qr-moment', upload.array('files', 25), async (req: Request
 
   let vite: ViteDevServer | undefined;
   let template: string;
-  let render: (url: string) => Promise<string>;
+  let render: (url: string) => Promise<{ appHtml: string; head: string }>;
 
   const stylesheetsPromise = getStyleSheets();
 
@@ -196,24 +196,24 @@ app.post('/api/upload-qr-moment', upload.array('files', 25), async (req: Request
 
     try {
       let htmlTemplate = template;
-      let appHtml: string;
-
+      let appHtml = "";
+      let head = "";
       if (!isProd && vite) {
         // dev: transform html + load entry via Vite
         htmlTemplate = await vite.transformIndexHtml(url, htmlTemplate);
         const devModule = await vite.ssrLoadModule(
           '/src/client/entry-server.tsx',
         );
-        appHtml = await devModule.render(url);
+        ({ appHtml, head } = await devModule.render(url));
       } else {
         // prod: use prebuilt server bundle
-        appHtml = await render(url);
+        ({ appHtml, head } = await render(url));
       }
 
       const cssAssets = await stylesheetsPromise;
       const html = htmlTemplate
         .replace(`<!--app-html-->`, appHtml)
-        .replace(`<!--head-->`, cssAssets);
+        .replace(`<!--head-->`, head + "\n" + cssAssets);
 
       res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
     } catch (e) {

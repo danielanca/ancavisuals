@@ -1,8 +1,9 @@
 import React, { Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import AncaChat from "./components/AncaChat/AncaChat";
+import PageLoader from "./components/UI/PageLoader";
 import { useLocation } from "react-router-dom";
-import routes from "./routes/routes";
+import routes from "./routes/publicRoutes";
 import { ContextWrapper } from "./Context"; // Assuming you have this component
 
 import CheckAuth from "./components/AdminArea/checkAuth";
@@ -52,7 +53,7 @@ export const App = () => {
     <ContextWrapper>
       <AuthProvider>
       {showChat && <AncaChat />}
-      <Suspense fallback={<div>LOADING URS...</div>}>
+      <Suspense fallback={<PageLoader />}>
         <Routes>
            {/* Public / general routes */}
            {routes.map((route) => (
