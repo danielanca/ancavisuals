@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { ClientEvent, EventStatus } from "../../types/admin";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
+import { slugify } from "../../utils/slugify";
 
 interface EventCardProps {
   event: ClientEvent;
@@ -31,8 +32,6 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const eventDate = new Date(event.eventDate);
   const isPast = eventDate < new Date();
 
-  const slugify = (str: string) =>
-    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "");
   const dateSlug = eventDate.toISOString().slice(0, 10);
   const nameSlug = slugify(event.client.fullName);
   const docBasePath = (type: "contract" | "factura") =>

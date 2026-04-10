@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import AdminStepDate from "./steps/AdminStepDate";
 import Breadcrumb from "../../../components/AdminArea/Breadcrumb";
+import { convertToEur, parseAmount } from "../../../utils/currency";
 
 const MONTHS_RO = [
   "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
@@ -99,23 +100,15 @@ export default function AdminBook() {
   };
 
   // Convert entered price to EUR
-  const priceEur = useMemo(() => {
-    const raw = parseFloat(price.replace(",", "."));
-    if (isNaN(raw) || raw <= 0) return null;
-    if (currency === "EUR") return raw;
-    const rate = parseFloat(exchangeRate.replace(",", "."));
-    if (isNaN(rate) || rate <= 0) return null;
-    return Math.round((raw / rate) * 100) / 100;
-  }, [price, currency, exchangeRate]);
+  const priceEur = useMemo(
+    () => convertToEur(parseAmount(price), currency, parseAmount(exchangeRate)),
+    [price, currency, exchangeRate],
+  );
 
-  const advanceEur = useMemo(() => {
-    const raw = parseFloat(advance.replace(",", "."));
-    if (isNaN(raw) || raw <= 0) return null;
-    if (currency === "EUR") return raw;
-    const rate = parseFloat(exchangeRate.replace(",", "."));
-    if (isNaN(rate) || rate <= 0) return null;
-    return Math.round((raw / rate) * 100) / 100;
-  }, [advance, currency, exchangeRate]);
+  const advanceEur = useMemo(
+    () => convertToEur(parseAmount(advance), currency, parseAmount(exchangeRate)),
+    [advance, currency, exchangeRate],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
