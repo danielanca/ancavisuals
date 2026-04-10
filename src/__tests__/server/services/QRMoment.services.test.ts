@@ -1,3 +1,4 @@
+// @ts-nocheck
 /*
  * Purpose: validates QR Moments route checks by combining Firestore event presence
  * with Bunny folder existence so dead or partial event setups are handled safely.

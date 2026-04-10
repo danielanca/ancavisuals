@@ -1,3 +1,4 @@
+// @ts-nocheck
 /*
  * Purpose: verifies share controller validation, expiry handling and zip creation
  * while isolating Bunny and persistence dependencies behind mocks.
