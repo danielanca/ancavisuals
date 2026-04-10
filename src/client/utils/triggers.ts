@@ -28,6 +28,7 @@ export const sendTriggerEmail = async ({ typeEvent, url }: EventsTrigger) => {
         typeEvent: sanitizeInput(typeEvent),
         url: sanitizeInput(url),
         browserVersion: getUserBrowser(),
+        referrer: sanitizeInput(document.referrer || "direct"),
       }),
     });
 

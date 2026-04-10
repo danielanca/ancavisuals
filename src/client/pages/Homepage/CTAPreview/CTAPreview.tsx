@@ -16,9 +16,9 @@ const EVENT_TYPES: EventTypeConfig[] = [
 ];
 
 // Slider demo – doar efect vizual, nu logic real de preț
-const MIN = 800;
-const MAX = 6500;
-const STEP = 80;
+const MIN = 1;
+const MAX = 1300;
+const STEP = 13;
 
 const ConfiguratorTeaser: React.FC = () => {
   const [selectedType, setSelectedType] = useState<EventTypeId>("nunta");

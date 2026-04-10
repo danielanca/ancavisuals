@@ -9,6 +9,7 @@ import DeliveryForm from './DeliveryForm';
 import DeliveryAddressModal from "../DeliveryAddress/AddressList";
 import PhotoLightbox from "./PhotoLightbox";
 import OnboardingWizard from "./Onboardingwizard";
+import AncaLoader from "../../components/UI/AncaLoader";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,15 @@ type PersistedStateV3 = {
   downloadPage: number;
   selectedPrint: string[];
   selectedDownload: string[];
+};
+
+type ShareCreateResponse = {
+  id?: string;
+};
+
+type AdminWindow = Window & {
+  adminClickCount?: number;
+  adminClickTimeout?: number | null;
 };
 
 // ── REDUCER ──────────────────────────────────────────────────────────────────
@@ -606,7 +616,7 @@ export default function MediaAlbumPage() {
         dispatch({ type: "SET_SHARE_URL", url: null, error: `Share failed (${response.status})` });
         return;
       }
-      let data: any;
+      let data: ShareCreateResponse;
       try { data = JSON.parse(text); } catch {
         dispatch({ type: "SET_SHARE_URL", url: null, error: "Invalid response" });
         return;
@@ -639,7 +649,7 @@ export default function MediaAlbumPage() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
-  if (loading) return <div className={styles.page}><div className={styles.container}>Se încarcă...</div></div>;
+  if (loading) return <AncaLoader />;
   if (!album) return <AlbumNotFound />;
 
   return (
@@ -706,14 +716,17 @@ export default function MediaAlbumPage() {
           className={styles.title}
           style={{ cursor: "pointer" }}
           onClick={() => {
-            if (!(window as any).adminClickCount) {
-              (window as any).adminClickCount = 0;
-              (window as any).adminClickTimeout = null;
+            const adminWindow = window as AdminWindow;
+            if (!adminWindow.adminClickCount) {
+              adminWindow.adminClickCount = 0;
+              adminWindow.adminClickTimeout = null;
             }
-            (window as any).adminClickCount++;
-            if ((window as any).adminClickTimeout) clearTimeout((window as any).adminClickTimeout);
-            (window as any).adminClickTimeout = setTimeout(() => { (window as any).adminClickCount = 0; }, 3000);
-            if ((window as any).adminClickCount >= 10) {
+            adminWindow.adminClickCount += 1;
+            if (adminWindow.adminClickTimeout) clearTimeout(adminWindow.adminClickTimeout);
+            adminWindow.adminClickTimeout = window.setTimeout(() => {
+              adminWindow.adminClickCount = 0;
+            }, 3000);
+            if (adminWindow.adminClickCount >= 10) {
               if (isAdmin) {
                 setIsAdmin(false);
                 setAdminKey("");
@@ -724,7 +737,7 @@ export default function MediaAlbumPage() {
                 setShowAdminButton(true);
                 alert("🔓 Butonul de acces admin a apărut mai sus!");
               }
-              (window as any).adminClickCount = 0;
+              adminWindow.adminClickCount = 0;
             }
           }}
         >
@@ -739,7 +752,7 @@ export default function MediaAlbumPage() {
 
         <div className={styles.actionButtons}>
           <button className={styles.fillAction} onClick={() => setIsFormOpen(true)}>
-            Adresa de livrare al completării
+            Completează adresa de livrare
           </button>
           <button className={styles.viewAction} onClick={() => setShowDeliveryModal(true)}>
             Vezi adresa de livrare
@@ -749,7 +762,7 @@ export default function MediaAlbumPage() {
         {isAdmin && (
           <div className={styles.actionButtons}>
             <button type="button" className={styles.viewAction} onClick={() => setShowUrlModal(true)}>
-              Add Swiss Transfer Link
+              Adaugă link Swiss Transfer
             </button>
           </div>
         )}
@@ -766,11 +779,11 @@ export default function MediaAlbumPage() {
           <div className={styles.modalOverlay} onClick={() => setShowUrlModal(false)}>
             <div className={styles.urlModal} onClick={(event) => event.stopPropagation()}>
               <div className={styles.modalHeader}>
-                <h3>Custom Download Link</h3>
-                <button className={styles.closeBtn} onClick={() => setShowUrlModal(false)} aria-label="Close">×</button>
+                <h3>Link descărcare</h3>
+                <button className={styles.closeBtn} onClick={() => setShowUrlModal(false)} aria-label="Închide">×</button>
               </div>
               <div className={styles.modalBody}>
-                <p className={styles.modalHint}>Paste or edit the direct download link:</p>
+                <p className={styles.modalHint}>Lipește sau editează link-ul direct de descărcare:</p>
                 <input
                   type="url"
                   value={customUrl}
@@ -780,8 +793,8 @@ export default function MediaAlbumPage() {
                   autoFocus
                 />
                 <div className={styles.modalFooter}>
-                  <button className={styles.btnSecondary} onClick={() => setShowUrlModal(false)}>Cancel</button>
-                  <button className={styles.btnPrimary} onClick={saveLink} disabled={!customUrl.trim()}>Save Link</button>
+                  <button className={styles.btnSecondary} onClick={() => setShowUrlModal(false)}>Anulează</button>
+                  <button className={styles.btnPrimary} onClick={saveLink} disabled={!customUrl.trim()}>Salvează link</button>
                 </div>
               </div>
             </div>
@@ -846,7 +859,7 @@ export default function MediaAlbumPage() {
                   <div className={styles.shareRow}>
                     <input className={styles.shareInput} value={shareUrl ?? ""} readOnly />
                     <button className={styles.shareBtn} type="button" onClick={() => navigator.clipboard.writeText(shareUrl!)}>Copy</button>
-                    <button className={styles.shareBtn} type="button" onClick={() => (navigator as any).share?.({ url: shareUrl })}>Share</button>
+                    <button className={styles.shareBtn} type="button" onClick={() => navigator.share?.({ url: shareUrl ?? undefined })}>Share</button>
                   </div>
                 )}
               </div>
@@ -911,6 +924,7 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={togglePhoto}
                   onPhotoClick={mode === "none" ? openLightbox : undefined}
+                  mobileColumns={mobileColumns}
                 />
               )}
             </div>

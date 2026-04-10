@@ -8,6 +8,32 @@ import styles from "../components/CustomOptions.module.scss";
 
 const fmtRON = (n: number) => n.toLocaleString("ro-RO");
 
+type Step4DetailsProps = {
+  MAPS_KEY: string;
+  location: string;
+  setLocation: (value: string) => void;
+  placeId: string | null;
+  setPlaceId: (value: string | null) => void;
+  startTime: string;
+  setStartTime: (value: string) => void;
+  endTime: string;
+  setEndTime: (value: string) => void;
+  errors: Partial<Record<"location" | "startTime" | "endTime" | "package", string>>;
+  packagesNormalized: PkgInfo[];
+  selectedPackages: string[];
+  setSelectedPackages: (packages: string[]) => void;
+  showCustom: boolean;
+  setShowCustom: (value: boolean) => void;
+  photo: boolean;
+  setPhoto: (value: boolean) => void;
+  video: boolean;
+  setVideo: (value: boolean) => void;
+  totalPrice: number;
+  submitBooking: () => void;
+  goBack: () => void;
+  loading: boolean;
+};
+
 export default function Step4Details({
   MAPS_KEY,
   location,
@@ -32,7 +58,7 @@ export default function Step4Details({
   submitBooking,
   goBack,
   loading,
-}: any) {
+}: Step4DetailsProps) {
   const durationInfo = React.useMemo(() => {
     const s = parseTimeToMinutes(startTime);
     const e = parseTimeToMinutes(endTime);
@@ -107,7 +133,7 @@ export default function Step4Details({
         {/* Pachete (tiles) */}
         <div className="price-configurator" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <PackageTiles
-            packages={packagesNormalized as PkgInfo[]}
+            packages={packagesNormalized}
             selected={selectedPackages}
             onChange={setSelectedPackages}
           />

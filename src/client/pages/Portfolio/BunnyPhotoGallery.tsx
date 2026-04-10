@@ -13,6 +13,7 @@ type Props = {
   onPhotoClick?: (src: string) => void;
   virtualized?: boolean;
   scrollable?: boolean;
+  mobileColumns?: 1 | 2;
 };
 
 type ImgFormat = "webp" | "jpeg" | "png" | "avif" | "auto";
@@ -65,6 +66,7 @@ export default function BunnyPhotoGallery({
   onPhotoClick,
   virtualized = false,
   scrollable = false,
+  mobileColumns,
 }: Props) {
   const [visible, setVisible] = useState(90);
   const [isMobile, setIsMobile] = useState(isMobileNow());
@@ -88,13 +90,13 @@ export default function BunnyPhotoGallery({
   const thumbQ = selectable ? (isMobile ? 74 : 76) : isMobile ? 78 : 80;
 
   const columnCount = useMemo(() => {
-    if (isMobile) return 2;
+    if (isMobile) return mobileColumns ?? 2;
     const width = size.width;
     if (width >= 1100) return 5;
     if (width >= 900) return 4;
     if (width >= 640) return 3;
     return 2;
-  }, [isMobile, size.width]);
+  }, [isMobile, size.width, mobileColumns]);
 
   const gap = 16;
 
@@ -169,10 +171,10 @@ export default function BunnyPhotoGallery({
   };
 
   const getColCount = () => {
-    if (typeof window === "undefined") return 2;
+    if (typeof window === "undefined") return mobileColumns ?? 2;
     if (window.matchMedia("(min-width: 1024px)").matches) return 4;
     if (window.matchMedia("(min-width: 640px)").matches) return 3;
-    return 2;
+    return mobileColumns ?? 2;
   };
 
   const [colCount, setColCount] = useState(getColCount());
@@ -190,7 +192,7 @@ export default function BunnyPhotoGallery({
       mq640.removeEventListener("change", onChange);
       mq1024.removeEventListener("change", onChange);
     };
-  }, []);
+  }, [mobileColumns]);
 
   const columns = useMemo(() => {
     const cols = Array.from({ length: colCount }, () => [] as string[]);

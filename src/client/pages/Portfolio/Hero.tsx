@@ -1,4 +1,3 @@
-"use client";
 import React from "react";
 import { TypeAnimation } from "react-type-animation";
 import { motion } from "framer-motion";
@@ -31,7 +30,7 @@ const Portfoliohero = () => {
         transition={{ duration: 0.8, ease: "easeOut" }}
         className="text-center"
       >
-        <h1 className="font-display font-semibold leading-tight tracking-tight text-[2rem] md:text-6xl text-white inline-block relative">
+        <h1 className="font-display font-semibold leading-tight tracking-tight text-[1.4rem] sm:text-[2rem] md:text-6xl text-white inline-block relative max-w-[90vw]">
           <TypeAnimation
             sequence={phrases}
             wrapper="span"

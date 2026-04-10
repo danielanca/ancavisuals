@@ -9,8 +9,8 @@ export default function AddressListWrapper() {
   if (!slug) {
     return (
       <div style={{ padding: '3rem', textAlign: 'center', color: '#dc2626', fontSize: '1.2rem' }}>
-        Error: No album slug found in URL.<br />
-        Example: /my-wedding-2025/delivery-address
+        Eroare: Nu s-a găsit identificatorul albumului în URL.<br />
+        Exemplu: /nunta-mea-2025/delivery-address
       </div>
     );
   }

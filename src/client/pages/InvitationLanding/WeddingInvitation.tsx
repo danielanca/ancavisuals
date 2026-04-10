@@ -1,16 +1,50 @@
-"use client";
-
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import './WeddingInvitation.scss';
 import parse from 'html-react-parser';
+
+type InvitationVenues = {
+  civil?: {
+    name?: string;
+    address?: string;
+    time?: string;
+  };
+  religious?: {
+    name?: string;
+    address?: string;
+    time?: string;
+  };
+  reception?: {
+    name?: string;
+    address?: string;
+    time?: string;
+  };
+};
+
+type InvitationEvent = {
+  eventDate?: string;
+  city?: string;
+  coupleNames?: string;
+  tagline?: string;
+  countdownTitle?: string;
+  rsvpTitle?: string;
+  venues?: InvitationVenues;
+  [key: string]: string | InvitationVenues | undefined;
+};
+
+type CountdownState = {
+  days: string;
+  hours: string;
+  minutes: string;
+  seconds: string;
+};
 
 const WeddingInvitation = () => {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
 
   const [isVerified, setIsVerified] = useState(false);
-  const [eventData, setEventData] = useState<any>(null);
+  const [eventData, setEventData] = useState<InvitationEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -19,7 +53,7 @@ const WeddingInvitation = () => {
   const [selectedMsg, setSelectedMsg] = useState('');
   const [status, setStatus] = useState<'vin' | 'nu' | null>(null);
 
-  const [timeLeft, setTimeLeft] = useState({
+  const [timeLeft, setTimeLeft] = useState<CountdownState>({
     days: '??',
     hours: '??',
     minutes: '??',
@@ -61,9 +95,9 @@ const WeddingInvitation = () => {
 
         const json = await response.json();
         setEventData(json.data || json);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to load invitation:", err);
-        setFetchError(err.message || "Could not load the invitation");
+        setFetchError(getErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -178,7 +212,10 @@ const WeddingInvitation = () => {
   }
 
   // Helper to get values with fallback
-  const getText = (key: string, fallback: string) => eventData?.[key] || fallback;
+  const getText = (key: string, fallback: string): string => {
+    const value = eventData?.[key];
+    return typeof value === "string" ? value : fallback;
+  };
 
   return (
     <div className="container">
@@ -330,7 +367,7 @@ const WeddingInvitation = () => {
               <p className="venue-type">{eventData.venues.civil.name || 'City Hall'}</p>
               <p className="venue-address">{eventData.venues.civil.address}</p>
               <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(eventData.venues.civil.address)}`}
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(eventData.venues.civil.address || "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn directions-btn"
@@ -359,3 +396,7 @@ const WeddingInvitation = () => {
 };
 
 export default WeddingInvitation;
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return "Could not load the invitation";
+  };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { sendTriggerEmail } from "../../../client/utils/triggers";
+import { sendTriggerEmail } from "../../utils/triggers";
 
 const Hero = () => {
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);

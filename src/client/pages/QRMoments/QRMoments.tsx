@@ -1,7 +1,23 @@
+/*
+ * Purpose: renders the public QR Moments page where guests can upload photos,
+ * videos and voice messages for an event, including onboarding, recording and
+ * upload state management in the browser.
+ */
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import parse from 'html-react-parser';
 import './QRMoments.scss';
+
+type LegacyAudioWindow = Window & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
+type QRMomentsEventInfo = {
+  bride?: string;
+  groom?: string;
+  eventDate?: string;
+  message?: string;
+};
 
 const QRWizard = ({ onClose }: { onClose: () => void }) => {
   const [step, setStep] = useState(0);
@@ -61,7 +77,7 @@ const QRWizard = ({ onClose }: { onClose: () => void }) => {
 };
 
 const QRMomentsPage: React.FC = () => {
-  const [eventInfo, setEventInfo] = useState<any | null>(null);
+  const [eventInfo, setEventInfo] = useState<QRMomentsEventInfo | null>(null);
   const [firstVisit, setFirstVisit] = useState<boolean | null>(null);
   const { eventDate } = useParams<{ eventDate: string }>();
   const [activeTab, setActiveTab] = useState<'photos' | 'videos' | 'audio'>('photos');
@@ -184,7 +200,7 @@ const QRMomentsPage: React.FC = () => {
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as LegacyAudioWindow).webkitAudioContext;
       const audioContext = new AudioContextClass();
 
       // FIX #4 — Safari necesită resume() după creare
@@ -324,8 +340,8 @@ const QRMomentsPage: React.FC = () => {
     navigator.permissions
       .query({ name: 'microphone' as PermissionName })
       .then(status => {
-        setAudioPermission(status.state as any);
-        status.onchange = () => setAudioPermission(status.state as any);
+        setAudioPermission(status.state);
+        status.onchange = () => setAudioPermission(status.state);
       })
       .catch(() => setAudioPermission('unknown'));
   }, [activeTab]);
@@ -341,7 +357,7 @@ const QRMomentsPage: React.FC = () => {
 
       if (!previewAnalyserRef.current) {
         try {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          const AudioContextClass = window.AudioContext || (window as LegacyAudioWindow).webkitAudioContext;
           const audioContext = new AudioContextClass();
 
           // FIX #4 — Safari resume
@@ -502,9 +518,9 @@ const QRMomentsPage: React.FC = () => {
       <div className="qr-moments-page">
         <header className="header">
           <h1 className="logo" onClick={clearCookie}>{parse('QR Moments')}</h1>
-          <p className="subtitle">{parse(eventInfo.message ?? '')}</p>
+          <p className="subtitle">{parse(eventInfo?.message ?? '')}</p>
           <h2 className="event-name">
-            {parse(`${eventInfo.bride} & ${eventInfo.groom} • ${eventInfo.eventDate}`)}
+            {parse(`${eventInfo?.bride ?? ''} & ${eventInfo?.groom ?? ''} • ${eventInfo?.eventDate ?? ''}`)}
           </h2>
         </header>
 
@@ -680,7 +696,7 @@ const QRMomentsPage: React.FC = () => {
                 disabled={uploading || selectedFiles.length === 0}
               >
                 {uploading
-                  ? parse('Se încarcă...')
+                  ? parse('Se trimite...')
                   : parse(`Trimite toate (${selectedFiles.length})`)}
               </button>
             </div>

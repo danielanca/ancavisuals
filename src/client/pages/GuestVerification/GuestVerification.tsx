@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './GuestVerification.module.scss'; // create simple styles
@@ -45,8 +43,8 @@ const GuestVerificationPage = () => {
       } else {
         setError(json.error || 'Sorry, you are not on the guest list. Please check your phone number.');
       }
-    } catch (err: any) {
-      setError('Verification failed. Please try again.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
       console.error('Verification error:', err);
     } finally {
       setLoading(false);
@@ -103,3 +101,7 @@ const GuestVerificationPage = () => {
 };
 
 export default GuestVerificationPage;
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return 'Verification failed. Please try again.';
+  };

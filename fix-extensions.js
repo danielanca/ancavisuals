@@ -36,6 +36,52 @@ const patchDynamicImports = (code) => {
   );
 };
 
+const getBuildArea = (filePath) => {
+  const relativePath = path.relative(DIST_ROOT, filePath);
+
+  if (relativePath === 'server.js') {
+    return 'server entry';
+  }
+
+  if (relativePath.startsWith('server/')) {
+    return 'server bundle';
+  }
+
+  if (relativePath.startsWith('client/')) {
+    return 'client bundle';
+  }
+
+  if (relativePath.startsWith('public/')) {
+    return 'public assets';
+  }
+
+  if (relativePath.startsWith('src/__tests__/')) {
+    return 'compiled tests';
+  }
+
+  if (relativePath.startsWith('src/client/')) {
+    return 'compiled client';
+  }
+
+  if (relativePath.startsWith('src/server/')) {
+    return 'compiled server';
+  }
+
+  return 'other';
+};
+
+const formatSummary = stats => {
+  const entries = Object.entries(stats)
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (entries.length === 0) {
+    return 'No import extension updates were needed.';
+  }
+
+  return entries.map(([label, count]) => `${label}: ${count}`).join(' | ');
+};
+
 const patchFile = async (filePath) => {
   const before = await fs.readFile(filePath, 'utf8');
   let after = before;
@@ -73,15 +119,19 @@ const main = async () => {
     const jsFiles = await walk(DIST_ROOT);
 
     let changed = 0;
+    const changedByArea = {};
     for (const file of jsFiles) {
       const ok = await patchFile(file);
       if (ok) {
         changed += 1;
-        console.log(`Fixed imports in ${file}`);
+        const area = getBuildArea(file);
+        changedByArea[area] = (changedByArea[area] || 0) + 1;
       }
     }
 
-    console.log(`Done. Patched ${changed}/${jsFiles.length} files.`);
+    console.log(`[fix-extensions] Scanned ${jsFiles.length} JS files in dist.`);
+    console.log(`[fix-extensions] Updated import extensions in ${changed} files.`);
+    console.log(`[fix-extensions] ${formatSummary(changedByArea)}`);
   } catch (err) {
     console.error('fix-extensions failed:', err);
     process.exit(1);

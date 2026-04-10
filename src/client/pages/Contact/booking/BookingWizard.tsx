@@ -9,7 +9,7 @@ import { safeTrigger, BOOKING_TO } from "./utils/api";
 import { normalizePackages } from "./utils/normalize";
 import { formatDate } from "./utils/time";
 import { PHONE_RE } from "./utils/validators";
-import { Step, EventType, Errors } from "./types";
+import type { Step, EventType, Errors } from "./types";
 
 // Firebase
 import { getBytes, ref } from "firebase/storage";
@@ -22,6 +22,10 @@ import Step3Contact from "./steps/Step3Contact";
 import Step4Details from "./steps/Step4Details";
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
+
+type ConversionWindow = Window & {
+  gtag?: (eventName: string, action: string, params: Record<string, string | number>) => void;
+};
 
 /* ---------- bookedDates.json types & helpers ---------- */
 
@@ -127,6 +131,17 @@ const buildHtmlFinal = (args: {
   </ul>
 `;
 
+/* ------------------ Cookie helpers ------------------ */
+
+function readSavedEventDate(): { day: number; month: number; year: number } | null {
+  if (typeof localStorage === "undefined") return null;
+  const iso = localStorage.getItem("anca_event_date");
+  if (!iso) return null;
+  const [y, mo, d] = iso.split("-").map(Number);
+  if (!y || !mo || !d) return null;
+  return { day: d, month: mo - 1, year: y }; // month 0-based
+}
+
 /* ------------------ Booking Wizard ------------------ */
 
 export default function BookingWizard() {
@@ -137,6 +152,17 @@ export default function BookingWizard() {
   const [day, setDay] = useState(1);
   const [month, setMonth] = useState(0); // 0-based
   const [year, setYear] = useState(2026);
+
+  // Pre-populează data din localStorage (setat de chatbot la verificarea disponibilității)
+  useEffect(() => {
+    const saved = readSavedEventDate();
+    if (saved) {
+      setDay(saved.day);
+      setMonth(saved.month);
+      setYear(saved.year);
+      setIsAvailable(true); // deja verificată în chatbot
+    }
+  }, []);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [isAvailable, setIsAvailable] = useState<null | boolean>(null);
 
@@ -256,8 +282,9 @@ export default function BookingWizard() {
     }
 
     // 🔥 Google Ads conversion – LEAD RAPID
-    if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
-      (window as any).gtag("event", "conversion", {
+    const conversionWindow = window as ConversionWindow;
+    if (typeof window !== "undefined" && typeof conversionWindow.gtag === "function") {
+      conversionWindow.gtag("event", "conversion", {
         send_to: "AW-10941123412/ww8eCM7HiakYENSWkeEo",
         value: 1.0, // sau 1.0 fix dacă vrei doar număr de conversii
         currency: "EUR",
@@ -425,7 +452,7 @@ export default function BookingWizard() {
             setErrors={setErrors}
           />
           {errors.date && <p className="error">{errors.date}</p>}
-          {isAvailable === true && <p className="ok">We are available on {selectedFormattedDate} 🎉</p>}
+          {isAvailable === true && <p className="ok">Suntem disponibili pe {selectedFormattedDate} 🎉</p>}
           <div className="input-group" style={{ marginTop: 12 }}>
             <button disabled={isAvailable !== true} onClick={goNext}>
               Continuă

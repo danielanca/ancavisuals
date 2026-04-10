@@ -1,9 +1,10 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { applyCORSpolicy } from "../constants/corsFunc";
 import { transportOptions } from "../constants/emailCons";
 import { emailAuth, adminUser } from "../constants/credentials";
 import nodemailer from "nodemailer";
-import { fetchIpInfo, getClientIp } from "../../utils/ipinfo";
+import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
+import { renderTriggerTemplate } from "./emails/templates/triggerTemplate";
 
 const transport = nodemailer.createTransport(transportOptions);
 
@@ -11,6 +12,7 @@ interface TypeEvent {
   typeEvent: string;
   url: string;
   browserVersion: string;
+  referrer?: string;
 }
 
 const isLocalIp = (ip: string): boolean => {
@@ -23,7 +25,6 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
   try {
     const triggerData: TypeEvent = request.body;
-    const payload = request.body;
     const todayDate = new Date();
     const todayString = `${todayDate.getDate()}/${todayDate.getMonth() + 1}/${todayDate.getFullYear()} ${todayDate.getHours()}:${todayDate.getMinutes()}:${todayDate.getSeconds()}`;
 
@@ -41,32 +42,21 @@ export const triggerEvent = async (request: Request, response: Response) => {
       return;
     }
 
-    const locationParts = [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(
-      (value: string | undefined): value is string => typeof value === "string" && value.length > 0,
-    );
-    const location = locationParts.length > 0 ? locationParts.join(", ") : "-";
-
-    const metadataHtml = `
-      <hr/>
-      <h3>Request metadata</h3>
-      <ul>
-        <li><b>IP</b>: ${ipInfo?.ip ?? clientIp ?? "-"}</li>
-        <li><b>Location</b>: ${location}</li>
-        <li><b>Coordinates</b>: ${ipInfo?.loc ?? "-"}</li>
-        <li><b>Timezone</b>: ${ipInfo?.timezone ?? "-"}</li>
-        <li><b>Org</b>: ${ipInfo?.org ?? "-"}</li>
-        <li><b>Hostname</b>: ${ipInfo?.hostname ?? "-"}</li>
-      </ul>
-    `;
-
-    const emailHtml = `${payload.html ?? ""}${metadataHtml}`;
+    const emailHtml = renderTriggerTemplate({
+      typeEvent: triggerData.typeEvent,
+      url: triggerData.url,
+      browserVersion: triggerData.browserVersion,
+      referrer: triggerData.referrer,
+      ipInfo,
+      clientIp,
+      timestamp: todayString,
+    });
 
     await transport.sendMail({
       from: emailAuth.email,
-      to: `${adminUser.email}`,
-      subject: `New Event - ${todayString} ${triggerData.typeEvent}`,
+      to: adminUser.email,
+      subject: `👁 Vizitator nou — ${triggerData.typeEvent} — ${todayString}`,
       html: emailHtml,
-      // html: renderTriggerClick(triggerData.typeEvent, triggerData.url, triggerData.browserVersion),
     });
 
     console.log("Trigger email sent successfully.");

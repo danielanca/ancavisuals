@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { Readable } from "stream";
-import { signBunnyUrl } from "../../utils/signBunnyUrl";
+import type { ReadableStream as NodeReadableStream } from "stream/web";
+import { signBunnyUrl } from "../utils/signBunnyUrl";
 
 const router = Router();
 
 const sanitizeName = (name: string, fallback: string) =>
   (name || fallback)
     .replace(/[\r\n"]/g, "")
-    .replace(/[\/\\]/g, "_")
+    .replace(/[/\\]/g, "_")
     .trim()
     .slice(0, 180);
 
@@ -35,7 +36,9 @@ router.get("/", async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
   res.setHeader("Cache-Control", "no-store");
 
-  const readable = Readable.fromWeb(upstream.body as any);
+  const readable = Readable.fromWeb(
+    upstream.body as unknown as NodeReadableStream,
+  );
   readable.on("error", (err) => {
     console.error("Download stream error:", err);
     if (!res.headersSent) res.status(502).send("Stream failed");

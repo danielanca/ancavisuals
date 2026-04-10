@@ -1,13 +1,8 @@
 // components/AdminArea/Login.tsx
-// @ts-nocheck
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import useAuth from "../hooks/hooks/useAuth";
-import { setJWT } from "../../utils/functions";
-
-import { auth } from "../../firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import useAuth from "../../hooks/useAuth";
 
 const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -15,8 +10,20 @@ const Login = () => {
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
 
-  const { setAuth } = useAuth();
+  const { signIn } = useAuth();
   const navigate = useNavigate();
+
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return "Autentificarea a eșuat.";
+  };
+
+  const getErrorCode = (error: unknown): string => {
+    if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string") {
+      return error.code;
+    }
+    return "";
+  };
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -34,23 +41,10 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth, form.email, form.password);
-      const token = await cred.user.getIdToken(true);
-
-      const ok = await setJWT("jwt", token, 1);
-      if (!ok) throw new Error("Nu s-a putut seta sesiunea.");
-
-      setAuth((prev) => ({
-        ...prev,
-        email: form.email,
-        password: "",
-        accessToken: token,
-        authorise: true,
-      }));
-
+      await signIn(form.email, form.password);
       navigate("/admin", { replace: true });
-    } catch (err: any) {
-      const code = err?.code || "";
+    } catch (err: unknown) {
+      const code = getErrorCode(err);
       if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
         setErrMsg("Email sau parolă incorecte.");
       } else if (code === "auth/user-not-found") {
@@ -58,7 +52,7 @@ const Login = () => {
       } else if (code === "auth/too-many-requests") {
         setErrMsg("Prea multe încercări. Încearcă mai târziu.");
       } else {
-        setErrMsg(err?.message || "Autentificarea a eșuat.");
+        setErrMsg(getErrorMessage(err));
       }
       console.error("Login error:", err);
     } finally {

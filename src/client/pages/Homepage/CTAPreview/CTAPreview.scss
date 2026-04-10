@@ -359,4 +359,9 @@ $config-btn-grey-border: #3a3a3a;
 .config-teaser__outer-wrap {
   margin-top: 80px;
   margin-bottom: 120px;
+
+  @media (max-width: 640px) {
+    margin-top: 40px;
+    margin-bottom: 40px;
+  }
 }

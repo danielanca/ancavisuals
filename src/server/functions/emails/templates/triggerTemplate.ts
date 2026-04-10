@@ -1,157 +1,174 @@
-export const renderTriggerClick = (event: string, url: string, browserVersion: string) => {
+import type { IpInfo } from "../../../utils/ipinfo";
+
+interface TriggerTemplateData {
+  typeEvent: string;
+  url: string;
+  browserVersion: string;
+  referrer?: string;
+  ipInfo: IpInfo | null;
+  clientIp: string;
+  timestamp: string;
+}
+
+function detectSource(referrer: string): { label: string; color: string; emoji: string } {
+  if (!referrer || referrer === "direct") return { label: "Direct / Unknown", color: "#6b7280", emoji: "🔗" };
+  const r = referrer.toLowerCase();
+  if (r.includes("instagram.com") || r.includes("l.instagram")) return { label: "Instagram", color: "#e1306c", emoji: "📸" };
+  if (r.includes("facebook.com") || r.includes("fb.com") || r.includes("m.facebook")) return { label: "Facebook", color: "#1877f2", emoji: "👍" };
+  if (r.includes("google.com") || r.includes("google.ro")) return { label: "Google", color: "#4285f4", emoji: "🔍" };
+  if (r.includes("tiktok.com")) return { label: "TikTok", color: "#010101", emoji: "🎵" };
+  if (r.includes("youtube.com") || r.includes("youtu.be")) return { label: "YouTube", color: "#ff0000", emoji: "▶️" };
+  if (r.includes("pinterest.com")) return { label: "Pinterest", color: "#e60023", emoji: "📌" };
+  if (r.includes("twitter.com") || r.includes("t.co") || r.includes("x.com")) return { label: "X / Twitter", color: "#1da1f2", emoji: "🐦" };
+  if (r.includes("whatsapp.com") || r.includes("wa.me")) return { label: "WhatsApp", color: "#25d366", emoji: "💬" };
+  return { label: referrer, color: "#6b7280", emoji: "🌐" };
+}
+
+function parseDevice(ua: string): { device: string; browser: string; os: string } {
+  const uaLower = ua.toLowerCase();
+
+  const device = /mobile|android|iphone|ipad/.test(uaLower)
+    ? /ipad/.test(uaLower) ? "Tabletă (iPad)" : "Mobil"
+    : "Desktop";
+
+  let browser = "Unknown";
+  if (uaLower.includes("edg/")) browser = "Edge";
+  else if (uaLower.includes("opr/") || uaLower.includes("opera")) browser = "Opera";
+  else if (uaLower.includes("chrome/") && !uaLower.includes("chromium")) browser = "Chrome";
+  else if (uaLower.includes("firefox/")) browser = "Firefox";
+  else if (uaLower.includes("safari/") && !uaLower.includes("chrome")) browser = "Safari";
+
+  let os = "Unknown";
+  if (uaLower.includes("windows nt")) os = "Windows";
+  else if (uaLower.includes("mac os x") && !uaLower.includes("iphone") && !uaLower.includes("ipad")) os = "macOS";
+  else if (uaLower.includes("iphone")) os = "iOS (iPhone)";
+  else if (uaLower.includes("ipad")) os = "iOS (iPad)";
+  else if (uaLower.includes("android")) os = "Android";
+  else if (uaLower.includes("linux")) os = "Linux";
+
+  return { device, browser, os };
+}
+
+function buildMapsLink(loc: string | undefined): string | null {
+  if (!loc) return null;
+  const [lat, lng] = loc.split(",");
+  if (!lat || !lng) return null;
+  return `https://www.google.com/maps?q=${lat.trim()},${lng.trim()}`;
+}
+
+function row(label: string, value: string, valueColor = "#111827"): string {
+  return `
+    <tr>
+      <td style="padding:8px 12px;font-size:13px;color:#6b7280;white-space:nowrap;width:140px;">${label}</td>
+      <td style="padding:8px 12px;font-size:13px;color:${valueColor};font-weight:500;">${value}</td>
+    </tr>`;
+}
+
+export function renderTriggerTemplate(data: TriggerTemplateData): string {
+  const { typeEvent, url, browserVersion, referrer = "direct", ipInfo, clientIp, timestamp } = data;
+  const source = detectSource(referrer);
+  const { device, browser, os } = parseDevice(browserVersion);
+  const mapsLink = buildMapsLink(ipInfo?.loc);
+
+  const locationStr = [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(Boolean).join(", ") || "—";
+  const coordsStr = ipInfo?.loc
+    ? `<a href="${mapsLink}" style="color:#4f46e5;text-decoration:none;">${ipInfo.loc} ↗</a>`
+    : "—";
+
   return `<!doctype html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width">
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <title>Simple Call To Action</title>
-  <style>
-@media only screen and (max-width: 620px) {
-  table[class=body] h1 {
-    font-size: 28px !important;
-    margin-bottom: 10px !important;
-  }
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vizitator nou — AncaVisuals</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
 
-  table[class=body] p,
-table[class=body] ul,
-table[class=body] ol,
-table[class=body] td,
-table[class=body] span,
-table[class=body] a {
-    font-size: 16px !important;
-  }
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
 
-  table[class=body] .wrapper,
-table[class=body] .article {
-    padding: 10px !important;
-  }
+          <!-- HEADER -->
+          <tr>
+            <td style="background:#111827;border-radius:12px 12px 0 0;padding:28px 32px;">
+              <p style="margin:0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9ca3af;">AncaVisuals</p>
+              <h1 style="margin:8px 0 0;font-size:22px;font-weight:600;color:#ffffff;">${typeEvent}</h1>
+              <p style="margin:6px 0 0;font-size:13px;color:#6b7280;">${timestamp}</p>
+            </td>
+          </tr>
 
-  table[class=body] .content {
-    padding: 0 !important;
-  }
+          <!-- SOURCE BANNER -->
+          <tr>
+            <td style="background:${source.color}18;border-left:4px solid ${source.color};padding:14px 32px;">
+              <p style="margin:0;font-size:14px;color:${source.color};font-weight:600;">
+                ${source.emoji}&nbsp;&nbsp;Sursă: ${source.label}
+              </p>
+              ${referrer && referrer !== "direct"
+                ? `<p style="margin:4px 0 0;font-size:11px;color:#9ca3af;word-break:break-all;">${referrer}</p>`
+                : ""}
+            </td>
+          </tr>
 
-  table[class=body] .container {
-    padding: 0 !important;
-    width: 100% !important;
-  }
+          <!-- PAGINA VIZITATA -->
+          <tr>
+            <td style="background:#ffffff;padding:20px 32px 4px;">
+              <p style="margin:0 0 4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;">Pagina vizitată</p>
+              <p style="margin:0;font-size:14px;color:#4f46e5;word-break:break-all;font-weight:500;">${url}</p>
+            </td>
+          </tr>
 
-  table[class=body] .main {
-    border-left-width: 0 !important;
-    border-radius: 0 !important;
-    border-right-width: 0 !important;
-  }
+          <!-- SECTIUNE: VIZITATOR -->
+          <tr>
+            <td style="background:#ffffff;padding:20px 32px 4px;">
+              <p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f3f4f6;padding-bottom:8px;">
+                🧑‍💻 Dispozitiv & Browser
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${row("Dispozitiv", device)}
+                ${row("Browser", browser)}
+                ${row("Sistem de operare", os)}
+              </table>
+            </td>
+          </tr>
 
-  table[class=body] .btn table {
-    width: 100% !important;
-  }
+          <!-- SECTIUNE: LOCATIE -->
+          <tr>
+            <td style="background:#ffffff;padding:20px 32px 4px;">
+              <p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f3f4f6;padding-bottom:8px;">
+                📍 Locație
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${row("IP", ipInfo?.ip ?? clientIp ?? "—")}
+                ${row("Localitate", locationStr)}
+                ${row("Coordonate", coordsStr)}
+                ${row("Fus orar", ipInfo?.timezone ?? "—")}
+                ${row("Furnizor (ISP)", ipInfo?.org ?? "—")}
+                ${row("Hostname", ipInfo?.hostname ?? "—")}
+              </table>
+            </td>
+          </tr>
 
-  table[class=body] .btn a {
-    width: 100% !important;
-  }
+          <!-- USER AGENT BRUT -->
+          <tr>
+            <td style="background:#ffffff;padding:16px 32px 28px;">
+              <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;">User Agent</p>
+              <p style="margin:0;font-size:11px;color:#9ca3af;word-break:break-all;line-height:1.6;">${browserVersion}</p>
+            </td>
+          </tr>
 
-  table[class=body] .img-responsive {
-    height: auto !important;
-    max-width: 100% !important;
-    width: auto !important;
-  }
+          <!-- FOOTER -->
+          <tr>
+            <td style="background:#f9fafb;border-top:1px solid #e5e7eb;border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
+              <p style="margin:0;font-size:11px;color:#d1d5db;">ancavisuals.ro &mdash; notificare automată</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
 }
-@media all {
-  .ExternalClass {
-    width: 100%;
-  }
-
-  .ExternalClass,
-.ExternalClass p,
-.ExternalClass span,
-.ExternalClass font,
-.ExternalClass td,
-.ExternalClass div {
-    line-height: 100%;
-  }
-
-  .apple-link a {
-    color: inherit !important;
-    font-family: inherit !important;
-    font-size: inherit !important;
-    font-weight: inherit !important;
-    line-height: inherit !important;
-    text-decoration: none !important;
-  }
-
-  .btn-primary table td:hover {
-    background-color: #d5075d !important;
-  }
-
-  .btn-primary a:hover {
-    background-color: #d5075d !important;
-    border-color: #d5075d !important;
-  }
-}
-</style></head>
-  <body class style="background-color: #eaebed; font-family: sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px; line-height: 1.4; margin: 0; padding: 0; -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%;">
-    <table role="presentation" border="0" cellpadding="0" cellspacing="0" class="body" style="border-collapse: separate; mso-table-lspace: 0pt; mso-table-rspace: 0pt; min-width: 100%; background-color: #eaebed; width: 100%;" width="100%" bgcolor="#eaebed">
-      <tr>
-        <td style="font-family: sans-serif; font-size: 14px; vertical-align: top;" valign="top">&nbsp;</td>
-        <td class="container" style="font-family: sans-serif; font-size: 14px; vertical-align: top; display: block; max-width: 580px; padding: 10px; width: 580px; Margin: 0 auto;" width="580" valign="top">
-          <div class="header" style="padding: 20px 0;">
-            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse: separate; mso-table-lspace: 0pt; mso-table-rspace: 0pt; min-width: 100%; width: 100%;" width="100%">
-              <tr>
-                <td class="align-center" style="font-family: sans-serif; font-size: 14px; vertical-align: top; text-align: center;" valign="top" align="center">
-                  <a href="https://diniubire.ro" style="color: #ec0867; text-decoration: underline;"><img src="https://diniubire.ro/static/media/logo.28e5b5bd.png" height="40" alt="Postdrop" style="border: none; -ms-interpolation-mode: bicubic; max-width: 100%;"></a>
-                </td>
-              </tr>
-            </table>
-          </div>
-          <div class="content" style="box-sizing: border-box; display: block; Margin: 0 auto; max-width: 580px; padding: 10px;">
-
-            <!-- START CENTERED WHITE CONTAINER -->
-            <span class="preheader" style="color: transparent; display: none; height: 0; max-height: 0; max-width: 0; opacity: 0; overflow: hidden; mso-hide: all; visibility: hidden; width: 0;">This is preheader text. Some clients will show this text as a preview.</span>
-            <table role="presentation" class="main" style="border-collapse: separate; mso-table-lspace: 0pt; mso-table-rspace: 0pt; min-width: 100%; background: #ffffff; border-radius: 3px; width: 100%;" width="100%">
-
-              <!-- START MAIN CONTENT AREA -->
-              <tr>
-                <td class="wrapper" style="font-family: sans-serif; font-size: 14px; vertical-align: top; box-sizing: border-box; padding: 20px;" valign="top">
-                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse: separate; mso-table-lspace: 0pt; mso-table-rspace: 0pt; min-width: 100%; width: 100%;" width="100%">
-                    <tr>
-                      <td style="font-family: sans-serif; font-size: 14px; vertical-align: top;" valign="top">
-                        <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Trigger Client EVENT</p>
-                        <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">New event of a Client:  ${event}  [ ${url}] Browser Version: ${browserVersion}</p>
-                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary" style="border-collapse: separate; mso-table-lspace: 0pt; mso-table-rspace: 0pt; box-sizing: border-box; min-width: 100%; width: 100%;" width="100%">
-                          <tbody>
-                            <tr>
-                              
-                            </tr>
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-
-            <!-- END MAIN CONTENT AREA -->
-            </table>
-
-          <!-- END CENTERED WHITE CONTAINER -->
-          </div>
-        </td>
-        <td style="font-family: sans-serif; font-size: 14px; vertical-align: top;" valign="top">&nbsp;</td>
-      </tr>
-    </table>
-  </body>
-</html>
-`;
-};
-//     transport
-//       .sendMail({
-//         from: emailAuth.email,
-//         to: adminUser.email,
-//         subject: "Comanda noua - " + data.firstName,
-//         html: renderAdminTemplate(cartProd, invoiceNumberID, data)
-//       })
-//       .then((responseToAdmin: any) => {
-//         ResponseData.EMAILTO_ADMIN = responseToAdmin;
-
-//         response.send(ResponseData);
-//       });
-//   };

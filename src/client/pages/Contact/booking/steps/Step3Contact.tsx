@@ -1,6 +1,6 @@
 // src/booking/steps/Step3Contact.tsx
 import React from "react";
-import { Errors } from "../types";
+import type { Errors } from "../types";
 
 interface Step3ContactProps {
   fullName: string;

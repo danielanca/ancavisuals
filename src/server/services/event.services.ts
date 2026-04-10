@@ -1,6 +1,6 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import crypto from "crypto";
-import { generateEventSlug } from "../../utils/eventUrl"; // assuming you have this
+import { generateEventSlug } from "../utils/eventUrl";
 import { firestore } from "../firestoreInit";
 import admin from "firebase-admin";
 //import { Request } from "node-fetch";
@@ -17,6 +17,17 @@ interface Guest {
   email?: string;
   relation?: string;    // optional: family, friend, colleague...
 }
+
+type EventRecord = CreateEventBody & {
+  slug: string;
+  eventUrl: string;
+  status: string;
+  initialGuests?: Guest[];
+};
+
+type RequestError = Error & {
+  code?: string;
+};
 
 interface CreateEventBody {
   // Basic event info
@@ -133,7 +144,7 @@ export async function createEvent(req: Request, res: Response) {
       eventUrl: eventUrl,
       shareLink: `https://yourdomain.com${eventUrl}`,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Create event error:", err);
     return res.status(500).json({ error: "Failed to create event" });
   }
@@ -175,12 +186,12 @@ export async function getEvent(req: Request, res: Response) {
       return res.status(404).json({ error: "Event not found" });
     }
 
-    const event = eventSnap.data()!;
+    const event = eventSnap.data() as EventRecord;
 /*
     // If phone is provided → check access
     if (phone) {
       const normalizedPhone = String(phone).trim().replace(/\s+/g, "");
-      const isInvited = event.guests?.some((g: any) =>
+      const isInvited = event.guests?.some((g: Guest) =>
         String(g.phone).trim().replace(/\s+/g, "") === normalizedPhone
       );
 
@@ -203,7 +214,7 @@ export async function getEvent(req: Request, res: Response) {
       success: true,
       data: safeEvent,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Get event error:", err);
     return res.status(500).json({ error: "Failed to fetch event" });
   }
@@ -236,7 +247,7 @@ export async function getAllEvents(req: Request, res: Response) {
       count: events.length,
       data: events,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Get all events error:", err);
     return res.status(500).json({ error: "Failed to fetch events" });
   }
@@ -259,7 +270,7 @@ export async function verifyGuest(req: Request, res: Response) {
       return res.status(404).json({ error: "Event not found" });
     }
 
-    const event = eventSnap.data()!;
+    const event = eventSnap.data() as EventRecord;
     
     // Normalize phone for comparison
     const normalizedPhone = phone.toString().trim().replace(/\s+/g, '').replace(/^\+?/, '');
@@ -308,7 +319,7 @@ export async function verifyGuest(req: Request, res: Response) {
       message: "Welcome! You're verified as a guest."
     });
 
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Guest verification error:", err);
     return res.status(500).json({ error: "Verification failed" });
   }
@@ -359,7 +370,7 @@ export async function checkAvailability(req: Request, res: Response) {
       date
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Availability check failed:', err);
     return res.status(500).json({
       success: false,
@@ -426,7 +437,7 @@ export async function bookDate(req: Request, res: Response) {
       title: data.title
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Booking failed:', err);
     return res.status(500).json({
       success: false,

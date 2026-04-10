@@ -9,6 +9,13 @@ export type ShareRecord = {
   expiresAt: number;
 };
 
+type ShareRecordDocument = {
+  slug?: string;
+  items?: string[];
+  expiresAt?: number;
+  expiresAtTs?: Timestamp;
+};
+
 const makeId = () => crypto.randomBytes(10).toString("hex");
 
 export async function createShareRecord(slug: string, items: string[], days: number): Promise<ShareRecord> {
@@ -33,7 +40,7 @@ export async function readShareRecord(id: string): Promise<ShareRecord> {
   const snap = await db.collection("shares").doc(id).get();
   if (!snap.exists) throw new Error("not_found");
 
-  const data = snap.data() as any;
+  const data = (snap.data() as ShareRecordDocument | undefined) ?? {};
 
   const slug = String(data?.slug ?? "");
   const items = Array.isArray(data?.items) ? data.items.map(String) : [];

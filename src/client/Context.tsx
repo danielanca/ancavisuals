@@ -1,4 +1,5 @@
 import React, { useContext, useState } from "react";
+import type { ReactNode } from "react";
 
 export interface Context {
   name: string;
@@ -13,8 +14,12 @@ const context = React.createContext(defaultVal);
 
 const { Provider } = context;
 
-export const ContextWrapper = ({ children }: { children: any }) => {
-  const [name, setName] = useState(defaultVal.name);
+type ContextWrapperProps = {
+  children: ReactNode;
+};
+
+export const ContextWrapper = ({ children }: ContextWrapperProps) => {
+  const [name, setName] = useState<string>(defaultVal.name);
   return <Provider value={{ name, setName }}>{children}</Provider>;
 };
 

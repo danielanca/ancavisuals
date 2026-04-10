@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { signBunnyUrl } from "../../utils/signBunnyUrl";
+import { signBunnyUrl } from "../utils/signBunnyUrl";
 
 const router = Router();
 
