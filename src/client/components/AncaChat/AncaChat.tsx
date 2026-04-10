@@ -296,6 +296,14 @@ export default function AncaChat() {
         </div>
       )}
 
+      {/* Speech bubble — apare doar înainte de prima interacțiune */}
+      {!hasInteracted && !isOpen && (
+        <div className="fixed bottom-20 right-4 md:bottom-32 md:right-8 z-50 max-w-[200px] bg-white text-black text-xs rounded-2xl rounded-br-none px-3 py-2 shadow-lg leading-snug pointer-events-none">
+          Afli chestii rapide instant, fără să aștepți 😄
+          <div className="absolute -bottom-2 right-4 w-0 h-0 border-l-8 border-l-transparent border-r-0 border-t-8 border-t-white" />
+        </div>
+      )}
+
       {/* Toggle button */}
       <button
         onClick={handleToggle}
