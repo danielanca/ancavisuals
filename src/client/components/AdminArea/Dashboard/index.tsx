@@ -59,6 +59,12 @@ const Dashboard: React.FC = () => {
 
   const handleAddEvent = () => navigate("/admin/create-event");
 
+  const handleEventUpdated = (id: string, updated: Partial<ClientEvent>) => {
+    setEvents(prev =>
+      prev.map(e => e.id === id ? { ...e, ...updated } : e)
+    );
+  };
+
   if (loading) return <AncaLoader />;
 
   if (error) {
@@ -103,7 +109,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Event List */}
-        <EventList events={events} onAddEvent={handleAddEvent} />
+        <EventList events={events} onAddEvent={handleAddEvent} onEventUpdated={handleEventUpdated} />
 
       </div>
     </div>

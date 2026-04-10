@@ -3,15 +3,14 @@ import type { ChatNode } from "../data/assistantChatData";
 import { CHAT_NODES, FALLBACK_NODE } from "../data/assistantChatData";
 import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestoreInit";
-import nodemailer from "nodemailer";
-import { transportOptions } from "../constants/emailCons";
-import { adminUser, emailAuth } from "../constants/credentials";
+import { sendEmail } from "../notifications/mailer";
+import { adminUser } from "../constants/credentials";
+import { renderChatbotLeadTemplate } from "../notifications/templates/chatbotLeadTemplate";
+import { renderDateCheckTemplate } from "../notifications/templates/dateCheckTemplate";
 import { BOOKED_DATES_FILE_PATH, FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 
-const mailer = nodemailer.createTransport(transportOptions);
-
 /** ============================================================
- *  CONSTANTE
+ *  CONSTANTS
  * ============================================================ */
 const DATE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 const MIN_VALID_YEAR = 2024;
@@ -59,8 +58,6 @@ async function getBookedDates(): Promise<string[]> {
   }
 }
 
-const PHONE_RE = /^[+]?[\d\s\-().]{7,15}$/;
-
 const router = Router();
 
 router.get("/init", (_req, res) => {
@@ -70,7 +67,7 @@ router.get("/init", (_req, res) => {
 router.post("/message", async (req, res) => {
   const { intentId, text, phone, date } = req.body as { intentId?: string; text?: string; phone?: string; date?: string };
 
-  // Număr de telefon trimis explicit din frontend
+  // Phone number submitted explicitly from the frontend
   if (phone) {
     const dateLabel = date
       ? (() => {
@@ -79,22 +76,12 @@ router.post("/message", async (req, res) => {
         })()
       : "nedefinită";
 
-    mailer.sendMail({
-      from: emailAuth.email,
+    sendEmail({
       to: adminUser.email,
       subject: `📞 Lead nou prin chatbot — ${phone}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#f9f9f9;border-radius:8px">
-          <h2 style="margin:0 0 16px;color:#111">Lead nou prin chatbot</h2>
-          <p style="margin:0 0 8px;color:#444">Un vizitator și-a lăsat numărul de telefon:</p>
-          <div style="font-size:22px;font-weight:700;color:#111;padding:12px 16px;background:#fff;border-left:4px solid #22c55e;border-radius:4px;margin-bottom:16px">
-            ${phone}
-          </div>
-          <p style="margin:0;color:#444">Data de interes: <strong>${dateLabel}</strong></p>
-        </div>
-      `,
+      html: renderChatbotLeadTemplate({ phone, dateLabel }),
     }).then(() => {
-      console.log(`[chatbot] email lead trimis pentru ${phone}`);
+      console.log(`[chatbot] lead email sent for ${phone}`);
     }).catch((err: Error) => {
       console.error("[chatbot] email lead failed:", err.message);
     });
@@ -110,7 +97,7 @@ router.post("/message", async (req, res) => {
   if (text) {
     const lower = text.toLowerCase();
 
-    // Verificare disponibilitate dată (format ZZ/LL/AAAA)
+    // Check date availability (format DD/MM/YYYY)
     const dateKey = parseDate(text.trim());
     if (dateKey) {
       const bookedDates = await getBookedDates();
@@ -136,25 +123,13 @@ router.post("/message", async (req, res) => {
             ],
           };
 
-      // Trimite notificare email (fire-and-forget, nu blochează răspunsul)
-      mailer.sendMail({
-        from: emailAuth.email,
+      // Send notification email (fire-and-forget, does not block the response)
+      sendEmail({
         to: adminUser.email,
         subject: `📅 Verificare disponibilitate: ${humanDate}`,
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#f9f9f9;border-radius:8px">
-            <h2 style="margin:0 0 16px;color:#111">Verificare disponibilitate prin chatbot</h2>
-            <p style="margin:0 0 8px;color:#444">Un vizitator a verificat disponibilitatea pentru data:</p>
-            <div style="font-size:22px;font-weight:700;color:#111;padding:12px 16px;background:#fff;border-left:4px solid #f4d067;border-radius:4px;margin-bottom:16px">
-              ${humanDate}
-            </div>
-            <p style="margin:0;color:#444">
-              Status: <strong style="color:${isBooked ? "#e04444" : "#22c55e"}">${isBooked ? "❌ Ocupată" : "✅ Disponibilă"}</strong>
-            </p>
-          </div>
-        `,
+        html: renderDateCheckTemplate({ humanDate, isBooked }),
       }).then(() => {
-        console.log(`[chatbot] email notificare trimis pentru data ${humanDate}`);
+        console.log(`[chatbot] availability email sent for ${humanDate}`);
       }).catch((err: Error) => {
         console.error("[chatbot] email notify failed:", err.message);
       });
