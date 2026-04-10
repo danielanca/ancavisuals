@@ -52,6 +52,15 @@ type PersistedStateV3 = {
   selectedDownload: string[];
 };
 
+type ShareCreateResponse = {
+  id?: string;
+};
+
+type AdminWindow = Window & {
+  adminClickCount?: number;
+  adminClickTimeout?: number | null;
+};
+
 // ── REDUCER ──────────────────────────────────────────────────────────────────
 
 const initialGalleryState: GalleryState = {
@@ -607,7 +616,7 @@ export default function MediaAlbumPage() {
         dispatch({ type: "SET_SHARE_URL", url: null, error: `Share failed (${response.status})` });
         return;
       }
-      let data: any;
+      let data: ShareCreateResponse;
       try { data = JSON.parse(text); } catch {
         dispatch({ type: "SET_SHARE_URL", url: null, error: "Invalid response" });
         return;
@@ -707,14 +716,17 @@ export default function MediaAlbumPage() {
           className={styles.title}
           style={{ cursor: "pointer" }}
           onClick={() => {
-            if (!(window as any).adminClickCount) {
-              (window as any).adminClickCount = 0;
-              (window as any).adminClickTimeout = null;
+            const adminWindow = window as AdminWindow;
+            if (!adminWindow.adminClickCount) {
+              adminWindow.adminClickCount = 0;
+              adminWindow.adminClickTimeout = null;
             }
-            (window as any).adminClickCount++;
-            if ((window as any).adminClickTimeout) clearTimeout((window as any).adminClickTimeout);
-            (window as any).adminClickTimeout = setTimeout(() => { (window as any).adminClickCount = 0; }, 3000);
-            if ((window as any).adminClickCount >= 10) {
+            adminWindow.adminClickCount += 1;
+            if (adminWindow.adminClickTimeout) clearTimeout(adminWindow.adminClickTimeout);
+            adminWindow.adminClickTimeout = window.setTimeout(() => {
+              adminWindow.adminClickCount = 0;
+            }, 3000);
+            if (adminWindow.adminClickCount >= 10) {
               if (isAdmin) {
                 setIsAdmin(false);
                 setAdminKey("");
@@ -725,7 +737,7 @@ export default function MediaAlbumPage() {
                 setShowAdminButton(true);
                 alert("🔓 Butonul de acces admin a apărut mai sus!");
               }
-              (window as any).adminClickCount = 0;
+              adminWindow.adminClickCount = 0;
             }
           }}
         >
@@ -847,7 +859,7 @@ export default function MediaAlbumPage() {
                   <div className={styles.shareRow}>
                     <input className={styles.shareInput} value={shareUrl ?? ""} readOnly />
                     <button className={styles.shareBtn} type="button" onClick={() => navigator.clipboard.writeText(shareUrl!)}>Copy</button>
-                    <button className={styles.shareBtn} type="button" onClick={() => (navigator as any).share?.({ url: shareUrl })}>Share</button>
+                    <button className={styles.shareBtn} type="button" onClick={() => navigator.share?.({ url: shareUrl ?? undefined })}>Share</button>
                   </div>
                 )}
               </div>

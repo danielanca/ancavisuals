@@ -1,13 +1,30 @@
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+
+type PricePackage = {
+  id: string;
+  price: number;
+  participantTiers?: PhotoboothTier[];
+};
+
+type PricesData = {
+  packages: PricePackage[];
+};
+
+type PhotoboothTier = {
+  label: string;
+  extra: number;
+  extraNote: string;
+};
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pricesData: { packages: { id: string; price: number; [key: string]: any }[] } = JSON.parse(readFileSync(join(__dirname, "../../data/prices.json"), "utf-8"));
+const pricesData = JSON.parse(readFileSync(join(__dirname, "../../data/prices.json"), "utf-8")) as PricesData;
 
 const p = (id: string) => pricesData.packages.find(pkg => pkg.id === id)?.price ?? 0;
 
 const photoboothBase = p("photobooth");
-const photoboothTiers = (pricesData.packages.find(pkg => pkg.id === "photobooth") as any)?.participantTiers ?? [];
+const photoboothTiers: PhotoboothTier[] = pricesData.packages.find(pkg => pkg.id === "photobooth")?.participantTiers ?? [];
 
 export interface ChatSuggestion {
   label: string;
@@ -46,12 +63,12 @@ const nodes: ChatNode[] = [
   {
     id: "photobooth_pricing",
     botMessage: "Câți participanți estimați la eveniment?",
-    suggestions: photoboothTiers.map((tier: any) => ({
+    suggestions: photoboothTiers.map((tier: PhotoboothTier) => ({
       label: tier.label,
       intentId: `photobooth_tier_${tier.label.replace(/\s+/g, "_")}`,
     })),
   },
-  ...photoboothTiers.map((tier: any) => ({
+  ...photoboothTiers.map((tier: PhotoboothTier) => ({
     id: `photobooth_tier_${tier.label.replace(/\s+/g, "_")}`,
     botMessage: tier.extra === 0
       ? `📸 Fotocabina pentru ${tier.label.toLowerCase()}: ${photoboothBase.toLocaleString("ro-RO")} EUR\n\n💡 ${tier.extraNote}`

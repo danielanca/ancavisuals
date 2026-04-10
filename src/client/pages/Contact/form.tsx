@@ -3,7 +3,8 @@ import "./segmented.scss";
 import { useEffect, useMemo, useState } from "react";
 import { PACKAGES } from "./packages";
 import VisualOptionCard from "./VisualOptionCard";
-import LocationField, { PlaceLite } from "./LocationField";
+import type { PlaceLite } from "./LocationField";
+import LocationField from "./LocationField";
 import PackageTiles from "./../Contact/booking/components/PackageTiles";
 import { PACKAGES_NEW } from "./packages";
 
@@ -12,6 +13,15 @@ const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
 const IS_PROD = import.meta.env.PROD;
 const API_BASE = ""; // same-origin (prod & dev)
 const BOOKING_TO = import.meta.env.VITE_BOOKING_EMAIL ?? "you@example.com";
+
+type TriggerPayload = Record<string, unknown>;
+type PackageOption = (typeof PACKAGES)[number];
+type CustomPackageOption = {
+  key: "custom";
+  label: string;
+  description: string;
+};
+type DisplayPackageOption = PackageOption | CustomPackageOption;
 
 // ---------- Utils ----------
 const pad2 = (n: number) => (n < 10 ? "0" : "") + n;
@@ -24,7 +34,7 @@ const parseTimeToMinutes = (t: string) => {
 };
 
 // ---------- API helper (tolerant text/JSON) ----------
-async function safeTrigger(payload: any) {
+async function safeTrigger(payload: TriggerPayload) {
   try {
     const res = await fetch(`${API_BASE}/triggerEvent`, {
       method: "POST",
@@ -425,7 +435,7 @@ export default function BookingWizard() {
                 <p>
                   <strong>Alege un pachet:</strong>
                 </p>
-                {[...PACKAGES, { key: "custom", label: "Personalizat", description: "" }].map((pkg: any) => (
+                {displayPackages.map((pkg: DisplayPackageOption) => (
                   <label key={pkg.key} style={{ display: "block" }}>
                     <input
                       type="radio"
@@ -452,7 +462,7 @@ export default function BookingWizard() {
                         if (opt.key === 'photo') setPhoto(!photo);
                         else if (opt.key === 'video') setVideo(!video);
                       };
-                      return <VisualOptionCard key={opt.key} opt={opt as any} checked={checked} onToggle={toggle} />;
+                      return <VisualOptionCard key={opt.key} opt={opt} checked={checked} onToggle={toggle} />;
                     })}
                   </div>
                 </div>
@@ -490,3 +500,4 @@ export default function BookingWizard() {
     );
   };
 }
+  const displayPackages: DisplayPackageOption[] = [...PACKAGES, { key: "custom", label: "Personalizat", description: "" }];

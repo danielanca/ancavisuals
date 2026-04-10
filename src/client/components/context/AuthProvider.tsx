@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import { auth } from "../../firebase";
-import { onIdTokenChanged, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
+import type { User } from "firebase/auth";
+import { onIdTokenChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { getCookie, isBrowser, setJWT } from "../../utils/functions";
 
 const JWT_COOKIE = "jwt";

@@ -1,5 +1,5 @@
 import React from "react";
-import { EventType } from "../types";
+import type { EventType } from "../types";
 
 interface Step2EventTypeProps {
   eventType: EventType;

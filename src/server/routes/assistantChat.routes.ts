@@ -1,10 +1,12 @@
 import { Router } from "express";
-import { CHAT_NODES, FALLBACK_NODE, ChatNode } from "../data/assistantChatData";
+import type { ChatNode } from "../data/assistantChatData";
+import { CHAT_NODES, FALLBACK_NODE } from "../data/assistantChatData";
 import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestoreInit";
 import nodemailer from "nodemailer";
 import { transportOptions } from "../constants/emailCons";
 import { adminUser, emailAuth } from "../constants/credentials";
+import { BOOKED_DATES_FILE_PATH, FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 
 const mailer = nodemailer.createTransport(transportOptions);
 
@@ -12,8 +14,6 @@ const mailer = nodemailer.createTransport(transportOptions);
  *  CONSTANTE
  * ============================================================ */
 const DATE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-const FIREBASE_BUCKET = "joculdetectivului.appspot.com";
-const BOOKED_DATES_FILE = "ancavisuals/bookedDates/bookedDates.json";
 const MIN_VALID_YEAR = 2024;
 const MIN_MONTH = 1;
 const MAX_MONTH = 12;
@@ -36,8 +36,8 @@ function parseDate(input: string): string | null {
 async function getBookedDates(): Promise<string[]> {
   try {
     firestore();
-    const bucket = getStorage().bucket(FIREBASE_BUCKET);
-    const [contents] = await bucket.file(BOOKED_DATES_FILE).download();
+    const bucket = getStorage().bucket(FIREBASE_STORAGE_BUCKET);
+    const [contents] = await bucket.file(BOOKED_DATES_FILE_PATH).download();
     const data = JSON.parse(contents.toString());
     const set = new Set<string>();
     for (const entry of data?.dates ?? []) {

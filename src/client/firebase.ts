@@ -1,12 +1,18 @@
+/*
+ * Purpose: initializes the client-side Firebase app and exports the shared auth,
+ * firestore and storage instances used by the browser app. It also wires optional
+ * analytics startup and exposes a helper that reacts to auth-state changes.
+ */
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, getIdTokenResult, signOut } from "firebase/auth";
 
 import { getAnalytics, isSupported as analyticsIsSupported } from "firebase/analytics";
+import type { Analytics } from "firebase/analytics";
 import "firebase/storage";
 import { getStorage } from "firebase/storage";
 import { getFirestore } from "firebase/firestore";
 
-let analytics: any;
+let analytics: Analytics | null = null;
 
 const firebaseConfig = {
   apiKey: "AIzaSyAK1PxPnxLzGocve2OeKappgBHaKqmaijE",

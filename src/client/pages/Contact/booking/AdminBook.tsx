@@ -13,7 +13,14 @@ function getMonthLabel(dateStr: string): string {
   return `${d} ${MONTHS_RO[m - 1]}`;
 }
 
-function buildGoogleCalendarLink(date: string, title: string, description: string, phone: string, price: string): string {
+function buildGoogleCalendarLink(
+  date: string,
+  title: string,
+  description: string,
+  phone: string,
+  price: string,
+  advance: string,
+): string {
   if (!date || !title) return "#";
   const [y, m, d] = date.split("-");
   const start = `${y}${m}${d}`;
@@ -262,7 +269,7 @@ export default function AdminBook() {
             </p>
 
             <a
-              href={buildGoogleCalendarLink(date, title, description, phone, price)}
+              href={buildGoogleCalendarLink(date, title, description, phone, price, advance)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-neutral-700 text-white text-sm hover:border-neutral-500 transition-colors"

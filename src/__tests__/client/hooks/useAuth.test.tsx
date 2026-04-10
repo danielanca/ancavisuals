@@ -1,3 +1,7 @@
+/*
+ * Purpose: ensures the useAuth hook enforces provider usage and returns the current
+ * auth context value when wrapped correctly.
+ */
 import React from "react";
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";

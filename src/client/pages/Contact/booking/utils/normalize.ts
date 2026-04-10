@@ -1,7 +1,13 @@
+/*
+ * Purpose: normalizes raw booking package payloads from different source shapes
+ * into a stable package model used by the booking UI.
+ */
 // src/booking/utils/normalize.ts
 import type { PkgInfo } from "../types";
 
-export function normalizePackages(rawList: any[]): PkgInfo[] {
+type RawPackage = Record<string, unknown>;
+
+export function normalizePackages(rawList: RawPackage[]): PkgInfo[] {
   const out = (rawList || []).map(raw => {
     const id = String(raw.id ?? raw.key ?? raw.slug ?? raw.code ?? raw.title ?? raw.label).trim();
     const title = String(raw.title ?? raw.label ?? raw.name ?? id).trim();

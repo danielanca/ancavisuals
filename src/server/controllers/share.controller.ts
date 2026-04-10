@@ -1,34 +1,51 @@
+/*
+ * Purpose: exposes the share-selection HTTP endpoints that create temporary share
+ * records, return signed asset URLs and stream zip archives for selected media.
+ */
 import type { Request, Response } from "express";
 import { Readable } from "stream";
+import type { ReadableStream as NodeReadableStream } from "stream/web";
 import archiver from "archiver";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { createShareRecord, readShareRecord } from "../services/share.store";
+import {
+  BUNNY_ACCESS_KEY_HEADER,
+  BUNNY_IMAGE_FILE_PATTERN,
+  BUNNY_PHOTOS_FOLDER,
+  ZIP_COMPRESSION_STANDARD,
+  buildBunnyStorageUrl,
+  getBunnyStorageKey,
+} from "../constants/bunny";
 
-const BUNNY_STORAGE_BASE_URL = "https://storage.bunnycdn.com";
+const storageKey = getBunnyStorageKey();
+const MAX_SHARED_FILES = 200;
+const SHARE_EXPIRY_DAYS = 7;
 
-const storageZone = process.env.BUNNY_STORAGE_ZONE!;
-const storageKey = process.env.BUNNY_STORAGE_KEY!;
+type BunnyDirectoryEntry = {
+  ObjectName: string;
+  IsDirectory: boolean;
+};
 
 const isSafeFile = (name: string) => {
   if (!name) return false;
   if (name.includes("..")) return false;
   if (name.includes("/") || name.includes("\\")) return false;
   if (name.length > 180) return false;
-  return /\.(jpg|jpeg|png|webp)$/i.test(name);
+  return BUNNY_IMAGE_FILE_PATTERN.test(name);
 };
 
 const toZip = async (slug: string, files: string[], res: Response, zipName: string) => {
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename="${zipName}"`);
 
-  const archive = archiver("zip", { zlib: { level: 6 } });
+  const archive = archiver("zip", { zlib: { level: ZIP_COMPRESSION_STANDARD } });
   archive.pipe(res);
 
   for (const file of files) {
-    const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${slug}/photos/${encodeURIComponent(file)}`;
-    const response = await fetch(url, { headers: { AccessKey: storageKey } });
+    const url = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, encodeURIComponent(file));
+    const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
     if (!response.ok || !response.body) continue;
-    archive.append(Readable.fromWeb(response.body as any), { name: file });
+    archive.append(Readable.fromWeb(response.body as unknown as NodeReadableStream), { name: file });
   }
 
   await archive.finalize();
@@ -44,9 +61,9 @@ export const createShare = async (req: Request, res: Response) => {
   const clean = Array.from(new Set(items.filter(isSafeFile)));
 
   if (clean.length === 0) return res.status(400).json({ error: "no_files" });
-  if (clean.length > 200) return res.status(413).json({ error: "too_many_files" });
+  if (clean.length > MAX_SHARED_FILES) return res.status(413).json({ error: "too_many_files" });
 
-  const rec = await createShareRecord(slug, clean, 7);
+  const rec = await createShareRecord(slug, clean, SHARE_EXPIRY_DAYS);
 
   return res.json({ id: rec.id, expiresAt: rec.expiresAt, count: rec.items.length });
 };
@@ -58,7 +75,7 @@ export const getShare = async (req: Request, res: Response) => {
 
     if (Date.now() > rec.expiresAt) return res.status(410).json({ error: "expired" });
 
-    const urls = rec.items.map(f => signBunnyUrl(`/${rec.slug}/photos/${f}`));
+    const urls = rec.items.map(f => signBunnyUrl(`/${rec.slug}/${BUNNY_PHOTOS_FOLDER}/${f}`));
 
     return res.json({
       id: rec.id,

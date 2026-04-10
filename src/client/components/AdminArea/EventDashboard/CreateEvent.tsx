@@ -1,5 +1,3 @@
-"use client";
-
 import { useForm, useFieldArray } from "react-hook-form";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -39,6 +37,14 @@ interface WeddingEventForm {
   hosts: Host[];
   initialGuests: Guest[];
 }
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Eroare necunoscută";
+};
 
 const CreateEvent = () => {
   const navigate = useNavigate();
@@ -106,9 +112,9 @@ const CreateEvent = () => {
 
       const result = await res.json();
       navigate(`/invitatie/${result.slug}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Eroare creare eveniment:", error);
-      alert("Evenimentul nu a putut fi creat\n" + (error.message || "Eroare necunoscută"));
+      alert("Evenimentul nu a putut fi creat\n" + getErrorMessage(error));
     } finally {
       setLoading(false);
     }

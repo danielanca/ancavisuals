@@ -2,7 +2,8 @@
 import "dotenv/config";
 import type { ServiceAccount } from "firebase-admin/app";
 import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
-import { getFirestore, Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
+import { getFirestore } from "firebase-admin/firestore";
 import { readFileSync } from "fs";
 
 let _db: Firestore | null = null;
@@ -52,7 +53,6 @@ export const db = new Proxy({} as Firestore, {
       init();
       _db = getFirestore();
     }
-    // @ts-ignore
-    return Reflect.get(_db, prop, recv);
+    return Reflect.get(_db as object, prop, recv);
   },
 }) as Firestore;

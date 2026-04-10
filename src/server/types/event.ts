@@ -5,6 +5,6 @@ export interface eventModel {
         time: string
         location: string
         hostId: string
-        createdAt: any
+        createdAt: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue | null
     
 }

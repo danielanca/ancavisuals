@@ -1,23 +1,45 @@
+/*
+ * Purpose: handles album-facing HTTP actions such as loading album data,
+ * generating downloads, deleting media and persisting print-selection metadata.
+ * It coordinates Bunny storage access with Firestore-backed selection state.
+ */
 import type { Request, Response } from "express";
 import { Readable } from "stream";
+import type { ReadableStream as NodeReadableStream } from "stream/web";
 import archiver from "archiver";
 import { loadAlbum } from "../services/album.services";
 import { readPrintSelection, savePrintSelection, saveDeliveryAddress, readDeliveryAddress, addLink } from "../services/printSelection.store";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { db } from "../firestoreInit";
+import {
+  BUNNY_ACCESS_KEY_HEADER,
+  BUNNY_DEFAULT_ARCHIVE_NAME,
+  BUNNY_IMAGE_FILE_PATTERN,
+  BUNNY_PHOTOS_FOLDER,
+  BUNNY_PREVIEW_FOLDER,
+  ZIP_COMPRESSION_MAX,
+  ZIP_COMPRESSION_STANDARD,
+  buildBunnyDirectoryUrl,
+  buildBunnyStorageUrl,
+  getBunnyStorageKey,
+} from "../constants/bunny";
 
-const BUNNY_STORAGE_BASE_URL = "https://storage.bunnycdn.com";
-const ADMIN_SECRET_KEY = "ankvisuals1994";
+const ADMIN_SECRET_KEY = process.env.ALBUM_ADMIN_KEY || "ankvisuals1994";
+const storageKey = getBunnyStorageKey();
+const MAX_SELECTED_DOWNLOAD_FILES = 300;
+const MAX_PRINT_SELECTION_FILES = 2000;
 
-const storageZone = process.env.BUNNY_STORAGE_ZONE!;
-const storageKey = process.env.BUNNY_STORAGE_KEY!;
+type BunnyDirectoryEntry = {
+  ObjectName: string;
+  IsDirectory: boolean;
+};
 
 const isSafeFile = (name: string) => {
   if (!name) return false;
   if (name.includes("..")) return false;
   if (name.includes("/") || name.includes("\\")) return false;
   if (name.length > 180) return false;
-  return /\.(jpg|jpeg|png|webp)$/i.test(name);
+  return BUNNY_IMAGE_FILE_PATTERN.test(name);
 };
 
 const isSafeSlug = (slug: string) => /^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug);
@@ -58,22 +80,22 @@ export async function downloadSelectedPhotos(req: Request, res: Response) {
 
   const files = Array.from(new Set(items.map(String).filter(isSafeFile)));
   if (files.length === 0) return res.status(400).send("no_files");
-  if (files.length > 300) return res.status(413).send("too_many_files");
+  if (files.length > MAX_SELECTED_DOWNLOAD_FILES) return res.status(413).send("too_many_files");
 
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename="${slug}-poze-selectate.zip"`);
 
-  const archive = archiver("zip", { zlib: { level: 6 } });
+  const archive = archiver("zip", { zlib: { level: ZIP_COMPRESSION_STANDARD } });
   archive.pipe(res);
 
   const photoPath = await checkPreviewExist(slug);
 
   for (const file of files) {
-    const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${slug}/${photoPath}/${encodeURIComponent(file)}`;
+    const url = buildBunnyStorageUrl(slug, photoPath, encodeURIComponent(file));
     try {
-      const response = await fetch(url, { headers: { AccessKey: storageKey } });
+      const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
       if (!response.ok || !response.body) continue;
-      archive.append(Readable.fromWeb(response.body as any), { name: file });
+      archive.append(Readable.fromWeb(response.body as unknown as NodeReadableStream), { name: file });
     } catch (err) {
       console.error(`Failed to fetch file for zip: ${file}`, err);
     }
@@ -93,7 +115,7 @@ export async function postPrintSelection(req: Request, res: Response) {
   const items = Array.isArray(itemsRaw) ? itemsRaw.map(String) : [];
   const clean = Array.from(new Set(items.filter(isSafeFile)));
 
-  if (clean.length > 2000) return res.status(413).json({ error: "too_many_files" });
+  if (clean.length > MAX_PRINT_SELECTION_FILES) return res.status(413).json({ error: "too_many_files" });
 
   await savePrintSelection(slug, clean);
   return res.json({ ok: true, count: clean.length });
@@ -121,11 +143,11 @@ export async function deletePhoto(req: Request, res: Response) {
     if (!exists) return res.status(404).json({ error: "album_not_found" });
 
     const photoPath = await checkPreviewExist(slug);
-    const deleteUrl = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${slug}/${photoPath}/${encodeURIComponent(filename)}`;
+    const deleteUrl = buildBunnyStorageUrl(slug, photoPath, encodeURIComponent(filename));
 
     const deleteResponse = await fetch(deleteUrl, {
       method: "DELETE",
-      headers: { AccessKey: storageKey },
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
     });
 
     if (!deleteResponse.ok) {
@@ -154,11 +176,11 @@ export async function deletePhoto(req: Request, res: Response) {
 }
 
 const albumRootUrl = (slug: string) =>
-  `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${encodeURIComponent(slug)}/`;
+  buildBunnyDirectoryUrl(encodeURIComponent(slug));
 
 async function albumExists(slug: string) {
   const response = await fetch(albumRootUrl(slug), {
-    headers: { AccessKey: storageKey },
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
   });
 
   if (response.status === 404) return false;
@@ -169,7 +191,7 @@ async function albumExists(slug: string) {
 
 export async function downloadAll(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
-  const zipFile = "photos.zip";
+  const zipFile = BUNNY_DEFAULT_ARCHIVE_NAME;
 
   const ok = await bunnyHasFileInDir(slug, zipFile);
 
@@ -191,14 +213,13 @@ export async function downloadAll(req: Request, res: Response) {
 }
 
 async function bunnyHasFileInDir(dir: string, fileName: string) {
-  const cleanDir = dir.replace(/^\/+/, "").replace(/\/+$/, "");
-  const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${cleanDir}/`;
+  const url = buildBunnyDirectoryUrl(dir);
 
-  const response = await fetch(url, { headers: { AccessKey: storageKey } });
+  const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
 
   if (!response.ok) return false;
 
-  const entries = (await response.json()) as any[];
+  const entries = (await response.json()) as BunnyDirectoryEntry[];
   return entries.some((entry) => !entry.IsDirectory && entry.ObjectName === fileName);
 }
 
@@ -216,34 +237,34 @@ export async function downloadPrintDynamic(req: Request, res: Response) {
   res.setHeader("Content-Disposition", `attachment; filename="poze-imprimare-${slug}.zip"`);
   res.setHeader("Cache-Control", "no-store");
 
-  const archive = archiver("zip", { zlib: { level: 9 } });
+  const archive = archiver("zip", { zlib: { level: ZIP_COMPRESSION_MAX } });
   archive.pipe(res);
 
   const photoPath = await checkPreviewExist(slug);
 
   for (const file of items) {
-    const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${slug}/${photoPath}/${file}`;
-    const response = await fetch(url, { headers: { AccessKey: storageKey } });
+    const url = buildBunnyStorageUrl(slug, photoPath, file);
+    const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
 
     if (!response.ok || !response.body) continue;
 
-    archive.append(Readable.fromWeb(response.body as any), { name: file });
+    archive.append(Readable.fromWeb(response.body as unknown as NodeReadableStream), { name: file });
   }
 
   await archive.finalize();
 }
 
 async function checkPreviewExist(slug: string) {
-  const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${slug}/photos_preview/`;
+  const url = buildBunnyDirectoryUrl(slug, BUNNY_PREVIEW_FOLDER);
 
-  const response = await fetch(url, { headers: { AccessKey: storageKey } });
+  const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
 
   if (response.ok) {
-    const data = await response.json() as any[];
-    if (Array.isArray(data) && data.length > 0) return "photos_preview";
+    const data = await response.json() as BunnyDirectoryEntry[];
+    if (Array.isArray(data) && data.length > 0) return BUNNY_PREVIEW_FOLDER;
   }
 
-  return "photos";
+  return BUNNY_PHOTOS_FOLDER;
 }
 
 export async function addDeliveryAddress(req: Request, res: Response) {

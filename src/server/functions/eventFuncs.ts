@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { applyCORSpolicy } from "../constants/corsFunc";
 import { transportOptions } from "../constants/emailCons";
 import { emailAuth, adminUser } from "../constants/credentials";

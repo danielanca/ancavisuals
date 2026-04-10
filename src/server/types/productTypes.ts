@@ -4,9 +4,8 @@ export interface ProductModel {
   shortDescription: string;
   price: string;
   firstDescription: string;
-  reviews: {};
-  // reviews: { [key:string]: };
+  reviews: Record<string, string>;
   jsonContent: string;
-  imageProduct: [];
-  ULbeneficii: [];
+  imageProduct: string[];
+  ULbeneficii: string[];
 }

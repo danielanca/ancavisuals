@@ -1,3 +1,7 @@
+/*
+ * Purpose: verifies the auth guard components that protect admin routes and redirect users
+ * based on the current auth state exposed by the auth hook.
+ */
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";

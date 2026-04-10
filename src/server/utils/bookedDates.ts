@@ -1,5 +1,10 @@
-import { getDownloadURL, ref } from "firebase/storage";
-import { storage } from "../client/firebase";
+/*
+ * Purpose: loads and caches booked dates from the shared storage file, expands
+ * date ranges into day keys and answers whether a given date is unavailable.
+ */
+import { getStorage } from "firebase-admin/storage";
+import { firestore } from "../firestoreInit";
+import { BOOKED_DATES_FILE_PATH, FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 
 export type BookedDate =
   | {
@@ -61,10 +66,10 @@ export async function loadBookedDates(): Promise<Set<string>> {
   if (bookedDatesCache) return bookedDatesCache;
 
   try {
-    const fileRef = ref(storage, "ancavisuals/bookedDates/bookedDates.json");
-    const url = await getDownloadURL(fileRef);
-    const res = await fetch(url);
-    const data = (await res.json()) as BookedDatesFile;
+    firestore();
+    const bucket = getStorage().bucket(FIREBASE_STORAGE_BUCKET);
+    const [contents] = await bucket.file(BOOKED_DATES_FILE_PATH).download();
+    const data = JSON.parse(contents.toString()) as BookedDatesFile;
 
     bookedDatesCache = expandToKeys(data);
     return bookedDatesCache;

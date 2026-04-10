@@ -13,6 +13,18 @@ const Login = () => {
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return "Autentificarea a eșuat.";
+  };
+
+  const getErrorCode = (error: unknown): string => {
+    if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string") {
+      return error.code;
+    }
+    return "";
+  };
+
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((s) => ({ ...s, [name]: value }));
@@ -31,8 +43,8 @@ const Login = () => {
     try {
       await signIn(form.email, form.password);
       navigate("/admin", { replace: true });
-    } catch (err: any) {
-      const code = err?.code || "";
+    } catch (err: unknown) {
+      const code = getErrorCode(err);
       if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
         setErrMsg("Email sau parolă incorecte.");
       } else if (code === "auth/user-not-found") {
@@ -40,7 +52,7 @@ const Login = () => {
       } else if (code === "auth/too-many-requests") {
         setErrMsg("Prea multe încercări. Încearcă mai târziu.");
       } else {
-        setErrMsg(err?.message || "Autentificarea a eșuat.");
+        setErrMsg(getErrorMessage(err));
       }
       console.error("Login error:", err);
     } finally {

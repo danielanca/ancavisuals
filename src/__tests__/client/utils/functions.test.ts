@@ -1,3 +1,7 @@
+/*
+ * Purpose: covers browser utility helpers for cookie reads, browser detection
+ * and JWT cookie writes used by the auth flow.
+ */
 import { describe, expect, test } from "vitest";
 import { getCookie, isBrowser, setJWT } from "../../../client/utils/functions";
 

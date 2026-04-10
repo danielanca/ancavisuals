@@ -9,7 +9,7 @@ import { safeTrigger, BOOKING_TO } from "./utils/api";
 import { normalizePackages } from "./utils/normalize";
 import { formatDate } from "./utils/time";
 import { PHONE_RE } from "./utils/validators";
-import { Step, EventType, Errors } from "./types";
+import type { Step, EventType, Errors } from "./types";
 
 // Firebase
 import { getBytes, ref } from "firebase/storage";
@@ -22,6 +22,10 @@ import Step3Contact from "./steps/Step3Contact";
 import Step4Details from "./steps/Step4Details";
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
+
+type ConversionWindow = Window & {
+  gtag?: (eventName: string, action: string, params: Record<string, string | number>) => void;
+};
 
 /* ---------- bookedDates.json types & helpers ---------- */
 
@@ -278,8 +282,9 @@ export default function BookingWizard() {
     }
 
     // 🔥 Google Ads conversion – LEAD RAPID
-    if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
-      (window as any).gtag("event", "conversion", {
+    const conversionWindow = window as ConversionWindow;
+    if (typeof window !== "undefined" && typeof conversionWindow.gtag === "function") {
+      conversionWindow.gtag("event", "conversion", {
         send_to: "AW-10941123412/ww8eCM7HiakYENSWkeEo",
         value: 1.0, // sau 1.0 fix dacă vrei doar număr de conversii
         currency: "EUR",

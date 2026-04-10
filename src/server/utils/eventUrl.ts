@@ -1,3 +1,7 @@
+/*
+ * Purpose: generates a URL-safe event slug from a title and optional location,
+ * with sanitization and a timestamp fallback when the source text becomes empty.
+ */
 export function generateEventSlug(title: string, location?: string): string {
   let text = (title + (location ? ' ' + location : '')).trim();
 

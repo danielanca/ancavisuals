@@ -1,5 +1,5 @@
 import { emailAuth } from "./credentials";
-import SMTPTransport from "nodemailer/lib/smtp-transport";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 export interface ResponseObject {
   EMAILTO_CLIENT: string;
   EMAILTO_ADMIN: string;

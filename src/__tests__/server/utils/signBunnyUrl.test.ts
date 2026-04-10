@@ -1,3 +1,7 @@
+/*
+ * Purpose: ensures Bunny CDN URLs are signed with the expected token and expiry
+ * so generated media links stay stable and secure.
+ */
 import crypto from "crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { signBunnyUrl } from "../../../server/utils/signBunnyUrl";

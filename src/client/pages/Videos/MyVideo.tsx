@@ -9,6 +9,10 @@ interface MyVideoProps {
   previewTime?: number; // secunda din video pentru thumbnail
 }
 
+type PlyrWithPoster = Plyr & {
+  poster: string;
+};
+
 const MyVideo: React.FC<MyVideoProps> = ({ src, poster, previewTime = 3 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerRef = useRef<Plyr | null>(null);
@@ -46,7 +50,7 @@ const MyVideo: React.FC<MyVideoProps> = ({ src, poster, previewTime = 3 }) => {
     if (poster) {
       setComputedPoster(poster);
       if (playerRef.current) {
-        (playerRef.current as any).poster = poster; // Plyr property
+        (playerRef.current as PlyrWithPoster).poster = poster;
       }
       return;
     }
@@ -92,7 +96,7 @@ const MyVideo: React.FC<MyVideoProps> = ({ src, poster, previewTime = 3 }) => {
         setComputedPoster(dataUrl);
 
         if (playerRef.current) {
-          (playerRef.current as any).poster = dataUrl;
+          (playerRef.current as PlyrWithPoster).poster = dataUrl;
         }
       } catch (err) {
         console.warn("[MyVideo] Could not generate poster from video:", err);

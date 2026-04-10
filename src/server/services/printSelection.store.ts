@@ -1,6 +1,27 @@
+/*
+ * Purpose: encapsulates Firestore persistence for print selections, delivery
+ * addresses and Swiss links associated with album slugs.
+ */
 import { firestore } from "../firestoreInit";
 
 const COL = "printSelections";
+
+type DeliveryAddress = {
+  fullName: string;
+  phone: string;
+  street: string;
+  city: string;
+  easybox?: string | null;
+};
+
+type PrintSelectionDocument = {
+  slug?: string;
+  items?: string[];
+  deliveryAddress?: DeliveryAddress;
+  deliveryAddressUpdatedAt?: number;
+  updatedAt?: number;
+  swissLink?: string;
+};
 
 export async function savePrintSelection(slug: string, items: string[]) {
   await firestore().collection(COL).doc(slug).set(
@@ -16,19 +37,13 @@ export async function savePrintSelection(slug: string, items: string[]) {
 export async function readPrintSelection(slug: string): Promise<string[]> {
   const snap = await firestore().collection(COL).doc(slug).get();
   if (!snap.exists) return [];
-  const data = snap.data() as any;
+  const data = (snap.data() as PrintSelectionDocument | undefined) ?? {};
   return Array.isArray(data?.items) ? data.items.map(String) : [];
 }
 
 export async function saveDeliveryAddress(
   slug: string,
-  address: {
-    fullName: string;
-    phone: string;
-    street: string;
-    city: string;
-    easybox?: string;
-  }
+  address: DeliveryAddress,
 ): Promise<void> {
   await firestore()
     .collection(COL)
@@ -69,16 +84,16 @@ export async function saveDeliveryAddress(
     });
 }
 
-export async function readDeliveryAddress(slug: string): Promise<string[]> {
+export async function readDeliveryAddress(slug: string): Promise<PrintSelectionDocument | null> {
   const snap = await firestore().collection(COL).doc(slug).get();
-  if (!snap.exists) return [];
-  const data = snap.data() as any;
-  return data;
+  if (!snap.exists) return null;
+  const data = (snap.data() as PrintSelectionDocument | undefined) ?? null;
+  return data ?? null;
 }
 
 
 
-export async function addLink(slug: string,link: string){
+export async function addLink(slug: string,link: string): Promise<void> {
   await firestore()
     .collection(COL)
     .doc(slug)

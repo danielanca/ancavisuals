@@ -1,5 +1,5 @@
 export const getTimestamp = () => {
-  let now = new Date();
+  const now = new Date();
   return `${now.getDate()}/${now.getMonth()}/${now.getFullYear()}  ${now.getHours()}:${now.getMinutes()} `;
 };
 export const generateInvoiceID = (): string => {
@@ -11,7 +11,7 @@ export const generateInvoiceID = (): string => {
 };
 
 export const getDateAndHour = () => {
-  let TodayDate = new Date();
+  const TodayDate = new Date();
   return `${TodayDate.getDate()}/${
     TodayDate.getMonth() + 1
   }/${TodayDate.getFullYear()} ${TodayDate.getHours()}:${TodayDate.getMinutes()}`;

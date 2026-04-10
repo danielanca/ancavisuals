@@ -1,19 +1,32 @@
-import { Router, Request, Response } from "express";
+import type { Request, Response } from "express";
+import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+
+type PricePackage = {
+  id: string;
+  title: string;
+  price: number;
+  note?: string;
+};
+
+type PricesData = {
+  packages: PricePackage[];
+};
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pricesData = JSON.parse(readFileSync(join(__dirname, "../../data/prices.json"), "utf-8"));
+const pricesData = JSON.parse(readFileSync(join(__dirname, "../../data/prices.json"), "utf-8")) as PricesData;
 
 const router = Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const photoPrice = pricesData.packages.find((s: any) => s.id === "photo")!.price;
-const videoPrice = pricesData.packages.find((s: any) => s.id === "video")!.price;
+const photoPrice = pricesData.packages.find((service: PricePackage) => service.id === "photo")!.price;
+const videoPrice = pricesData.packages.find((service: PricePackage) => service.id === "video")!.price;
 
 const servicesText = pricesData.packages
-  .map((s: any) => `- ${s.title}: ${s.price} EUR — ${s.note}`)
+  .map((service: PricePackage) => `- ${service.title}: ${service.price} EUR — ${service.note ?? ""}`)
   .join("\n");
 
 const SYSTEM_PROMPT = `Ești asistentul virtual al Anca Visuals, un studio profesionist de fotografie și videografie din România.

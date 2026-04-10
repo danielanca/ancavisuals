@@ -20,14 +20,76 @@ type Props = {
   className?: string;
 };
 
+type PlaceLocation = google.maps.LatLngLiteral | { toJSON?: () => google.maps.LatLngLiteral };
+
+type PlaceDetails = {
+  id?: string;
+  displayName?: { text?: string };
+  formattedAddress?: string;
+  location?: PlaceLocation;
+  fetchFields?: (input: { fields: string[] }) => Promise<void>;
+};
+
+type PlacePredictionText = {
+  text?: string;
+};
+
+type PlacePrediction = {
+  id?: string;
+  place_id?: string;
+  text?: PlacePredictionText;
+  secondaryText?: PlacePredictionText;
+  toPlace?: () => PlaceDetails;
+};
+
+type AutocompleteSuggestionResult = {
+  placePrediction?: PlacePrediction;
+};
+
+type AutocompleteSessionToken = object;
+
+type AutocompleteRequest = {
+  input: string;
+  language?: string;
+  region?: string;
+  sessionToken?: AutocompleteSessionToken;
+  includedPrimaryTypes?: string[];
+};
+
+type PlacesLibrary = {
+  AutocompleteSessionToken: new () => AutocompleteSessionToken;
+  AutocompleteSuggestion?: {
+    fetchAutocompleteSuggestions?: (
+      request: AutocompleteRequest,
+    ) => Promise<{ suggestions?: AutocompleteSuggestionResult[] }>;
+  };
+};
+
+type GoogleMapsWindow = Window & {
+  google?: {
+    maps?: {
+      importLibrary?: (library: string) => Promise<PlacesLibrary>;
+      places?: PlacesLibrary;
+    };
+  };
+};
+
+const getGoogleMapsWindow = (): GoogleMapsWindow => window as unknown as GoogleMapsWindow;
+
+const isLatLngWithToJSON = (value: PlaceLocation | undefined): value is { toJSON: () => google.maps.LatLngLiteral } =>
+  typeof value === "object" && value !== null && "toJSON" in value && typeof value.toJSON === "function";
+
+const isLatLngLiteral = (value: PlaceLocation | undefined): value is google.maps.LatLngLiteral =>
+  typeof value === "object" && value !== null && "lat" in value && "lng" in value;
+
 // ---------------- Loader + cache ----------------
-let cachedPlacesLib: any | null = null;
+let cachedPlacesLib: PlacesLibrary | null = null;
 
 const loadMaps = (() => {
   let promise: Promise<void> | null = null;
   return (apiKey: string, language?: string) => {
     // deja există
-    if (typeof window !== "undefined" && (window as any).google?.maps) {
+    if (typeof window !== "undefined" && getGoogleMapsWindow().google?.maps) {
       return Promise.resolve();
     }
     if (!promise) {
@@ -68,7 +130,7 @@ function waitFor(test: () => boolean, timeout = 5000, step = 50) {
 
 async function ensurePlaces(apiKey: string, language?: string) {
   await loadMaps(apiKey, language);
-  const gmaps: any = (window as any).google?.maps;
+  const gmaps = getGoogleMapsWindow().google?.maps;
   if (!gmaps) throw new Error("google.maps not present after load");
 
   if (cachedPlacesLib) return cachedPlacesLib;
@@ -86,7 +148,7 @@ async function ensurePlaces(apiKey: string, language?: string) {
   // 2) Fallback: așteptăm ca Google să atașeze namespace-ul clasic
   if (!gmaps.places) {
     // maps/api/js a rezolvat deja, dar places.js se atașează puțin mai târziu
-    await waitFor(() => !!(window as any).google?.maps?.places, 5000, 50);
+    await waitFor(() => !!getGoogleMapsWindow().google?.maps?.places, 5000, 50);
   }
 
   if (gmaps.places) {
@@ -115,11 +177,11 @@ export default function LocationField({
 }: Props) {
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<AutocompleteSuggestionResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const tokenRef = useRef<any>(null);
+  const tokenRef = useRef<AutocompleteSessionToken | null>(null);
   const debounceRef = useRef<number | null>(null);
   const activeIndex = useRef<number>(-1);
 
@@ -164,7 +226,7 @@ export default function LocationField({
 
         // Noul API: AutocompleteSuggestion.fetchAutocompleteSuggestions
         if (places.AutocompleteSuggestion?.fetchAutocompleteSuggestions) {
-          const req: any = {
+          const req: AutocompleteRequest = {
             input: query,
             language,
             region,
@@ -190,7 +252,7 @@ export default function LocationField({
     }, 200);
   }, [query, ready, apiKey, language, region, includedPrimaryTypes]);
 
-  async function handleSelect(sug: any) {
+  async function handleSelect(sug: AutocompleteSuggestionResult) {
     try {
       setOpen(false);
       const places = await ensurePlaces(apiKey, language);
@@ -205,11 +267,11 @@ export default function LocationField({
         });
       }
 
-      const id = (place as any).id || (prediction?.id as string) || (prediction?.place_id as string) || "";
-      const displayName = (place as any).displayName?.text;
-      const formattedAddress = (place as any).formattedAddress;
-      const loc = (place as any).location;
-      const latlng = typeof loc?.toJSON === "function" ? loc.toJSON() : loc?.toJSON?.() ?? loc;
+      const id = place.id || prediction?.id || prediction?.place_id || "";
+      const displayName = place.displayName?.text;
+      const formattedAddress = place.formattedAddress;
+      const loc = place.location;
+      const latlng = isLatLngWithToJSON(loc) ? loc.toJSON() : isLatLngLiteral(loc) ? loc : undefined;
 
       // 🔥 setează și value-ul din input prin onChange
       const selectedText = formattedAddress || displayName || prediction?.text?.text || "";
@@ -294,7 +356,7 @@ export default function LocationField({
             !err &&
             Array.isArray(suggestions) &&
             suggestions.length > 0 &&
-            suggestions.map((sug: any, i: number) => {
+            suggestions.map((sug: AutocompleteSuggestionResult, i: number) => {
               const t = sug.placePrediction?.text?.text || "";
               const sec = sug.placePrediction?.secondaryText?.text || "";
               const isActive = i === activeIndex.current;

@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { triggerEvent } from "../functions/eventFuncs";
 
 export { triggerEvent };

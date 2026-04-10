@@ -1,11 +1,19 @@
+/*
+ * Purpose: sends booking-related trigger events to the backend using the public
+ * same-origin endpoint, while providing a safe development fallback if the local
+ * endpoint is unavailable.
+ */
 // src/booking/utils/api.ts
 const IS_PROD = import.meta.env.PROD;
-const API_BASE = ""; // same-origin
-export const BOOKING_TO = import.meta.env.VITE_BOOKING_EMAIL ?? "ancadaniel1994@gmail.com";
+const API_BASE = ""; // same-origin requests from the public site.
+const TRIGGER_EVENT_PATH = "/triggerEvent";
+const DEFAULT_BOOKING_EMAIL = "ancadaniel1994@gmail.com";
 
-export async function safeTrigger(payload: any) {
+export const BOOKING_TO = import.meta.env.VITE_BOOKING_EMAIL ?? DEFAULT_BOOKING_EMAIL;
+
+export async function safeTrigger(payload: Record<string, unknown>) {
   try {
-    const res = await fetch(`${API_BASE}/triggerEvent`, {
+    const res = await fetch(`${API_BASE}${TRIGGER_EVENT_PATH}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -20,7 +28,7 @@ export async function safeTrigger(payload: any) {
     }
   } catch (e) {
     if (!IS_PROD) {
-      console.log("[dev] /triggerEvent fallback:", payload);
+      console.log(`[dev] ${TRIGGER_EVENT_PATH} fallback:`, payload);
       return { ok: true, dev: true };
     }
     throw e;

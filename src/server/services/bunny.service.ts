@@ -1,11 +1,22 @@
 import dotenv from "dotenv";
+import {
+  BUNNY_ACCESS_KEY_HEADER,
+  BUNNY_PREVIEW_FOLDER,
+  buildBunnyDirectoryUrl,
+  getBunnyStorageKey,
+  getBunnyStorageZone,
+} from "../constants/bunny";
 
 dotenv.config();
 
-const BUNNY_STORAGE_BASE_URL = "https://storage.bunnycdn.com";
+export const storageZone = getBunnyStorageZone();
+const apiKey = getBunnyStorageKey();
 
-export const storageZone = process.env.BUNNY_STORAGE_ZONE!;
-const apiKey = process.env.BUNNY_STORAGE_KEY!;
+type BunnyObject = {
+  ObjectName: string;
+};
+
+type BunnyDirectoryResponse = BunnyObject[] | { Objects?: BunnyObject[] };
 
 if (!storageZone || !apiKey) {
   console.error("Missing Bunny Storage ENV variables!");
@@ -16,28 +27,27 @@ if (!storageZone || !apiKey) {
 }
 
 export async function listFiles(path: string) {
-  const cleanPath = path.replace(/^\/+/, "").replace(/\/+$/, "");
-  const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${cleanPath}/`;
+  const url = buildBunnyDirectoryUrl(path);
 
   const response = await fetch(url, {
-    headers: { AccessKey: apiKey },
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: apiKey },
   });
 
   if (!response.ok) return [];
 
-  const data = await response.json() as any;
+  const data = await response.json() as BunnyDirectoryResponse;
   return Array.isArray(data) ? data : data?.Objects ?? [];
 }
 
 export async function checkPreviewExist(slug: string) {
-  const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${slug}/photos_preview/`;
+  const url = buildBunnyDirectoryUrl(slug, BUNNY_PREVIEW_FOLDER);
 
   const response = await fetch(url, {
-    headers: { AccessKey: apiKey },
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: apiKey },
   });
 
   if (!response.ok) return false;
 
-  const data = await response.json() as any[];
+  const data = await response.json() as BunnyObject[];
   return Array.isArray(data) && data.length > 0;
 }

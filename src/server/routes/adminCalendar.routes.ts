@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestoreInit";
+import { BOOKED_DATES_FILE_PATH, FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 
 async function getBookedDates(): Promise<{ date?: string; startDate?: string; endDate?: string; note?: string }[]> {
   firestore();
-  const bucket = getStorage().bucket("joculdetectivului.appspot.com");
-  const [contents] = await bucket.file("ancavisuals/bookedDates/bookedDates.json").download();
+  const bucket = getStorage().bucket(FIREBASE_STORAGE_BUCKET);
+  const [contents] = await bucket.file(BOOKED_DATES_FILE_PATH).download();
   const data = JSON.parse(contents.toString());
   return data?.dates ?? [];
 }

@@ -1,9 +1,21 @@
-import { Request, Response } from "express";
+/*
+ * Purpose: validates whether a QR Moments event route is usable by checking both
+ * the Firestore event document and the corresponding Bunny storage folder.
+ */
+import type { Request, Response } from "express";
 import { firestore } from "../firestoreInit";
+import {
+  BUNNY_ACCESS_KEY_HEADER,
+  buildBunnyDirectoryUrl,
+  getBunnyStorageKey,
+} from "../constants/bunny";
 
-const BUNNY_STORAGE_BASE_URL = "https://storage.bunnycdn.com";
-const storageZone = process.env.BUNNY_STORAGE_ZONE!;
-const storageKey = process.env.BUNNY_STORAGE_KEY!;
+const storageKey = getBunnyStorageKey();
+
+type BunnyDirectoryEntry = {
+  ObjectName: string;
+  IsDirectory?: boolean;
+};
 
 export async function checkRoute(req: Request, res: Response) {
   const param = req.params;
@@ -30,14 +42,14 @@ export async function checkRoute(req: Request, res: Response) {
 }
 
 async function checkFolderExist(eventDate: string) {
-  const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${eventDate}/`;
+  const url = buildBunnyDirectoryUrl(eventDate);
 
   const response = await fetch(url, {
-    headers: { AccessKey: storageKey },
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
   });
 
   if (!response.ok) return false;
 
-  const data = await response.json() as any[];
+  const data = await response.json() as BunnyDirectoryEntry[];
   return Array.isArray(data) && data.length > 0;
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { FormEvent } from "react";
 import styles from './DeliveryForm.module.scss';
 
 type Props = {
@@ -15,9 +16,18 @@ const initialForm = {
   easybox: '',
 };
 
+type DeliveryFormState = typeof initialForm;
+
+type DeliveryFormErrors = {
+  fullName: string;
+  phone: string;
+  street: string;
+  city: string;
+};
+
 export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
-  const [form, setForm] = useState(initialForm);
-  const [errors, setErrors] = useState({  fullName :  "",
+  const [form, setForm] = useState<DeliveryFormState>(initialForm);
+  const [errors, setErrors] = useState<DeliveryFormErrors>({  fullName :  "",
     phone: "",
     street : "",
     city : ""});
@@ -25,8 +35,8 @@ export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
   // Add state
 const [showSuccess, setShowSuccess] = useState(false);
 
-  const validate = () => {
-    const newErrors = {
+  const validate = (): DeliveryFormErrors => {
+    const newErrors: DeliveryFormErrors = {
         fullName :  "",
         phone: "",
         street : "",
@@ -39,7 +49,7 @@ const [showSuccess, setShowSuccess] = useState(false);
     return newErrors;
   };
 
-  const handleSubmit = async (e : any) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const validationErrors = validate();
 
@@ -70,6 +80,7 @@ const [showSuccess, setShowSuccess] = useState(false);
       if (res.ok) {
         setShowSuccess(true);   
         setForm(initialForm);
+        onSuccess();
       }
 
     } catch (err) {
@@ -100,7 +111,7 @@ const [showSuccess, setShowSuccess] = useState(false);
           ✓ Adresa de livrare a fost salvată cu succes!
            </div>
           ): (
-          <form className={styles.form}>
+          <form className={styles.form} onSubmit={handleSubmit}>
             <div className={styles.group}>
               <label className={`${styles.label} ${styles.required}`}>Nume și prenume</label>
               <input
@@ -166,8 +177,7 @@ const [showSuccess, setShowSuccess] = useState(false);
               </button>
 
               <button
-                type="button"
-                onClick={handleSubmit}
+                type="submit"
                 className={styles.btnSave}
                 //disabled={isSubmitting}
               >

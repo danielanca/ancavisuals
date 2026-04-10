@@ -24,6 +24,11 @@ export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return 'Nu s-au putut încărca informațiile de livrare';
+  };
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -36,8 +41,8 @@ export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
         
         const json = await res.json();
         setData(json.data?.deliveryAddress || null);
-      } catch (err: any) {
-        setError(err.message || 'Nu s-au putut încărca informațiile de livrare');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err));
       } finally {
         setLoading(false);
       }

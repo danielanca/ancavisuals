@@ -1,3 +1,7 @@
+/*
+ * Purpose: validates the auth provider lifecycle, including initial auth resolution,
+ * token persistence and delegation to Firebase sign-in/sign-out helpers.
+ */
 import React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";

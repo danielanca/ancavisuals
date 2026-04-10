@@ -1,3 +1,7 @@
+/*
+ * Purpose: keeps the shared booking phone validator stable for the public
+ * contact and booking flows.
+ */
 import { describe, expect, test } from "vitest";
 import { PHONE_RE } from "../../../client/pages/Contact/booking/utils/validators";
 

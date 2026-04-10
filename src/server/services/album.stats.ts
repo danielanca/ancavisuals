@@ -1,10 +1,15 @@
 import type { Request, Response } from "express";
 import { loadAlbum } from "../services/album.services";
+import {
+  BUNNY_ACCESS_KEY_HEADER,
+  BUNNY_IMAGE_FILE_PATTERN,
+  buildBunnyDirectoryUrl,
+  getBunnyStorageKey,
+  getBunnyStorageZone,
+} from "../constants/bunny";
 
-const BUNNY_STORAGE_BASE_URL = "https://storage.bunnycdn.com";
-
-const storageZone = process.env.BUNNY_STORAGE_ZONE!;
-const storageKey = process.env.BUNNY_STORAGE_KEY!;
+const storageZone = getBunnyStorageZone();
+const storageKey = getBunnyStorageKey();
 
 type BunnyEntry = {
   ObjectName: string;
@@ -13,11 +18,10 @@ type BunnyEntry = {
 };
 
 const listBunnyDirectory = async (directoryPath: string) => {
-  const cleanPath = directoryPath.replace(/^\/+/, "").replace(/\/+$/, "");
-  const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${cleanPath}/`;
+  const url = buildBunnyDirectoryUrl(directoryPath);
 
   const response = await fetch(url, {
-    headers: { AccessKey: storageKey },
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
   });
 
   if (!response.ok) {
@@ -57,7 +61,7 @@ export async function getAlbumStats(req: Request, res: Response) {
 
   const photoEntries = directoryEntries
     .filter((entry) => !entry.IsDirectory)
-    .filter((entry) => /\.(jpg|jpeg|png|webp)$/i.test(entry.ObjectName));
+    .filter((entry) => BUNNY_IMAGE_FILE_PATTERN.test(entry.ObjectName));
 
   const photosCount = photoEntries.length;
   const photosBytesTotal = photoEntries.reduce((total, entry) => total + (Number(entry.Length) || 0), 0);
