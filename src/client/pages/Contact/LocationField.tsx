@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import AncaLoader from "../../components/UI/AncaLoader";
 
 export type PlaceLite = {
   id: string;
@@ -286,7 +287,7 @@ export default function LocationField({
           }}
           onMouseDown={e => e.preventDefault()}
         >
-          {loading && <div style={{ padding: 10, opacity: 0.8 }}>Se încarcă…</div>}
+          {loading && <AncaLoader variant="inline" />}
           {err && <div style={{ padding: 10, color: "#ff8080" }}>{err}</div>}
 
           {!loading &&

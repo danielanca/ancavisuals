@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import AncaChat from "./components/AncaChat/AncaChat";
-import PageLoader from "./components/UI/PageLoader";
+import AncaLoader from "./components/UI/AncaLoader";
 import { useLocation } from "react-router-dom";
 import routes from "./routes/publicRoutes";
 import { ContextWrapper } from "./Context"; // Assuming you have this component
@@ -52,8 +52,8 @@ export const App = () => {
   return (
     <ContextWrapper>
       <AuthProvider>
-      {showChat && <AncaChat />}
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={<AncaLoader />}>
+        {showChat && <AncaChat />}
         <Routes>
            {/* Public / general routes */}
            {routes.map((route) => (

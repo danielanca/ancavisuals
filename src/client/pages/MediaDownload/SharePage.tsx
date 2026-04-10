@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import styles from "./MediaAlbumPage.module.scss";
+import AncaLoader from "../../components/UI/AncaLoader";
 
 type SharePayload = {
   id: string;
@@ -38,12 +39,7 @@ export default function SharePage() {
     })();
   }, [id]);
 
-  if (loading)
-    return (
-      <div className={styles.page}>
-        <div className={styles.container}>Se încarcă...</div>
-      </div>
-    );
+  if (loading) return <AncaLoader />;
   if (expired)
     return (
       <div className={styles.page}>

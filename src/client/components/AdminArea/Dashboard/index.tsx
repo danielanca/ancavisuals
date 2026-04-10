@@ -4,6 +4,7 @@ import type { ClientEvent, AdminSettings } from "../../../types/admin";
 import GoalCard from "../GoalCard";
 import EventList from "../EventList";
 import useAuth from "../../../hooks/useAuth";
+import AncaLoader from "../../UI/AncaLoader";
 
 const DEFAULT_SETTINGS: AdminSettings = {
   goals: {
@@ -58,13 +59,7 @@ const Dashboard: React.FC = () => {
 
   const handleAddEvent = () => navigate("/admin/create-event");
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-        <p className="text-neutral-400 text-sm">Se încarcă dashboard-ul...</p>
-      </div>
-    );
-  }
+  if (loading) return <AncaLoader />;
 
   if (error) {
     return (

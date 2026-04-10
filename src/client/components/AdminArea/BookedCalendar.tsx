@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import AncaLoader from "../UI/AncaLoader";
 
 interface BookedEntry {
   date?: string;
@@ -145,7 +146,7 @@ export default function BookedCalendar() {
           </span>
         </div>
 
-        {loading && <p className="text-neutral-400 text-sm text-center py-8">Se încarcă datele...</p>}
+        {loading && <AncaLoader variant="inline" />}
         {error && <p className="text-red-400 text-sm text-center py-4">Eroare: {error}</p>}
         {!loading && !error && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

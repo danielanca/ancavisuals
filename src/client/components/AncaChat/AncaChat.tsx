@@ -26,6 +26,7 @@ function saveEventDate(text: string) {
 }
 
 export default function AncaChat() {
+  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -35,8 +36,14 @@ export default function AncaChat() {
   const [thinking, setThinking] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [awaitingDate, setAwaitingDate] = useState(false);
+  const [awaitingPhone, setAwaitingPhone] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 400);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     setIsOpen(localStorage.getItem("anca_chat_open") === "true");
@@ -76,6 +83,8 @@ export default function AncaChat() {
     });
   };
 
+  if (!mounted) return null;
+
   const resetChat = () => {
     setMessages([]);
     setSuggestions([]);
@@ -83,6 +92,7 @@ export default function AncaChat() {
     setLoading(false);
     setThinking(false);
     setAwaitingDate(false);
+    setAwaitingPhone(false);
     setInitialized(false);
   };
 
@@ -103,8 +113,13 @@ export default function AncaChat() {
       return;
     }
 
-    if (intentId === "verificare_data") {
+    if (intentId === "check_date") {
       setAwaitingDate(true);
+      setAwaitingPhone(false);
+    }
+    if (intentId === "leave_phone") {
+      setAwaitingPhone(true);
+      setAwaitingDate(false);
     }
 
     setMessages(prev => [...prev, { sender: "user", text: label }]);
@@ -138,6 +153,29 @@ export default function AncaChat() {
       }
       saveEventDate(text);
       setAwaitingDate(false);
+    }
+
+    if (awaitingPhone) {
+      setMessages(prev => [...prev, { sender: "user", text }]);
+      setSuggestions([]);
+      setLoading(true);
+      setAwaitingPhone(false);
+      try {
+        const res = await fetch("/api/assistant/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: text,
+            date: localStorage.getItem("anca_event_date") ?? undefined,
+          }),
+        });
+        const node: ChatNode = await res.json();
+        deliverBotResponse(node);
+      } catch {
+        setLoading(false);
+        setMessages(prev => [...prev, { sender: "bot", text: "Eroare de rețea. Încearcă din nou." }]);
+      }
+      return;
     }
 
     setMessages(prev => [...prev, { sender: "user", text }]);
@@ -279,7 +317,7 @@ export default function AncaChat() {
               value={inputText}
               onChange={e => setInputText(e.target.value)}
               onKeyDown={e => e.key === "Enter" && sendText()}
-              placeholder={awaitingDate ? "ex: 15/06/2026" : "Scrie un mesaj..."}
+              placeholder={awaitingDate ? "ex: 15/06/2026" : awaitingPhone ? "ex: 0722 123 456" : "Scrie un mesaj..."}
               className="flex-1 bg-neutral-800 text-white text-sm placeholder-neutral-500 rounded-full px-4 py-2 outline-none border border-neutral-700 focus:border-neutral-500 transition-colors"
             />
             <button
@@ -293,14 +331,6 @@ export default function AncaChat() {
               </svg>
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Speech bubble — apare doar înainte de prima interacțiune */}
-      {!hasInteracted && !isOpen && (
-        <div className="fixed bottom-20 right-4 md:bottom-32 md:right-8 z-50 max-w-[200px] bg-white text-black text-xs rounded-2xl rounded-br-none px-3 py-2 shadow-lg leading-snug pointer-events-none">
-          Afli chestii rapide instant, fără să aștepți 😄
-          <div className="absolute -bottom-2 right-4 w-0 h-0 border-l-8 border-l-transparent border-r-0 border-t-8 border-t-white" />
         </div>
       )}
 

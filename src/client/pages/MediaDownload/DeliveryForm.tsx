@@ -88,7 +88,7 @@ const [showSuccess, setShowSuccess] = useState(false);
             type="button"
             className={styles.closeBtn}
             onClick={onClose}
-            aria-label="Close"
+            aria-label="Închide"
           >
             ×
           </button>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import styles from './AddressList.module.scss';
+import AncaLoader from '../../components/UI/AncaLoader';
 
 type Props = {
   slug: string;
@@ -55,14 +56,14 @@ export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
       <div className={styles.dialog} onClick={e => e.stopPropagation()}>
         <div className={styles.header}>
           <h2 className={styles.title}>Detalii adresă de livrare</h2>
-          <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
+          <button className={styles.closeBtn} onClick={onClose} aria-label="Închide">
             ×
           </button>
         </div>
 
         <div className={styles.content}>
           {loading ? (
-            <div className={styles.loading}>Se încarcă detaliile de livrare...</div>
+            <AncaLoader variant="inline" />
           ) : error ? (
             <div className={styles.error}>{error}</div>
           ) : !data || Object.keys(data).length === 0 ? (

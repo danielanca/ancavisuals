@@ -25,51 +25,51 @@ const nodes: ChatNode[] = [
     id: "welcome",
     botMessage: "Bună! Sunt asistentul Anca Visuals 👋\nCu ce te pot ajuta?",
     suggestions: [
-      { label: "Prețuri și pachete", intentId: "pret" },
-      { label: "Tipuri de evenimente", intentId: "servicii" },
+      { label: "Prețuri și pachete", intentId: "pricing" },
+      { label: "Tipuri de evenimente", intentId: "services" },
       { label: "QR Moments (gratuit)", intentId: "qr_moments" },
-      { label: "Zona de acoperire", intentId: "zona" },
-      { label: "Verifică disponibilitate dată", intentId: "verificare_data" },
+      { label: "Zona de acoperire", intentId: "coverage" },
+      { label: "Verifică disponibilitate dată", intentId: "check_date" },
     ],
   },
   {
-    id: "pret",
+    id: "pricing",
     botMessage:
       `Pachetele noastre:\n\n📷 Fotografie: ${p("photo").toLocaleString("ro-RO")} EUR\n🎥 Videografie: ${p("video").toLocaleString("ro-RO")} EUR\n🖼️ Album foto: ${p("album").toLocaleString("ro-RO")} EUR\n📸 Fotocabina: de la ${p("photobooth").toLocaleString("ro-RO")} EUR*\n🎡 Video Cabina 360: ${p("videobooth").toLocaleString("ro-RO")} EUR\n\nPrețul exact depinde de tipul evenimentului și durata acestuia.`,
     suggestions: [
-      { label: "Preț fotocabina după participanți", intentId: "pret_fotocabina" },
-      { label: "Vreau să rezerv o dată", intentId: "rezervare" },
-      { label: "Cum funcționează procesul?", intentId: "proces" },
+      { label: "Preț fotocabina după participanți", intentId: "photobooth_pricing" },
+      { label: "Vreau să rezerv o dată", intentId: "booking" },
+      { label: "Cum funcționează procesul?", intentId: "process" },
       { label: "Înapoi", intentId: "welcome" },
     ],
   },
   {
-    id: "pret_fotocabina",
+    id: "photobooth_pricing",
     botMessage: "Câți participanți estimați la eveniment?",
     suggestions: photoboothTiers.map((tier: any) => ({
       label: tier.label,
-      intentId: `fotocabina_tier_${tier.label.replace(/\s+/g, "_")}`,
+      intentId: `photobooth_tier_${tier.label.replace(/\s+/g, "_")}`,
     })),
   },
   ...photoboothTiers.map((tier: any) => ({
-    id: `fotocabina_tier_${tier.label.replace(/\s+/g, "_")}`,
+    id: `photobooth_tier_${tier.label.replace(/\s+/g, "_")}`,
     botMessage: tier.extra === 0
       ? `📸 Fotocabina pentru ${tier.label.toLowerCase()}: ${photoboothBase.toLocaleString("ro-RO")} EUR\n\n💡 ${tier.extraNote}`
       : `📸 Fotocabina pentru ${tier.label.toLowerCase()}: ${(photoboothBase + tier.extra).toLocaleString("ro-RO")} EUR\n\n${photoboothBase.toLocaleString("ro-RO")} EUR bază + ${tier.extra.toLocaleString("ro-RO")} EUR supliment\n\n💡 ${tier.extraNote}`,
     suggestions: [
-      { label: "Vreau să rezerv", intentId: "rezervare" },
-      { label: "Înapoi la prețuri", intentId: "pret" },
+      { label: "Vreau să rezerv", intentId: "booking" },
+      { label: "Înapoi la prețuri", intentId: "pricing" },
       { label: "Alte întrebări", intentId: "welcome" },
     ],
   })),
   {
-    id: "servicii",
+    id: "services",
     botMessage:
       "Fotografiem și filmăm:\n\n💍 Nunți\n👶 Botezuri\n💑 Logodne & Cununie civilă\n🎉 Petreceri private\n🏢 Evenimente corporate\n\n📱 QR Moments – complet GRATUIT!\nInvitații tăi scanează un cod QR și încarcă poze și videoclipuri direct de pe telefon, în timp real.\n\nFiecare eveniment primește aceeași atenție și pasiune.",
     suggestions: [
       { label: "Ce este QR Moments?", intentId: "qr_moments" },
-      { label: "Prețuri", intentId: "pret" },
-      { label: "Vreau să rezerv", intentId: "rezervare" },
+      { label: "Prețuri", intentId: "pricing" },
+      { label: "Vreau să rezerv", intentId: "booking" },
       { label: "Înapoi", intentId: "welcome" },
     ],
   },
@@ -78,54 +78,66 @@ const nodes: ChatNode[] = [
     botMessage:
       "📱 QR Moments — 100% Gratuit!\n\nO funcție unică pe care o oferim la orice eveniment fotografiat sau filmat de noi.\n\nCum funcționează:\n1️⃣ Plasezi un cod QR la eveniment (pe masă, invitații, ecran)\n2️⃣ Invitații scanează și încarcă poze & video direct de pe telefon\n3️⃣ Tu primești toate amintirile adunate într-un singur loc\n\nNu necesită aplicație. Funcționează instant. Este gratuit.",
     suggestions: [
-      { label: "Vreau QR Moments la evenimentul meu", intentId: "rezervare" },
-      { label: "Înapoi la servicii", intentId: "servicii" },
-      { label: "Prețuri pachete", intentId: "pret" },
+      { label: "Vreau QR Moments la evenimentul meu", intentId: "booking" },
+      { label: "Înapoi la servicii", intentId: "services" },
+      { label: "Prețuri pachete", intentId: "pricing" },
     ],
   },
   {
-    id: "proces",
+    id: "process",
     botMessage:
       "Procesul este simplu:\n\n1️⃣ Completezi formularul de disponibilitate\n2️⃣ Te contactăm în 24h pentru confirmare\n3️⃣ Semnăm contractul, plătești avansul\n4️⃣ Ne ocupăm noi de tot în ziua evenimentului\n5️⃣ Primești galeria foto/video în termenul agreat",
     suggestions: [
-      { label: "Cât durează livrarea?", intentId: "livrare" },
-      { label: "Vreau să rezerv", intentId: "rezervare" },
+      { label: "Cât durează livrarea?", intentId: "delivery" },
+      { label: "Vreau să rezerv", intentId: "booking" },
       { label: "Înapoi", intentId: "welcome" },
     ],
   },
   {
-    id: "livrare",
+    id: "delivery",
     botMessage:
       "Termenul de livrare:\n\n📷 Galeria foto: 4–6 săptămâni\n🎥 Filmul video: 6–10 săptămâni\n\nPentru nunți livrăm și un preview în primele 1–2 săptămâni.",
     suggestions: [
-      { label: "Vreau să rezerv", intentId: "rezervare" },
+      { label: "Vreau să rezerv", intentId: "booking" },
       { label: "Înapoi", intentId: "welcome" },
     ],
   },
   {
-    id: "zona",
+    id: "coverage",
     botMessage:
       "Suntem bazați în Turda și acoperim:\n\n📍 Turda – fără taxă de deplasare\n🚗 Județele Cluj, Alba, Sibiu, Arad, Bistrița și București – cu taxă de deplasare (se decontează strict motorina)\n✈️ Internațional – la cerere\n\nNu refuzăm nicio destinație frumoasă 😊",
     suggestions: [
-      { label: "Prețuri", intentId: "pret" },
-      { label: "Vreau să rezerv", intentId: "rezervare" },
+      { label: "Prețuri", intentId: "pricing" },
+      { label: "Vreau să rezerv", intentId: "booking" },
       { label: "Înapoi", intentId: "welcome" },
     ],
   },
   {
-    id: "rezervare",
+    id: "booking",
     botMessage:
       "Super! Poți verifica disponibilitatea și configura pachetul direct din formularul nostru.\n\nDupă trimitere, te contactăm în mai puțin de 24h.",
     suggestions: [
-      { label: "Verifică o dată", intentId: "verificare_data" },
+      { label: "Verifică o dată", intentId: "check_date" },
       { label: "Deschide formularul →", intentId: "link_contact" },
       { label: "Alte întrebări", intentId: "welcome" },
     ],
   },
   {
-    id: "verificare_data",
+    id: "check_date",
     botMessage: "Introdu data evenimentului în formatul ZZ/LL/AAAA\nEx: 15/06/2026",
     suggestions: [],
+  },
+  {
+    id: "leave_phone",
+    botMessage: "Super! Introdu numărul tău de telefon și te contactăm noi cât mai curând 📞",
+    suggestions: [],
+  },
+  {
+    id: "phone_confirmed",
+    botMessage: "✅ Mulțumim! Am notat numărul tău și te contactăm în cel mai scurt timp pentru a discuta detaliile.",
+    suggestions: [
+      { label: "Alte întrebări", intentId: "welcome" },
+    ],
   },
 ];
 
@@ -134,9 +146,9 @@ export const FALLBACK_NODE: ChatNode = {
   botMessage:
     "Nu am înțeles întrebarea. Poți alege una din opțiunile de mai jos sau scrie mai detaliat 😊",
   suggestions: [
-    { label: "Prețuri și pachete", intentId: "pret" },
-    { label: "Tipuri de evenimente", intentId: "servicii" },
-    { label: "Vreau să rezerv", intentId: "rezervare" },
+    { label: "Prețuri și pachete", intentId: "pricing" },
+    { label: "Tipuri de evenimente", intentId: "services" },
+    { label: "Vreau să rezerv", intentId: "booking" },
   ],
 };
 

@@ -680,7 +680,7 @@ const QRMomentsPage: React.FC = () => {
                 disabled={uploading || selectedFiles.length === 0}
               >
                 {uploading
-                  ? parse('Se încarcă...')
+                  ? parse('Se trimite...')
                   : parse(`Trimite toate (${selectedFiles.length})`)}
               </button>
             </div>

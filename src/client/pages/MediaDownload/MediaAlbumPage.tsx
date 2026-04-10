@@ -9,6 +9,7 @@ import DeliveryForm from './DeliveryForm';
 import DeliveryAddressModal from "../DeliveryAddress/AddressList";
 import PhotoLightbox from "./PhotoLightbox";
 import OnboardingWizard from "./Onboardingwizard";
+import AncaLoader from "../../components/UI/AncaLoader";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -639,7 +640,7 @@ export default function MediaAlbumPage() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
-  if (loading) return <div className={styles.page}><div className={styles.container}>Se încarcă...</div></div>;
+  if (loading) return <AncaLoader />;
   if (!album) return <AlbumNotFound />;
 
   return (
@@ -739,7 +740,7 @@ export default function MediaAlbumPage() {
 
         <div className={styles.actionButtons}>
           <button className={styles.fillAction} onClick={() => setIsFormOpen(true)}>
-            Adresa de livrare al completării
+            Completează adresa de livrare
           </button>
           <button className={styles.viewAction} onClick={() => setShowDeliveryModal(true)}>
             Vezi adresa de livrare
@@ -749,7 +750,7 @@ export default function MediaAlbumPage() {
         {isAdmin && (
           <div className={styles.actionButtons}>
             <button type="button" className={styles.viewAction} onClick={() => setShowUrlModal(true)}>
-              Add Swiss Transfer Link
+              Adaugă link Swiss Transfer
             </button>
           </div>
         )}
@@ -766,11 +767,11 @@ export default function MediaAlbumPage() {
           <div className={styles.modalOverlay} onClick={() => setShowUrlModal(false)}>
             <div className={styles.urlModal} onClick={(event) => event.stopPropagation()}>
               <div className={styles.modalHeader}>
-                <h3>Custom Download Link</h3>
-                <button className={styles.closeBtn} onClick={() => setShowUrlModal(false)} aria-label="Close">×</button>
+                <h3>Link descărcare</h3>
+                <button className={styles.closeBtn} onClick={() => setShowUrlModal(false)} aria-label="Închide">×</button>
               </div>
               <div className={styles.modalBody}>
-                <p className={styles.modalHint}>Paste or edit the direct download link:</p>
+                <p className={styles.modalHint}>Lipește sau editează link-ul direct de descărcare:</p>
                 <input
                   type="url"
                   value={customUrl}
@@ -780,8 +781,8 @@ export default function MediaAlbumPage() {
                   autoFocus
                 />
                 <div className={styles.modalFooter}>
-                  <button className={styles.btnSecondary} onClick={() => setShowUrlModal(false)}>Cancel</button>
-                  <button className={styles.btnPrimary} onClick={saveLink} disabled={!customUrl.trim()}>Save Link</button>
+                  <button className={styles.btnSecondary} onClick={() => setShowUrlModal(false)}>Anulează</button>
+                  <button className={styles.btnPrimary} onClick={saveLink} disabled={!customUrl.trim()}>Salvează link</button>
                 </div>
               </div>
             </div>
@@ -911,6 +912,7 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={togglePhoto}
                   onPhotoClick={mode === "none" ? openLightbox : undefined}
+                  mobileColumns={mobileColumns}
                 />
               )}
             </div>

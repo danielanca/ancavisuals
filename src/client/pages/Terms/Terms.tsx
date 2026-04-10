@@ -212,14 +212,7 @@ const Terms = () => {
                 className="text-white underline underline-offset-4 hover:text-gray-300 transition-colors"
               >
                 ancadaniel1994@gmail.com
-              </a>{" "}
-              sau folosește{" "}
-              <Link
-                to="/contact"
-                className="text-white underline underline-offset-4 hover:text-gray-300 transition-colors"
-              >
-                formularul de contact
-              </Link>
+              </a>
               .
             </p>
           </section>
