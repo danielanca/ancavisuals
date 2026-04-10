@@ -4,6 +4,9 @@
  * while isolating Bunny and persistence dependencies behind mocks.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { Readable } from "stream";
+
+const makeWebStream = (chunks: string[]) => Readable.toWeb(Readable.from(chunks));
 
 const createMockResponse = () => {
   const res = {
@@ -217,11 +220,11 @@ describe("share.controller", () => {
       .fn()
       .mockResolvedValueOnce({
         ok: true,
-        body: ReadableStream.from(["binary-1"]),
+        body: makeWebStream(["binary-1"]),
       })
       .mockResolvedValueOnce({
         ok: true,
-        body: ReadableStream.from(["binary-2"]),
+        body: makeWebStream(["binary-2"]),
       });
     vi.stubGlobal("fetch", fetchMock);
     readShareRecordMock.mockResolvedValue({

@@ -4,6 +4,9 @@
  * deletion, archive generation and delivery-link flows without hitting real services.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { Readable } from "stream";
+
+const makeWebStream = (chunks: string[]) => Readable.toWeb(Readable.from(chunks));
 
 const createMockResponse = () => {
   const res = {
@@ -443,10 +446,10 @@ describe("album.controller", () => {
     saveDeliveryAddressMock.mockResolvedValue(undefined);
 
     await module.addDeliveryAddress(
-      mockReq({
+      {
         params: { slug: "demo" },
         body: { fullName: "Ana", phone: "0711", street: "Street", city: "Cluj", easybox: "Locker" },
-      }),
+      },
       res,
     );
 
@@ -542,11 +545,11 @@ describe("album.controller", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        body: ReadableStream.from(["binary-1"]),
+        body: makeWebStream(["binary-1"]),
       })
       .mockResolvedValueOnce({
         ok: true,
-        body: ReadableStream.from(["binary-2"]),
+        body: makeWebStream(["binary-2"]),
       });
     vi.stubGlobal("fetch", fetchMock);
 
