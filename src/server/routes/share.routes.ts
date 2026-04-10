@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createShare, getShare, downloadShareZip } from "../../utils/share.controller";
+import { createShare, getShare, downloadShareZip } from "../controllers/share.controller";
 
 const router = Router();
 

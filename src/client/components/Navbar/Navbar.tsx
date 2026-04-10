@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 p-4 md:p-8 bg-black/20 backdrop-blur-sm">
+    <nav className="fixed top-0 left-0 right-0 z-50 p-4 md:p-8 bg-black/20 backdrop-blur-sm text-white">
       <div className="flex justify-between items-center max-w-7xl mx-auto">
         {/* Left Navigation - Hidden on mobile, visible on tablet+ */}
         <div className="hidden lg:flex space-x-6 xl:space-x-8">
@@ -100,13 +100,13 @@ const Navbar = () => {
           }`}
         >
           {/* Header */}
-          <div className="flex items-start justify-end">
-            <div>
-              <h1 className="text-2xl tracking-[0.3em] uppercase mb-1">
+          <div className="flex items-center justify-center mt-1">
+            <div className="text-center">
+              <h1 className="text-base tracking-[0.3em] uppercase mb-1">
                 <span className="font-bold text-white">Anca</span>
                 <span className="font-light text-gray-300">Visuals</span>
               </h1>
-              <p className="text-sm md:text-base tracking-widest uppercase text-gray-400 italic">Look. Feel. Save.</p>
+              <p className="text-xs tracking-widest uppercase text-gray-400 italic">Look. Feel. Save.</p>
             </div>
           </div>
 

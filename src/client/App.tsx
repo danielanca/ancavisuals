@@ -13,7 +13,7 @@ import { AuthProvider } from "./components/context/AuthProvider";
 import Dashboard from "./components/AdminArea/Dashboard";
 import CreateEventWedding from "./components/AdminArea/EventDashboard/CreateEvent";
 import AdminBook from "./pages/Contact/booking/AdminBook";
-import BookedCalendar from "./pages/Admin/BookedCalendar";
+import BookedCalendar from "./components/AdminArea/BookedCalendar";
 
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media"];

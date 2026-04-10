@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { ClientEvent, AdminSettings } from "../../../types/admin";
 import GoalCard from "../GoalCard";
 import EventList from "../EventList";
-import useAuth from "../../hooks/hooks/useAuth";
+import useAuth from "../../../hooks/useAuth";
 
 const DEFAULT_SETTINGS: AdminSettings = {
   goals: {

@@ -6,6 +6,7 @@ const test = {
   globals: true,
   environment: "jsdom",
   setupFiles: ["src/__tests__/setupTests.ts"],
+  include: ["src/**/*.test.{ts,tsx}"],
   threads: false,
   watch: false,
 } as UserConfig["test"];

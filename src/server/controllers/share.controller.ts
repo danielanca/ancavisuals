@@ -1,8 +1,10 @@
 import type { Request, Response } from "express";
+import { Readable } from "stream";
 import archiver from "archiver";
-import axios from "axios";
-import { signBunnyUrl } from "./signBunnyUrl";
-import { createShareRecord, readShareRecord } from "../server/services/share.store";
+import { signBunnyUrl } from "../utils/signBunnyUrl";
+import { createShareRecord, readShareRecord } from "../services/share.store";
+
+const BUNNY_STORAGE_BASE_URL = "https://storage.bunnycdn.com";
 
 const storageZone = process.env.BUNNY_STORAGE_ZONE!;
 const storageKey = process.env.BUNNY_STORAGE_KEY!;
@@ -23,12 +25,10 @@ const toZip = async (slug: string, files: string[], res: Response, zipName: stri
   archive.pipe(res);
 
   for (const file of files) {
-    const url = `https://storage.bunnycdn.com/${storageZone}/${slug}/photos/${encodeURIComponent(file)}`;
-    const r = await axios.get(url, {
-      responseType: "stream",
-      headers: { AccessKey: storageKey },
-    });
-    archive.append(r.data, { name: file });
+    const url = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${slug}/photos/${encodeURIComponent(file)}`;
+    const response = await fetch(url, { headers: { AccessKey: storageKey } });
+    if (!response.ok || !response.body) continue;
+    archive.append(Readable.fromWeb(response.body as any), { name: file });
   }
 
   await archive.finalize();
@@ -47,7 +47,6 @@ export const createShare = async (req: Request, res: Response) => {
   if (clean.length > 200) return res.status(413).json({ error: "too_many_files" });
 
   const rec = await createShareRecord(slug, clean, 7);
-  const base = `${req.protocol}://${req.get("host")}`;
 
   return res.json({ id: rec.id, expiresAt: rec.expiresAt, count: rec.items.length });
 };

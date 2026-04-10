@@ -1,4 +1,4 @@
-import { signBunnyUrl } from "../../../src/utils/signBunnyUrl";
+import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { listFiles,checkPreviewExist} from "./bunny.service";
 import type { Album } from "./../../client/pages/MediaDownload/AlbumTypes";
 

@@ -3,7 +3,7 @@ import { applyCORSpolicy } from "../constants/corsFunc";
 import { transportOptions } from "../constants/emailCons";
 import { emailAuth, adminUser } from "../constants/credentials";
 import nodemailer from "nodemailer";
-import { fetchIpInfo, getClientIp } from "../../utils/ipinfo";
+import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
 import { renderTriggerTemplate } from "./emails/templates/triggerTemplate";
 
 const transport = nodemailer.createTransport(transportOptions);

@@ -50,10 +50,19 @@ export default function PortfolioGallery() {
 
   const lightboxSlides = useMemo(() => images.map(img => ({ src: img.src })), [images]);
 
+  // Înălțimi variate ca să simuleze aspect ratio-uri diferite de poze
+  const SKELETON_HEIGHTS = [280, 380, 240, 420, 300, 360, 260, 440, 310, 390, 270, 350];
+
   if (loading) {
     return (
       <section className="pg-section">
-        <div className="pg-container text-gray-300">Loading photos...</div>
+        <div className="pg-container">
+          <div className="pg-skeleton-masonry">
+            {SKELETON_HEIGHTS.map((h, i) => (
+              <div key={i} className="pg-skeleton-item" style={{ height: h }} />
+            ))}
+          </div>
+        </div>
       </section>
     );
   }

@@ -95,6 +95,31 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   }
 }
 
+// Skeleton loader
+@keyframes pg-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+.pg-skeleton-masonry {
+  column-count: 1;
+  column-gap: $pg-gap;
+
+  @media (min-width: 640px) { column-count: 2; }
+  @media (min-width: 1024px) { column-count: 3; }
+}
+
+.pg-skeleton-item {
+  break-inside: avoid;
+  width: 100%;
+  margin: 0 0 $pg-gap;
+  border-radius: $pg-radius;
+  overflow: hidden;
+  background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
+  background-size: 600px 100%;
+  animation: pg-shimmer 1.6s ease-in-out infinite;
+}
+
 @keyframes pg-glow-fast {
   0% {
     background: #e5e7eb; // gri deschis

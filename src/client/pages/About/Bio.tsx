@@ -1,6 +1,4 @@
 import React from "react";
-import { useState } from "react";
-import { Link } from "react-router-dom";
 
 const Bio = () => {
   return (
@@ -12,41 +10,52 @@ const Bio = () => {
           </h2>
           <div className="space-y-6 text-base md:text-lg leading-relaxed text-gray-800">
             <p>
-              Bună! Noi suntem echipa Anca Visuals – un duo simpatic (speram noi), organizat și ușor de iubit (zic
-              clienții noștri). Ne-am cunoscut la volei, într-o sală cu lumină cam proastă, dar cu priviri bune. Dani
-              făcea poze. Estera dădea pase. De-atunci, am tot dat pase unul altuia prin viață și prin evenimente.
+              Bună! Noi suntem <strong className="text-black font-semibold">echipa Anca Visuals</strong> – un duo
+              simpatic (speram noi), organizat și ușor de iubit (zic clienții noștri). Ne-am cunoscut la volei,
+              într-o sală cu lumină cam proastă, dar cu priviri bune.{" "}
+              <strong className="text-black font-semibold">Dani făcea poze. Estera dădea pase.</strong> De-atunci,
+              am tot dat pase unul altuia prin viață și prin evenimente.
             </p>
 
             <p>
-              El e omul din spatele camerei video, ea e cu fotografia. Dar când ziua o cere, schimbăm rolurile fără
-              dramă – știm exact ce trebuie surprins și când să ne dăm din cadru. Scopul nostru? Să prindem momentele
-              alea reale și neașteptate: lacrimi care vin fără să fie chemate, râsete care sparg liniștea, priviri care
-              spun tot.
+              El e omul din spatele <strong className="text-black font-semibold">camerei video</strong>, ea e cu{" "}
+              <strong className="text-black font-semibold">fotografia</strong>. Dar când ziua o cere, schimbăm
+              rolurile fără dramă – știm exact ce trebuie surprins și când să ne dăm din cadru. Scopul nostru?{" "}
+              <strong className="text-black font-semibold">Să prindem momentele alea reale și neașteptate</strong>:
+              lacrimi care vin fără să fie chemate, râsete care sparg liniștea, priviri care spun tot.
             </p>
 
             <p>
-              Ne plac oamenii sinceri, poveștile imperfecte și nunțile unde lumea dansează până dimineața. Suntem
-              atenți, calmi și discreți, ca niște prieteni buni care se întâmplă să vină cu camere după ei. Clienții ne
-              spun că se simt în siguranță cu noi, că le-am scos o grijă mare din cap – și e adevărat: ne ocupăm de tot
-              ce ține de imagine, iar voi vă ocupați să trăiți ziua.
+              Ne plac oamenii sinceri, poveștile imperfecte și nunțile unde lumea{" "}
+              <strong className="text-black font-semibold">dansează până dimineața</strong>. Suntem atenți, calmi
+              și discreți, ca niște{" "}
+              <strong className="text-black font-semibold">prieteni buni care se întâmplă să vină cu camere după ei</strong>.
+              Clienții ne spun că se simt în siguranță cu noi, că le-am scos o grijă mare din cap – și e adevărat:{" "}
+              <strong className="text-black font-semibold">ne ocupăm de tot ce ține de imagine, iar voi vă ocupați să trăiți ziua.</strong>
             </p>
 
             <p>
-              Nu lucrăm pe repede-înainte. Preferăm să facem lucrurile bine, clar și fără neînțelegeri. De asta semnăm
-              un contract prietenos în care scriem negru pe alb ce facem pentru voi – și facem exact ce promitem.
+              Nu lucrăm pe repede-înainte. Preferăm să facem lucrurile{" "}
+              <strong className="text-black font-semibold">bine, clar și fără neînțelegeri</strong>. De asta semnăm
+              un <strong className="text-black font-semibold">contract prietenos</strong> în care scriem negru pe
+              alb ce facem pentru voi – și facem exact ce promitem.
             </p>
 
             <p>
-              Când nu filmăm sau edităm, stăm cu Nor, pisicul nostru negru și domn al casei. Ne place liniștea, cafeaua
-              bună și să fugim uneori în locuri care ne inspiră. Dar în inima noastră rămân momentele în care părinții
-              își țin copiii în brațe la botez sau îi privesc emoționați în rochie de mireasă. Acolo simțim că munca
-              noastră contează cu adevărat.
+              Când nu filmăm sau edităm, stăm cu{" "}
+              <strong className="text-black font-semibold">Nor</strong>, pisicul nostru negru și domn al casei. Ne
+              place liniștea, cafeaua bună și să fugim uneori în locuri care ne inspiră. Dar în inima noastră
+              rămân momentele în care{" "}
+              <strong className="text-black font-semibold">părinții își țin copiii în brațe la botez</strong> sau
+              îi privesc emoționați în rochie de mireasă. Acolo simțim că munca noastră contează cu adevărat.
             </p>
 
             <p>
-              Dacă și tu cauți mai mult decât niște cadre frumoase – dacă vrei o echipă pe care te poți baza, care o
-              să-ți spună: „Lasă grija asta la noi” – atunci s-ar putea să fim oamenii tăi. Suntem aici. Pregătiți. Cu
-              camerele încărcate și inimile deschise.
+              Dacă și tu cauți{" "}
+              <strong className="text-black font-semibold">mai mult decât niște cadre frumoase</strong> – dacă vrei
+              o echipă pe care te poți baza, care o să-ți spună:{" "}
+              <strong className="text-black font-semibold">„Lasă grija asta la noi"</strong> – atunci s-ar putea să
+              fim oamenii tăi. Suntem aici. Pregătiți. Cu camerele încărcate și inimile deschise.
             </p>
           </div>
         </div>

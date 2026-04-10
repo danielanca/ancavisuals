@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
-import { generateEventSlug } from "../../utils/eventUrl"; // assuming you have this
+import { generateEventSlug } from "../utils/eventUrl";
 import { firestore } from "../firestoreInit";
 import admin from "firebase-admin";
 //import { Request } from "node-fetch";

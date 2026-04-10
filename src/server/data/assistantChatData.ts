@@ -27,6 +27,7 @@ const nodes: ChatNode[] = [
     suggestions: [
       { label: "Prețuri și pachete", intentId: "pret" },
       { label: "Tipuri de evenimente", intentId: "servicii" },
+      { label: "QR Moments (gratuit)", intentId: "qr_moments" },
       { label: "Zona de acoperire", intentId: "zona" },
       { label: "Verifică disponibilitate dată", intentId: "verificare_data" },
     ],
@@ -64,11 +65,22 @@ const nodes: ChatNode[] = [
   {
     id: "servicii",
     botMessage:
-      "Fotografiem și filmăm:\n\n💍 Nunți\n👶 Botezuri\n💑 Logodne & Cununie civilă\n🎉 Petreceri private\n🏢 Evenimente corporate\n\nFiecare eveniment primește aceeași atenție și pasiune.",
+      "Fotografiem și filmăm:\n\n💍 Nunți\n👶 Botezuri\n💑 Logodne & Cununie civilă\n🎉 Petreceri private\n🏢 Evenimente corporate\n\n📱 QR Moments – complet GRATUIT!\nInvitații tăi scanează un cod QR și încarcă poze și videoclipuri direct de pe telefon, în timp real.\n\nFiecare eveniment primește aceeași atenție și pasiune.",
     suggestions: [
+      { label: "Ce este QR Moments?", intentId: "qr_moments" },
       { label: "Prețuri", intentId: "pret" },
       { label: "Vreau să rezerv", intentId: "rezervare" },
       { label: "Înapoi", intentId: "welcome" },
+    ],
+  },
+  {
+    id: "qr_moments",
+    botMessage:
+      "📱 QR Moments — 100% Gratuit!\n\nO funcție unică pe care o oferim la orice eveniment fotografiat sau filmat de noi.\n\nCum funcționează:\n1️⃣ Plasezi un cod QR la eveniment (pe masă, invitații, ecran)\n2️⃣ Invitații scanează și încarcă poze & video direct de pe telefon\n3️⃣ Tu primești toate amintirile adunate într-un singur loc\n\nNu necesită aplicație. Funcționează instant. Este gratuit.",
+    suggestions: [
+      { label: "Vreau QR Moments la evenimentul meu", intentId: "rezervare" },
+      { label: "Înapoi la servicii", intentId: "servicii" },
+      { label: "Prețuri pachete", intentId: "pret" },
     ],
   },
   {

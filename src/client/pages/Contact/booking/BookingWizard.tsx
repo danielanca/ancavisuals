@@ -127,6 +127,17 @@ const buildHtmlFinal = (args: {
   </ul>
 `;
 
+/* ------------------ Cookie helpers ------------------ */
+
+function readSavedEventDate(): { day: number; month: number; year: number } | null {
+  if (typeof localStorage === "undefined") return null;
+  const iso = localStorage.getItem("anca_event_date");
+  if (!iso) return null;
+  const [y, mo, d] = iso.split("-").map(Number);
+  if (!y || !mo || !d) return null;
+  return { day: d, month: mo - 1, year: y }; // month 0-based
+}
+
 /* ------------------ Booking Wizard ------------------ */
 
 export default function BookingWizard() {
@@ -137,6 +148,17 @@ export default function BookingWizard() {
   const [day, setDay] = useState(1);
   const [month, setMonth] = useState(0); // 0-based
   const [year, setYear] = useState(2026);
+
+  // Pre-populează data din localStorage (setat de chatbot la verificarea disponibilității)
+  useEffect(() => {
+    const saved = readSavedEventDate();
+    if (saved) {
+      setDay(saved.day);
+      setMonth(saved.month);
+      setYear(saved.year);
+      setIsAvailable(true); // deja verificată în chatbot
+    }
+  }, []);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [isAvailable, setIsAvailable] = useState<null | boolean>(null);
 
@@ -425,7 +447,7 @@ export default function BookingWizard() {
             setErrors={setErrors}
           />
           {errors.date && <p className="error">{errors.date}</p>}
-          {isAvailable === true && <p className="ok">We are available on {selectedFormattedDate} 🎉</p>}
+          {isAvailable === true && <p className="ok">Suntem disponibili pe {selectedFormattedDate} 🎉</p>}
           <div className="input-group" style={{ marginTop: 12 }}>
             <button disabled={isAvailable !== true} onClick={goNext}>
               Continuă

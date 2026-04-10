@@ -1,7 +1,7 @@
 // components/AdminArea/RequireAuth.tsx
 import React from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
-import useAuth from "../hooks/hooks/useAuth";
+import useAuth from "../../hooks/useAuth";
 import RouteSpinner from "../UI/RouteSpinner";
 
 const RequireAuth: React.FC = () => {
