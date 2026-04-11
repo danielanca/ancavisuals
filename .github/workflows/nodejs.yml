@@ -7,10 +7,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Use Node.js 19
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 19
           cache: 'npm'  # Caches node_modules + package-lock.json for faster runs

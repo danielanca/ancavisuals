@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { applyCORSpolicy } from "../constants/corsFunc";
 import { adminUser } from "../constants/credentials";
 import { sendEmail } from "../notifications/mailer";
-import { fetchIpInfo, getClientIp } from "../utils/ipInfo";
+import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
 import { renderTriggerTemplate } from "../notifications/templates/triggerTemplate";
 
 interface TypeEvent {
