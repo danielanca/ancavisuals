@@ -1,11 +1,18 @@
 import fs from "fs/promises";
 import path from "path";
+import { existsSync } from "fs";
 import matter from "gray-matter";
 import { marked } from "marked";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BLOG_DIR = path.resolve(__dirname, "../../../data/blog");
+const BLOG_DIR_CANDIDATES = [
+  path.resolve(__dirname, "../../../data/blog"),
+  path.resolve(__dirname, "../../../data"),
+  path.resolve(__dirname, "../../../"),
+];
+
+const BLOG_DIR = BLOG_DIR_CANDIDATES.find(candidate => existsSync(candidate)) ?? BLOG_DIR_CANDIDATES[0];
 
 export interface BlogPost {
   slug: string;
