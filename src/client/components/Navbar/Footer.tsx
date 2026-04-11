@@ -14,9 +14,6 @@ const Footer = () => {
               <Link to="/portofoliu" className="hover:text-gray-400 transition-colors">
                 Portofoliu
               </Link>
-              <Link to="/orase" className="hover:text-gray-400 transition-colors">
-                Orașe
-              </Link>
               <Link to="/contact" className="hover:text-gray-400 transition-colors">
                 SOLICITA-NE
               </Link>
