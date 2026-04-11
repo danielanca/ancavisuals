@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AncaLoader from "../UI/AncaLoader";
+import Breadcrumb from "./Breadcrumb";
 
 interface BookedEntry {
   date?: string;
@@ -31,9 +33,15 @@ const MONTHS = [
 ];
 const DAYS = ["Lu", "Ma", "Mi", "Jo", "Vi", "Sâ", "Du"];
 
-function MonthCalendar({ year, month, bookedSet }: { year: number; month: number; bookedSet: Set<string> }) {
+function MonthCalendar({
+  year, month, bookedSet, onDateClick,
+}: {
+  year: number;
+  month: number;
+  bookedSet: Set<string>;
+  onDateClick: (date: string) => void;
+}) {
   const firstDay = new Date(year, month, 1);
-  // Monday-based week: 0=Mon … 6=Sun
   const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date().toISOString().slice(0, 10);
@@ -42,7 +50,6 @@ function MonthCalendar({ year, month, bookedSet }: { year: number; month: number
     ...Array(startOffset).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
-  // pad to full rows
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
@@ -58,24 +65,32 @@ function MonthCalendar({ year, month, bookedSet }: { year: number; month: number
       <div className="grid grid-cols-7 gap-1">
         {cells.map((day, i) => {
           if (!day) return <div key={i} />;
-          const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          const booked = bookedSet.has(key);
-          const isToday = key === today;
-          return (
+          const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const booked = bookedSet.has(dateKey);
+          const isToday = dateKey === today;
+          return booked ? (
             <div
               key={i}
-              title={booked ? "Rezervat" : undefined}
-              className={[
-                "text-xs text-center rounded-lg py-1.5 font-medium select-none",
-                booked
-                  ? "bg-red-500 text-white"
-                  : isToday
-                  ? "bg-amber-400 text-black"
-                  : "text-neutral-300 hover:bg-neutral-800",
-              ].join(" ")}
+              title="Rezervat"
+              className="text-xs text-center rounded-lg py-1.5 font-medium select-none bg-red-500 text-white"
             >
               {day}
             </div>
+          ) : (
+            <button
+              key={i}
+              type="button"
+              title="Adaugă eveniment"
+              onClick={() => onDateClick(dateKey)}
+              className={[
+                "text-xs text-center rounded-lg py-1.5 font-medium transition-colors",
+                isToday
+                  ? "bg-amber-400 text-black hover:bg-amber-300"
+                  : "text-neutral-300 hover:bg-emerald-500/20 hover:text-emerald-300",
+              ].join(" ")}
+            >
+              {day}
+            </button>
           );
         })}
       </div>
@@ -84,9 +99,12 @@ function MonthCalendar({ year, month, bookedSet }: { year: number; month: number
 }
 
 export default function BookedCalendar() {
+  const navigate = useNavigate();
   const [bookedSet, setBookedSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const MIN_YEAR = 2023;
+  const MAX_YEAR = 2030;
   const [year, setYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
@@ -113,6 +131,8 @@ export default function BookedCalendar() {
     <div className="min-h-screen bg-neutral-950 flex items-start justify-center px-4 py-10">
       <div className="w-full max-w-160 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-6">
 
+        <Breadcrumb />
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -121,15 +141,17 @@ export default function BookedCalendar() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setYear(y => y - 1)}
-              className="w-8 h-8 rounded-full border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500 flex items-center justify-center transition-colors text-lg"
+              onClick={() => setYear(y => Math.max(MIN_YEAR, y - 1))}
+              disabled={year <= MIN_YEAR}
+              className="w-8 h-8 rounded-full border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500 flex items-center justify-center transition-colors text-lg disabled:opacity-30 disabled:cursor-not-allowed"
             >
               ‹
             </button>
             <span className="text-white font-semibold w-12 text-center text-sm">{year}</span>
             <button
-              onClick={() => setYear(y => y + 1)}
-              className="w-8 h-8 rounded-full border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500 flex items-center justify-center transition-colors text-lg"
+              onClick={() => setYear(y => Math.min(MAX_YEAR, y + 1))}
+              disabled={year >= MAX_YEAR}
+              className="w-8 h-8 rounded-full border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500 flex items-center justify-center transition-colors text-lg disabled:opacity-30 disabled:cursor-not-allowed"
             >
               ›
             </button>
@@ -151,7 +173,13 @@ export default function BookedCalendar() {
         {!loading && !error && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {Array.from({ length: 12 }, (_, m) => (
-              <MonthCalendar key={m} year={year} month={m} bookedSet={bookedSet} />
+              <MonthCalendar
+              key={m}
+              year={year}
+              month={m}
+              bookedSet={bookedSet}
+              onDateClick={(date) => navigate("/admin/create-event", { state: { date } })}
+            />
             ))}
           </div>
         )}

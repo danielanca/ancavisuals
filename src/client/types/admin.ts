@@ -27,6 +27,8 @@ export interface ClientEvent {
   };
   contractId?: string;
   notes?: string;
+  contractUrl?: string;
+  invoiceUrl?: string;
 }
 
 export interface Goal {

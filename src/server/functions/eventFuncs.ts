@@ -1,12 +1,9 @@
 import type { Request, Response } from "express";
 import { applyCORSpolicy } from "../constants/corsFunc";
-import { transportOptions } from "../constants/emailCons";
-import { emailAuth, adminUser } from "../constants/credentials";
-import nodemailer from "nodemailer";
+import { adminUser } from "../constants/credentials";
+import { sendEmail } from "../notifications/mailer";
 import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
-import { renderTriggerTemplate } from "./emails/templates/triggerTemplate";
-
-const transport = nodemailer.createTransport(transportOptions);
+import { renderTriggerTemplate } from "../notifications/templates/triggerTemplate";
 
 interface TypeEvent {
   typeEvent: string;
@@ -15,7 +12,7 @@ interface TypeEvent {
   referrer?: string;
 }
 
-const isLocalIp = (ip: string): boolean => {
+export const isLocalIp = (ip: string): boolean => {
   const normalized = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
   return normalized === "127.0.0.1" || normalized === "::1" || normalized === "localhost";
 };
@@ -52,8 +49,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
       timestamp: todayString,
     });
 
-    await transport.sendMail({
-      from: emailAuth.email,
+    await sendEmail({
       to: adminUser.email,
       subject: `👁 Vizitator nou — ${triggerData.typeEvent} — ${todayString}`,
       html: emailHtml,

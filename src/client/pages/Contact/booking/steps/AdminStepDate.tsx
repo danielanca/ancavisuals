@@ -18,8 +18,7 @@ const MONTHS_RO = [
   "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie",
 ];
 
-const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_RANGE = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR + i);
+const YEAR_RANGE = Array.from({ length: 2030 - 2023 + 1 }, (_, i) => 2023 + i);
 
 function daysInMonth(year: number, monthZeroBased: number): number {
   return new Date(year, monthZeroBased + 1, 0).getDate();

@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { generateEventSlug } from "../utils/eventUrl";
 import { firestore } from "../firestoreInit";
 import admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 //import { Request } from "node-fetch";
 
 interface Host {
@@ -429,6 +430,29 @@ export async function bookDate(req: Request, res: Response) {
     };
 
     await docRef.set(bookingData);
+
+    // Mirror to adminEvents so the dashboard CRM can display it
+    const priceNum = parseFloat(String(data.price).replace(/[^0-9.]/g, "")) || 0;
+    const db = firestore();
+    await db.collection("adminEvents").add({
+      type: "Nuntă",
+      status: "confirmat",
+      createdAt: Timestamp.now(),
+      eventDate: Timestamp.fromDate(new Date(data.date)),
+      client: {
+        fullName: data.title,
+        phone: data.phone ?? "",
+        email: "",
+      },
+      services: [{ name: "Servicii foto/video", price: priceNum }],
+      pricing: {
+        total: priceNum,
+        advanceAmount: 0,
+        advancePaid: false,
+        remainingAmount: priceNum,
+      },
+      ...(data.desc ? { notes: data.desc } : {}),
+    });
 
     return res.status(200).json({
       success: true,

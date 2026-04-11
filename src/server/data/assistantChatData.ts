@@ -21,10 +21,14 @@ type PhotoboothTier = {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pricesData = JSON.parse(readFileSync(join(__dirname, "../../data/prices.json"), "utf-8")) as PricesData;
 
-const p = (id: string) => pricesData.packages.find(pkg => pkg.id === id)?.price ?? 0;
+const getPackagePrice = (packageId: string) => (
+  pricesData.packages.find(pricePackage => pricePackage.id === packageId)?.price ?? 0
+);
 
-const photoboothBase = p("photobooth");
-const photoboothTiers: PhotoboothTier[] = pricesData.packages.find(pkg => pkg.id === "photobooth")?.participantTiers ?? [];
+const photoboothBasePrice = getPackagePrice("photobooth");
+const photoboothParticipantTiers: PhotoboothTier[] = (
+  pricesData.packages.find(pricePackage => pricePackage.id === "photobooth")?.participantTiers ?? []
+);
 
 export interface ChatSuggestion {
   label: string;
@@ -52,7 +56,7 @@ const nodes: ChatNode[] = [
   {
     id: "pricing",
     botMessage:
-      `Pachetele noastre:\n\n📷 Fotografie: ${p("photo").toLocaleString("ro-RO")} EUR\n🎥 Videografie: ${p("video").toLocaleString("ro-RO")} EUR\n🖼️ Album foto: ${p("album").toLocaleString("ro-RO")} EUR\n📸 Fotocabina: de la ${p("photobooth").toLocaleString("ro-RO")} EUR*\n🎡 Video Cabina 360: ${p("videobooth").toLocaleString("ro-RO")} EUR\n\nPrețul exact depinde de tipul evenimentului și durata acestuia.`,
+      `Pachetele noastre:\n\n📷 Fotografie: ${getPackagePrice("photo").toLocaleString("ro-RO")} EUR\n🎥 Videografie: ${getPackagePrice("video").toLocaleString("ro-RO")} EUR\n🖼️ Album foto: ${getPackagePrice("album").toLocaleString("ro-RO")} EUR\n📸 Fotocabina: de la ${getPackagePrice("photobooth").toLocaleString("ro-RO")} EUR*\n🎡 Video Cabina 360: ${getPackagePrice("videobooth").toLocaleString("ro-RO")} EUR\n\nPrețul exact depinde de tipul evenimentului și durata acestuia.`,
     suggestions: [
       { label: "Preț fotocabina după participanți", intentId: "photobooth_pricing" },
       { label: "Vreau să rezerv o dată", intentId: "booking" },
@@ -63,16 +67,16 @@ const nodes: ChatNode[] = [
   {
     id: "photobooth_pricing",
     botMessage: "Câți participanți estimați la eveniment?",
-    suggestions: photoboothTiers.map((tier: PhotoboothTier) => ({
-      label: tier.label,
-      intentId: `photobooth_tier_${tier.label.replace(/\s+/g, "_")}`,
+    suggestions: photoboothParticipantTiers.map((participantTier: PhotoboothTier) => ({
+      label: participantTier.label,
+      intentId: `photobooth_tier_${participantTier.label.replace(/\s+/g, "_")}`,
     })),
   },
-  ...photoboothTiers.map((tier: PhotoboothTier) => ({
-    id: `photobooth_tier_${tier.label.replace(/\s+/g, "_")}`,
-    botMessage: tier.extra === 0
-      ? `📸 Fotocabina pentru ${tier.label.toLowerCase()}: ${photoboothBase.toLocaleString("ro-RO")} EUR\n\n💡 ${tier.extraNote}`
-      : `📸 Fotocabina pentru ${tier.label.toLowerCase()}: ${(photoboothBase + tier.extra).toLocaleString("ro-RO")} EUR\n\n${photoboothBase.toLocaleString("ro-RO")} EUR bază + ${tier.extra.toLocaleString("ro-RO")} EUR supliment\n\n💡 ${tier.extraNote}`,
+  ...photoboothParticipantTiers.map((participantTier: PhotoboothTier) => ({
+    id: `photobooth_tier_${participantTier.label.replace(/\s+/g, "_")}`,
+    botMessage: participantTier.extra === 0
+      ? `📸 Fotocabina pentru ${participantTier.label.toLowerCase()}: ${photoboothBasePrice.toLocaleString("ro-RO")} EUR\n\n💡 ${participantTier.extraNote}`
+      : `📸 Fotocabina pentru ${participantTier.label.toLowerCase()}: ${(photoboothBasePrice + participantTier.extra).toLocaleString("ro-RO")} EUR\n\n${photoboothBasePrice.toLocaleString("ro-RO")} EUR bază + ${participantTier.extra.toLocaleString("ro-RO")} EUR supliment\n\n💡 ${participantTier.extraNote}`,
     suggestions: [
       { label: "Vreau să rezerv", intentId: "booking" },
       { label: "Înapoi la prețuri", intentId: "pricing" },
@@ -169,4 +173,6 @@ export const FALLBACK_NODE: ChatNode = {
   ],
 };
 
-export const CHAT_NODES = new Map<string, ChatNode>(nodes.map(n => [n.id, n]));
+export const CHAT_NODES = new Map<string, ChatNode>(
+  nodes.map(chatNode => [chatNode.id, chatNode]),
+);

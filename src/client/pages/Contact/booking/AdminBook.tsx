@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import AdminStepDate from "./steps/AdminStepDate";
+import Breadcrumb from "../../../components/AdminArea/Breadcrumb";
+import { convertToEur, parseAmount } from "../../../utils/currency";
 
 const MONTHS_RO = [
   "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
@@ -29,29 +31,38 @@ function buildGoogleCalendarLink(
     action: "TEMPLATE",
     text: title,
     dates: `${start}/${end}`,
-    details: `Telefon: ${phone}\nPreț: ${price}${advance ? `\nAvans: ${advance}` : ""}${description ? `\nNote: ${description}` : ""}`,
+    details: `Telefon: ${phone}\nPreț: ${price} EUR${advance ? `\nAvans: ${advance} EUR` : ""}${description ? `\nNote: ${description}` : ""}`,
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
+const inputClass = "w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-xl px-4 py-3 outline-none focus:border-neutral-500 transition-colors";
+const labelClass = "block text-neutral-400 text-xs font-medium mb-2 tracking-wide uppercase";
+
 export default function AdminBook() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const prefilledDate = (location.state as { date?: string } | null)?.date;
 
-  const [date, setDate] = useState("");
+  const initialDate = prefilledDate ? new Date(prefilledDate) : new Date();
+
+  const [date, setDate] = useState(prefilledDate ?? "");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [phone, setPhone] = useState("");
   const [price, setPrice] = useState("");
   const [advance, setAdvance] = useState("");
+  const [currency, setCurrency] = useState<"EUR" | "RON">("EUR");
+  const [exchangeRate, setExchangeRate] = useState("5.0");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const [day, setDay] = useState(new Date().getDate());
-  const [month, setMonth] = useState(new Date().getMonth());
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [day, setDay] = useState(initialDate.getDate());
+  const [month, setMonth] = useState(initialDate.getMonth());
+  const [year, setYear] = useState(initialDate.getFullYear());
   const [bookedDates] = useState<string[]>([]);
 
   useEffect(() => {
@@ -88,6 +99,17 @@ export default function AdminBook() {
     }
   };
 
+  // Convert entered price to EUR
+  const priceEur = useMemo(
+    () => convertToEur(parseAmount(price), currency, parseAmount(exchangeRate)),
+    [price, currency, exchangeRate],
+  );
+
+  const advanceEur = useMemo(
+    () => convertToEur(parseAmount(advance), currency, parseAmount(exchangeRate)),
+    [advance, currency, exchangeRate],
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -100,13 +122,25 @@ export default function AdminBook() {
       setError("Completează titlul, telefonul și prețul.");
       return;
     }
+    if (priceEur === null) {
+      setError("Prețul introdus nu este valid.");
+      return;
+    }
 
     setLoading(true);
     try {
       const res = await fetch("/api/event/register-event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, title, phone, price, advance, desc: description, dbStore: getMonthLabel(date) }),
+        body: JSON.stringify({
+          date,
+          title,
+          phone,
+          price: String(priceEur),
+          advance: advanceEur !== null ? String(advanceEur) : "",
+          desc: description,
+          dbStore: getMonthLabel(date),
+        }),
       });
       const result = await res.json();
       if (res.ok) {
@@ -124,6 +158,8 @@ export default function AdminBook() {
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-2xl mx-auto space-y-8">
+
+        <Breadcrumb />
 
         {/* Header */}
         <div className="flex items-start justify-between">
@@ -144,9 +180,7 @@ export default function AdminBook() {
 
           {/* Data */}
           <div>
-            <label className="block text-neutral-400 text-xs font-medium mb-2 tracking-wide uppercase">
-              Data evenimentului *
-            </label>
+            <label className={labelClass}>Data evenimentului *</label>
             <AdminStepDate
               day={day}
               month={month}
@@ -166,71 +200,106 @@ export default function AdminBook() {
 
           {/* Titlu */}
           <div>
-            <label className="block text-neutral-400 text-xs font-medium mb-2 tracking-wide uppercase">
-              Titlu / Nume eveniment *
-            </label>
+            <label className={labelClass}>Titlu / Nume eveniment *</label>
             <input
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="ex. Nuntă – Ana & Mihai"
-              className="w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-xl px-4 py-3 outline-none focus:border-neutral-500 transition-colors"
+              className={inputClass}
             />
           </div>
 
           {/* Telefon */}
           <div>
-            <label className="block text-neutral-400 text-xs font-medium mb-2 tracking-wide uppercase">
-              Telefon *
-            </label>
+            <label className={labelClass}>Telefon *</label>
             <input
               type="text"
               value={phone}
               onChange={e => setPhone(e.target.value)}
               placeholder="+40 745 000 000"
-              className="w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-xl px-4 py-3 outline-none focus:border-neutral-500 transition-colors"
+              className={inputClass}
             />
           </div>
 
+          {/* Valuta */}
+          <div>
+            <label className={labelClass}>Valută</label>
+            <div className="flex gap-2">
+              {(["EUR", "RON"] as const).map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCurrency(c)}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                    currency === c
+                      ? "bg-white text-black border-white"
+                      : "bg-transparent text-neutral-400 border-neutral-700 hover:border-neutral-500"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Curs de schimb (doar la RON) */}
+          {currency === "RON" && (
+            <div>
+              <label className={labelClass}>Curs de schimb (1 EUR = ? RON)</label>
+              <input
+                type="text"
+                value={exchangeRate}
+                onChange={e => setExchangeRate(e.target.value)}
+                placeholder="ex. 5.1"
+                className={inputClass}
+              />
+            </div>
+          )}
+
           {/* Pret */}
           <div>
-            <label className="block text-neutral-400 text-xs font-medium mb-2 tracking-wide uppercase">
-              Preț *
-            </label>
+            <label className={labelClass}>Preț * ({currency})</label>
             <input
               type="text"
               value={price}
               onChange={e => setPrice(e.target.value)}
-              placeholder="ex. 1500 EUR"
-              className="w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-xl px-4 py-3 outline-none focus:border-neutral-500 transition-colors"
+              placeholder={currency === "EUR" ? "ex. 1500" : "ex. 7650"}
+              className={inputClass}
             />
+            {currency === "RON" && priceEur !== null && (
+              <p className="mt-1.5 text-emerald-400 text-xs font-medium">
+                ≈ {priceEur.toLocaleString("ro-RO", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} EUR
+              </p>
+            )}
           </div>
 
           {/* Avans */}
           <div>
-            <label className="block text-neutral-400 text-xs font-medium mb-2 tracking-wide uppercase">
-              Avans încasat (opțional)
-            </label>
+            <label className={labelClass}>Avans încasat — opțional ({currency})</label>
             <input
               type="text"
               value={advance}
               onChange={e => setAdvance(e.target.value)}
-              placeholder="ex. 500 EUR"
-              className="w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-xl px-4 py-3 outline-none focus:border-neutral-500 transition-colors"
+              placeholder={currency === "EUR" ? "ex. 500" : "ex. 2550"}
+              className={inputClass}
             />
+            {currency === "RON" && advanceEur !== null && (
+              <p className="mt-1.5 text-emerald-400 text-xs font-medium">
+                ≈ {advanceEur.toLocaleString("ro-RO", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} EUR
+              </p>
+            )}
           </div>
 
           {/* Note */}
           <div>
-            <label className="block text-neutral-400 text-xs font-medium mb-2 tracking-wide uppercase">
-              Note (opțional)
-            </label>
+            <label className={labelClass}>Note (opțional)</label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Detalii suplimentare..."
               rows={3}
-              className="w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-xl px-4 py-3 outline-none focus:border-neutral-500 transition-colors resize-none"
+              className={`${inputClass} resize-none`}
             />
           </div>
 
@@ -267,9 +336,14 @@ export default function AdminBook() {
             <p className="text-neutral-400 text-sm">
               „{title}" a fost înregistrat pentru <strong className="text-white">{getMonthLabel(date)}</strong>.
             </p>
+            {priceEur !== null && (
+              <p className="text-emerald-400 text-sm font-semibold">
+                {priceEur.toLocaleString("ro-RO", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} EUR
+              </p>
+            )}
 
             <a
-              href={buildGoogleCalendarLink(date, title, description, phone, price, advance)}
+              href={buildGoogleCalendarLink(date, title, description, phone, String(priceEur ?? ""), String(advanceEur ?? ""))}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-neutral-700 text-white text-sm hover:border-neutral-500 transition-colors"
@@ -291,7 +365,11 @@ export default function AdminBook() {
                 ← Dashboard
               </button>
               <button
-                onClick={() => { setShowSuccessModal(false); setTitle(""); setPhone(""); setPrice(""); setAdvance(""); setDescription(""); setIsAvailable(null); }}
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setTitle(""); setPhone(""); setPrice(""); setAdvance("");
+                  setDescription(""); setIsAvailable(null); setCurrency("EUR");
+                }}
                 className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-700 text-neutral-300 text-sm hover:border-neutral-500 transition-colors"
               >
                 Adaugă altul
