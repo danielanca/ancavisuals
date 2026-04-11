@@ -12,7 +12,7 @@ import fileRouter from './src/server/routes/file.routes';
 import downloadRouter from './src/server/routes/download.routes';
 import shareRouter from "./src/server/routes/share.routes";
 import eventRouter from "./src/server/routes/event.routes";
-import qrMomentRouter from "./src/server/routes/qrMoment.routes";
+import qrMomentRouter from "./src/server/routes/QRMoment.routes";
 import assistantChatRouter from "./src/server/routes/assistantChat.routes";
 import adminCalendarRouter from "./src/server/routes/adminCalendar.routes";
 import adminEventsRouter from "./src/server/routes/adminEvents.routes";

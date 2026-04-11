@@ -8,7 +8,7 @@ import AlbumPager from "../Portfolio/AlbumPager";
 import DeliveryForm from './DeliveryForm';
 import DeliveryAddressModal from "../DeliveryAddress/AddressList";
 import PhotoLightbox from "./PhotoLightbox";
-import OnboardingWizard from "./OnboardingWizard";
+import OnboardingWizard from "./Onboardingwizard";
 import AncaLoader from "../../components/UI/AncaLoader";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
