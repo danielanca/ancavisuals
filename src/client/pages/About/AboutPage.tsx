@@ -1,5 +1,4 @@
 import React from "react";
-import "../../globals.css";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import Breadcrumbs from "../../components/SEO/Breadcrumbs";
