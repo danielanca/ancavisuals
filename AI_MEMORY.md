@@ -158,6 +158,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #CI  Workflow:  .github/workflows/nodejs.yml
 #CI  Versiuni:  actions/checkout@v4, actions/setup-node@v4
 #CI  Node:      22 în workflow și `.nvmrc`
+#CI  Jobs:      lint, typecheck, test, build ca joburi separate în GitHub Actions
 #CI  Atenție:   CI rulează pe Linux — case sensitivity diferă față de macOS
 
 ---
@@ -208,3 +209,4 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #RECENT  2026-04-11  Bugfix importuri: ipinfo.ts, QRMoment.routes, Onboardingwizard
 #RECENT  2026-04-11  GitHub Actions actualizat la checkout@v4 + setup-node@v4
 #RECENT  2026-04-11  Upgrade Node standard la 22 în `.nvmrc` și `.github/workflows/nodejs.yml` pentru compatibilitate cu Firebase packages
+#RECENT  2026-04-11  Workflow CI împărțit în joburi separate: lint, typecheck, test, build
