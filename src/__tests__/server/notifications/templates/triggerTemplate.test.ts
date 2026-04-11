@@ -139,7 +139,7 @@ describe("renderTriggerTemplate", () => {
   test("shows location info when ipInfo is provided", () => {
     const html = renderTriggerTemplate({
       ...base,
-      ipInfo: { ip: "1.2.3.4", city: "Cluj-Napoca", region: "Cluj", country: "RO", loc: null, timezone: "Europe/Bucharest", org: "RDS", hostname: "" },
+      ipInfo: { ip: "1.2.3.4", city: "Cluj-Napoca", region: "Cluj", country: "RO", loc: undefined, timezone: "Europe/Bucharest", org: "RDS", hostname: "" },
     });
     expect(html).toContain("Cluj-Napoca");
     expect(html).toContain("Europe/Bucharest");
@@ -165,7 +165,7 @@ describe("renderTriggerTemplate", () => {
   test("shows client IP in the location row when ipInfo has no ip field", () => {
     const html = renderTriggerTemplate({
       ...base,
-      ipInfo: { city: "Iași", region: "Iași", country: "RO", loc: null, timezone: "Europe/Bucharest", org: null, hostname: null },
+      ipInfo: { city: "Iași", region: "Iași", country: "RO", loc: undefined, timezone: "Europe/Bucharest", org: undefined, hostname: undefined },
       clientIp: "5.5.5.5",
     });
     expect(html).toContain("5.5.5.5");
