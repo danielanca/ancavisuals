@@ -24,12 +24,25 @@ const MONTHS_RO = [
   "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie",
 ];
 
-function parseDate(input: string): string | null {
-  const m = input.trim().match(DATE_RE);
-  if (!m) return null;
-  const d = parseInt(m[1]), mo = parseInt(m[2]), y = parseInt(m[3]);
-  if (mo < MIN_MONTH || mo > MAX_MONTH || d < MIN_DAY || d > MAX_DAY || y < MIN_VALID_YEAR) return null;
-  return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+export function parseDate(input: string): string | null {
+  const datePartsMatch = input.trim().match(DATE_RE);
+  if (!datePartsMatch) return null;
+
+  const dayNumber = parseInt(datePartsMatch[1]);
+  const monthNumber = parseInt(datePartsMatch[2]);
+  const yearNumber = parseInt(datePartsMatch[3]);
+
+  if (
+    monthNumber < MIN_MONTH
+    || monthNumber > MAX_MONTH
+    || dayNumber < MIN_DAY
+    || dayNumber > MAX_DAY
+    || yearNumber < MIN_VALID_YEAR
+  ) {
+    return null;
+  }
+
+  return `${yearNumber}-${String(monthNumber).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`;
 }
 
 async function getBookedDates(): Promise<string[]> {
@@ -52,8 +65,8 @@ async function getBookedDates(): Promise<string[]> {
       }
     }
     return Array.from(set);
-  } catch (e) {
-    console.error("[assistant] getBookedDates failed:", e);
+  } catch (error) {
+    console.error("[assistant] getBookedDates failed:", error);
     return [];
   }
 }
@@ -71,8 +84,8 @@ router.post("/message", async (req, res) => {
   if (phone) {
     const dateLabel = date
       ? (() => {
-          const [y, mo, d] = date.split("-");
-          return `${parseInt(d)} ${MONTHS_RO[parseInt(mo) - 1]} ${y}`;
+          const [yearNumber, monthNumber, dayNumber] = date.split("-");
+          return `${parseInt(dayNumber)} ${MONTHS_RO[parseInt(monthNumber) - 1]} ${yearNumber}`;
         })()
       : "nedefinită";
 
@@ -101,8 +114,8 @@ router.post("/message", async (req, res) => {
     const dateKey = parseDate(text.trim());
     if (dateKey) {
       const bookedDates = await getBookedDates();
-      const [y, mo, d] = dateKey.split("-");
-      const humanDate = `${parseInt(d)} ${MONTHS_RO[parseInt(mo) - 1]} ${y}`;
+      const [yearNumber, monthNumber, dayNumber] = dateKey.split("-");
+      const humanDate = `${parseInt(dayNumber)} ${MONTHS_RO[parseInt(monthNumber) - 1]} ${yearNumber}`;
       const isBooked = bookedDates.includes(dateKey);
       const node: ChatNode = isBooked
         ? {

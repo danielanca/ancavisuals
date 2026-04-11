@@ -14,7 +14,7 @@ const MONTHS_RO = [
   "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie",
 ];
 
-function groupByMonth(events: ClientEvent[], ascending: boolean): Map<string, ClientEvent[]> {
+export function groupByMonth(events: ClientEvent[], ascending: boolean): Map<string, ClientEvent[]> {
   const map = new Map<string, ClientEvent[]>();
 
   const sorted = [...events].sort((a, b) => {
@@ -32,7 +32,16 @@ function groupByMonth(events: ClientEvent[], ascending: boolean): Map<string, Cl
   return map;
 }
 
-const PAST_STATUSES = new Set(["confirmat", "finalizat"]);
+export const PAST_STATUSES = new Set(["confirmat", "finalizat"]);
+
+export function partitionEvents(events: ClientEvent[], today: Date, currentYear: number) {
+  const yearEvents = events.filter((e) => new Date(e.eventDate).getFullYear() === currentYear);
+  const upcoming = yearEvents.filter((e) => new Date(e.eventDate) >= today);
+  const past = yearEvents.filter(
+    (e) => new Date(e.eventDate) < today && PAST_STATUSES.has(e.status),
+  );
+  return { yearEvents, upcoming, past };
+}
 
 const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdated }) => {
   const navigate = useNavigate();
@@ -45,11 +54,7 @@ const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdate
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const yearEvents = events.filter((e) => new Date(e.eventDate).getFullYear() === currentYear);
-  const upcoming = yearEvents.filter((e) => new Date(e.eventDate) >= today);
-  const past = yearEvents.filter(
-    (e) => new Date(e.eventDate) < today && PAST_STATUSES.has(e.status),
-  );
+  const { upcoming, past } = partitionEvents(events, today, currentYear);
 
   const active = tab === "viitor" ? upcoming : past;
   const grouped = groupByMonth(active, tab === "viitor");

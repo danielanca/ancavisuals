@@ -12,7 +12,7 @@ interface TypeEvent {
   referrer?: string;
 }
 
-const isLocalIp = (ip: string): boolean => {
+export const isLocalIp = (ip: string): boolean => {
   const normalized = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
   return normalized === "127.0.0.1" || normalized === "::1" || normalized === "localhost";
 };
