@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { existsSync } from "fs";
+import { existsSync, readdirSync } from "fs";
 import matter from "gray-matter";
 import { marked } from "marked";
 import { fileURLToPath } from "url";
@@ -12,7 +12,19 @@ const BLOG_DIR_CANDIDATES = [
   path.resolve(__dirname, "../../../"),
 ];
 
-const BLOG_DIR = BLOG_DIR_CANDIDATES.find(candidate => existsSync(candidate)) ?? BLOG_DIR_CANDIDATES[0];
+function hasMarkdownFiles(directory: string): boolean {
+  if (!existsSync(directory)) return false;
+
+  try {
+    return readdirSync(directory).some(file => file.endsWith(".md"));
+  } catch {
+    return false;
+  }
+}
+
+function resolveBlogDir(): string {
+  return BLOG_DIR_CANDIDATES.find(hasMarkdownFiles) ?? BLOG_DIR_CANDIDATES[0];
+}
 
 export interface BlogPost {
   slug: string;
@@ -38,9 +50,10 @@ export interface BlogPostMeta {
 }
 
 export async function getAllPosts(): Promise<BlogPostMeta[]> {
+  const blogDir = resolveBlogDir();
   let files: string[];
   try {
-    files = await fs.readdir(BLOG_DIR);
+    files = await fs.readdir(blogDir);
   } catch {
     return [];
   }
@@ -50,7 +63,7 @@ export async function getAllPosts(): Promise<BlogPostMeta[]> {
   for (const file of files) {
     if (!file.endsWith(".md")) continue;
     const slug = file.replace(".md", "");
-    const raw = await fs.readFile(path.join(BLOG_DIR, file), "utf-8");
+    const raw = await fs.readFile(path.join(blogDir, file), "utf-8");
     const { data } = matter(raw);
     posts.push({
       slug,
@@ -68,7 +81,8 @@ export async function getAllPosts(): Promise<BlogPostMeta[]> {
 }
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
-  const filePath = path.join(BLOG_DIR, `${slug}.md`);
+  const blogDir = resolveBlogDir();
+  const filePath = path.join(blogDir, `${slug}.md`);
   let raw: string;
   try {
     raw = await fs.readFile(filePath, "utf-8");
