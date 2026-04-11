@@ -18,6 +18,7 @@ import adminCalendarRouter from "./src/server/routes/adminCalendar.routes";
 import adminEventsRouter from "./src/server/routes/adminEvents.routes";
 import chatbotRouter from "./src/server/routes/chatbot.routes";
 import uploadRouter from "./src/server/routes/upload.routes";
+import blogRouter from "./src/server/routes/blog.routes";
 
 // Shared HTTP defaults used by both local development and the production server.
 const BODY_PAYLOAD_LIMIT = "1mb";
@@ -33,6 +34,7 @@ const API_ROUTE_PREFIXES = {
   admin: "/api/admin",
   chatbot: "/api/chatbot",
   uploads: "/api",
+  blog: "/api/blog",
 } as const;
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
@@ -96,6 +98,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.admin, adminEventsRouter);
   app.use(API_ROUTE_PREFIXES.chatbot, chatbotRouter);
   app.use(API_ROUTE_PREFIXES.uploads, uploadRouter);
+  app.use(API_ROUTE_PREFIXES.blog, blogRouter);
 
 
   let vite: ViteDevServer | undefined;

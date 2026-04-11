@@ -1,4 +1,4 @@
-import type { IpInfo } from "../../utils/ipinfo";
+import type { IpInfo } from "../../utils/ipInfo";
 
 interface TriggerTemplateData {
   typeEvent: string;

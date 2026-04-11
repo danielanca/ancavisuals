@@ -3,7 +3,7 @@
  * IP extraction from various request shapes and API call behaviour.
  */
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { fetchIpInfo, getClientIp } from "../../../server/utils/ipinfo";
+import { fetchIpInfo, getClientIp } from "../../../server/utils/ipInfo";
 import type { Request } from "express";
 
 function makeReq(overrides: Partial<{ headers: Record<string, string | string[]>; ip: string }>): Request {

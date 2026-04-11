@@ -1,5 +1,4 @@
 import React from "react";
-import { useState } from "react";
 import { Link } from "react-router-dom";
 
 const Footer = () => {
@@ -14,6 +13,9 @@ const Footer = () => {
               </Link>
               <Link to="/portofoliu" className="hover:text-gray-400 transition-colors">
                 Portofoliu
+              </Link>
+              <Link to="/orase" className="hover:text-gray-400 transition-colors">
+                Orașe
               </Link>
               <Link to="/contact" className="hover:text-gray-400 transition-colors">
                 SOLICITA-NE
@@ -32,6 +34,17 @@ const Footer = () => {
           </div>
 
           <div className="text-xs text-gray-500 space-y-2">
+            <div className="flex flex-wrap justify-center gap-4 text-[11px] uppercase tracking-[0.18em] text-gray-400">
+              <Link to="/foto-video-nunta" className="hover:text-white transition-colors">
+                Foto Video Nuntă
+              </Link>
+              <Link to="/foto-video-botez" className="hover:text-white transition-colors">
+                Foto Video Botez
+              </Link>
+              <Link to="/foto-video-evenimente" className="hover:text-white transition-colors">
+                Foto Video Evenimente
+              </Link>
+            </div>
             <p>© {new Date().getFullYear()} AncaVisuals Film Photography. All rights reserved.</p>
             <p>Licensed and insured professional photographer serving worldwide.</p>
             <div className="flex justify-center space-x-4 mt-4">
