@@ -4,7 +4,6 @@ import DeliveryAddressModal from './AddressList'; // rename your current compone
 export default function AddressListWrapper() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
-  console.log('Wrapper slug:', slug); // for debugging
 
   if (!slug) {
     return (

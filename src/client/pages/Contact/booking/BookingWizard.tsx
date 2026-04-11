@@ -202,8 +202,6 @@ export default function BookingWizard() {
   useEffect(() => {
     const load = async () => {
       try {
-        console.log("[BookingWizard] Loading bookedDates.json from Firebase...");
-
         const fileRef = ref(storage, "ancavisuals/bookedDates/bookedDates.json");
         const bytes = await getBytes(fileRef);
         const text = new TextDecoder("utf-8").decode(bytes);
@@ -211,7 +209,6 @@ export default function BookingWizard() {
         const json = JSON.parse(text) as BookedDatesFile;
         const dates = expandBookedDates(json); // => ["2026-02-21", ...];
 
-        console.log("[BookingWizard] Loaded booked dates:", dates);
         setBookedDates(dates);
       } catch (err) {
         console.error("[BookingWizard] Failed to load booked dates:", err);

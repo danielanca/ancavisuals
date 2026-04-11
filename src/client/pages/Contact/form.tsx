@@ -124,15 +124,6 @@ export default function BookingWizard() {
   ];
   const years = [2025, 2026, 2027];
 
-  // Load booked dates
-  useEffect(() => {
-    console.log("local bookedDates)");
-    // fetch('/bookedDates.json')
-    //   .then(r => r.json())
-    //   .then((data: string[]) => setBookedDates(data.map(d => d.trim())))
-    //   .catch(() => setBookedDates([]));
-  }, []);
-
   // Check availability
   const checkAvailability = () => {
     const ok = !bookedDates.includes(selectedFormattedDate);

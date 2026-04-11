@@ -4,7 +4,6 @@ import { generateEventSlug } from "../utils/eventUrl";
 import { firestore } from "../firestoreInit";
 import admin from "firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
-//import { Request } from "node-fetch";
 
 interface Host {
   name: string;
