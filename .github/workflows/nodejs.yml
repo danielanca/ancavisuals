@@ -9,10 +9,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node.js 19
+      - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 19
+          node-version: 22
           cache: 'npm'  # Caches node_modules + package-lock.json for faster runs
 
       - name: Install dependencies
