@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FixedSizeGrid as Grid } from "react-window";
 import styles from "./BunnyPhotoGallery.module.scss";
+import { buildSeoImageAlt } from "../../utils/imageAlt";
 
 type Props = {
   orgPhoto: string[];
@@ -14,6 +15,7 @@ type Props = {
   virtualized?: boolean;
   scrollable?: boolean;
   mobileColumns?: 1 | 2;
+  altBase?: string;
 };
 
 type ImgFormat = "webp" | "jpeg" | "png" | "avif" | "auto";
@@ -67,6 +69,7 @@ export default function BunnyPhotoGallery({
   virtualized = false,
   scrollable = false,
   mobileColumns,
+  altBase = "fotograf videograf eveniment Anca Visuals",
 }: Props) {
   const [visible, setVisible] = useState(90);
   const [isMobile, setIsMobile] = useState(isMobileNow());
@@ -120,7 +123,7 @@ export default function BunnyPhotoGallery({
 
   const visiblePhotos = useMemo(() => photos.slice(0, visible), [photos, visible]);
 
-  const renderThumbImg = (src: string, sizes: string, maxW: number) => {
+  const renderThumbImg = (src: string, sizes: string, maxW: number, index?: number) => {
     const w1 = Math.min(maxW, Math.max(280, Math.round(tileW * dpr)));
     const w2 = Math.min(maxW * 2, w1 * 2);
 
@@ -135,12 +138,12 @@ export default function BunnyPhotoGallery({
         sizes={sizes}
         loading="lazy"
         decoding="async"
-        alt=""
+        alt={buildSeoImageAlt(altBase, index)}
       />
     );
   };
 
-  const renderItem = (src: string) => {
+  const renderItem = (src: string, index: number) => {
     const key = getKey ? getKey(src) : src;
     const isOn = selectable && selected ? selected.has(key) : false;
 
@@ -165,7 +168,7 @@ export default function BunnyPhotoGallery({
         }}
       >
         {selectable && <div className={styles["pg-check"]}>{isOn ? "✓" : ""}</div>}
-        {renderThumbImg(src, sizes, 720)}
+        {renderThumbImg(src, sizes, 720, index)}
       </button>
     );
   };
@@ -195,9 +198,9 @@ export default function BunnyPhotoGallery({
   }, [mobileColumns]);
 
   const columns = useMemo(() => {
-    const cols = Array.from({ length: colCount }, () => [] as string[]);
+    const cols = Array.from({ length: colCount }, () => [] as Array<{ src: string; index: number }>);
     for (let index = 0; index < visiblePhotos.length; index += 1) {
-      cols[index % colCount].push(visiblePhotos[index]);
+      cols[index % colCount].push({ src: visiblePhotos[index], index });
     }
     return cols;
   }, [visiblePhotos, colCount]);
@@ -206,7 +209,7 @@ export default function BunnyPhotoGallery({
     <div className={styles.pgColumns}>
       {columns.map((col, index) => (
         <div key={index} className={styles.pgColumn}>
-          {col.map(renderItem)}
+          {col.map(item => renderItem(item.src, item.index))}
         </div>
       ))}
     </div>
@@ -266,7 +269,7 @@ export default function BunnyPhotoGallery({
                   }}
                 >
                   {selectable && <div className={styles["pg-check"]}>{isOn ? "✓" : ""}</div>}
-                  {renderThumbImg(src, sizes, 720)}
+                  {renderThumbImg(src, sizes, 720, index)}
                 </button>
               </div>
             );
