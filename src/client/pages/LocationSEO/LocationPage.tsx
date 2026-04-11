@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import { getCityBySlug, getServiceBySlug } from "./locationData";
-import pricesData from "../../../data/prices.json";
+import pricesData from "../../../shared/pricing/prices.json";
 import { sendTriggerEmail } from "../../utils/triggers";
 import PortfolioGallery from "../Portfolio/PortfolioGallery";
 

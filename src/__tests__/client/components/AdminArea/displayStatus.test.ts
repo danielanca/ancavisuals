@@ -3,7 +3,7 @@
  * that are still marked "confirmat" should visually appear as "finalizat".
  */
 import { describe, expect, test } from "vitest";
-import type { EventStatus } from "../../../../client/types/admin";
+import type { EventStatus } from "../../../../client/features/admin/types";
 
 /**
  * Mirrors the inline logic from EventCard.tsx:

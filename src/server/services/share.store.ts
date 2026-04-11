@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { db } from "../firestoreInit.js";
+import { db } from "../firestore.js";
 
 export type ShareRecord = {
   id: string;

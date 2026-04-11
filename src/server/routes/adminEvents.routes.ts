@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
-import { firestore } from "../firestoreInit";
+import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 
 const router = Router();

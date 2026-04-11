@@ -19,7 +19,7 @@ type PhotoboothTier = {
 };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pricesData = JSON.parse(readFileSync(join(__dirname, "../../data/prices.json"), "utf-8")) as PricesData;
+const pricesData = JSON.parse(readFileSync(join(__dirname, "../../shared/pricing/prices.json"), "utf-8")) as PricesData;
 
 const getPackagePrice = (packageId: string) => (
   pricesData.packages.find(pricePackage => pricePackage.id === packageId)?.price ?? 0

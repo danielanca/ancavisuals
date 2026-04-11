@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getStorage } from "firebase-admin/storage";
-import { firestore } from "../firestoreInit";
+import { firestore } from "../firestore";
 import { BOOKED_DATES_FILE_PATH, FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 
 async function getBookedDates(): Promise<{ date?: string; startDate?: string; endDate?: string; note?: string }[]> {

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import express from "express";
 import { getAlbum, downloadSelectedPhotos, postPrintSelection, downloadAll, deletePhoto, downloadPrintDynamic, addDeliveryAddress, getDeliveryAddress, addSwissLink } from "../controllers/album.controller";
-import { getAlbumStats } from "../services/album.stats";
+import { getAlbumStats } from "../services/albumStats.service";
 
 const router = Router();
 

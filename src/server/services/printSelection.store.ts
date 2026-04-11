@@ -2,7 +2,7 @@
  * Purpose: encapsulates Firestore persistence for print selections, delivery
  * addresses and Swiss links associated with album slugs.
  */
-import { firestore } from "../firestoreInit";
+import { firestore } from "../firestore";
 
 const COL = "printSelections";
 

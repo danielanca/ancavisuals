@@ -1,4 +1,4 @@
-import pricesData from "../../../data/prices.json";
+import pricesData from "../../../shared/pricing/prices.json";
 
 export type PackageOption = {
   key: string;

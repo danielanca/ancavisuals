@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import AdminStepDate from "./steps/AdminStepDate";
-import Breadcrumb from "../../../components/AdminArea/Breadcrumb";
+import Breadcrumb from "../../../features/admin/components/Breadcrumb";
 import { convertToEur, parseAmount } from "../../../utils/currency";
 
 const MONTHS_RO = [

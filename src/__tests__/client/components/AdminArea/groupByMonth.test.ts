@@ -3,8 +3,8 @@
  * them into Romanian month/year labels for the EventList component.
  */
 import { describe, expect, test } from "vitest";
-import { groupByMonth } from "../../../../client/components/AdminArea/EventList";
-import type { ClientEvent } from "../../../../client/types/admin";
+import { groupByMonth } from "../../../../client/features/admin/components/EventList";
+import type { ClientEvent } from "../../../../client/features/admin/types";
 
 function makeEvent(id: string, isoDate: string): ClientEvent {
   return {

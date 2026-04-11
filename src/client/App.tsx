@@ -1,19 +1,19 @@
 import React, { Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
-import AncaChat from "./components/AncaChat/AncaChat";
+import AncaChat from "./features/chat/components/AncaChat";
 import AncaLoader from "./components/UI/AncaLoader";
 import { useLocation } from "react-router-dom";
 import routes from "./routes/publicRoutes";
 import { ContextWrapper } from "./Context"; // Assuming you have this component
 
-import CheckAuth from "./components/AdminArea/checkAuth";
-import RequireAuth from "./components/AdminArea/RequireAuth";
-import Login from "./components/AdminArea/Login";
-import { AuthProvider } from "./components/context/AuthProvider";
-import Dashboard from "./components/AdminArea/Dashboard";
-import CreateEventWedding from "./components/AdminArea/EventDashboard/CreateEvent";
+import CheckAuth from "./features/admin/components/CheckAuth";
+import RequireAuth from "./features/admin/components/RequireAuth";
+import Login from "./features/admin/components/Login";
+import { AuthProvider } from "./features/admin/providers/AuthProvider";
+import Dashboard from "./features/admin/components/Dashboard";
+import CreateEventWedding from "./features/admin/components/EventDashboard/CreateEvent";
 import AdminBook from "./pages/Contact/booking/AdminBook";
-import BookedCalendar from "./components/AdminArea/BookedCalendar";
+import BookedCalendar from "./features/admin/components/BookedCalendar";
 
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media"];

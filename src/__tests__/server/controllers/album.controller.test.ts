@@ -53,7 +53,7 @@ const loadAlbumController = async () => {
     pipe: archivePipeMock,
   }));
 
-  vi.doMock("../../../server/services/album.services", () => ({
+  vi.doMock("../../../server/services/album.service", () => ({
     loadAlbum: loadAlbumMock,
   }));
 
@@ -69,7 +69,7 @@ const loadAlbumController = async () => {
     signBunnyUrl: signBunnyUrlMock,
   }));
 
-  vi.doMock("../../../server/firestoreInit", () => ({
+  vi.doMock("../../../server/firestore", () => ({
     db: {
       collection: collectionMock,
     },

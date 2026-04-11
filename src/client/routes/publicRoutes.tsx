@@ -7,20 +7,20 @@ import AncaLoader from "../components/UI/AncaLoader";
 const loader = <AncaLoader />;
 const opts = (ssr: boolean) => ({ ssr, fallback: loader });
 
-const Mainpage = loadable(() => import("../pages/Homepage/Mainpage"), opts(true));
-const Aboutme = loadable(() => import("../pages/About/Aboutme"), opts(true));
+const HomePage = loadable(() => import("../pages/Homepage/HomePage"), opts(true));
+const AboutPage = loadable(() => import("../pages/About/AboutPage"), opts(true));
 const Portfolio = loadable(() => import("../pages/Portfolio/Portfolio"), opts(true));
-const Contact = loadable(() => import("../pages/Contact/Contacts"), opts(true));
+const ContactPage = loadable(() => import("../pages/Contact/ContactPage"), opts(true));
 const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), opts(true));
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), opts(true));
-const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerification"), opts(true));
-const InvitationLanding = loadable(() => import("../pages/InvitationLanding/InvitationLanding"), opts(true));
-const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMoments"), opts(true));
-const BioPage = loadable(() => import("../pages/Bio/Bio"), opts(true));
+const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerificationPage"), opts(true));
+const InvitationLandingPage = loadable(() => import("../pages/InvitationLanding/InvitationLandingPage"), opts(true));
+const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMomentsPage"), opts(true));
+const BioPage = loadable(() => import("../pages/Bio/BioPage"), opts(true));
 const CopyrightPage = loadable(() => import("../pages/Copyright/Copyright"), opts(true));
 const PrivacyPage = loadable(() => import("../pages/Privacy/Privacy"), opts(true));
 const TermsPage = loadable(() => import("../pages/Terms/Terms"), opts(true));
-const AddressListWrapper = loadable(() => import("../pages/DeliveryAddress/AddressListWrapper"), opts(false));
+const DeliveryAddressPage = loadable(() => import("../pages/DeliveryAddress/DeliveryAddressPage"), opts(false));
 
 type LayoutType = React.ComponentType | null;
 type ComponentType = React.ComponentType;
@@ -40,12 +40,12 @@ const publicRoutes: publicRoutesType[] = [
   {
     path: "",
     layout: null,
-    component: Mainpage,
+    component: HomePage,
   },
   {
     path: "/despre",
     layout: null,
-    component: Aboutme,
+    component: AboutPage,
   },
   {
     path: "/portofoliu",
@@ -55,12 +55,12 @@ const publicRoutes: publicRoutesType[] = [
   {
     path: "/contact",
     layout: null,
-    component: Contact,
+    component: ContactPage,
   },
   {
     path: "/oferta",
     layout: null,
-    component: Contact,
+    component: ContactPage,
   },
   {
     path: "/bio",
@@ -105,7 +105,7 @@ const publicRoutes: publicRoutesType[] = [
   {
     path: "/invitatie/:slug/invitation",
     layout: null,
-    component: InvitationLanding,
+    component: InvitationLandingPage,
   },
   {
     path: "/qr-moments/:eventDate",
@@ -115,7 +115,7 @@ const publicRoutes: publicRoutesType[] = [
   {
     path: "/delivery-address/:slug",
     layout: null,
-    component: AddressListWrapper,
+    component: DeliveryAddressPage,
   },
 
   /** ============================================================
