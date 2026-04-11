@@ -20,7 +20,9 @@ const formatEUR = (amount: number) =>
   new Intl.NumberFormat("ro-RO", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amount);
 
 const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onUpdated }) => {
-  if (!event?.client || !event?.pricing) return null;
+  const hasEventData = Boolean(event?.client && event?.pricing);
+  const fallbackDate = event?.eventDate ? new Date(event.eventDate) : new Date();
+  const fallbackName = event?.client?.fullName ?? "";
 
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [editing, setEditing] = useState(false);
@@ -29,11 +31,11 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [contractUrl, setContractUrl] = useState(event.contractUrl ?? "");
   const [invoiceUrl, setInvoiceUrl] = useState(event.invoiceUrl ?? "");
 
-  const eventDate = new Date(event.eventDate);
+  const eventDate = fallbackDate;
   const isPast = eventDate < new Date();
 
   const dateSlug = eventDate.toISOString().slice(0, 10);
-  const nameSlug = slugify(event.client.fullName);
+  const nameSlug = slugify(fallbackName);
   const docBasePath = (type: "contract" | "factura") =>
     `admin-docs/${event.id}/${nameSlug}_${dateSlug}_${type}`;
   const displayStatus: typeof event.status =
@@ -45,15 +47,17 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
 
   // Edit form state — initialised from event
   const [form, setForm] = useState({
-    fullName: event.client.fullName,
-    phone: event.client.phone ?? "",
+    fullName: fallbackName,
+    phone: event?.client?.phone ?? "",
     eventDate: eventDate.toISOString().slice(0, 10),
-    total: String(event.pricing.total),
-    advanceAmount: String(event.pricing.advanceAmount),
-    advancePaid: event.pricing.advancePaid,
+    total: String(event?.pricing?.total ?? 0),
+    advanceAmount: String(event?.pricing?.advanceAmount ?? 0),
+    advancePaid: event?.pricing?.advancePaid ?? false,
     status: event.status,
     notes: event.notes ?? "",
   });
+
+  if (!hasEventData) return null;
 
   const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
