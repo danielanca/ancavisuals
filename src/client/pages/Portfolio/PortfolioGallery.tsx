@@ -6,17 +6,24 @@ import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
 import "yet-another-react-lightbox/styles.css";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { storage } from "../../firebase";
+import { buildSeoImageAlt } from "../../utils/imageAlt";
 import "./PortfolioGallery.scss";
 
 type ImageItem = {
   src: string;
 };
 
+type PortfolioGalleryProps = {
+  altBase?: string;
+};
+
 const FOLDER_PATH = "ancavisuals/PortfolioGallery";
 const INITIAL_VISIBLE = 40;
 const LOAD_MORE_STEP = 20;
 
-export default function PortfolioGallery() {
+export default function PortfolioGallery({
+  altBase = "fotograf videograf eveniment Anca Visuals",
+}: PortfolioGalleryProps) {
   const [index, setIndex] = useState(-1);
   const [images, setImages] = useState<ImageItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +85,6 @@ export default function PortfolioGallery() {
   }
 
   const visibleImages = images.slice(0, visibleCount);
-
   return (
     <>
       <section className="pg-section">
@@ -94,7 +100,12 @@ export default function PortfolioGallery() {
                 data-aos-delay={i * 40}
                 onClick={() => setIndex(i)}
               >
-                <img src={img.src} alt={`Portofoliu foto ${i + 1}`} loading="lazy" className="pg-img" />
+                <img
+                  src={img.src}
+                  alt={buildSeoImageAlt(altBase, i)}
+                  loading="lazy"
+                  className="pg-img"
+                />
               </button>
             ))}
           </div>

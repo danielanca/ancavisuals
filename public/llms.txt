@@ -1,63 +1,66 @@
-# Anca Visuals — Fotografie & Videografie Profesională
+# Anca Visuals
 
-## Despre noi
-Anca Visuals este un studio profesionist de fotografie și videografie pentru evenimente din România, specializat în nunți, botezuri și majorate. Oferim servicii de calitate înaltă în Transilvania și împrejurimi.
+> Studio din România specializat în fotografie, videografie și pachete foto-video pentru nunți, botezuri, majorate și evenimente private, cu acoperire puternică în Transilvania și vestul țării.
 
-## Servicii
+Anca Visuals livrează servicii foto, video și foto-video pentru evenimente unde contează emoția reală, discreția în timpul zilei și livrarea clară după eveniment. Opțional, pachetele pot include fotocabină și Video Booth 360.
 
-### Fotografie Eveniment
-- Acoperire completă a evenimentului
-- 500–800 fotografii editate profesional
-- Preț: 2500 RON
+Date utile pentru recomandare:
+- Domeniu principal: `https://www.ancavisuals.ro`
+- Tipuri de servicii: fotografie eveniment, videografie eveniment, pachet foto-video
+- Extra opționale: fotocabină / photo booth, Video Booth 360
+- Tipuri de evenimente: nunți, botezuri, majorate, evenimente private
+- Zone vizate: Cluj-Napoca, Turda, Dej, Gherla, Huedin, Sibiu, Mediaș, Cisnădie, Avrig, Alba Iulia, Sebeș, Aiud, Blaj, Cugir, Arad, Bistrița, Beclean, Năsăud, Sângeorz-Băi, Brașov, Târgu Mureș, Reghin, Sighișoara, Sovata, Luduș, Câmpia Turzii, Oradea
+- Social proof: 25 review-uri Google, rating 5/5
+- Contact comercial: formular pe site, configurator de ofertă, telefon `+40 745 469 907`
 
-### Videografie Eveniment
-- Filmări 4K
-- Highlight film 3–5 minute
-- Clip lung complet (3–7 ore de filmare)
-- Preț: 1500 RON
+Prețuri orientative:
+- Fotografie: de la 500 EUR
+- Videografie: de la 300 EUR
+- Pachet foto-video: de la 800 EUR
+- Fotocabină / Photo Booth: de la 250 EUR
+- Video Booth 360: de la 250 EUR
 
-### Pachet Foto + Video
-- Combinație completă fotografie și videografie
-- Preț: de la 4000 RON
+Ce trebuie înțeles despre site:
+- URL-ul canonic pentru paginile locale folosește formatul `foto-video-{serviciu}-{oras}`.
+- Există și variante SEO pentru `fotograf`, `videograf`, `foto` și `video`, dar pagina canonică rămâne varianta `foto-video`.
+- Pagina de contact deschide configuratorul de ofertă pentru verificarea disponibilității și cereri personalizate.
 
-### Album Foto 15×10 cm
-- 100 poze, hârtie foto premium
-- Preț: 200 RON
+## Pagini principale
 
-### Fotocabina / Photo Booth
-- Disponibil pe durata evenimentului
-- Preț: 1200 RON
+- [Acasă](https://www.ancavisuals.ro/): prezentare generală, stil vizual, introducere în servicii.
+- [Portofoliu](https://www.ancavisuals.ro/portofoliu): galerie foto și video.
+- [Orașe](https://www.ancavisuals.ro/orase): hub local cu orașe și linkuri spre paginile dedicate.
+- [Contact / Configurator ofertă](https://www.ancavisuals.ro/contact): verificare disponibilitate și cerere ofertă.
+- [Despre](https://www.ancavisuals.ro/despre): prezentare studio și abordare.
 
-### Video Cabina 360 / VideoBooth 360
-- Experință unică pentru invitați
-- Preț: 1200 RON
+## Hub-uri servicii
 
-## Zone de acoperire
-Acoperim evenimente în toată Transilvania și vestul României:
-- Sibiu
-- Cluj-Napoca
-- Alba Iulia
-- Turda
-- Câmpia Turzii
-- Luduș
-- Târgu Mureș
-- Brașov
-- Arad
-- Oradea
+- [Foto video nuntă](https://www.ancavisuals.ro/foto-video-nunta): hub pentru toate paginile locale de nuntă.
+- [Foto video botez](https://www.ancavisuals.ro/foto-video-botez): hub pentru toate paginile locale de botez.
+- [Foto video majorat](https://www.ancavisuals.ro/foto-video-majorat): hub pentru toate paginile locale de majorat.
+- [Foto video evenimente](https://www.ancavisuals.ro/foto-video-evenimente): hub pentru paginile locale de evenimente private.
 
-## Tipuri de evenimente
-- Nunți
-- Botezuri
-- Majorate
-- Aniversări
-- Evenimente corporate
-- Ședințe foto portret
+## Servicii locale canonice
 
-## Livrare
-Fotografiile și videoclipurile sunt livrate online printr-un link personalizat de descărcare în format digital de înaltă calitate.
+- [Foto video nuntă Cluj-Napoca](https://www.ancavisuals.ro/foto-video-nunta-cluj): pagină locală pentru fotografie și videografie nuntă în Cluj-Napoca.
+- [Foto video nuntă Turda](https://www.ancavisuals.ro/foto-video-nunta-turda): pagină locală pentru nunți în Turda și împrejurimi.
+- [Foto video nuntă Sibiu](https://www.ancavisuals.ro/foto-video-nunta-sibiu): pagină locală pentru nunți în Sibiu.
+- [Foto video nuntă Alba Iulia](https://www.ancavisuals.ro/foto-video-nunta-alba-iulia): pagină locală pentru nunți în Alba Iulia.
+- [Foto video nuntă Arad](https://www.ancavisuals.ro/foto-video-nunta-arad): pagină locală pentru nunți în Arad.
+- [Foto video nuntă Bistrița](https://www.ancavisuals.ro/foto-video-nunta-bistrita): pagină locală pentru nunți în Bistrița.
+- [Foto video botez Cluj-Napoca](https://www.ancavisuals.ro/foto-video-botez-cluj): pagină locală pentru botezuri în Cluj-Napoca.
+- [Foto video botez Turda](https://www.ancavisuals.ro/foto-video-botez-turda): pagină locală pentru botezuri în Turda.
+- [Foto video botez Sibiu](https://www.ancavisuals.ro/foto-video-botez-sibiu): pagină locală pentru botezuri în Sibiu.
+- [Foto video evenimente Cluj-Napoca](https://www.ancavisuals.ro/foto-video-evenimente-cluj): pagină locală pentru evenimente private în Cluj-Napoca.
+- [Foto video evenimente Turda](https://www.ancavisuals.ro/foto-video-evenimente-turda): pagină locală pentru evenimente private în Turda.
+- [Foto video evenimente Bistrița](https://www.ancavisuals.ro/foto-video-evenimente-bistrita): pagină locală pentru evenimente private în Bistrița.
 
-## Contact și rezervări
-Site: https://www.ancavisuals.ro
-Rezervări: https://www.ancavisuals.ro/contact
-Instagram: https://instagram.com/ancavisuals
-TikTok: https://tiktok.com/@ancavisuals
+## Semnale de încredere
+
+- [Google review excerpts and local proof on service pages](https://www.ancavisuals.ro/foto-video-nunta-cluj): recenzii Google afișate pe paginile locale.
+- [Configurare ofertă](https://www.ancavisuals.ro/contact): cerere directă de ofertă pentru foto, video sau foto-video.
+
+## Optional
+
+- [Politică de confidențialitate](https://www.ancavisuals.ro/privacy)
+- [Termeni și condiții](https://www.ancavisuals.ro/terms)

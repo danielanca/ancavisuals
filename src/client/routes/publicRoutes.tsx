@@ -2,6 +2,8 @@ import loadable from "@loadable/component";
 import React from "react";
 import { ALL_LOCATION_ROUTES } from "../pages/LocationSEO/locationData";
 import { LocationPageWrapper } from "../pages/LocationSEO/LocationPage";
+import CitiesHubPage from "../pages/Hubs/CitiesHubPage";
+import ServiceHubPage from "../pages/Hubs/ServiceHubPage";
 import AncaLoader from "../components/UI/AncaLoader";
 
 const loader = <AncaLoader />;
@@ -21,6 +23,8 @@ const CopyrightPage = loadable(() => import("../pages/Copyright/Copyright"), opt
 const PrivacyPage = loadable(() => import("../pages/Privacy/Privacy"), opts(true));
 const TermsPage = loadable(() => import("../pages/Terms/Terms"), opts(true));
 const AddressListWrapper = loadable(() => import("../pages/DeliveryAddress/AddressListWrapper"), opts(false));
+const BlogList = loadable(() => import("../pages/Blog/BlogList"), opts(true));
+const BlogPost = loadable(() => import("../pages/Blog/BlogPost"), opts(true));
 
 type LayoutType = React.ComponentType | null;
 type ComponentType = React.ComponentType;
@@ -53,6 +57,11 @@ const publicRoutes: publicRoutesType[] = [
     component: Portfolio,
   },
   {
+    path: "/orase",
+    layout: null,
+    component: CitiesHubPage,
+  },
+  {
     path: "/contact",
     layout: null,
     component: Contact,
@@ -81,6 +90,37 @@ const publicRoutes: publicRoutesType[] = [
     path: "/copyright",
     layout: null,
     component: CopyrightPage,
+  },
+  {
+    path: "/blog",
+    layout: null,
+    component: BlogList,
+  },
+  {
+    path: "/blog/:slug",
+    layout: null,
+    component: BlogPost,
+  },
+
+  {
+    path: "/foto-video-nunta",
+    layout: null,
+    component: () => React.createElement(ServiceHubPage, { serviceSlug: "nunta" }),
+  },
+  {
+    path: "/foto-video-botez",
+    layout: null,
+    component: () => React.createElement(ServiceHubPage, { serviceSlug: "botez" }),
+  },
+  {
+    path: "/foto-video-majorat",
+    layout: null,
+    component: () => React.createElement(ServiceHubPage, { serviceSlug: "majorat" }),
+  },
+  {
+    path: "/foto-video-evenimente",
+    layout: null,
+    component: () => React.createElement(ServiceHubPage, { serviceSlug: "evenimente" }),
   },
 
   /** ============================================================
@@ -123,13 +163,14 @@ const publicRoutes: publicRoutesType[] = [
    *  Contact admin booking
    * ============================================================ */
 
-  /** ============================================================
-   *  SEO — pagini generate automat
-   *  ~30 combinații oraș × serviciu (fotograf/videograf + oraș)
-   * ============================================================ */
-  ...ALL_LOCATION_ROUTES.map(({ path, citySlug, serviceSlug }) => {
+  ...ALL_LOCATION_ROUTES.map(({ path, citySlug, serviceSlug, canonicalPath, keywordLabel }) => {
     const Component: React.FC = () =>
-      React.createElement(LocationPageWrapper, { citySlug, serviceSlug });
+      React.createElement(LocationPageWrapper, {
+        citySlug,
+        serviceSlug,
+        canonicalPath,
+        keywordLabel,
+      });
     Component.displayName = `LocationPage_${serviceSlug}_${citySlug}`;
     return { path, layout: null, component: Component };
   }),
