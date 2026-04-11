@@ -34,6 +34,10 @@
     "test:all": "vitest run --coverage",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
     "coverage:open": "open coverage/index.html",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
@@ -76,6 +80,7 @@
     "yet-another-react-lightbox": "^3.23.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/react": "^14.0.0",
     "@types/archiver": "^7.0.0",

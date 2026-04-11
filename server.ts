@@ -39,6 +39,7 @@ const API_ROUTE_PREFIXES = {
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
 const isProd = process.env.NODE_ENV === 'production';
+const isPlaywright = process.env.PLAYWRIGHT === "1";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -65,6 +66,8 @@ const isAssetRequest = (url: string) => {
   return (
     pathname.startsWith("/assets/") ||
     pathname.startsWith("/public/assets/") ||
+    pathname.startsWith("/@") ||          // Vite virtual modules (/@vite/client, @react-refresh, etc.)
+    pathname.startsWith("/node_modules/") || // pre-bundled deps
     /\.[a-z0-9]+$/i.test(pathname)
   );
 };
@@ -119,7 +122,7 @@ async function createServer() {
   if (!isProd) {
     // ******** DEV MODE (HMR ON) ********
     vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: isPlaywright ? false : undefined },
       appType: 'custom',
       logLevel: isTest ? 'error' : 'info',
     });
