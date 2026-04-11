@@ -125,15 +125,7 @@ const BlogPost: React.FC = () => {
 
               {/* Content */}
               <article
-                className={`prose prose-invert prose-lg max-w-none
-                  prose-headings:font-bold prose-headings:text-white
-                  prose-h2:text-2xl prose-h2:mt-10 prose-h2:mb-4
-                  prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
-                  prose-p:text-gray-300 prose-p:leading-relaxed
-                  prose-li:text-gray-300
-                  prose-strong:text-white
-                  prose-a:${ACCENT.text} prose-a:no-underline hover:prose-a:underline
-                  prose-hr:border-white/10`}
+                className="blog-article max-w-none"
                 dangerouslySetInnerHTML={{ __html: post.content }}
               />
 
