@@ -30,7 +30,7 @@ const loadBookedDatesModule = async (fileData: MockFileData | Error) => {
     }),
   }));
 
-  vi.doMock("../../../server/firestoreInit", () => ({
+  vi.doMock("../../../server/firestore", () => ({
     firestore: firestoreMock,
   }));
 

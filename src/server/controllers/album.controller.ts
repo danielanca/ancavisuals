@@ -7,10 +7,10 @@ import type { Request, Response } from "express";
 import { Readable } from "stream";
 import type { ReadableStream as NodeReadableStream } from "stream/web";
 import archiver from "archiver";
-import { loadAlbum } from "../services/album.services";
+import { loadAlbum } from "../services/album.service";
 import { readPrintSelection, savePrintSelection, saveDeliveryAddress, readDeliveryAddress, addLink } from "../services/printSelection.store";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
-import { db } from "../firestoreInit";
+import { db } from "../firestore";
 import {
   BUNNY_ACCESS_KEY_HEADER,
   BUNNY_DEFAULT_ARCHIVE_NAME,

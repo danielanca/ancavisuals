@@ -1,0 +1,18 @@
+import { useParams } from 'react-router-dom';
+import DeliveryAddressModal from './AddressList'; // rename your current component
+
+export default function DeliveryAddressPage() {
+  const params = useParams<{ slug: string }>();
+  const slug = params.slug;
+
+  if (!slug) {
+    return (
+      <div style={{ padding: '3rem', textAlign: 'center', color: '#dc2626', fontSize: '1.2rem' }}>
+        Eroare: Nu s-a găsit identificatorul albumului în URL.<br />
+        Exemplu: /nunta-mea-2025/delivery-address
+      </div>
+    );
+  }
+
+  return <DeliveryAddressModal slug={slug} isOpen={false} onClose={()=>{}} />;
+}

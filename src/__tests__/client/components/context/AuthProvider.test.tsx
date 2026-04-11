@@ -5,8 +5,8 @@
 import React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { AuthProvider } from "../../../../client/components/context/AuthProvider";
-import useAuth from "../../../../client/hooks/useAuth";
+import { AuthProvider } from "../../../../client/features/admin/providers/AuthProvider";
+import useAuth from "../../../../client/features/admin/auth/useAuth";
 
 const mockOnIdTokenChanged = vi.fn();
 const mockSignInWithEmailAndPassword = vi.fn();

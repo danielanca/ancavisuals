@@ -34,7 +34,7 @@ const loadPrintSelectionStore = async (options?: {
     collection: collectionMock,
   }));
 
-  vi.doMock("../../../server/firestoreInit", () => ({
+  vi.doMock("../../../server/firestore", () => ({
     firestore: firestoreMock,
   }));
 

@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { ChatNode } from "../data/assistantChatData";
 import { CHAT_NODES, FALLBACK_NODE } from "../data/assistantChatData";
 import { getStorage } from "firebase-admin/storage";
-import { firestore } from "../firestoreInit";
+import { firestore } from "../firestore";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { renderChatbotLeadTemplate } from "../notifications/templates/chatbotLeadTemplate";

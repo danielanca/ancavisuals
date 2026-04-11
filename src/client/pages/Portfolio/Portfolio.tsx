@@ -3,7 +3,7 @@ import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import Breadcrumbs from "../../components/SEO/Breadcrumbs";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
-import Portfoliohero from "./Hero";
+import PortfolioHero from "./PortfolioHero";
 import PortfolioGallery from "./PortfolioGallery";
 import "./Portfolio.css";
 import { Link } from "react-router-dom";
@@ -38,7 +38,7 @@ const Portfolio = () => {
       <div className="mx-auto max-w-6xl px-6 pt-28">
         <Breadcrumbs items={breadcrumbs} />
       </div>
-      <Portfoliohero />
+      <PortfolioHero />
       <section className="mx-auto max-w-6xl px-6 pb-10">
         <div className="grid gap-6 md:grid-cols-2">
           <article className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white">

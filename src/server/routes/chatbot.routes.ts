@@ -1,3 +1,4 @@
+
 import type { Request, Response } from "express";
 import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
@@ -17,7 +18,7 @@ type PricesData = {
 };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pricesData = JSON.parse(readFileSync(join(__dirname, "../../data/prices.json"), "utf-8")) as PricesData;
+const pricesData = JSON.parse(readFileSync(join(__dirname, "../../shared/pricing/prices.json"), "utf-8")) as PricesData;
 
 const router = Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

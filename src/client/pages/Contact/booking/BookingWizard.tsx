@@ -4,7 +4,7 @@ import "./styles.css";
 import "./segmented.scss";
 
 import { PACKAGES_NEW } from "../packages";
-import pricesData from "../../../../data/prices.json";
+import pricesData from "../../../../shared/pricing/prices.json";
 import { safeTrigger, BOOKING_TO } from "./utils/api";
 import { normalizePackages } from "./utils/normalize";
 import { formatDate } from "./utils/time";

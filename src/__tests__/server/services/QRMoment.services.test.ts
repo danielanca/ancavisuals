@@ -37,7 +37,7 @@ const loadQRMomentServices = async (options?: {
   }));
   const buildBunnyDirectoryUrlMock = vi.fn((eventDate: string) => `https://bunny.dir/${eventDate}/`);
 
-  vi.doMock("../../../server/firestoreInit", () => ({
+  vi.doMock("../../../server/firestore", () => ({
     firestore: firestoreMock,
   }));
 
@@ -47,7 +47,7 @@ const loadQRMomentServices = async (options?: {
     getBunnyStorageKey: () => "storage-key",
   }));
 
-  const module = await import("../../../server/services/QRMoment.services");
+  const module = await import("../../../server/services/qrMoment.service");
 
   return {
     module,
@@ -60,7 +60,7 @@ const loadQRMomentServices = async (options?: {
   };
 };
 
-describe("QRMoment.services", () => {
+describe("qrMoment.service", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();

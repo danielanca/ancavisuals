@@ -2,7 +2,7 @@ import React from "react";
 import { useState } from "react";
 import img1 from "./img1.jpg";
 
-const Allimages = () => {
+const AllImages = () => {
   return (
     <section className="myport max-w-screen-xl mx-auto px-4 py-12 space-y-6">
       <div className="flex flex-wrap gap-4">
@@ -37,4 +37,4 @@ const Allimages = () => {
   );
 };
 
-export default Allimages;
+export default AllImages;

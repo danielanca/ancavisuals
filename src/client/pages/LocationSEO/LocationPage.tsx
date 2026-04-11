@@ -11,7 +11,7 @@ import {
   getCityBySlug,
   getServiceBySlug,
 } from "./locationData";
-import pricesData from "../../../data/prices.json";
+import pricesData from "../../../shared/pricing/prices.json";
 import { sendTriggerEmail } from "../../utils/triggers";
 import PortfolioGallery from "../Portfolio/PortfolioGallery";
 

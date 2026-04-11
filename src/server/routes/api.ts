@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { triggerEvent } from "../functions/eventFuncs";
+import { triggerEvent } from "../controllers/triggerEvent.controller";
 
 export { triggerEvent };
 

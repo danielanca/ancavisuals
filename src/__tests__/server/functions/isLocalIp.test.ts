@@ -3,7 +3,7 @@
  * trigger emails are skipped during local development.
  */
 import { describe, expect, test } from "vitest";
-import { isLocalIp } from "../../../server/functions/eventFuncs";
+import { isLocalIp } from "../../../server/controllers/triggerEvent.controller";
 
 describe("isLocalIp", () => {
   test("recognises 127.0.0.1 as local", () => {

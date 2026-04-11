@@ -6,17 +6,17 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import CheckAuth from "../../../client/components/AdminArea/checkAuth";
-import RequireAuth from "../../../client/components/AdminArea/RequireAuth";
+import CheckAuth from "../../../client/features/admin/components/CheckAuth";
+import RequireAuth from "../../../client/features/admin/components/RequireAuth";
 
 const mockUseAuth = vi.fn();
 
-vi.mock("../../../client/hooks/useAuth", () => ({
+vi.mock("../../../client/features/admin/auth/useAuth", () => ({
   default: () => mockUseAuth(),
 }));
 
-vi.mock("../../../client/components/UI/RouteSpinner", () => ({
-  default: () => <div data-testid="route-spinner">Loading</div>,
+vi.mock("../../../client/components/UI/Loader", () => ({
+  default: () => <div data-testid="auth-loader">Loading</div>,
 }));
 
 function renderRequireAuth(initialPath = "/admin") {
@@ -57,7 +57,7 @@ describe("auth route guards", () => {
 
     renderRequireAuth();
 
-    expect(screen.getByTestId("route-spinner")).toBeInTheDocument();
+    expect(screen.getByTestId("auth-loader")).toBeInTheDocument();
   });
 
   test("RequireAuth redirects unauthorised users to login", () => {
@@ -88,7 +88,7 @@ describe("auth route guards", () => {
 
     renderCheckAuth();
 
-    expect(screen.getByTestId("route-spinner")).toBeInTheDocument();
+    expect(screen.getByTestId("auth-loader")).toBeInTheDocument();
   });
 
   test("CheckAuth keeps unauthenticated users on the login page", () => {

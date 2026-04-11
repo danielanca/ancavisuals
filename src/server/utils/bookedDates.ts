@@ -3,7 +3,7 @@
  * date ranges into day keys and answers whether a given date is unavailable.
  */
 import { getStorage } from "firebase-admin/storage";
-import { firestore } from "../firestoreInit";
+import { firestore } from "../firestore";
 import { BOOKED_DATES_FILE_PATH, FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 
 export type BookedDate =

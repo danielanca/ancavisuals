@@ -1,5 +1,5 @@
 /*
- * Purpose: verifies getClientIp and fetchIpInfo from the ipinfo utility —
+ * Purpose: verifies getClientIp and fetchIpInfo from the ipInfo utility —
  * IP extraction from various request shapes and API call behaviour.
  */
 import { afterEach, describe, expect, test, vi } from "vitest";

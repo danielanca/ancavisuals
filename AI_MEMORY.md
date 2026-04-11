@@ -71,6 +71,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #CMD  typecheck:          npm run typecheck
 #CMD  test:               npm test
 #CMD  build:              npm run build
+#CMD  lint:               npm run lint
 #CMD  pm2 serve:          npm run serve:pm2
 #CMD  fișiere după pat:   rg --files src | rg 'pattern'
 #CMD  referințe în cod:   rg -n "pattern" src server.ts
@@ -161,6 +162,18 @@ Același principiu se aplică și pentru căutări în codul sursă:
 
 ---
 
+## PUSH / PR CHECKLIST #READY
+
+#READY  Când userul cere „pregătește pentru push/PR”, agentul trebuie să consemneze schimbările relevante în AI_MEMORY.md
+#READY  Când userul cere „pregătește pentru push/PR”, agentul trebuie să ruleze validările relevante înainte de verdict
+#READY  Minim recomandat pentru verdict „ready”: npm run typecheck && npm test && npm run build
+#READY  Dacă există script de lint funcțional, rulează și: npm run lint
+#READY  Nu spune „gata de push” dacă build-ul nu a fost rulat pentru schimbări care pot afecta bundling, asset paths, SSR sau imports
+#READY  Typecheck și testele nu sunt suficiente pentru erori Vite/Rollup; build-ul trebuie rulat explicit
+#READY  În răspunsul final, agentul trebuie să spună clar ce comenzi au trecut și ce nu a fost rulat
+
+---
+
 ## CAPCANE CUNOSCUTE #PITFALL
 
 #PITFALL  ipinfo.ts ← nu ipInfo.ts  (case sensitivity macOS vs Linux CI)
@@ -186,6 +199,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ## RECENT CHANGES #RECENT
 
 #RECENT  2026-04-11  Adăugat AGENTS.md ca entrypoint scurt pentru agenți; AI_MEMORY.md rămâne sursa principală de context
+#RECENT  2026-04-11  Regula nouă pentru push/PR: validare explicită cu typecheck + test + build, și lint când este relevant
 #RECENT  2026-04-11  Restructurat AI_MEMORY.md cu tag-uri rg-friendly (#TAG pe fiecare linie)
 #RECENT  2026-04-11  Blog SEO: 60 articole Markdown + API /api/blog + pagini /blog și /blog/:slug
 #RECENT  2026-04-11  data/blogManifest.ts: index static pentru SSR meta tags

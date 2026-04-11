@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import styles from './Onboardwizard.module.scss';
+import styles from './OnboardingWizard.module.scss';
 
 type Step = {
   targetSelector: string;

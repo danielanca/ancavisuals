@@ -3,8 +3,8 @@
  * upcoming and past tabs in the admin dashboard EventList component.
  */
 import { describe, expect, test } from "vitest";
-import { partitionEvents } from "../../../../client/components/AdminArea/EventList";
-import type { ClientEvent } from "../../../../client/types/admin";
+import { partitionEvents } from "../../../../client/features/admin/components/EventList";
+import type { ClientEvent } from "../../../../client/features/admin/types";
 
 const YEAR = 2026;
 const TODAY = new Date(`${YEAR}-06-15T00:00:00`);
