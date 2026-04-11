@@ -60,6 +60,15 @@ const getStyleSheets = async () => {
   }
 };
 
+const isAssetRequest = (url: string) => {
+  const pathname = url.split("?")[0];
+  return (
+    pathname.startsWith("/assets/") ||
+    pathname.startsWith("/public/assets/") ||
+    /\.[a-z0-9]+$/i.test(pathname)
+  );
+};
+
 async function createServer() {
   const app = express();
 
@@ -140,6 +149,11 @@ async function createServer() {
   app.use('*', async (req: Request, res: Response, next: NextFunction) => {
     const url = req.originalUrl;
 
+    if (isAssetRequest(url)) {
+      res.status(404).type("text/plain").end("Asset not found");
+      return;
+    }
+
     try {
       let htmlTemplate = template;
       let appHtml = "";
@@ -161,7 +175,13 @@ async function createServer() {
         .replace(`<!--app-html-->`, appHtml)
         .replace(`<!--head-->`, head + "\n" + cssAssets);
 
-      res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      res
+        .status(200)
+        .set({
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-store, max-age=0',
+        })
+        .end(html);
     } catch (e) {
       if (!isProd && vite && e instanceof Error) {
         vite.ssrFixStacktrace(e);

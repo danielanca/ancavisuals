@@ -177,6 +177,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 
 ## CAPCANE CUNOSCUTE #PITFALL
 
+#PITFALL  Dacă HTML-ul SSR rămâne în cache după deploy, poate referi asset-uri hash-uite vechi; browserul cere JS inexistent, iar fără protecție serverul poate răspunde cu HTML în catch-all (`text/html` în loc de modul JS) #PITFALL
 #PITFALL  ipinfo.ts ← nu ipInfo.ts  (case sensitivity macOS vs Linux CI)
 #PITFALL  QRMoment.routes.ts ← nu qrMoment.routes.ts
 #PITFALL  Onboardingwizard.tsx ← nu OnboardingWizard.tsx
@@ -198,6 +199,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-04-11: Fix defensiv pentru asset-uri lipsă după deploy/cache stale. `server.ts` nu mai trimite HTML pentru requesturi de asset ratate (returnează 404 text/plain) și setează `Cache-Control: no-store, max-age=0` pe răspunsurile SSR HTML, ca să nu rămână în cache un `index.html` care referă hash-uri vechi. Validat cu `npm run typecheck` și `npm run build`. #RECENT #PITFALL #SSR
 #RECENT  2026-04-11: Stilizarea articolelor de blog nu mai depinde de `prose` din Tailwind. `tailwind.config.cjs` nu are pluginul Typography activ, deci `prose` nu producea layout editorial real. Soluție: `src/client/pages/Blog/BlogPost.tsx` folosește acum clasa globală `blog-article`, definită în `src/client/index.css`, cu spacing, heading-uri, liste, blockquote, code și linkuri stilizate explicit. Validat cu `npm run typecheck` și `npm run build`. #RECENT #BLOG #PITFALL #THEME
 #RECENT  2026-04-11: Fix blog API 404 în build/prod. Cauza: blogUtils alegea `dist/data` doar pentru că exista, dar markdown-urile copiate erau în `dist/*.md`. Soluție: `src/server/utils/blogUtils.ts` rezolvă acum directorul de blog doar dintre candidații care conțin efectiv fișiere `.md`. Validat după build: `getPostBySlug('acte-botez-turda')` găsește postul și `getAllPosts()` returnează 60. #RECENT #BLOG #PITFALL
 
