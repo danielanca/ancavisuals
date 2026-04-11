@@ -54,6 +54,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #STACK  DB/Storage: Firebase + Firebase Admin
 #STACK  Entry server: server.ts
 #STACK  Entry SSR client: src/client/entry-server.tsx
+#STACK  Onboarding agent: AGENTS.md
 #STACK  Routes client: src/client/routes/publicRoutes.tsx
 #STACK  src/client       → pagini React, componente, hooks, SSR entry
 #STACK  src/server       → routes, controllers, services, notificări, utils
@@ -184,6 +185,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 
 ## RECENT CHANGES #RECENT
 
+#RECENT  2026-04-11  Adăugat AGENTS.md ca entrypoint scurt pentru agenți; AI_MEMORY.md rămâne sursa principală de context
 #RECENT  2026-04-11  Restructurat AI_MEMORY.md cu tag-uri rg-friendly (#TAG pe fiecare linie)
 #RECENT  2026-04-11  Blog SEO: 60 articole Markdown + API /api/blog + pagini /blog și /blog/:slug
 #RECENT  2026-04-11  data/blogManifest.ts: index static pentru SSR meta tags
