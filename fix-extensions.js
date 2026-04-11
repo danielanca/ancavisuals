@@ -55,7 +55,7 @@ const getBuildArea = (filePath) => {
     return 'public assets';
   }
 
-  if (relativePath.startsWith('src/__tests__/')) {
+  if (relativePath.startsWith('tests/vitest/')) {
     return 'compiled tests';
   }
 

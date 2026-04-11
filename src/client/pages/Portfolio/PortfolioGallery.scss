@@ -29,17 +29,14 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
 }
 
 .pg-item {
+  position: relative;
   display: block;
   width: 100%;
   margin: 0 0 $pg-gap;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: zoom-in;
   border-radius: $pg-radius;
   overflow: hidden;
   box-shadow: $pg-shadow;
-  break-inside: avoid; // ⬅️ important pentru masonry
+  break-inside: avoid;
   transition:
     transform 0.22s ease,
     box-shadow 0.22s ease;
@@ -52,7 +49,21 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
       transform: scale(1.03);
       filter: saturate(1.06);
     }
+
+    .pg-reaction {
+      opacity: 1;
+    }
   }
+}
+
+// Butonul care deschide lightbox-ul
+.pg-img-trigger {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
 }
 
 .pg-img {
@@ -63,6 +74,109 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   transition:
     transform 0.32s ease,
     filter 0.24s ease;
+}
+
+// Rând de badge-uri per tip de reacție
+.pg-reaction-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+
+  // Desktop: apare la hover
+  @media (min-width: 769px) {
+    .pg-item:hover & {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  // Mobil: apare după 2s în centrul ecranului
+  .pg-item--reactions-visible & {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.pg-reaction-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  transition: transform 0.15s ease, background 0.15s ease;
+
+  &:hover { transform: scale(1.1); }
+  &:active { transform: scale(0.9); }
+
+  &--active {
+    outline: 2px solid rgba(255, 100, 120, 0.6);
+  }
+}
+
+.pg-reaction-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+// Picker emoji — apare la long press / click pe cerc
+.pg-picker {
+  position: absolute;
+  bottom: 52px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(30, 30, 30, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  animation: pg-picker-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 10;
+}
+
+@keyframes pg-picker-pop {
+  from { opacity: 0; transform: scale(0.6) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.pg-picker-btn {
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 1.4rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease;
+
+  &:hover {
+    transform: scale(1.35);
+    background: rgba(255, 255, 255, 0.1);
+  }
+  &:active { transform: scale(0.9); }
+
+  &--active {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.15);
+  }
 }
 
 .pg-load-more {

@@ -16,10 +16,8 @@ tmp
 # Build
 public/css/main.css
 
-# Coverage reports
-coverage
-playwright-report
-test-results
+# Test reports
+reports
 
 # API keys and secrets
 
