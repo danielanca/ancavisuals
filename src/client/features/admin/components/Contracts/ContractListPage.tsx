@@ -5,7 +5,7 @@ import ConfirmModal from "../ConfirmModal";
 interface ContractItem {
   id: string;
   token: string;
-  status: "draft" | "sent" | "signed" | "expired";
+  status: "draft" | "sent" | "signed" | "expired" | "anulat";
   eventType: string;
   eventDate: string;
   clientEmail: string;

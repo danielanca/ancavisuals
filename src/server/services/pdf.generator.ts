@@ -86,7 +86,7 @@ function buildContractHTML(contract: Record<string, unknown>): string {
   const priceRest = Number(contract.priceRest) || (priceTotal - priceAdvance);
 
 
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="ro">
 <head>
 <meta charset="UTF-8">

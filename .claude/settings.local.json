@@ -7,7 +7,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx vitest:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

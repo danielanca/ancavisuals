@@ -197,7 +197,7 @@ const CreateContractPage: React.FC = () => {
         privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || "10",
-        eventId: fromEvent.eventId ?? null,
+        ...(fromEvent.eventId ? { eventId: fromEvent.eventId } : {}),
       };
 
       const res = await fetch("/api/contracts", {

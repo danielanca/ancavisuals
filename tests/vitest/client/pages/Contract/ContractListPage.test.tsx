@@ -90,6 +90,9 @@ describe("ContractListPage", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Trimite link" }));
 
+      // ConfirmModal apare — confirmăm acțiunea
+      fireEvent.click(await screen.findByRole("button", { name: "Trimite" }));
+
       await waitFor(() => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
       });
@@ -111,7 +114,7 @@ describe("ContractListPage", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Link" }));
 
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://ancavisuals.ro/contract/token-1");
-      expect(global.alert).toHaveBeenCalledWith("Link copiat!");
+      expect(await screen.findByText("Link copiat în clipboard!")).toBeInTheDocument();
     });
   });
 
