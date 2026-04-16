@@ -1,13 +1,17 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { ClientEvent, EventStatus } from "../types";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
+import MultiFileDropZone from "./MultiFileDropZone";
+import ConfirmModal from "./ConfirmModal";
 import { slugify } from "../../../utils/slugify";
 
 interface EventCardProps {
   event: ClientEvent;
   initialCollapsed?: boolean;
   onUpdated?: (updated: Partial<ClientEvent>) => void;
+  onDeleted?: () => void;
 }
 
 const STATUS_OPTIONS: EventStatus[] = ["lead", "tentativ", "confirmat", "finalizat", "anulat"];
@@ -19,37 +23,51 @@ const labelClass = "block text-neutral-400 text-xs font-medium mb-1 uppercase tr
 const formatEUR = (amount: number) =>
   new Intl.NumberFormat("ro-RO", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amount);
 
-const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onUpdated }) => {
-  const hasEventData = Boolean(event?.client && event?.pricing);
-  const fallbackDate = event?.eventDate ? new Date(event.eventDate) : new Date();
+const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onUpdated, onDeleted }) => {
+  const navigate = useNavigate();
+  const hasEventData = Boolean(event?.client);
+  const fallbackDate = event?.eventDate ? new Date(event.eventDate) : null;
   const fallbackName = event?.client?.fullName ?? "";
 
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contractUrl, setContractUrl] = useState(event.contractUrl ?? "");
   const [invoiceUrl, setInvoiceUrl] = useState(event.invoiceUrl ?? "");
+  const [attachmentUrls, setAttachmentUrls] = useState<string[]>(event.attachmentUrls ?? []);
 
   const eventDate = fallbackDate;
-  const isPast = eventDate < new Date();
+  const isPast = eventDate ? eventDate < new Date() : false;
+  const isLead = event.status === "lead" || event.status === "tentativ";
 
-  const dateSlug = eventDate.toISOString().slice(0, 10);
+  const dateSlug = eventDate ? eventDate.toISOString().slice(0, 10) : "no-date";
   const nameSlug = slugify(fallbackName);
   const docBasePath = (type: "contract" | "factura") =>
     `admin-docs/${event.id}/${nameSlug}_${dateSlug}_${type}`;
+
   const displayStatus: typeof event.status =
-    isPast && event.status === "confirmat" ? "finalizat" : event.status;
+    !isLead && isPast && event.status === "confirmat" ? "finalizat" : event.status;
 
-  const formattedDate = eventDate.toLocaleDateString("ro-RO", {
-    day: "numeric", month: "long", year: "numeric",
-  });
+  const formattedDate = eventDate
+    ? eventDate.toLocaleDateString("ro-RO", { day: "numeric", month: "long", year: "numeric" })
+    : "Dată nespecificată";
 
-  // Edit form state — initialised from event
+  const eventEndDate = event.eventEndDate ? new Date(event.eventEndDate) : null;
+  const formattedEndDate = eventEndDate
+    ? eventEndDate.toLocaleDateString("ro-RO", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
   const [form, setForm] = useState({
     fullName: fallbackName,
     phone: event?.client?.phone ?? "",
-    eventDate: eventDate.toISOString().slice(0, 10),
+    email: event?.client?.email ?? "",
+    eventDate: eventDate ? eventDate.toISOString().slice(0, 10) : "",
+    eventEndDate: eventEndDate ? eventEndDate.toISOString().slice(0, 10) : "",
+    typeLabel: event.typeLabel ?? "",
     total: String(event?.pricing?.total ?? 0),
     advanceAmount: String(event?.pricing?.advanceAmount ?? 0),
     advancePaid: event?.pricing?.advancePaid ?? false,
@@ -59,8 +77,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
 
   if (!hasEventData) return null;
 
-  const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm(f => ({ ...f, [field]: e.target.value }));
+  const set =
+    (field: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [field]: e.target.value }));
 
   const saveDocUrl = async (field: "contractUrl" | "invoiceUrl", url: string) => {
     if (field === "contractUrl") setContractUrl(url);
@@ -69,6 +89,15 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: url }),
+    });
+  };
+
+  const saveAttachments = async (urls: string[]) => {
+    setAttachmentUrls(urls);
+    await fetch(`/api/admin/events/${event.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ attachmentUrls: urls }),
     });
   };
 
@@ -82,6 +111,34 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     });
   };
 
+  const quickStatus = async (newStatus: EventStatus) => {
+    setQuickSaving(true);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error();
+      onUpdated?.({ status: newStatus });
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      onDeleted?.();
+    } catch {
+      setDeleting(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaveError(null);
@@ -89,17 +146,27 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     const total = parseFloat(form.total) || 0;
     const advanceAmount = parseFloat(form.advanceAmount) || 0;
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       "client.fullName": form.fullName,
       "client.phone": form.phone,
-      eventDate: form.eventDate,
+      "client.email": form.email,
       status: form.status,
       notes: form.notes,
+      typeLabel: form.typeLabel || null,
       "pricing.total": total,
       "pricing.advanceAmount": advanceAmount,
       "pricing.advancePaid": form.advancePaid,
       "pricing.remainingAmount": total - advanceAmount,
     };
+
+    if (form.eventDate) {
+      payload.eventDate = form.eventDate;
+    }
+    if (form.eventEndDate) {
+      payload.eventEndDate = form.eventEndDate;
+    } else {
+      payload.eventEndDate = null;
+    }
 
     try {
       const res = await fetch(`/api/admin/events/${event.id}`, {
@@ -109,8 +176,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       });
       if (!res.ok) throw new Error("Eroare la salvare.");
       onUpdated?.({
-        client: { ...event.client, fullName: form.fullName, phone: form.phone },
-        eventDate: new Date(form.eventDate),
+        client: { ...event.client, fullName: form.fullName, phone: form.phone, email: form.email },
+        eventDate: form.eventDate ? new Date(form.eventDate) : null,
+        eventEndDate: form.eventEndDate ? new Date(form.eventEndDate) : null,
+        typeLabel: form.typeLabel || undefined,
         status: form.status as EventStatus,
         notes: form.notes,
         pricing: { total, advanceAmount, advancePaid: form.advancePaid, remainingAmount: total - advanceAmount },
@@ -130,7 +199,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         {/* Header row */}
         <button
           type="button"
-          onClick={() => setCollapsed(c => !c)}
+          onClick={() => setCollapsed((c) => !c)}
           className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
         >
           <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -138,22 +207,33 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
             <span className="text-neutral-500 text-xs">•</span>
             <span className="text-white text-sm font-medium truncate">{event.client.fullName}</span>
             <span className="text-neutral-500 text-xs">•</span>
-            <span className="text-neutral-400 text-xs">{formattedDate}</span>
+            <span className={`text-xs ${eventDate ? "text-neutral-400" : "text-neutral-600 italic"}`}>
+              {formattedDate}
+            </span>
           </div>
           <div className="flex items-center gap-2.5 shrink-0">
-            <span className="text-neutral-300 text-xs font-medium">{formatEUR(event.pricing.total)}</span>
-            <div className="flex items-center gap-1">
-              <span title={contractUrl ? "Contract încărcat" : "Contract lipsă"} className={`text-xs ${contractUrl ? "text-emerald-400" : "text-red-400"}`}>
-                {contractUrl ? "✓" : "✗"}
+            {!isLead && (
+              <span className="text-neutral-300 text-xs font-medium">
+                {formatEUR(event.pricing?.total ?? 0)}
               </span>
-              <span className="text-neutral-700 text-xs">C</span>
-              <span title={invoiceUrl ? "Factură încărcată" : "Factură lipsă"} className={`text-xs ml-1.5 ${invoiceUrl ? "text-emerald-400" : "text-red-400"}`}>
-                {invoiceUrl ? "✓" : "✗"}
-              </span>
-              <span className="text-neutral-700 text-xs">F</span>
-            </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              className={`text-neutral-500 transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}>
+            )}
+            {!isLead && (
+              <div className="flex items-center gap-2">
+                {(event.contractId || contractUrl || attachmentUrls.length > 0) ? (
+                  <span title="Contract existent" className="text-xs text-emerald-400 font-medium">C✓</span>
+                ) : (
+                  <span title="Fără contract" className="text-xs text-neutral-600">C—</span>
+                )}
+                <span title={invoiceUrl ? "Factură încărcată" : "Factură lipsă"} className={`text-xs ${invoiceUrl ? "text-emerald-400" : "text-neutral-600"}`}>
+                  {invoiceUrl ? "F✓" : "F—"}
+                </span>
+              </div>
+            )}
+            <svg
+              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              className={`text-neutral-500 transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}
+            >
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </div>
@@ -161,32 +241,132 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
 
         {/* Body */}
         {!collapsed && (
-          <div className="px-4 pb-4 border-t border-neutral-800 pt-3 space-y-2">
+          <div className="px-4 pb-4 border-t border-neutral-800 pt-3 space-y-3">
+
+            {/* Info row */}
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-neutral-400">
-              <span className="flex items-center gap-1.5"><span>📅</span>{formattedDate}</span>
-              <span className="flex items-center gap-1.5"><span>💶</span>{formatEUR(event.pricing.total)}</span>
-              <span className="flex items-center gap-1.5">
-                <span>{event.pricing.advancePaid ? "✅" : "⏳"}</span>
-                {event.pricing.advancePaid
-                  ? `Avans încasat (${formatEUR(event.pricing.advanceAmount)})`
-                  : `Avans neîncasat (${formatEUR(event.pricing.advanceAmount)})`}
-              </span>
-              {event.type && <span className="flex items-center gap-1.5"><span>🎉</span>{event.type}</span>}
-              {event.client.phone && <span className="flex items-center gap-1.5"><span>📞</span>{event.client.phone}</span>}
-              {event.contractId && <span className="flex items-center gap-1.5 font-mono"><span>#</span>{event.contractId}</span>}
+              {eventDate && (
+                <span className="flex items-center gap-1.5">
+                  <span>📅</span>
+                  {formattedDate}
+                  {formattedEndDate && ` → ${formattedEndDate}`}
+                </span>
+              )}
+              {event.type && (
+                <span className="flex items-center gap-1.5">
+                  <span>🎉</span>
+                  {event.typeLabel || event.type}
+                </span>
+              )}
+              {event.client.phone && (
+                <span className="flex items-center gap-1.5"><span>📞</span>{event.client.phone}</span>
+              )}
+              {event.client.email && (
+                <span className="flex items-center gap-1.5"><span>✉</span>{event.client.email}</span>
+              )}
+              {!isLead && (
+                <>
+                  <span className="flex items-center gap-1.5"><span>💶</span>{formatEUR(event.pricing?.total ?? 0)}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span>{event.pricing?.advancePaid ? "✅" : "⏳"}</span>
+                    {event.pricing?.advancePaid
+                      ? `Avans încasat (${formatEUR(event.pricing.advanceAmount)})`
+                      : `Avans neîncasat (${formatEUR(event.pricing?.advanceAmount ?? 0)})`}
+                  </span>
+                  {(event.pricing?.remainingAmount ?? 0) > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <span>💳</span>
+                      {`Rest de plată: ${formatEUR(event.pricing.remainingAmount)}`}
+                    </span>
+                  )}
+                </>
+              )}
+              {event.contractId ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate("/admin/contracts"); }}
+                  className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>Contract digital</span>
+                </button>
+              ) : !isLead && event.status !== "anulat" && !contractUrl && attachmentUrls.length === 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/admin/contracts/create", {
+                      state: {
+                        eventId: event.id,
+                        eventType: event.type,
+                        eventDate: eventDate ? eventDate.toISOString().slice(0, 10) : "",
+                        clientEmail: event.client.email ?? "",
+                      },
+                    });
+                  }}
+                  className="flex items-center gap-1 text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span>Creează contract</span>
+                </button>
+              )}
             </div>
 
             {event.notes && (
-              <p className="text-neutral-500 text-xs leading-relaxed border-t border-neutral-800 pt-2">{event.notes}</p>
+              <p className="text-neutral-500 text-xs leading-relaxed border-t border-neutral-800 pt-2">
+                {event.notes}
+              </p>
             )}
 
-            {(contractUrl || invoiceUrl) && (
+            {/* Quick actions for leads */}
+            {isLead && (
+              <div className="flex items-center gap-2 border-t border-neutral-800 pt-3">
+                {event.status === "lead" && (
+                  <button
+                    onClick={() => quickStatus("tentativ")}
+                    disabled={quickSaving}
+                    className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors disabled:opacity-40"
+                  >
+                    Tentativ
+                  </button>
+                )}
+                <button
+                  onClick={() => quickStatus("confirmat")}
+                  disabled={quickSaving}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
+                >
+                  ✓ Confirmă
+                </button>
+                <button
+                  onClick={() => quickStatus("anulat")}
+                  disabled={quickSaving}
+                  className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/30 transition-colors disabled:opacity-40"
+                >
+                  ✗ Renunță
+                </button>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="ml-auto flex items-center gap-1.5 text-xs text-neutral-500 hover:text-white transition-colors"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  Modifică
+                </button>
+              </div>
+            )}
+
+            {/* Documents (only for confirmed events) */}
+            {!isLead && (contractUrl || invoiceUrl) && (
               <div className="flex gap-3 border-t border-neutral-800 pt-2">
                 {contractUrl && (
                   <a href={contractUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
                     </svg>
                     Contract
                   </a>
@@ -195,7 +375,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   <a href={invoiceUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
                     </svg>
                     Factură
                   </a>
@@ -203,21 +383,50 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               </div>
             )}
 
-            <div className="pt-2 border-t border-neutral-800">
-              <button
-                onClick={() => setEditing(true)}
-                className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                Modifică
-              </button>
-            </div>
+            {/* Edit button for confirmed events */}
+            {!isLead && (
+              <div className="pt-2 border-t border-neutral-800 flex items-center justify-between">
+                <button
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  Modifică
+                </button>
+                {event.status === "anulat" && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={deleting}
+                    className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 transition-colors disabled:opacity-40"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                    {deleting ? "Se șterge..." : "Șterge definitiv"}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {showDeleteConfirm && (
+        <ConfirmModal
+          title="Șterge eveniment"
+          message={`Ești sigur că vrei să ștergi definitiv evenimentul lui ${event.client.fullName}? Acțiunea nu poate fi anulată.`}
+          confirmLabel="Șterge definitiv"
+          variant="danger"
+          onConfirm={() => { setShowDeleteConfirm(false); handleDelete(); }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
 
       {/* Edit modal */}
       {editing && (
@@ -227,10 +436,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         >
           <div
             className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-white text-base font-semibold">Modifică eveniment</h2>
+              <h2 className="text-white text-base font-semibold">Modifică</h2>
               <button onClick={() => setEditing(false)} className="text-neutral-500 hover:text-white transition-colors text-lg leading-none">✕</button>
             </div>
 
@@ -239,18 +448,36 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 <label className={labelClass}>Nume client</label>
                 <input className={inputClass} value={form.fullName} onChange={set("fullName")} />
               </div>
-              <div>
-                <label className={labelClass}>Telefon</label>
-                <input className={inputClass} value={form.phone} onChange={set("phone")} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Telefon</label>
+                  <input className={inputClass} value={form.phone} onChange={set("phone")} />
+                </div>
+                <div>
+                  <label className={labelClass}>Email</label>
+                  <input className={inputClass} value={form.email} onChange={set("email")} />
+                </div>
               </div>
-              <div>
-                <label className={labelClass}>Data evenimentului</label>
-                <input type="date" className={inputClass} value={form.eventDate} onChange={set("eventDate")} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Data evenimentului</label>
+                  <input type="date" className={inputClass} value={form.eventDate} onChange={set("eventDate")} />
+                </div>
+                <div>
+                  <label className={labelClass}>Dată sfârșit (opțional)</label>
+                  <input type="date" className={inputClass} value={form.eventEndDate} onChange={set("eventEndDate")} min={form.eventDate || undefined} />
+                </div>
               </div>
+              {event.type === "Altele" && (
+                <div>
+                  <label className={labelClass}>Descriere</label>
+                  <input className={inputClass} placeholder="ex: Concediu, Vacanță..." value={form.typeLabel} onChange={set("typeLabel")} />
+                </div>
+              )}
               <div>
                 <label className={labelClass}>Status</label>
                 <select className={inputClass} value={form.status} onChange={set("status")}>
-                  {STATUS_OPTIONS.map(s => (
+                  {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                   ))}
                 </select>
@@ -270,10 +497,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   id="advancePaid"
                   type="checkbox"
                   checked={form.advancePaid}
-                  onChange={e => setForm(f => ({ ...f, advancePaid: e.target.checked }))}
+                  onChange={(e) => setForm((f) => ({ ...f, advancePaid: e.target.checked }))}
                   className="w-4 h-4 accent-emerald-500"
                 />
-                <label htmlFor="advancePaid" className="text-neutral-400 text-xs cursor-pointer">Avans încasat</label>
+                <label htmlFor="advancePaid" className="text-neutral-400 text-xs cursor-pointer">
+                  Avans încasat
+                </label>
               </div>
               <div>
                 <label className={labelClass}>Note</label>
@@ -288,20 +517,28 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 label="Contract"
                 storagePath={docBasePath("contract")}
                 currentUrl={contractUrl}
-                onUploaded={url => saveDocUrl("contractUrl", url)}
+                onUploaded={(url) => saveDocUrl("contractUrl", url)}
                 onDeleted={() => deleteDocUrl("contractUrl")}
               />
               <FileDropZone
                 label="Factură"
                 storagePath={docBasePath("factura")}
                 currentUrl={invoiceUrl}
-                onUploaded={url => saveDocUrl("invoiceUrl", url)}
+                onUploaded={(url) => saveDocUrl("invoiceUrl", url)}
                 onDeleted={() => deleteDocUrl("invoiceUrl")}
+              />
+              <MultiFileDropZone
+                label="Contract fizic (poze / scan)"
+                storagePath={`admin-docs/${event.id}/attachments`}
+                urls={attachmentUrls}
+                onUrlsChange={saveAttachments}
               />
             </div>
 
             {saveError && (
-              <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{saveError}</p>
+              <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+                {saveError}
+              </p>
             )}
 
             <div className="flex gap-3 pt-1">

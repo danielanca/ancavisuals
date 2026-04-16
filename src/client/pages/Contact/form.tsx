@@ -83,6 +83,13 @@ export default function BookingWizard() {
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [isAvailable, setIsAvailable] = useState<null | boolean>(null);
 
+  useEffect(() => {
+    fetch("/api/booked-dates")
+      .then(r => r.json())
+      .then(data => setBookedDates(data.dates ?? []))
+      .catch(() => setBookedDates([]));
+  }, []);
+
   // Step 2 – tip
   const [eventType, setEventType] = useState<EventType>("nunta");
 

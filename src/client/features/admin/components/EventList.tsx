@@ -7,6 +7,7 @@ interface EventListProps {
   events: ClientEvent[];
   onAddEvent: () => void;
   onEventUpdated?: (id: string, updated: Partial<ClientEvent>) => void;
+  onEventDeleted?: (id: string) => void;
 }
 
 const MONTHS_RO = [
@@ -18,11 +19,13 @@ export function groupByMonth(events: ClientEvent[], ascending: boolean): Map<str
   const map = new Map<string, ClientEvent[]>();
 
   const sorted = [...events].sort((a, b) => {
-    const diff = new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
-    return ascending ? diff : -diff;
+    const aTime = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+    const bTime = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+    return ascending ? aTime - bTime : bTime - aTime;
   });
 
   for (const event of sorted) {
+    if (!event.eventDate) continue;
     const date = new Date(event.eventDate);
     const key = `${MONTHS_RO[date.getMonth()].toUpperCase()} ${date.getFullYear()}`;
     if (!map.has(key)) map.set(key, []);
@@ -35,33 +38,40 @@ export function groupByMonth(events: ClientEvent[], ascending: boolean): Map<str
 export const PAST_STATUSES = new Set(["confirmat", "finalizat"]);
 
 export function partitionEvents(events: ClientEvent[], today: Date, currentYear: number) {
-  const yearEvents = events.filter((e) => new Date(e.eventDate).getFullYear() === currentYear);
-  const upcoming = yearEvents.filter((e) => new Date(e.eventDate) >= today);
-  const past = yearEvents.filter(
-    (e) => new Date(e.eventDate) < today && PAST_STATUSES.has(e.status),
+  const yearEvents = events.filter(
+    (e) => e.eventDate && new Date(e.eventDate).getFullYear() === currentYear,
   );
-  return { yearEvents, upcoming, past };
+  const upcoming = yearEvents.filter(
+    (e) => e.eventDate && new Date(e.eventDate) >= today && PAST_STATUSES.has(e.status),
+  );
+  const past = yearEvents.filter(
+    (e) =>
+      e.eventDate &&
+      new Date(e.eventDate) < today &&
+      PAST_STATUSES.has(e.status),
+  );
+  const leads = events.filter((e) => e.status === "lead" || e.status === "tentativ");
+  const archived = events.filter((e) => e.status === "anulat");
+  return { yearEvents, upcoming, past, leads, archived };
 }
 
-const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdated }) => {
+type Tab = "leaduri" | "viitor" | "trecut" | "arhiva";
+
+const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdated, onEventDeleted }) => {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"viitor" | "trecut">("viitor");
+  const [tab, setTab] = useState<Tab>("viitor");
   const [allCollapsed, setAllCollapsed] = useState(false);
-  // key to force remount of all cards when toggling all
   const [collapseKey, setCollapseKey] = useState(0);
 
   const currentYear = new Date().getFullYear();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const { upcoming, past } = partitionEvents(events, today, currentYear);
-
-  const active = tab === "viitor" ? upcoming : past;
-  const grouped = groupByMonth(active, tab === "viitor");
+  const { upcoming, past, leads, archived } = partitionEvents(events, today, currentYear);
 
   const handleToggleAll = () => {
-    setAllCollapsed(c => !c);
-    setCollapseKey(k => k + 1);
+    setAllCollapsed((c) => !c);
+    setCollapseKey((k) => k + 1);
   };
 
   function renderGroup(grouped: Map<string, ClientEvent[]>) {
@@ -80,6 +90,108 @@ const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdate
         </div>
       </div>
     ));
+  }
+
+  function renderLeads(list: ClientEvent[]) {
+    // sort: tentativ first, then lead; within each group sort by createdAt desc
+    const sorted = [...list].sort((a, b) => {
+      if (a.status === b.status) return b.createdAt.getTime() - a.createdAt.getTime();
+      return a.status === "tentativ" ? -1 : 1;
+    });
+    return (
+      <div className="space-y-2">
+        {sorted.map((event) => (
+          <EventCard
+            key={`${event.id}-${collapseKey}`}
+            event={event}
+            initialCollapsed={allCollapsed}
+            onUpdated={(updated) => onEventUpdated?.(event.id, updated)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  function renderArchive(list: ClientEvent[]) {
+    const sorted = [...list].sort((a, b) => {
+      const aTime = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+      const bTime = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+      return bTime - aTime;
+    });
+    return (
+      <div className="space-y-2 opacity-60">
+        {sorted.map((event) => (
+          <EventCard
+            key={`${event.id}-${collapseKey}`}
+            event={event}
+            initialCollapsed={true}
+            onUpdated={(updated) => onEventUpdated?.(event.id, updated)}
+            onDeleted={() => onEventDeleted?.(event.id)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const tabs: { key: Tab; label: string; count: number; color: string }[] = [
+    { key: "leaduri", label: "Lead-uri", count: leads.length, color: "bg-amber-500/20 text-amber-400" },
+    { key: "viitor", label: "Viitoare", count: upcoming.length, color: "bg-emerald-500/20 text-emerald-400" },
+    { key: "trecut", label: "Trecute", count: past.length, color: "bg-neutral-600 text-neutral-300" },
+    { key: "arhiva", label: "Arhivă", count: archived.length, color: "bg-red-500/20 text-red-400" },
+  ];
+
+  function renderContent() {
+    if (tab === "leaduri") {
+      if (leads.length === 0) {
+        return (
+          <div className="text-center py-12">
+            <p className="text-neutral-500 text-sm">Niciun lead activ.</p>
+            <button
+              onClick={onAddEvent}
+              className="mt-4 text-xs text-neutral-400 underline underline-offset-4 hover:text-white transition-colors"
+            >
+              Adaugă primul lead
+            </button>
+          </div>
+        );
+      }
+      return renderLeads(leads);
+    }
+
+    if (tab === "viitor") {
+      const grouped = groupByMonth(upcoming, true);
+      if (grouped.size === 0) {
+        return (
+          <div className="text-center py-12">
+            <p className="text-neutral-500 text-sm">Niciun eveniment viitor confirmat în {currentYear}.</p>
+          </div>
+        );
+      }
+      return <div className="space-y-8">{renderGroup(grouped)}</div>;
+    }
+
+    if (tab === "trecut") {
+      const grouped = groupByMonth(past, false);
+      if (grouped.size === 0) {
+        return (
+          <div className="text-center py-12">
+            <p className="text-neutral-500 text-sm">Niciun eveniment finalizat în {currentYear}.</p>
+          </div>
+        );
+      }
+      return <div className={`space-y-8 opacity-70`}>{renderGroup(grouped)}</div>;
+    }
+
+    if (tab === "arhiva") {
+      if (archived.length === 0) {
+        return (
+          <div className="text-center py-12">
+            <p className="text-neutral-500 text-sm">Arhiva este goală.</p>
+          </div>
+        );
+      }
+      return renderArchive(archived);
+    }
   }
 
   return (
@@ -104,68 +216,39 @@ const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdate
           </button>
           <button
             onClick={onAddEvent}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-black text-xs font-medium hover:bg-neutral-200 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-medium hover:bg-amber-400 transition-colors"
           >
             <span className="text-base leading-none">+</span>
-            Adaugă
+            Lead nou
           </button>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-neutral-800/60 rounded-xl p-1 mb-6">
-        <button
-          onClick={() => setTab("viitor")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-colors ${
-            tab === "viitor"
-              ? "bg-neutral-900 text-white shadow"
-              : "text-neutral-500 hover:text-neutral-300"
-          }`}
-        >
-          Viitoare
-          {upcoming.length > 0 && (
-            <span className={`px-1.5 py-0.5 rounded-full text-xs ${tab === "viitor" ? "bg-emerald-500/20 text-emerald-400" : "bg-neutral-700 text-neutral-500"}`}>
-              {upcoming.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab("trecut")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-colors ${
-            tab === "trecut"
-              ? "bg-neutral-900 text-white shadow"
-              : "text-neutral-500 hover:text-neutral-300"
-          }`}
-        >
-          Trecute
-          {past.length > 0 && (
-            <span className={`px-1.5 py-0.5 rounded-full text-xs ${tab === "trecut" ? "bg-neutral-600 text-neutral-300" : "bg-neutral-700 text-neutral-500"}`}>
-              {past.length}
-            </span>
-          )}
-        </button>
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+              tab === t.key
+                ? "bg-neutral-900 text-white shadow"
+                : "text-neutral-500 hover:text-neutral-300"
+            }`}
+          >
+            {t.label}
+            {t.count > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-xs ${tab === t.key ? t.color : "bg-neutral-700 text-neutral-500"}`}>
+                {t.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Content */}
-      {grouped.size === 0 ? (
-        <div className="text-center py-12">
-          {tab === "viitor" ? (
-            <>
-              <p className="text-neutral-500 text-sm">Niciun eveniment viitor în {currentYear}.</p>
-              <button
-                onClick={onAddEvent}
-                className="mt-4 text-xs text-neutral-400 underline underline-offset-4 hover:text-white transition-colors"
-              >
-                Adaugă primul eveniment
-              </button>
-            </>
-          ) : (
-            <p className="text-neutral-500 text-sm">Niciun eveniment finalizat în {currentYear}.</p>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Collapse all toggle */}
+      <>
+        {(tab !== "leaduri" && tab !== "arhiva") && (
           <div className="flex justify-end mb-3">
             <button
               onClick={handleToggleAll}
@@ -181,12 +264,9 @@ const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdate
               {allCollapsed ? "Expandează tot" : "Colapsează tot"}
             </button>
           </div>
-
-          <div className={`space-y-8 ${tab === "trecut" ? "opacity-70" : ""}`}>
-            {renderGroup(grouped)}
-          </div>
-        </>
-      )}
+        )}
+        {renderContent()}
+      </>
     </div>
   );
 };

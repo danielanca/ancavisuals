@@ -54,6 +54,13 @@ export default function AdminBook() {
   const [advance, setAdvance] = useState("");
   const [currency, setCurrency] = useState<"EUR" | "RON">("EUR");
   const [exchangeRate, setExchangeRate] = useState("5.0");
+
+  useEffect(() => {
+    fetch("/api/admin/settings")
+      .then(r => r.json())
+      .then(data => { if (data.exchangeRate) setExchangeRate(String(data.exchangeRate)); })
+      .catch(() => {});
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -63,7 +70,14 @@ export default function AdminBook() {
   const [day, setDay] = useState(initialDate.getDate());
   const [month, setMonth] = useState(initialDate.getMonth());
   const [year, setYear] = useState(initialDate.getFullYear());
-  const [bookedDates] = useState<string[]>([]);
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/booked-dates")
+      .then(r => r.json())
+      .then(data => setBookedDates(data.dates ?? []))
+      .catch(() => setBookedDates([]));
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {

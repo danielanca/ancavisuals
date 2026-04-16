@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import type { ClientEvent, AdminSettings } from "../../types";
 import GoalCard from "../GoalCard";
 import EventList from "../EventList";
+import AddLeadModal from "../AddLeadModal";
+import FinancialSummary from "../FinancialSummary";
 import useAuth from "../../auth/useAuth";
 import AncaLoader from "../../../../components/UI/AncaLoader";
 
@@ -11,7 +13,7 @@ const CREATE_EVENT_ROUTE = "/admin/create-event";
 const ROBOTS_META_NAME = "robots";
 const ROBOTS_META_CONTENT = "noindex, nofollow";
 const DASHBOARD_HEADING = "Bună, Dani 👋";
-const SIX_MONTHS_GOAL_TITLE = "Goal 6 Luni";
+const SIX_MONTHS_GOAL_TITLE = "Goal Personalizat";
 const ONE_YEAR_GOAL_TITLE = "Goal 1 An";
 
 const SIX_MONTHS_TARGET_REVENUE = 15000;
@@ -36,6 +38,7 @@ const DEFAULT_SETTINGS: AdminSettings = {
     },
   },
   currency: "EUR",
+  exchangeRate: 5.0,
 };
 
 const Dashboard: React.FC = () => {
@@ -46,10 +49,12 @@ const Dashboard: React.FC = () => {
     await logOut();
     navigate(LOGIN_ROUTE, { replace: true });
   };
+
   const [events, setEvents] = useState<ClientEvent[]>([]);
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showLeadModal, setShowLeadModal] = useState(false);
 
   useEffect(() => {
     const meta = document.createElement("meta");
@@ -69,9 +74,10 @@ const Dashboard: React.FC = () => {
       .then(([eventsData, settingsData]) => {
         if (eventsData.error) throw new Error(eventsData.error);
         setEvents(
-          (eventsData.events ?? []).map((event: ClientEvent & { eventDate: string; createdAt: string }) => ({
+          (eventsData.events ?? []).map((event: ClientEvent & { eventDate: string | null; eventEndDate?: string | null; createdAt: string }) => ({
             ...event,
-            eventDate: new Date(event.eventDate),
+            eventDate: event.eventDate ? new Date(event.eventDate) : null,
+            eventEndDate: event.eventEndDate ? new Date(event.eventEndDate) : null,
             createdAt: new Date(event.createdAt),
           })),
         );
@@ -81,12 +87,36 @@ const Dashboard: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleAddEvent = () => navigate(CREATE_EVENT_ROUTE);
+  const handleAddEvent = () => setShowLeadModal(true);
+
+  const handleLeadAdded = (newEvent: ClientEvent) => {
+    setEvents(prev => [newEvent, ...prev]);
+  };
 
   const handleEventUpdated = (id: string, updated: Partial<ClientEvent>) => {
     setEvents(prev =>
       prev.map(e => e.id === id ? { ...e, ...updated } : e)
     );
+  };
+
+  const handleEventDeleted = (id: string) => {
+    setEvents(prev => prev.filter(e => e.id !== id));
+  };
+
+  const handleGoalUpdate = async (key: "sixMonths" | "oneYear", updates: { targetRevenue: number; startDate: string; endDate: string }) => {
+    const updated: AdminSettings = {
+      ...settings,
+      goals: {
+        ...settings.goals,
+        [key]: { ...settings.goals[key], ...updates },
+      },
+    };
+    setSettings(updated);
+    await fetch("/api/admin/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated),
+    });
   };
 
   if (loading) return <AncaLoader />;
@@ -100,6 +130,7 @@ const Dashboard: React.FC = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-4xl mx-auto space-y-8">
 
@@ -126,17 +157,62 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* Goal Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <GoalCard title={SIX_MONTHS_GOAL_TITLE} goal={settings.goals.sixMonths} events={events} />
-          <GoalCard title={ONE_YEAR_GOAL_TITLE} goal={settings.goals.oneYear} events={events} />
+        {/* Quick nav */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => navigate("/admin/create-event")}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 hover:text-emerald-300 transition-colors font-medium"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Eveniment nou
+          </button>
+          <button
+            onClick={() => navigate("/admin/calendar")}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            Calendar
+          </button>
+          <button
+            onClick={() => navigate("/admin/contracts")}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            Contracte
+          </button>
         </div>
 
+        {/* Goal Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <GoalCard title={SIX_MONTHS_GOAL_TITLE} goal={settings.goals.sixMonths} events={events} editableRange onGoalUpdate={(u) => handleGoalUpdate("sixMonths", u)} />
+          <GoalCard title={ONE_YEAR_GOAL_TITLE} goal={settings.goals.oneYear} events={events} onGoalUpdate={(u) => handleGoalUpdate("oneYear", u)} />
+        </div>
+
+        {/* Financial Summary */}
+        <FinancialSummary events={events} />
+
         {/* Event List */}
-        <EventList events={events} onAddEvent={handleAddEvent} onEventUpdated={handleEventUpdated} />
+        <EventList events={events} onAddEvent={handleAddEvent} onEventUpdated={handleEventUpdated} onEventDeleted={handleEventDeleted} />
 
       </div>
     </div>
+
+    {showLeadModal && (
+      <AddLeadModal
+        onClose={() => setShowLeadModal(false)}
+        onAdded={handleLeadAdded}
+      />
+    )}
+    </>
   );
 };
 

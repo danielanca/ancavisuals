@@ -40,6 +40,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #   rg -n "#THEME"    AI_MEMORY.md   → culori și constante UI
 #   rg -n "#DEBUG"    AI_MEMORY.md   → debugging rapid
 #   rg -n "#RECENT"   AI_MEMORY.md   → modificări recente
+#   rg -n "#ADMIN"    AI_MEMORY.md   → admin dashboard, events, contracte
 
 ---
 
@@ -181,6 +182,36 @@ Același principiu se aplică și pentru căutări în codul sursă:
 
 ---
 
+## ADMIN DASHBOARD #ADMIN
+
+#ADMIN  Rută principală:      /admin → Dashboard (RequireAuth)
+#ADMIN  Colecție events:      Firestore `adminEvents` — statusuri: lead | tentativ | confirmat | finalizat | anulat
+#ADMIN  Colecție contracte:   Firestore `contracts` — statusuri: draft | sent | signed | expired | anulat
+#ADMIN  eventDate nullable:   `ClientEvent.eventDate` este `Date | null` — lead-urile pot fi fără dată
+#ADMIN  Lead flow:            AddLeadModal → status "lead" → butoane rapide Tentativ/Confirmă/Renunță în EventCard
+#ADMIN  EventList tabs:       Lead-uri (lead+tentativ) | Viitoare (confirmat, dată>=azi) | Trecute | Arhivă (anulat)
+#ADMIN  EventList default:    Tab implicit = "Viitoare" (nu Lead-uri)
+#ADMIN  Contract routes:      src/server/routes/contracts.routes.ts
+#ADMIN  Contract PDF:         src/server/services/pdf.generator.ts (Puppeteer)
+#ADMIN  Contract email:       src/server/notifications/templates/contractEmail.ts
+#ADMIN  Contract storage:     Firebase Storage `contracts/` folder, signed URL valid până 2099
+#ADMIN  Contract editare:     PATCH /api/contracts/:id — blocat dacă status === "signed"; EditContractPage la /admin/contracts/:id/edit
+#ADMIN  Contract-event link:  Bidirectional — `contractId` pe eveniment, `eventId` pe contract; POST /api/contracts acceptă eventId și actualizează adminEvents
+#ADMIN  Contract fizic:       `attachmentUrls: string[]` pe event (poze/scan) = echivalent cu a avea contract; ascunde "Creează contract", arată C✓
+#ADMIN  Admin events routes:  src/server/routes/adminEvents.routes.ts
+#ADMIN  Admin calendar:       src/server/routes/adminCalendar.routes.ts → citește bookedDates.json din Storage
+#ADMIN  Semnătură canvas:     prestatorSignatureBase64 (admin) + clientSignatureBase64 (client) în Firestore
+#ADMIN  Zile ocupate (public): GET /api/booked-dates → src/server/routes/publicBookedDates.routes.ts → adminEvents
+#ADMIN  bookedDates.json:     DEFUNCT — nu mai e sursa de adevăr pentru disponibilitate
+#ADMIN  Settings Firestore:   `settings/admin` doc conține `goals`, `currency`, `exchangeRate`
+#ADMIN  GoalCard:             Editabil (EUR target + date range); 6-luni are `editableRange` prop pentru date picker; titlu "Goal Personalizat"
+#ADMIN  FinancialSummary:     Componentă nouă — filtrează confirmat+finalizat, an curent; arată avans încasat, urmează să primești, detaliu pe evenimente
+#ADMIN  MultiFileDropZone:    Componentă nouă — upload multiple fișiere cu thumbnails imagini, progress per fișier, delete individual
+#ADMIN  AddLeadModal pricing: Include câmpuri total/avans/rest cu calcul automat; checkbox "avans deja încasat"; backend citește pricing direct din body
+#ADMIN  rg shortcut:          rg -n "#ADMIN" AI_MEMORY.md
+
+---
+
 ## CAPCANE CUNOSCUTE #PITFALL
 
 #PITFALL  Dacă HTML-ul SSR rămâne în cache după deploy, poate referi asset-uri hash-uite vechi; browserul cere JS inexistent, iar fără protecție serverul poate răspunde cu HTML în catch-all (`text/html` în loc de modul JS) #PITFALL
@@ -192,6 +223,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #PITFALL  SSR: renderToString sincron → nu folosi fetch async pentru date SSR
 #PITFALL  blog: articol fără intrare în blogManifest.ts → SSR fără meta tags
 #PITFALL  worktree: nu reseta schimbări care nu sunt ale tale fără git status
+#PITFALL  Firestore Timestamps: când se citesc din Firestore în backend și se pasează la Puppeteer PDF, apar ca obiecte {_seconds, _nanoseconds}. `new Date(timestamp)` → "Invalid Date", String(timestamp) → "[object Object]". Fix: helper toIsoString() în pdf.generator.ts care detectează _seconds și convertește. #PITFALL #ADMIN
 
 ---
 
@@ -205,6 +237,15 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-04-16: Contract feature extins — editare contract înainte de semnare (EditContractPage la /admin/contracts/:id/edit, amber accent); PATCH /api/contracts/:id blocat dacă status=signed; linking bidirecțional contract↔eveniment via contractId/eventId; CreateContractPage pre-populat din EventCard via location.state; contract fizic (attachmentUrls) = echivalent cu contract digital (C✓, ascunde "Creează contract"). #RECENT #ADMIN
+#RECENT  2026-04-16: Fix Firestore Timestamps în PDF generator — Timestamp objects ({_seconds, _nanoseconds}) erau coerced la "[object Object]" în template literals. Adăugat helper toIsoString() în pdf.generator.ts care detectează shape-ul Timestamp și convertește via _seconds*1000. Fix aplicat pe signedDate, contractDate, footer timestamp. #RECENT #ADMIN #PITFALL
+#RECENT  2026-04-16: AddLeadModal — câmpuri noi total/avans/rest cu calcul automat și checkbox "avans deja încasat"; fix bug unde avansul apărea ca 0 EUR (backend ignorase pricing din body, onAdded hardcodase zerouri). POST /api/admin/events citește acum pricing direct din body. #RECENT #ADMIN
+#RECENT  2026-04-16: FinancialSummary — componentă nouă în Dashboard: filtrează evenimentele confirmat+finalizat din anul curent, arată progres avans încasat vs total contractat, detaliu colapsibil pe evenimente viitoare cu cât urmează să fie primit. #RECENT #ADMIN
+#RECENT  2026-04-16: MultiFileDropZone — componentă nouă pentru upload multiple fișiere (contract fizic/poze); progress per fișier, thumbnails pentru imagini, delete individual din Firebase Storage. Folosită în EventCard edit modal. #RECENT #ADMIN
+#RECENT  2026-04-16: GoalCard rewrite — editabil EUR target și date range; doar goal-ul de 6 luni are editableRange (date picker); titlu redenumit "Goal Personalizat"; settings salvate în Firestore settings/admin cu exchangeRate. EventList default tab schimbat la "Viitoare". #RECENT #ADMIN
+#RECENT  2026-04-16: Zile ocupate unificate — singura sursă de adevăr e acum `adminEvents` (confirmat+finalizat). `GET /api/booked-dates` (public, nou) + `GET /api/admin/booked-dates` citesc ambele din Firestore. BookingWizard și chatbot nu mai citesc din `bookedDates.json` Storage. Fișierul JSON e acum defunct. #RECENT #ADMIN #PITFALL
+#RECENT  2026-04-15: Lead management adăugat în admin dashboard. `ClientEvent.eventDate` e acum `Date | null` (lead-urile pot fi create fără dată). Nou component `AddLeadModal.tsx`. `EventList.tsx` are 4 taburi: Lead-uri / Viitoare / Trecute / Arhivă. `EventCard.tsx` arată butoane rapide [Tentativ] [Confirmă] [Renunță] pentru status lead/tentativ. Backend `POST /api/admin/events` nu mai cere `eventDate`. `GoalCard.tsx` are guard pentru eventDate null. #RECENT #ADMIN
+#RECENT  2026-04-15: Contract feature complet: creare contract (admin), semnare client via link public (`/contract/:token`), generare PDF Puppeteer, upload Firebase Storage, email cu link PDF. Rute noi: DELETE /:id, GET /:id/preview, POST /:id/cancel, POST /:id/prestator-sign, POST /:id/send. Email trimis la ștergere contract (`sendContractDeletedEmail`). #RECENT #ADMIN #NOTIFY
 #RECENT  2026-04-11: `public/sitemap.xml` a fost actualizat pentru rutele publice reale: a fost scos `/orase` din indexare, au fost adăugate `/bio`, `/blog` și toate slug-urile de blog, păstrând doar rutele SEO canonice de tip `/foto-video-{serviciu}-{oras}`. Paginile legale (`/privacy`, `/terms`, `/copyright`) au fost scoase ulterior din sitemap. Validat ca XML parseabil; total 178 URL-uri. #RECENT #LOCATION #BLOG #PITFALL
 #RECENT  2026-04-11: Testele au fost reorganizate sub `tests/` și artefactele generate sub `reports/`. Vitest rulează acum din `tests/vitest`, Playwright din `tests/e2e`, coverage merge în `reports/coverage`, iar Playwright HTML/report attachments merg în `reports/playwright` și `reports/test-results`. `npm test` și `npm run typecheck` au trecut după mutare. #RECENT #CMD #DEBUG #PITFALL
 #RECENT  2026-04-11: Setup Playwright E2E minimal adăugat: `playwright.config.ts`, `tests/e2e/smoke.spec.ts`, scripturi `npm run test:e2e`, `test:e2e:headed`, `test:e2e:ui`, `test:e2e:report`. `server.ts` dezactivează HMR când `PLAYWRIGHT=1` pentru a evita portul websocket suplimentar în rulările E2E. Smoke suite-ul rulează și detectează în prezent că `/contact` și `/portofoliu` nu se hidratează la conținutul așteptat în 15s, în timp ce homepage trece. #RECENT #CMD #DEBUG #SSR #PITFALL

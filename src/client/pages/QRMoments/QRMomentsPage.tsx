@@ -19,6 +19,9 @@ type QRMomentsEventInfo = {
   message?: string;
 };
 
+const QR_MOMENTS_FALLBACK_PHONE = '0745-469-907';
+const QR_MOMENTS_FALLBACK_WHATSAPP = 'https://wa.me/40745469907';
+
 const QRWizard = ({ onClose }: { onClose: () => void }) => {
   const [step, setStep] = useState(0);
 
@@ -467,7 +470,9 @@ const QRMomentsPage: React.FC = () => {
       setIsPlaying(false);
       setCurrentTime(0);
     } catch (err) {
-      setUploadMessage('Eroare la încărcare. Te rugăm verifică conexiunea.');
+      setUploadMessage(
+        `Eroare la încărcare. Dacă problema persistă, trimite pozele pe <a href="${QR_MOMENTS_FALLBACK_WHATSAPP}" target="_blank" rel="noopener noreferrer">WhatsApp la ${QR_MOMENTS_FALLBACK_PHONE}</a>.`,
+      );
     } finally {
       setUploading(false);
     }

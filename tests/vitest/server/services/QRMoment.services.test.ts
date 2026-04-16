@@ -73,85 +73,89 @@ describe("qrMoment.service", () => {
     vi.clearAllMocks();
   });
 
-  test("returns urlFound false when the Firestore document is missing", async () => {
-    const { module, collectionMock, docMock } = await loadQRMomentServices({
-      snapshotExists: false,
+  describe("fallback paths", () => {
+    test("returns urlFound false when the Firestore document is missing", async () => {
+      const { module, collectionMock, docMock } = await loadQRMomentServices({
+        snapshotExists: false,
+      });
+      const res = createMockResponse();
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([{ ObjectName: "a.jpg" }]) }));
+
+      await module.checkRoute({ params: { eventDate: "2026-06-01" } }, res);
+
+      expect(collectionMock).toHaveBeenCalledWith("qr-moments");
+      expect(docMock).toHaveBeenCalledWith("2026-06-01");
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        urlFound: false,
+        data: [],
+        message: "No events found",
+      });
     });
-    const res = createMockResponse();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([{ ObjectName: "a.jpg" }]) }));
 
-    await module.checkRoute({ params: { eventDate: "2026-06-01" } }, res);
+    test("returns urlFound false when the Bunny folder is missing", async () => {
+      const { module } = await loadQRMomentServices({
+        snapshotExists: true,
+        snapshotData: { bride: "Ana" },
+      });
+      const res = createMockResponse();
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
 
-    expect(collectionMock).toHaveBeenCalledWith("qr-moments");
-    expect(docMock).toHaveBeenCalledWith("2026-06-01");
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({
-      success: true,
-      urlFound: false,
-      data: [],
-      message: "No events found",
+      await module.checkRoute({ params: { eventDate: "2026-06-02" } }, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        urlFound: false,
+        data: [],
+        message: "No events found",
+      });
+    });
+
+    test("returns urlFound false when the Bunny folder exists but is empty", async () => {
+      const { module } = await loadQRMomentServices({
+        snapshotExists: true,
+        snapshotData: { bride: "Ana" },
+      });
+      const res = createMockResponse();
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }));
+
+      await module.checkRoute({ params: { eventDate: "2026-06-03" } }, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        urlFound: false,
+        data: [],
+        message: "No events found",
+      });
     });
   });
 
-  test("returns urlFound false when the Bunny folder is missing", async () => {
-    const { module } = await loadQRMomentServices({
-      snapshotExists: true,
-      snapshotData: { bride: "Ana" },
-    });
-    const res = createMockResponse();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+  describe("happy path", () => {
+    test("returns event data when both Firestore and Bunny folder checks succeed", async () => {
+      const eventData = { bride: "Ana", groom: "Mihai", message: "Welcome!" };
+      const { module, buildBunnyDirectoryUrlMock } = await loadQRMomentServices({
+        snapshotExists: true,
+        snapshotData: eventData,
+      });
+      const res = createMockResponse();
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue([{ ObjectName: "photo-1.jpg" }]),
+      });
+      vi.stubGlobal("fetch", fetchMock);
 
-    await module.checkRoute({ params: { eventDate: "2026-06-02" } }, res);
+      await module.checkRoute({ params: { eventDate: "2026-06-04" } }, res);
 
-    expect(res.json).toHaveBeenCalledWith({
-      success: true,
-      urlFound: false,
-      data: [],
-      message: "No events found",
-    });
-  });
-
-  test("returns urlFound false when the Bunny folder exists but is empty", async () => {
-    const { module } = await loadQRMomentServices({
-      snapshotExists: true,
-      snapshotData: { bride: "Ana" },
-    });
-    const res = createMockResponse();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }));
-
-    await module.checkRoute({ params: { eventDate: "2026-06-03" } }, res);
-
-    expect(res.json).toHaveBeenCalledWith({
-      success: true,
-      urlFound: false,
-      data: [],
-      message: "No events found",
-    });
-  });
-
-  test("returns event data when both Firestore and Bunny folder checks succeed", async () => {
-    const eventData = { bride: "Ana", groom: "Mihai", message: "Welcome!" };
-    const { module, buildBunnyDirectoryUrlMock } = await loadQRMomentServices({
-      snapshotExists: true,
-      snapshotData: eventData,
-    });
-    const res = createMockResponse();
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue([{ ObjectName: "photo-1.jpg" }]),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await module.checkRoute({ params: { eventDate: "2026-06-04" } }, res);
-
-    expect(buildBunnyDirectoryUrlMock).toHaveBeenCalledWith("2026-06-04");
-    expect(fetchMock).toHaveBeenCalledWith("https://bunny.dir/2026-06-04/", {
-      headers: { AccessKey: "storage-key" },
-    });
-    expect(res.json).toHaveBeenCalledWith({
-      success: true,
-      urlFound: true,
-      data: eventData,
+      expect(buildBunnyDirectoryUrlMock).toHaveBeenCalledWith("2026-06-04");
+      expect(fetchMock).toHaveBeenCalledWith("https://bunny.dir/2026-06-04/", {
+        headers: { AccessKey: "storage-key" },
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        urlFound: true,
+        data: eventData,
+      });
     });
   });
 });
