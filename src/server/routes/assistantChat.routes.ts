@@ -1,13 +1,12 @@
 import { Router } from "express";
 import type { ChatNode } from "../data/assistantChatData";
 import { CHAT_NODES, FALLBACK_NODE } from "../data/assistantChatData";
-import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestore";
+import { expandEventDates } from "../utils/expandEventDates";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { renderChatbotLeadTemplate } from "../notifications/templates/chatbotLeadTemplate";
 import { renderDateCheckTemplate } from "../notifications/templates/dateCheckTemplate";
-import { BOOKED_DATES_FILE_PATH, FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 
 /** ============================================================
  *  CONSTANTS
@@ -47,24 +46,18 @@ export function parseDate(input: string): string | null {
 
 async function getBookedDates(): Promise<string[]> {
   try {
-    firestore();
-    const bucket = getStorage().bucket(FIREBASE_STORAGE_BUCKET);
-    const [contents] = await bucket.file(BOOKED_DATES_FILE_PATH).download();
-    const data = JSON.parse(contents.toString());
-    const set = new Set<string>();
-    for (const entry of data?.dates ?? []) {
-      if ("date" in entry && entry.date) {
-        set.add(entry.date);
-      } else if ("startDate" in entry && "endDate" in entry) {
-        const cur = new Date(entry.startDate);
-        const end = new Date(entry.endDate);
-        while (cur <= end) {
-          set.add(cur.toISOString().slice(0, 10));
-          cur.setDate(cur.getDate() + 1);
-        }
-      }
+    const db = firestore();
+    const snapshot = await db.collection("adminEvents").get();
+    const confirmed = new Set(["confirmat", "finalizat"]);
+    const dates: string[] = [];
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      if (!confirmed.has(data.status)) continue;
+      dates.push(...expandEventDates(data));
     }
-    return Array.from(set);
+
+    return dates;
   } catch (error) {
     console.error("[assistant] getBookedDates failed:", error);
     return [];

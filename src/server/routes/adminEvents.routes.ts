@@ -17,7 +17,8 @@ router.get("/events", async (_req: Request, res: Response) => {
         id: doc.id,
         ...data,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
-        eventDate: data.eventDate instanceof Timestamp ? data.eventDate.toDate().toISOString() : data.eventDate,
+        eventDate: data.eventDate instanceof Timestamp ? data.eventDate.toDate().toISOString() : (data.eventDate ?? null),
+        eventEndDate: data.eventEndDate instanceof Timestamp ? data.eventEndDate.toDate().toISOString() : (data.eventEndDate ?? null),
       };
     });
 
@@ -34,19 +35,23 @@ router.post("/events", async (req: Request, res: Response) => {
     const db = firestore();
     const body = req.body;
 
-    if (!body.type || !body.eventDate || !body.client?.fullName) {
-      return res.status(400).json({ error: "Câmpuri obligatorii lipsă: type, eventDate, client.fullName" });
+    if (!body.type || !body.client?.fullName) {
+      return res.status(400).json({ error: "Câmpuri obligatorii lipsă: type, client.fullName" });
     }
 
     const services: { name: string; price: number }[] = body.services ?? [];
-    const total = services.reduce((sum, s) => sum + (s.price ?? 0), 0);
-    const advanceAmount = body.pricing?.advanceAmount ?? 0;
+    const servicesTotal = services.reduce((sum, s) => sum + (s.price ?? 0), 0);
+    const total = Number(body.pricing?.total) || servicesTotal;
+    const advanceAmount = Number(body.pricing?.advanceAmount) || 0;
+    const advancePaid = body.pricing?.advancePaid === true;
 
     const newEvent = {
       type: body.type,
       status: body.status ?? "lead",
       createdAt: Timestamp.now(),
-      eventDate: Timestamp.fromDate(new Date(body.eventDate)),
+      eventDate: body.eventDate ? Timestamp.fromDate(new Date(body.eventDate)) : null,
+      eventEndDate: body.eventEndDate ? Timestamp.fromDate(new Date(body.eventEndDate)) : null,
+      ...(body.typeLabel ? { typeLabel: body.typeLabel } : {}),
       client: {
         fullName: body.client.fullName,
         phone: body.client.phone ?? "",
@@ -56,8 +61,8 @@ router.post("/events", async (req: Request, res: Response) => {
       pricing: {
         total,
         advanceAmount,
-        advancePaid: body.pricing?.advancePaid ?? false,
-        remainingAmount: total - advanceAmount,
+        advancePaid,
+        remainingAmount: Math.max(0, total - advanceAmount),
       },
       ...(body.contractId ? { contractId: body.contractId } : {}),
       ...(body.notes ? { notes: body.notes } : {}),
@@ -80,6 +85,13 @@ router.patch("/events/:id", async (req: Request, res: Response) => {
 
     if (updates.eventDate) {
       updates.eventDate = Timestamp.fromDate(new Date(updates.eventDate));
+    } else if (updates.eventDate === null) {
+      updates.eventDate = null;
+    }
+    if (updates.eventEndDate) {
+      updates.eventEndDate = Timestamp.fromDate(new Date(updates.eventEndDate));
+    } else if (updates.eventEndDate === null) {
+      updates.eventEndDate = null;
     }
 
     await db.collection("adminEvents").doc(id).update(updates);
@@ -87,6 +99,19 @@ router.patch("/events/:id", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[adminEvents] PATCH /events/:id failed:", error);
     res.status(500).json({ error: "Nu s-a putut actualiza evenimentul." });
+  }
+});
+
+// DELETE /api/admin/events/:id — șterge eveniment definitiv
+router.delete("/events/:id", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const { id } = req.params;
+    await db.collection("adminEvents").doc(id).delete();
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminEvents] DELETE /events/:id failed:", error);
+    res.status(500).json({ error: "Nu s-a putut șterge evenimentul." });
   }
 });
 
@@ -104,6 +129,7 @@ router.get("/settings", async (_req: Request, res: Response) => {
           oneYear: { targetRevenue: 30000, startDate: "2026-01-01", endDate: "2026-12-31" },
         },
         currency: "EUR",
+        exchangeRate: 5.0,
       };
       return res.json(defaults);
     }

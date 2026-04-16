@@ -1,6 +1,6 @@
 export type EventStatus = "lead" | "tentativ" | "confirmat" | "finalizat" | "anulat";
 
-export type EventType = "Nuntă" | "Botez" | "Logodnă" | "Aniversare";
+export type EventType = "Nuntă" | "Botez" | "Logodnă" | "Aniversare" | "Altele";
 
 export interface EventService {
   name: string;
@@ -12,7 +12,7 @@ export interface ClientEvent {
   type: EventType;
   status: EventStatus;
   createdAt: Date;
-  eventDate: Date;
+  eventDate: Date | null;
   client: {
     fullName: string;
     phone: string;
@@ -25,10 +25,13 @@ export interface ClientEvent {
     advancePaid: boolean;
     remainingAmount: number;
   };
+  eventEndDate?: Date | null;
+  typeLabel?: string;
   contractId?: string;
   notes?: string;
   contractUrl?: string;
   invoiceUrl?: string;
+  attachmentUrls?: string[];
 }
 
 export interface Goal {
@@ -43,4 +46,5 @@ export interface AdminSettings {
     oneYear: Goal;
   };
   currency: "EUR";
+  exchangeRate: number;
 }

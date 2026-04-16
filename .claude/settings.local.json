@@ -3,7 +3,12 @@
     "allow": [
       "Bash(pkill -f \"tsx server.ts\")",
       "Bash(npm run:*)",
-      "Bash(curl -s http://localhost:1994/health)"
+      "Bash(curl -s http://localhost:1994/health)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
+      "Bash(find:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

@@ -50,65 +50,69 @@ describe("auth route guards", () => {
     mockUseAuth.mockReset();
   });
 
-  test("RequireAuth shows a loading spinner while auth state is pending", () => {
-    mockUseAuth.mockReturnValue({
-      auth: { authorise: false, loading: true },
+  describe("RequireAuth", () => {
+    test("shows a loading spinner while auth state is pending", () => {
+      mockUseAuth.mockReturnValue({
+        auth: { authorise: false, loading: true },
+      });
+
+      renderRequireAuth();
+
+      expect(screen.getByTestId("auth-loader")).toBeInTheDocument();
     });
 
-    renderRequireAuth();
+    test("redirects unauthorised users to login", () => {
+      mockUseAuth.mockReturnValue({
+        auth: { authorise: false, loading: false },
+      });
 
-    expect(screen.getByTestId("auth-loader")).toBeInTheDocument();
+      renderRequireAuth();
+
+      expect(screen.getByText("Login page")).toBeInTheDocument();
+      expect(screen.queryByText("Admin dashboard")).not.toBeInTheDocument();
+    });
+
+    test("renders protected content for authorised users", () => {
+      mockUseAuth.mockReturnValue({
+        auth: { authorise: true, loading: false },
+      });
+
+      renderRequireAuth();
+
+      expect(screen.getByText("Admin dashboard")).toBeInTheDocument();
+    });
   });
 
-  test("RequireAuth redirects unauthorised users to login", () => {
-    mockUseAuth.mockReturnValue({
-      auth: { authorise: false, loading: false },
+  describe("CheckAuth", () => {
+    test("shows a loading spinner while auth state is pending", () => {
+      mockUseAuth.mockReturnValue({
+        auth: { authorise: false, loading: true },
+      });
+
+      renderCheckAuth();
+
+      expect(screen.getByTestId("auth-loader")).toBeInTheDocument();
     });
 
-    renderRequireAuth();
+    test("keeps unauthenticated users on the login page", () => {
+      mockUseAuth.mockReturnValue({
+        auth: { authorise: false, loading: false },
+      });
 
-    expect(screen.getByText("Login page")).toBeInTheDocument();
-    expect(screen.queryByText("Admin dashboard")).not.toBeInTheDocument();
-  });
+      renderCheckAuth();
 
-  test("RequireAuth renders protected content for authorised users", () => {
-    mockUseAuth.mockReturnValue({
-      auth: { authorise: true, loading: false },
+      expect(screen.getByText("Login form")).toBeInTheDocument();
     });
 
-    renderRequireAuth();
+    test("redirects authenticated users away from the login page", () => {
+      mockUseAuth.mockReturnValue({
+        auth: { authorise: true, loading: false },
+      });
 
-    expect(screen.getByText("Admin dashboard")).toBeInTheDocument();
-  });
+      renderCheckAuth();
 
-  test("CheckAuth shows a loading spinner while auth state is pending", () => {
-    mockUseAuth.mockReturnValue({
-      auth: { authorise: false, loading: true },
+      expect(screen.getByText("Admin dashboard")).toBeInTheDocument();
+      expect(screen.queryByText("Login form")).not.toBeInTheDocument();
     });
-
-    renderCheckAuth();
-
-    expect(screen.getByTestId("auth-loader")).toBeInTheDocument();
-  });
-
-  test("CheckAuth keeps unauthenticated users on the login page", () => {
-    mockUseAuth.mockReturnValue({
-      auth: { authorise: false, loading: false },
-    });
-
-    renderCheckAuth();
-
-    expect(screen.getByText("Login form")).toBeInTheDocument();
-  });
-
-  test("CheckAuth redirects authenticated users away from the login page", () => {
-    mockUseAuth.mockReturnValue({
-      auth: { authorise: true, loading: false },
-    });
-
-    renderCheckAuth();
-
-    expect(screen.getByText("Admin dashboard")).toBeInTheDocument();
-    expect(screen.queryByText("Login form")).not.toBeInTheDocument();
   });
 });

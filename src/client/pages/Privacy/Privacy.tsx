@@ -49,6 +49,7 @@ const Privacy = () => {
               {[
                 { title: "Date de contact", desc: "Nume, adresă de email, număr de telefon — furnizate prin formularul de contact sau solicitare de ofertă." },
                 { title: "Date despre eveniment", desc: "Data, locația și tipul evenimentului (nuntă, botez etc.) pentru a verifica disponibilitatea și a pregăti oferta." },
+                { title: "Date contractuale", desc: "Nume complet, adresă de domiciliu, serie și număr carte de identitate, semnătură electronică — colectate exclusiv în scopul încheierii și arhivării contractului de prestări servicii, cu acordul tău explicit (GDPR art. 6 alin. 1 lit. b)." },
                 { title: "Date de navigare", desc: "Adresă IP, tipul browserului, paginile vizitate — colectate automat prin cookie-uri și instrumente de analiză (Google Analytics, Microsoft Clarity)." },
                 { title: "Conținut media", desc: "Fotografii și videoclipuri realizate în cadrul serviciilor contractate, cu acordul tău explicit." },
               ].map((item, i) => (
@@ -109,7 +110,7 @@ const Privacy = () => {
             <ul className="space-y-3">
               {[
                 "Google (Analytics, Drive) — stocare și analiză, cu garanții GDPR",
-                "Firebase / Google Cloud — stocare media și autentificare",
+                "Firebase / Google Cloud — stocare media, contracte semnate și autentificare",
                 "Furnizori de email (pentru livrarea mesajelor automate)",
                 "Autorități publice — exclusiv când legea ne obligă",
               ].map((item, i) => (

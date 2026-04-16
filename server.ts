@@ -15,13 +15,15 @@ import eventRouter from "./src/server/routes/event.routes";
 import qrMomentRouter from "./src/server/routes/QRMoment.routes";
 import assistantChatRouter from "./src/server/routes/assistantChat.routes";
 import adminCalendarRouter from "./src/server/routes/adminCalendar.routes";
+import publicBookedDatesRouter from "./src/server/routes/publicBookedDates.routes";
 import adminEventsRouter from "./src/server/routes/adminEvents.routes";
 import chatbotRouter from "./src/server/routes/chatbot.routes";
 import uploadRouter from "./src/server/routes/upload.routes";
 import blogRouter from "./src/server/routes/blog.routes";
+import contractsRouter from "./src/server/routes/contracts.routes";
 
 // Shared HTTP defaults used by both local development and the production server.
-const BODY_PAYLOAD_LIMIT = "1mb";
+const BODY_PAYLOAD_LIMIT = "5mb";
 const DEFAULT_APP_PORT = 1994;
 const API_ROUTE_PREFIXES = {
   album: "/api/album",
@@ -35,6 +37,7 @@ const API_ROUTE_PREFIXES = {
   chatbot: "/api/chatbot",
   uploads: "/api",
   blog: "/api/blog",
+  contracts: "/api/contracts",
 } as const;
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
@@ -107,10 +110,12 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.qrCheck, qrMomentRouter);
   app.use(API_ROUTE_PREFIXES.assistant, assistantChatRouter);
   app.use(API_ROUTE_PREFIXES.admin, adminCalendarRouter);
+  app.use("/api/booked-dates", publicBookedDatesRouter);
   app.use(API_ROUTE_PREFIXES.admin, adminEventsRouter);
   app.use(API_ROUTE_PREFIXES.chatbot, chatbotRouter);
   app.use(API_ROUTE_PREFIXES.uploads, uploadRouter);
   app.use(API_ROUTE_PREFIXES.blog, blogRouter);
+  app.use(API_ROUTE_PREFIXES.contracts, contractsRouter);
 
 
   let vite: ViteDevServer | undefined;
@@ -122,7 +127,7 @@ async function createServer() {
   if (!isProd) {
     // ******** DEV MODE (HMR ON) ********
     vite = await createViteServer({
-      server: { middlewareMode: true, hmr: isPlaywright ? false : undefined },
+      server: { host: '127.0.0.1', middlewareMode: true, hmr: isPlaywright ? false : undefined },
       appType: 'custom',
       logLevel: isTest ? 'error' : 'info',
     });

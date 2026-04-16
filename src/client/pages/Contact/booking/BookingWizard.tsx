@@ -11,9 +11,6 @@ import { formatDate } from "./utils/time";
 import { PHONE_RE } from "./utils/validators";
 import type { Step, EventType, Errors } from "./types";
 
-// Firebase
-import { getBytes, ref } from "firebase/storage";
-import { storage } from "../../../firebase";
 
 // Steps
 import Step1Date from "./steps/Step1Date";
@@ -27,61 +24,6 @@ type ConversionWindow = Window & {
   gtag?: (eventName: string, action: string, params: Record<string, string | number>) => void;
 };
 
-/* ---------- bookedDates.json types & helpers ---------- */
-
-type BookedDateEntry =
-  | {
-      date: string;
-      type?: string;
-      label?: string;
-      price?: string;
-      phone?: string;
-      status?: "booked" | "unavailable";
-    }
-  | {
-      startDate: string;
-      endDate: string;
-      type?: string;
-      label?: string;
-      price?: string;
-      phone?: string;
-      status?: "booked-range" | "unavailable";
-    };
-
-interface BookedDatesFile {
-  updatedAt?: string;
-  dates: BookedDateEntry[];
-}
-
-function toDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function expandBookedDates(data: BookedDatesFile): string[] {
-  const set = new Set<string>();
-  if (!data?.dates) return [];
-
-  for (const entry of data.dates) {
-    if ("date" in entry && entry.date) {
-      set.add(entry.date);
-    } else if ("startDate" in entry && "endDate" in entry && entry.startDate && entry.endDate) {
-      const start = new Date(entry.startDate);
-      const end = new Date(entry.endDate);
-      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-        const cur = new Date(start);
-        while (cur <= end) {
-          set.add(toDateKey(cur));
-          cur.setDate(cur.getDate() + 1);
-        }
-      }
-    }
-  }
-
-  return Array.from(set);
-}
 
 /* ---------- helpers locale (durată & HTML final) ---------- */
 const toMinutes = (t: string) => {
@@ -198,25 +140,15 @@ export default function BookingWizard() {
 
   const selectedFormattedDate = useMemo(() => formatDate(day, month, year), [day, month, year]);
 
-  /* ---------- Load bookedDates.json from Firebase Storage ---------- */
+  /* ---------- Load booked dates from API ---------- */
   useEffect(() => {
-    const load = async () => {
-      try {
-        const fileRef = ref(storage, "ancavisuals/bookedDates/bookedDates.json");
-        const bytes = await getBytes(fileRef);
-        const text = new TextDecoder("utf-8").decode(bytes);
-
-        const json = JSON.parse(text) as BookedDatesFile;
-        const dates = expandBookedDates(json); // => ["2026-02-21", ...];
-
-        setBookedDates(dates);
-      } catch (err) {
+    fetch("/api/booked-dates")
+      .then(r => r.json())
+      .then(data => setBookedDates(data.dates ?? []))
+      .catch(err => {
         console.error("[BookingWizard] Failed to load booked dates:", err);
         setBookedDates([]);
-      }
-    };
-
-    load();
+      });
   }, []);
 
   const handleContactStepNext = async () => {

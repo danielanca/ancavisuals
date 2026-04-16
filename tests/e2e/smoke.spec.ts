@@ -17,9 +17,11 @@ test.describe("public smoke routes", () => {
     await page.goto("/portofoliu");
 
     await expect(page).toHaveURL(/\/portofoliu$/);
-    await expect(page.getByText(/ce vezi în portofoliu/i)).toBeVisible({ timeout: 15_000 });
     await expect(
-      page.getByRole("link", { name: /foto video nuntă|foto video nunta/i }).first(),
+      page.getByRole("heading", { name: /lumină care spune povești/i }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("button", { name: /deschide fotografia/i }).first(),
     ).toBeVisible({ timeout: 15_000 });
   });
 

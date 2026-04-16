@@ -10,21 +10,22 @@ interface BookedEntry {
   note?: string;
 }
 
-function expandEntries(entries: BookedEntry[]): Set<string> {
-  const set = new Set<string>();
+function expandEntries(entries: BookedEntry[]): Map<string, string> {
+  const map = new Map<string, string>();
   for (const entry of entries) {
+    const note = entry.note ?? "Rezervat";
     if (entry.date) {
-      set.add(entry.date);
+      map.set(entry.date, note);
     } else if (entry.startDate && entry.endDate) {
       const cur = new Date(entry.startDate);
       const end = new Date(entry.endDate);
       while (cur <= end) {
-        set.add(cur.toISOString().slice(0, 10));
+        map.set(cur.toISOString().slice(0, 10), note);
         cur.setDate(cur.getDate() + 1);
       }
     }
   }
-  return set;
+  return map;
 }
 
 const MONTHS = [
@@ -34,11 +35,11 @@ const MONTHS = [
 const DAYS = ["Lu", "Ma", "Mi", "Jo", "Vi", "Sâ", "Du"];
 
 function MonthCalendar({
-  year, month, bookedSet, onDateClick,
+  year, month, bookedMap, onDateClick,
 }: {
   year: number;
   month: number;
-  bookedSet: Set<string>;
+  bookedMap: Map<string, string>;
   onDateClick: (date: string) => void;
 }) {
   const firstDay = new Date(year, month, 1);
@@ -66,13 +67,13 @@ function MonthCalendar({
         {cells.map((day, i) => {
           if (!day) return <div key={i} />;
           const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          const booked = bookedSet.has(dateKey);
+          const bookedNote = bookedMap.get(dateKey);
           const isToday = dateKey === today;
-          return booked ? (
+          return bookedNote ? (
             <div
               key={i}
-              title="Rezervat"
-              className="text-xs text-center rounded-lg py-1.5 font-medium select-none bg-red-500 text-white"
+              title={bookedNote}
+              className="text-xs text-center rounded-lg py-1.5 font-medium select-none bg-red-500 text-white cursor-default"
             >
               {day}
             </div>
@@ -100,7 +101,7 @@ function MonthCalendar({
 
 export default function BookedCalendar() {
   const navigate = useNavigate();
-  const [bookedSet, setBookedSet] = useState<Set<string>>(new Set());
+  const [bookedMap, setBookedMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const MIN_YEAR = 2023;
@@ -121,7 +122,7 @@ export default function BookedCalendar() {
       .then(r => r.json())
       .then(data => {
         if (data.error) throw new Error(data.error);
-        setBookedSet(expandEntries(data.dates));
+        setBookedMap(expandEntries(data.dates));
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
@@ -177,7 +178,7 @@ export default function BookedCalendar() {
               key={m}
               year={year}
               month={m}
-              bookedSet={bookedSet}
+              bookedMap={bookedMap}
               onDateClick={(date) => navigate("/admin/create-event", { state: { date } })}
             />
             ))}

@@ -122,6 +122,23 @@ const CreateEvent = () => {
 
   return (
     <div className={styles.page}>
+      {/* Under Construction Banner */}
+      <div className="fixed inset-0 bg-neutral-950/90 backdrop-blur-sm z-50 flex items-center justify-center px-4">
+        <div className="bg-neutral-900 border border-amber-500/30 rounded-2xl p-8 max-w-sm w-full text-center space-y-4">
+          <p className="text-4xl">🚧</p>
+          <h2 className="text-white text-xl font-semibold tracking-tight">Work in Progress</h2>
+          <p className="text-neutral-400 text-sm leading-relaxed">
+            Modulul de invitații digitale este în construcție și nu este disponibil momentan.
+          </p>
+          <button
+            onClick={() => navigate("/admin")}
+            className="w-full mt-2 px-4 py-2.5 rounded-xl bg-white text-black text-sm font-semibold hover:bg-neutral-200 transition-colors"
+          >
+            ← Înapoi la Dashboard
+          </button>
+        </div>
+      </div>
+
       <div className={styles.container}>
         <header className={styles.header}>
           <h1>Creează Invitația de Nuntă</h1>

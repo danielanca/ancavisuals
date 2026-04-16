@@ -23,44 +23,48 @@ describe("sendEmail", () => {
   beforeEach(() => { vi.resetModules(); });
   afterEach(() => { vi.clearAllMocks(); });
 
-  test("calls sendMail with the correct to, subject and html", async () => {
-    const { sendEmail, sendMailMock } = await buildMailer();
+  describe("happy path", () => {
+    test("calls sendMail with the correct to, subject and html", async () => {
+      const { sendEmail, sendMailMock } = await buildMailer();
 
-    await sendEmail({ to: "client@example.com", subject: "Test", html: "<p>Hello</p>" });
+      await sendEmail({ to: "client@example.com", subject: "Test", html: "<p>Hello</p>" });
 
-    expect(sendMailMock).toHaveBeenCalledOnce();
-    expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
-      to: "client@example.com",
-      subject: "Test",
-      html: "<p>Hello</p>",
-    }));
+      expect(sendMailMock).toHaveBeenCalledOnce();
+      expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
+        to: "client@example.com",
+        subject: "Test",
+        html: "<p>Hello</p>",
+      }));
+    });
+
+    test("uses the configured sender email as from", async () => {
+      const { sendEmail, sendMailMock } = await buildMailer("studio@ancavisuals.ro");
+
+      await sendEmail({ to: "client@example.com", subject: "S", html: "<p>x</p>" });
+
+      expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
+        from: "studio@ancavisuals.ro",
+      }));
+    });
+
+    test("allows overriding the from address", async () => {
+      const { sendEmail, sendMailMock } = await buildMailer("default@example.com");
+
+      await sendEmail({ to: "x@x.com", subject: "S", html: "<p>x</p>", from: "custom@example.com" });
+
+      expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
+        from: "custom@example.com",
+      }));
+    });
   });
 
-  test("uses the configured sender email as from", async () => {
-    const { sendEmail, sendMailMock } = await buildMailer("studio@ancavisuals.ro");
+  describe("error handling", () => {
+    test("propagates errors thrown by the transport", async () => {
+      const { sendEmail, sendMailMock } = await buildMailer();
+      sendMailMock.mockRejectedValueOnce(new Error("SMTP error"));
 
-    await sendEmail({ to: "client@example.com", subject: "S", html: "<p>x</p>" });
-
-    expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
-      from: "studio@ancavisuals.ro",
-    }));
-  });
-
-  test("allows overriding the from address", async () => {
-    const { sendEmail, sendMailMock } = await buildMailer("default@example.com");
-
-    await sendEmail({ to: "x@x.com", subject: "S", html: "<p>x</p>", from: "custom@example.com" });
-
-    expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
-      from: "custom@example.com",
-    }));
-  });
-
-  test("propagates errors thrown by the transport", async () => {
-    const { sendEmail, sendMailMock } = await buildMailer();
-    sendMailMock.mockRejectedValueOnce(new Error("SMTP error"));
-
-    await expect(sendEmail({ to: "x@x.com", subject: "S", html: "<p>x</p>" }))
-      .rejects.toThrow("SMTP error");
+      await expect(sendEmail({ to: "x@x.com", subject: "S", html: "<p>x</p>" }))
+        .rejects.toThrow("SMTP error");
+    });
   });
 });

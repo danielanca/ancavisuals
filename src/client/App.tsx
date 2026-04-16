@@ -14,9 +14,12 @@ import Dashboard from "./features/admin/components/Dashboard";
 import CreateEventWedding from "./features/admin/components/EventDashboard/CreateEvent";
 import AdminBook from "./pages/Contact/booking/AdminBook";
 import BookedCalendar from "./features/admin/components/BookedCalendar";
+import ContractListPage from "./features/admin/components/Contracts/ContractListPage";
+import CreateContractPage from "./features/admin/components/Contracts/CreateContractPage";
+import EditContractPage from "./features/admin/components/Contracts/EditContractPage";
 
 
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media"];
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract"];
 
 export const App = () => {
   const location = useLocation();
@@ -70,6 +73,9 @@ export const App = () => {
             <Route path="/admin/calendar" element={<BookedCalendar />} />
             <Route path="/admin/create-event" element={<AdminBook />} />
             <Route path="/admin/create-event-wedding" element={<CreateEventWedding />} />
+            <Route path="/admin/contracts" element={<ContractListPage />} />
+            <Route path="/admin/contracts/create" element={<CreateContractPage />} />
+            <Route path="/admin/contracts/:id/edit" element={<EditContractPage />} />
           </Route>
 
 
