@@ -21,6 +21,7 @@ import chatbotRouter from "./src/server/routes/chatbot.routes";
 import uploadRouter from "./src/server/routes/upload.routes";
 import blogRouter from "./src/server/routes/blog.routes";
 import contractsRouter from "./src/server/routes/contracts.routes";
+import inspirationRouter from "./src/server/routes/inspiration.routes";
 
 // Shared HTTP defaults used by both local development and the production server.
 const BODY_PAYLOAD_LIMIT = "5mb";
@@ -116,6 +117,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.uploads, uploadRouter);
   app.use(API_ROUTE_PREFIXES.blog, blogRouter);
   app.use(API_ROUTE_PREFIXES.contracts, contractsRouter);
+  app.use(API_ROUTE_PREFIXES.admin, inspirationRouter);
 
 
   let vite: ViteDevServer | undefined;

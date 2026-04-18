@@ -17,6 +17,7 @@ import BookedCalendar from "./features/admin/components/BookedCalendar";
 import ContractListPage from "./features/admin/components/Contracts/ContractListPage";
 import CreateContractPage from "./features/admin/components/Contracts/CreateContractPage";
 import EditContractPage from "./features/admin/components/Contracts/EditContractPage";
+import InspirationPage from "./features/admin/components/InspirationPage";
 
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract"];
@@ -76,6 +77,7 @@ export const App = () => {
             <Route path="/admin/contracts" element={<ContractListPage />} />
             <Route path="/admin/contracts/create" element={<CreateContractPage />} />
             <Route path="/admin/contracts/:id/edit" element={<EditContractPage />} />
+            <Route path="/admin/inspiration" element={<InspirationPage />} />
           </Route>
 
 
