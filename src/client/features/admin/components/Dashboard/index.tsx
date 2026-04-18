@@ -7,6 +7,7 @@ import AddLeadModal from "../AddLeadModal";
 import FinancialSummary from "../FinancialSummary";
 import useAuth from "../../auth/useAuth";
 import AncaLoader from "../../../../components/UI/AncaLoader";
+import PostEventFollowUp from "../PostEventFollowUp";
 
 const LOGIN_ROUTE = "/login";
 const CREATE_EVENT_ROUTE = "/admin/create-event";
@@ -190,6 +191,9 @@ const Dashboard: React.FC = () => {
             Contracte
           </button>
         </div>
+
+        {/* Post-event follow-up notifications */}
+        <PostEventFollowUp events={events} onEventUpdated={handleEventUpdated} />
 
         {/* Goal Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

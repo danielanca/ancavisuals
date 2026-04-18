@@ -32,6 +32,7 @@ export interface ClientEvent {
   contractUrl?: string;
   invoiceUrl?: string;
   attachmentUrls?: string[];
+  templateUrls?: string[];
 }
 
 export interface Goal {
