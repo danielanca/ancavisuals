@@ -68,6 +68,74 @@ Exemplu răspuns: ["mire", "mireasa", "biserica"]`,
   }
 });
 
+router.post("/inspiration/suggest-tags-from-image", async (req: Request, res: Response) => {
+  try {
+    const { imageBase64, mediaType, availableTags } = req.body as {
+      imageBase64: string;
+      mediaType: string;
+      availableTags: string[];
+    };
+    if (!imageBase64 || !Array.isArray(availableTags)) {
+      return res.status(400).json({ tags: [] });
+    }
+
+    const normalizedToOriginal = new Map<string, string>();
+    for (const tag of availableTags) {
+      normalizedToOriginal.set(stripDiacritics(tag), tag);
+    }
+    const normalizedTags = Array.from(normalizedToOriginal.keys());
+
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 256,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                data: imageBase64,
+              },
+            },
+            {
+              type: "text",
+              text: `Ești un asistent pentru un fotograf de nuntă. Analizează această fotografie și generează tag-uri descriptive.
+
+Tag-uri existente ca referință (poți folosi oricare din ele dacă sunt relevante): ${normalizedTags.join(", ")}
+
+Instrucțiuni:
+1. Generează tag-uri relevante pentru ce vezi în imagine — poți folosi tag-uri din lista de referință SAU poți crea tag-uri noi descriptive (ex: "golden-hour", "voal", "tort-nunta", "first-dance").
+2. Tag-urile noi să fie scurte, lowercase, fără diacritice, cu cratimă în loc de spațiu.
+3. Returnează 3-8 tag-uri cele mai relevante.
+4. Răspunde DOAR cu un JSON array, fără text suplimentar.
+
+Exemplu răspuns: ["mire", "mireasa", "biserica", "golden-hour", "voal"]`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "[]";
+    const match = raw.match(/\[.*\]/s);
+    const generatedTags: string[] = match ? JSON.parse(match[0]) : [];
+
+    // Map back to original tags with diacritics where possible, keep new ones as-is
+    const validTags = generatedTags.map((tag) => {
+      const normalized = stripDiacritics(tag);
+      return normalizedToOriginal.get(normalized) ?? tag;
+    }).filter((tag) => typeof tag === "string" && tag.length > 0);
+
+    res.json({ tags: validTags });
+  } catch (error) {
+    console.error("[inspiration] suggest-tags-from-image failed:", error);
+    res.status(500).json({ tags: [] });
+  }
+});
+
 router.get("/inspiration/photos", async (_req: Request, res: Response) => {
   try {
     const db = firestore();

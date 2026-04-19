@@ -496,18 +496,26 @@ function UploadModal({
   onAdded: (photo: InspirationPhoto) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
   const [notes, setNotes] = useState("");
-  const [progress, setProgress] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [progresses, setProgresses] = useState<Record<string, number>>({});
+  const [errors, setErrors] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [aiTagLoading, setAiTagLoading] = useState(false);
+  const [aiSuggestedTags, setAiSuggestedTags] = useState<string[] | null>(null);
 
-  const pickFile = (f: File) => {
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+  const pickFiles = (newFiles: File[]) => {
+    setFiles((prev) => [...prev, ...newFiles]);
+    setPreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const toggleTag = (tag: string) =>
@@ -519,29 +527,84 @@ function UploadModal({
     setCustomTag("");
   };
 
-  const handleSave = async () => {
-    if (!file) return;
-    setError(null);
-    const safeName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
-    const storageRef = ref(storage, `inspiration-library/${safeName}`);
-    const task = uploadBytesResumable(storageRef, file);
-
-    task.on(
-      "state_changed",
-      (snap) => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
-      (err) => { setError(`Upload eșuat: ${err.message}`); setProgress(null); },
-      async () => {
-        const url = await getDownloadURL(task.snapshot.ref);
-        const res = await fetch("/api/admin/inspiration/photos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, tags, notes }),
-        });
-        const data = await res.json();
-        onAdded({ id: data.id, url, tags, notes, uploadedAt: new Date().toISOString() });
-      },
-    );
+  const suggestTagsFromImage = async () => {
+    if (files.length === 0) return;
+    setAiTagLoading(true);
+    try {
+      const file = files[0];
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const mediaType = file.type || "image/jpeg";
+      const res = await fetch("/api/admin/inspiration/suggest-tags-from-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mediaType, availableTags: PRESET_TAGS }),
+      });
+      const data = await res.json();
+      if (data.tags?.length > 0) {
+        setAiSuggestedTags(data.tags);
+        setTags(data.tags);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setAiTagLoading(false);
+    }
   };
+
+  const uploadFile = (file: File): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name.replace(/\s+/g, "_")}`;
+      const storageRef = ref(storage, `inspiration-library/${safeName}`);
+      const task = uploadBytesResumable(storageRef, file);
+
+      task.on(
+        "state_changed",
+        (snap) => {
+          const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          setProgresses((prev) => ({ ...prev, [file.name]: pct }));
+        },
+        reject,
+        async () => {
+          const url = await getDownloadURL(task.snapshot.ref);
+          const res = await fetch("/api/admin/inspiration/photos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, tags, notes }),
+          });
+          const data = await res.json();
+          onAdded({ id: data.id, url, tags, notes, uploadedAt: new Date().toISOString() });
+          resolve();
+        },
+      );
+    });
+
+  const handleSave = async () => {
+    if (files.length === 0) return;
+    setUploading(true);
+    setErrors([]);
+    const results = await Promise.allSettled(files.map((f) => uploadFile(f)));
+    const failed = results
+      .map((r, i) => r.status === "rejected" ? files[i].name : null)
+      .filter(Boolean) as string[];
+    setUploading(false);
+    if (failed.length === 0) {
+      onClose();
+    } else {
+      setErrors(failed.map((name) => `Upload eșuat: ${name}`));
+    }
+  };
+
+  const isUploading = uploading;
+  const totalProgress = files.length === 0 ? 0
+    : Math.round(Object.values(progresses).reduce((a, b) => a + b, 0) / files.length);
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4" onClick={onClose}>
@@ -550,48 +613,94 @@ function UploadModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-white text-base font-semibold">Adaugă poză</h2>
+          <h2 className="text-white text-base font-semibold">
+            Adaugă {files.length > 1 ? `${files.length} poze` : "poze"}
+          </h2>
           <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-lg">✕</button>
         </div>
 
-        {/* Drop zone / preview */}
-        {!file ? (
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) pickFile(f); }}
-            onClick={() => inputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
-              dragging ? "border-violet-500 bg-violet-500/10" : "border-neutral-700 hover:border-neutral-500"
-            }`}
-          >
-            <p className="text-neutral-400 text-sm">Trage o poză sau <span className="underline text-neutral-200">selectează</span></p>
-            <p className="text-neutral-600 text-xs mt-1">JPG, PNG</p>
-            <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); }} />
-          </div>
-        ) : (
-          <div className="relative rounded-xl overflow-hidden">
-            <img src={preview!} alt="" className="w-full h-48 object-cover" />
-            <button
-              onClick={() => { setFile(null); setPreview(null); setProgress(null); }}
-              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white text-sm flex items-center justify-center hover:bg-black/80 transition-colors"
-            >
-              ✕
-            </button>
+        {/* Drop zone */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); pickFiles(Array.from(e.dataTransfer.files)); }}
+          onClick={() => inputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+            dragging ? "border-violet-500 bg-violet-500/10" : "border-neutral-700 hover:border-neutral-500"
+          }`}
+        >
+          <p className="text-neutral-400 text-sm">Trage poze sau <span className="underline text-neutral-200">selectează</span></p>
+          <p className="text-neutral-600 text-xs mt-1">JPG, PNG, WEBP · multiple fișiere acceptate</p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp"
+            multiple
+            className="hidden"
+            onChange={(e) => { if (e.target.files) pickFiles(Array.from(e.target.files)); }}
+          />
+        </div>
+
+        {/* Previews grid */}
+        {files.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            {files.map((file, i) => (
+              <div key={i} className="relative rounded-lg overflow-hidden aspect-square group">
+                <img src={previews[i]} alt="" className="w-full h-full object-cover" />
+                {isUploading ? (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <span className="text-white text-xs font-semibold">{progresses[file.name] ?? 0}%</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => removeFile(i)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
         {/* Tag selector */}
         <div>
-          <p className="text-neutral-400 text-xs uppercase tracking-wide font-medium mb-2">Tag-uri</p>
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {PRESET_TAGS.map((tag) => (
-              <TagPill key={tag} tag={tag} selected={tags.includes(tag)} onClick={() => toggleTag(tag)} />
-            ))}
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-neutral-400 text-xs uppercase tracking-wide font-medium">Tag-uri</p>
+            {files.length > 0 && (
+              <button
+                onClick={suggestTagsFromImage}
+                disabled={aiTagLoading}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-violet-500/20 text-violet-300 text-xs hover:bg-violet-500/30 disabled:opacity-50 transition-colors"
+              >
+                {aiTagLoading ? (
+                  <span className="w-3 h-3 border-2 border-violet-400 border-t-transparent rounded-full animate-spin inline-block" />
+                ) : (
+                  <span>✦</span>
+                )}
+                {aiTagLoading ? "Analizează..." : "Sugerează cu AI"}
+              </button>
+            )}
           </div>
-          {tags.filter((t) => !PRESET_TAGS.includes(t)).map((tag) => (
-            <TagPill key={tag} tag={tag} selected onClick={() => toggleTag(tag)} />
-          ))}
+
+          {aiSuggestedTags !== null && (
+            <div className="space-y-2 mb-2">
+              <p className="text-neutral-600 text-xs">Bifează tag-urile corecte:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {aiSuggestedTags.map((tag) => (
+                  <TagPill key={tag} tag={tag} selected={tags.includes(tag)} onClick={() => toggleTag(tag)} />
+                ))}
+              </div>
+              <button
+                onClick={() => { setAiSuggestedTags(null); setTags([]); }}
+                className="text-xs text-neutral-600 hover:text-neutral-400 underline underline-offset-2 transition-colors"
+              >
+                Resetează
+              </button>
+            </div>
+          )}
+
           <div className="flex gap-2 mt-2">
             <input
               className="flex-1 bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition-colors placeholder-neutral-600"
@@ -621,17 +730,19 @@ function UploadModal({
           />
         </div>
 
-        {/* Progress */}
-        {progress !== null && (
+        {/* Overall progress */}
+        {isUploading && (
           <div className="space-y-1">
-            <p className="text-xs text-neutral-400">Se încarcă... {progress}%</p>
+            <p className="text-xs text-neutral-400">Se încarcă... {totalProgress}%</p>
             <div className="w-full bg-neutral-700 rounded-full h-1">
-              <div className="bg-violet-500 h-1 rounded-full transition-all" style={{ width: `${progress}%` }} />
+              <div className="bg-violet-500 h-1 rounded-full transition-all" style={{ width: `${totalProgress}%` }} />
             </div>
           </div>
         )}
 
-        {error && <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{error}</p>}
+        {errors.map((err, i) => (
+          <p key={i} className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{err}</p>
+        ))}
 
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-700 text-neutral-300 text-sm hover:border-neutral-500 transition-colors">
@@ -639,10 +750,10 @@ function UploadModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={!file || progress !== null || tags.length === 0}
+            disabled={files.length === 0 || isUploading || tags.length === 0}
             className="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 disabled:opacity-40 transition-colors"
           >
-            {progress !== null ? "Se încarcă..." : "Salvează"}
+            {isUploading ? `Se încarcă... ${totalProgress}%` : `Salvează${files.length > 1 ? ` (${files.length})` : ""}`}
           </button>
         </div>
       </div>
