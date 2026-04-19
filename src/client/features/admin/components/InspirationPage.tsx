@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { storage } from "../../../firebase";
 import AncaLoader from "../../../components/UI/AncaLoader";
@@ -46,6 +47,7 @@ function TagPill({
 }
 
 export default function InspirationPage() {
+  const navigate = useNavigate();
   const [photos, setPhotos] = useState<InspirationPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTags, setFilterTags] = useState<string[]>([]);
@@ -69,10 +71,20 @@ export default function InspirationPage() {
     new Set([...PRESET_TAGS, ...photos.flatMap((p) => p.tags)]),
   );
 
+  const localMatch = useCallback((query: string): string[] => {
+    const normalize = (s: string) => s.toLowerCase().replace(/[-_]/g, " ").trim();
+    const words = normalize(query).split(/\s+/).filter(Boolean);
+    return allTags.filter((tag) => {
+      const normalizedTag = normalize(tag);
+      return words.some((w) => normalizedTag.includes(w) || w.includes(normalizedTag));
+    });
+  }, [allTags]);
+
   const suggestTags = useCallback(async (query: string) => {
     if (!query.trim()) { setDetectedTags([]); setAiLoading(false); return; }
     setAiLoading(true);
     const start = Date.now();
+    const localTags = localMatch(query);
     try {
       const response = await fetch("/api/admin/inspiration/suggest-tags", {
         method: "POST",
@@ -80,7 +92,8 @@ export default function InspirationPage() {
         body: JSON.stringify({ query, availableTags: allTags }),
       });
       const data = await response.json();
-      const tags = data.tags ?? [];
+      const aiTags: string[] = data.tags ?? [];
+      const tags = Array.from(new Set([...localTags, ...aiTags]));
       setDetectedTags(tags);
       setDebugLog({
         query,
@@ -90,12 +103,12 @@ export default function InspirationPage() {
         durationMs: Date.now() - start,
       });
     } catch (error) {
-      setDetectedTags([]);
-      setDebugLog({ query, sentTags: allTags, receivedTags: [], rawResponse: String(error), durationMs: Date.now() - start });
+      setDetectedTags(localTags);
+      setDebugLog({ query, sentTags: allTags, receivedTags: localTags, rawResponse: String(error), durationMs: Date.now() - start });
     } finally {
       setAiLoading(false);
     }
-  }, [allTags]);
+  }, [allTags, localMatch]);
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -137,6 +150,18 @@ export default function InspirationPage() {
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-5xl mx-auto space-y-6">
+
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-sm">
+          <button
+            onClick={() => navigate("/admin")}
+            className="text-neutral-500 hover:text-white transition-colors"
+          >
+            Dashboard
+          </button>
+          <span className="text-neutral-700">/</span>
+          <span className="text-neutral-300">Inspirație Foto</span>
+        </nav>
 
         {/* Header */}
         <div className="flex items-center justify-between">
