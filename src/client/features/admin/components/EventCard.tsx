@@ -39,9 +39,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [contractUrl, setContractUrl] = useState(event.contractUrl ?? "");
   const [invoiceUrl, setInvoiceUrl] = useState(event.invoiceUrl ?? "");
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>(event.attachmentUrls ?? []);
+  const [templateUrls, setTemplateUrls] = useState<string[]>(event.templateUrls ?? []);
 
   const eventDate = fallbackDate;
-  const isPast = eventDate ? eventDate < new Date() : false;
+  const isPast = eventDate
+    ? new Date(new Date(eventDate).setHours(23, 59, 59, 999)) < new Date()
+    : false;
   const isLead = event.status === "lead" || event.status === "tentativ";
 
   const dateSlug = eventDate ? eventDate.toISOString().slice(0, 10) : "no-date";
@@ -98,6 +101,15 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ attachmentUrls: urls }),
+    });
+  };
+
+  const saveTemplates = async (urls: string[]) => {
+    setTemplateUrls(urls);
+    await fetch(`/api/admin/events/${event.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ templateUrls: urls }),
     });
   };
 
@@ -383,6 +395,34 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               </div>
             )}
 
+            {/* Template fotocabină */}
+            {templateUrls.length > 0 && (
+              <div className="border-t border-neutral-800 pt-3 space-y-2">
+                <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Template fotocabină</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {templateUrls.map((url, i) => (
+                    <a
+                      key={url}
+                      href={url}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="relative group rounded-lg overflow-hidden border border-neutral-700 hover:border-violet-500 transition-colors"
+                    >
+                      <img src={url} alt={`template-${i + 1}`} className="w-full h-24 object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Edit button for confirmed events */}
             {!isLead && (
               <div className="pt-2 border-t border-neutral-800 flex items-center justify-between">
@@ -532,6 +572,13 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 storagePath={`admin-docs/${event.id}/attachments`}
                 urls={attachmentUrls}
                 onUrlsChange={saveAttachments}
+              />
+              <MultiFileDropZone
+                label="Template fotocabină (PNG/JPG)"
+                storagePath={`admin-docs/${event.id}/templates`}
+                urls={templateUrls}
+                onUrlsChange={saveTemplates}
+                accept=".png,.jpg,.jpeg"
               />
             </div>
 
