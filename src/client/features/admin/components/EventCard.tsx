@@ -40,6 +40,11 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [invoiceUrl, setInvoiceUrl] = useState(event.invoiceUrl ?? "");
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>(event.attachmentUrls ?? []);
   const [templateUrls, setTemplateUrls] = useState<string[]>(event.templateUrls ?? []);
+  const [albumSlug, setAlbumSlug] = useState(event.albumSlug ?? "");
+  const [albumPin, setAlbumPin] = useState(event.albumPin ?? "");
+  const [showAlbumModal, setShowAlbumModal] = useState(false);
+  const [albumCreating, setAlbumCreating] = useState(false);
+  const [albumError, setAlbumError] = useState<string | null>(null);
 
   const eventDate = fallbackDate;
   const isPast = eventDate
@@ -102,6 +107,37 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ attachmentUrls: urls }),
     });
+  };
+
+  const suggestedSlug = eventDate
+    ? `${String(eventDate.getDate()).padStart(2, "0")}${eventDate.toLocaleString("ro-RO", { month: "long" }).toLowerCase().replace(/\s+/g, "")}${eventDate.getFullYear()}`
+    : "";
+
+  const handleCreateAlbum = async (slug: string, pin: string) => {
+    setAlbumCreating(true);
+    setAlbumError(null);
+    const res = await fetch(`/api/admin/events/${event.id}/create-album`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug, pin }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setAlbumError(data.error); setAlbumCreating(false); return; }
+    setAlbumSlug(slug);
+    setAlbumPin(pin);
+    setShowAlbumModal(false);
+    setAlbumCreating(false);
+    onUpdated?.({ albumSlug: slug, albumPin: pin });
+  };
+
+  const handleSaveAlbumPin = async (pin: string) => {
+    setAlbumPin(pin);
+    await fetch(`/api/admin/events/${event.id}/album`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ albumPin: pin }),
+    });
+    onUpdated?.({ albumPin: pin });
   };
 
   const saveTemplates = async (urls: string[]) => {
@@ -271,7 +307,26 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 </span>
               )}
               {event.client.phone && (
-                <span className="flex items-center gap-1.5"><span>📞</span>{event.client.phone}</span>
+                <span className="flex items-center gap-1.5">
+                  <span>📞</span>
+                  <span>{event.client.phone}</span>
+                  <a
+                    href={`tel:${event.client.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-2 py-0.5 rounded-md bg-neutral-700 hover:bg-neutral-600 text-xs transition-colors"
+                  >
+                    Sună
+                  </a>
+                  <a
+                    href={`https://wa.me/${event.client.phone.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-2 py-0.5 rounded-md bg-green-700/60 hover:bg-green-600/70 text-xs transition-colors"
+                  >
+                    WhatsApp
+                  </a>
+                </span>
               )}
               {event.client.email && (
                 <span className="flex items-center gap-1.5"><span>✉</span>{event.client.email}</span>
@@ -419,6 +474,83 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                       </div>
                     </a>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Album media */}
+            {!isLead && (
+              <div className="border-t border-neutral-800 pt-3">
+                {albumSlug ? (
+                  <div className="space-y-2">
+                    <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Album media</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={`/media/${albumSlug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-violet-400 hover:text-violet-300 text-xs transition-colors font-mono"
+                      >
+                        /media/{albumSlug}
+                      </a>
+                      {albumPin && (
+                        <span className="text-neutral-400 text-xs">
+                          PIN: <span className="font-mono text-white">{albumPin}</span>
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShowAlbumModal(true); }}
+                        className="text-xs text-neutral-500 hover:text-white transition-colors"
+                      >
+                        Editează PIN
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowAlbumModal(true); }}
+                    className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+                    </svg>
+                    Creează album media
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Album modal */}
+            {showAlbumModal && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+                onClick={(e) => { e.stopPropagation(); setShowAlbumModal(false); }}
+              >
+                <div
+                  className="bg-neutral-900 border border-neutral-700 rounded-xl p-6 w-full max-w-sm space-y-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="text-white font-semibold text-base">
+                    {albumSlug ? "Editează album" : "Creează album media"}
+                  </h3>
+                  {!albumSlug && (
+                    <div>
+                      <label className={labelClass}>Slug album</label>
+                      <AlbumSlugInput suggestedSlug={suggestedSlug} onCreate={handleCreateAlbum} creating={albumCreating} error={albumError} />
+                    </div>
+                  )}
+                  {albumSlug && (
+                    <AlbumPinInput currentPin={albumPin} onSave={handleSaveAlbumPin} onClose={() => setShowAlbumModal(false)} />
+                  )}
+                  {!albumSlug && (
+                    <button
+                      onClick={() => setShowAlbumModal(false)}
+                      className="w-full py-2 rounded-lg border border-neutral-700 text-neutral-400 text-sm hover:text-white transition-colors"
+                    >
+                      Anulează
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -607,6 +739,92 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         </div>
       )}
     </>
+  );
+};
+
+const AlbumSlugInput: React.FC<{
+  suggestedSlug: string;
+  creating: boolean;
+  error: string | null;
+  onCreate: (slug: string, pin: string) => void;
+}> = ({ suggestedSlug, creating, error, onCreate }) => {
+  const [slug, setSlug] = useState(suggestedSlug);
+  const [pin, setPin] = useState("");
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Slug album</label>
+        <input
+          className="w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 font-mono"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+          placeholder="ex: 14februarie2026"
+        />
+      </div>
+      <div>
+        <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">PIN (opțional)</label>
+        <input
+          className="w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 font-mono"
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="ex: 1234"
+          inputMode="numeric"
+        />
+      </div>
+      {error && <p className="text-red-400 text-xs">{error}</p>}
+      <button
+        onClick={() => onCreate(slug, pin)}
+        disabled={creating || !slug}
+        className="w-full py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors disabled:opacity-40"
+      >
+        {creating ? "Se creează..." : "Creează album"}
+      </button>
+    </div>
+  );
+};
+
+const AlbumPinInput: React.FC<{
+  currentPin: string;
+  onSave: (pin: string) => void;
+  onClose: () => void;
+}> = ({ currentPin, onSave, onClose }) => {
+  const [pin, setPin] = useState(currentPin);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    await onSave(pin);
+    setSaved(true);
+    setTimeout(() => { setSaved(false); onClose(); }, 800);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">PIN acces album</label>
+        <input
+          className="w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 font-mono"
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="Fără PIN"
+          inputMode="numeric"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onClose}
+          className="flex-1 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-sm hover:text-white transition-colors"
+        >
+          Anulează
+        </button>
+        <button
+          onClick={handleSave}
+          className="flex-1 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors"
+        >
+          {saved ? "Salvat ✓" : "Salvează"}
+        </button>
+      </div>
+    </div>
   );
 };
 

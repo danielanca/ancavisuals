@@ -7,6 +7,7 @@ import { firestore } from "../firestore";
 import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateContractPDF } from "../services/pdf.generator";
 import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail } from "../notifications/templates/contractEmail";
+import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 
 const router = Router();
 
@@ -52,8 +53,10 @@ router.post("/", async (req: Request, res: Response) => {
       transportFuelPrice: body.transportFuelPrice ?? "10",
 
       clientEmail: body.clientEmail,
-      clientName: "",
-      clientIdSeries: "",
+      clientName: body.clientName?.trim() ?? "",
+      clientPhone: body.clientPhone?.trim() ?? "",
+      clientAddress: body.clientAddress?.trim() ?? "",
+      clientIdSeries: body.clientIdSeries?.trim() ?? "",
     };
 
     const docRef = await db.collection("contracts").add({
@@ -169,7 +172,9 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       return res.status(410).json({ error: "Contractul a expirat.", status: "expired" });
     }
 
-    const clientIp = req.ip ?? req.socket.remoteAddress ?? "unknown";
+    const clientIp = getClientIp(req) ?? "unknown";
+    const clientUserAgent = req.headers["user-agent"] ?? "";
+    const ipInfo = await fetchIpInfo(clientIp).catch(() => null);
     const signedAt = Timestamp.now();
 
     await db.collection("contracts").doc(doc.id).update({
@@ -181,6 +186,13 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       clientPhone: clientPhone?.trim() ?? "",
       clientSignatureBase64,
       clientIp,
+      clientUserAgent,
+      clientGeo: {
+        city: ipInfo?.city ?? "",
+        region: ipInfo?.region ?? "",
+        country: ipInfo?.country ?? "",
+        org: ipInfo?.org ?? "",
+      },
     });
 
     // Generare PDF și trimitere email în background — nu blocăm răspunsul
@@ -193,6 +205,13 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       clientPhone: clientPhone?.trim() ?? "",
       clientSignatureBase64,
       clientIp,
+      clientUserAgent,
+      clientGeo: {
+        city: ipInfo?.city ?? "",
+        region: ipInfo?.region ?? "",
+        country: ipInfo?.country ?? "",
+        org: ipInfo?.org ?? "",
+      },
       signedAt: signedAt.toDate().toISOString(),
     };
 

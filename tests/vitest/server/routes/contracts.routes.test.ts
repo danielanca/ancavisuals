@@ -245,6 +245,7 @@ describe("contracts.routes", () => {
       await postPublicSign({
         params: { token: "token-1" },
         ip: "10.0.0.1",
+        headers: {},
         socket: { remoteAddress: "10.0.0.2" },
         body: {
           clientName: "  Ion Popescu  ",

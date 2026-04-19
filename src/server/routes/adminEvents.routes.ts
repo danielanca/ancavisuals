@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { Router } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
+import { buildBunnyStorageUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER } from "../constants/bunny";
 
 const router = Router();
 
@@ -150,6 +151,97 @@ router.put("/settings", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[adminEvents] PUT /settings failed:", error);
     res.status(500).json({ error: "Nu s-au putut salva setările." });
+  }
+});
+
+router.post("/events/:id/create-album", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { slug, pin } = req.body as { slug: string; pin?: string };
+
+    if (!slug || !/^[a-z0-9][a-z0-9-]{1,80}$/.test(slug)) {
+      return res.status(400).json({ error: "Slug invalid. Folosește doar litere mici, cifre și cratimă." });
+    }
+
+    // Verifică dacă folderul există deja în Bunny
+    const checkUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER) + "/";
+    const checkRes = await fetch(checkUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() } });
+    if (checkRes.ok) {
+      return res.status(409).json({ error: "Un album cu acest slug există deja în Bunny." });
+    }
+
+    // Creează folderele prin upload placeholder în fiecare
+    const folders = [BUNNY_PHOTOS_FOLDER, "shortvideo", "longvideo"];
+    for (const folder of folders) {
+      const placeholderUrl = buildBunnyStorageUrl(slug, folder, ".keep");
+      const uploadRes = await fetch(placeholderUrl, {
+        method: "PUT",
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(), "Content-Type": "application/octet-stream" },
+        body: "",
+      });
+      if (!uploadRes.ok) {
+        return res.status(500).json({ error: `Bunny upload failed pentru ${folder}: ${uploadRes.status}` });
+      }
+    }
+
+    // Salvează albumSlug și albumPin pe eveniment
+    const db = firestore();
+    const updates: Record<string, unknown> = { albumSlug: slug };
+    if (pin) updates.albumPin = pin;
+    await db.collection("adminEvents").doc(id).update(updates);
+
+    res.json({ ok: true, slug, mediaUrl: `/media/${slug}` });
+  } catch (error) {
+    console.error("[adminEvents] create-album failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.patch("/events/:id/album", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { albumSlug, albumPin } = req.body as { albumSlug?: string; albumPin?: string };
+    const db = firestore();
+    const updates: Record<string, unknown> = {};
+    if (albumSlug !== undefined) updates.albumSlug = albumSlug;
+    if (albumPin !== undefined) updates.albumPin = albumPin;
+    await db.collection("adminEvents").doc(id).update(updates);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// GET /api/admin/media-activity — ultimele vizite pe paginile /media
+router.get("/media-activity", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const snapshot = await db
+      .collection("mediaVisits")
+      .orderBy("timestamp", "desc")
+      .limit(limit)
+      .get();
+
+    const visits = snapshot.docs.map((doc) => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        slug: d.slug,
+        timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
+        ip: d.ip,
+        userAgent: d.userAgent,
+        city: d.city,
+        region: d.region,
+        country: d.country,
+        org: d.org,
+      };
+    });
+
+    res.json({ visits });
+  } catch (error) {
+    console.error("[adminEvents] GET /media-activity failed:", error);
+    res.status(500).json({ error: "Nu s-a putut încărca activitatea." });
   }
 });
 
