@@ -9,6 +9,7 @@ import DeliveryForm from './DeliveryForm';
 import DeliveryAddressModal from "../DeliveryAddress/AddressList";
 import PhotoLightbox from "./PhotoLightbox";
 import OnboardingWizard from "./Onboardingwizard";
+import MediaConsentModal from "./MediaConsentModal";
 import AncaLoader from "../../components/UI/AncaLoader";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
@@ -224,6 +225,7 @@ export default function MediaAlbumPage() {
   const [creatingShare, setCreatingShare] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
   const [adminKey, setAdminKey] = useState("");
   const [showAdminButton, setShowAdminButton] = useState(false);
 
@@ -656,7 +658,12 @@ export default function MediaAlbumPage() {
     <div className={styles.page}>
       <div className={styles.container}>
 
+        {slug && !isAdmin && (
+          <MediaConsentModal slug={slug} onAccepted={() => setConsentGiven(true)} />
+        )}
+
         <OnboardingWizard />
+
 
         {lightboxIndex !== null && album?.photos && (
           <PhotoLightbox

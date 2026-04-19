@@ -8,6 +8,7 @@ interface CreateContractState {
   eventLocation?: string;
   clientEmail?: string;
   clientPhone?: string;
+  clientFullName?: string;
 }
 
 interface ServiceEntry {
@@ -101,6 +102,10 @@ const CreateContractPage: React.FC = () => {
 
   // Client
   const [clientEmail, setClientEmail] = useState(fromEvent.clientEmail ?? "");
+  const [clientName, setClientName] = useState(fromEvent.clientFullName ?? "");
+  const [clientPhone, setClientPhone] = useState(fromEvent.clientPhone ?? "");
+  const [clientAddress, setClientAddress] = useState("");
+  const [clientIdSeries, setClientIdSeries] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
 
   // Calculated totals (GRATUIT = 0, missing = 0 dar va fi validat)
@@ -194,6 +199,10 @@ const CreateContractPage: React.FC = () => {
         restPaidAt,
         paymentMethod,
         clientEmail,
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim(),
+        clientAddress: clientAddress.trim(),
+        clientIdSeries: clientIdSeries.trim(),
         privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || "10",
@@ -518,7 +527,7 @@ const CreateContractPage: React.FC = () => {
           </Block>
 
           {/* CLIENT */}
-          <Block title="Email client">
+          <Block title="Date client">
             <div>
               <Label>Email client *</Label>
               <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
@@ -527,7 +536,38 @@ const CreateContractPage: React.FC = () => {
                 Link-ul de semnare va fi trimis la această adresă.
               </span>
             </div>
-            <label className="flex items-center gap-3 mt-4 cursor-pointer group">
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Nume și prenume</Label>
+                <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Ion Popescu" className={inp} />
+              </div>
+              <div>
+                <Label>Telefon</Label>
+                <input type="text" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="07xx xxx xxx" className={inp} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Adresă</Label>
+                <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
+                  placeholder="Str. Exemplu nr. 1, Cluj" className={inp} />
+              </div>
+              <div>
+                <Label>Serie buletin</Label>
+                <input type="text" value={clientIdSeries} onChange={(e) => setClientIdSeries(e.target.value.toUpperCase())}
+                  placeholder="AB123456" className={inp} />
+              </div>
+            </div>
+
+            <p className="text-neutral-600 text-xs">
+              Câmpurile de mai sus sunt opționale — clientul le va vedea pre-completate și poate corecta înainte de a semna.
+            </p>
+
+            <label className="flex items-center gap-3 cursor-pointer group">
               <input
                 type="checkbox"
                 checked={privateClient}

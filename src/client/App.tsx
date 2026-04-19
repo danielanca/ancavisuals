@@ -18,9 +18,12 @@ import ContractListPage from "./features/admin/components/Contracts/ContractList
 import CreateContractPage from "./features/admin/components/Contracts/CreateContractPage";
 import EditContractPage from "./features/admin/components/Contracts/EditContractPage";
 import InspirationPage from "./features/admin/components/InspirationPage";
+import MementosPage from "./features/admin/components/MementosPage";
+import MediaActivityPage from "./features/admin/components/MediaActivityPage";
+import RevinPage from "./pages/Revin/RevinPage";
 
 
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract"];
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin"];
 
 export const App = () => {
   const location = useLocation();
@@ -68,6 +71,9 @@ export const App = () => {
             />
           ))}
 
+          {/* Photobooth pause screen — public, no auth, no index */}
+          <Route path="/revin" element={<RevinPage />} />
+
           {/* Auth-protected admin routes */}
           <Route element={<RequireAuth />}>
             <Route path="/admin" element={<Dashboard />} />
@@ -78,6 +84,8 @@ export const App = () => {
             <Route path="/admin/contracts/create" element={<CreateContractPage />} />
             <Route path="/admin/contracts/:id/edit" element={<EditContractPage />} />
             <Route path="/admin/inspiration" element={<InspirationPage />} />
+            <Route path="/admin/mementos" element={<MementosPage />} />
+            <Route path="/admin/media-activity" element={<MediaActivityPage />} />
           </Route>
 
 

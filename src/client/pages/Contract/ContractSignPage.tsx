@@ -61,6 +61,10 @@ const ContractSignPage: React.FC = () => {
         if (res.status === 404) { setPageState("not_found"); return; }
         if (!res.ok) { setPageState("error"); return; }
         setContract(data);
+        if (data.clientName) setClientName(data.clientName);
+        if (data.clientPhone) setClientPhone(data.clientPhone);
+        if (data.clientAddress) setClientAddress(data.clientAddress);
+        if (data.clientIdSeries) setClientIdSeries(data.clientIdSeries);
         setPageState("ready");
       })
       .catch(() => setPageState("error"));
