@@ -33,6 +33,8 @@ export interface ClientEvent {
   invoiceUrl?: string;
   attachmentUrls?: string[];
   templateUrls?: string[];
+  albumSlug?: string;
+  albumPin?: string;
 }
 
 export interface Goal {

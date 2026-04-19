@@ -22,6 +22,8 @@ import uploadRouter from "./src/server/routes/upload.routes";
 import blogRouter from "./src/server/routes/blog.routes";
 import contractsRouter from "./src/server/routes/contracts.routes";
 import inspirationRouter from "./src/server/routes/inspiration.routes";
+import mementosRouter from "./src/server/routes/mementos.routes";
+import { startMementosCron } from "./src/server/cron/mementos.cron";
 
 // Shared HTTP defaults used by both local development and the production server.
 const BODY_PAYLOAD_LIMIT = "5mb";
@@ -118,7 +120,9 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.blog, blogRouter);
   app.use(API_ROUTE_PREFIXES.contracts, contractsRouter);
   app.use(API_ROUTE_PREFIXES.admin, inspirationRouter);
+  app.use(API_ROUTE_PREFIXES.admin, mementosRouter);
 
+  startMementosCron();
 
   let vite: ViteDevServer | undefined;
   let template: string;

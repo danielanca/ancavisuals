@@ -11,6 +11,8 @@ import { loadAlbum } from "../services/album.service";
 import { readPrintSelection, savePrintSelection, saveDeliveryAddress, readDeliveryAddress, addLink } from "../services/printSelection.store";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { db } from "../firestore";
+import { Timestamp } from "firebase-admin/firestore";
+import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import {
   BUNNY_ACCESS_KEY_HEADER,
   BUNNY_DEFAULT_ARCHIVE_NAME,
@@ -44,6 +46,22 @@ const isSafeFile = (name: string) => {
 
 const isSafeSlug = (slug: string) => /^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug);
 
+async function logMediaVisit(req: Request, slug: string) {
+  const ip = getClientIp(req);
+  const ua = req.headers["user-agent"] ?? "";
+  const ipInfo = await fetchIpInfo(ip).catch(() => null);
+  await db.collection("mediaVisits").add({
+    slug,
+    timestamp: Timestamp.now(),
+    ip: ip ?? "",
+    userAgent: ua,
+    city: ipInfo?.city ?? "",
+    region: ipInfo?.region ?? "",
+    country: ipInfo?.country ?? "",
+    org: ipInfo?.org ?? "",
+  });
+}
+
 export async function getAlbum(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
 
@@ -52,6 +70,8 @@ export async function getAlbum(req: Request, res: Response) {
 
   const album = await loadAlbum(slug);
   if (!album) return res.status(404).json({ error: "Album not found" });
+
+  logMediaVisit(req, slug).catch(() => {});
 
   const saved = await readPrintSelection(slug);
   const photoPath = await checkPreviewExist(slug);

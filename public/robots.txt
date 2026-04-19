@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /revin
+Disallow: /media/
+Disallow: /admin/
+Disallow: /contract/
 
 Sitemap: https://www.ancavisuals.ro/sitemap.xml
