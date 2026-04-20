@@ -183,7 +183,6 @@ function buildContractHTML(contract: Record<string, unknown>): string {
         <p>Serviciul include:</p>
         <ul style="margin:6px 0 6px 20px;line-height:1.7;">
           <li>Echipament foto profesional cu declanșare automată sau la comandă</li>
-          <li>Fundal personalizat (agreat cu BENEFICIARUL înainte de eveniment)</li>
           <li><span class="bold">Fotografii nelimitate</span> pe toată durata utilizării fotocabinei</li>
           <li><span class="bold">Livrare instantă</span> a fotografiilor (imprimare la fața locului și/sau livrare digitală imediată pe dispozitivul personal)</li>
           <li><span class="bold">Magnet personalizat</span> inclus pentru fiecare sesiune foto</li>
@@ -197,12 +196,6 @@ function buildContractHTML(contract: Record<string, unknown>): string {
           BENEFICIARUL înțelege și acceptă că echipamentul VideoBooth 360° este un dispozitiv cu element rotativ care poate cauza accidente în cazul în care persoane — în special copii — pătrund în zona de protecție delimitată în timpul funcționării acestuia.<br/><br/>
           <span class="bold">PRESTATORUL nu își asumă nicio răspundere pentru accidentele, rănirile sau prejudiciile cauzate persoanelor care depășesc zona de delimitare în timpul funcționării echipamentului.</span> Supravegherea copiilor și a participanților în apropierea echipamentului rotativ este responsabilitatea exclusivă a BENEFICIARULUI și/sau a părinților/însoțitorilor acestora.<br/><br/>
           Prin semnarea prezentului contract, BENEFICIARUL confirmă că a luat la cunoștință această clauză și că va informa invitații cu privire la normele de siguranță în zona VideoBooth 360°.
-        </div>
-        <div style="margin:10px 0;padding:10px 14px;background:#fff0f0;border-left:3px solid #dc2626;font-size:9.5pt;color:#444;line-height:1.6;">
-          <strong>Clauză privind deteriorarea echipamentului de către participanți:</strong><br/><br/>
-          BENEFICIARUL răspunde integral pentru orice deteriorare, distrugere sau defecțiune a echipamentului PRESTATORULUI cauzată de participanții la eveniment — inclusiv, dar fără a se limita la: răsturnarea echipamentului, împingerea sau lovirea acestuia, introducerea de obiecte în mecanismele de funcționare sau orice altă intervenție fizică neautorizată.<br/><br/>
-          Valoarea despăgubirii va fi stabilită în baza prețului de înlocuire sau reparare a echipamentului deteriorat, comunicat de PRESTATOR în scris în termen de 30 de zile de la producerea incidentului. BENEFICIARUL se obligă să achite această sumă în termen de 15 zile calendaristice de la primirea notificării.<br/><br/>
-          Supravegherea participanților — în special a minorilor — în apropierea echipamentului este <span class="bold">responsabilitatea exclusivă a BENEFICIARULUI</span> și/sau a părinților/însoțitorilor acestora pe toată durata evenimentului.
         </div>
       `,
     } : null,
@@ -267,8 +260,7 @@ function buildContractHTML(contract: Record<string, unknown>): string {
       title: "Răspunderea prestatorului și limitări",
       body: `
         <p>În cazul în care PRESTATORUL nu realizează din vina sa serviciile care fac obiectul acestui Contract, el este responsabil în fața BENEFICIARULUI numai pentru sumele plătite de către acesta, neintrând în discuție orice cheltuieli făcute între timp de PRESTATOR.</p>
-        ${hasPhotoVideo ? `<p>PRESTATORUL nu poate fi tras la răspundere pentru: calitatea fotografiilor/filmărilor afectată de condiții de iluminat insuficient sau necontrolabil, spații aglomerate care limitează accesul, momente neacoperite ca urmare a restricțiilor impuse de oficianți sau a nepunctualității participanților.</p>
-        <p>Cooperarea invitaților la fotografiile de grup și la momentele cheie este responsabilitatea exclusivă a BENEFICIARULUI.</p>` : ""}
+        ${hasPhotoVideo ? `<p>PRESTATORUL nu poate fi tras la răspundere pentru: calitatea fotografiilor/filmărilor afectată de condiții de iluminat insuficient sau necontrolabil, spații aglomerate care limitează accesul, momente neacoperite ca urmare a restricțiilor impuse de oficianți sau a nepunctualității participanților.</p>` : ""}
         ${hasPhotobooth ? `<p>PRESTATORUL nu poate fi tras la răspundere pentru defecțiuni tehnice generate de factori externi (întreruperi de curent, defecțiuni ale rețelei electrice din locație). În astfel de situații, va depune toate diligențele pentru remedierea rapidă.</p>` : ""}
       `,
     },
