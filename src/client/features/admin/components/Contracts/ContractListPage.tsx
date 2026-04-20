@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ConfirmModal from "../ConfirmModal";
+import ContractActionMenu from "./ContractActionMenu";
 
 interface ContractItem {
   id: string;
@@ -318,68 +319,24 @@ const ContractListPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-                      {contract.status !== "signed" && (
-                        <button
-                          onClick={() => navigate(`/admin/contracts/${contract.id}/edit`)}
-                          className="px-3 py-1.5 text-xs border border-amber-500/30 text-amber-400 rounded-lg hover:bg-amber-500/10 transition-colors"
-                        >
-                          Editează
-                        </button>
-                      )}
-                      {contract.status === "draft" && !isSigned && (
-                        <button
-                          onClick={() => { setSigError(null); setSigningId(contract.id); }}
-                          className="px-3 py-1.5 text-xs border border-blue-500/30 text-blue-400 rounded-lg hover:bg-blue-500/10 transition-colors"
-                        >
-                          Semnează
-                        </button>
-                      )}
-                      <button
-                        onClick={() => window.open(`/api/contracts/${contract.id}/preview`, "_blank")}
-                        className="px-3 py-1.5 text-xs border border-purple-500/30 text-purple-400 rounded-lg hover:bg-purple-500/10 transition-colors"
-                        title="Previzualizare PDF"
-                      >
-                        Preview
-                      </button>
-                      {(contract.status === "draft" || contract.status === "sent") && (
-                        <button
-                          onClick={() => confirmAction("send", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
-                          disabled={sending === contract.id}
-                          className="px-3 py-1.5 text-xs border border-emerald-500/30 text-emerald-400 rounded-lg hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
-                        >
-                          {sending === contract.id ? "..." : contract.status === "sent" ? "Retrimite" : "Trimite link"}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          const url = `${window.location.origin}/contract/${contract.token}`;
-                          navigator.clipboard.writeText(url);
-                          showToast("Link copiat în clipboard!");
-                        }}
-                        className="px-3 py-1.5 text-xs border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 transition-colors"
-                        title="Copiază link direct"
-                      >
-                        Link
-                      </button>
-                      {(contract.status === "draft" || contract.status === "sent") && (
-                        <button
-                          onClick={() => confirmAction("cancel", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
-                          disabled={cancelling === contract.id}
-                          className="px-3 py-1.5 text-xs border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                        >
-                          {cancelling === contract.id ? "..." : "Anulează"}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => confirmAction("delete", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
-                        disabled={deleting === contract.id}
-                        className="px-3 py-1.5 text-xs border border-red-700/40 text-red-600 rounded-lg hover:bg-red-700/10 transition-colors disabled:opacity-50"
-                        title="Șterge definitiv"
-                      >
-                        {deleting === contract.id ? "..." : "Șterge"}
-                      </button>
-                    </div>
+                    <ContractActionMenu
+                      contract={contract}
+                      isSigned={isSigned}
+                      sending={sending}
+                      cancelling={cancelling}
+                      deleting={deleting}
+                      onEdit={() => navigate(`/admin/contracts/${contract.id}/edit`)}
+                      onSign={() => { setSigError(null); setSigningId(contract.id); }}
+                      onPreview={() => window.open(`/api/contracts/${contract.id}/preview`, "_blank")}
+                      onSend={() => confirmAction("send", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
+                      onCopyLink={() => {
+                        const url = `${window.location.origin}/contract/${contract.token}`;
+                        navigator.clipboard.writeText(url);
+                        showToast("Link copiat în clipboard!");
+                      }}
+                      onCancel={() => confirmAction("cancel", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
+                      onDelete={() => confirmAction("delete", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
+                    />
                   </div>
                 </div>
               );
