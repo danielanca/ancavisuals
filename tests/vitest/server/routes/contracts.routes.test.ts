@@ -11,10 +11,13 @@ function createMockResponse() {
   const res = {
     status: vi.fn(),
     json: vi.fn(),
+    setHeader: vi.fn(),
+    send: vi.fn(),
   };
 
   res.status.mockReturnValue(res);
   res.json.mockReturnValue(res);
+  res.send.mockReturnValue(res);
 
   return res;
 }
@@ -212,6 +215,7 @@ describe("contracts.routes", () => {
         id: "contract-1",
         status: "sent",
         eventType: "Botez",
+        clientEmail: "secret@example.com",
         createdAt: "2026-06-01T12:00:00.000Z",
       });
     });
@@ -249,6 +253,7 @@ describe("contracts.routes", () => {
         socket: { remoteAddress: "10.0.0.2" },
         body: {
           clientName: "  Ion Popescu  ",
+          clientEmail: "client@example.com",
           clientAddress: "  Cluj  ",
           clientPhone: "  0712345678  ",
           clientIdSeries: "  AB123456  ",
@@ -340,6 +345,7 @@ describe("contracts.routes", () => {
         params: { token: "abc" },
         body: {
           clientName: "Ion Popescu",
+          clientEmail: "client@example.com",
           clientIdSeries: "ab12",
           clientSignatureBase64: "data:image/png;base64,abc",
         },

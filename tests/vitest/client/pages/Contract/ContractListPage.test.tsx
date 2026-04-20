@@ -71,7 +71,7 @@ describe("ContractListPage", () => {
       expect(await screen.findByText("Nunta")).toBeInTheDocument();
       expect(screen.getByText("1 contracte totale")).toBeInTheDocument();
       expect(screen.getByText("Client: client@example.com")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Trimite link" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Acțiuni" })).toBeInTheDocument();
     });
 
     test("sends the contract link and updates the visible status", async () => {
@@ -88,7 +88,8 @@ describe("ContractListPage", () => {
 
       renderPage();
 
-      fireEvent.click(await screen.findByRole("button", { name: "Trimite link" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Acțiuni" }));
+      fireEvent.click(await screen.findByRole("button", { name: /Trimite link/ }));
 
       // ConfirmModal apare — confirmăm acțiunea
       fireEvent.click(await screen.findByRole("button", { name: "Trimite" }));
@@ -100,7 +101,6 @@ describe("ContractListPage", () => {
       expect(fetchMock.mock.calls[1][0]).toBe("/api/contracts/contract-1/send");
       expect(fetchMock.mock.calls[1][1]).toEqual({ method: "POST" });
       expect(await screen.findByText("Trimis")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Retrimite" })).toBeInTheDocument();
     });
 
     test("copies the public signing link to clipboard", async () => {
@@ -111,7 +111,8 @@ describe("ContractListPage", () => {
 
       renderPage();
 
-      fireEvent.click(await screen.findByRole("button", { name: "Link" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Acțiuni" }));
+      fireEvent.click(await screen.findByRole("button", { name: /Copiază link/ }));
 
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://ancavisuals.ro/contract/token-1");
       expect(await screen.findByText("Link copiat în clipboard!")).toBeInTheDocument();
@@ -128,7 +129,8 @@ describe("ContractListPage", () => {
 
       renderPage();
 
-      fireEvent.click(await screen.findByRole("button", { name: "Trimite link" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Acțiuni" }));
+      fireEvent.click(await screen.findByRole("button", { name: /Trimite link/ }));
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });

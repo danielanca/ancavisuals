@@ -8,9 +8,11 @@ const buildModule = async () => {
   const setContentMock = vi.fn().mockResolvedValue(undefined);
   const pdfMock = vi.fn().mockResolvedValue(Uint8Array.from([1, 2, 3]));
   const closeMock = vi.fn().mockResolvedValue(undefined);
+  const emulateMediaTypeMock = vi.fn().mockResolvedValue(undefined);
   const newPageMock = vi.fn().mockResolvedValue({
     setContent: setContentMock,
     pdf: pdfMock,
+    emulateMediaType: emulateMediaTypeMock,
   });
   const launchMock = vi.fn().mockResolvedValue({
     newPage: newPageMock,
