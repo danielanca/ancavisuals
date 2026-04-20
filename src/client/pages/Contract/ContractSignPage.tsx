@@ -34,9 +34,11 @@ const ContractSignPage: React.FC = () => {
   const [contract, setContract] = useState<ContractData | null>(null);
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
+  const [dataSaved, setDataSaved] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [gdprAccepted, setGdprAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +64,7 @@ const ContractSignPage: React.FC = () => {
         if (!res.ok) { setPageState("error"); return; }
         setContract(data);
         if (data.clientName) setClientName(data.clientName);
+        if (data.clientEmail) setClientEmail(data.clientEmail);
         if (data.clientPhone) setClientPhone(data.clientPhone);
         if (data.clientAddress) setClientAddress(data.clientAddress);
         if (data.clientIdSeries) setClientIdSeries(data.clientIdSeries);
@@ -140,6 +143,7 @@ const ContractSignPage: React.FC = () => {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!clientName.trim()) errors.clientName = "Numele complet este obligatoriu.";
+    if (!clientEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) errors.clientEmail = "Emailul este obligatoriu și trebuie să fie valid.";
     if (!clientIdSeries.trim()) {
       errors.clientIdSeries = "Seria și numărul buletinului sunt obligatorii.";
     } else if (!/^[A-Z]{2}[0-9]{6,7}$/.test(clientIdSeries.trim())) {
@@ -165,6 +169,7 @@ const ContractSignPage: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientName: clientName.trim(),
+          clientEmail: clientEmail.trim(),
           clientAddress: clientAddress.trim(),
           clientPhone: clientPhone.trim(),
           clientIdSeries: clientIdSeries.trim(),
@@ -355,58 +360,71 @@ const ContractSignPage: React.FC = () => {
           </Section>
         )}
 
-        {/* CLAUZE LEGALE (fixe) */}
-        <Section title="Clauze contractuale">
-          <LegalClause n={1} title="Drepturi asupra imaginilor">
-            PRESTATORUL își rezervă dreptul de a utiliza eventual unele imagini foto și/sau video pentru promovarea activității sale, marketing, portofoliu și pe Internet.
-          </LegalClause>
-          <LegalClause n={2} title="Termene de predare">
-            Fotografii preview (max. 20): 3 zile calendaristice. Foto finale: 30 zile calendaristice. Video finale: 60 zile calendaristice.
-          </LegalClause>
-          <LegalClause n={3} title="Forța majoră">
-            Forța majoră apără de răspundere partea care o invocă în scris în termen de 5 zile. Include: accident, boală, incendiu, urgență familială (grad I și II) sau orice situație dincolo de controlul părților.
-          </LegalClause>
-          <LegalClause n={4} title="Condiții atmosferice">
-            PRESTATORUL poate refuza filmarea când condițiile atmosferice pun în pericol aparatura utilizată.
-          </LegalClause>
-          <LegalClause n={5} title="Răspunderea prestatorului">
-            În cazul neexecutării din vina sa, PRESTATORUL este responsabil numai pentru sumele plătite de BENEFICIAR.
-          </LegalClause>
-          <LegalClause n={6} title="Obligație de contactare prealabilă">
-            BENEFICIARUL are obligația de a contacta PRESTATORUL cu cel puțin 7 zile calendaristice înainte de eveniment pentru reconfirmarea detaliilor.
-          </LegalClause>
-          <LegalClause n={7} title="Politica de anulare">
-            <strong>Abandon prestator {">"} 30 zile:</strong> returnare integrală avans. &nbsp;
-            <strong>Abandon beneficiar:</strong> avansul este nereturnabil, indiferent de momentul anulării.
-          </LegalClause>
-        </Section>
-
         {/* DATE CLIENT */}
         <form onSubmit={handleSubmit}>
           <Section title="Datele Dumneavoastră (Beneficiar)">
+            <p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>
+              Completați datele de mai jos, apoi apăsați <strong>Salvează datele</strong> pentru a le vedea incluse în contract.
+            </p>
             <Field label="Nume și prenume *" error={fieldErrors.clientName}>
               <input style={{ ...pg.input, ...(fieldErrors.clientName ? pg.inputErr : {}) }}
-                type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
+                type="text" value={clientName} onChange={(e) => { setClientName(e.target.value); setDataSaved(false); }}
                 placeholder="Ex: Popescu Ion" autoComplete="name" />
+            </Field>
+            <Field label="Email *" error={fieldErrors.clientEmail}>
+              <input style={{ ...pg.input, ...(fieldErrors.clientEmail ? pg.inputErr : {}) }}
+                type="email" value={clientEmail} onChange={(e) => { setClientEmail(e.target.value); setDataSaved(false); }}
+                placeholder="Ex: maria@email.com" autoComplete="email" />
             </Field>
             <Field label="Adresă domiciliu" error={undefined}>
               <input style={pg.input} type="text" value={clientAddress}
-                onChange={(e) => setClientAddress(e.target.value)}
+                onChange={(e) => { setClientAddress(e.target.value); setDataSaved(false); }}
                 placeholder="Str. Exemplu nr. 1, Oraș, Județ" autoComplete="street-address" />
             </Field>
             <Field label="Telefon" error={undefined}>
               <input style={pg.input} type="tel" value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
+                onChange={(e) => { setClientPhone(e.target.value); setDataSaved(false); }}
                 placeholder="07xxxxxxxx" autoComplete="tel" />
             </Field>
             <Field label="Serie și nr. buletin *" error={fieldErrors.clientIdSeries}>
               <input style={{ ...pg.input, ...(fieldErrors.clientIdSeries ? pg.inputErr : {}) }}
                 type="text" value={clientIdSeries}
-                onChange={(e) => setClientIdSeries(e.target.value.toUpperCase())}
+                onChange={(e) => { setClientIdSeries(e.target.value.toUpperCase()); setDataSaved(false); }}
                 placeholder="Ex: AB123456" maxLength={9} />
               <span style={pg.hint}>2 litere urmate de 6-7 cifre, fără spații (ex: AB123456)</span>
             </Field>
+            <button
+              type="button"
+              onClick={() => {
+                setDataSaved(true);
+              }}
+              style={pg.saveBtn}
+            >
+              Salvează datele
+            </button>
           </Section>
+
+          {/* BUTON VEZI CONTRACTUL */}
+          <div style={{ borderBottom: "1px solid #f0ede8", padding: "18px 28px" }}>
+            <button
+              type="button"
+              onClick={() => {
+                const params = new URLSearchParams({
+                  clientName: clientName.trim(),
+                  clientAddress: clientAddress.trim(),
+                  clientPhone: clientPhone.trim(),
+                  clientIdSeries: clientIdSeries.trim(),
+                });
+                window.open(`/api/contracts/sign/${token}/html?${params.toString()}`, "_blank");
+              }}
+              style={pg.pdfBtn}
+            >
+              📄 Vezi contractul complet
+            </button>
+            <p style={{ fontSize: 11, color: "#aaa", marginTop: 8, textAlign: "center" }}>
+              Se deschide într-un tab nou — reveniți aici după ce ați citit contractul.
+            </p>
+          </div>
 
           {/* SEMNĂTURĂ */}
           <Section title="Semnătura">
@@ -472,13 +490,6 @@ const InfoRow: React.FC<{ label: string; value: string; bold?: boolean }> = ({ l
   </div>
 );
 
-const LegalClause: React.FC<{ n: number; title: string; children: React.ReactNode }> = ({ n, title, children }) => (
-  <div style={{ padding: "8px 0", borderBottom: "1px solid #f5f2ee", fontSize: 12, color: "#444", lineHeight: 1.6 }}>
-    <span style={{ fontWeight: 700, color: "#c9a96e", marginRight: 4 }}>Art. {n}.</span>
-    <span style={{ fontWeight: 600 }}>{title}: </span>
-    {children}
-  </div>
-);
 
 const Field: React.FC<{ label: string; error?: string; children: React.ReactNode }> = ({ label, error, children }) => (
   <div style={{ marginBottom: 14 }}>
@@ -515,6 +526,8 @@ const pg: Record<string, React.CSSProperties> = {
   agreeLabel: { fontSize: 13, color: "#444", lineHeight: 1.5, cursor: "pointer" },
   submitBtn: { display: "block", width: "100%", padding: 16, background: "#c9a96e", color: "#fff", fontSize: 14, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", border: "none", borderRadius: 6, cursor: "pointer" },
   submitDisabled: { background: "#e0d5c3", cursor: "not-allowed" },
+  saveBtn: { marginTop: 4, padding: "10px 20px", background: "#1a1a1a", color: "#fff", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 6, cursor: "pointer", letterSpacing: 0.5 },
+  pdfBtn: { display: "block", width: "100%", padding: "14px 20px", background: "#c9a96e", color: "#fff", fontSize: 14, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" as const, border: "none", borderRadius: 6, cursor: "pointer" },
   footer: { textAlign: "center", padding: "14px", fontSize: 11, color: "#bbb", borderTop: "1px solid #f0ede8" },
   fullCenter: { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, background: "#f9f7f4" },
   iconBig: { fontSize: 52, marginBottom: 14 },

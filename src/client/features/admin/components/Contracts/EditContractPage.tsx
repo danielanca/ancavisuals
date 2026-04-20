@@ -113,6 +113,10 @@ const EditContractPage: React.FC = () => {
   const [transportFuelPrice, setTransportFuelPrice] = useState("10");
 
   const [clientEmail, setClientEmail] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
+  const [clientIdSeries, setClientIdSeries] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
 
   useEffect(() => {
@@ -146,6 +150,10 @@ const EditContractPage: React.FC = () => {
         setTransportKm(data.transportKm ?? "");
         setTransportFuelPrice(data.transportFuelPrice ?? "10");
         setClientEmail(data.clientEmail ?? "");
+        setClientName(data.clientName ?? "");
+        setClientPhone(data.clientPhone ?? "");
+        setClientAddress(data.clientAddress ?? "");
+        setClientIdSeries(data.clientIdSeries ?? "");
         setPrivateClient(data.privateClient === true);
 
         // Dacă totalul salvat nu coincide cu auto-calculat, activăm modul manual
@@ -226,7 +234,7 @@ const EditContractPage: React.FC = () => {
         priceAdvance: priceAdvance || 0,
         priceRest,
         advancePaidAt, restPaidAt, paymentMethod,
-        clientEmail, privateClient,
+        clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || "10",
       };
@@ -468,11 +476,35 @@ const EditContractPage: React.FC = () => {
           </Block>
 
           {/* CLIENT */}
-          <Block title="Email client">
+          <Block title="Date client">
             <div>
               <Label>Email client *</Label>
               <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="client@email.com" className={inp} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Nume complet</Label>
+                <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
+                  placeholder="ex. Maria Ionescu" className={inp} />
+              </div>
+              <div>
+                <Label>Telefon</Label>
+                <input type="text" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="07xx xxx xxx" className={inp} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Adresă</Label>
+                <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
+                  placeholder="Str. Florilor nr. 1, Cluj" className={inp} />
+              </div>
+              <div>
+                <Label>Serie buletin</Label>
+                <input type="text" value={clientIdSeries} onChange={(e) => setClientIdSeries(e.target.value.toUpperCase())}
+                  placeholder="AB123456" className={inp} />
+              </div>
             </div>
             <label className="flex items-center gap-3 mt-2 cursor-pointer group">
               <input type="checkbox" checked={privateClient} onChange={(e) => setPrivateClient(e.target.checked)}

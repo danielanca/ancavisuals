@@ -192,6 +192,21 @@ const ContractListPage: React.FC = () => {
     }
   };
 
+  const handleResetSignature = async (id: string) => {
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/contracts/${id}/reset-signature`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setContracts((prev) =>
+        prev.map((c) => c.id === id ? { ...c, status: "sent" as const, prestatorSignatureBase64: undefined } : c)
+      );
+      showToast("Semnătură ștearsă — contractul e din nou activ.");
+    } catch (e: unknown) {
+      setActionError("Eroare: " + (e instanceof Error ? e.message : "necunoscută"));
+    }
+  };
+
   const handleSend = async (id: string) => {
     setSending(id);
     setActionError(null);
@@ -336,6 +351,7 @@ const ContractListPage: React.FC = () => {
                       }}
                       onCancel={() => confirmAction("cancel", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
                       onDelete={() => confirmAction("delete", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
+                      onResetSignature={() => handleResetSignature(contract.id)}
                     />
                   </div>
                 </div>

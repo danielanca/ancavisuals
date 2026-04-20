@@ -9,7 +9,11 @@
       "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
       "Bash(find:*)",
       "Bash(npm test:*)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(lsof -ti:1994)",
+      "Bash(xargs kill *)",
+      "Bash(pkill -f \"tsx watch\")",
+      "Bash(pkill -f \"vite\")"
     ]
   }
 }

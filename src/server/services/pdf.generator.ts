@@ -27,6 +27,7 @@ export async function generateContractPDF(contract: Record<string, unknown>): Pr
 
   try {
     const page = await browser.newPage();
+    await page.emulateMediaType("print");
     await page.setContent(buildContractHTML(contract), { waitUntil: "networkidle0" });
     const pdf = await page.pdf({
       format: "A4",
@@ -86,7 +87,7 @@ function detectServiceFlags(services: ContractService[], contractType?: string) 
   return { hasFoto, hasVideo, hasPhotobooth, hasPhotoVideo: hasFoto || hasVideo };
 }
 
-function buildContractHTML(contract: Record<string, unknown>): string {
+export function buildContractHTML(contract: Record<string, unknown>): string {
   const signedDate = formatDate(contract.signedAt);
   const eventDateFormatted = formatDate(contract.eventDate);
   const contractDate = formatShortDate(contract.signedAt ?? contract.createdAt);
@@ -134,22 +135,24 @@ function buildContractHTML(contract: Record<string, unknown>): string {
       title: "Conținutul serviciului și prețul",
       body: `
         <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
-          ${services.map(s => {
+          ${services.map((s, idx) => {
+            const bg = idx % 2 === 0 ? "background:#f7f7f7;" : "";
+            const cell = `padding:5px 8px;`;
             if (s.isTransport && contract.transportKm) {
               const km = Number(contract.transportKm);
               const fuelPrice = Number(contract.transportFuelPrice) || 10;
               const estimated = Math.ceil(km * 6 / 100 * fuelPrice);
-              return `<tr>
-                <td style="padding:3px 0;">${esc(s.label)}<br/><span style="font-size:8.5pt;color:#777;">${km} km × 6L/100km × ${fuelPrice} lei/L (preț carburant estimat la data semnării)</span></td>
-                <td style="padding:3px 0;text-align:right;vertical-align:top;">~${estimated} ${cur}<br/><span style="font-size:8pt;color:#999;font-style:italic;">estimat*</span></td>
+              return `<tr style="${bg}">
+                <td style="${cell}">${esc(s.label)}<br/><span style="font-size:8.5pt;color:#777;">${km} km × 6L/100km × ${fuelPrice} lei/L (preț carburant estimat la data semnării)</span></td>
+                <td style="${cell}text-align:right;vertical-align:top;">~${estimated} ${cur}<br/><span style="font-size:8pt;color:#999;font-style:italic;">estimat*</span></td>
               </tr>`;
             }
-            return `<tr>
-              <td style="padding:3px 0;">${esc(s.label)}</td>
-              <td style="padding:3px 0;text-align:right;">${s.price > 0 ? esc(s.price.toString()) + " " + cur : s.gratuit ? "INCLUS GRATUIT" : "inclus"}</td>
+            return `<tr style="${bg}">
+              <td style="${cell}">${esc(s.label)}</td>
+              <td style="${cell}text-align:right;">${s.price > 0 ? esc(s.price.toString()) + " " + cur : s.gratuit ? "INCLUS GRATUIT" : "inclus"}</td>
             </tr>`;
           }).join("")}
-          <tr><td style="padding:6px 0;border-top:1px solid #999;font-weight:700;">TOTAL</td><td style="padding:6px 0;border-top:1px solid #999;text-align:right;font-weight:700;font-size:11pt;">${priceTotal} ${cur}</td></tr>
+          <tr><td style="padding:6px 8px;border-top:2px solid #999;font-weight:700;">TOTAL</td><td style="padding:6px 8px;border-top:2px solid #999;text-align:right;font-weight:700;font-size:11pt;">${priceTotal} ${cur}</td></tr>
         </table>
         ${services.some(s => s.isTransport && contract.transportKm) ? `<p style="font-size:8.5pt;color:#777;">* Taxa de transport este estimativă, calculată la ${esc(String(contract.transportFuelPrice || "10"))} lei/litru și un consum de 6L/100km. Suma finală va fi comunicată cu 7 zile înainte de eveniment, în funcție de prețul real al carburantului din acea perioadă.</p>` : ""}
       `,
@@ -321,9 +324,22 @@ function buildContractHTML(contract: Record<string, unknown>): string {
 <html lang="ro">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; font-size: 10.5pt; color: #111; line-height: 1.55; }
+  html { background: #e8e8e8; }
+  body { font-family: Arial, sans-serif; font-size: 10.5pt; color: #111; line-height: 1.55; background: #e8e8e8; min-height: 100vh; padding: 32px 16px 48px; }
+  .page { background: #fff; max-width: 794px; margin: 0 auto; padding: 28mm 20mm; box-shadow: 0 2px 16px rgba(0,0,0,0.18); }
+  @media (max-width: 600px) {
+    body { padding: 12px 0 40px; background: #fff; }
+    .page { padding: 20px 16px; box-shadow: none; }
+    h1 { font-size: 12pt; }
+    table { font-size: 9.5pt; }
+  }
+  @media print {
+    html, body { background: transparent; padding: 0; }
+    .page { box-shadow: none; max-width: none; margin: 0; padding: 0; }
+  }
   h1 { font-size: 14pt; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
   .center { text-align: center; }
   .bold { font-weight: 700; }
@@ -342,6 +358,7 @@ function buildContractHTML(contract: Record<string, unknown>): string {
 </style>
 </head>
 <body>
+<div class="page">
 
 <h1>Contract Prestări Servicii ${contractTitle}</h1>
 <p class="center">Data: ${contractDate}</p>
@@ -372,6 +389,7 @@ ${renderedArticles}
   Document semnat electronic &nbsp;•&nbsp; ${new Date(toIsoString(contract.signedAt) ?? Date.now()).toLocaleString("ro-RO")} &nbsp;•&nbsp; IP: ${esc(contract.clientIp as string || "necunoscut")}
 </div>
 
+</div>
 </body>
 </html>`;
 

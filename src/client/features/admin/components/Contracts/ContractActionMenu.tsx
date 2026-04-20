@@ -18,11 +18,12 @@ interface Props {
   onCopyLink: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onResetSignature: () => void;
 }
 
 const ContractActionMenu: React.FC<Props> = ({
   contract, isSigned, sending, cancelling, deleting,
-  onEdit, onSign, onPreview, onSend, onCopyLink, onCancel, onDelete,
+  onEdit, onSign, onPreview, onSend, onCopyLink, onCancel, onDelete, onResetSignature,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -94,6 +95,16 @@ const ContractActionMenu: React.FC<Props> = ({
                 onClick={onCancel}
                 color="text-red-400"
                 loading={cancelling === contract.id}
+              />
+            </>
+          )}
+          {contract.status === "signed" && (
+            <>
+              <div className="border-t border-neutral-800 my-1" />
+              <Item
+                label="🧪  Șterge semnătură (test)"
+                onClick={onResetSignature}
+                color="text-orange-400"
               />
             </>
           )}

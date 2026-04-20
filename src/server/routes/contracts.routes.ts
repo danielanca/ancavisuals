@@ -5,7 +5,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestore";
 import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
-import { generateContractPDF } from "../services/pdf.generator";
+import { generateContractPDF, buildContractHTML } from "../services/pdf.generator";
 import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail } from "../notifications/templates/contractEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 
@@ -103,6 +103,61 @@ router.get("/", async (_req: Request, res: Response) => {
 
 // NOTE: /sign/:token routes must come BEFORE /:id to avoid route collision
 
+// GET /api/contracts/sign/:token/pdf — PDF contract pentru previzualizare publică
+// Query params opționali: clientName, clientAddress, clientPhone, clientIdSeries
+router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const { token } = req.params;
+    const snapshot = await db.collection("contracts").where("token", "==", token).limit(1).get();
+    if (snapshot.empty) return res.status(404).json({ error: "Contract negăsit." });
+    const data = snapshot.docs[0].data();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { clientSignatureBase64, prestatorSignatureBase64, clientIp, clientEmail, pdfUrl, ...publicData } = data;
+    const pdfBuffer = await generateContractPDF({
+      ...publicData,
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+      ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
+      ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
+      ...(req.query.clientPhone !== undefined ? { clientPhone: String(req.query.clientPhone) } : {}),
+      ...(req.query.clientIdSeries !== undefined ? { clientIdSeries: String(req.query.clientIdSeries) } : {}),
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="contract-preview.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error("[contracts] GET /sign/:token/pdf failed:", error);
+    res.status(500).json({ error: "Eroare la generarea PDF-ului." });
+  }
+});
+
+// GET /api/contracts/sign/:token/html — HTML complet contract pentru previzualizare
+// Query params opționali: clientName, clientAddress, clientPhone, clientIdSeries
+router.get("/sign/:token/html", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const { token } = req.params;
+    const snapshot = await db.collection("contracts").where("token", "==", token).limit(1).get();
+    if (snapshot.empty) return res.status(404).send("<p>Contract negăsit.</p>");
+    const data = snapshot.docs[0].data();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { clientSignatureBase64, clientIp, clientEmail, pdfUrl, ...publicData } = data;
+    const html = buildContractHTML({
+      ...publicData,
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+      ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
+      ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
+      ...(req.query.clientPhone !== undefined ? { clientPhone: String(req.query.clientPhone) } : {}),
+      ...(req.query.clientIdSeries !== undefined ? { clientIdSeries: String(req.query.clientIdSeries) } : {}),
+    });
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (error) {
+    console.error("[contracts] GET /sign/:token/html failed:", error);
+    res.status(500).send("<p>Eroare server.</p>");
+  }
+});
+
 // GET /api/contracts/sign/:token — date contract public (fără auth)
 router.get("/sign/:token", async (req: Request, res: Response) => {
   try {
@@ -118,6 +173,8 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
     const doc = snapshot.docs[0];
     const data = doc.data();
 
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
     if (data.status === "signed") {
       return res.status(410).json({ error: "Contractul a fost deja semnat.", status: "signed", pdfUrl: data.pdfUrl ?? null });
     }
@@ -127,7 +184,7 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
 
     // Nu expunem câmpuri sensibile clientului
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { clientSignatureBase64, clientIp, pdfUrl, clientEmail, ...publicData } = data;
+    const { clientSignatureBase64, clientIp, pdfUrl, ...publicData } = data;
 
     res.json({
       id: doc.id,
@@ -145,10 +202,13 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { token } = req.params;
-    const { clientName, clientAddress, clientPhone, clientIdSeries, clientSignatureBase64 } = req.body;
+    const { clientName, clientEmail, clientAddress, clientPhone, clientIdSeries, clientSignatureBase64 } = req.body;
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Numele complet este obligatoriu." });
+    }
+    if (!clientEmail?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
+      return res.status(400).json({ error: "Emailul este obligatoriu și trebuie să fie valid." });
     }
     if (!clientIdSeries?.trim() || !/^[A-Z]{2}[0-9]{6,7}$/.test(clientIdSeries.trim())) {
       return res.status(400).json({ error: "Seria și numărul buletinului trebuie să fie în formatul AB123456." });
@@ -181,6 +241,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       status: "signed",
       signedAt,
       clientName: clientName.trim(),
+      clientEmail: clientEmail.trim(),
       clientIdSeries: clientIdSeries.trim(),
       clientAddress: clientAddress?.trim() ?? "",
       clientPhone: clientPhone?.trim() ?? "",
@@ -200,6 +261,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       ...contract,
       id: doc.id,
       clientName: clientName.trim(),
+      clientEmail: clientEmail.trim(),
       clientIdSeries: clientIdSeries.trim(),
       clientAddress: clientAddress?.trim() ?? "",
       clientPhone: clientPhone?.trim() ?? "",
@@ -258,6 +320,10 @@ router.patch("/:id", async (req: Request, res: Response) => {
       restPaidAt: body.restPaidAt ?? "",
       paymentMethod: body.paymentMethod ?? "Transfer bancar",
       clientEmail: body.clientEmail,
+      clientName: body.clientName?.trim() ?? "",
+      clientPhone: body.clientPhone?.trim() ?? "",
+      clientAddress: body.clientAddress?.trim() ?? "",
+      clientIdSeries: body.clientIdSeries?.trim() ?? "",
       privateClient: body.privateClient === true,
       transportKm: body.transportKm ?? "",
       transportFuelPrice: body.transportFuelPrice ?? "10",
@@ -290,6 +356,30 @@ router.get("/:id", async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("[contracts] GET /:id failed:", error);
+    res.status(500).json({ error: "Eroare server." });
+  }
+});
+
+// POST /api/contracts/:id/reset-signature — șterge semnătura clientului (doar pentru teste)
+router.post("/:id/reset-signature", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const doc = await db.collection("contracts").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Contract negăsit." });
+
+    await db.collection("contracts").doc(req.params.id).update({
+      status: "sent",
+      clientSignatureBase64: null,
+      clientIp: null,
+      clientUserAgent: null,
+      clientGeo: null,
+      signedAt: null,
+      pdfUrl: null,
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[contracts] POST /:id/reset-signature failed:", error);
     res.status(500).json({ error: "Eroare server." });
   }
 });
