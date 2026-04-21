@@ -8,6 +8,7 @@ import FinancialSummary from "../FinancialSummary";
 import useAuth from "../../auth/useAuth";
 import AncaLoader from "../../../../components/UI/AncaLoader";
 import PostEventFollowUp from "../PostEventFollowUp";
+import MementosWidget from "../MementosWidget";
 
 const LOGIN_ROUTE = "/login";
 const CREATE_EVENT_ROUTE = "/admin/create-event";
@@ -253,6 +254,9 @@ const Dashboard: React.FC = () => {
 
         {/* Financial Summary */}
         <FinancialSummary events={events} />
+
+        {/* Mementos Widget */}
+        <MementosWidget />
 
         {/* Event List */}
         <EventList events={events} onAddEvent={handleAddEvent} onEventUpdated={handleEventUpdated} onEventDeleted={handleEventDeleted} />
