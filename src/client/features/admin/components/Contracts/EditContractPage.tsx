@@ -135,8 +135,10 @@ const EditContractPage: React.FC = () => {
         setEventDetails(data.eventDetails ?? "");
 
         const savedServices: SavedService[] = Array.isArray(data.services) ? data.services : [];
-        setServices(populateServices(savedServices));
-        setCustomServices(getCustomServices(savedServices));
+        const populated = populateServices(savedServices);
+        const customSvcs = getCustomServices(savedServices);
+        setServices(populated);
+        setCustomServices(customSvcs);
 
         setCurrency(data.currency ?? "RON");
         setEurRate(data.eurRate ?? 5);
@@ -156,8 +158,11 @@ const EditContractPage: React.FC = () => {
         setClientIdSeries(data.clientIdSeries ?? "");
         setPrivateClient(data.privateClient === true);
 
-        // Dacă totalul salvat nu coincide cu auto-calculat, activăm modul manual
-        setManualTotal(true);
+        // Activează manual doar dacă totalul salvat diferă de suma serviciilor
+        const computedAuto =
+          populated.filter((s) => s.included).reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) +
+          customSvcs.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0);
+        setManualTotal(total !== computedAuto);
       })
       .catch((e: Error) => setPageError(e.message))
       .finally(() => setPageLoading(false));
