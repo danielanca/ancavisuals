@@ -436,6 +436,7 @@ export async function bookDate(req: Request, res: Response) {
     await db.collection("adminEvents").add({
       type: "Nuntă",
       status: "confirmat",
+      fiscalized: false,
       createdAt: Timestamp.now(),
       eventDate: Timestamp.fromDate(new Date(data.date)),
       client: {

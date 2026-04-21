@@ -3,10 +3,12 @@ import React, { useEffect, useRef, useState } from "react";
 interface ContractItem {
   id: string;
   status: "draft" | "sent" | "signed" | "expired" | "anulat";
+  eventId?: string;
 }
 
 interface Props {
   contract: ContractItem;
+  canCreateEvent: boolean;
   isSigned: boolean;
   sending: string | null;
   cancelling: string | null;
@@ -14,6 +16,7 @@ interface Props {
   onEdit: () => void;
   onSign: () => void;
   onPreview: () => void;
+  onCreateEvent: () => void;
   onSend: () => void;
   onCopyLink: () => void;
   onCancel: () => void;
@@ -22,8 +25,8 @@ interface Props {
 }
 
 const ContractActionMenu: React.FC<Props> = ({
-  contract, isSigned, sending, cancelling, deleting,
-  onEdit, onSign, onPreview, onSend, onCopyLink, onCancel, onDelete, onResetSignature,
+  contract, canCreateEvent, isSigned, sending, cancelling, deleting,
+  onEdit, onSign, onPreview, onCreateEvent, onSend, onCopyLink, onCancel, onDelete, onResetSignature,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -78,6 +81,9 @@ const ContractActionMenu: React.FC<Props> = ({
             <Item label="🖊️  Semnează tu" onClick={onSign} color="text-blue-400" />
           )}
           <Item label="👁  Preview PDF" onClick={onPreview} color="text-purple-400" />
+          {canCreateEvent && (
+            <Item label="📅  Generează eveniment" onClick={onCreateEvent} color="text-violet-400" />
+          )}
           {canSend && (
             <Item
               label={contract.status === "sent" ? "📤  Retrimite link" : "📤  Trimite link"}

@@ -11,6 +11,7 @@ export interface ClientEvent {
   id: string;
   type: EventType;
   status: EventStatus;
+  fiscalized: boolean;
   createdAt: Date;
   eventDate: Date | null;
   client: {
@@ -50,4 +51,8 @@ export interface AdminSettings {
   };
   currency: "EUR";
   exchangeRate: number;
+  bankDetails: {
+    beneficiaryName: string;
+    iban: string;
+  };
 }

@@ -16,6 +16,7 @@ interface ContractItem {
   createdAt: string;
   signedAt?: string;
   prestatorSignatureBase64?: string;
+  eventId?: string;
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -29,10 +30,12 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 const ContractListPage: React.FC = () => {
   const navigate = useNavigate();
   const [contracts, setContracts] = useState<ContractItem[]>([]);
+  const [bookedDates, setBookedDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [creatingEvent, setCreatingEvent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -50,11 +53,15 @@ const ContractListPage: React.FC = () => {
   const hasSignature = useRef(false);
 
   useEffect(() => {
-    fetch("/api/contracts")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setContracts(data.contracts ?? []);
+    Promise.all([
+      fetch("/api/contracts").then((r) => r.json()),
+      fetch("/api/admin/booked-dates").then((r) => r.json()),
+    ])
+      .then(([contractsData, bookedDatesData]) => {
+        if (contractsData.error) throw new Error(contractsData.error);
+        if (bookedDatesData.error) throw new Error(bookedDatesData.error);
+        setContracts(contractsData.contracts ?? []);
+        setBookedDates(new Set((bookedDatesData.dates ?? []).map((item: { date: string }) => item.date)));
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
@@ -224,6 +231,34 @@ const ContractListPage: React.FC = () => {
     }
   };
 
+  const handleCreateEvent = async (id: string) => {
+    setCreatingEvent(id);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/contracts/${id}/create-event`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Eroare necunoscută");
+      const contract = contracts.find((item) => item.id === id);
+      setContracts((prev) =>
+        prev.map((contract) =>
+          contract.id === id ? { ...contract, eventId: data.eventId } : contract
+        )
+      );
+      if (contract?.eventDate) {
+        setBookedDates((prev) => {
+          const next = new Set(prev);
+          next.add(normalizeDate(contract.eventDate));
+          return next;
+        });
+      }
+      showToast("Eveniment generat din contract.");
+    } catch (e: unknown) {
+      setActionError("Eroare la generarea evenimentului: " + (e instanceof Error ? e.message : "necunoscută"));
+    } finally {
+      setCreatingEvent(null);
+    }
+  };
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
@@ -246,6 +281,12 @@ const ContractListPage: React.FC = () => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" });
+  };
+
+  const normalizeDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr.slice(0, 10);
+    return d.toISOString().slice(0, 10);
   };
 
   return (
@@ -298,6 +339,8 @@ const ContractListPage: React.FC = () => {
             {contracts.map((contract) => {
               const statusInfo = STATUS_LABELS[contract.status] ?? STATUS_LABELS.draft;
               const isSigned = !!contract.prestatorSignatureBase64;
+              const isDateBooked = bookedDates.has(normalizeDate(contract.eventDate));
+              const canCreateEvent = !contract.eventId && !isDateBooked;
               return (
                 <div
                   key={contract.id}
@@ -331,11 +374,25 @@ const ContractListPage: React.FC = () => {
                         <span>Preț: {contract.priceTotal} {contract.currency ?? "RON"}</span>
                         <span>Creat: {formatDate(contract.createdAt)}</span>
                         {contract.signedAt && <span>Semnat: {formatDate(contract.signedAt)}</span>}
+                        {contract.eventId && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); navigate("/admin", { state: { scrollToEvent: contract.eventId } }); }}
+                            className="text-violet-400 hover:text-violet-300 transition-colors"
+                          >
+                            → eveniment
+                          </button>
+                        )}
+                        {!contract.eventId && isDateBooked && (
+                          <span className="text-amber-400">
+                            Data ocupată
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     <ContractActionMenu
                       contract={contract}
+                      canCreateEvent={canCreateEvent}
                       isSigned={isSigned}
                       sending={sending}
                       cancelling={cancelling}
@@ -343,6 +400,7 @@ const ContractListPage: React.FC = () => {
                       onEdit={() => navigate(`/admin/contracts/${contract.id}/edit`)}
                       onSign={() => { setSigError(null); setSigningId(contract.id); }}
                       onPreview={() => window.open(`/api/contracts/${contract.id}/preview`, "_blank")}
+                      onCreateEvent={() => handleCreateEvent(contract.id)}
                       onSend={() => confirmAction("send", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
                       onCopyLink={() => {
                         const url = `${window.location.origin}/contract/${contract.token}`;
@@ -354,6 +412,9 @@ const ContractListPage: React.FC = () => {
                       onResetSignature={() => handleResetSignature(contract.id)}
                     />
                   </div>
+                  {creatingEvent === contract.id && (
+                    <p className="mt-3 text-xs text-violet-400">Se generează evenimentul...</p>
+                  )}
                 </div>
               );
             })}

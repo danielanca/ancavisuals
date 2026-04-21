@@ -23,6 +23,8 @@ interface ContractData {
   priceRest: number;
   restPaidAt?: string;
   paymentMethod: string;
+  bankBeneficiaryName?: string;
+  bankIban?: string;
 }
 
 type PageState = "loading" | "ready" | "signed" | "expired" | "not_found" | "error" | "success";
@@ -356,6 +358,13 @@ const ContractSignPage: React.FC = () => {
               <div style={{ fontSize: 11, color: "#aaa", marginTop: 8, paddingTop: 8, borderTop: "1px solid #eee" }}>
                 Metodă de plată: {contract.paymentMethod}
               </div>
+              {contract.paymentMethod === "Transfer bancar" && (contract.bankBeneficiaryName || contract.bankIban) && (
+                <div style={{ fontSize: 11, color: "#666", marginTop: 8, lineHeight: 1.6 }}>
+                  Beneficiar: {contract.bankBeneficiaryName || "—"}
+                  <br />
+                  IBAN: {contract.bankIban || "—"}
+                </div>
+              )}
             </div>
           </Section>
         )}

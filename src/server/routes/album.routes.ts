@@ -39,6 +39,38 @@ router.post("/:slug/delivery-address", express.json(), addDeliveryAddress);
 router.get("/:slug/delivery-address", getDeliveryAddress);
 router.post("/:slug/swisslink", express.json(), addSwissLink);
 
+router.get("/:slug/qr-moments", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const { buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_QR_MOMENT_FOLDER } = await import("../constants/bunny");
+    const { signBunnyUrl } = await import("../utils/signBunnyUrl");
+
+    const storageKey = getBunnyStorageKey();
+
+    // QR moments are stored directly under {slug}/qr-moment/{type}/
+    const listFolder = async (type: string): Promise<string[]> => {
+      const url = buildBunnyDirectoryUrl(slug, BUNNY_QR_MOMENT_FOLDER, type);
+      const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+      if (!response.ok) return [];
+      const entries = await response.json() as { ObjectName: string; IsDirectory?: boolean }[];
+      return entries
+        .filter((e) => !e.IsDirectory)
+        .map((e) => signBunnyUrl(`/${slug}/${BUNNY_QR_MOMENT_FOLDER}/${type}/${e.ObjectName}`));
+    };
+
+    const [photos, videos, audio] = await Promise.all([
+      listFolder("photo"),
+      listFolder("video"),
+      listFolder("audio"),
+    ]);
+
+    res.json({ photos, videos, audio });
+  } catch (error) {
+    console.error("[album] qr-moments failed:", error);
+    res.status(500).json({ error: "Failed to load QR moments" });
+  }
+});
+
 router.post("/:slug/consent", express.json(), async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
