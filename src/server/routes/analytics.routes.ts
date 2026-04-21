@@ -136,9 +136,11 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    function daysAgo(days: number): Date {
-      return new Date(todayStart.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
-    }
+    const daysAgo = (days: number): Date =>
+      new Date(todayStart.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+
+    const uniqueVisitors = (snap: FirebaseFirestore.QuerySnapshot): number =>
+      new Set(snap.docs.map((d) => d.data().visitorId || d.data().sessionId)).size;
 
     const [todaySnap, weekSnap, monthSnap, halfYearSnap, yearSnap] = await Promise.all([
       db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(todayStart)).get(),
@@ -147,10 +149,6 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(180))).get(),
       db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(365))).get(),
     ]);
-
-    function uniqueVisitors(snap: FirebaseFirestore.QuerySnapshot): number {
-      return new Set(snap.docs.map((d) => d.data().visitorId || d.data().sessionId)).size;
-    }
 
     const pageCount: Record<string, number> = {};
     monthSnap.docs.forEach((d) => {
