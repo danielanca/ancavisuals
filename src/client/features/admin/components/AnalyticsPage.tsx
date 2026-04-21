@@ -19,8 +19,11 @@ interface Visit {
 }
 
 interface Stats {
-  today: { pageviews: number; sessions: number };
-  week: { pageviews: number; sessions: number };
+  today: { visitors: number };
+  week: { visitors: number };
+  month: { visitors: number };
+  halfYear: { visitors: number };
+  year: { visitors: number };
   topPages: { page: string; count: number }[];
   topCountries: { country: string; count: number }[];
 }
@@ -152,9 +155,10 @@ function groupByVisitors(visits: Visit[]): Visitor[] {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
       <p className="text-neutral-500 text-xs uppercase tracking-wider mb-2">{label}</p>
-      <p className="text-white text-3xl font-light">{value}</p>
+      <p className="text-white text-2xl font-light">{value}</p>
+      <p className="text-neutral-700 text-[10px] mt-1">vizitatori unici</p>
     </div>
   );
 }
@@ -226,9 +230,12 @@ export default function AnalyticsPage() {
 
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Vizitatori unici azi" value={stats.today.sessions} />
-            <StatCard label="Vizitatori unici 7 zile" value={stats.week.sessions} />
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+            <StatCard label="Azi" value={stats.today.visitors} />
+            <StatCard label="7 zile" value={stats.week.visitors} />
+            <StatCard label="30 zile" value={stats.month.visitors} />
+            <StatCard label="6 luni" value={stats.halfYear.visitors} />
+            <StatCard label="1 an" value={stats.year.visitors} />
           </div>
         )}
 

@@ -85,6 +85,7 @@ const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdate
               event={event}
               initialCollapsed={allCollapsed}
               onUpdated={(updated) => onEventUpdated?.(event.id, updated)}
+              onDeleted={() => onEventDeleted?.(event.id)}
             />
           ))}
         </div>
@@ -106,6 +107,7 @@ const EventList: React.FC<EventListProps> = ({ events, onAddEvent, onEventUpdate
             event={event}
             initialCollapsed={allCollapsed}
             onUpdated={(updated) => onEventUpdated?.(event.id, updated)}
+            onDeleted={() => onEventDeleted?.(event.id)}
           />
         ))}
       </div>

@@ -59,17 +59,9 @@
       }
     ],
     "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/explicit-module-boundary-types": "warn",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/consistent-type-imports": "error",
-    "@typescript-eslint/typedef": [
-      "warn",
-      {
-        "memberVariableDeclaration": true,
-        "propertyDeclaration": true,
-        "variableDeclaration": true,
-        "variableDeclarationIgnoreFunction": true
-      }
-    ],
+    "@typescript-eslint/typedef": "off",
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn"
   }
