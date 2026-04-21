@@ -1,22 +1,17 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { getCookie, isBrowser } from "../utils/functions";
+import { getCookie, setCookie, isBrowser } from "../utils/functions";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 const ADMIN_COOKIE = "av_admin";
+const VISITOR_COOKIE = "av_vid";
 
 function looksLikeBot(): boolean {
   try {
-    // Bots headless nu au sessionStorage sau îl simulează imperfect
     sessionStorage.setItem("__av_test", "1");
     sessionStorage.removeItem("__av_test");
-
-    // Fără ecran real = probabil headless
     if (window.screen.width === 0 || window.screen.height === 0) return true;
-
-    // WebDriver flag setat de Selenium / Playwright
     if (navigator.webdriver) return true;
-
     return false;
   } catch {
     return true;
@@ -31,6 +26,14 @@ function getSessionId(): string {
     sessionStorage.setItem(key, id);
   }
   return id;
+}
+
+function getVisitorId(): { visitorId: string; isNew: boolean } {
+  const existing = getCookie(VISITOR_COOKIE);
+  if (existing) return { visitorId: existing, isNew: false };
+  const visitorId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  setCookie(VISITOR_COOKIE, visitorId, 365);
+  return { visitorId, isNew: true };
 }
 
 export function usePageTracking() {
@@ -49,11 +52,12 @@ export function usePageTracking() {
     prevPage.current = page;
 
     const sessionId = getSessionId();
+    const { visitorId, isNew } = getVisitorId();
 
     fetch("/api/analytics/pageview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ page, referrer, sessionId }),
+      body: JSON.stringify({ page, referrer, sessionId, visitorId, isNew }),
     }).catch(() => {});
   }, [location.pathname]);
 }

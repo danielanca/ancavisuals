@@ -5,6 +5,8 @@ import AncaLoader from "../../../components/UI/AncaLoader";
 interface Visit {
   id: string;
   sessionId: string;
+  visitorId: string;
+  isNew: boolean;
   page: string;
   referrer: string;
   timestamp: string;
@@ -23,16 +25,25 @@ interface Stats {
   topCountries: { country: string; count: number }[];
 }
 
-interface Session {
+interface SessionEntry {
   sessionId: string;
+  pages: { page: string; timestamp: string }[];
+  firstSeen: string;
+  lastSeen: string;
+}
+
+interface Visitor {
+  visitorId: string;
+  isNew: boolean;
   ip: string;
   city: string;
   country: string;
   org: string;
   userAgent: string;
-  pages: { page: string; timestamp: string }[];
+  sessions: SessionEntry[];
   firstSeen: string;
   lastSeen: string;
+  returnedToday: boolean;
 }
 
 function parseDevice(ua: string): string {
@@ -58,7 +69,7 @@ function timeAgo(iso: string): string {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString("ro-RO", {
-    day: "2-digit", month: "short", year: "numeric",
+    day: "2-digit", month: "short",
     hour: "2-digit", minute: "2-digit",
   });
 }
@@ -71,39 +82,79 @@ function formatDuration(first: string, last: string): string {
   return `${Math.floor(m / 60)}h ${m % 60}min`;
 }
 
-function groupBySessions(visits: Visit[]): Session[] {
-  const map = new Map<string, Session>();
+function isSameDay(a: string, b: string): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate();
+}
+
+function groupByVisitors(visits: Visit[]): Visitor[] {
+  const visitorMap = new Map<string, Visitor>();
+  const sessionMap = new Map<string, SessionEntry>();
+
+  // Build sessions first
   for (const v of visits) {
-    if (!map.has(v.sessionId)) {
-      map.set(v.sessionId, {
-        sessionId: v.sessionId,
+    const sid = v.sessionId || v.id;
+    if (!sessionMap.has(sid)) {
+      sessionMap.set(sid, { sessionId: sid, pages: [], firstSeen: v.timestamp, lastSeen: v.timestamp });
+    }
+    const s = sessionMap.get(sid)!;
+    s.pages.push({ page: v.page, timestamp: v.timestamp });
+    if (v.timestamp < s.firstSeen) s.firstSeen = v.timestamp;
+    if (v.timestamp > s.lastSeen) s.lastSeen = v.timestamp;
+  }
+
+  // Sort pages within each session
+  for (const s of sessionMap.values()) {
+    s.pages.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }
+
+  // Group sessions by visitorId (fallback to sessionId if no visitorId)
+  for (const v of visits) {
+    const vid = v.visitorId || v.sessionId;
+    const sid = v.sessionId || v.id;
+    if (!visitorMap.has(vid)) {
+      visitorMap.set(vid, {
+        visitorId: vid,
+        isNew: v.isNew,
         ip: v.ip,
         city: v.city,
         country: v.country,
         org: v.org,
         userAgent: v.userAgent,
-        pages: [],
+        sessions: [],
         firstSeen: v.timestamp,
         lastSeen: v.timestamp,
+        returnedToday: false,
       });
     }
-    const s = map.get(v.sessionId)!;
-    s.pages.push({ page: v.page, timestamp: v.timestamp });
-    if (v.timestamp < s.firstSeen) s.firstSeen = v.timestamp;
-    if (v.timestamp > s.lastSeen) s.lastSeen = v.timestamp;
+    const visitor = visitorMap.get(vid)!;
+    const session = sessionMap.get(sid)!;
+    if (!visitor.sessions.find((s) => s.sessionId === sid)) {
+      visitor.sessions.push(session);
+    }
+    if (v.timestamp < visitor.firstSeen) visitor.firstSeen = v.timestamp;
+    if (v.timestamp > visitor.lastSeen) visitor.lastSeen = v.timestamp;
   }
-  for (const s of map.values()) {
-    s.pages.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  const today = new Date().toISOString();
+  for (const visitor of visitorMap.values()) {
+    visitor.sessions.sort((a, b) => a.firstSeen.localeCompare(b.firstSeen));
+    // Returned today = has more than 1 session and at least 2 of them are today
+    const todaySessions = visitor.sessions.filter((s) => isSameDay(s.firstSeen, today));
+    visitor.returnedToday = todaySessions.length > 1;
   }
-  return Array.from(map.values()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+
+  return Array.from(visitorMap.values()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
 }
 
-function StatCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
+function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
       <p className="text-neutral-500 text-xs uppercase tracking-wider mb-2">{label}</p>
       <p className="text-white text-3xl font-light">{value}</p>
-      {sub && <p className="text-neutral-600 text-xs mt-1">{sub}</p>}
     </div>
   );
 }
@@ -114,7 +165,6 @@ export default function AnalyticsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [filterPage, setFilterPage] = useState("all");
 
   const load = () => {
     setLoading(true);
@@ -131,14 +181,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const sessions = useMemo(() => groupBySessions(visits), [visits]);
-
-  const filteredSessions = useMemo(() => {
-    if (filterPage === "all") return sessions;
-    return sessions.filter((s) => s.pages.some((p) => p.page === filterPage));
-  }, [sessions, filterPage]);
-
-  const topPagesForFilter = stats?.topPages.slice(0, 8) ?? [];
+  const visitors = useMemo(() => groupByVisitors(visits), [visits]);
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
@@ -167,7 +210,7 @@ export default function AnalyticsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-white text-2xl font-light tracking-tight">Analytics</h1>
-            <p className="text-neutral-500 text-sm mt-1">{sessions.length} sesiuni înregistrate</p>
+            <p className="text-neutral-500 text-sm mt-1">{visitors.length} vizitatori unici</p>
           </div>
           <button
             onClick={load}
@@ -181,17 +224,15 @@ export default function AnalyticsPage() {
           </button>
         </div>
 
-        {/* Stats cards */}
+        {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Azi — vizite" value={stats.today.pageviews} />
-            <StatCard label="Azi — sesiuni" value={stats.today.sessions} />
-            <StatCard label="7 zile — vizite" value={stats.week.pageviews} />
-            <StatCard label="7 zile — sesiuni" value={stats.week.sessions} />
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard label="Vizitatori unici azi" value={stats.today.sessions} />
+            <StatCard label="Vizitatori unici 7 zile" value={stats.week.sessions} />
           </div>
         )}
 
-        {/* Top pages + top countries */}
+        {/* Top pages + countries */}
         {stats && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
@@ -219,45 +260,27 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {/* Filtru pagini */}
-        {topPagesForFilter.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFilterPage("all")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterPage === "all" ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"}`}
-            >
-              Toate
-            </button>
-            {topPagesForFilter.map(({ page }) => (
-              <button
-                key={page}
-                onClick={() => setFilterPage(page)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-colors ${filterPage === page ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"}`}
-              >
-                {page}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Session feed */}
-        {filteredSessions.length === 0 ? (
+        {/* Visitor feed */}
+        {visitors.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-neutral-500 text-sm">Nicio sesiune înregistrată.</p>
+            <p className="text-neutral-500 text-sm">Niciun vizitator înregistrat.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredSessions.map((s) => {
-              const isOpen = expanded.has(s.sessionId);
-              const location = [s.city, s.country].filter(Boolean).join(", ");
-              const device = parseDevice(s.userAgent);
-              const duration = s.pages.length > 1 ? formatDuration(s.firstSeen, s.lastSeen) : null;
+            {visitors.map((visitor) => {
+              const isOpen = expanded.has(visitor.visitorId);
+              const location = [visitor.city, visitor.country].filter(Boolean).join(", ");
+              const device = parseDevice(visitor.userAgent);
+              const totalPages = visitor.sessions.reduce((acc, s) => acc + s.pages.length, 0);
+              const totalDuration = visitor.sessions.length > 0
+                ? formatDuration(visitor.firstSeen, visitor.lastSeen)
+                : null;
 
               return (
-                <div key={s.sessionId} className="rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden">
-                  {/* Session header */}
+                <div key={visitor.visitorId} className="rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden">
+                  {/* Visitor header */}
                   <button
-                    onClick={() => toggleExpanded(s.sessionId)}
+                    onClick={() => toggleExpanded(visitor.visitorId)}
                     className="w-full flex items-start gap-3 p-4 text-left hover:bg-neutral-800/50 transition-colors"
                   >
                     {/* Icon */}
@@ -270,28 +293,33 @@ export default function AnalyticsPage() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-white text-sm font-mono">{s.ip || "IP necunoscut"}</span>
-                        {location && (
-                          <>
-                            <span className="text-neutral-600 text-xs">·</span>
-                            <span className="text-neutral-400 text-xs">{location}</span>
-                          </>
+                        <span className="text-white text-sm font-medium">
+                          {location || visitor.ip || "Locație necunoscută"}
+                        </span>
+                        {/* Badges */}
+                        {visitor.isNew ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">nou</span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">revenit</span>
+                        )}
+                        {visitor.returnedToday && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">revenit azi</span>
                         )}
                         <span className="text-neutral-600 text-xs">·</span>
                         <span className="text-neutral-500 text-xs">{device}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-violet-400 text-xs">{s.pages.length} {s.pages.length === 1 ? "pagină" : "pagini"}</span>
-                        {duration && (
+                        <span className="text-neutral-600 text-xs font-mono">{visitor.ip || "—"}</span>
+                        <span className="text-neutral-700 text-xs">·</span>
+                        <span className="text-violet-400 text-xs">
+                          {visitor.sessions.length > 1
+                            ? `${visitor.sessions.length} vizite · ${totalPages} pagini`
+                            : `${totalPages} ${totalPages === 1 ? "pagină" : "pagini"}`}
+                        </span>
+                        {totalDuration && (
                           <>
                             <span className="text-neutral-700 text-xs">·</span>
-                            <span className="text-neutral-600 text-xs">{duration}</span>
-                          </>
-                        )}
-                        {s.org && (
-                          <>
-                            <span className="text-neutral-700 text-xs">·</span>
-                            <span className="text-neutral-700 text-xs truncate max-w-[160px]">{s.org}</span>
+                            <span className="text-neutral-600 text-xs">{totalDuration}</span>
                           </>
                         )}
                       </div>
@@ -299,7 +327,7 @@ export default function AnalyticsPage() {
 
                     {/* Time + chevron */}
                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                      <span className="text-neutral-400 text-xs">{timeAgo(s.lastSeen)}</span>
+                      <span className="text-neutral-400 text-xs">{timeAgo(visitor.lastSeen)}</span>
                       <svg
                         width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                         strokeLinecap="round" strokeLinejoin="round"
@@ -310,20 +338,45 @@ export default function AnalyticsPage() {
                     </div>
                   </button>
 
-                  {/* Pages list */}
+                  {/* Timeline expandat */}
                   {isOpen && (
-                    <div className="border-t border-neutral-800 px-4 py-3 space-y-1.5">
-                      <p className="text-neutral-600 text-xs uppercase tracking-wider mb-2">Pagini vizitate</p>
-                      {s.pages.map((p, i) => (
-                        <div key={i} className="flex items-center gap-3">
-                          <span className="text-neutral-700 text-xs w-4 text-right flex-shrink-0">{i + 1}</span>
-                          <span className="text-neutral-300 text-xs font-mono flex-1">{p.page}</span>
-                          <span className="text-neutral-600 text-xs flex-shrink-0">{formatTime(p.timestamp)}</span>
+                    <div className="border-t border-neutral-800 px-4 py-4 space-y-5">
+                      {visitor.sessions.map((session, si) => (
+                        <div key={session.sessionId}>
+                          {/* Session label dacă sunt mai multe */}
+                          {visitor.sessions.length > 1 && (
+                            <p className="text-neutral-600 text-[10px] uppercase tracking-wider mb-2">
+                              Vizita {si + 1} · {formatTime(session.firstSeen)}
+                              {session.pages.length > 1 && ` · ${formatDuration(session.firstSeen, session.lastSeen)}`}
+                            </p>
+                          )}
+
+                          {/* Timeline pagini */}
+                          <div className="relative pl-4">
+                            {/* Linie verticală */}
+                            <div className="absolute left-[5px] top-2 bottom-2 w-px bg-neutral-800" />
+
+                            <div className="space-y-3">
+                              {session.pages.map((p, i) => (
+                                <div key={i} className="relative flex items-start gap-3">
+                                  <div className="absolute -left-[11px] top-[5px] w-2 h-2 rounded-full bg-violet-500/60 border border-violet-500 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-neutral-200 text-xs font-mono">{p.page}</span>
+                                  </div>
+                                  <span className="text-neutral-600 text-xs flex-shrink-0">{formatTime(p.timestamp)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       ))}
-                      <div className="pt-2 border-t border-neutral-800/60 mt-2">
-                        <p className="text-neutral-700 text-xs">Prima vizită: {formatTime(s.firstSeen)}</p>
-                      </div>
+
+                      {/* Footer info */}
+                      {visitor.org && (
+                        <p className="text-neutral-700 text-xs pt-2 border-t border-neutral-800/60">
+                          {visitor.org}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

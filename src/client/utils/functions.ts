@@ -17,6 +17,12 @@ export const getCookie = (name: string, cookieString?: string): string | null =>
   return null;
 };
 
+export const setCookie = (name: string, value: string, days: number) => {
+  if (!isBrowser()) return;
+  const d = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value}; expires=${d.toUTCString()}; path=/; SameSite=Lax`;
+};
+
 /**
  * Client-only cookie setter.
  * NOTE: httpOnly/secure cookies should be set from the server via Set-Cookie.

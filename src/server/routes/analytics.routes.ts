@@ -50,10 +50,12 @@ function isAdminRequest(req: Request): boolean {
 // POST /api/analytics/pageview — înregistrează o vizită de pagină
 analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
   try {
-    const { page, referrer, sessionId } = req.body as {
+    const { page, referrer, sessionId, visitorId, isNew } = req.body as {
       page?: string;
       referrer?: string;
       sessionId?: string;
+      visitorId?: string;
+      isNew?: boolean;
     };
 
     if (!page || !sessionId) return res.status(400).json({ error: "Missing fields" });
@@ -69,6 +71,8 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
     const db = firestore();
     await db.collection("siteVisits").add({
       sessionId,
+      visitorId: visitorId ?? "",
+      isNew: isNew ?? true,
       page,
       referrer: referrer ?? "",
       timestamp: Timestamp.now(),
@@ -104,6 +108,8 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
       return {
         id: doc.id,
         sessionId: d.sessionId,
+        visitorId: d.visitorId ?? "",
+        isNew: d.isNew ?? true,
         page: d.page,
         referrer: d.referrer,
         timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
