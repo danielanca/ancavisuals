@@ -118,6 +118,7 @@ const EditContractPage: React.FC = () => {
   const [clientAddress, setClientAddress] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
+  const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -157,6 +158,7 @@ const EditContractPage: React.FC = () => {
         setClientAddress(data.clientAddress ?? "");
         setClientIdSeries(data.clientIdSeries ?? "");
         setPrivateClient(data.privateClient === true);
+        setLinkedEventId(data.eventId ?? null);
 
         // Activează manual doar dacă totalul salvat diferă de suma serviciilor
         const computedAuto =
@@ -288,10 +290,19 @@ const EditContractPage: React.FC = () => {
             className="text-neutral-400 hover:text-white transition-colors text-sm">
             ← Înapoi
           </button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-white text-2xl font-light tracking-tight">Editează contract</h1>
             <p className="text-neutral-400 text-sm mt-0.5">Modificările se aplică imediat. Nu se poate edita după semnare.</p>
           </div>
+          {linkedEventId && (
+            <button
+              type="button"
+              onClick={() => navigate("/admin", { state: { scrollToEvent: linkedEventId } })}
+              className="text-violet-400 hover:text-violet-300 text-sm transition-colors whitespace-nowrap"
+            >
+              → Vezi eveniment
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

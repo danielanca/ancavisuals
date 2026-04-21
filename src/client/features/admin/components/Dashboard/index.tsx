@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import type { ClientEvent, AdminSettings } from "../../types";
 import GoalCard from "../GoalCard";
 import EventList from "../EventList";
@@ -41,11 +41,35 @@ const DEFAULT_SETTINGS: AdminSettings = {
   },
   currency: "EUR",
   exchangeRate: 5.0,
+  bankDetails: {
+    beneficiaryName: "",
+    iban: "",
+  },
 };
+
+function normalizeSettings(settingsData: Partial<AdminSettings>): AdminSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settingsData,
+    goals: {
+      ...DEFAULT_SETTINGS.goals,
+      ...settingsData.goals,
+    },
+    bankDetails: {
+      ...DEFAULT_SETTINGS.bankDetails,
+      ...settingsData.bankDetails,
+    },
+  };
+}
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logOut } = useAuth();
+  const targetEventId =
+    typeof (location.state as { scrollToEvent?: unknown } | null)?.scrollToEvent === "string"
+      ? (location.state as { scrollToEvent: string }).scrollToEvent
+      : undefined;
 
   const handleLogout = async () => {
     await logOut();
@@ -79,12 +103,13 @@ const Dashboard: React.FC = () => {
         setEvents(
           (eventsData.events ?? []).map((event: ClientEvent & { eventDate: string | null; eventEndDate?: string | null; createdAt: string }) => ({
             ...event,
+            fiscalized: event.fiscalized === true,
             eventDate: event.eventDate ? new Date(event.eventDate) : null,
             eventEndDate: event.eventEndDate ? new Date(event.eventEndDate) : null,
             createdAt: new Date(event.createdAt),
           })),
         );
-        if (!settingsData.error) setSettings(settingsData);
+        if (!settingsData.error) setSettings(normalizeSettings(settingsData));
       })
       .catch((fetchError: Error) => setError(fetchError.message))
       .finally(() => setLoading(false));
@@ -204,6 +229,17 @@ const Dashboard: React.FC = () => {
             Contracte
           </button>
           <button
+            onClick={() => navigate("/admin/bank-details")}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <path d="M2 10h20" />
+              <path d="M6 15h4" />
+            </svg>
+            Detalii bancare
+          </button>
+          <button
             onClick={() => navigate("/admin/inspiration")}
             className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
           >
@@ -241,6 +277,18 @@ const Dashboard: React.FC = () => {
             </svg>
             Activitate Media
           </button>
+          <button
+            onClick={() => navigate("/admin/image-optimizer")}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
+              <path d="M15 9l2 2-2 2" />
+            </svg>
+            Optimizare Poze
+          </button>
         </div>
 
         {/* Post-event follow-up notifications */}
@@ -248,8 +296,8 @@ const Dashboard: React.FC = () => {
 
         {/* Goal Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <GoalCard title={SIX_MONTHS_GOAL_TITLE} goal={settings.goals.sixMonths} events={events} editableRange onGoalUpdate={(u) => handleGoalUpdate("sixMonths", u)} />
-          <GoalCard title={ONE_YEAR_GOAL_TITLE} goal={settings.goals.oneYear} events={events} onGoalUpdate={(u) => handleGoalUpdate("oneYear", u)} />
+          <GoalCard title={SIX_MONTHS_GOAL_TITLE} goal={settings.goals.sixMonths} events={events} editableRange detailRoute="/admin/goals/six-months" onGoalUpdate={(u) => handleGoalUpdate("sixMonths", u)} />
+          <GoalCard title={ONE_YEAR_GOAL_TITLE} goal={settings.goals.oneYear} events={events} detailRoute="/admin/goals/one-year" onGoalUpdate={(u) => handleGoalUpdate("oneYear", u)} />
         </div>
 
         {/* Financial Summary */}
@@ -259,7 +307,13 @@ const Dashboard: React.FC = () => {
         <MementosWidget />
 
         {/* Event List */}
-        <EventList events={events} onAddEvent={handleAddEvent} onEventUpdated={handleEventUpdated} onEventDeleted={handleEventDeleted} />
+        <EventList
+          events={events}
+          targetEventId={targetEventId}
+          onAddEvent={handleAddEvent}
+          onEventUpdated={handleEventUpdated}
+          onEventDeleted={handleEventDeleted}
+        />
 
       </div>
     </div>

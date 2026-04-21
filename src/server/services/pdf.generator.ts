@@ -19,6 +19,13 @@ export interface ContractService {
   isTransport?: boolean;
 }
 
+function resolveBankDetails(contract: Record<string, unknown>) {
+  return {
+    beneficiaryName: String(contract.bankBeneficiaryName ?? "").trim(),
+    iban: String(contract.bankIban ?? "").trim(),
+  };
+}
+
 export async function generateContractPDF(contract: Record<string, unknown>): Promise<Buffer> {
   const browser = await puppeteer.launch({
     headless: true,
@@ -97,6 +104,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
   const priceAdvance = Number(contract.priceAdvance) || 0;
   const priceRest = Number(contract.priceRest) || (priceTotal - priceAdvance);
   const cur = esc(contract.currency as string || "RON");
+  const bankDetails = resolveBankDetails(contract);
 
   const { hasFoto, hasVideo, hasPhotobooth, hasPhotoVideo } = detectServiceFlags(services, contract.contractType as string);
 
@@ -221,7 +229,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
         <p>Metodă de plată: ${esc(contract.paymentMethod as string || "transfer bancar")}.</p>
         ${contract.paymentMethod === "Cash"
           ? `<p>Plata se realizează în numerar (cash), direct către PRESTATOR.</p>`
-          : `<p>Plata se realizează în contul: <span class="bold">${esc(PRESTATOR.name)}</span> — <span class="bold" style="letter-spacing:1px;">${esc(PRESTATOR.iban)}</span> (${esc(PRESTATOR.bank)})</p>`}
+          : `<p>Plata se realizează în contul beneficiarului: <span class="bold">${esc(bankDetails.beneficiaryName || "________________________")}</span> — <span class="bold" style="letter-spacing:1px;">${esc(bankDetails.iban || "________________________")}</span></p>`}
       `,
     },
 

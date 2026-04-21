@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ClientEvent, EventStatus } from "../types";
 import EventStatusBadge from "./EventStatusBadge";
@@ -10,6 +10,7 @@ import { slugify } from "../../../utils/slugify";
 interface EventCardProps {
   event: ClientEvent;
   initialCollapsed?: boolean;
+  onCollapseChange?: (collapsed: boolean) => void;
   onUpdated?: (updated: Partial<ClientEvent>) => void;
   onDeleted?: () => void;
 }
@@ -23,7 +24,7 @@ const labelClass = "block text-neutral-400 text-xs font-medium mb-1 uppercase tr
 const formatEUR = (amount: number) =>
   new Intl.NumberFormat("ro-RO", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amount);
 
-const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onUpdated, onDeleted }) => {
+const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onCollapseChange, onUpdated, onDeleted }) => {
   const navigate = useNavigate();
   const hasEventData = Boolean(event?.client);
   const fallbackDate = event?.eventDate ? new Date(event.eventDate) : null;
@@ -35,7 +36,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [quickSaving, setQuickSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<"first" | "confirm" | null>(null);
   const [contractUrl, setContractUrl] = useState(event.contractUrl ?? "");
   const [invoiceUrl, setInvoiceUrl] = useState(event.invoiceUrl ?? "");
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>(event.attachmentUrls ?? []);
@@ -45,12 +46,15 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [showAlbumModal, setShowAlbumModal] = useState(false);
   const [albumCreating, setAlbumCreating] = useState(false);
   const [albumError, setAlbumError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [processLog, setProcessLog] = useState<string[]>([]);
 
   const eventDate = fallbackDate;
   const isPast = eventDate
     ? new Date(new Date(eventDate).setHours(23, 59, 59, 999)) < new Date()
     : false;
   const isLead = event.status === "lead" || event.status === "tentativ";
+  const isFiscalized = event.fiscalized === true;
 
   const dateSlug = eventDate ? eventDate.toISOString().slice(0, 10) : "no-date";
   const nameSlug = slugify(fallbackName);
@@ -79,6 +83,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     total: String(event?.pricing?.total ?? 0),
     advanceAmount: String(event?.pricing?.advanceAmount ?? 0),
     advancePaid: event?.pricing?.advancePaid ?? false,
+    fiscalized: isFiscalized,
     status: event.status,
     notes: event.notes ?? "",
   });
@@ -113,6 +118,26 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     ? `${String(eventDate.getDate()).padStart(2, "0")}${eventDate.toLocaleString("ro-RO", { month: "long" }).toLowerCase().replace(/\s+/g, "")}${eventDate.getFullYear()}`
     : "";
 
+  // Auto-detect album in Bunny when card is expanded and no albumSlug is set yet
+  useEffect(() => {
+    if (collapsed || albumSlug || !suggestedSlug || isLead) return;
+    let cancelled = false;
+    fetch(`/api/admin/events/${event.id}/detect-album`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: suggestedSlug }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data.found && data.slug) {
+          setAlbumSlug(data.slug);
+          onUpdated?.({ albumSlug: data.slug });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [collapsed, albumSlug, suggestedSlug, isLead, event.id, onUpdated]);
+
   const handleCreateAlbum = async (slug: string, pin: string) => {
     setAlbumCreating(true);
     setAlbumError(null);
@@ -128,6 +153,54 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     setShowAlbumModal(false);
     setAlbumCreating(false);
     onUpdated?.({ albumSlug: slug, albumPin: pin });
+  };
+
+  const handleProcessAlbum = async () => {
+    if (!event.id || processing) return;
+    setProcessing(true);
+    setProcessLog(["Se conectează..."]);
+
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/process-album`, { method: "POST" });
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
+            if (data.stage === "start") {
+              setProcessLog((l) => [...l, `📂 ${data.total} poze găsite`]);
+            } else if (data.stage === "previews") {
+              if (data.current) setProcessLog((l) => [...l, `🖼 Preview: ${data.current} (${data.done}/${data.total})`]);
+              else setProcessLog((l) => [...l, `🖼 ${data.message}`]);
+            } else if (data.stage === "previews_complete") {
+              setProcessLog((l) => [...l, `✅ Previews: ${data.done} generate, ${data.skipped} sărite`]);
+            } else if (data.stage === "done") {
+              setProcessLog((l) => [...l, "🎉 Procesare completă!"]);
+            } else if (data.error) {
+              setProcessLog((l) => [...l, `❌ Eroare: ${data.error}`]);
+            } else if (data.warning) {
+              setProcessLog((l) => [...l, `⚠️ ${data.warning}`]);
+            }
+          } catch {}
+        }
+      }
+    } catch (err) {
+      setProcessLog((l) => [...l, `❌ ${String(err)}`]);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleSaveAlbumPin = async (pin: string) => {
@@ -176,6 +249,23 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     }
   };
 
+  const quickFiscalized = async (nextFiscalized: boolean) => {
+    setQuickSaving(true);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fiscalized: nextFiscalized }),
+      });
+      if (!res.ok) throw new Error();
+      onUpdated?.({ fiscalized: nextFiscalized });
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -185,6 +275,19 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     } catch {
       setDeleting(false);
     }
+  };
+
+  const handleArchive = async () => {
+    setDeleteStep(null);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "anulat" }),
+      });
+      if (!res.ok) throw new Error();
+      onUpdated?.({ status: "anulat" });
+    } catch {}
   };
 
   const handleSave = async () => {
@@ -199,6 +302,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       "client.phone": form.phone,
       "client.email": form.email,
       status: form.status,
+      fiscalized: form.fiscalized,
       notes: form.notes,
       typeLabel: form.typeLabel || null,
       "pricing.total": total,
@@ -229,6 +333,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         eventEndDate: form.eventEndDate ? new Date(form.eventEndDate) : null,
         typeLabel: form.typeLabel || undefined,
         status: form.status as EventStatus,
+        fiscalized: form.fiscalized,
         notes: form.notes,
         pricing: { total, advanceAmount, advancePaid: form.advancePaid, remainingAmount: total - advanceAmount },
       });
@@ -247,11 +352,20 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         {/* Header row */}
         <button
           type="button"
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => setCollapsed((c) => { const next = !c; onCollapseChange?.(next); return next; })}
           className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
         >
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <EventStatusBadge status={displayStatus} />
+            <span
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                isFiscalized
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+              }`}
+            >
+              {isFiscalized ? "Fiscalizat" : "Nefiscalizat"}
+            </span>
             <span className="text-neutral-500 text-xs">•</span>
             <span className="text-white text-sm font-medium truncate">{event.client.fullName}</span>
             <span className="text-neutral-500 text-xs">•</span>
@@ -306,6 +420,19 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   {event.typeLabel || event.type}
                 </span>
               )}
+              <button
+                type="button"
+                onClick={() => quickFiscalized(!isFiscalized)}
+                disabled={quickSaving}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors disabled:opacity-50 ${
+                  isFiscalized
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                }`}
+              >
+                <span>{isFiscalized ? "🧾" : "🏠"}</span>
+                {isFiscalized ? "Fiscalizat" : "Nefiscalizat"}
+              </button>
               {event.client.phone && (
                 <span className="flex items-center gap-1.5">
                   <span>📞</span>
@@ -350,13 +477,13 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               )}
               {event.contractId ? (
                 <button
-                  onClick={(e) => { e.stopPropagation(); navigate("/admin/contracts"); }}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/admin/contracts/${event.contractId}/edit`); }}
                   className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition-colors"
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  <span>Contract digital</span>
+                  <span>→ Vezi contract</span>
                 </button>
               ) : !isLead && event.status !== "anulat" && !contractUrl && attachmentUrls.length === 0 && (
                 <button
@@ -416,7 +543,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 <div className="ml-auto flex items-center gap-3">
                   {onDeleted && (
                     <button
-                      onClick={() => setShowDeleteConfirm(true)}
+                      onClick={() => setDeleteStep("first")}
                       disabled={deleting}
                       className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 transition-colors disabled:opacity-40"
                     >
@@ -471,7 +598,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
             {templateUrls.length > 0 && (
               <div className="border-t border-neutral-800 pt-3 space-y-2">
                 <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Template fotocabină</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
                   {templateUrls.map((url, i) => (
                     <a
                       key={url}
@@ -479,16 +606,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                       download
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="relative group rounded-lg overflow-hidden border border-neutral-700 hover:border-violet-500 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-emerald-400 hover:text-emerald-300 text-sm transition-colors"
                     >
-                      <img src={url} alt={`template-${i + 1}`} className="w-full h-24 object-cover" />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                          <polyline points="7 10 12 15 17 10" />
-                          <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                      </div>
+                      ↓ Download Photobooth template{templateUrls.length > 1 ? ` ${i + 1}` : ""}
                     </a>
                   ))}
                 </div>
@@ -507,9 +628,9 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="text-violet-400 hover:text-violet-300 text-xs transition-colors font-mono"
+                        className="text-violet-400 hover:text-violet-300 text-sm transition-colors"
                       >
-                        /media/{albumSlug}
+                        → Vezi Galerie
                       </a>
                       {albumPin && (
                         <span className="text-neutral-400 text-xs">
@@ -522,7 +643,42 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                       >
                         Editează PIN
                       </button>
+                      <span className="text-neutral-700 text-xs font-mono">/media/{albumSlug}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleProcessAlbum(); }}
+                        disabled={processing}
+                        className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+                      >
+                        {processing ? (
+                          <>
+                            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                            Procesează...
+                          </>
+                        ) : "⚙️ Procesează album"}
+                      </button>
+                      {import.meta.env.VITE_BUNNY_STORAGE_ZONE_ID && (
+                        <a
+                          href={`https://dash.bunny.net/storage/${import.meta.env.VITE_BUNNY_STORAGE_ZONE_ID}/file-manager?path=${albumSlug}&page=1`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-3 py-1.5 transition-colors"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                          </svg>
+                          Compress în Bunny
+                        </a>
+                      )}
                     </div>
+
+                    {processLog.length > 0 && (
+                      <div className="mt-2 bg-neutral-950 border border-neutral-800 rounded-lg p-3 max-h-40 overflow-y-auto">
+                        {processLog.map((line, i) => (
+                          <p key={i} className="text-xs font-mono text-neutral-300 leading-5">{line}</p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -587,7 +743,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 </button>
                 {onDeleted && (
                   <button
-                    onClick={() => setShowDeleteConfirm(true)}
+                    onClick={() => setDeleteStep("first")}
                     disabled={deleting}
                     className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 transition-colors disabled:opacity-40"
                   >
@@ -606,16 +762,51 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         )}
       </div>
 
-      {showDeleteConfirm && (
+      {/* Step 1: Archive or Delete */}
+      {deleteStep === "first" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => setDeleteStep(null)}>
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <h3 className="text-white font-semibold text-base">Ce vrei să faci?</h3>
+              <p className="text-neutral-400 text-sm mt-1">
+                Evenimentul <span className="text-white">{event.client.fullName}</span> poate fi arhivat sau șters definitiv.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={handleArchive}
+                className="w-full py-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors text-left px-4"
+              >
+                📦 Mută în Arhivă
+                <p className="text-neutral-400 text-xs font-normal mt-0.5">Evenimentul rămâne vizibil în tab-ul Arhivă</p>
+              </button>
+              <button
+                onClick={() => setDeleteStep("confirm")}
+                className="w-full py-2.5 rounded-lg border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 text-sm font-medium transition-colors text-left px-4"
+              >
+                🗑 Șterge definitiv
+                <p className="text-red-500/60 text-xs font-normal mt-0.5">Ireversibil — nu poate fi recuperat</p>
+              </button>
+            </div>
+            <button onClick={() => setDeleteStep(null)} className="w-full py-2 text-neutral-500 hover:text-white text-sm transition-colors">
+              Anulează
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Final delete confirmation */}
+      {deleteStep === "confirm" && (
         <ConfirmModal
-          title="Șterge eveniment"
-          message={`Ești sigur că vrei să ștergi definitiv evenimentul lui ${event.client.fullName}? Acțiunea nu poate fi anulată.`}
-          confirmLabel="Șterge definitiv"
+          title="Ești absolut sigur?"
+          message={`Ștergi definitiv evenimentul lui ${event.client.fullName}. Această acțiune este ireversibilă și nu poate fi anulată.`}
+          confirmLabel={deleting ? "Se șterge..." : "Da, șterge definitiv"}
           variant="danger"
-          onConfirm={() => { setShowDeleteConfirm(false); handleDelete(); }}
-          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={() => { setDeleteStep(null); handleDelete(); }}
+          onCancel={() => setDeleteStep(null)}
         />
       )}
+
 
       {/* Edit modal */}
       {editing && (
@@ -671,6 +862,23 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   ))}
                 </select>
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`fiscalized-${event.id}`}
+                  type="checkbox"
+                  checked={form.fiscalized}
+                  onChange={(e) => setForm((f) => ({ ...f, fiscalized: e.target.checked }))}
+                  className="w-4 h-4 accent-emerald-500"
+                />
+                <label htmlFor={`fiscalized-${event.id}`} className="text-neutral-400 text-xs cursor-pointer">
+                  Fiscalizat
+                </label>
+              </div>
+              {!form.fiscalized && (
+                <p className="text-[11px] text-amber-400">
+                  Eveniment marcat ca nefiscalizat, deci nu necesită factură.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Preț total (EUR)</label>
@@ -678,7 +886,19 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 </div>
                 <div>
                   <label className={labelClass}>Avans (EUR)</label>
-                  <input type="number" className={inputClass} value={form.advanceAmount} onChange={set("advanceAmount")} />
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={form.advanceAmount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setForm((f) => ({
+                        ...f,
+                        advanceAmount: val,
+                        advancePaid: Number(val) > 0 ? true : f.advancePaid,
+                      }));
+                    }}
+                  />
                 </div>
               </div>
               <div className="flex items-center gap-2">

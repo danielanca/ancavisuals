@@ -12,6 +12,7 @@ const TODAY = new Date(`${YEAR}-06-15T00:00:00`);
 function makeEvent(id: string, isoDate: string, status: ClientEvent["status"] = "confirmat"): ClientEvent {
   return {
     id,
+    fiscalized: false,
     createdAt: new Date("2026-01-01"),
     eventDate: new Date(isoDate),
     status,
@@ -55,6 +56,22 @@ describe("partitionEvents", () => {
     const { upcoming, past } = partitionEvents(events, TODAY, YEAR);
     expect(upcoming).toHaveLength(0);
     expect(past).toHaveLength(0);
+  });
+
+  test("upcoming includes future events from the next two calendar years", () => {
+    const events = [
+      makeEvent("this-year", "2026-08-01"),
+      makeEvent("next-year", "2027-05-10"),
+      makeEvent("plus-two", "2028-09-20"),
+    ];
+    const { upcoming } = partitionEvents(events, TODAY, YEAR);
+    expect(upcoming.map(e => e.id)).toEqual(["this-year", "next-year", "plus-two"]);
+  });
+
+  test("upcoming excludes events beyond the next two calendar years", () => {
+    const events = [makeEvent("too-far", "2029-01-01")];
+    const { upcoming } = partitionEvents(events, TODAY, YEAR);
+    expect(upcoming).toHaveLength(0);
   });
 
   test("an event on today is upcoming, not past", () => {

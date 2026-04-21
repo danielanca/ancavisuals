@@ -88,6 +88,7 @@ const QRMomentsPage: React.FC = () => {
   const [previews, setPreviews] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
 
   const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
   const [isRecording, setIsRecording] = useState(false);
@@ -448,6 +449,7 @@ const QRMomentsPage: React.FC = () => {
     const formData = new FormData();
     formData.append('eventId', eventId!);
     formData.append('type', activeTab === 'photos' ? 'photo' : activeTab === 'videos' ? 'video' : 'audio');
+    formData.append('comment', comment.trim());
 
     selectedFiles.forEach(file => formData.append('files', file));
 
@@ -465,6 +467,7 @@ const QRMomentsPage: React.FC = () => {
       previews.forEach(URL.revokeObjectURL);
       setSelectedFiles([]);
       setPreviews([]);
+      setComment('');
       setAudioBlob(null);
       setAudioPreviewUrl(null);
       setIsPlaying(false);
@@ -574,6 +577,15 @@ const QRMomentsPage: React.FC = () => {
               >
                 {activeTab === 'photos' ? parse('Alege Poze') : parse('Alege Clipuri')}
               </button>
+
+              <textarea
+                className="comment-input"
+                placeholder="Adaugă un mesaj pentru cuplu (opțional)..."
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                maxLength={300}
+                rows={3}
+              />
             </section>
           ) : activeTab === 'audio' ? (
             <section className="content-section fade-in">
@@ -659,6 +671,7 @@ const QRMomentsPage: React.FC = () => {
                       setAudioPreviewUrl(null);
                       setSelectedFiles([]);
                       setPreviews([]);
+                      setComment('');
                       setIsPlaying(false);
                       setCurrentTime(0);
                       setDuration(0);
@@ -666,6 +679,15 @@ const QRMomentsPage: React.FC = () => {
                   >
                     {parse('Șterge și înregistrează din nou')}
                   </button>
+
+                  <textarea
+                    className="comment-input"
+                    placeholder="Adaugă un mesaj pentru cuplu (opțional)..."
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                    maxLength={300}
+                    rows={3}
+                  />
                 </div>
               )}
             </section>

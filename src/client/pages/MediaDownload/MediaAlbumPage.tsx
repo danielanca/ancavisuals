@@ -253,6 +253,12 @@ export default function MediaAlbumPage() {
     bytesTotalAll: number;
   }>(null);
 
+  const [qrMoments, setQrMoments] = useState<{
+    photos: string[];
+    videos: string[];
+    audio: string[];
+  } | null>(null);
+
   // ── DERIVED STATE ──────────────────────────────────────────────────────────
 
   const { mode, browsePage, printPage, downloadPage, selectedPrint, selectedDownload, shareUrl, shareError } = gallery;
@@ -334,6 +340,14 @@ export default function MediaAlbumPage() {
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => setStats(data))
       .catch(() => setStats(null));
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    fetch(`/api/album/${slug}/qr-moments`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setQrMoments(data))
+      .catch(() => setQrMoments(null));
   }, [slug]);
 
   useEffect(() => {
@@ -1014,6 +1028,80 @@ export default function MediaAlbumPage() {
                   {"DESCARCĂ FILMUL COMPLET" + (stats?.longVideoBytes ? ` (${fmtBytes(stats.longVideoBytes)})` : "")}
                 </a>
               </div>
+            </>
+          )}
+
+          {qrMoments && (qrMoments.photos.length > 0 || qrMoments.videos.length > 0 || qrMoments.audio.length > 0) && (
+            <>
+              <h2 className={styles.sectionTitle}>
+                QR Moments ({qrMoments.photos.length + qrMoments.videos.length + qrMoments.audio.length})
+              </h2>
+
+              {qrMoments.photos.length > 0 && (
+                <>
+                  <p className={styles.meta}>Poze de la invitați ({qrMoments.photos.length})</p>
+                  <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
+                    {qrMoments.photos.map((src) => (
+                      <div key={src} className={styles.printPhotoWrapper}>
+                        <img src={src} alt="QR Moment" className={styles.printPhotoImg} loading="lazy" />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {qrMoments.videos.length > 0 && (
+                <>
+                  <p className={styles.meta}>Video-uri de la invitați ({qrMoments.videos.length})</p>
+                  <div className={styles.mediaCenter} style={{ flexDirection: "column", gap: "16px" }}>
+                    {qrMoments.videos.map((src) => (
+                      <div key={src} className={styles.videoWrap}>
+                        <video className={styles.video} controls playsInline preload="metadata" src={src} />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {qrMoments.audio.length > 0 && (
+                <>
+                  <p className={styles.meta}>Mesaje vocale de la invitați ({qrMoments.audio.length})</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "0 0 12px" }}>
+                    {qrMoments.audio.map((src, i) => (
+                      <div key={src} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <audio controls src={src} style={{ height: "36px", flex: 1, minWidth: 0 }} aria-label={`Mesaj vocal ${i + 1}`} />
+                        <a
+                          href={src}
+                          download
+                          className={styles.pickBtnSecondary}
+                          style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap" }}
+                          aria-label={`Descarcă mesajul vocal ${i + 1}`}
+                        >
+                          ↓
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginBottom: "16px" }}>
+                    <button
+                      type="button"
+                      className={styles.pickBtnSecondary}
+                      onClick={() => {
+                        qrMoments.audio.forEach((src, i) => {
+                          const a = document.createElement("a");
+                          a.href = src;
+                          a.download = `mesaj-vocal-${i + 1}`;
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                        });
+                      }}
+                    >
+                      Descarcă toate mesajele vocale ({qrMoments.audio.length})
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

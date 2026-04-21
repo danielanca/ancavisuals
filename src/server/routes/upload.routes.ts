@@ -8,6 +8,7 @@ import {
   getBunnyStoragePassword,
   buildBunnyStorageUrl,
 } from "../constants/bunny";
+import { firestore } from "../firestore";
 
 const router = Router();
 
@@ -18,7 +19,7 @@ const upload = multer({
 });
 
 router.post("/upload-qr-moment", upload.array("files", MAX_QR_UPLOAD_FILES), async (req: Request, res: Response) => {
-  const { eventId } = req.body;
+  const { eventId, comment } = req.body;
   const files = req.files as Express.Multer.File[];
 
   if (!eventId || !files?.length) {
@@ -68,6 +69,16 @@ router.post("/upload-qr-moment", upload.array("files", MAX_QR_UPLOAD_FILES), asy
     });
 
     const uploadedFiles = await Promise.all(uploadPromises);
+
+    await firestore()
+      .collection("qr-moments")
+      .doc(eventId)
+      .collection("uploads")
+      .add({
+        files: uploadedFiles,
+        comment: (comment as string | undefined)?.trim() || null,
+        uploadedAt: new Date(),
+      });
 
     return res.status(200).json({
       success: true,

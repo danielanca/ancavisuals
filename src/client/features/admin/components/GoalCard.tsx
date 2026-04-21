@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Goal, ClientEvent } from "../types";
 
 interface GoalUpdate {
@@ -12,31 +13,44 @@ interface GoalCardProps {
   goal: Goal;
   events: ClientEvent[];
   editableRange?: boolean;
+  detailRoute?: string;
   onGoalUpdate?: (updates: GoalUpdate) => void;
 }
 
-function computeRevenueRealized(events: ClientEvent[], startDate: string, endDate: string): number {
+function computeRevenueSplit(
+  events: ClientEvent[],
+  startDate: string,
+  endDate: string,
+): { received: number; upcoming: number } {
   const start = new Date(startDate).getTime();
   const end = new Date(endDate).getTime();
 
-  return events
-    .filter((event) => {
-      if (event.status !== "confirmat" && event.status !== "finalizat") return false;
-      if (!event.eventDate) return false;
-      const date = new Date(event.eventDate).getTime();
-      return date >= start && date <= end;
-    })
-    .reduce((sum, event) => sum + event.pricing.total, 0);
+  let received = 0;
+  let upcoming = 0;
+
+  for (const event of events) {
+    if (!event.eventDate) continue;
+    const date = new Date(event.eventDate).getTime();
+    if (date < start || date > end) continue;
+    if (event.status === "finalizat") received += event.pricing.total;
+    else if (event.status === "confirmat") upcoming += event.pricing.total;
+  }
+
+  return { received, upcoming };
 }
 
-const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange, onGoalUpdate }) => {
+const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange, detailRoute, onGoalUpdate }) => {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(String(goal.targetRevenue));
   const [startDate, setStartDate] = useState(goal.startDate);
   const [endDate, setEndDate] = useState(goal.endDate);
   const [saving, setSaving] = useState(false);
 
-  const revenueRealized = computeRevenueRealized(events, goal.startDate, goal.endDate);
+  const { received, upcoming } = computeRevenueSplit(events, goal.startDate, goal.endDate);
+  const revenueRealized = received + upcoming;
+  const pctReceived = Math.min(100, (received / goal.targetRevenue) * 100);
+  const pctUpcoming = Math.min(100 - pctReceived, (upcoming / goal.targetRevenue) * 100);
   const percentage = Math.min(100, Math.round((revenueRealized / goal.targetRevenue) * 100));
 
   const now = Date.now();
@@ -176,19 +190,44 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
           )}
         </div>
 
-        {/* Progress bar */}
-        <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+        {/* Progress bar — green = received, amber = upcoming confirmed */}
+        <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden flex">
           <div
-            className={`h-full rounded-full transition-all duration-500 ${onTrack ? "bg-emerald-500" : "bg-amber-500"}`}
-            style={{ width: `${percentage}%` }}
+            className="h-full bg-emerald-500 transition-all duration-500"
+            style={{ width: `${pctReceived}%` }}
+          />
+          <div
+            className="h-full bg-amber-400 transition-all duration-500"
+            style={{ width: `${pctUpcoming}%` }}
           />
         </div>
 
         <div className="flex items-center justify-between mt-1.5">
-          <span className={`text-xs font-medium ${onTrack ? "text-emerald-400" : "text-amber-400"}`}>
-            {onTrack ? "Pe track" : "Ușor în urmă"}
-          </span>
-          <span className="text-neutral-400 text-xs">{percentage}%</span>
+          <div className="flex items-center gap-3">
+            {received > 0 && (
+              <span className="text-xs text-emerald-400 flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                {formatEUR(received)} primit
+              </span>
+            )}
+            {upcoming > 0 && (
+              <span className="text-xs text-amber-400 flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                {formatEUR(upcoming)} rezervat
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-neutral-400 text-xs">{percentage}%</span>
+            {detailRoute && (
+              <button
+                onClick={() => navigate(detailRoute)}
+                className="text-xs text-neutral-500 hover:text-white transition-colors"
+              >
+                → Detalii
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

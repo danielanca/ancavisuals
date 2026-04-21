@@ -306,6 +306,32 @@ $transition: all 0.35s ease;
   }
 }
 
+.comment-input {
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba($primary-red, 0.25);
+  border-radius: 14px;
+  font-family: 'Cairo', system-ui, sans-serif;
+  font-size: 0.98rem;
+  color: $text-dark;
+  background: white;
+  resize: none;
+  outline: none;
+  transition: border-color 0.25s;
+  box-shadow: 0 2px 8px rgba($primary-red, 0.06);
+
+  &::placeholder {
+    color: $text-muted;
+    opacity: 0.75;
+  }
+
+  &:focus {
+    border-color: $primary-red;
+    box-shadow: 0 0 0 3px rgba($primary-red, 0.1);
+  }
+}
+
 .successMsg {
   color: #16a34a;
   font-weight: 500;

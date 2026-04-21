@@ -9,6 +9,7 @@ import type { ClientEvent } from "src/client/features/admin/types";
 function makeEvent(id: string, isoDate: string): ClientEvent {
   return {
     id,
+    fiscalized: false,
     createdAt: new Date("2026-01-01"),
     eventDate: new Date(isoDate),
     status: "confirmat",

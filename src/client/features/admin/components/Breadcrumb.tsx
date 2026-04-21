@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 const LABELS: Record<string, string> = {
   admin: "Dashboard",
   calendar: "Calendar",
+  "bank-details": "Detalii bancare",
   "create-event": "Eveniment nou",
   "create-event-wedding": "Invitație nuntă",
 };

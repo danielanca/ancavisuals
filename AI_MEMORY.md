@@ -208,6 +208,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #ADMIN  FinancialSummary:     Componentă nouă — filtrează confirmat+finalizat, an curent; arată avans încasat, urmează să primești, detaliu pe evenimente
 #ADMIN  MultiFileDropZone:    Componentă nouă — upload multiple fișiere cu thumbnails imagini, progress per fișier, delete individual
 #ADMIN  AddLeadModal pricing: Include câmpuri total/avans/rest cu calcul automat; checkbox "avans deja încasat"; backend citește pricing direct din body
+#ADMIN  Fiscalizare eveniment: `adminEvents.fiscalized` este boolean; default = `false` (nefiscalizat), iar EventCard/EventList expun marker + toggle + filtru `Toate | Fiscalizate | Nefiscalizate` #ADMIN
+#ADMIN  Detalii bancare:      pagină dedicată `/admin/bank-details`; salvează `settings/admin.bankDetails = { beneficiaryName, iban }` și injectează valorile în contracte/PDF/public sign page când `paymentMethod === "Transfer bancar"` #ADMIN
 #ADMIN  rg shortcut:          rg -n "#ADMIN" AI_MEMORY.md
 
 ---
@@ -237,6 +239,11 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-04-22: Mementos admin — modalul "Memento nou" nu se mai închide la click pe overlay, iar formularul păstrează draft-ul în `localStorage` (`admin:mementos:add-draft`) până la salvare reușită; redeschiderea modalului reîncarcă automat draftul. Validat cu `npm run typecheck`. #RECENT #ADMIN
+#RECENT  2026-04-22: FinancialSummary din dashboard a fost aliniat semantic cu cashflow-ul real: progresul este galben, sumarul folosește "Bani primiți" în loc de "Avans încasat", iar detaliul pe evenimente separă sumele deja primite de cele rămase de încasat, pe modelul paginii Goal detail. Validat cu `npm run typecheck`. #RECENT #ADMIN
+#RECENT  2026-04-22: Dashboard admin / EventList afișează acum în tab-ul "Viitoare" 3 blocuri pe ani: anul curent rămâne mereu deschis, iar următorii 2 ani (în prezent 2027 și 2028) apar ca secțiuni colapsabile pentru evidența clienților rezervați în avans. Validat cu `npm run typecheck` și Vitest pe helper-ele `partitionEvents` / `groupByMonth`. #RECENT #ADMIN
+#RECENT  2026-04-22: Admin are pagină dedicată `/admin/bank-details` pentru detalii bancare. Salvează `beneficiaryName` și `iban` în `settings/admin.bankDetails`, iar contractele folosesc aceste valori la randare: preview PDF, PDF final și pagina publică de semnare afișează beneficiarul + IBAN-ul doar pentru `Transfer bancar`. Validat cu `npm run typecheck`. #RECENT #ADMIN
+#RECENT  2026-04-22: Admin events au primit flag-ul `fiscalized` în Firestore/UI. Default-ul este `false` (nefiscalizat), EventCard afișează marker + toggle rapid, AddLeadModal permite setarea la creare, iar EventList are filtru `Toate | Fiscalizate | Nefiscalizate`. Validat cu `npm run typecheck` după actualizarea mock-urilor Vitest pentru `ClientEvent`. #RECENT #ADMIN
 #RECENT  2026-04-16: Contract feature extins — editare contract înainte de semnare (EditContractPage la /admin/contracts/:id/edit, amber accent); PATCH /api/contracts/:id blocat dacă status=signed; linking bidirecțional contract↔eveniment via contractId/eventId; CreateContractPage pre-populat din EventCard via location.state; contract fizic (attachmentUrls) = echivalent cu contract digital (C✓, ascunde "Creează contract"). #RECENT #ADMIN
 #RECENT  2026-04-16: Fix Firestore Timestamps în PDF generator — Timestamp objects ({_seconds, _nanoseconds}) erau coerced la "[object Object]" în template literals. Adăugat helper toIsoString() în pdf.generator.ts care detectează shape-ul Timestamp și convertește via _seconds*1000. Fix aplicat pe signedDate, contractDate, footer timestamp. #RECENT #ADMIN #PITFALL
 #RECENT  2026-04-16: AddLeadModal — câmpuri noi total/avans/rest cu calcul automat și checkbox "avans deja încasat"; fix bug unde avansul apărea ca 0 EUR (backend ignorase pricing din body, onAdded hardcodase zerouri). POST /api/admin/events citește acum pricing direct din body. #RECENT #ADMIN

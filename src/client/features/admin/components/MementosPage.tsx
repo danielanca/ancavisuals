@@ -148,14 +148,14 @@ export default function MementosPage() {
 
   const handleTestEmail = async () => {
     setTestStatus("loading");
-    const in10min = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     await fetch("/api/admin/mementos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: "TEST — Memento de test",
         description: "Acesta e un memento de test automat.",
-        dueDate: in10min,
+        dueDate: fiveMinAgo,
         category: "personal",
         reminderMinutesBefore: 0,
         recurring: "none",
@@ -393,6 +393,32 @@ type AddForm = {
   recurring: "none" | "weekly" | "monthly" | "yearly";
 };
 
+const MEMENTO_DRAFT_STORAGE_KEY = "admin:mementos:add-draft";
+
+function createDefaultAddForm(): AddForm {
+  return {
+    title: "",
+    description: "",
+    dueDate: defaultDueDate(),
+    category: "ancavisuals",
+    reminderMinutesBefore: 0,
+    recurring: "none",
+  };
+}
+
+function isValidDraft(value: unknown): value is AddForm {
+  if (!value || typeof value !== "object") return false;
+  const draft = value as Partial<AddForm>;
+  return (
+    typeof draft.title === "string" &&
+    typeof draft.description === "string" &&
+    typeof draft.dueDate === "string" &&
+    (draft.category === "ancavisuals" || draft.category === "personal") &&
+    typeof draft.reminderMinutesBefore === "number" &&
+    (draft.recurring === "none" || draft.recurring === "weekly" || draft.recurring === "monthly" || draft.recurring === "yearly")
+  );
+}
+
 function defaultDueDate(): string {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -403,14 +429,7 @@ function AddMementoModal({ onClose, onAdded }: {
   onClose: () => void;
   onAdded: (m: Memento) => void;
 }) {
-  const [form, setForm] = useState<AddForm>({
-    title: "",
-    description: "",
-    dueDate: defaultDueDate(),
-    category: "ancavisuals",
-    reminderMinutesBefore: 0,
-    recurring: "none",
-  });
+  const [form, setForm] = useState<AddForm>(createDefaultAddForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [serverTime, setServerTime] = useState<string | null>(null);
@@ -420,6 +439,23 @@ function AddMementoModal({ onClose, onAdded }: {
       .then((r) => r.json())
       .then((d) => setServerTime(d.serverTime));
   }, []);
+
+  useEffect(() => {
+    try {
+      const rawDraft = localStorage.getItem(MEMENTO_DRAFT_STORAGE_KEY);
+      if (!rawDraft) return;
+      const parsed = JSON.parse(rawDraft);
+      if (isValidDraft(parsed)) {
+        setForm(parsed);
+      }
+    } catch {
+      localStorage.removeItem(MEMENTO_DRAFT_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(MEMENTO_DRAFT_STORAGE_KEY, JSON.stringify(form));
+  }, [form]);
 
   const set = <K extends keyof AddForm>(key: K) => (value: AddForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -435,6 +471,7 @@ function AddMementoModal({ onClose, onAdded }: {
     });
     const data = await res.json();
     if (!res.ok) { setError(data.error ?? "Eroare."); setSaving(false); return; }
+    localStorage.removeItem(MEMENTO_DRAFT_STORAGE_KEY);
     onAdded({
       id: data.id,
       ...form,
@@ -446,7 +483,7 @@ function AddMementoModal({ onClose, onAdded }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
       <div
         className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-sm space-y-4"
         onClick={(e) => e.stopPropagation()}
@@ -454,6 +491,7 @@ function AddMementoModal({ onClose, onAdded }: {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-white text-base font-semibold">Memento nou</h2>
+            <p className="text-neutral-600 text-xs mt-1">Draft salvat automat local până la salvare.</p>
             {serverTime && <MidnightWarning serverTime={serverTime} />}
           </div>
           <button onClick={onClose} className="text-neutral-500 hover:text-white text-lg">✕</button>

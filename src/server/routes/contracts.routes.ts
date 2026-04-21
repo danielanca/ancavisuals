@@ -8,8 +8,32 @@ import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateContractPDF, buildContractHTML } from "../services/pdf.generator";
 import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail } from "../notifications/templates/contractEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
+import { expandEventDates } from "../utils/expandEventDates";
 
 const router = Router();
+const BOOKED_EVENT_STATUSES = new Set(["confirmat", "finalizat"]);
+
+type AdminEventType = "Nuntă" | "Botez" | "Logodnă" | "Aniversare" | "Altele";
+
+function mapContractEventType(rawType: unknown): { type: AdminEventType; typeLabel?: string } {
+  const normalized = String(rawType ?? "").trim();
+  if (normalized === "Nuntă" || normalized === "Botez" || normalized === "Logodnă" || normalized === "Aniversare") {
+    return { type: normalized };
+  }
+  return {
+    type: "Altele",
+    ...(normalized ? { typeLabel: normalized } : {}),
+  };
+}
+
+async function getAdminBankDetails() {
+  const settingsDoc = await firestore().collection("settings").doc("admin").get();
+  const bankDetails = settingsDoc.data()?.bankDetails as Record<string, unknown> | undefined;
+  return {
+    bankBeneficiaryName: String(bankDetails?.beneficiaryName ?? "").trim(),
+    bankIban: String(bankDetails?.iban ?? "").trim(),
+  };
+}
 
 // POST /api/contracts — creare contract nou (admin)
 router.post("/", async (req: Request, res: Response) => {
@@ -112,10 +136,12 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
     const snapshot = await db.collection("contracts").where("token", "==", token).limit(1).get();
     if (snapshot.empty) return res.status(404).json({ error: "Contract negăsit." });
     const data = snapshot.docs[0].data();
+    const bankDetails = await getAdminBankDetails();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { clientSignatureBase64, prestatorSignatureBase64, clientIp, clientEmail, pdfUrl, ...publicData } = data;
     const pdfBuffer = await generateContractPDF({
       ...publicData,
+      ...bankDetails,
       createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
       ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
@@ -140,10 +166,12 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
     const snapshot = await db.collection("contracts").where("token", "==", token).limit(1).get();
     if (snapshot.empty) return res.status(404).send("<p>Contract negăsit.</p>");
     const data = snapshot.docs[0].data();
+    const bankDetails = await getAdminBankDetails();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { clientSignatureBase64, clientIp, clientEmail, pdfUrl, ...publicData } = data;
     const html = buildContractHTML({
       ...publicData,
+      ...bankDetails,
       createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
       ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
@@ -172,6 +200,7 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
 
     const doc = snapshot.docs[0];
     const data = doc.data();
+    const bankDetails = await getAdminBankDetails();
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
@@ -189,6 +218,7 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
     res.json({
       id: doc.id,
       ...publicData,
+      ...bankDetails,
       createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
     });
   } catch (error) {
@@ -360,6 +390,80 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/contracts/:id/create-event — generează adminEvent din contract
+router.post("/:id/create-event", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const contractRef = db.collection("contracts").doc(req.params.id);
+    const doc = await contractRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Contract negăsit." });
+    }
+
+    const contract = doc.data()!;
+    if (contract.eventId) {
+      return res.status(409).json({ error: "Contractul este deja legat de un eveniment.", eventId: contract.eventId });
+    }
+
+    if (!contract.eventDate) {
+      return res.status(400).json({ error: "Contractul nu are dată de eveniment." });
+    }
+
+    const contractDate = new Date(String(contract.eventDate));
+    if (isNaN(contractDate.getTime())) {
+      return res.status(400).json({ error: "Data contractului este invalidă." });
+    }
+
+    const contractDateIso = contractDate.toISOString().slice(0, 10);
+    const eventsSnapshot = await db.collection("adminEvents").get();
+    const occupied = eventsSnapshot.docs.some((eventDoc) => {
+      const eventData = eventDoc.data();
+      if (!BOOKED_EVENT_STATUSES.has(String(eventData.status ?? ""))) return false;
+      return expandEventDates(eventData).includes(contractDateIso);
+    });
+
+    if (occupied) {
+      return res.status(409).json({ error: "Data contractului este deja ocupată de un eveniment confirmat." });
+    }
+
+    const { type, typeLabel } = mapContractEventType(contract.eventType);
+    const total = Number(contract.priceTotal) || 0;
+    const advanceAmount = Number(contract.priceAdvance) || 0;
+    const eventRef = await db.collection("adminEvents").add({
+      type,
+      ...(typeLabel ? { typeLabel } : {}),
+      status: "confirmat",
+      fiscalized: false,
+      createdAt: Timestamp.now(),
+      eventDate: Timestamp.fromDate(contractDate),
+      client: {
+        fullName: contract.clientName?.trim() || contract.clientEmail || "Client contract",
+        phone: contract.clientPhone?.trim() ?? "",
+        email: contract.clientEmail ?? "",
+      },
+      services: Array.isArray(contract.services) ? contract.services : [],
+      pricing: {
+        total,
+        advanceAmount,
+        advancePaid: advanceAmount > 0,
+        remainingAmount: contract.priceRest !== undefined
+          ? Number(contract.priceRest) || Math.max(0, total - advanceAmount)
+          : Math.max(0, total - advanceAmount),
+      },
+      contractId: doc.id,
+      notes: contract.eventDetails ?? "",
+    });
+
+    await contractRef.update({ eventId: eventRef.id });
+
+    res.status(201).json({ ok: true, eventId: eventRef.id });
+  } catch (error) {
+    console.error("[contracts] POST /:id/create-event failed:", error);
+    res.status(500).json({ error: "Nu s-a putut genera evenimentul din contract." });
+  }
+});
+
 // POST /api/contracts/:id/reset-signature — șterge semnătura clientului (doar pentru teste)
 router.post("/:id/reset-signature", async (req: Request, res: Response) => {
   try {
@@ -414,8 +518,10 @@ router.get("/:id/preview", async (req: Request, res: Response) => {
     const doc = await db.collection("contracts").doc(req.params.id).get();
     if (!doc.exists) return res.status(404).json({ error: "Contract negăsit." });
     const data = doc.data()!;
+    const bankDetails = await getAdminBankDetails();
     const contract = {
       ...data,
+      ...bankDetails,
       id: doc.id,
       createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
     };
@@ -524,7 +630,8 @@ async function uploadPdfToStorage(pdfBuffer: Buffer, filename: string): Promise<
 
 async function generateAndSendPDF(contract: Record<string, unknown>): Promise<void> {
   const db = firestore();
-  const pdfBuffer = await generateContractPDF(contract);
+  const bankDetails = await getAdminBankDetails();
+  const pdfBuffer = await generateContractPDF({ ...contract, ...bankDetails });
 
   const filename = buildPdfFilename(contract);
   const pdfUrl = await uploadPdfToStorage(pdfBuffer, filename);

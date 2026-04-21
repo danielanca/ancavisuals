@@ -52,6 +52,8 @@ describe("generateContractPDF", () => {
         eventStartTime: "14:00",
         eventEndTime: "23:00",
         paymentMethod: "Transfer bancar",
+        bankBeneficiaryName: "Beneficiar Test",
+        bankIban: "RO49AAAA1B31007593840000",
         currency: "RON",
         priceTotal: 1200,
         priceAdvance: 200,
@@ -65,7 +67,9 @@ describe("generateContractPDF", () => {
       expect(html).toContain("Nuntă &lt;script&gt;alert(1)&lt;/script&gt;");
       expect(html).toContain("Ion &amp; Maria");
       expect(html).toContain("Foto &lt;Premium&gt;");
-      expect(html).toContain("Plata se realizează în contul:");
+      expect(html).toContain("Plata se realizează în contul beneficiarului:");
+      expect(html).toContain("Beneficiar Test");
+      expect(html).toContain("RO49AAAA1B31007593840000");
       expect(html).toContain('alt="Semnatura"');
       expect(pdfMock).toHaveBeenCalledTimes(1);
       expect(closeMock).toHaveBeenCalledTimes(1);

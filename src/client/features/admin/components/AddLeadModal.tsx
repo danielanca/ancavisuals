@@ -25,6 +25,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
     total: "",
     advanceAmount: "",
     advancePaid: false,
+    fiscalized: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +69,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
         email: form.email.trim(),
       },
       pricing,
+      fiscalized: form.fiscalized,
       ...(isAltele && form.typeLabel.trim() ? { typeLabel: form.typeLabel.trim() } : {}),
       ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
       ...(form.eventDate ? { eventDate: form.eventDate } : {}),
@@ -87,6 +89,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
         id: data.id,
         type: form.type,
         status: "lead",
+        fiscalized: form.fiscalized,
         createdAt: new Date(),
         eventDate: form.eventDate ? new Date(form.eventDate) : null,
         eventEndDate: isAltele && form.eventEndDate ? new Date(form.eventEndDate) : null,
@@ -231,6 +234,23 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
                 />
                 <span className="text-neutral-300 text-xs">Avans deja încasat</span>
               </label>
+            )}
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.fiscalized}
+                onChange={(e) => setForm((f) => ({ ...f, fiscalized: e.target.checked }))}
+                className="w-4 h-4 accent-emerald-500"
+              />
+              <span className="text-neutral-300 text-xs">
+                Fiscalizat
+              </span>
+            </label>
+            {!form.fiscalized && (
+              <p className="text-[11px] text-amber-400">
+                Marcat ca eveniment nefiscalizat, fără nevoie de factură.
+              </p>
             )}
           </div>
 

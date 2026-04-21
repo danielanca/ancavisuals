@@ -28,6 +28,8 @@ const contractFixture = {
   priceRest: 1000,
   restPaidAt: "2026-09-10",
   paymentMethod: "Transfer bancar",
+  bankBeneficiaryName: "Beneficiar Test",
+  bankIban: "RO49AAAA1B31007593840000",
 };
 
 function renderPage(path = "/contract/token-1") {
@@ -88,6 +90,8 @@ describe("ContractSignPage", () => {
       expect(screen.getByText("Rezumat plăți")).toBeInTheDocument();
       expect(screen.getByText("1500 EUR")).toBeInTheDocument();
       expect(screen.getByText("Metodă de plată: Transfer bancar")).toBeInTheDocument();
+      expect(screen.getByText(/Beneficiar: Beneficiar Test/)).toBeInTheDocument();
+      expect(screen.getByText(/IBAN: RO49AAAA1B31007593840000/)).toBeInTheDocument();
     });
 
     test("submits trimmed beneficiary data and shows success state", async () => {

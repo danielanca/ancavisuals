@@ -2,7 +2,8 @@ import type { Request, Response } from "express";
 import { Router } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
-import { buildBunnyStorageUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER } from "../constants/bunny";
+import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_QR_MOMENT_FOLDER } from "../constants/bunny";
+import sharp from "sharp";
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.post("/events", async (req: Request, res: Response) => {
     const newEvent = {
       type: body.type,
       status: body.status ?? "lead",
+      fiscalized: body.fiscalized === true,
       createdAt: Timestamp.now(),
       eventDate: body.eventDate ? Timestamp.fromDate(new Date(body.eventDate)) : null,
       eventEndDate: body.eventEndDate ? Timestamp.fromDate(new Date(body.eventEndDate)) : null,
@@ -131,6 +133,10 @@ router.get("/settings", async (_req: Request, res: Response) => {
         },
         currency: "EUR",
         exchangeRate: 5.0,
+        bankDetails: {
+          beneficiaryName: "",
+          iban: "",
+        },
       };
       return res.json(defaults);
     }
@@ -154,6 +160,26 @@ router.put("/settings", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/ui-state", async (_req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const doc = await db.collection("settings").doc("adminUIState").get();
+    res.json(doc.exists ? doc.data() : {});
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.put("/ui-state", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    await db.collection("settings").doc("adminUIState").set(req.body, { merge: true });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 router.post("/events/:id/create-album", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -170,8 +196,16 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
       return res.status(409).json({ error: "Un album cu acest slug există deja în Bunny." });
     }
 
-    // Creează folderele prin upload placeholder în fiecare
-    const folders = [BUNNY_PHOTOS_FOLDER, "shortvideo", "longvideo"];
+    // Create folder structure via placeholder files
+    const folders = [
+      BUNNY_PHOTOS_FOLDER,
+      "photos_preview",
+      "shortvideo",
+      "longvideo",
+      `${BUNNY_QR_MOMENT_FOLDER}/photo`,
+      `${BUNNY_QR_MOMENT_FOLDER}/video`,
+      `${BUNNY_QR_MOMENT_FOLDER}/audio`,
+    ];
     for (const folder of folders) {
       const placeholderUrl = buildBunnyStorageUrl(slug, folder, ".keep");
       const uploadRes = await fetch(placeholderUrl, {
@@ -180,7 +214,7 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
         body: "",
       });
       if (!uploadRes.ok) {
-        return res.status(500).json({ error: `Bunny upload failed pentru ${folder}: ${uploadRes.status}` });
+        return res.status(500).json({ error: `Bunny upload failed for ${folder}: ${uploadRes.status}` });
       }
     }
 
@@ -197,6 +231,29 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
   }
 });
 
+// Checks if a Bunny folder already exists for the given slug and auto-links it to the event
+router.post("/events/:id/detect-album", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { slug } = req.body as { slug: string };
+
+    if (!slug || !/^[a-z0-9][a-z0-9-]{1,80}$/.test(slug)) {
+      return res.status(400).json({ found: false });
+    }
+
+    const checkUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER) + "/";
+    const checkRes = await fetch(checkUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() } });
+
+    if (!checkRes.ok) return res.json({ found: false });
+
+    const db = firestore();
+    await db.collection("adminEvents").doc(id).update({ albumSlug: slug });
+    res.json({ found: true, slug });
+  } catch (error) {
+    res.status(500).json({ found: false, error: String(error) });
+  }
+});
+
 router.patch("/events/:id/album", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -210,6 +267,107 @@ router.patch("/events/:id/album", async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
+});
+
+// POST /api/admin/events/:id/process-album
+// SSE stream: generates WebP previews in photos_preview/ and a photos.zip in Bunny
+router.post("/events/:id/process-album", async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  try {
+    const db = firestore();
+    const doc = await db.collection("adminEvents").doc(id).get();
+    const slug = doc.data()?.albumSlug as string | undefined;
+
+    if (!slug) {
+      send({ error: "Evenimentul nu are albumSlug setat." });
+      return res.end();
+    }
+
+    const storageKey = getBunnyStorageKey();
+
+    // List all files in photos/
+    const listUrl = buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER);
+    const listRes = await fetch(listUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+    if (!listRes.ok) {
+      send({ error: "Nu pot lista folderul photos din Bunny." });
+      return res.end();
+    }
+
+    const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
+    const photos = entries
+      .filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png)$/i.test(e.ObjectName) && e.ObjectName !== ".keep")
+      .map((e) => e.ObjectName);
+
+    send({ stage: "start", total: photos.length });
+
+    // List existing previews to skip already processed files
+    const previewListUrl = buildBunnyDirectoryUrl(slug, "photos_preview");
+    const previewListRes = await fetch(previewListUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+    const existingPreviews = new Set<string>();
+    if (previewListRes.ok) {
+      const previewEntries = await previewListRes.json() as { ObjectName: string }[];
+      previewEntries.forEach((e) => {
+        const base = e.ObjectName.replace(/\.[^.]+$/, "");
+        existingPreviews.add(base);
+      });
+    }
+
+    // Step 1: Generate WebP previews incrementally
+    send({ stage: "previews", message: "Generez previzualizări WebP..." });
+    let previewsDone = 0;
+    let previewsSkipped = 0;
+
+    for (const filename of photos) {
+      const baseName = filename.replace(/\.[^.]+$/, "");
+      if (existingPreviews.has(baseName)) {
+        previewsSkipped++;
+        continue;
+      }
+
+      const originalUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename);
+      const dlRes = await fetch(originalUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+      if (!dlRes.ok || !dlRes.body) {
+        send({ stage: "previews", warning: `Skip ${filename}: download failed` });
+        continue;
+      }
+
+      const buffer = Buffer.from(await dlRes.arrayBuffer());
+      const webpBuffer = await sharp(buffer)
+        .resize({ width: 1400, withoutEnlargement: true })
+        .webp({ quality: 72 })
+        .toBuffer();
+
+      const previewName = `${baseName}.webp`;
+      const uploadUrl = buildBunnyStorageUrl(slug, "photos_preview", previewName);
+      const upRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "image/webp" },
+        body: webpBuffer,
+      });
+
+      if (upRes.ok) {
+        previewsDone++;
+        send({ stage: "previews", done: previewsDone, total: photos.length, current: previewName });
+      } else {
+        send({ stage: "previews", warning: `Upload failed for ${previewName}` });
+      }
+    }
+
+    send({ stage: "previews_complete", done: previewsDone, skipped: previewsSkipped });
+    send({ stage: "done" });
+  } catch (err) {
+    send({ error: String(err) });
+  }
+
+  res.end();
 });
 
 // GET /api/admin/media-activity — ultimele vizite pe paginile /media
