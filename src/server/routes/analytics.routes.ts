@@ -135,18 +135,25 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
     const db = firestore();
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
 
-    const [todaySnap, weekSnap] = await Promise.all([
+    function daysAgo(days: number): Date {
+      return new Date(todayStart.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+    }
+
+    const [todaySnap, weekSnap, monthSnap, halfYearSnap, yearSnap] = await Promise.all([
       db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(todayStart)).get(),
-      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(weekStart)).get(),
+      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(7))).get(),
+      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(30))).get(),
+      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(180))).get(),
+      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(365))).get(),
     ]);
 
-    const todaySessions = new Set(todaySnap.docs.map((d) => d.data().sessionId)).size;
-    const weekSessions = new Set(weekSnap.docs.map((d) => d.data().sessionId)).size;
+    function uniqueVisitors(snap: FirebaseFirestore.QuerySnapshot): number {
+      return new Set(snap.docs.map((d) => d.data().visitorId || d.data().sessionId)).size;
+    }
 
     const pageCount: Record<string, number> = {};
-    weekSnap.docs.forEach((d) => {
+    monthSnap.docs.forEach((d) => {
       const page = d.data().page as string;
       pageCount[page] = (pageCount[page] ?? 0) + 1;
     });
@@ -156,7 +163,7 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       .map(([page, count]) => ({ page, count }));
 
     const countryCount: Record<string, number> = {};
-    weekSnap.docs.forEach((d) => {
+    monthSnap.docs.forEach((d) => {
       const country = d.data().country as string;
       if (country) countryCount[country] = (countryCount[country] ?? 0) + 1;
     });
@@ -166,8 +173,11 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       .map(([country, count]) => ({ country, count }));
 
     res.json({
-      today: { pageviews: todaySnap.size, sessions: todaySessions },
-      week: { pageviews: weekSnap.size, sessions: weekSessions },
+      today: { visitors: uniqueVisitors(todaySnap) },
+      week: { visitors: uniqueVisitors(weekSnap) },
+      month: { visitors: uniqueVisitors(monthSnap) },
+      halfYear: { visitors: uniqueVisitors(halfYearSnap) },
+      year: { visitors: uniqueVisitors(yearSnap) },
       topPages,
       topCountries,
     });
