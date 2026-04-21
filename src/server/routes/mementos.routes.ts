@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import { checkAndSendMementos } from "../cron/mementos.cron";
+import { sendEmail } from "../notifications/mailer";
 
 const router = Router();
 const COLLECTION = "mementos";
@@ -81,6 +82,22 @@ router.patch("/mementos/:id", async (req: Request, res: Response) => {
 
 router.get("/mementos/server-time", (_req: Request, res: Response) => {
   res.json({ serverTime: new Date().toISOString() });
+});
+
+router.post("/mementos/send-test-email", async (_req: Request, res: Response) => {
+  try {
+    await sendEmail({
+      to: "ancadaniel1994@gmail.com",
+      subject: "✅ Test email — Mementouri",
+      html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+        <h2 style="color:#7c3aed;">✅ Email funcționează!</h2>
+        <p style="color:#374151;">Acesta este un email de test trimis din secțiunea Mementouri.</p>
+      </div>`,
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
 });
 
 // TODO: remove after testing

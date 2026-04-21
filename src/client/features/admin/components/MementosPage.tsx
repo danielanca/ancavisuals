@@ -148,23 +148,9 @@ export default function MementosPage() {
 
   const handleTestEmail = async () => {
     setTestStatus("loading");
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    await fetch("/api/admin/mementos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: "TEST — Memento de test",
-        description: "Acesta e un memento de test automat.",
-        dueDate: fiveMinAgo,
-        category: "personal",
-        reminderMinutesBefore: 0,
-        recurring: "none",
-      }),
-    });
-    const res = await fetch("/api/admin/mementos/trigger-check", { method: "POST" });
+    const res = await fetch("/api/admin/mementos/send-test-email", { method: "POST" });
     setTestStatus(res.ok ? "ok" : "err");
     setTimeout(() => setTestStatus("idle"), 4000);
-    reload();
   };
 
   if (loading) return <AncaLoader />;
