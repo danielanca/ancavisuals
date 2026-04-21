@@ -22,6 +22,11 @@ interface SendEmailOptions {
   from?: string;
 }
 
+function wrapHtml(html: string): string {
+  if (html.trimStart().startsWith("<!DOCTYPE")) return html;
+  return `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"></head><body>${html}</body></html>`;
+}
+
 export async function sendEmail({ to, subject, html, from = emailAuth.email }: SendEmailOptions): Promise<void> {
-  await mailer.sendMail({ from, to, subject, html });
+  await mailer.sendMail({ from, to, subject, html: wrapHtml(html) });
 }
