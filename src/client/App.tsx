@@ -20,7 +20,9 @@ import EditContractPage from "./features/admin/components/Contracts/EditContract
 import InspirationPage from "./features/admin/components/InspirationPage";
 import MementosPage from "./features/admin/components/MementosPage";
 import MediaActivityPage from "./features/admin/components/MediaActivityPage";
+import AnalyticsPage from "./features/admin/components/AnalyticsPage";
 import RevinPage from "./pages/Revin/RevinPage";
+import { usePageTracking } from "./hooks/usePageTracking";
 
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin"];
@@ -28,6 +30,7 @@ const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin"]
 export const App = () => {
   const location = useLocation();
   const showChat = !HIDE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
+  usePageTracking();
 
   useEffect(() => {
     // Funcție care șterge dialogul de privacy dacă există
@@ -86,6 +89,7 @@ export const App = () => {
             <Route path="/admin/inspiration" element={<InspirationPage />} />
             <Route path="/admin/mementos" element={<MementosPage />} />
             <Route path="/admin/media-activity" element={<MediaActivityPage />} />
+            <Route path="/admin/analytics" element={<AnalyticsPage />} />
           </Route>
 
 

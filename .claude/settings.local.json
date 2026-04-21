@@ -13,7 +13,8 @@
       "Bash(lsof -ti:1994)",
       "Bash(xargs kill *)",
       "Bash(pkill -f \"tsx watch\")",
-      "Bash(pkill -f \"vite\")"
+      "Bash(pkill -f \"vite\")",
+      "Bash(kill 47966 *)"
     ]
   }
 }

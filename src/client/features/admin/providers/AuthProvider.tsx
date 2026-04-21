@@ -6,6 +6,8 @@ import { getCookie, isBrowser, setJWT } from "../../../utils/functions";
 
 const JWT_COOKIE = "jwt";
 const JWT_TTL_HOURS = 24;
+const ADMIN_COOKIE = "av_admin";
+const ADMIN_COOKIE_DAYS = 365;
 
 type AuthState = {
   user: User | null;
@@ -45,11 +47,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const unsubscribe = onIdTokenChanged(auth, async (user) => {
       if (!user) {
         await setJWT(JWT_COOKIE, "", -1);
+        await setJWT(ADMIN_COOKIE, "", -1);
         setState({ user: null, accessToken: "", authorise: false, loading: false });
         return;
       }
       const token = await user.getIdToken(false);
       await setJWT(JWT_COOKIE, token, JWT_TTL_HOURS);
+      await setJWT(ADMIN_COOKIE, "1", ADMIN_COOKIE_DAYS * 24);
       setState({ user, accessToken: token, authorise: true, loading: false });
     });
     return () => unsubscribe();
@@ -63,6 +67,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const logOut = useCallback(async () => {
     await signOut(auth);
     await setJWT(JWT_COOKIE, "", -1);
+    await setJWT(ADMIN_COOKIE, "", -1);
     setState({ user: null, accessToken: "", authorise: false, loading: false });
   }, []);
 
