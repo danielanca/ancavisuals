@@ -88,6 +88,30 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     notes: event.notes ?? "",
   });
 
+  const suggestedSlug = eventDate
+    ? `${String(eventDate.getDate()).padStart(2, "0")}${eventDate.toLocaleString("ro-RO", { month: "long" }).toLowerCase().replace(/\s+/g, "")}${eventDate.getFullYear()}`
+    : "";
+
+  // Auto-detect album in Bunny when card is expanded and no albumSlug is set yet
+  useEffect(() => {
+    if (!hasEventData || collapsed || albumSlug || !suggestedSlug || isLead) return;
+    let cancelled = false;
+    fetch(`/api/admin/events/${event.id}/detect-album`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: suggestedSlug }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data.found && data.slug) {
+          setAlbumSlug(data.slug);
+          onUpdated?.({ albumSlug: data.slug });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [hasEventData, collapsed, albumSlug, suggestedSlug, isLead, event.id, onUpdated]);
+
   if (!hasEventData) return null;
 
   const set =
@@ -113,30 +137,6 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       body: JSON.stringify({ attachmentUrls: urls }),
     });
   };
-
-  const suggestedSlug = eventDate
-    ? `${String(eventDate.getDate()).padStart(2, "0")}${eventDate.toLocaleString("ro-RO", { month: "long" }).toLowerCase().replace(/\s+/g, "")}${eventDate.getFullYear()}`
-    : "";
-
-  // Auto-detect album in Bunny when card is expanded and no albumSlug is set yet
-  useEffect(() => {
-    if (collapsed || albumSlug || !suggestedSlug || isLead) return;
-    let cancelled = false;
-    fetch(`/api/admin/events/${event.id}/detect-album`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug: suggestedSlug }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && data.found && data.slug) {
-          setAlbumSlug(data.slug);
-          onUpdated?.({ albumSlug: data.slug });
-        }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [collapsed, albumSlug, suggestedSlug, isLead, event.id, onUpdated]);
 
   const handleCreateAlbum = async (slug: string, pin: string) => {
     setAlbumCreating(true);

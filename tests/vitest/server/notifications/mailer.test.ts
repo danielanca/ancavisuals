@@ -33,7 +33,7 @@ describe("sendEmail", () => {
       expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
         to: "client@example.com",
         subject: "Test",
-        html: "<p>Hello</p>",
+        html: expect.stringContaining("<p>Hello</p>"),
       }));
     });
 

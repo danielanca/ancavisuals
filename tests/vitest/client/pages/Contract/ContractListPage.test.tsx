@@ -82,6 +82,10 @@ describe("ContractListPage", () => {
         })
         .mockResolvedValueOnce({
           ok: true,
+          json: async () => ({ dates: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
           json: async () => ({ ok: true }),
         });
       vi.stubGlobal("fetch", fetchMock);
@@ -95,11 +99,12 @@ describe("ContractListPage", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Trimite" }));
 
       await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
       });
 
-      expect(fetchMock.mock.calls[1][0]).toBe("/api/contracts/contract-1/send");
-      expect(fetchMock.mock.calls[1][1]).toEqual({ method: "POST" });
+      // calls[0] = /api/contracts, calls[1] = /api/admin/booked-dates, calls[2] = send
+      expect(fetchMock.mock.calls[2][0]).toBe("/api/contracts/contract-1/send");
+      expect(fetchMock.mock.calls[2][1]).toEqual({ method: "POST" });
       expect(await screen.findByText("Trimis")).toBeInTheDocument();
     });
 
@@ -132,7 +137,8 @@ describe("ContractListPage", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Acțiuni" }));
       fireEvent.click(await screen.findByRole("button", { name: /Trimite link/ }));
 
-      expect(global.fetch).toHaveBeenCalledTimes(1);
+      // 2 fetches on mount (contracts + booked-dates), none for send since modal was not confirmed
+      expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
     test("shows fetch errors from the initial contract list request", async () => {
