@@ -30,8 +30,11 @@ async function loadContractsRouter() {
   const addMock = vi.fn();
   const orderByGetMock = vi.fn();
   const whereGetMock = vi.fn();
-  const docGetMock = vi.fn();
   const updateMock = vi.fn();
+  const docGetMock = vi.fn().mockImplementation(async (id: string) => {
+    if (id === "admin") return { exists: true, data: () => ({}) };
+    return { exists: false };
+  });
   const generateContractPDFMock = vi.fn().mockResolvedValue(Buffer.from("pdf"));
   const sendContractLinkEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendSignedContractEmailMock = vi.fn().mockResolvedValue(undefined);
@@ -211,13 +214,18 @@ describe("contracts.routes", () => {
 
       await getPublicSign({ params: { token: "abc" } }, res);
 
-      expect(res.json).toHaveBeenCalledWith({
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         id: "contract-1",
         status: "sent",
         eventType: "Botez",
         clientEmail: "secret@example.com",
         createdAt: "2026-06-01T12:00:00.000Z",
-      });
+      }));
+      // sensitive fields must be absent
+      const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(payload).not.toHaveProperty("clientSignatureBase64");
+      expect(payload).not.toHaveProperty("clientIp");
+      expect(payload).not.toHaveProperty("pdfUrl");
     });
 
     test("POST /sign/:token signs the contract and starts PDF email delivery in background", async () => {
