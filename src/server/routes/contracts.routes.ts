@@ -200,7 +200,6 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
 
     const doc = snapshot.docs[0];
     const data = doc.data();
-    const bankDetails = await getAdminBankDetails();
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
@@ -210,6 +209,8 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
     if (data.status === "expired") {
       return res.status(410).json({ error: "Contractul a expirat.", status: "expired" });
     }
+
+    const bankDetails = await getAdminBankDetails();
 
     // Nu expunem câmpuri sensibile clientului
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
