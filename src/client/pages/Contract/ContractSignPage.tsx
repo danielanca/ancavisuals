@@ -310,7 +310,7 @@ const ContractSignPage: React.FC = () => {
                 </div>
               ))}
             </div>
-            {/* Overview plăți */}
+            {/* Payment overview */}
             <div style={pg.paymentBox}>
               <div style={pg.paymentBoxTitle}>Rezumat plăți</div>
 
@@ -435,7 +435,7 @@ const ContractSignPage: React.FC = () => {
             </p>
           </div>
 
-          {/* SEMNĂTURĂ */}
+          {/* SIGNATURE */}
           <Section title="Semnătura">
             <p style={pg.signHelp}>Semnați mai jos folosind mouse-ul sau degetul.</p>
             <canvas

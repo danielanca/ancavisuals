@@ -21,7 +21,7 @@ router.post("/inspiration/suggest-tags", async (req: Request, res: Response) => 
       return res.status(400).json({ tags: [] });
     }
 
-    // Build normalized → original map so Claude works fără diacritice
+    // Build a normalized→original map so Claude works without diacritics
     const normalizedToOriginal = new Map<string, string>();
     for (const tag of availableTags) {
       normalizedToOriginal.set(stripDiacritics(tag), tag);
@@ -56,7 +56,7 @@ Exemplu răspuns: ["mire", "mireasa", "biserica"]`,
     const match = raw.match(/\[.*\]/s);
     const returnedNormalized: string[] = match ? JSON.parse(match[0]) : [];
 
-    // Mapează înapoi la tag-urile originale cu diacritice
+    // Map back to original tags with diacritics
     const validTags = returnedNormalized
       .map((tag) => normalizedToOriginal.get(stripDiacritics(tag)))
       .filter((tag): tag is string => tag !== undefined);
@@ -123,7 +123,7 @@ Exemplu răspuns: ["mire", "mireasa", "biserica", "golden-hour", "voal"]`,
     const match = raw.match(/\[.*\]/s);
     const generatedTags: string[] = match ? JSON.parse(match[0]) : [];
 
-    // Map back to original tags with diacritics where possible, keep new ones as-is
+    // Map back to original tags with diacritics where possible; keep new tags as-is
     const validTags = generatedTags.map((tag) => {
       const normalized = stripDiacritics(tag);
       return normalizedToOriginal.get(normalized) ?? tag;

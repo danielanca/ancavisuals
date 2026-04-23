@@ -17,7 +17,7 @@ export default function Step4({ step, goBack, submit }: { step: number; goBack: 
     <>
       <h3>4) Locație, interval & pachet</h3>
 
-      {/* ...locație + ore... */}
+      {/* ...location + hours... */}
 
       <PackageTiles selected={selectedPackages} onChange={setSelectedPackages} />
 

@@ -181,7 +181,7 @@ export default function InspirationPage() {
         </div>
 
         {/* Search */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -207,7 +207,7 @@ export default function InspirationPage() {
 
           {/* Detected tags from search */}
           {searchQuery.trim() && (
-            <div className="flex flex-wrap items-center gap-2 min-h-[24px]">
+            <div className="flex flex-wrap items-center gap-2 min-h-[24px] mt-3">
               <span className="text-neutral-500 text-xs">Tag-uri detectate:</span>
               {aiLoading ? (
                 <span className="text-neutral-600 text-xs italic">Claude analizează...</span>
@@ -220,26 +220,26 @@ export default function InspirationPage() {
               )}
             </div>
           )}
-
-          {/* Manual tag pills — shown only when no search query */}
-          {!searchQuery.trim() && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">sau alege tag-uri</p>
-                {filterTags.length > 0 && (
-                  <button onClick={() => setFilterTags([])} className="text-xs text-neutral-500 hover:text-white transition-colors underline underline-offset-2">
-                    Resetează
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {allTags.map((tag) => (
-                  <TagPill key={tag} tag={tag} selected={filterTags.includes(tag)} onClick={() => toggleFilter(tag)} />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+
+        {/* Tag pills — full width, below search */}
+        {!searchQuery.trim() && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Tag-uri</p>
+              {filterTags.length > 0 && (
+                <button onClick={() => setFilterTags([])} className="text-xs text-neutral-500 hover:text-white transition-colors underline underline-offset-2">
+                  Resetează
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {allTags.map((tag) => (
+                <TagPill key={tag} tag={tag} selected={filterTags.includes(tag)} onClick={() => toggleFilter(tag)} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Debug panel */}
         {debugLog && (
@@ -322,12 +322,13 @@ export default function InspirationPage() {
       {/* Fullscreen preview */}
       {preview && (
         <PreviewModal
-          photo={preview}
+          initialPhoto={preview}
+          photos={filtered}
           allTags={allTags}
           onClose={() => setPreview(null)}
           onDelete={handleDelete}
           onUpdated={(updated) => {
-            setPhotos((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+            setPhotos((previous) => previous.map((photo) => photo.id === updated.id ? updated : photo));
             setPreview(updated);
           }}
         />
@@ -345,64 +346,203 @@ export default function InspirationPage() {
 }
 
 function PreviewModal({
-  photo,
+  initialPhoto,
+  photos,
   allTags,
   onClose,
   onDelete,
   onUpdated,
 }: {
-  photo: InspirationPhoto;
+  initialPhoto: InspirationPhoto;
+  photos: InspirationPhoto[];
   allTags: string[];
   onClose: () => void;
   onDelete: (photo: InspirationPhoto) => void;
   onUpdated: (photo: InspirationPhoto) => void;
 }) {
+  const startIndex = photos.findIndex((photo) => photo.id === initialPhoto.id);
+  const [currentIndex, setCurrentIndex] = useState(startIndex >= 0 ? startIndex : 0);
+  const [localPhotos, setLocalPhotos] = useState(photos);
+  const currentPhoto = localPhotos[currentIndex] ?? localPhotos[0];
+
+  const [displayedUrl, setDisplayedUrl] = useState(currentPhoto.url);
+  const [incomingUrl, setIncomingUrl] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
   const [editing, setEditing] = useState(false);
-  const [editTags, setEditTags] = useState<string[]>(photo.tags);
-  const [editNotes, setEditNotes] = useState(photo.notes ?? "");
+  const [editTags, setEditTags] = useState<string[]>(currentPhoto.tags);
+  const [editNotes, setEditNotes] = useState(currentPhoto.notes ?? "");
   const [customTag, setCustomTag] = useState("");
   const [saving, setSaving] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+
+  function goToIndex(newIndex: number) {
+    if (newIndex === currentIndex || isTransitioning) return;
+    setIsTransitioning(true);
+    setCurrentIndex(newIndex);
+    setIncomingUrl(localPhotos[newIndex].url);
+  }
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  useEffect(() => {
+    setEditing(false);
+    setEditTags(currentPhoto.tags);
+    setEditNotes(currentPhoto.notes ?? "");
+  }, [currentIndex]);
+
+  useEffect(() => {
+    [currentIndex - 1, currentIndex + 1]
+      .filter((index) => index >= 0 && index < localPhotos.length)
+      .forEach((index) => {
+        const image = new Image();
+        image.src = localPhotos[index].url;
+      });
+  }, [currentIndex, localPhotos]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") goToIndex(Math.min(currentIndex + 1, localPhotos.length - 1));
+      if (event.key === "ArrowLeft") goToIndex(Math.max(currentIndex - 1, 0));
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentIndex, localPhotos.length, onClose, isTransitioning]);
+
+  function handleDeleteCurrent() {
+    if (!confirm("Ștergi poza definitiv?")) return;
+    const photoToDelete = currentPhoto;
+    const remaining = localPhotos.filter((photo) => photo.id !== photoToDelete.id);
+    if (remaining.length === 0) {
+      onDelete(photoToDelete);
+      onClose();
+      return;
+    }
+    const newIndex = Math.min(currentIndex, remaining.length - 1);
+    setLocalPhotos(remaining);
+    setCurrentIndex(newIndex);
+    setDisplayedUrl(remaining[newIndex].url);
+    setIncomingUrl(null);
+    onDelete(photoToDelete);
+  }
 
   const toggleTag = (tag: string) =>
-    setEditTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+    setEditTags((previous) =>
+      previous.includes(tag) ? previous.filter((existingTag) => existingTag !== tag) : [...previous, tag]
+    );
 
   const addCustomTag = () => {
-    const t = customTag.trim().toLowerCase();
-    if (t && !editTags.includes(t)) setEditTags((prev) => [...prev, t]);
+    const trimmed = customTag.trim().toLowerCase();
+    if (trimmed && !editTags.includes(trimmed)) setEditTags((previous) => [...previous, trimmed]);
     setCustomTag("");
   };
 
   const handleSave = async () => {
     setSaving(true);
-    await fetch(`/api/admin/inspiration/photos/${photo.id}`, {
+    await fetch(`/api/admin/inspiration/photos/${currentPhoto.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tags: editTags, notes: editNotes }),
     });
     setSaving(false);
     setEditing(false);
-    onUpdated({ ...photo, tags: editTags, notes: editNotes });
+    const updated = { ...currentPhoto, tags: editTags, notes: editNotes };
+    setLocalPhotos((previous) => previous.map((photo) => photo.id === updated.id ? updated : photo));
+    onUpdated(updated);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+      onTouchStart={(event) => { touchStartX.current = event.touches[0].clientX; }}
+      onTouchEnd={(event) => {
+        if (touchStartX.current === null) return;
+        const delta = event.changedTouches[0].clientX - touchStartX.current;
+        if (Math.abs(delta) > 50) {
+          if (delta < 0) goToIndex(Math.min(currentIndex + 1, localPhotos.length - 1));
+          else goToIndex(Math.max(currentIndex - 1, 0));
+        }
+        touchStartX.current = null;
+      }}
+    >
       <div
         className="relative max-w-4xl w-full max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
-        <img src={photo.url} alt="" className="w-full max-h-[65vh] object-contain rounded-xl" />
+        <div className="relative">
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/90 transition-colors"
+            title="Închide"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+
+          {currentIndex > 0 && (
+            <button
+              onClick={(event) => { event.stopPropagation(); goToIndex(currentIndex - 1); }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/40 hover:border-emerald-400 hover:text-emerald-300 transition-all shadow-lg shadow-emerald-900/30"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+
+          {currentIndex < localPhotos.length - 1 && (
+            <button
+              onClick={(event) => { event.stopPropagation(); goToIndex(currentIndex + 1); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/40 hover:border-emerald-400 hover:text-emerald-300 transition-all shadow-lg shadow-emerald-900/30"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
+
+          <div className="relative">
+            <img
+              src={displayedUrl}
+              alt=""
+              className="w-full max-h-[65vh] object-contain rounded-xl block"
+            />
+            {incomingUrl && (
+              <img
+                src={incomingUrl}
+                alt=""
+                className="absolute top-0 left-0 w-full h-full object-contain rounded-xl crossfade-in"
+                onAnimationEnd={() => {
+                  setDisplayedUrl(incomingUrl);
+                  setIncomingUrl(null);
+                  setIsTransitioning(false);
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {localPhotos.length > 1 && (
+          <p className="text-center text-neutral-600 text-xs mt-2">{currentIndex + 1} / {localPhotos.length}</p>
+        )}
 
         <div className="mt-3 bg-neutral-900/80 backdrop-blur rounded-xl p-3 space-y-3">
           {!editing ? (
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-wrap gap-1.5">
-                {photo.tags.map((tag) => (
+                {currentPhoto.tags.map((tag) => (
                   <span key={tag} className="px-2 py-1 rounded-full bg-violet-500/20 text-violet-300 text-xs">
                     {tag}
                   </span>
                 ))}
-                {photo.notes && (
-                  <p className="text-neutral-400 text-xs mt-1 w-full">{photo.notes}</p>
+                {currentPhoto.notes && (
+                  <p className="text-neutral-400 text-xs mt-1 w-full">{currentPhoto.notes}</p>
                 )}
               </div>
               <div className="flex gap-2 shrink-0">
@@ -413,32 +553,26 @@ function PreviewModal({
                   Editează
                 </button>
                 <a
-                  href={photo.url}
+                  href={currentPhoto.url}
                   download
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-lg bg-neutral-800 text-neutral-300 text-xs hover:bg-neutral-700 transition-colors"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
                 >
                   Download
                 </a>
                 <button
-                  onClick={() => { if (confirm("Ștergi poza definitiv?")) onDelete(photo); }}
+                  onClick={handleDeleteCurrent}
                   className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs hover:bg-red-500/30 transition-colors"
                 >
                   Șterge
-                </button>
-                <button
-                  onClick={onClose}
-                  className="px-3 py-1.5 rounded-lg bg-neutral-800 text-neutral-300 text-xs hover:bg-neutral-700 transition-colors"
-                >
-                  Închide
                 </button>
               </div>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                 {allTags.map((tag) => (
                   <TagPill key={tag} tag={tag} selected={editTags.includes(tag)} onClick={() => toggleTag(tag)} />
                 ))}
@@ -448,8 +582,8 @@ function PreviewModal({
                   className="flex-1 bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition-colors placeholder-neutral-600"
                   placeholder="Tag nou..."
                   value={customTag}
-                  onChange={(e) => setCustomTag(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } }}
+                  onChange={(event) => setCustomTag(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomTag(); } }}
                 />
                 <button
                   onClick={addCustomTag}
@@ -463,7 +597,7 @@ function PreviewModal({
                 rows={2}
                 placeholder="Notă..."
                 value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
+                onChange={(event) => setEditNotes(event.target.value)}
               />
               <div className="flex gap-2">
                 <button
@@ -495,6 +629,11 @@ function UploadModal({
   onClose: () => void;
   onAdded: (photo: InspirationPhoto) => void;
 }) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);

@@ -73,7 +73,7 @@ export default function Step4Details({
     <>
       <h3>4) Locație, interval & pachet</h3>
       <div className="booking-form" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {/* Locație */}
+        {/* Location */}
         <LocationField
           apiKey={MAPS_KEY}
           value={location}
@@ -122,7 +122,7 @@ export default function Step4Details({
         </div>
         {(errors.startTime || errors.endTime) && <p className="error">{errors.startTime || errors.endTime}</p>}
 
-        {/* Durată estimată */}
+        {/* Estimated duration */}
         {durationInfo.hours != null && (
           <p style={{ fontSize: 12, color: "#aaa" }}>
             Durată estimată: <b>{durationInfo.hours}h</b>

@@ -47,7 +47,7 @@ function isAdminRequest(req: Request): boolean {
   return cookies.split(";").some((c) => c.trim() === `${ADMIN_COOKIE}=1`);
 }
 
-// POST /api/analytics/pageview — înregistrează o vizită de pagină
+// POST /api/analytics/pageview — record a page visit
 analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
   try {
     const { page, referrer, sessionId, visitorId, isNew } = req.body as {
@@ -91,7 +91,7 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/admin/analytics/visits — toate vizitele recente
+// GET /api/admin/analytics/visits — all recent visits
 analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -129,7 +129,7 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
   }
 });
 
-// GET /api/admin/analytics/stats — statistici agregate
+// GET /api/admin/analytics/stats — aggregated statistics
 analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response) => {
   try {
     const db = firestore();

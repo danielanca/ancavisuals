@@ -47,7 +47,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
     try {
       await fetch(`/api/album/${slug}/consent`, { method: "POST" });
     } catch {
-      // nu blocăm clientul
+      // don't block the client
     }
     localStorage.setItem(consentKey, "1");
     setPhase("banner");
@@ -57,7 +57,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
 
   if (phase === "hidden") return null;
 
-  // ── BANNER (vizite ulterioare) ────────────────────────────────────────────
+  // ── BANNER (return visits) ────────────────────────────────────────────────
   if (phase === "banner") {
     return (
       <div style={{
@@ -68,7 +68,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
         overflow: "hidden",
         transition: "all 0.2s",
       }}>
-        {/* Header cu săgeată */}
+        {/* Header with arrow */}
         <div
           onClick={() => setCollapsed((p) => !p)}
           style={{
@@ -96,7 +96,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
           </span>
         </div>
 
-        {/* Conținut collapsibil */}
+        {/* Collapsible content */}
         {!collapsed && (
           <div style={{ padding: "0 14px 12px", borderTop: "1px solid rgba(234,179,8,0.15)" }}>
             <p style={{ margin: "10px 0 0", color: "#b38600", fontSize: "13px", lineHeight: "1.5" }}>
@@ -108,7 +108,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
     );
   }
 
-  // ── MODAL (prima vizită) ──────────────────────────────────────────────────
+  // ── MODAL (first visit) ───────────────────────────────────────────────────
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9999,

@@ -70,7 +70,7 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
         </div>
       </div>
 
-      {/* Progress încasat / total */}
+      {/* Progress collected / total */}
       <div>
         <div className="flex items-end justify-between mb-1.5">
           <div>

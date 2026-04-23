@@ -15,7 +15,7 @@ const EVENT_TYPES: EventTypeConfig[] = [
   { id: "logodna", label: "CUNUNIE CIVILĂ" },
 ];
 
-// Slider demo – doar efect vizual, nu logic real de preț
+// Demo slider — visual only, no real price logic
 const MIN = 1;
 const MAX = 1300;
 const STEP = 13;
@@ -33,11 +33,11 @@ const ConfiguratorTeaser: React.FC = () => {
     if (hasNavigated.current) return;
     hasNavigated.current = true;
     window.location.href = "/contact";
-    // Dacă folosești react-router:
+    // If using react-router:
     // navigate("/configurator");
   };
 
-  // 1) Slider demo loop (merge constant între MIN și MAX)
+  // 1) Demo slider loop (runs continuously between MIN and MAX)
   useEffect(() => {
     if (!sliderAnimating) return;
 
@@ -51,7 +51,7 @@ const ConfiguratorTeaser: React.FC = () => {
     return () => clearInterval(interval);
   }, [sliderAnimating]);
 
-  // 2) Auto-cycle event types (schimbă activul la 3s, doar ca demo)
+  // 2) Auto-cycle event types (switches active every 3s, demo only)
   useEffect(() => {
     if (!autoCycle) return;
 
@@ -66,7 +66,7 @@ const ConfiguratorTeaser: React.FC = () => {
     return () => clearInterval(interval);
   }, [autoCycle, selectedType]);
 
-  // Click pe event → oprește demo + duce direct în configurator
+  // Click on event type → stop demo and navigate to configurator
   const handleSelectType = (id: EventTypeId) => {
     setSelectedType(id);
     setAutoCycle(false);
@@ -75,7 +75,7 @@ const ConfiguratorTeaser: React.FC = () => {
     goToConfigurator();
   };
 
-  // User schimbă slider-ul manual → oprește demo + duce direct în configurator
+  // User changes slider manually → stop demo and navigate to configurator
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value);
     setValue(v);

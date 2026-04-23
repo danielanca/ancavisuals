@@ -7,7 +7,7 @@ import sharp from "sharp";
 
 const router = Router();
 
-// GET /api/admin/events — toate evenimentele, sortate după eventDate
+// GET /api/admin/events — all events, sorted by eventDate
 router.get("/events", async (_req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -31,7 +31,7 @@ router.get("/events", async (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/admin/events — creează eveniment nou
+// POST /api/admin/events — create new event
 router.post("/events", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -79,7 +79,7 @@ router.post("/events", async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/admin/events/:id — actualizează câmpuri
+// PATCH /api/admin/events/:id — update fields
 router.patch("/events/:id", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -105,7 +105,7 @@ router.patch("/events/:id", async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/admin/events/:id — șterge eveniment definitiv
+// DELETE /api/admin/events/:id — permanently delete event
 router.delete("/events/:id", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -125,7 +125,7 @@ router.get("/settings", async (_req: Request, res: Response) => {
     const doc = await db.collection("settings").doc("admin").get();
 
     if (!doc.exists) {
-      // returnăm defaults sensibile dacă nu există încă documentul
+      // return sensible defaults if the document doesn't exist yet
       const defaults = {
         goals: {
           sixMonths: { targetRevenue: 15000, startDate: "2026-04-01", endDate: "2026-09-30" },
@@ -148,7 +148,7 @@ router.get("/settings", async (_req: Request, res: Response) => {
   }
 });
 
-// PUT /api/admin/settings — salvează goals
+// PUT /api/admin/settings — save goals
 router.put("/settings", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -189,7 +189,7 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Slug invalid. Folosește doar litere mici, cifre și cratimă." });
     }
 
-    // Verifică dacă folderul există deja în Bunny
+    // Check if the folder already exists in Bunny
     const checkUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER) + "/";
     const checkRes = await fetch(checkUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() } });
     if (checkRes.ok) {
@@ -218,7 +218,7 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
       }
     }
 
-    // Salvează albumSlug și albumPin pe eveniment
+    // Save albumSlug and albumPin on the event
     const db = firestore();
     const updates: Record<string, unknown> = { albumSlug: slug };
     if (pin) updates.albumPin = pin;
@@ -308,7 +308,7 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
 
     send({ stage: "start", total: photos.length });
 
-    // List existing previews to skip already processed files
+    // List existing previews to skip already-processed files
     const previewListUrl = buildBunnyDirectoryUrl(slug, "photos_preview");
     const previewListRes = await fetch(previewListUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
     const existingPreviews = new Set<string>();
@@ -370,7 +370,7 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
   res.end();
 });
 
-// GET /api/admin/media-activity — ultimele vizite pe paginile /media
+// GET /api/admin/media-activity — most recent visits to /media pages
 router.get("/media-activity", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -400,6 +400,18 @@ router.get("/media-activity", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[adminEvents] GET /media-activity failed:", error);
     res.status(500).json({ error: "Nu s-a putut încărca activitatea." });
+  }
+});
+
+// DELETE /api/admin/media-activity/:id — delete a visit record
+router.delete("/media-activity/:id", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    await db.collection("mediaVisits").doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminEvents] DELETE /media-activity/:id failed:", error);
+    res.status(500).json({ error: "Nu s-a putut șterge vizita." });
   }
 });
 

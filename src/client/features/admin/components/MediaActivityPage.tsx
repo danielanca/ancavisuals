@@ -14,32 +14,39 @@ interface MediaVisit {
   org: string;
 }
 
-function parseDevice(ua: string): string {
-  if (!ua) return "Necunoscut";
-  const mobile = /android|iphone|ipad|ipod|mobile/i.test(ua);
-  if (/chrome/i.test(ua)) return mobile ? "Chrome Mobile" : "Chrome";
-  if (/firefox/i.test(ua)) return mobile ? "Firefox Mobile" : "Firefox";
-  if (/safari/i.test(ua) && !/chrome/i.test(ua)) return mobile ? "Safari Mobile" : "Safari";
-  if (/edg/i.test(ua)) return "Edge";
-  return mobile ? "Mobile" : "Desktop";
+function parseDevice(userAgent: string): string {
+  if (!userAgent) return "Necunoscut";
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(userAgent);
+  if (/chrome/i.test(userAgent)) return isMobile ? "Chrome Mobile" : "Chrome";
+  if (/firefox/i.test(userAgent)) return isMobile ? "Firefox Mobile" : "Firefox";
+  if (/safari/i.test(userAgent) && !/chrome/i.test(userAgent)) return isMobile ? "Safari Mobile" : "Safari";
+  if (/edg/i.test(userAgent)) return "Edge";
+  return isMobile ? "Mobile" : "Desktop";
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString("ro-RO", {
+function formatTime(timestamp: string): string {
+  return new Date(timestamp).toLocaleString("ro-RO", {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "acum câteva secunde";
-  if (m < 60) return `acum ${m} min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `acum ${h}h`;
-  const d = Math.floor(h / 24);
-  return `acum ${d}z`;
+function timeAgo(timestamp: string): string {
+  const elapsed = Date.now() - new Date(timestamp).getTime();
+  const minutes = Math.floor(elapsed / 60000);
+  if (minutes < 1) return "acum câteva secunde";
+  if (minutes < 60) return `acum ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `acum ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `acum ${days}z`;
+}
+
+function loadVisits(onDone: (visits: MediaVisit[]) => void, onFinally: () => void) {
+  fetch("/api/admin/media-activity?limit=200")
+    .then((response) => response.json())
+    .then((data) => onDone(data.visits ?? []))
+    .finally(onFinally);
 }
 
 export default function MediaActivityPage() {
@@ -49,15 +56,26 @@ export default function MediaActivityPage() {
   const [filterSlug, setFilterSlug] = useState("all");
 
   useEffect(() => {
-    fetch("/api/admin/media-activity?limit=200")
-      .then((r) => r.json())
-      .then((d) => setVisits(d.visits ?? []))
-      .finally(() => setLoading(false));
+    loadVisits(setVisits, () => setLoading(false));
   }, []);
 
-  const slugs = ["all", ...Array.from(new Set(visits.map((v) => v.slug))).sort()];
+  function handleReload() {
+    setLoading(true);
+    loadVisits(setVisits, () => setLoading(false));
+  }
 
-  const filtered = filterSlug === "all" ? visits : visits.filter((v) => v.slug === filterSlug);
+  function handleDelete(id: string) {
+    fetch(`/api/admin/media-activity/${id}`, { method: "DELETE" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.ok) setVisits((previous) => previous.filter((visit) => visit.id !== id));
+      });
+  }
+
+  const slugs = ["all", ...Array.from(new Set(visits.map((visit) => visit.slug))).sort()];
+
+  const nonLocalVisits = visits.filter((visit) => visit.ip !== "127.0.0.1" && visit.ip !== "::1");
+  const filteredVisits = filterSlug === "all" ? nonLocalVisits : nonLocalVisits.filter((visit) => visit.slug === filterSlug);
 
   if (loading) return <AncaLoader />;
 
@@ -76,10 +94,10 @@ export default function MediaActivityPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-white text-2xl font-light tracking-tight">Activitate Media</h1>
-            <p className="text-neutral-500 text-sm mt-1">{visits.length} vizite înregistrate</p>
+            <p className="text-neutral-500 text-sm mt-1">{nonLocalVisits.length} vizite înregistrate</p>
           </div>
           <button
-            onClick={() => { setLoading(true); fetch("/api/admin/media-activity?limit=200").then((r) => r.json()).then((d) => setVisits(d.visits ?? [])).finally(() => setLoading(false)); }}
+            onClick={handleReload}
             className="p-2 rounded-lg border border-neutral-800 text-neutral-500 hover:text-white hover:border-neutral-600 transition-colors"
             title="Reîncarcă"
           >
@@ -92,18 +110,18 @@ export default function MediaActivityPage() {
 
         {/* Filtru slug */}
         <div className="flex flex-wrap gap-2">
-          {slugs.map((s) => (
+          {slugs.map((slug) => (
             <button
-              key={s}
-              onClick={() => setFilterSlug(s)}
+              key={slug}
+              onClick={() => setFilterSlug(slug)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors font-mono ${
-                filterSlug === s ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"
+                filterSlug === slug ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"
               }`}
             >
-              {s === "all" ? "Toate" : s}
-              {s !== "all" && (
+              {slug === "all" ? "Toate" : slug}
+              {slug !== "all" && (
                 <span className="ml-1.5 text-neutral-500">
-                  {visits.filter((v) => v.slug === s).length}
+                  {nonLocalVisits.filter((visit) => visit.slug === slug).length}
                 </span>
               )}
             </button>
@@ -111,17 +129,17 @@ export default function MediaActivityPage() {
         </div>
 
         {/* Feed */}
-        {filtered.length === 0 ? (
+        {filteredVisits.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-neutral-500 text-sm">Nicio vizită înregistrată încă.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map((v) => {
-              const location = [v.city, v.country].filter(Boolean).join(", ");
-              const device = parseDevice(v.userAgent);
+            {filteredVisits.map((visit) => {
+              const location = [visit.city, visit.country].filter(Boolean).join(", ");
+              const device = parseDevice(visit.userAgent);
               return (
-                <div key={v.id} className="flex items-start gap-3 p-4 rounded-xl bg-neutral-900 border border-neutral-800">
+                <div key={visit.id} className="flex items-start gap-3 p-4 rounded-xl bg-neutral-900 border border-neutral-800">
                   <div className="w-8 h-8 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
@@ -130,12 +148,12 @@ export default function MediaActivityPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <a
-                        href={`/media/${v.slug}`}
+                        href={`/media/${visit.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm font-medium text-violet-400 hover:text-violet-300 font-mono transition-colors"
                       >
-                        {v.slug}
+                        {visit.slug}
                       </a>
                       <span className="text-neutral-600 text-xs">·</span>
                       <span className="text-neutral-500 text-xs">{device}</span>
@@ -147,13 +165,22 @@ export default function MediaActivityPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-neutral-600 text-xs font-mono">{v.ip}</span>
-                      {v.org && <span className="text-neutral-700 text-xs truncate max-w-[180px]">{v.org}</span>}
+                      <span className="text-neutral-600 text-xs font-mono">{visit.ip}</span>
+                      {visit.org && <span className="text-neutral-700 text-xs truncate max-w-[180px]">{visit.org}</span>}
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-neutral-400 text-xs">{timeAgo(v.timestamp)}</p>
-                    <p className="text-neutral-700 text-xs mt-0.5">{formatTime(v.timestamp)}</p>
+                  <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+                    <p className="text-neutral-400 text-xs">{timeAgo(visit.timestamp)}</p>
+                    <p className="text-neutral-700 text-xs">{formatTime(visit.timestamp)}</p>
+                    <button
+                      onClick={() => handleDelete(visit.id)}
+                      className="mt-1 text-neutral-600 hover:text-red-400 transition-colors"
+                      title="Șterge"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               );

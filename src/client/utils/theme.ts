@@ -1,5 +1,5 @@
-// Culorile de accent principale ale site-ului Anca Visuals
-// Folosește aceste constante în loc să scrii clase Tailwind direct
+// Main accent colors for the Anca Visuals site
+// Use these constants instead of writing Tailwind classes directly
 
 export const ACCENT = {
   // Text

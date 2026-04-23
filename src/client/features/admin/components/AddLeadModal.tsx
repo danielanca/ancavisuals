@@ -160,7 +160,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
             </div>
           </div>
 
-          {/* Tip + Dată */}
+          {/* Type + Date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Tip eveniment</label>
@@ -178,7 +178,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
             </div>
           </div>
 
-          {/* Altele: descriere + dată sfârșit */}
+          {/* Other: description + end date */}
           {form.type === "Altele" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -195,7 +195,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
             </div>
           )}
 
-          {/* Prețuri */}
+          {/* Pricing */}
           <div className="border-t border-neutral-800 pt-3 space-y-3">
             <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Prețuri (opțional)</p>
             <div className="grid grid-cols-2 gap-3">
@@ -223,7 +223,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
               </div>
             )}
 
-            {/* Avans încasat */}
+            {/* Advance collected */}
             {advanceAmount > 0 && (
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -254,7 +254,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
             )}
           </div>
 
-          {/* Notă */}
+          {/* Note */}
           <div>
             <label className={labelClass}>Notă</label>
             <textarea

@@ -88,7 +88,7 @@ let cachedPlacesLib: PlacesLibrary | null = null;
 const loadMaps = (() => {
   let promise: Promise<void> | null = null;
   return (apiKey: string, language?: string) => {
-    // deja există
+    // already loaded
     if (typeof window !== "undefined" && getGoogleMapsWindow().google?.maps) {
       return Promise.resolve();
     }
@@ -135,19 +135,19 @@ async function ensurePlaces(apiKey: string, language?: string) {
 
   if (cachedPlacesLib) return cachedPlacesLib;
 
-  // 1) Noul API (dacă e disponibil)
+  // 1) New API (if available)
   if (typeof gmaps.importLibrary === "function") {
     try {
       cachedPlacesLib = await gmaps.importLibrary("places");
       return cachedPlacesLib;
     } catch {
-      // continuăm cu fallback
+      // continue with fallback
     }
   }
 
-  // 2) Fallback: așteptăm ca Google să atașeze namespace-ul clasic
+  // 2) Fallback: wait for Google to attach the classic namespace
   if (!gmaps.places) {
-    // maps/api/js a rezolvat deja, dar places.js se atașează puțin mai târziu
+    // maps/api/js already resolved, but places.js attaches slightly later
     await waitFor(() => !!getGoogleMapsWindow().google?.maps?.places, 5000, 50);
   }
 
@@ -191,8 +191,8 @@ export default function LocationField({
     ensurePlaces(apiKey, language)
       .then(places => {
         if (!mounted) return;
-        // Noul API are AutocompleteSessionToken în lib-ul places,
-        // și în fallback (global) de asemenea.
+        // New API has AutocompleteSessionToken in the places lib,
+        // and in the global fallback as well.
         tokenRef.current = new places.AutocompleteSessionToken();
         setReady(true);
       })
@@ -237,7 +237,7 @@ export default function LocationField({
           setSuggestions(suggestions || []);
           setOpen(!!(suggestions && suggestions.length));
         } else {
-          // Ca fallback ultim, încearcă să nu oprești UX-ul (returnează nimic)
+          // Last resort fallback — don't break the UX (returns nothing)
           setSuggestions([]);
           setOpen(false);
           setErr("Autocomplete (Places New) indisponibil în această încărcare.");
@@ -273,7 +273,7 @@ export default function LocationField({
       const loc = place.location;
       const latlng = isLatLngWithToJSON(loc) ? loc.toJSON() : isLatLngLiteral(loc) ? loc : undefined;
 
-      // 🔥 setează și value-ul din input prin onChange
+      // also update the input value via onChange
       const selectedText = formattedAddress || displayName || prediction?.text?.text || "";
       onChange(selectedText);
 
@@ -284,7 +284,7 @@ export default function LocationField({
         location: latlng,
       });
 
-      // reset sesiune după select
+      // reset session after selection
       tokenRef.current = new places.AutocompleteSessionToken();
     } catch (e) {
       console.error(e);

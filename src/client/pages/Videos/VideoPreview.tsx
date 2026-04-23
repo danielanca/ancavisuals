@@ -19,7 +19,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ src, poster, previewTime = 
 
   const [computedPoster, setComputedPoster] = useState<string | undefined>(poster);
 
-  // 1️⃣ Inițializează Plyr
+  // 1) Initialize Plyr
   useEffect(() => {
     if (!videoRef.current) return;
 
@@ -45,7 +45,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ src, poster, previewTime = 
     };
   }, [src]);
 
-  // 2️⃣ Generează poster dacă nu vine din props
+  // 2) Generate poster if not provided via props
   useEffect(() => {
     if (poster) {
       setComputedPoster(poster);

@@ -13,7 +13,7 @@ const Featured = () => {
         </div>
       </div>
 
-      {/* 🎉 Galeria completă din Firebase */}
+      {/* Full gallery from Firebase */}
       <PortfolioGallery />
     </section>
   );

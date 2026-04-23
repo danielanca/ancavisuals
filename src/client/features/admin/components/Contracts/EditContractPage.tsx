@@ -160,7 +160,7 @@ const EditContractPage: React.FC = () => {
         setPrivateClient(data.privateClient === true);
         setLinkedEventId(data.eventId ?? null);
 
-        // Activează manual doar dacă totalul salvat diferă de suma serviciilor
+        // Enable manual mode only if the saved total differs from the sum of services
         const computedAuto =
           populated.filter((s) => s.included).reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) +
           customSvcs.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0);
@@ -441,7 +441,7 @@ const EditContractPage: React.FC = () => {
             </button>
           </Block>
 
-          {/* PREȚURI */}
+          {/* PRICING */}
           <Block title="Prețuri">
             <div className="col-span-2">
               <div className="flex items-center gap-3 mb-1">

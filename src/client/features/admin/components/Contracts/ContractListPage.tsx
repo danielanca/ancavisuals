@@ -43,7 +43,7 @@ const ContractListPage: React.FC = () => {
   type PendingAction = { type: "delete" | "cancel" | "send"; id: string; contractLabel: string } | null;
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
-  // Modal semnătură prestator
+  // Provider signature modal
   const [signingId, setSigningId] = useState<string | null>(null);
   const [sigSaving, setSigSaving] = useState(false);
   const [sigError, setSigError] = useState<string | null>(null);
@@ -67,10 +67,10 @@ const ContractListPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  // Inițializare canvas când se deschide modalul
+  // Initialize canvas when the modal opens
   useEffect(() => {
     if (!signingId) return;
-    // Delay mic ca DOM-ul să fie montat
+    // Small delay to ensure the DOM is mounted
     const t = setTimeout(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -423,7 +423,7 @@ const ContractListPage: React.FC = () => {
 
       </div>
 
-      {/* MODAL SEMNĂTURĂ PRESTATOR */}
+      {/* PROVIDER SIGNATURE MODAL */}
       {signingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-lg">

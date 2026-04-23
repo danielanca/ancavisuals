@@ -35,7 +35,7 @@ export async function sendWeeklyAnalyticsSummary() {
     const totalViews = visits.length;
     const uniqueSessions = new Set(visits.map((v) => v.sessionId)).size;
 
-    // Top pagini
+    // Top pages
     const pageCount: Record<string, number> = {};
     visits.forEach((v) => {
       pageCount[v.page] = (pageCount[v.page] ?? 0) + 1;
@@ -44,7 +44,7 @@ export async function sendWeeklyAnalyticsSummary() {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 7);
 
-    // Top orașe
+    // Top cities
     const cityCount: Record<string, number> = {};
     visits.forEach((v) => {
       const city = [v.city, v.country].filter(Boolean).join(", ");
@@ -136,7 +136,7 @@ export async function sendWeeklyAnalyticsSummary() {
 }
 
 export function startAnalyticsCron() {
-  // Luni dimineața la 09:00
+  // Monday morning at 09:00
   cron.schedule("0 9 * * 1", sendWeeklyAnalyticsSummary);
   console.log("[analytics cron] Pornit — luni 09:00");
 }

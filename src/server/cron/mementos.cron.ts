@@ -25,9 +25,9 @@ async function checkAndSendMementos() {
       const reminderMinutes = data.reminderMinutesBefore ?? 0;
       const reminderTime = new Date(dueDate.getTime() - reminderMinutes * 60 * 1000);
 
-      // Trimite dacă am depășit momentul de reminder
+      // Send if the reminder time has been reached
       if (now < reminderTime) continue;
-      // Nu trimite dacă a trecut mai mult de 2 ore de la scadență
+      // Don't send if more than 2 hours past the due date
       const twoHoursAfterDue = new Date(dueDate.getTime() + 2 * 60 * 60 * 1000);
       if (now > twoHoursAfterDue) continue;
 
@@ -66,7 +66,7 @@ async function checkAndSendMementos() {
         `,
       });
 
-      // Dacă e recurent — avansează data și resetează, altfel marchează ca trimis
+      // If recurring — advance the date and reset; otherwise mark as sent
       if (data.recurring && data.recurring !== "none") {
         const nextDate = getNextOccurrence(dueDate, data.recurring);
         await db.collection("mementos").doc(doc.id).update({

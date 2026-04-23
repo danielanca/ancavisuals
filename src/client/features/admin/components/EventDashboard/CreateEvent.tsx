@@ -147,10 +147,10 @@ const CreateEvent = () => {
 
         <form onSubmit={handleSubmit(onSubmit)} className={styles.form}>
           <div className={styles.contentGrid}>
-            {/* STÂNGA - Formular */}
+            {/* LEFT - Form */}
             <div className={styles.formSection}>
 
-              {/* PAS 1: Cuplu & Info de bază */}
+              {/* STEP 1: Couple & Basic Info */}
               {step === 1 && (
                 <>
                   <div className={styles.formGroup}>
@@ -259,7 +259,7 @@ const CreateEvent = () => {
                 </>
               )}
 
-              {/* PAS 3: Locații & Stil */}
+              {/* STEP 3: Venues & Style */}
               {step === 3 && (
                 <>
                   <div className={styles.formGroup}>
@@ -319,7 +319,7 @@ const CreateEvent = () => {
                 </>
               )}
 
-              {/* PAS 4: Invitați & Creare */}
+              {/* STEP 4: Guests & Create */}
               {step === 4 && (
                 <div className={styles.finalStep}>
                   <h3>Invită-ți Cei Dragi</h3>

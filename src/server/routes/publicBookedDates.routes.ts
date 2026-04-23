@@ -7,7 +7,7 @@ const CONFIRMED_STATUSES = new Set(["confirmat", "finalizat"]);
 
 const router = Router();
 
-// GET /api/booked-dates — public, fără auth
+// GET /api/booked-dates — public, no auth
 router.get("/", async (_req: Request, res: Response) => {
   try {
     const db = firestore();

@@ -36,7 +36,7 @@ export const App = () => {
   usePageTracking();
 
   useEffect(() => {
-    // Funcție care șterge dialogul de privacy dacă există
+    // Removes the privacy dialog from the DOM if it exists
     const removeUcDialog = () => {
       const dialog = document.getElementById("uc-main-dialog");
       if (dialog && dialog.parentNode) {
@@ -44,10 +44,10 @@ export const App = () => {
       }
     };
 
-    // 1) Încearcă imediat (dacă deja e în DOM)
+    // 1) Try immediately (if already in the DOM)
     removeUcDialog();
 
-    // 2) Observă DOM-ul în caz că scriptul îl adaugă mai târziu
+    // 2) Observe the DOM in case the script adds it later
     const observer = new MutationObserver(() => {
       removeUcDialog();
     });

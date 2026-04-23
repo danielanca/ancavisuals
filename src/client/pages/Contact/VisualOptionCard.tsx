@@ -1,6 +1,6 @@
 import type { PackageOption } from "./packages";
 
-// descriere minimală pt elementele vizuale (imagini / gif / video)
+// minimal descriptor for visual elements (images / gif / video)
 type Visual = {
   kind: "img" | "gif" | "video";
   src: string;

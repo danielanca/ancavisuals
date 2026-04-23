@@ -207,7 +207,7 @@ const QRMomentsPage: React.FC = () => {
       const AudioContextClass = window.AudioContext || (window as LegacyAudioWindow).webkitAudioContext;
       const audioContext = new AudioContextClass();
 
-      // FIX #4 — Safari necesită resume() după creare
+      // FIX #4 — Safari requires resume() after creation
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
       }
@@ -218,7 +218,7 @@ const QRMomentsPage: React.FC = () => {
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      // FIX #2 — detectare corectă mimeType pentru Safari vs Chrome
+      // FIX #2 — correct mimeType detection for Safari vs Chrome
       const mimeType = MediaRecorder.isTypeSupported('audio/mp4')
         ? 'audio/mp4'
         : MediaRecorder.isTypeSupported('audio/webm')
@@ -332,7 +332,7 @@ const QRMomentsPage: React.FC = () => {
     };
   }, [audioPreviewUrl]);
 
-  // FIX #3 — Safari nu suportă permissions.query pentru microfon
+  // FIX #3 — Safari doesn't support permissions.query for microphone
   useEffect(() => {
     if (activeTab !== 'audio') return;
 
@@ -396,7 +396,7 @@ const QRMomentsPage: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // FIX #6 — canvas width trebuie să fie număr, nu "100%"
+    // FIX #6 — canvas width must be a number, not "100%"
     canvas.width = canvas.offsetWidth || 300;
     canvas.height = canvas.offsetHeight || 150;
 

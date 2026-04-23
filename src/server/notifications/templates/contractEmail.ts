@@ -115,7 +115,7 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
     </div>
   `;
 
-  // Trimite la client
+  // Send to client
   await mailer.sendMail({
     from: emailAuth.email,
     to,
@@ -123,7 +123,7 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
     html,
   });
 
-  // Trimite la admin
+  // Send to admin
   await mailer.sendMail({
     from: emailAuth.email,
     to: adminUser.email,

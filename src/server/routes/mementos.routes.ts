@@ -60,7 +60,7 @@ router.patch("/mementos/:id", async (req: Request, res: Response) => {
     const db = firestore();
     const updates: Record<string, unknown> = { completed };
 
-    // La bifat ca rezolvat, dacă e recurent resetăm pentru next occurrence
+    // When marked as done, reset due date for the next occurrence if recurring
     if (completed === true) {
       const doc = await db.collection(COLLECTION).doc(req.params.id).get();
       const data = doc.data();

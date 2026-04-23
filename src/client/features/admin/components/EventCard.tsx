@@ -594,7 +594,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               </div>
             )}
 
-            {/* Template fotocabină */}
+            {/* Photobooth template */}
             {templateUrls.length > 0 && (
               <div className="border-t border-neutral-800 pt-3 space-y-2">
                 <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Template fotocabină</p>
