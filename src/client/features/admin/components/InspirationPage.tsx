@@ -646,6 +646,7 @@ function UploadModal({
   const [uploading, setUploading] = useState(false);
   const [aiTagLoading, setAiTagLoading] = useState(false);
   const [aiSuggestedTags, setAiSuggestedTags] = useState<string[] | null>(null);
+  const [aiDebug, setAiDebug] = useState<{ status: number; body: string } | null>(null);
 
   const pickFiles = (newFiles: File[]) => {
     setFiles((prev) => [...prev, ...newFiles]);
@@ -661,14 +662,18 @@ function UploadModal({
     setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
 
   const addCustomTag = () => {
-    const t = customTag.trim().toLowerCase();
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
+    const newTags = customTag
+      .split(/[,;]+/)
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t.length > 0 && !tags.includes(t));
+    if (newTags.length > 0) setTags((prev) => [...prev, ...newTags]);
     setCustomTag("");
   };
 
   const suggestTagsFromImage = async () => {
     if (files.length === 0) return;
     setAiTagLoading(true);
+    setAiDebug(null);
     try {
       const file = files[0];
       const base64 = await new Promise<string>((resolve, reject) => {
@@ -686,13 +691,16 @@ function UploadModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mediaType, availableTags: PRESET_TAGS }),
       });
-      const data = await res.json();
-      if (data.tags?.length > 0) {
+      const rawText = await res.text();
+      setAiDebug({ status: res.status, body: rawText });
+      let data: { tags?: string[] } = {};
+      try { data = JSON.parse(rawText); } catch { /* not JSON */ }
+      if (data.tags && data.tags.length > 0) {
         setAiSuggestedTags(data.tags);
         setTags(data.tags);
       }
-    } catch {
-      // silently fail
+    } catch (error) {
+      setAiDebug({ status: 0, body: String(error) });
     } finally {
       setAiTagLoading(false);
     }
@@ -823,6 +831,20 @@ function UploadModal({
             )}
           </div>
 
+          {aiDebug !== null && (
+            <div className="mt-2 p-3 rounded-lg bg-neutral-950 border border-neutral-700 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-mono text-neutral-400">
+                  DEBUG AI · HTTP {aiDebug.status === 0 ? "network error" : aiDebug.status}
+                </p>
+                <button onClick={() => setAiDebug(null)} className="text-neutral-600 hover:text-neutral-300 text-xs">✕</button>
+              </div>
+              <pre className="text-xs text-neutral-300 whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
+                {aiDebug.body}
+              </pre>
+            </div>
+          )}
+
           {aiSuggestedTags !== null && (
             <div className="space-y-2 mb-2">
               <p className="text-neutral-600 text-xs">Bifează tag-urile corecte:</p>
@@ -843,7 +865,7 @@ function UploadModal({
           <div className="flex gap-2 mt-2">
             <input
               className="flex-1 bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition-colors placeholder-neutral-600"
-              placeholder="Tag personalizat..."
+              placeholder="Adaugă tag-uri separate prin virgulă..."
               value={customTag}
               onChange={(e) => setCustomTag(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } }}

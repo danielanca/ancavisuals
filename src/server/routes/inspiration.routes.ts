@@ -132,7 +132,7 @@ Exemplu răspuns: ["mire", "mireasa", "biserica", "golden-hour", "voal"]`,
     res.json({ tags: validTags });
   } catch (error) {
     console.error("[inspiration] suggest-tags-from-image failed:", error);
-    res.status(500).json({ tags: [] });
+    res.status(500).json({ tags: [], debug: String(error) });
   }
 });
 
