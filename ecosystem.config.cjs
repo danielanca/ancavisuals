@@ -4,6 +4,8 @@ const fs = require("fs");
 const serverCwd = "/var/www/vhosts/ancavisuals.ro/httpdocs";
 const cwd = fs.existsSync(serverCwd) ? serverCwd : __dirname;
 
+require("dotenv").config({ path: path.join(cwd, ".env") });
+
 module.exports = {
   apps: [
     {
@@ -13,18 +15,20 @@ module.exports = {
       cwd,
       env: {
         NODE_ENV: "production",
-        VITE_GOOGLE_MAPS_BROWSER_KEY: "AIzaSyBAd_AGvtxO0ULtSbPeTMcyZ2csARrSgXU",
-        BUNNY_STORAGE_KEY: "0ce832c7-6666-4cd6-a6a2d9ebe38b-319e-4998",
-        VITE_BUNNY_STORAGE_KEY: "0ce832c7-6666-4cd6-a6a2d9ebe38b-319e-4998",
-        BUNNY_STORAGE_ZONE: "ancavisuals-romania",
-        BUNNY_CDN_DOMAIN: "https://ancavisuals.b-cdn.net",
-        VITE_BUNNY_READ_KEY: "b4a5bdb6-a828-413d-96830c9bcee1-8d36-4161",
-        FIREBASE_PROJECT_ID: "joculdetectivului",
-        IPINFO_TOKEN: "f8c1bf7eef0517",
-        BUNNY_STORAGE_PASSWORD: "0ce832c7-6666-4cd6-a6a2d9ebe38b-319e-4998",
-        ANTHROPIC_API_KEY: "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",
+        PORT: process.env.PORT || 1994,
         FIREBASE_SERVICE_ACCOUNT_PATH: path.join(cwd, "sa.json"),
-        PORT: 1994
+        VITE_GOOGLE_MAPS_BROWSER_KEY: process.env.VITE_GOOGLE_MAPS_BROWSER_KEY,
+        BUNNY_STORAGE_KEY: process.env.BUNNY_STORAGE_KEY,
+        VITE_BUNNY_STORAGE_KEY: process.env.VITE_BUNNY_STORAGE_KEY,
+        BUNNY_STORAGE_ZONE: process.env.BUNNY_STORAGE_ZONE,
+        BUNNY_CDN_DOMAIN: process.env.BUNNY_CDN_DOMAIN,
+        VITE_BUNNY_READ_KEY: process.env.VITE_BUNNY_READ_KEY,
+        VITE_BUNNY_STORAGE_ZONE_ID: process.env.VITE_BUNNY_STORAGE_ZONE_ID,
+        FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+        IPINFO_TOKEN: process.env.IPINFO_TOKEN,
+        BUNNY_STORAGE_PASSWORD: process.env.BUNNY_STORAGE_PASSWORD,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+        FIREBASE_SERVICE_ACCOUNT_BASE64: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
       }
     }
   ]
