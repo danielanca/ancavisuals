@@ -403,4 +403,16 @@ router.get("/media-activity", async (req: Request, res: Response) => {
   }
 });
 
+// DELETE /api/admin/media-activity/:id — șterge o vizită
+router.delete("/media-activity/:id", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    await db.collection("mediaVisits").doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminEvents] DELETE /media-activity/:id failed:", error);
+    res.status(500).json({ error: "Nu s-a putut șterge vizita." });
+  }
+});
+
 export default router;
