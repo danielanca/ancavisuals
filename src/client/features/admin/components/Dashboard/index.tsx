@@ -68,9 +68,6 @@ const Dashboard: React.FC = () => {
   const location = useLocation();
   const { auth, logOut } = useAuth();
 
-  if (auth.role === "moderator") {
-    return <ModeratorAlbumsPage />;
-  }
   const targetEventId =
     typeof (location.state as { scrollToEvent?: unknown } | null)?.scrollToEvent === "string"
       ? (location.state as { scrollToEvent: string }).scrollToEvent
@@ -172,6 +169,8 @@ const Dashboard: React.FC = () => {
       body: JSON.stringify(updated),
     });
   };
+
+  if (auth.role === "moderator") return <ModeratorAlbumsPage />;
 
   if (loading) return <AncaLoader />;
 
