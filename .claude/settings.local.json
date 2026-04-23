@@ -14,7 +14,9 @@
       "Bash(xargs kill *)",
       "Bash(pkill -f \"tsx watch\")",
       "Bash(pkill -f \"vite\")",
-      "Bash(kill 47966 *)"
+      "Bash(kill 47966 *)",
+      "Bash(mkdir -p /Users/daniel.anca/IdeaProjects/ancavisuals/ancavisuals/src/server/middleware)",
+      "Bash(mkdir -p /Users/daniel.anca/IdeaProjects/ancavisuals/ancavisuals/src/client/features/admin/components/Moderation)"
     ]
   }
 }

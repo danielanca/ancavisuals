@@ -24,6 +24,7 @@ import contractsRouter from "./src/server/routes/contracts.routes";
 import inspirationRouter from "./src/server/routes/inspiration.routes";
 import mementosRouter from "./src/server/routes/mementos.routes";
 import { analyticsPublicRouter, analyticsAdminRouter } from "./src/server/routes/analytics.routes";
+import moderationRouter from "./src/server/routes/moderation.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 
@@ -125,6 +126,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.admin, mementosRouter);
   app.use("/api/analytics", analyticsPublicRouter);
   app.use(API_ROUTE_PREFIXES.admin, analyticsAdminRouter);
+  app.use("/api/moderare", moderationRouter);
 
   startMementosCron();
   startAnalyticsCron();

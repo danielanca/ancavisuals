@@ -9,6 +9,7 @@ import useAuth from "../../auth/useAuth";
 import AncaLoader from "../../../../components/UI/AncaLoader";
 import PostEventFollowUp from "../PostEventFollowUp";
 import MementosWidget from "../MementosWidget";
+import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
 
 const LOGIN_ROUTE = "/login";
 const CREATE_EVENT_ROUTE = "/admin/create-event";
@@ -65,7 +66,11 @@ function normalizeSettings(settingsData: Partial<AdminSettings>): AdminSettings 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logOut } = useAuth();
+  const { auth, logOut } = useAuth();
+
+  if (auth.role === "moderator") {
+    return <ModeratorAlbumsPage />;
+  }
   const targetEventId =
     typeof (location.state as { scrollToEvent?: unknown } | null)?.scrollToEvent === "string"
       ? (location.state as { scrollToEvent: string }).scrollToEvent
@@ -82,6 +87,7 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [urgentMementos, setUrgentMementos] = useState(0);
+  const [pendingModerationCount, setPendingModerationCount] = useState(0);
 
   useEffect(() => {
     const meta = document.createElement("meta");
@@ -124,7 +130,16 @@ const Dashboard: React.FC = () => {
         setUrgentMementos(urgent);
       })
       .catch(() => {});
-  }, []);
+
+    if (auth.accessToken) {
+      fetch("/api/moderare/pending-count", {
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      })
+        .then((r) => r.json())
+        .then((d: { pendingCount?: number }) => setPendingModerationCount(d.pendingCount ?? 0))
+        .catch(() => {});
+    }
+  }, [auth.accessToken]);
 
   const handleAddEvent = () => setShowLeadModal(true);
 
@@ -288,6 +303,21 @@ const Dashboard: React.FC = () => {
               <path d="M15 9l2 2-2 2" />
             </svg>
             Optimizare Poze
+          </button>
+          <button
+            onClick={() => navigate("/admin/moderare")}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18M3 12h18M3 18h18" />
+              <circle cx="19" cy="6" r="3" fill="currentColor" stroke="none" />
+            </svg>
+            Moderare
+            {pendingModerationCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500 text-black leading-none">
+                {pendingModerationCount}
+              </span>
+            )}
           </button>
         </div>
 

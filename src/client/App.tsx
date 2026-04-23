@@ -24,6 +24,7 @@ import AnalyticsPage from "./features/admin/components/AnalyticsPage";
 import ImageOptimizerPage from "./features/admin/components/ImageOptimizerPage";
 import GoalDetailPage from "./features/admin/components/GoalDetailPage";
 import BankDetailsPage from "./features/admin/components/BankDetailsPage";
+import ModerationReviewPage from "./features/admin/components/Moderation/ModerationReviewPage";
 import RevinPage from "./pages/Revin/RevinPage";
 import { usePageTracking } from "./hooks/usePageTracking";
 
@@ -96,6 +97,7 @@ export const App = () => {
             <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
             <Route path="/admin/bank-details" element={<BankDetailsPage />} />
             <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
+            <Route path="/admin/moderare" element={<ModerationReviewPage />} />
           </Route>
 
 
