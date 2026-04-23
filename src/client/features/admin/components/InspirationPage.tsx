@@ -14,12 +14,53 @@ interface InspirationPhoto {
 
 
 const PRESET_TAGS = [
-  "biserică", "cununia civilă", "recepție",
-  "mire", "mireasă", "mire+mireasă",
-  "grup", "copii", "portret",
-  "detalii", "buchet", "verighete",
-  "natură", "interior", "exterior",
-  "decor", "lumini", "seară",
+  // Tip eveniment
+  "nuntă", "botez", "cununia civilă", "logodnă", "cununie",
+
+  // Locație
+  "biserică", "altar", "restaurant", "sală", "curte", "grădină", "parc",
+  "exterior", "interior", "natură", "terrasă", "mansardă", "plajă",
+
+  // Subiecți nuntă
+  "mire", "mireasă", "mire+mireasă", "nași", "nașă", "nas",
+  "socri", "părinți", "bunici", "tineri-căsătoriți",
+
+  // Subiecți botez
+  "bebeluș", "nași-botez", "cristelniță",
+
+  // Subiecți generali
+  "grup", "copii", "portret", "familie", "invitați",
+
+  // Momente nuntă
+  "ceremonie", "primul-dans", "vals", "hora", "primul-sărut",
+  "schimb-inele", "tort", "buchet-aruncat", "discurs", "felicitări",
+  "intrare", "ieșire", "petrecere", "jocul-mirilor",
+  "fum-artificial", "confetti", "foc-artificii", "aplauze",
+
+  // Momente botez
+  "lumânare", "botezul-propriu-zis", "masa-botez",
+
+  // Sesiune foto
+  "sesiune-foto", "after-session",
+
+  // Detalii
+  "detalii", "buchet", "verighete", "rochie", "voal", "costum",
+  "pantofi", "aranjament-floral", "invitație", "tort-nuntă", "tort-botez",
+  "lumânare-nuntă", "coronită", "candy-bar", "decorațiuni", "flori", "baloane",
+
+  // Expresii & emoție
+  "emoție", "lacrimi", "zâmbet", "râs", "romantic", "vesel", "intim",
+
+  // Lumină
+  "golden-hour", "lumină-naturală", "lumina-ferestrei", "backlight",
+  "seară", "lumini", "dramatic", "moody",
+
+  // Stil fotografic
+  "candid", "editorial", "fine-art", "alb-negru", "silhouetă",
+  "close-up", "wide-angle", "reflecție",
+
+  // Misc
+  "decor", "machiaj", "dans",
 ];
 
 function TagPill({
@@ -457,27 +498,28 @@ function PreviewModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-2 sm:p-4"
       onClick={onClose}
-      onTouchStart={(event) => { touchStartX.current = event.touches[0].clientX; }}
-      onTouchEnd={(event) => {
-        if (touchStartX.current === null) return;
-        const delta = event.changedTouches[0].clientX - touchStartX.current;
-        if (Math.abs(delta) > 50) {
-          if (delta < 0) goToIndex(Math.min(currentIndex + 1, localPhotos.length - 1));
-          else goToIndex(Math.max(currentIndex - 1, 0));
-        }
-        touchStartX.current = null;
-      }}
     >
       <div
-        className="relative max-w-4xl w-full max-h-[90vh] flex flex-col"
+        className="relative max-w-4xl w-full h-[90dvh] flex flex-col"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="relative">
+        <div className="relative flex-1 min-h-0"
+          onTouchStart={(event) => { touchStartX.current = event.touches[0].clientX; }}
+          onTouchEnd={(event) => {
+            if (touchStartX.current === null) return;
+            const delta = event.changedTouches[0].clientX - touchStartX.current;
+            if (Math.abs(delta) > 50) {
+              if (delta < 0) goToIndex(Math.min(currentIndex + 1, localPhotos.length - 1));
+              else goToIndex(Math.max(currentIndex - 1, 0));
+            }
+            touchStartX.current = null;
+          }}
+        >
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/90 transition-colors"
+            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 flex items-center justify-center hover:bg-amber-400/40 hover:text-amber-200 transition-colors"
             title="Închide"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -488,7 +530,7 @@ function PreviewModal({
           {currentIndex > 0 && (
             <button
               onClick={(event) => { event.stopPropagation(); goToIndex(currentIndex - 1); }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/40 hover:border-emerald-400 hover:text-emerald-300 transition-all shadow-lg shadow-emerald-900/30"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 flex items-center justify-center hover:bg-amber-400/40 hover:border-amber-300 hover:text-amber-200 transition-all shadow-lg shadow-amber-900/20"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
@@ -499,7 +541,7 @@ function PreviewModal({
           {currentIndex < localPhotos.length - 1 && (
             <button
               onClick={(event) => { event.stopPropagation(); goToIndex(currentIndex + 1); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/40 hover:border-emerald-400 hover:text-emerald-300 transition-all shadow-lg shadow-emerald-900/30"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 flex items-center justify-center hover:bg-amber-400/40 hover:border-amber-300 hover:text-amber-200 transition-all shadow-lg shadow-amber-900/20"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6" />
@@ -507,11 +549,11 @@ function PreviewModal({
             </button>
           )}
 
-          <div className="relative">
+          <div className="relative h-full">
             <img
               src={displayedUrl}
               alt=""
-              className="w-full max-h-[65vh] object-contain rounded-xl block"
+              className="w-full h-full object-contain rounded-xl block"
             />
             {incomingUrl && (
               <img
@@ -529,20 +571,22 @@ function PreviewModal({
         </div>
 
         {localPhotos.length > 1 && (
-          <p className="text-center text-neutral-600 text-xs mt-2">{currentIndex + 1} / {localPhotos.length}</p>
+          <p className="text-center text-neutral-600 text-xs mt-1 flex-shrink-0">{currentIndex + 1} / {localPhotos.length}</p>
         )}
 
-        <div className="mt-3 bg-neutral-900/80 backdrop-blur rounded-xl p-3 space-y-3">
+        <div className="mt-2 bg-neutral-900/80 backdrop-blur rounded-xl p-3 space-y-3 flex-shrink-0 overflow-y-auto max-h-[40vh]">
           {!editing ? (
             <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-wrap gap-1.5">
-                {currentPhoto.tags.map((tag) => (
-                  <span key={tag} className="px-2 py-1 rounded-full bg-violet-500/20 text-violet-300 text-xs">
-                    {tag}
-                  </span>
-                ))}
+              <div className="min-w-0 flex-1">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {currentPhoto.tags.map((tag) => (
+                    <span key={tag} className="px-2 py-1 rounded-full bg-violet-500/20 text-violet-300 text-xs whitespace-nowrap shrink-0">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
                 {currentPhoto.notes && (
-                  <p className="text-neutral-400 text-xs mt-1 w-full">{currentPhoto.notes}</p>
+                  <p className="text-neutral-400 text-xs mt-1">{currentPhoto.notes}</p>
                 )}
               </div>
               <div className="flex gap-2 shrink-0">
