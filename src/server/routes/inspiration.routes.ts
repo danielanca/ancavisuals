@@ -85,9 +85,12 @@ router.post("/inspiration/suggest-tags-from-image", async (req: Request, res: Re
     }
     const normalizedTags = Array.from(normalizedToOriginal.keys());
 
+    const tagList = normalizedTags.map((tag) => `"${tag}"`).join(", ");
+
     const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-sonnet-4-6",
       max_tokens: 256,
+      system: `You are a precise visual tagging assistant for a professional photographer specializing in weddings (nunți) and baptisms (botezuri) in Romania. Your only job is to look at an image and return the most accurate tags possible. Be strict and literal — only tag what is clearly visible in the image. Never guess or add tags for things that aren't evident.`,
       messages: [
         {
           role: "user",
@@ -102,25 +105,30 @@ router.post("/inspiration/suggest-tags-from-image", async (req: Request, res: Re
             },
             {
               type: "text",
-              text: `Ești un asistent pentru un fotograf de nuntă. Analizează această fotografie și generează tag-uri descriptive.
+              text: `Analyze this wedding/baptism photography image carefully and describe what you see using tags.
 
-Tag-uri existente ca referință (poți folosi oricare din ele dacă sunt relevante): ${normalizedTags.join(", ")}
+REFERENCE TAGS (use matching ones from this list when they apply):
+${tagList}
 
-Instrucțiuni:
-1. Generează tag-uri relevante pentru ce vezi în imagine — poți folosi tag-uri din lista de referință SAU poți crea tag-uri noi descriptive (ex: "golden-hour", "voal", "tort-nunta", "first-dance").
-2. Tag-urile noi să fie scurte, lowercase, fără diacritice, cu cratimă în loc de spațiu.
-3. Returnează 3-8 tag-uri cele mai relevante.
-4. Răspunde DOAR cu un JSON array, fără text suplimentar.
-
-Exemplu răspuns: ["mire", "mireasa", "biserica", "golden-hour", "voal"]`,
+RULES:
+1. First, identify what's in the image: subjects, location, moment, mood, lighting, style.
+2. Use tags from the reference list above when they match accurately.
+3. Add extra descriptive tags (not in the list) for anything specific you notice — keep them lowercase, no diacritics, hyphenated.
+4. Return 4–8 tags total, ordered from most to least relevant.
+5. Reply with ONLY a JSON array, no explanation.`,
             },
           ],
+        },
+        {
+          role: "assistant",
+          content: "[",
         },
       ],
     });
 
-    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "[]";
-    const match = raw.match(/\[.*\]/s);
+    const rawSuffix = message.content[0].type === "text" ? message.content[0].text.trim() : "]";
+    const raw = "[" + rawSuffix;
+    const match = raw.match(/\[[\s\S]*?\]/);
     const generatedTags: string[] = match ? JSON.parse(match[0]) : [];
 
     // Map back to original tags with diacritics where possible; keep new tags as-is
