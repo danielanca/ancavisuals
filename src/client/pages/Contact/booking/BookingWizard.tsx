@@ -25,7 +25,7 @@ type ConversionWindow = Window & {
 };
 
 
-/* ---------- helpers locale (durată & HTML final) ---------- */
+/* ---------- local helpers (duration & final HTML) ---------- */
 const toMinutes = (t: string) => {
   if (!t) return null;
   const [hh, mm] = t.split(":").map(Number);
@@ -95,27 +95,27 @@ export default function BookingWizard() {
   const [month, setMonth] = useState(0); // 0-based
   const [year, setYear] = useState(2026);
 
-  // Pre-populează data din localStorage (setat de chatbot la verificarea disponibilității)
+  // Pre-fill date from localStorage (set by the chatbot during availability check)
   useEffect(() => {
     const saved = readSavedEventDate();
     if (saved) {
       setDay(saved.day);
       setMonth(saved.month);
       setYear(saved.year);
-      setIsAvailable(true); // deja verificată în chatbot
+      setIsAvailable(true); // already verified by chatbot
     }
   }, []);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [isAvailable, setIsAvailable] = useState<null | boolean>(null);
 
-  // Step 2 – tip eveniment
+  // Step 2 – event type
   const [eventType, setEventType] = useState<EventType>("nunta");
 
   // Step 3 – contact
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
 
-  // Step 4 – locație + timp + pachet
+  // Step 4 – location, time and package
   const [location, setLocation] = useState("");
   const [placeId, setPlaceId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState("");
@@ -152,7 +152,7 @@ export default function BookingWizard() {
   }, []);
 
   const handleContactStepNext = async () => {
-    // Validare rapidă pentru pasul 3
+    // Quick validation for step 3
     const errs: Errors = {};
     if (!fullName.trim()) errs.fullName = "Completează numele.";
     if (!phone || !PHONE_RE.test(phone)) errs.phone = "Număr de telefon invalid.";
@@ -162,10 +162,10 @@ export default function BookingWizard() {
       return;
     }
 
-    // Curățăm erorile legate de contact
+    // Clear contact-related errors
     setErrors(prev => ({ ...prev, fullName: "", phone: "" }));
 
-    // Trimitem lead-ul imediat, doar dacă și-a dat acordul
+    // Send lead immediately, only if the user consented
     if (saveContactConsent) {
       try {
         const subject = `Lead rapid – ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
@@ -210,17 +210,17 @@ export default function BookingWizard() {
       }
     }
 
-    // 🔥 Google Ads conversion – LEAD RAPID
+    // Google Ads conversion — quick lead
     const conversionWindow = window as ConversionWindow;
     if (typeof window !== "undefined" && typeof conversionWindow.gtag === "function") {
       conversionWindow.gtag("event", "conversion", {
         send_to: "AW-10941123412/ww8eCM7HiakYENSWkeEo",
-        value: 1.0, // sau 1.0 fix dacă vrei doar număr de conversii
+        value: 1.0, // or 1.0 if you only want to count conversions
         currency: "EUR",
-        transaction_id: "", // poți pune un ID unic dacă ai
+        transaction_id: "", // set a unique ID here if available
       });
     }
-    // Oricum mergem mai departe în wizard
+    // Proceed to next step regardless
     setStep(4);
   };
 

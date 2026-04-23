@@ -32,7 +32,7 @@ const Step3Contact: React.FC<Step3ContactProps> = ({
         autoComplete="on"
         onSubmit={e => {
           e.preventDefault();
-          onSubmitContact(); // delegăm logica în BookingWizard
+          onSubmitContact(); // delegate logic to BookingWizard
         }}
         className="booking-form"
       >

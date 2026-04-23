@@ -62,7 +62,7 @@ async function safeTrigger(payload: TriggerPayload) {
 // ---------- Component ----------
 type Step = 1 | 2 | 3 | 4 | 5;
 
-// sursa unică de adevăr pt opțiuni — tipizată corect:
+// single source of truth for options, properly typed
 const EVENT_OPTIONS = [
   { id: "evt-nunta", label: "Nuntă", value: "nunta" },
   { id: "evt-botez", label: "Botez", value: "botez" },
@@ -97,7 +97,7 @@ export default function BookingWizard() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
 
-  // Step 4 – locație + timp + pachet
+  // Step 4 – location, time and package
   const [location, setLocation] = useState("");
   const [placeId, setPlaceId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState("");
@@ -195,7 +195,7 @@ export default function BookingWizard() {
       </ul>
     `;
 
-    // trimitem și payload structurat (serverul poate calcula km/motorină)
+    // send structured payload (server can calculate km/fuel)
     const booking = {
       date: selectedFormattedDate,
       eventType,
@@ -215,7 +215,7 @@ export default function BookingWizard() {
     const resp = await safeTrigger({ to: BOOKING_TO, subject, html, booking });
     if (resp?.ok) {
       setSubmitted(true);
-      setStep(5); // mergi la pasul 5 pe succes
+      setStep(5); // navigate to step 5 on success
     } else {
       alert("A apărut o problemă la trimitere.");
     }
@@ -318,7 +318,7 @@ export default function BookingWizard() {
           <>
             <h3>3) Detalii de contact</h3>
             <form
-              autoComplete="on" // permite managerului de profil să propună date salvate
+              autoComplete="on" // allows the profile manager to suggest saved data
               onSubmit={e => {
                 e.preventDefault();
                 goNext();
@@ -332,8 +332,8 @@ export default function BookingWizard() {
                 id="contact-name"
                 type="text"
                 placeholder="Numele tău"
-                name="name" // token standard
-                autoComplete="name" // declanșează sugestiile din browser
+                name="name" // standard autocomplete token
+                autoComplete="name" // triggers browser suggestions
                 autoCapitalize="words"
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
@@ -347,8 +347,8 @@ export default function BookingWizard() {
                 id="contact-phone"
                 type="tel"
                 placeholder="Numărul tău de telefon"
-                name="tel" // token standard
-                autoComplete="tel" // poate fi și "tel-national" dacă vrei format local
+                name="tel" // standard autocomplete token
+                autoComplete="tel" // can also be "tel-national" for local format
                 inputMode="tel"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
@@ -377,10 +377,10 @@ export default function BookingWizard() {
                 value={location}
                 onChange={v => {
                   setLocation(v);
-                  setPlaceId(null); // dacă userul rescrie manual, invalidăm selecția
+                  setPlaceId(null); // clear place ID if user edits manually
                 }}
                 onSelect={(p: PlaceLite) => {
-                  // 🆕 folosim formattedAddress / displayName / id (nu formatted_address / place_id)
+                  // use formattedAddress / displayName / id (not formatted_address / place_id)
                   setLocation(p.formattedAddress || p.displayName || "");
                   setPlaceId(p.id || null);
                 }}
@@ -420,7 +420,7 @@ export default function BookingWizard() {
               </div>
               {(errors.startTime || errors.endTime) && <p className="error">{errors.startTime || errors.endTime}</p>}
 
-              {/* Durată estimată */}
+              {/* Estimated duration */}
               {durationInfo.hours != null && (
                 <p style={{ fontSize: 12, color: "#aaa" }}>
                   Durată estimată: <b>{durationInfo.hours}h</b>

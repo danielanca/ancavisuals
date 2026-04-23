@@ -15,10 +15,10 @@ interface ServiceEntry {
   id: string;
   label: string;
   included: boolean;
-  priceRaw: string; // "500", "GRATUIT", sau "" (necompletat)
+  priceRaw: string; // "500", "GRATUIT", or "" (not set)
 }
 
-// Prețuri precompletate din prices.json
+// Pre-filled prices
 const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "foto_video", label: "Foto + Video (1 fotograf + 1 videograf)", included: false, priceRaw: "800"  },
   { id: "foto",       label: "1 persoană responsabilă de foto",          included: false, priceRaw: "500"  },
@@ -37,7 +37,7 @@ const EVENT_TYPES = ["Nuntă", "Botez", "Logodnă", "Majorat", "Corporate", "Șe
 const CURRENCIES = ["RON", "EUR"];
 const PAYMENT_METHODS = ["Transfer bancar", "Cash", "Card", "Revolut"];
 
-// Interpretează valoarea câmpului de preț
+// Parses the value of a price field
 function parsePrice(raw: string): number | "gratuit" | "missing" {
   const trimmed = raw.trim().toUpperCase();
   if (trimmed === "GRATUIT") return "gratuit";
@@ -72,7 +72,7 @@ const CreateContractPage: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [serviceErrors, setServiceErrors] = useState<Set<string>>(new Set());
 
-  // Eveniment
+  // Event
   const [eventType, setEventType] = useState(fromEvent.eventType ?? "");
   const [eventDate, setEventDate] = useState(fromEvent.eventDate ?? "");
   const [eventLocation, setEventLocation] = useState(fromEvent.eventLocation ?? "");
@@ -80,14 +80,14 @@ const CreateContractPage: React.FC = () => {
   const [eventEndTime, setEventEndTime] = useState("");
   const [eventDetails, setEventDetails] = useState("");
 
-  // Servicii
+  // Services
   const [services, setServices] = useState<ServiceEntry[]>(DEFAULT_SERVICES);
   const [customServices, setCustomServices] = useState<{ label: string; priceRaw: string }[]>([]);
 
-  // Curs valutar
+  // Exchange rate
   const [eurRate, setEurRate] = useState<number>(5);
 
-  // Prețuri
+  // Pricing
   const [currency, setCurrency] = useState("RON");
   const [manualTotal, setManualTotal] = useState(false);
   const [priceTotal, setPriceTotal] = useState(0);
@@ -108,14 +108,14 @@ const CreateContractPage: React.FC = () => {
   const [clientIdSeries, setClientIdSeries] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
 
-  // Calculated totals (GRATUIT = 0, missing = 0 dar va fi validat)
+  // Calculated totals (GRATUIT = 0, missing = 0 but will be validated)
   const selectedServices = services.filter((s) => s.included);
   const customTotal = customServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0);
   const autoTotal = selectedServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) + customTotal;
   const effectiveTotal = manualTotal ? priceTotal : autoTotal;
   const priceRest = Math.max(0, effectiveTotal - (priceAdvance || 0));
 
-  // Auto-actualizează prețul transport când km / preț carburant se schimbă
+  // Auto-update transport price when km / fuel price changes
   useEffect(() => {
     const km = parseFloat(transportKm);
     const fuel = parseFloat(transportFuelPrice);
@@ -155,7 +155,7 @@ const CreateContractPage: React.FC = () => {
       setSubmitError("Email-ul clientului este obligatoriu și trebuie să fie valid."); return;
     }
 
-    // Validare prețuri servicii bifate — trebuie completat sau GRATUIT
+    // Validate prices for checked services — must be filled in or GRATUIT
     const missing = new Set<string>();
     selectedServices.forEach((s) => {
       if (parsePrice(s.priceRaw) === "missing") missing.add(s.id);
@@ -217,7 +217,7 @@ const CreateContractPage: React.FC = () => {
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error ?? "Eroare la creare");
-      // Dacă a venit de la un eveniment, întoarce-te la admin ca să se re-încarce evenimentele
+      // If coming from an event, navigate back to admin so events can reload
       navigate(fromEvent.eventId ? "/admin" : "/admin/contracts");
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Eroare necunoscută");
@@ -295,7 +295,7 @@ const CreateContractPage: React.FC = () => {
           {/* SERVICII */}
           <Block title="Servicii incluse">
 
-            {/* Curs valutar + monedă — deasupra checkboxurilor */}
+            {/* Exchange rate + currency — above the checkboxes */}
             <div className="flex items-center gap-3 pb-3 border-b border-neutral-800 mb-1">
               <div className="flex items-center gap-2">
                 <Label>Monedă</Label>
@@ -443,7 +443,7 @@ const CreateContractPage: React.FC = () => {
             </button>
           </Block>
 
-          {/* PREȚURI */}
+          {/* PRICING */}
           <Block title="Prețuri">
             <div className="col-span-2">
               <div className="flex items-center gap-3 mb-1">
@@ -494,7 +494,7 @@ const CreateContractPage: React.FC = () => {
               </select>
             </div>
 
-            {/* Overview plăți */}
+            {/* Payment overview */}
             {effectiveTotal > 0 && (
               <div className="rounded-xl border border-neutral-700 overflow-hidden text-sm mt-2">
                 <div className="bg-neutral-800/60 px-4 py-2 text-xs text-neutral-500 uppercase tracking-wider font-medium">

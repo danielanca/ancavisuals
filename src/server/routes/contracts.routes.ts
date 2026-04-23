@@ -35,7 +35,7 @@ async function getAdminBankDetails() {
   };
 }
 
-// POST /api/contracts — creare contract nou (admin)
+// POST /api/contracts — create new contract (admin)
 router.post("/", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -88,10 +88,10 @@ router.post("/", async (req: Request, res: Response) => {
       eventId: body.eventId ?? null,
     });
 
-    // Leagă evenimentul de contract dacă e furnizat eventId
+    // Link event to contract if eventId is provided
     if (body.eventId) {
       await db.collection("adminEvents").doc(body.eventId).update({ contractId: docRef.id })
-        .catch(() => {}); // nu blocăm dacă evenimentul nu există
+        .catch(() => {}); // don't block if the event doesn't exist
     }
 
     res.status(201).json({ id: docRef.id, token: contract.token });
@@ -101,7 +101,7 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/contracts — lista contracte (admin)
+// GET /api/contracts — contract list (admin)
 router.get("/", async (_req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -127,8 +127,8 @@ router.get("/", async (_req: Request, res: Response) => {
 
 // NOTE: /sign/:token routes must come BEFORE /:id to avoid route collision
 
-// GET /api/contracts/sign/:token/pdf — PDF contract pentru previzualizare publică
-// Query params opționali: clientName, clientAddress, clientPhone, clientIdSeries
+// GET /api/contracts/sign/:token/pdf — PDF contract for public preview
+// Optional query params: clientName, clientAddress, clientPhone, clientIdSeries
 router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -157,8 +157,8 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/contracts/sign/:token/html — HTML complet contract pentru previzualizare
-// Query params opționali: clientName, clientAddress, clientPhone, clientIdSeries
+// GET /api/contracts/sign/:token/html — full HTML contract for preview
+// Optional query params: clientName, clientAddress, clientPhone, clientIdSeries
 router.get("/sign/:token/html", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -186,7 +186,7 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/contracts/sign/:token — date contract public (fără auth)
+// GET /api/contracts/sign/:token — public contract data (no auth)
 router.get("/sign/:token", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -212,7 +212,7 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
 
     const bankDetails = await getAdminBankDetails();
 
-    // Nu expunem câmpuri sensibile clientului
+    // Don't expose sensitive fields to the client
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { clientSignatureBase64, clientIp, pdfUrl, ...publicData } = data;
 
@@ -228,7 +228,7 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/contracts/sign/:token — submit semnătură client
+// POST /api/contracts/sign/:token — submit client signature
 router.post("/sign/:token", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -287,7 +287,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       },
     });
 
-    // Generare PDF și trimitere email în background — nu blocăm răspunsul
+    // Generate PDF and send email in background — don't block the response
     const fullContract = {
       ...contract,
       id: doc.id,
@@ -319,7 +319,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/contracts/:id — editare contract (admin, doar nesemnat)
+// PATCH /api/contracts/:id — edit contract (admin, unsigned only)
 router.patch("/:id", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -368,7 +368,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/contracts/:id — detalii contract (admin)
+// GET /api/contracts/:id — contract details (admin)
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -391,7 +391,7 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/contracts/:id/create-event — generează adminEvent din contract
+// POST /api/contracts/:id/create-event — generate adminEvent from contract
 router.post("/:id/create-event", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -465,7 +465,7 @@ router.post("/:id/create-event", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/contracts/:id/reset-signature — șterge semnătura clientului (doar pentru teste)
+// POST /api/contracts/:id/reset-signature — clear client signature (testing only)
 router.post("/:id/reset-signature", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -489,7 +489,7 @@ router.post("/:id/reset-signature", async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/contracts/:id — șterge contract (admin)
+// DELETE /api/contracts/:id — delete contract (admin)
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -500,7 +500,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
     await db.collection("contracts").doc(req.params.id).delete();
 
-    // Trimite email de confirmare cu detaliile contractului șters
+    // Send confirmation email with the deleted contract details
     sendContractDeletedEmail({ contract: contractData }).catch((err) => {
       console.error("[contracts] DELETE email failed:", err);
     });
@@ -512,7 +512,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/contracts/:id/preview — previzualizare PDF (admin)
+// GET /api/contracts/:id/preview — PDF preview (admin)
 router.get("/:id/preview", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -536,7 +536,7 @@ router.get("/:id/preview", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/contracts/:id/cancel — anulare contract (admin)
+// POST /api/contracts/:id/cancel — cancel contract (admin)
 router.post("/:id/cancel", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -553,7 +553,7 @@ router.post("/:id/cancel", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/contracts/:id/prestator-sign — semnătură prestator (admin)
+// POST /api/contracts/:id/prestator-sign — provider signature (admin)
 router.post("/:id/prestator-sign", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -574,7 +574,7 @@ router.post("/:id/prestator-sign", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/contracts/:id/send — trimite link la client (admin)
+// POST /api/contracts/:id/send — send link to client (admin)
 router.post("/:id/send", async (req: Request, res: Response) => {
   try {
     const db = firestore();

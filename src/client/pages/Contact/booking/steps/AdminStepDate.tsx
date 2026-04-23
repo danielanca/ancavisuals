@@ -69,7 +69,7 @@ const AdminStepDate: React.FC<AdminStepDateProps> = ({
           ))}
         </select>
 
-        {/* Lună */}
+        {/* Month */}
         <select className={selectClass} value={month} onChange={e => handleMonth(e.target.value)}>
           {MONTHS_RO.map((label, index) => (
             <option key={label} value={index}>{label}</option>

@@ -1,6 +1,6 @@
 import puppeteer from "puppeteer";
 
-// Datele prestatorului — fixe
+// Provider details — fixed
 const PRESTATOR = {
   name: "ANCA DANIEL EMANUEL PFA",
   cui: "45044473",
@@ -55,10 +55,10 @@ function esc(val: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Converteste Firestore Timestamp sau ISO string la string ISO, sau undefined */
+/** Converts a Firestore Timestamp or ISO string to an ISO string, or undefined */
 function toIsoString(value: unknown): string | undefined {
   if (!value) return undefined;
-  // Firestore Timestamp: { _seconds, _nanoseconds } sau { seconds, nanoseconds }
+  // Firestore Timestamp: { _seconds, _nanoseconds } or { seconds, nanoseconds }
   if (typeof value === "object") {
     const ts = value as Record<string, unknown>;
     const secs = (ts._seconds ?? ts.seconds);
@@ -116,10 +116,10 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       : hasFoto && !hasVideo ? "Foto"
       : "Foto-Video";
 
-  // Construim lista de articole condițional; null = omis
+  // Build the article list conditionally; null = omitted
   const articles: Array<{ title: string; body: string } | null> = [
 
-    // ── 1. Părțile contractante ──────────────────────────────────────────────
+    // ── 1. Contracting parties ───────────────────────────────────────────────
     {
       title: "Părțile contractante",
       body: `
@@ -128,7 +128,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     },
 
-    // ── 2. Obiectul contractului ─────────────────────────────────────────────
+    // ── 2. Contract subject ──────────────────────────────────────────────────
     {
       title: "Obiectul contractului",
       body: `
@@ -138,7 +138,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     },
 
-    // ── 3. Servicii și preț ──────────────────────────────────────────────────
+    // ── 3. Services and price ────────────────────────────────────────────────
     {
       title: "Conținutul serviciului și prețul",
       body: `
@@ -166,7 +166,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     },
 
-    // ── 4. Specificații foto (dacă există serviciu foto) ─────────────────────
+    // ── 4. Photo specifications (if photo service exists) ────────────────────
     hasFoto ? {
       title: "Produsul livrat — specificații fotografice",
       body: `
@@ -176,7 +176,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     } : null,
 
-    // ── 5. Specificații video (dacă există serviciu video) ───────────────────
+    // ── 5. Video specifications (if video service exists) ────────────────────
     hasVideo ? {
       title: "Produsul livrat — specificații video",
       body: `
@@ -186,7 +186,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     } : null,
 
-    // ── 6. Specificații fotocabină (dacă există serviciu fotocabină) ─────────
+    // ── 6. Photobooth specifications (if photobooth service exists) ──────────
     hasPhotobooth ? {
       title: "Produsul livrat — specificații fotocabină / photo booth",
       body: `
@@ -211,7 +211,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     } : null,
 
-    // ── 7. Drepturi imagini (doar foto/video) ────────────────────────────────
+    // ── 7. Image rights (photo/video only) ──────────────────────────────────
     hasPhotoVideo ? {
       title: "Drepturi asupra imaginilor foto/video",
       body: contract.privateClient
@@ -219,7 +219,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
         : `<p>PRESTATORUL își rezervă dreptul de a utiliza imaginile foto și/sau video realizate în cadrul acestui Contract pentru promovarea activității sale, inclusiv pe rețelele de socializare, portofoliu online, marketing, târguri sau concursuri. Imaginile vor fi alese de PRESTATOR dintre cele mai reprezentative din perspectivă artistică. În cazul în care BENEFICIARUL dorește confidențialitate totală asupra materialelor, acesta trebuie să notifice PRESTATORUL în scris, anterior semnării contractului.</p>`,
     } : null,
 
-    // ── 8. Prețul și plata ───────────────────────────────────────────────────
+    // ── 8. Price and payment ─────────────────────────────────────────────────
     {
       title: `Prețul contractului și modalitatea de plată`,
       body: `
@@ -233,7 +233,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     },
 
-    // ── 9. Termene de predare ────────────────────────────────────────────────
+    // ── 9. Delivery deadlines ────────────────────────────────────────────────
     {
       title: "Termene standard de predare",
       body: (() => {
@@ -254,19 +254,19 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       })(),
     },
 
-    // ── 10. Forța majoră ─────────────────────────────────────────────────────
+    // ── 10. Force majeure ────────────────────────────────────────────────────
     {
       title: "Forța majoră",
       body: `<p>Forța majoră apără de răspundere partea care o invocă în scris, în termen de 5 zile de la data producerii acesteia. Prin caz de forță majoră se înțeleg împrejurările neprevăzute și inevitabile pentru una dintre părți, incluzând dar nelimitându-se la: accident, rănire, boală, incendiu, furt, urgență familială (rudele de gradul întâi și doi) sau orice alt act sau situație dincolo de controlul părților, recunoscut de lege ca fiind un caz de forță majoră.</p>`,
     },
 
-    // ── 11. Condiții atmosferice (doar foto/video) ───────────────────────────
+    // ── 11. Weather conditions (photo/video only) ────────────────────────────
     hasPhotoVideo ? {
       title: "Condiții atmosferice",
       body: `<p>PRESTATORUL poate refuza fotografierea și/sau filmarea anumitor evenimente atunci când condițiile atmosferice (temperatură, umiditate, precipitații) pun în pericol aparatura utilizată.</p>`,
     } : null,
 
-    // ── 12. Răspunderea prestatorului ────────────────────────────────────────
+    // ── 12. Provider liability ───────────────────────────────────────────────
     {
       title: "Răspunderea prestatorului și limitări",
       body: `
@@ -276,7 +276,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     },
 
-    // ── 13. Obligația de contactare prealabilă ───────────────────────────────
+    // ── 13. Pre-event contact obligation ────────────────────────────────────
     {
       title: "Obligația de contactare prealabilă",
       body: `
@@ -285,7 +285,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     },
 
-    // ── 14. Itinerariul (doar foto/video) ────────────────────────────────────
+    // ── 14. Event itinerary (photo/video only) ───────────────────────────────
     hasPhotoVideo ? {
       title: "Itinerariul evenimentului",
       body: `
@@ -298,7 +298,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     } : null,
 
-    // ── 15. Politica de anulare ──────────────────────────────────────────────
+    // ── 15. Cancellation policy ──────────────────────────────────────────────
     {
       title: "Politica de anulare",
       body: `
@@ -307,13 +307,13 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     },
 
-    // ── 16. GDPR ─────────────────────────────────────────────────────────────
+    // ── 16. Personal data protection (GDPR) ─────────────────────────────────
     {
       title: "Protecția datelor personale (GDPR)",
       body: `<p>PRESTATORUL prelucrează datele cu caracter personal ale BENEFICIARULUI (nume, adresă, serie și număr CI, semnătură electronică, adresă de e-mail, telefon) exclusiv în scopul încheierii și executării prezentului contract, în conformitate cu Regulamentul (UE) 2016/679 (GDPR). Datele sunt stocate electronic în condiții de securitate și nu vor fi transmise unor terți, cu excepția obligațiilor legale. BENEFICIARUL confirmă că a luat la cunoștință și este de acord cu prelucrarea datelor sale în scopurile menționate și că dispune de dreptul de acces, rectificare și ștergere a datelor, prin solicitare scrisă adresată PRESTATORULUI.</p>`,
     },
 
-    // ── 17. Mențiuni suplimentare (opțional) ─────────────────────────────────
+    // ── 17. Additional notes (optional) ─────────────────────────────────────
     contract.eventDetails ? {
       title: "Mențiuni suplimentare",
       body: `<p>${esc(contract.eventDetails as string)}</p>`,

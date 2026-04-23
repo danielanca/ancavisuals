@@ -73,7 +73,7 @@ export default function PortfolioGallery({
     Aos.init({ duration: 800, once: true });
   }, []);
 
-  // Încarcă imaginile
+  // Load images
   useEffect(() => {
     const fetchImages = async () => {
       try {
@@ -91,7 +91,7 @@ export default function PortfolioGallery({
     fetchImages();
   }, []);
 
-  // Încarcă reacțiile proprii din localStorage
+  // Load own reactions from localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem("pf_reactions_v2");
@@ -99,7 +99,7 @@ export default function PortfolioGallery({
     } catch {}
   }, []);
 
-  // Încarcă contoarele din Firestore
+  // Load reaction counts from Firestore
   useEffect(() => {
     if (!images.length) return;
     getDocs(collection(db, "portfolioReactions"))
@@ -113,7 +113,7 @@ export default function PortfolioGallery({
       .catch(() => {});
   }, [images]);
 
-  // Mobil: adaugă/scoate clasa direct pe DOM — fără re-render, fără AOS re-trigger
+  // Mobile: add/remove class directly on the DOM — no re-render, no AOS re-trigger
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!window.matchMedia("(max-width: 768px)").matches) return;
@@ -167,7 +167,7 @@ export default function PortfolioGallery({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [images.length, visibleCount]);
 
-  // Închide picker-ul la click în afara lui
+  // Close the picker on outside click
   useEffect(() => {
     if (!pickerFor) return;
     const close = () => setPickerFor(null);
@@ -273,7 +273,7 @@ export default function PortfolioGallery({
                   data-aos-delay={i * 40}
                   data-image-id={imageId}
                 >
-                  {/* Zona imagine — click scurt = lightbox, ținut = picker */}
+                  {/* Image area — short click = lightbox, hold = picker */}
                   <button
                     type="button"
                     className="pg-img-trigger"
@@ -310,7 +310,7 @@ export default function PortfolioGallery({
                     </div>
                   )}
 
-                  {/* Rând badge-uri per tip de reacție */}
+                  {/* Reaction badge row per reaction type */}
                   <div className="pg-reaction-bar" onClick={e => e.stopPropagation()}>
                     {REACTIONS.map(r => {
                       const count = (counts[r.key] ?? 0) + seedForReaction(imageId, r.key);

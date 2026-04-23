@@ -52,7 +52,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
 }) => {
   const maxDays = useMemo(() => daysInMonth(year, month), [year, month]);
 
-  // dacă schimbă luna/anul și ziua iese din range, o clamp-uiască în useEffect (nu în render)
+  // if month/year changes and the day is out of range, clamp it in useEffect (not in render)
   useEffect(() => {
     if (day > maxDays) {
       setDay(maxDays);
@@ -120,7 +120,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
           })}
         </select>
 
-        {/* Lună */}
+        {/* Month */}
         <select className="date-select" value={month} onChange={e => handleMonthChange(e.target.value)}>
           {MONTHS_RO.map((label, index) => (
             <option key={label} value={index}>
@@ -141,7 +141,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
           })}
         </select>
 
-        {/* Buton Verifică */}
+        {/* Check button */}
         <button type="button" className="verify-btn" onClick={handleCheckAvailability}>
           Verifică
         </button>

@@ -350,7 +350,7 @@ export default function AnalyticsPage() {
                     <div className="border-t border-neutral-800 px-4 py-4 space-y-5">
                       {visitor.sessions.map((session, si) => (
                         <div key={session.sessionId}>
-                          {/* Session label dacă sunt mai multe */}
+                          {/* Session label if there are multiple */}
                           {visitor.sessions.length > 1 && (
                             <p className="text-neutral-600 text-[10px] uppercase tracking-wider mb-2">
                               Vizita {si + 1} · {formatTime(session.firstSeen)}
@@ -360,7 +360,7 @@ export default function AnalyticsPage() {
 
                           {/* Timeline pagini */}
                           <div className="relative pl-4">
-                            {/* Linie verticală */}
+                            {/* Vertical line */}
                             <div className="absolute left-[5px] top-2 bottom-2 w-px bg-neutral-800" />
 
                             <div className="space-y-3">

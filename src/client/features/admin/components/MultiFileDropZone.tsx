@@ -4,7 +4,7 @@ import { storage } from "../../../firebase";
 
 interface MultiFileDropZoneProps {
   label: string;
-  storagePath: string;          // prefix — fișierele se salvează ca {storagePath}/{filename}
+  storagePath: string;          // prefix — files are saved as {storagePath}/{filename}
   urls: string[];
   onUrlsChange: (urls: string[]) => void;
   accept?: string;
@@ -73,7 +73,7 @@ export default function MultiFileDropZone({
   };
 
   const handleDelete = async (url: string) => {
-    try { await deleteObject(ref(storage, url)); } catch { /* poate nu mai există */ }
+    try { await deleteObject(ref(storage, url)); } catch { /* may no longer exist */ }
     onUrlsChange(urls.filter((u) => u !== url));
   };
 
@@ -81,7 +81,7 @@ export default function MultiFileDropZone({
     <div>
       <p className="text-neutral-400 text-xs font-medium uppercase tracking-wide mb-1.5">{label}</p>
 
-      {/* Fișiere existente */}
+      {/* Existing files */}
       {urls.length > 0 && (
         <div className="space-y-1.5 mb-2">
           {urls.map((url) => (

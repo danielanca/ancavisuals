@@ -78,7 +78,7 @@ export default function FileDropZone({ label, storagePath, currentUrl, onUploade
                   try {
                     await deleteObject(ref(storage, currentUrl));
                   } catch {
-                    // fișierul poate să nu mai existe în Storage — continuăm oricum
+                    // file may no longer exist in Storage — continue anyway
                   }
                   onDeleted();
                 }}
