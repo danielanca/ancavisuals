@@ -9,11 +9,16 @@ const JWT_TTL_HOURS = 24;
 const ADMIN_COOKIE = "av_admin";
 const ADMIN_COOKIE_DAYS = 365;
 
+const SUPREME_ADMIN_EMAIL = "ancadaniel1994@gmail.com";
+
+export type UserRole = "admin" | "moderator" | null;
+
 type AuthState = {
   user: User | null;
   accessToken: string;
   authorise: boolean;
   loading: boolean;
+  role: UserRole;
 };
 
 type Ctx = {
@@ -30,6 +35,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     accessToken: "",
     authorise: false,
     loading: true,
+    role: null,
   });
 
   // If no cookie exists on mount, we know for certain the user is logged out —
@@ -48,13 +54,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (!user) {
         await setJWT(JWT_COOKIE, "", -1);
         await setJWT(ADMIN_COOKIE, "", -1);
-        setState({ user: null, accessToken: "", authorise: false, loading: false });
+        setState({ user: null, accessToken: "", authorise: false, loading: false, role: null });
         return;
       }
       const token = await user.getIdToken(false);
       await setJWT(JWT_COOKIE, token, JWT_TTL_HOURS);
       await setJWT(ADMIN_COOKIE, "1", ADMIN_COOKIE_DAYS * 24);
-      setState({ user, accessToken: token, authorise: true, loading: false });
+      const role: UserRole = user.email === SUPREME_ADMIN_EMAIL ? "admin" : "moderator";
+      setState({ user, accessToken: token, authorise: true, loading: false, role });
     });
     return () => unsubscribe();
   }, []);
@@ -68,7 +75,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     await signOut(auth);
     await setJWT(JWT_COOKIE, "", -1);
     await setJWT(ADMIN_COOKIE, "", -1);
-    setState({ user: null, accessToken: "", authorise: false, loading: false });
+    setState({ user: null, accessToken: "", authorise: false, loading: false, role: null });
   }, []);
 
   const ctx = useMemo<Ctx>(

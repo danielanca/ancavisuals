@@ -29,6 +29,9 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
 
   if (relevant.length === 0) return null;
 
+  const finalizateCount = relevant.filter((e) => e.status === "finalizat").length;
+  const confirmateCount = relevant.filter((e) => e.status === "confirmat").length;
+
   const totalAn = relevant.reduce((s, e) => s + (e.pricing?.total ?? 0), 0);
   const receivedRows = relevant
     .reduce<FinancialRow[]>((rows, event) => {
@@ -67,11 +70,22 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
         <div>
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Situație financiară</p>
           <h3 className="text-white font-medium text-sm">{year} · {relevant.length} evenimente confirmate/finalizate</h3>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              {finalizateCount} finalizate
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+              {confirmateCount} de terminat
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Progress collected / total */}
       <div>
+        <p className="text-xs text-neutral-500 uppercase tracking-widest mb-2">Progres încasare</p>
         <div className="flex items-end justify-between mb-1.5">
           <div>
             <span className="text-white text-xl font-light">{formatEUR(incasat)}</span>

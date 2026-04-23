@@ -24,6 +24,7 @@ describe("useAuth", () => {
         accessToken: "token",
         authorise: true,
         loading: false,
+        role: null,
       },
       signIn: async () => {},
       logOut: async () => {},

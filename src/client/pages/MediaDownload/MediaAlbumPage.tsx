@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import useAuth from "../../features/admin/auth/useAuth";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import styles from "./MediaAlbumPage.module.scss";
 import type { Album } from "./AlbumTypes";
@@ -214,6 +215,9 @@ function MobileColumnsToggle({
 export default function MediaAlbumPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { auth } = useAuth();
+
+  const isModerationMode = auth.authorise && searchParams.get("mod") === "1";
 
   const pageFromUrl = Number(searchParams.get("page") ?? "1");
 
@@ -237,6 +241,12 @@ export default function MediaAlbumPage() {
   const [customUrl, setCustomUrl] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
+
+  const [selectedModeration, setSelectedModeration] = useState<Set<string>>(new Set());
+  const [showModerationSubmitModal, setShowModerationSubmitModal] = useState(false);
+  const [moderationNote, setModerationNote] = useState("");
+  const [submittingModeration, setSubmittingModeration] = useState(false);
+  const [moderationSubmitResult, setModerationSubmitResult] = useState<string | null>(null);
 
   const photosTopRef = useRef<HTMLDivElement | null>(null);
   const shareBoxRef = useRef<HTMLDivElement | null>(null);
@@ -663,16 +673,55 @@ export default function MediaAlbumPage() {
     }
   };
 
+  const toggleModerationPhoto = (src: string) => {
+    const filename = fileNameFromUrl(src);
+    setSelectedModeration((previous) => {
+      const next = new Set(previous);
+      next.has(filename) ? next.delete(filename) : next.add(filename);
+      return next;
+    });
+  };
+
+  const submitModeration = async () => {
+    if (!slug || selectedModeration.size === 0) return;
+    setSubmittingModeration(true);
+    try {
+      const response = await fetch("/api/moderare/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+        body: JSON.stringify({
+          albumSlug: slug,
+          photos: Array.from(selectedModeration),
+          note: moderationNote.trim(),
+        }),
+      });
+      const data = await response.json() as { ok?: boolean; submitted?: number; error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Eroare server");
+      setModerationSubmitResult(`${data.submitted} poze trimise spre moderare. Administratorul a fost notificat.`);
+      setSelectedModeration(new Set());
+      setModerationNote("");
+      setShowModerationSubmitModal(false);
+    } catch (err) {
+      alert(`Eroare: ${(err as Error).message}`);
+    } finally {
+      setSubmittingModeration(false);
+    }
+  };
+
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
   if (loading) return <AncaLoader />;
   if (!album) return <AlbumNotFound />;
 
   return (
+    <>
     <div className={styles.page}>
       <div className={styles.container}>
 
-        {slug && !isAdmin && (
+        {slug && !isAdmin && !auth.authorise && (
           <MediaConsentModal slug={slug} onAccepted={() => setConsentGiven(true)} />
         )}
 
@@ -771,14 +820,16 @@ export default function MediaAlbumPage() {
           {album.longvideo ? " · film complet" : ""}
         </p>
 
-        <div className={styles.actionButtons}>
-          <button className={styles.fillAction} onClick={() => setIsFormOpen(true)}>
-            Completează adresa de livrare
-          </button>
-          <button className={styles.viewAction} onClick={() => setShowDeliveryModal(true)}>
-            Vezi adresa de livrare
-          </button>
-        </div>
+        {!isModerationMode && (
+          <div className={styles.actionButtons}>
+            <button className={styles.fillAction} onClick={() => setIsFormOpen(true)}>
+              Completează adresa de livrare
+            </button>
+            <button className={styles.viewAction} onClick={() => setShowDeliveryModal(true)}>
+              Vezi adresa de livrare
+            </button>
+          </div>
+        )}
 
         {isAdmin && (
           <div className={styles.actionButtons}>
@@ -831,6 +882,30 @@ export default function MediaAlbumPage() {
           </>
         )}
 
+        {isModerationMode && (
+          <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#1c1200", border: "1px solid #92400e", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ color: "#fbbf24", fontWeight: 600, fontSize: "13px", margin: 0 }}>Mod moderare activ</p>
+              <p style={{ color: "#92400e", fontSize: "12px", margin: "2px 0 0" }}>
+                Selectează pozele care crezi că trebuie șterse din album, apoi trimite spre moderare.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {moderationSubmitResult && (
+                <p style={{ color: "#4ade80", fontSize: "12px", alignSelf: "center" }}>{moderationSubmitResult}</p>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowModerationSubmitModal(true)}
+                disabled={selectedModeration.size === 0}
+                style={{ padding: "8px 14px", background: selectedModeration.size > 0 ? "#d97706" : "#374151", border: "none", borderRadius: "6px", color: selectedModeration.size > 0 ? "#fff" : "#6b7280", fontSize: "13px", fontWeight: 600, cursor: selectedModeration.size > 0 ? "pointer" : "not-allowed" }}
+              >
+                Trimite spre moderare ({selectedModeration.size})
+              </button>
+            </div>
+          </div>
+        )}
+
         {album.photos?.length > 0 && (
           <>
             <div className={styles.sectionRow} ref={photosTopRef}>
@@ -838,17 +913,21 @@ export default function MediaAlbumPage() {
 
               {mode === "none" ? (
                 <div className={styles.rowActions}>
-                  {totalPhotos > 0 && (
+                  {totalPhotos > 0 && !isModerationMode && (
                     <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
                       Modifică selecția pentru imprimare
                     </button>
                   )}
-                  <button className={styles.pickBtnSecondary} type="button" onClick={openDownloadMode}>
-                    Selectează poze pentru descărcare
-                  </button>
-                  <button className={styles.pickBtnSecondary} type="button" onClick={downloadAllPhotos} data-onboarding="download-btn">
-                    {"DESCARCĂ TOATE POZELE" + (stats ? ` (${fmtBytes(stats.photosBytesTotal)})` : "")}
-                  </button>
+                  {!isModerationMode && (
+                    <button className={styles.pickBtnSecondary} type="button" onClick={openDownloadMode}>
+                      Selectează poze pentru descărcare
+                    </button>
+                  )}
+                  {!isModerationMode && (
+                    <button className={styles.pickBtnSecondary} type="button" onClick={downloadAllPhotos} data-onboarding="download-btn">
+                      {"DESCARCĂ TOATE POZELE" + (stats ? ` (${fmtBytes(stats.photosBytesTotal)})` : "")}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className={styles.rowActions}>
@@ -906,7 +985,19 @@ export default function MediaAlbumPage() {
             />
 
             <div className={styles.photosScroller}>
-              {isAdmin && mode === "none" ? (
+              {isModerationMode && mode === "none" ? (
+                <BunnyPhotoGallery
+                  key={`${slug}:${safePage}:mod`}
+                  photos={galleryPhotos}
+                  orgPhoto={galleryOrgPhotos}
+                  variant="plain"
+                  selectable={true}
+                  selected={selectedModeration}
+                  getKey={fileNameFromUrl}
+                  onToggle={toggleModerationPhoto}
+                  mobileColumns={mobileColumns}
+                />
+              ) : isAdmin && mode === "none" ? (
                 <div className={styles.adminGalleryGrid} data-columns={mobileColumns}>
                   {galleryPhotos.map((src) => {
                     const fileName = fileNameFromUrl(src);
@@ -952,7 +1043,7 @@ export default function MediaAlbumPage() {
           </>
         )}
 
-        <div className={mode !== "none" ? styles.dimmedArea : undefined} onPointerDown={onDimmedTap}>
+        {!isModerationMode && <div className={mode !== "none" ? styles.dimmedArea : undefined} onPointerDown={onDimmedTap}>
           <div className={styles.sectionRow}>
             <h2 className={styles.sectionTitle}>Poze de imprimat{printCount ? ` (${printCount})` : ""}</h2>
             <div className={styles.rowActions}>
@@ -1104,8 +1195,43 @@ export default function MediaAlbumPage() {
               )}
             </>
           )}
-        </div>
+        </div>}
       </div>
     </div>
+
+    {showModerationSubmitModal && (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "16px" }}>
+        <div style={{ background: "#111", borderRadius: "12px", padding: "24px", maxWidth: "440px", width: "100%", border: "1px solid #222" }}>
+          <h2 style={{ color: "#fff", fontSize: "17px", fontWeight: 400, margin: "0 0 6px" }}>Trimite spre moderare</h2>
+          <p style={{ color: "#666", fontSize: "13px", margin: "0 0 16px" }}>
+            {selectedModeration.size} poze selectate din albumul <strong style={{ color: "#999" }}>{slug}</strong>
+          </p>
+          <textarea
+            value={moderationNote}
+            onChange={(event) => setModerationNote(event.target.value)}
+            placeholder="Notă opțională pentru administrator..."
+            rows={3}
+            style={{ width: "100%", background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: "6px", color: "#ccc", fontSize: "13px", padding: "10px 12px", resize: "vertical", boxSizing: "border-box" }}
+          />
+          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "16px" }}>
+            <button
+              onClick={() => setShowModerationSubmitModal(false)}
+              disabled={submittingModeration}
+              style={{ padding: "8px 16px", border: "1px solid #2a2a2a", borderRadius: "6px", background: "none", color: "#888", fontSize: "13px", cursor: "pointer" }}
+            >
+              Anulează
+            </button>
+            <button
+              onClick={submitModeration}
+              disabled={submittingModeration}
+              style={{ padding: "8px 16px", background: "#d97706", border: "none", borderRadius: "6px", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: submittingModeration ? "not-allowed" : "pointer" }}
+            >
+              {submittingModeration ? "Se trimite..." : "Confirmă trimiterea"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
