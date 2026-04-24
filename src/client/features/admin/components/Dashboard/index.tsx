@@ -85,6 +85,7 @@ const Dashboard: React.FC = () => {
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [urgentMementos, setUrgentMementos] = useState(0);
   const [pendingModerationCount, setPendingModerationCount] = useState(0);
+  const [unseenErrorsCount, setUnseenErrorsCount] = useState(0);
 
   useEffect(() => {
     const meta = document.createElement("meta");
@@ -136,6 +137,11 @@ const Dashboard: React.FC = () => {
         .then((d: { pendingCount?: number }) => setPendingModerationCount(d.pendingCount ?? 0))
         .catch(() => {});
     }
+
+    fetch("/api/admin/monitoring/errors/unseen-count")
+      .then((r) => r.json())
+      .then((data: { count?: number }) => setUnseenErrorsCount(data.count ?? 0))
+      .catch(() => {});
   }, [auth.accessToken]);
 
   const handleAddEvent = () => setShowLeadModal(true);
@@ -315,6 +321,22 @@ const Dashboard: React.FC = () => {
             {pendingModerationCount > 0 && (
               <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500 text-black leading-none">
                 {pendingModerationCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => navigate("/admin/errors")}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            Erori
+            {unseenErrorsCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-red-500 text-white leading-none">
+                {unseenErrorsCount}
               </span>
             )}
           </button>

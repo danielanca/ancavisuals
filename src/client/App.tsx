@@ -25,8 +25,10 @@ import ImageOptimizerPage from "./features/admin/components/ImageOptimizerPage";
 import GoalDetailPage from "./features/admin/components/GoalDetailPage";
 import BankDetailsPage from "./features/admin/components/BankDetailsPage";
 import ModerationReviewPage from "./features/admin/components/Moderation/ModerationReviewPage";
+import ErrorsPage from "./features/admin/components/ErrorsPage";
 import RevinPage from "./pages/Revin/RevinPage";
 import { usePageTracking } from "./hooks/usePageTracking";
+import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
 
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin"];
@@ -35,6 +37,7 @@ export const App = () => {
   const location = useLocation();
   const showChat = !HIDE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
   usePageTracking();
+  useClientErrorReporting();
 
   useEffect(() => {
     // Removes the privacy dialog from the DOM if it exists
@@ -98,6 +101,7 @@ export const App = () => {
             <Route path="/admin/bank-details" element={<BankDetailsPage />} />
             <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
             <Route path="/admin/moderare" element={<ModerationReviewPage />} />
+            <Route path="/admin/errors" element={<ErrorsPage />} />
           </Route>
 
 
