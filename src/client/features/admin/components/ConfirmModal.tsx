@@ -1,4 +1,5 @@
 import React from "react";
+import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 
 interface ConfirmModalProps {
   title: string;
@@ -25,6 +26,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  useBodyScrollLock(true);
   return (
     <div
       className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[60] px-4"

@@ -115,7 +115,7 @@ RULES:
 2. Use tags from the reference list above when they match accurately.
 3. Add extra descriptive tags (not in the list) for anything specific you notice — keep them lowercase, no diacritics, hyphenated.
 4. Return 4–8 tags total, ordered from most to least relevant.
-5. Reply with ONLY a JSON array, no explanation.`,
+5. Reply with ONLY a JSON array, no explanation. Example: ["mire", "mireasa", "biserica"]`,
             },
           ],
         },

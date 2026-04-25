@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 
 const CONSENT_KEY_PREFIX = "av:consent:";
 const ADMIN_BYPASS_KEY = "av:consent:admin:bypass";
@@ -13,6 +14,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
   const consentKey = CONSENT_KEY_PREFIX + slug;
 
   const [phase, setPhase] = useState<"hidden" | "modal" | "banner">("hidden");
+  useBodyScrollLock(phase === "modal");
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
