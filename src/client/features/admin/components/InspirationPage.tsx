@@ -1038,10 +1038,30 @@ function UploadModal({
   const suggestCurrent = () => suggestForIndex(currentIndex);
 
   const suggestAll = async () => {
+    const photoSnapshot = [...photos];
     setAllAiLoading(true);
-    for (let i = 0; i < photos.length; i++) {
+    for (let i = 0; i < photoSnapshot.length; i++) {
       setAllAiCurrent(i + 1);
-      await suggestForIndex(i);
+      const photo = photoSnapshot[i];
+      if (!photo) continue;
+      updatePhoto(i, { aiLoading: true });
+      try {
+        const base64 = await getBase64(photo.file);
+        const res = await fetch("/api/admin/inspiration/suggest-tags-from-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: base64, mediaType: photo.file.type || "image/jpeg", availableTags: PRESET_TAGS }),
+        });
+        const data = await res.json();
+        const newTags: string[] = data.tags ?? [];
+        setPhotos((prev) => prev.map((p, idx) => {
+          if (idx !== i) return p;
+          const merged = Array.from(new Set([...p.tags, ...newTags]));
+          return { ...p, tags: merged, aiLoading: false, aiDone: true };
+        }));
+      } catch {
+        updatePhoto(i, { aiLoading: false });
+      }
     }
     setAllAiLoading(false);
     setAllAiCurrent(0);
