@@ -119,15 +119,10 @@ RULES:
             },
           ],
         },
-        {
-          role: "assistant",
-          content: "[",
-        },
       ],
     });
 
-    const rawSuffix = message.content[0].type === "text" ? message.content[0].text.trim() : "]";
-    const raw = "[" + rawSuffix;
+    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "[]";
     const match = raw.match(/\[[\s\S]*?\]/);
     const generatedTags: string[] = match ? JSON.parse(match[0]) : [];
 

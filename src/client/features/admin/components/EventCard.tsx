@@ -838,7 +838,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   <input className={inputClass} value={form.email} onChange={set("email")} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Data evenimentului</label>
                   <input type="date" className={inputClass} value={form.eventDate} onChange={set("eventDate")} />
