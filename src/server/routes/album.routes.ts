@@ -99,7 +99,7 @@ router.post("/:slug/consent", express.json(), async (req: Request, res: Response
             <tr><td style="padding:8px 0;color:#6b7280;">Locație</td><td style="color:#111;font-weight:600;">${location}</td></tr>
             ${ipInfo?.org ? `<tr><td style="padding:8px 0;color:#6b7280;">ISP</td><td style="color:#111;">${ipInfo.org}</td></tr>` : ""}
           </table>
-          <p style="color:#9ca3af;font-size:12px;margin-top:24px;">Clientul a confirmat că a luat la cunoștință că materialele vor fi șterse după 30 de zile.</p>
+          <p style="color:#9ca3af;font-size:12px;margin-top:24px;">Clientul a confirmat că a luat la cunoștință că materialele vor fi șterse după 60 de zile.</p>
         </div>
       `,
     });

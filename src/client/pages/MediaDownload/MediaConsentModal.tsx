@@ -84,7 +84,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
               ⚠️
             </span>
             <span style={{ color: "#d4a800", fontSize: "13px", fontWeight: 600 }}>
-              Descarcă materialele în 30 de zile
+              Descarcă materialele în 60 de zile
             </span>
           </div>
           <span style={{
@@ -100,7 +100,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
         {!collapsed && (
           <div style={{ padding: "0 14px 12px", borderTop: "1px solid rgba(234,179,8,0.15)" }}>
             <p style={{ margin: "10px 0 0", color: "#b38600", fontSize: "13px", lineHeight: "1.5" }}>
-              Pozele și videoul tău vor fi <strong>șterse automat după 30 de zile</strong> de la livrare. Salvează-le pe calculatorul sau laptopul tău cât mai curând. AncaVisuals nu poate fi responsabilă pentru materialele nedescărcate în acest interval.
+              Pozele și videoul tău vor fi <strong>șterse automat după 60 de zile</strong> de la livrare. Salvează-le pe calculatorul sau laptopul tău cât mai curând. AncaVisuals nu poate fi responsabilă pentru materialele nedescărcate în acest interval.
             </p>
           </div>
         )}
@@ -144,7 +144,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
           borderRadius: "12px", padding: "14px 16px", marginBottom: "24px",
         }}>
           <p style={{ color: "#d4a800", fontSize: "13px", margin: 0, lineHeight: "1.5" }}>
-            ⚠️ <strong>Atenție:</strong> materialele vor fi <strong>șterse automat după 30 de zile</strong> de la livrare. AncaVisuals nu poate fi responsabilă pentru materialele nedescărcate în acest interval.
+            ⚠️ <strong>Atenție:</strong> materialele vor fi <strong>șterse automat după 60 de zile</strong> de la livrare. AncaVisuals nu poate fi responsabilă pentru materialele nedescărcate în acest interval.
           </p>
         </div>
 
@@ -159,7 +159,7 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
             style={{ marginTop: "2px", width: "16px", height: "16px", flexShrink: 0, accentColor: "#7c3aed" }}
           />
           <span style={{ color: "#d1d5db", fontSize: "13px", lineHeight: "1.5" }}>
-            Am înțeles că materialele vor fi șterse după 30 de zile și îmi asum responsabilitatea descărcării lor.
+            Am înțeles că materialele vor fi șterse după 60 de zile și îmi asum responsabilitatea descărcării lor.
           </span>
         </label>
 
