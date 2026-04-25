@@ -25,6 +25,7 @@ import ImageOptimizerPage from "./features/admin/components/ImageOptimizerPage";
 import GoalDetailPage from "./features/admin/components/GoalDetailPage";
 import BankDetailsPage from "./features/admin/components/BankDetailsPage";
 import ModerationReviewPage from "./features/admin/components/Moderation/ModerationReviewPage";
+import RouteSheetsPage from "./features/admin/components/RouteSheets/RouteSheetsPage";
 import ErrorsPage from "./features/admin/components/ErrorsPage";
 import CollaboratorPage from "./features/collaborator/CollaboratorPage";
 import RevinPage from "./pages/Revin/RevinPage";
@@ -102,6 +103,7 @@ export const App = () => {
             <Route path="/admin/bank-details" element={<BankDetailsPage />} />
             <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
             <Route path="/admin/moderare" element={<ModerationReviewPage />} />
+            <Route path="/admin/route-sheets" element={<RouteSheetsPage />} />
             <Route path="/admin/errors" element={<ErrorsPage />} />
             <Route path="/colaborator" element={<CollaboratorPage />} />
           </Route>

@@ -338,6 +338,17 @@ const Dashboard: React.FC = () => {
             )}
           </button>
           <button
+            onClick={() => navigate("/admin/route-sheets")}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12h18M3 6h18M3 18h12" />
+              <circle cx="19" cy="18" r="2" />
+              <path d="M17 18H3" />
+            </svg>
+            Foi de parcurs
+          </button>
+          <button
             onClick={() => navigate("/admin/errors")}
             className="flex items-center gap-1.5 px-4 py-2 text-sm border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-600 hover:text-white transition-colors"
           >
