@@ -179,7 +179,7 @@ router.get("/:id/pdf", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
     }
 
     const data = sheetDoc.data()!;
-    const sheet = { id: sheetDoc.id, ...data, date: (data.date as Timestamp).toDate().toISOString() };
+    const sheet: Record<string, unknown> = { id: sheetDoc.id, ...data, date: (data.date as Timestamp).toDate().toISOString() };
     const vehicle = vehicleDoc.exists ? vehicleDoc.data()! : {};
 
     const pdfBuffer = await generateRouteSheetPDF({ vehicle, sheet });
