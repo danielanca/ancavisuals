@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import styles from './PhotoLightbox.module.scss';
 
 type PhotoLightboxProps = {
@@ -24,6 +25,7 @@ export default function PhotoLightbox({
   onTogglePrint,
   getFileName,
 }: PhotoLightboxProps) {
+  useBodyScrollLock(true);
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const mouseStartXRef = useRef<number | null>(null);

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { ClientEvent, EventType } from "../types";
+import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 
 interface Props {
   onClose: () => void;
@@ -13,6 +14,7 @@ const inputClass =
 const labelClass = "block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide";
 
 const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
+  useBodyScrollLock(true);
   const [form, setForm] = useState({
     fullName: "",
     phone: "",

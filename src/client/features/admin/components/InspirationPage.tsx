@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 import { useNavigate } from "react-router-dom";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { storage } from "../../../firebase";
 import AncaLoader from "../../../components/UI/AncaLoader";
+import useAuth from "../auth/useAuth";
 
 interface InspirationPhoto {
   id: string;
@@ -10,6 +12,15 @@ interface InspirationPhoto {
   tags: string[];
   notes?: string;
   uploadedAt: string;
+}
+
+interface InspirationProposal {
+  id: string;
+  url: string;
+  tags: string[];
+  notes: string;
+  proposedByEmail: string;
+  proposedAt: string;
 }
 
 
@@ -87,8 +98,12 @@ function TagPill({
   );
 }
 
+type AdminTab = "gallery" | "proposals";
+
 export default function InspirationPage() {
   const navigate = useNavigate();
+  const { auth } = useAuth();
+  const [adminTab, setAdminTab] = useState<AdminTab>("gallery");
   const [photos, setPhotos] = useState<InspirationPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTags, setFilterTags] = useState<string[]>([]);
@@ -99,6 +114,10 @@ export default function InspirationPage() {
   const [showDebug, setShowDebug] = useState(false);
   const [preview, setPreview] = useState<InspirationPhoto | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [proposals, setProposals] = useState<InspirationProposal[]>([]);
+  const [proposalsLoading, setProposalsLoading] = useState(false);
+  const [proposalsFetched, setProposalsFetched] = useState(false);
+  useBodyScrollLock(preview !== null || showUpload);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -186,6 +205,26 @@ export default function InspirationPage() {
   const handleAdded = (photo: InspirationPhoto) =>
     setPhotos((prev) => [photo, ...prev]);
 
+  const loadProposals = useCallback(() => {
+    if (!auth.accessToken) return;
+    setProposalsLoading(true);
+    fetch("/api/inspiration-proposals/admin/pending", {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((response) => response.json())
+      .then((data: { proposals?: InspirationProposal[] }) => {
+        setProposals(data.proposals ?? []);
+        setProposalsFetched(true);
+      })
+      .finally(() => setProposalsLoading(false));
+  }, [auth.accessToken]);
+
+  useEffect(() => {
+    if (adminTab === "proposals" && !proposalsFetched) {
+      loadProposals();
+    }
+  }, [adminTab, proposalsFetched, loadProposals]);
+
   if (loading) return <AncaLoader />;
 
   return (
@@ -210,16 +249,56 @@ export default function InspirationPage() {
             <h1 className="text-white text-2xl font-light tracking-tight">Inspirație Foto</h1>
             <p className="text-neutral-500 text-sm mt-1">{photos.length} poze · {filtered.length} afișate</p>
           </div>
+          {adminTab === "gallery" && (
+            <button
+              onClick={() => setShowUpload(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-500 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Adaugă poză
+            </button>
+          )}
+        </div>
+
+        {/* Admin tabs */}
+        <div className="flex gap-1 bg-neutral-900 border border-neutral-800 rounded-xl p-1">
           <button
-            onClick={() => setShowUpload(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-500 transition-colors"
+            onClick={() => setAdminTab("gallery")}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+              adminTab === "gallery" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"
+            }`}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Adaugă poză
+            Galerie
+          </button>
+          <button
+            onClick={() => setAdminTab("proposals")}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+              adminTab === "proposals" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"
+            }`}
+          >
+            Propuneri
+            {proposals.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-amber-500/30 text-amber-400 text-xs font-semibold">
+                {proposals.length}
+              </span>
+            )}
           </button>
         </div>
+
+        {adminTab === "proposals" && (
+          <ProposalsPanel
+            proposals={proposals}
+            loading={proposalsLoading}
+            token={auth.accessToken}
+            onReviewed={(reviewedId) => {
+              setProposals((previous) => previous.filter((proposal) => proposal.id !== reviewedId));
+            }}
+          />
+        )}
+
+        {adminTab === "gallery" && <>
 
         {/* Search */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
@@ -358,6 +437,8 @@ export default function InspirationPage() {
             ))}
           </div>
         )}
+
+        </>}
       </div>
 
       {/* Fullscreen preview */}
@@ -379,7 +460,7 @@ export default function InspirationPage() {
       {showUpload && (
         <UploadModal
           onClose={() => setShowUpload(false)}
-          onAdded={(photo) => { handleAdded(photo); setShowUpload(false); }}
+          onAdded={handleAdded}
         />
       )}
     </div>
@@ -666,6 +747,180 @@ function PreviewModal({
   );
 }
 
+function ProposalsPanel({
+  proposals,
+  loading,
+  token,
+  onReviewed,
+}: {
+  proposals: InspirationProposal[];
+  loading: boolean;
+  token: string;
+  onReviewed: (id: string) => void;
+}) {
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const review = async (id: string, action: "approve" | "reject", reason?: string) => {
+    setProcessingId(id);
+    try {
+      await fetch(`/api/inspiration-proposals/admin/review/${id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action, rejectionReason: reason ?? "" }),
+      });
+      onReviewed(id);
+    } finally {
+      setProcessingId(null);
+      setRejectingId(null);
+      setRejectReason("");
+    }
+  };
+
+  if (loading) {
+    return <p className="text-neutral-600 text-sm text-center py-10">Se încarcă propunerile...</p>;
+  }
+
+  if (proposals.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <p className="text-neutral-500 text-sm">Nicio propunere în așteptare.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-neutral-500 text-sm">{proposals.length} propuneri în așteptare</p>
+      {proposals.map((proposal) => (
+        <div key={proposal.id} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+          <div className="flex gap-4 p-4">
+            <img
+              src={proposal.url}
+              alt=""
+              className="w-28 h-28 rounded-lg object-cover shrink-0"
+            />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div>
+                <p className="text-white text-sm font-medium truncate">{proposal.proposedByEmail}</p>
+                <p className="text-neutral-500 text-xs">
+                  {new Date(proposal.proposedAt).toLocaleDateString("ro-RO", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+              </div>
+              {proposal.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {proposal.tags.slice(0, 5).map((tag) => (
+                    <span key={tag} className="px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 text-xs">
+                      {tag}
+                    </span>
+                  ))}
+                  {proposal.tags.length > 5 && (
+                    <span className="text-neutral-500 text-xs">+{proposal.tags.length - 5}</span>
+                  )}
+                </div>
+              )}
+              {proposal.notes && (
+                <p className="text-neutral-400 text-xs italic">"{proposal.notes}"</p>
+              )}
+            </div>
+          </div>
+
+          {rejectingId === proposal.id ? (
+            <div className="px-4 pb-4 space-y-2 border-t border-neutral-800 pt-3">
+              <p className="text-neutral-400 text-xs">Motiv respingere (opțional):</p>
+              <textarea
+                className="w-full bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-red-500 transition-colors resize-none placeholder-neutral-600"
+                rows={2}
+                placeholder="ex: calitate slabă, nu se potrivește stilului..."
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setRejectingId(null); setRejectReason(""); }}
+                  className="flex-1 px-3 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-xs hover:border-neutral-500 transition-colors"
+                >
+                  Anulează
+                </button>
+                <button
+                  onClick={() => review(proposal.id, "reject", rejectReason)}
+                  disabled={processingId === proposal.id}
+                  className="flex-1 px-3 py-2 rounded-lg bg-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/30 disabled:opacity-40 transition-colors"
+                >
+                  {processingId === proposal.id ? "Se procesează..." : "Confirmă respingerea"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2 px-4 pb-4 border-t border-neutral-800 pt-3">
+              <button
+                onClick={() => review(proposal.id, "approve")}
+                disabled={processingId === proposal.id}
+                className="flex-1 px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 text-sm font-medium hover:bg-emerald-500/30 disabled:opacity-40 transition-colors"
+              >
+                {processingId === proposal.id ? "..." : "✓ Acceptă"}
+              </button>
+              <button
+                onClick={() => setRejectingId(proposal.id)}
+                disabled={processingId === proposal.id}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/30 disabled:opacity-40 transition-colors"
+              >
+                ✕ Respinge
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface PhotoEntry {
+  file: File;
+  preview: string;
+  tags: string[];
+  notes: string;
+  aiLoading: boolean;
+  aiDone: boolean;
+  progress: number | null;
+}
+
+const ANCA_LOADER_STYLES = `
+  @keyframes ancaGlow { 0%,100%{opacity:.15} 50%{opacity:1} }
+  @keyframes ancaDot  { 0%,80%,100%{opacity:.2;transform:scale(.8)} 40%{opacity:1;transform:scale(1.2)} }
+  .ul-wrap  { animation: ancaGlow 2.4s ease-in-out infinite; }
+  .ul-dots  { display:flex; justify-content:center; gap:8px; margin-top:20px; }
+  .ul-dots span { width:6px; height:6px; border-radius:50%; background:#fff; animation:ancaDot 1.4s ease-in-out infinite; }
+  .ul-dots span:nth-child(2){animation-delay:.2s}
+  .ul-dots span:nth-child(3){animation-delay:.4s}
+`;
+
+function AllAiLoader({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="absolute inset-0 z-20 bg-black/90 rounded-2xl flex flex-col items-center justify-center gap-6">
+      <style>{ANCA_LOADER_STYLES}</style>
+      <div className="ul-wrap text-center">
+        <div style={{ fontSize: "1.6rem", letterSpacing: "0.25em", textTransform: "uppercase", lineHeight: 1 }}>
+          <span style={{ fontWeight: 700, color: "#fff" }}>Anca</span>
+          <span style={{ fontWeight: 300, color: "#d1d5db" }}>Visuals</span>
+        </div>
+        <div style={{ fontSize: "0.6rem", letterSpacing: "0.35em", textTransform: "uppercase", color: "#9ca3af", fontStyle: "italic", marginTop: 6 }}>
+          You feel it. We frame it.
+        </div>
+      </div>
+      <div className="ul-dots"><span /><span /><span /></div>
+      <div className="text-center">
+        <p className="text-neutral-300 text-sm font-medium">Analizează pozele...</p>
+        <p className="text-neutral-500 text-xs mt-1">Poza {current} din {total}</p>
+      </div>
+    </div>
+  );
+}
+
 function UploadModal({
   onClose,
   onAdded,
@@ -673,94 +928,135 @@ function UploadModal({
   onClose: () => void;
   onAdded: (photo: InspirationPhoto) => void;
 }) {
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
-  }, []);
-
   const inputRef = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
+  const touchStartX = useRef<number | null>(null);
+
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<PhotoEntry[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [customTag, setCustomTag] = useState("");
-  const [notes, setNotes] = useState("");
-  const [progresses, setProgresses] = useState<Record<string, number>>({});
-  const [errors, setErrors] = useState<string[]>([]);
-  const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [aiTagLoading, setAiTagLoading] = useState(false);
-  const [aiSuggestedTags, setAiSuggestedTags] = useState<string[] | null>(null);
-  const [aiDebug, setAiDebug] = useState<{ status: number; body: string } | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [allAiLoading, setAllAiLoading] = useState(false);
+  const [allAiCurrent, setAllAiCurrent] = useState(0);
 
-  const pickFiles = (newFiles: File[]) => {
-    setFiles((prev) => [...prev, ...newFiles]);
-    setPreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
+  const hasPhotos = photos.length > 0;
+  const current = photos[currentIndex];
+
+  const hasPending = pendingFiles.length > 0;
+
+  const onPickFiles = (newFiles: File[]) => {
+    const valid = newFiles.filter((f) => f.type.startsWith("image/"));
+    setPendingFiles((prev) => [...prev, ...valid]);
+    setPendingPreviews((prev) => [...prev, ...valid.map((f) => URL.createObjectURL(f))]);
   };
 
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-    setPreviews((prev) => prev.filter((_, i) => i !== index));
+  const removePending = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+    setPendingPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const toggleTag = (tag: string) =>
-    setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+  const confirmLoad = () => {
+    if (pendingFiles.length === 0) return;
+    const entries: PhotoEntry[] = pendingFiles.map((file, i) => ({
+      file,
+      preview: pendingPreviews[i],
+      tags: [],
+      notes: "",
+      aiLoading: false,
+      aiDone: false,
+      progress: null,
+    }));
+    setPhotos((prev) => {
+      const updated = [...prev, ...entries];
+      setCurrentIndex(prev.length === 0 ? 0 : prev.length);
+      return updated;
+    });
+    setPendingFiles([]);
+    setPendingPreviews([]);
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setCurrentIndex((prev) => Math.min(prev, Math.max(0, photos.length - 2)));
+  };
+
+  const updatePhoto = (index: number, updates: Partial<PhotoEntry>) => {
+    setPhotos((prev) => prev.map((p, i) => i === index ? { ...p, ...updates } : p));
+  };
+
+  const toggleTag = (tag: string) => {
+    if (!current) return;
+    const next = current.tags.includes(tag)
+      ? current.tags.filter((t) => t !== tag)
+      : [...current.tags, tag];
+    updatePhoto(currentIndex, { tags: next });
+  };
 
   const addCustomTag = () => {
+    if (!current) return;
     const newTags = customTag
       .split(/[,;]+/)
       .map((t) => t.trim().toLowerCase())
-      .filter((t) => t.length > 0 && !tags.includes(t));
-    if (newTags.length > 0) setTags((prev) => [...prev, ...newTags]);
+      .filter((t) => t.length > 0 && !current.tags.includes(t));
+    if (newTags.length > 0) updatePhoto(currentIndex, { tags: [...current.tags, ...newTags] });
     setCustomTag("");
   };
 
-  const suggestTagsFromImage = async () => {
-    if (files.length === 0) return;
-    setAiTagLoading(true);
-    setAiDebug(null);
+  const getBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const suggestForIndex = async (index: number): Promise<void> => {
+    const photo = photos[index];
+    if (!photo) return;
+    updatePhoto(index, { aiLoading: true });
     try {
-      const file = files[0];
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(",")[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const mediaType = file.type || "image/jpeg";
+      const base64 = await getBase64(photo.file);
       const res = await fetch("/api/admin/inspiration/suggest-tags-from-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mediaType, availableTags: PRESET_TAGS }),
+        body: JSON.stringify({ imageBase64: base64, mediaType: photo.file.type || "image/jpeg", availableTags: PRESET_TAGS }),
       });
-      const rawText = await res.text();
-      setAiDebug({ status: res.status, body: rawText });
-      let data: { tags?: string[] } = {};
-      try { data = JSON.parse(rawText); } catch { /* not JSON */ }
-      if (data.tags && data.tags.length > 0) {
-        setAiSuggestedTags(data.tags);
-        setTags(data.tags);
-      }
-    } catch (error) {
-      setAiDebug({ status: 0, body: String(error) });
-    } finally {
-      setAiTagLoading(false);
+      const data = await res.json();
+      const newTags: string[] = data.tags ?? [];
+      setPhotos((prev) => prev.map((p, i) => {
+        if (i !== index) return p;
+        const merged = Array.from(new Set([...p.tags, ...newTags]));
+        return { ...p, tags: merged, aiLoading: false, aiDone: true };
+      }));
+    } catch {
+      updatePhoto(index, { aiLoading: false });
     }
   };
 
-  const uploadFile = (file: File): Promise<void> =>
-    new Promise((resolve, reject) => {
-      const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name.replace(/\s+/g, "_")}`;
-      const storageRef = ref(storage, `inspiration-library/${safeName}`);
-      const task = uploadBytesResumable(storageRef, file);
+  const suggestCurrent = () => suggestForIndex(currentIndex);
 
+  const suggestAll = async () => {
+    setAllAiLoading(true);
+    for (let i = 0; i < photos.length; i++) {
+      setAllAiCurrent(i + 1);
+      await suggestForIndex(i);
+    }
+    setAllAiLoading(false);
+    setAllAiCurrent(0);
+  };
+
+  const uploadPhoto = (entry: PhotoEntry, index: number): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${entry.file.name.replace(/\s+/g, "_")}`;
+      const storageRef = ref(storage, `inspiration-library/${safeName}`);
+      const task = uploadBytesResumable(storageRef, entry.file);
       task.on(
         "state_changed",
         (snap) => {
           const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-          setProgresses((prev) => ({ ...prev, [file.name]: pct }));
+          updatePhoto(index, { progress: pct });
         },
         reject,
         async () => {
@@ -768,198 +1064,325 @@ function UploadModal({
           const res = await fetch("/api/admin/inspiration/photos", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url, tags, notes }),
+            body: JSON.stringify({ url, tags: entry.tags, notes: entry.notes }),
           });
           const data = await res.json();
-          onAdded({ id: data.id, url, tags, notes, uploadedAt: new Date().toISOString() });
+          onAdded({ id: data.id, url, tags: entry.tags, notes: entry.notes, uploadedAt: new Date().toISOString() });
           resolve();
         },
       );
     });
 
-  const handleSave = async () => {
-    if (files.length === 0) return;
+  const handleSaveAll = async () => {
+    const missingTags = photos.findIndex((p) => p.tags.length === 0);
+    if (missingTags !== -1) {
+      setCurrentIndex(missingTags);
+      setErrors([`Poza ${missingTags + 1} nu are niciun tag. Adaugă cel puțin un tag înainte de salvare.`]);
+      return;
+    }
     setUploading(true);
     setErrors([]);
-    const results = await Promise.allSettled(files.map((f) => uploadFile(f)));
+    const snapshot = [...photos];
+    const results = await Promise.allSettled(snapshot.map((p, i) => uploadPhoto(p, i)));
     const failed = results
-      .map((r, i) => r.status === "rejected" ? files[i].name : null)
+      .map((r, i) => r.status === "rejected" ? snapshot[i].file.name : null)
       .filter(Boolean) as string[];
     setUploading(false);
-    if (failed.length === 0) {
-      onClose();
-    } else {
+    if (failed.length === 0) { onClose(); } else {
       setErrors(failed.map((name) => `Upload eșuat: ${name}`));
     }
   };
 
-  const isUploading = uploading;
-  const totalProgress = files.length === 0 ? 0
-    : Math.round(Object.values(progresses).reduce((a, b) => a + b, 0) / files.length);
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || allAiLoading) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(delta) > 50) {
+      if (delta < 0 && currentIndex < photos.length - 1) setCurrentIndex((i) => i + 1);
+      if (delta > 0 && currentIndex > 0) setCurrentIndex((i) => i - 1);
+    }
+    touchStartX.current = null;
+  };
+
+  const photosWithoutTags = photos.filter((p) => p.tags.length === 0).length;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4" onClick={onClose}>
       <div
-        className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md space-y-5 max-h-[90vh] overflow-y-auto"
+        className="relative bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
+        {/* AncaVisuals loader overlay during suggestAll */}
+        {allAiLoading && <AllAiLoader current={allAiCurrent} total={photos.length} />}
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800 sticky top-0 bg-neutral-900 z-10">
           <h2 className="text-white text-base font-semibold">
-            Adaugă {files.length > 1 ? `${files.length} poze` : "poze"}
+            {hasPhotos ? `${photos.length} ${photos.length === 1 ? "poză" : "poze"} · poza ${currentIndex + 1}` : "Adaugă poze"}
           </h2>
           <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-lg">✕</button>
         </div>
 
-        {/* Drop zone */}
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setDragging(false); pickFiles(Array.from(e.dataTransfer.files)); }}
-          onClick={() => inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
-            dragging ? "border-violet-500 bg-violet-500/10" : "border-neutral-700 hover:border-neutral-500"
-          }`}
-        >
-          <p className="text-neutral-400 text-sm">Trage poze sau <span className="underline text-neutral-200">selectează</span></p>
-          <p className="text-neutral-600 text-xs mt-1">JPG, PNG, WEBP · multiple fișiere acceptate</p>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".jpg,.jpeg,.png,.webp"
-            multiple
-            className="hidden"
-            onChange={(e) => { if (e.target.files) pickFiles(Array.from(e.target.files)); }}
-          />
-        </div>
+        <div className="p-5 space-y-5">
 
-        {/* Previews grid */}
-        {files.length > 0 && (
-          <div className="grid grid-cols-3 gap-2">
-            {files.map((file, i) => (
-              <div key={i} className="relative rounded-lg overflow-hidden aspect-square group">
-                <img src={previews[i]} alt="" className="w-full h-full object-cover" />
-                {isUploading ? (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <span className="text-white text-xs font-semibold">{progresses[file.name] ?? 0}%</span>
+          {/* File picker section */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => inputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-700 text-neutral-300 text-sm hover:border-violet-500 hover:text-violet-300 transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Selectează poze
+              </button>
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp"
+                multiple
+                className="hidden"
+                onChange={(e) => { if (e.target.files) onPickFiles(Array.from(e.target.files)); }}
+              />
+              {hasPending && (
+                <button
+                  onClick={confirmLoad}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-500 transition-colors"
+                >
+                  Încarcă ({pendingFiles.length})
+                </button>
+              )}
+            </div>
+
+            {/* Pending previews */}
+            {hasPending && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {pendingFiles.map((_, i) => (
+                  <div key={i} className="relative shrink-0 w-16 h-16 rounded-lg overflow-hidden group">
+                    <img src={pendingPreviews[i]} alt="" className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => removePending(i)}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ✕
+                    </button>
                   </div>
-                ) : (
+                ))}
+              </div>
+            )}
+          </div>
+
+          {hasPhotos && (
+            <>
+              {/* Featured photo */}
+              <div
+                className="relative rounded-xl overflow-hidden bg-neutral-950"
+                style={{ aspectRatio: "4/3" }}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              >
+                <img src={current.preview} alt="" className="w-full h-full object-contain" />
+
+                {/* Per-photo AI loading */}
+                {current.aiLoading && !allAiLoading && (
+                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-neutral-300 text-xs">Analizează poza...</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Upload progress */}
+                {current.progress !== null && (
+                  <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3">
+                    <p className="text-white font-semibold text-lg">{current.progress}%</p>
+                    <div className="w-36 bg-neutral-700 rounded-full h-1.5">
+                      <div className="bg-violet-500 h-1.5 rounded-full transition-all" style={{ width: `${current.progress}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* AI done badge */}
+                {current.aiDone && !current.aiLoading && (
+                  <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs">
+                    ✦ AI gata
+                  </div>
+                )}
+
+                {/* Nav arrows */}
+                {currentIndex > 0 && (
                   <button
-                    onClick={() => removeFile(i)}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => !allAiLoading && setCurrentIndex((i) => i - 1)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 text-white text-xl flex items-center justify-center hover:bg-black/80 transition-colors"
+                  >
+                    ‹
+                  </button>
+                )}
+                {currentIndex < photos.length - 1 && (
+                  <button
+                    onClick={() => !allAiLoading && setCurrentIndex((i) => i + 1)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 text-white text-xl flex items-center justify-center hover:bg-black/80 transition-colors"
+                  >
+                    ›
+                  </button>
+                )}
+
+                {/* Delete */}
+                {!uploading && !allAiLoading && (
+                  <button
+                    onClick={() => removePhoto(currentIndex)}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500/80 text-white text-xs flex items-center justify-center hover:bg-red-500 transition-colors"
+                    title="Șterge poza"
                   >
                     ✕
                   </button>
                 )}
+
+                {/* Counter */}
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-black/60 text-white text-xs">
+                  {currentIndex + 1} / {photos.length}
+                </div>
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* Tag selector */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-neutral-400 text-xs uppercase tracking-wide font-medium">Tag-uri</p>
-            {files.length > 0 && (
-              <button
-                onClick={suggestTagsFromImage}
-                disabled={aiTagLoading}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-violet-500/20 text-violet-300 text-xs hover:bg-violet-500/30 disabled:opacity-50 transition-colors"
-              >
-                {aiTagLoading ? (
-                  <span className="w-3 h-3 border-2 border-violet-400 border-t-transparent rounded-full animate-spin inline-block" />
-                ) : (
-                  <span>✦</span>
-                )}
-                {aiTagLoading ? "Analizează..." : "Sugerează cu AI"}
-              </button>
-            )}
-          </div>
+              {/* Thumbnails */}
+              {photos.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {photos.map((photo, i) => (
+                    <button
+                      key={i}
+                      onClick={() => !allAiLoading && setCurrentIndex(i)}
+                      className={`relative shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                        i === currentIndex ? "border-violet-500" : "border-transparent opacity-50 hover:opacity-90"
+                      }`}
+                    >
+                      <img src={photo.preview} alt="" className="w-full h-full object-cover" />
+                      {photo.tags.length === 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                          <span className="text-amber-400 text-xs">!</span>
+                        </div>
+                      )}
+                      {photo.aiDone && photo.tags.length > 0 && (
+                        <div className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center">
+                          <span style={{ fontSize: "8px", color: "#fff" }}>✓</span>
+                        </div>
+                      )}
+                      {photo.aiLoading && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-          {aiDebug !== null && (
-            <div className="mt-2 p-3 rounded-lg bg-neutral-950 border border-neutral-700 space-y-1">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-mono text-neutral-400">
-                  DEBUG AI · HTTP {aiDebug.status === 0 ? "network error" : aiDebug.status}
+              {/* AI buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={suggestCurrent}
+                  disabled={current.aiLoading || allAiLoading || uploading}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 text-xs font-medium hover:bg-violet-500/25 disabled:opacity-40 transition-colors"
+                >
+                  {current.aiLoading ? (
+                    <span className="w-3 h-3 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                  ) : <span>✦</span>}
+                  Sugerează AI
+                </button>
+                <button
+                  onClick={suggestAll}
+                  disabled={allAiLoading || uploading}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 text-xs font-medium hover:bg-violet-500/25 disabled:opacity-40 transition-colors"
+                >
+                  <span>✦✦</span>
+                  Sugerează AI (All)
+                </button>
+              </div>
+
+              {/* Tags for current photo */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-neutral-400 text-xs uppercase tracking-wide font-medium">
+                    Tag-uri
+                    {current.tags.length > 0
+                      ? <span className="ml-1.5 text-violet-400 normal-case font-normal">· {current.tags.length} selectate</span>
+                      : <span className="ml-1.5 text-amber-400 normal-case font-normal">· niciun tag</span>
+                    }
+                  </p>
+                  {current.tags.length > 0 && (
+                    <button
+                      onClick={() => updatePhoto(currentIndex, { tags: [], aiDone: false })}
+                      className="text-xs text-neutral-600 hover:text-neutral-400 underline underline-offset-2 transition-colors"
+                    >
+                      Resetează
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                  {PRESET_TAGS.map((tag) => (
+                    <TagPill key={tag} tag={tag} selected={current.tags.includes(tag)} onClick={() => toggleTag(tag)} />
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <input
+                    className="flex-1 bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition-colors placeholder-neutral-600"
+                    placeholder="Tag custom separat prin virgulă..."
+                    value={customTag}
+                    onChange={(e) => setCustomTag(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } }}
+                  />
+                  <button
+                    onClick={addCustomTag}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 text-neutral-300 text-xs hover:bg-neutral-700 transition-colors"
+                  >
+                    Adaugă
+                  </button>
+                </div>
+              </div>
+
+              {/* Notes per photo */}
+              <div>
+                <p className="text-neutral-400 text-xs uppercase tracking-wide font-medium mb-1">
+                  Notă · poza {currentIndex + 1} <span className="normal-case font-normal text-neutral-600">(opțional)</span>
                 </p>
-                <button onClick={() => setAiDebug(null)} className="text-neutral-600 hover:text-neutral-300 text-xs">✕</button>
+                <textarea
+                  className="w-full bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors resize-none placeholder-neutral-600"
+                  rows={2}
+                  placeholder="ex: unghi special, lumină naturală..."
+                  value={current.notes}
+                  onChange={(e) => updatePhoto(currentIndex, { notes: e.target.value })}
+                />
               </div>
-              <pre className="text-xs text-neutral-300 whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
-                {aiDebug.body}
-              </pre>
-            </div>
+            </>
           )}
 
-          {aiSuggestedTags !== null && (
-            <div className="space-y-2 mb-2">
-              <p className="text-neutral-600 text-xs">Bifează tag-urile corecte:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {aiSuggestedTags.map((tag) => (
-                  <TagPill key={tag} tag={tag} selected={tags.includes(tag)} onClick={() => toggleTag(tag)} />
-                ))}
-              </div>
-              <button
-                onClick={() => { setAiSuggestedTags(null); setTags([]); }}
-                className="text-xs text-neutral-600 hover:text-neutral-400 underline underline-offset-2 transition-colors"
-              >
-                Resetează
-              </button>
-            </div>
-          )}
+          {errors.map((err, i) => (
+            <p key={i} className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{err}</p>
+          ))}
 
-          <div className="flex gap-2 mt-2">
-            <input
-              className="flex-1 bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition-colors placeholder-neutral-600"
-              placeholder="Adaugă tag-uri separate prin virgulă..."
-              value={customTag}
-              onChange={(e) => setCustomTag(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } }}
-            />
+          <div className="flex gap-3">
             <button
-              onClick={addCustomTag}
-              className="px-3 py-1.5 rounded-lg bg-neutral-800 text-neutral-300 text-xs hover:bg-neutral-700 transition-colors"
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-700 text-neutral-300 text-sm hover:border-neutral-500 transition-colors"
             >
-              Adaugă
+              Anulează
+            </button>
+            <button
+              onClick={handleSaveAll}
+              disabled={photos.length === 0 || uploading || allAiLoading}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 disabled:opacity-40 transition-colors"
+            >
+              {uploading
+                ? "Se încarcă..."
+                : photosWithoutTags > 0
+                  ? `${photosWithoutTags} poze fără tag-uri`
+                  : `Salvează pe toate (${photos.length})`
+              }
             </button>
           </div>
-        </div>
-
-        {/* Notes */}
-        <div>
-          <p className="text-neutral-400 text-xs uppercase tracking-wide font-medium mb-1">Notă (opțional)</p>
-          <textarea
-            className="w-full bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors resize-none placeholder-neutral-600"
-            rows={2}
-            placeholder="ex: unghi special, lumină naturală..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
-
-        {/* Overall progress */}
-        {isUploading && (
-          <div className="space-y-1">
-            <p className="text-xs text-neutral-400">Se încarcă... {totalProgress}%</p>
-            <div className="w-full bg-neutral-700 rounded-full h-1">
-              <div className="bg-violet-500 h-1 rounded-full transition-all" style={{ width: `${totalProgress}%` }} />
-            </div>
-          </div>
-        )}
-
-        {errors.map((err, i) => (
-          <p key={i} className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{err}</p>
-        ))}
-
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-700 text-neutral-300 text-sm hover:border-neutral-500 transition-colors">
-            Anulează
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={files.length === 0 || isUploading || tags.length === 0}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 disabled:opacity-40 transition-colors"
-          >
-            {isUploading ? `Se încarcă... ${totalProgress}%` : `Salvează${files.length > 1 ? ` (${files.length})` : ""}`}
-          </button>
         </div>
       </div>
     </div>

@@ -86,6 +86,7 @@ const Dashboard: React.FC = () => {
   const [urgentMementos, setUrgentMementos] = useState(0);
   const [pendingModerationCount, setPendingModerationCount] = useState(0);
   const [unseenErrorsCount, setUnseenErrorsCount] = useState(0);
+  const [pendingProposalsCount, setPendingProposalsCount] = useState(0);
 
   useEffect(() => {
     const meta = document.createElement("meta");
@@ -135,6 +136,13 @@ const Dashboard: React.FC = () => {
       })
         .then((r) => r.json())
         .then((d: { pendingCount?: number }) => setPendingModerationCount(d.pendingCount ?? 0))
+        .catch(() => {});
+
+      fetch("/api/inspiration-proposals/admin/pending-count", {
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      })
+        .then((r) => r.json())
+        .then((d: { pendingCount?: number }) => setPendingProposalsCount(d.pendingCount ?? 0))
         .catch(() => {});
     }
 
@@ -269,6 +277,11 @@ const Dashboard: React.FC = () => {
               <polyline points="21 15 16 10 5 21" />
             </svg>
             Inspirație
+            {pendingProposalsCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500 text-white leading-none">
+                {pendingProposalsCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => navigate("/admin/mementos")}

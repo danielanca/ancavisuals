@@ -1,5 +1,6 @@
 import React, { useReducer, useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 import AncaLoader from "../../../components/UI/AncaLoader";
 
 interface Memento {
@@ -121,6 +122,7 @@ export default function MementosPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  useBodyScrollLock(showAdd || confirmDeleteId !== null);
 
   const now = useMemo(() => new Date(), []);
 
@@ -415,6 +417,7 @@ function AddMementoModal({ onClose, onAdded }: {
   onClose: () => void;
   onAdded: (m: Memento) => void;
 }) {
+  useBodyScrollLock(true);
   const [form, setForm] = useState<AddForm>(createDefaultAddForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

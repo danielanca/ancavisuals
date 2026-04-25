@@ -6,6 +6,7 @@ import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
 import ConfirmModal from "./ConfirmModal";
 import { slugify } from "../../../utils/slugify";
+import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 
 interface EventCardProps {
   event: ClientEvent;
@@ -32,6 +33,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
 
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [editing, setEditing] = useState(false);
+  useBodyScrollLock(editing);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [quickSaving, setQuickSaving] = useState(false);

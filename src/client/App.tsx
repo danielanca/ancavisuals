@@ -26,12 +26,13 @@ import GoalDetailPage from "./features/admin/components/GoalDetailPage";
 import BankDetailsPage from "./features/admin/components/BankDetailsPage";
 import ModerationReviewPage from "./features/admin/components/Moderation/ModerationReviewPage";
 import ErrorsPage from "./features/admin/components/ErrorsPage";
+import CollaboratorPage from "./features/collaborator/CollaboratorPage";
 import RevinPage from "./pages/Revin/RevinPage";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
 
 
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin"];
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator"];
 
 export const App = () => {
   const location = useLocation();
@@ -102,6 +103,7 @@ export const App = () => {
             <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
             <Route path="/admin/moderare" element={<ModerationReviewPage />} />
             <Route path="/admin/errors" element={<ErrorsPage />} />
+            <Route path="/colaborator" element={<CollaboratorPage />} />
           </Route>
 
 
