@@ -27,6 +27,11 @@ import { analyticsPublicRouter, analyticsAdminRouter } from "./src/server/routes
 import moderationRouter from "./src/server/routes/moderation.routes";
 import inspirationProposalsRouter from "./src/server/routes/inspiration-proposals.routes";
 import monitoringRouter from "./src/server/routes/monitoring.routes";
+import routeSheetsRouter from "./src/server/routes/routeSheets.routes";
+import expensesRouter from "./src/server/routes/expenses.routes";
+import invoicesRouter from "./src/server/routes/invoices.routes";
+import loginEventsRouter from "./src/server/routes/loginEvents.routes";
+import landingRouter from "./src/server/routes/landing.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
@@ -134,6 +139,11 @@ async function createServer() {
   app.use("/api/inspiration-proposals", inspirationProposalsRouter);
   app.use("/api/monitoring", monitoringRouter);
   app.use("/api/admin/monitoring", monitoringRouter);
+  app.use("/api/admin", routeSheetsRouter);
+  app.use("/api/admin", expensesRouter);
+  app.use("/api/admin", invoicesRouter);
+  app.use("/api", loginEventsRouter);
+  app.use("/api/admin/landing", landingRouter);
 
   startServerMonitor();
   startMementosCron();
