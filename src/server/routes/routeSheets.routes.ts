@@ -78,7 +78,7 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
     const vehicleDoc = await db.collection(SETTINGS_COLLECTION).doc(VEHICLE_DOC).get();
     const vehicle = vehicleDoc.exists ? vehicleDoc.data()! : {};
     const fuelConsumed = vehicle.fuelConsumption
-      ? Math.round((kmTotal * Number(vehicle.fuelConsumption) / 100) * 100) / 100
+      ? Math.round((kmTotal * Number(vehicle.fuelConsumption)) / 100 * 100) / 100
       : null;
 
     const countSnapshot = await db.collection(SHEETS_COLLECTION).count().get();
@@ -117,7 +117,7 @@ router.delete("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Requ
   }
 });
 
-// POST /pdf/monthly — generate monthly PDF (must come before /:id/pdf)
+// POST /pdf/monthly — generate monthly PDF (must be before /:id/pdf)
 router.post("/pdf/monthly", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { year, month } = req.body as { year: number; month: number };
   if (!year || !month) {

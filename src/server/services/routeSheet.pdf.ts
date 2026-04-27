@@ -73,9 +73,12 @@ export async function generateRouteSheetPDF({
   const kmDus = Number(sheet.kmDus ?? 0);
   const kmIntors = Number(sheet.kmIntors ?? 0);
   const kmTotal = Number(sheet.kmTotal ?? kmDus + kmIntors);
-  const fuelConsumed = sheet.fuelConsumed != null
-    ? Number(sheet.fuelConsumed)
-    : vehicle.fuelConsumption ? Math.round((kmTotal * Number(vehicle.fuelConsumption) / 100) * 100) / 100 : null;
+  const fuelConsumed =
+    sheet.fuelConsumed != null
+      ? Number(sheet.fuelConsumed)
+      : vehicle.fuelConsumption
+        ? Math.round((kmTotal * Number(vehicle.fuelConsumption)) / 100 * 100) / 100
+        : null;
 
   const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8">
 <style>${CSS}</style></head><body><div class="page">
@@ -148,7 +151,9 @@ export async function generateMonthlyRouteSheetPDF({
   const totalKm = sheets.reduce((sum, sheet) => sum + Number(sheet.kmTotal ?? 0), 0);
   const totalFuel = sheets.reduce((sum, sheet) => sum + Number(sheet.fuelConsumed ?? 0), 0);
 
-  const rows = sheets.map((sheet, index) => `
+  const rows = sheets
+    .map(
+      (sheet, index) => `
     <tr>
       <td class="num">${index + 1}</td>
       <td>${fmtDate(sheet.date as string)}</td>
@@ -160,7 +165,9 @@ export async function generateMonthlyRouteSheetPDF({
       <td class="num" style="font-weight:600;">${esc(sheet.kmTotal)}</td>
       <td class="num">${sheet.fuelConsumed != null ? esc(sheet.fuelConsumed) + " L" : "—"}</td>
     </tr>
-  `).join("");
+  `,
+    )
+    .join("");
 
   const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8">
 <style>

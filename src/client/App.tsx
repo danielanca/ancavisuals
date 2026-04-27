@@ -27,6 +27,9 @@ import BankDetailsPage from "./features/admin/components/BankDetailsPage";
 import ModerationReviewPage from "./features/admin/components/Moderation/ModerationReviewPage";
 import RouteSheetsPage from "./features/admin/components/RouteSheets/RouteSheetsPage";
 import ErrorsPage from "./features/admin/components/ErrorsPage";
+import RouteSheetsPage from "./features/admin/components/RouteSheets/RouteSheetsPage";
+import FinancialPage from "./features/admin/components/Financial/FinancialPage";
+import LandingAdminPage from "./features/admin/components/Landing/LandingAdminPage";
 import CollaboratorPage from "./features/collaborator/CollaboratorPage";
 import RevinPage from "./pages/Revin/RevinPage";
 import { usePageTracking } from "./hooks/usePageTracking";
@@ -105,6 +108,9 @@ export const App = () => {
             <Route path="/admin/moderare" element={<ModerationReviewPage />} />
             <Route path="/admin/route-sheets" element={<RouteSheetsPage />} />
             <Route path="/admin/errors" element={<ErrorsPage />} />
+            <Route path="/admin/route-sheets" element={<RouteSheetsPage />} />
+            <Route path="/admin/financial" element={<FinancialPage />} />
+            <Route path="/admin/landing" element={<LandingAdminPage />} />
             <Route path="/colaborator" element={<CollaboratorPage />} />
           </Route>
 
