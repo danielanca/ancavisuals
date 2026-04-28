@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ClientEvent } from "../types";
 import EventCard from "./EventCard";
+import Redacted from "./Redacted";
+
+const formatEUR = (amount: number) =>
+  new Intl.NumberFormat("ro-RO", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amount);
 
 interface EventListProps {
   events: ClientEvent[];
@@ -360,7 +364,35 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
           </div>
         );
       }
-      return <div className={`space-y-8 opacity-70`}>{renderGroup(grouped)}</div>;
+
+      const totalSum = filteredPast.reduce((sum, e) => sum + (e.pricing?.total ?? 0), 0);
+      const advanceSum = filteredPast.reduce((sum, e) => sum + (e.pricing?.advanceAmount ?? 0), 0);
+      const remainingSum = filteredPast.reduce((sum, e) => sum + (e.pricing?.remainingAmount ?? 0), 0);
+
+      return (
+        <>
+          <div className="space-y-8 opacity-70">{renderGroup(grouped)}</div>
+          <div className="mt-6 rounded-xl border border-neutral-700/60 bg-neutral-800/40 px-5 py-4">
+            <p className="text-xs text-neutral-500 uppercase tracking-widest mb-3">Total încasat — {filteredPast.length} evenimente</p>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="flex flex-wrap gap-6 text-sm text-neutral-400">
+                <span>
+                  Avans{" "}
+                  <Redacted><span className="text-neutral-200 font-medium">{formatEUR(advanceSum)}</span></Redacted>
+                </span>
+                <span>
+                  Rest{" "}
+                  <Redacted><span className="text-neutral-200 font-medium">{formatEUR(remainingSum)}</span></Redacted>
+                </span>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-neutral-500 mb-0.5">Total</p>
+                <Redacted><p className="text-xl font-semibold text-white">{formatEUR(totalSum)}</p></Redacted>
+              </div>
+            </div>
+          </div>
+        </>
+      );
     }
 
     if (tab === "arhiva") {
