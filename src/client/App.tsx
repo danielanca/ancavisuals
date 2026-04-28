@@ -27,13 +27,13 @@ import BankDetailsPage from "./features/admin/components/BankDetailsPage";
 import ModerationReviewPage from "./features/admin/components/Moderation/ModerationReviewPage";
 import RouteSheetsPage from "./features/admin/components/RouteSheets/RouteSheetsPage";
 import ErrorsPage from "./features/admin/components/ErrorsPage";
-import RouteSheetsPage from "./features/admin/components/RouteSheets/RouteSheetsPage";
 import FinancialPage from "./features/admin/components/Financial/FinancialPage";
 import LandingAdminPage from "./features/admin/components/Landing/LandingAdminPage";
 import CollaboratorPage from "./features/collaborator/CollaboratorPage";
 import RevinPage from "./pages/Revin/RevinPage";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
+import AdminBar from "./components/UI/AdminBar";
 
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator"];
@@ -74,6 +74,7 @@ export const App = () => {
   return (
     <ContextWrapper>
       <AuthProvider>
+      <AdminBar />
       <Suspense fallback={<AncaLoader />}>
         {showChat && <AncaChat />}
         <Routes>

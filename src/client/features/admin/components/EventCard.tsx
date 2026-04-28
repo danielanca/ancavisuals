@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ClientEvent, EventStatus } from "../types";
+import Redacted from "./Redacted";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
@@ -366,10 +367,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   : "border-amber-500/30 bg-amber-500/10 text-amber-300"
               }`}
             >
-              {isFiscalized ? "Fiscalizat" : "Nefiscalizat"}
+              <Redacted>{isFiscalized ? "Fiscalizat" : "Nefiscalizat"}</Redacted>
             </span>
             <span className="text-neutral-500 text-xs">•</span>
-            <span className="text-white text-sm font-medium truncate">{event.client.fullName}</span>
+            <span className="text-white text-sm font-medium truncate"><Redacted>{event.client.fullName}</Redacted></span>
             <span className="text-neutral-500 text-xs">•</span>
             <span className={`text-xs ${eventDate ? "text-neutral-400" : "text-neutral-600 italic"}`}>
               {formattedDate}
@@ -378,7 +379,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
           <div className="flex items-center gap-2.5 shrink-0">
             {!isLead && (
               <span className="text-neutral-300 text-xs font-medium">
-                {formatEUR(event.pricing?.total ?? 0)}
+                <Redacted>{formatEUR(event.pricing?.total ?? 0)}</Redacted>
               </span>
             )}
             {!isLead && (
@@ -433,12 +434,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 }`}
               >
                 <span>{isFiscalized ? "🧾" : "🏠"}</span>
-                {isFiscalized ? "Fiscalizat" : "Nefiscalizat"}
+                <Redacted>{isFiscalized ? "Fiscalizat" : "Nefiscalizat"}</Redacted>
               </button>
               {event.client.phone && (
                 <span className="flex items-center gap-1.5">
                   <span>📞</span>
-                  <span>{event.client.phone}</span>
+                  <Redacted>{event.client.phone}</Redacted>
                   <a
                     href={`tel:${event.client.phone}`}
                     onClick={(e) => e.stopPropagation()}
@@ -458,21 +459,20 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 </span>
               )}
               {event.client.email && (
-                <span className="flex items-center gap-1.5"><span>✉</span>{event.client.email}</span>
+                <span className="flex items-center gap-1.5"><span>✉</span><Redacted>{event.client.email}</Redacted></span>
               )}
               {!isLead && (
                 <>
-                  <span className="flex items-center gap-1.5"><span>💶</span>{formatEUR(event.pricing?.total ?? 0)}</span>
+                  <span className="flex items-center gap-1.5"><span>💶</span><Redacted>{formatEUR(event.pricing?.total ?? 0)}</Redacted></span>
                   <span className="flex items-center gap-1.5">
                     <span>{event.pricing?.advancePaid ? "✅" : "⏳"}</span>
-                    {event.pricing?.advancePaid
-                      ? `Avans încasat (${formatEUR(event.pricing.advanceAmount)})`
-                      : `Avans neîncasat (${formatEUR(event.pricing?.advanceAmount ?? 0)})`}
+                    {event.pricing?.advancePaid ? "Avans încasat (" : "Avans neîncasat ("}
+                    <Redacted>{formatEUR(event.pricing?.advanceAmount ?? 0)}</Redacted>)
                   </span>
                   {(event.pricing?.remainingAmount ?? 0) > 0 && (
                     <span className="flex items-center gap-1.5">
                       <span>💳</span>
-                      {`Rest de plată: ${formatEUR(event.pricing.remainingAmount)}`}
+                      Rest de plată: <Redacted>{formatEUR(event.pricing.remainingAmount)}</Redacted>
                     </span>
                   )}
                 </>

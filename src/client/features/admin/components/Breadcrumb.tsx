@@ -7,6 +7,20 @@ const LABELS: Record<string, string> = {
   "bank-details": "Detalii bancare",
   "create-event": "Eveniment nou",
   "create-event-wedding": "Invitație nuntă",
+  errors: "Erori server",
+  contracts: "Contracte",
+  create: "Contract nou",
+  edit: "Editează contract",
+  inspiration: "Inspirație",
+  mementos: "Mementouri",
+  "media-activity": "Activitate Media",
+  "image-optimizer": "Optimizare Poze",
+  moderare: "Moderare",
+  "route-sheets": "Foi de parcurs",
+  financial: "Financiar",
+  landing: "Landing Page",
+  goals: "Obiective",
+  analytics: "Analytics",
 };
 
 export default function Breadcrumb() {

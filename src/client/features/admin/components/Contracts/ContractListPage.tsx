@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ConfirmModal from "../ConfirmModal";
 import ContractActionMenu from "./ContractActionMenu";
+import Breadcrumb from "../Breadcrumb";
 
 interface ContractItem {
   id: string;
@@ -292,6 +293,7 @@ const ContractListPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-4xl mx-auto">
+        <Breadcrumb />
 
         <div className="flex items-center justify-between mb-8">
           <div>

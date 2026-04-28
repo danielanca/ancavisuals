@@ -10,6 +10,7 @@ import AncaLoader from "../../../../components/UI/AncaLoader";
 import PostEventFollowUp from "../PostEventFollowUp";
 import MementosWidget from "../MementosWidget";
 import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
+import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeContext";
 
 const LOGIN_ROUTE = "/login";
 const CREATE_EVENT_ROUTE = "/admin/create-event";
@@ -63,10 +64,11 @@ function normalizeSettings(settingsData: Partial<AdminSettings>): AdminSettings 
   };
 }
 
-const Dashboard: React.FC = () => {
+const DashboardInner: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { auth, logOut } = useAuth();
+  const { privacyMode, togglePrivacyMode } = usePrivacyMode();
 
   const targetEventId =
     typeof (location.state as { scrollToEvent?: unknown } | null)?.scrollToEvent === "string"
@@ -211,17 +213,42 @@ const Dashboard: React.FC = () => {
               Iată ce urmează în {new Date().getFullYear()}
             </p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-800 text-neutral-400 text-xs hover:border-red-500/50 hover:text-red-400 transition-colors"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            Deconectare
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={togglePrivacyMode}
+              title={privacyMode ? "Arată datele" : "Ascunde datele sensibile"}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
+                privacyMode
+                  ? "border-amber-500/60 text-amber-400 bg-amber-500/10"
+                  : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-white"
+              }`}
+            >
+              {privacyMode ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
+              {privacyMode ? "Arată" : "Ascunde"}
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-800 text-neutral-400 text-xs hover:border-red-500/50 hover:text-red-400 transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              Deconectare
+            </button>
+          </div>
         </div>
 
         {/* Quick nav */}
@@ -402,5 +429,11 @@ const Dashboard: React.FC = () => {
     </>
   );
 };
+
+const Dashboard: React.FC = () => (
+  <PrivacyModeProvider>
+    <DashboardInner />
+  </PrivacyModeProvider>
+);
 
 export default Dashboard;

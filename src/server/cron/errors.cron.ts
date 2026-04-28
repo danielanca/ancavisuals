@@ -11,7 +11,6 @@ export async function sendErrorsDigest(): Promise<void> {
     const snapshot = await firestore()
       .collection(ERRORS_COLLECTION)
       .where("seen", "==", false)
-      .orderBy("capturedAt", "desc")
       .limit(50)
       .get();
 
@@ -30,7 +29,7 @@ export async function sendErrorsDigest(): Promise<void> {
         page: data.page as string,
         capturedAt: (data.capturedAt as Timestamp)?.toDate(),
       };
-    });
+    }).sort((a, b) => (b.capturedAt?.getTime() ?? 0) - (a.capturedAt?.getTime() ?? 0));
 
     const errorCount = errors.filter((e) => e.severity === "error").length;
     const warnCount = errors.filter((e) => e.severity === "warn").length;

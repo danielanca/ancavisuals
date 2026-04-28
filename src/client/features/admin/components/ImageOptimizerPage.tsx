@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
+import Breadcrumb from "./Breadcrumb";
 import JSZip from "jszip";
 
 type FileStatus = "pending" | "processing" | "done" | "error";
@@ -242,6 +243,7 @@ export default function ImageOptimizerPage() {
   return (
     <div className="min-h-screen bg-neutral-950 text-white p-6">
       <div className="max-w-4xl mx-auto space-y-6">
+        <Breadcrumb />
 
         <div>
           <h1 className="text-xl font-semibold text-white">Optimizare poze — photos_preview</h1>

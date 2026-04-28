@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AdminSettings } from "../types";
 import AncaLoader from "../../../components/UI/AncaLoader";
+import Breadcrumb from "./Breadcrumb";
 
 const DEFAULT_SETTINGS: AdminSettings = {
   goals: {
@@ -94,15 +95,7 @@ const BankDetailsPage: React.FC = () => {
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-2xl mx-auto space-y-8">
         <div>
-          <button
-            onClick={() => navigate("/admin")}
-            className="flex items-center gap-1.5 text-neutral-500 hover:text-white text-sm transition-colors mb-5"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            Înapoi la dashboard
-          </button>
+          <Breadcrumb />
 
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Setări admin</p>
           <h1 className="text-white text-2xl font-light">Detalii bancare</h1>

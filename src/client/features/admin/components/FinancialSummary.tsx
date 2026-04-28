@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { ClientEvent } from "../types";
+import Redacted from "./Redacted";
 
 interface Props {
   events: ClientEvent[];
@@ -88,10 +89,10 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
         <p className="text-xs text-neutral-500 uppercase tracking-widest mb-2">Progres încasare</p>
         <div className="flex items-end justify-between mb-1.5">
           <div>
-            <span className="text-white text-xl font-light">{formatEUR(incasat)}</span>
+            <span className="text-white text-xl font-light"><Redacted>{formatEUR(incasat)}</Redacted></span>
             <span className="text-neutral-500 text-xs ml-2">încasat</span>
           </div>
-          <span className="text-neutral-400 text-sm">din {formatEUR(totalAn)}</span>
+          <span className="text-neutral-400 text-sm">din <Redacted>{formatEUR(totalAn)}</Redacted></span>
         </div>
         <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
           <div
@@ -106,11 +107,11 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
       <div className="grid grid-cols-2 gap-3 pt-1 border-t border-neutral-800">
         <div className="bg-neutral-800/50 rounded-xl px-4 py-3">
           <p className="text-xs text-neutral-500 mb-1">Bani primiți</p>
-          <p className="text-emerald-400 font-semibold">{formatEUR(incasat)}</p>
+          <p className="text-emerald-400 font-semibold"><Redacted>{formatEUR(incasat)}</Redacted></p>
         </div>
         <div className="bg-neutral-800/50 rounded-xl px-4 py-3">
           <p className="text-xs text-neutral-500 mb-1">Urmează să primești</p>
-          <p className="text-amber-400 font-semibold">{formatEUR(urmeaza)}</p>
+          <p className="text-amber-400 font-semibold"><Redacted>{formatEUR(urmeaza)}</Redacted></p>
         </div>
       </div>
 
@@ -138,7 +139,7 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
                     <h4 className="text-emerald-400 text-xs font-medium uppercase tracking-wider">
-                      Bani primiți — {formatEUR(incasat)}
+                      Bani primiți — <Redacted>{formatEUR(incasat)}</Redacted>
                     </h4>
                   </div>
                   <div className="space-y-1">
@@ -154,7 +155,7 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
                     <h4 className="text-amber-400 text-xs font-medium uppercase tracking-wider">
-                      Urmează să primești — {formatEUR(urmeaza)}
+                      Urmează să primești — <Redacted>{formatEUR(urmeaza)}</Redacted>
                     </h4>
                   </div>
                   <div className="space-y-1">
@@ -189,7 +190,7 @@ const FinancialSummaryRow: React.FC<{ row: FinancialRow; variant: "received" | "
   return (
     <div className="flex items-center justify-between py-2 border-b border-neutral-800/60 last:border-0">
       <div className="min-w-0">
-        <p className="text-white text-xs font-medium truncate">{event.client.fullName}</p>
+        <p className="text-white text-xs font-medium truncate"><Redacted>{event.client.fullName}</Redacted></p>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-neutral-500 text-xs">
             {event.eventDate ? formatDate(new Date(event.eventDate)) : ""}
@@ -198,7 +199,7 @@ const FinancialSummaryRow: React.FC<{ row: FinancialRow; variant: "received" | "
         </div>
       </div>
       <span className={`text-sm font-semibold shrink-0 ml-3 ${amountClass}`}>
-        {formatEUR(amount)}
+        <Redacted>{formatEUR(amount)}</Redacted>
       </span>
     </div>
   );

@@ -217,7 +217,8 @@ export default function MediaAlbumPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { auth } = useAuth();
 
-  const isModerationMode = auth.authorise && searchParams.get("mod") === "1";
+  const [moderationMode, setModerationMode] = useState(false);
+  const isModerationMode = moderationMode;
 
   const pageFromUrl = Number(searchParams.get("page") ?? "1");
 
@@ -247,6 +248,21 @@ export default function MediaAlbumPage() {
   const [moderationNote, setModerationNote] = useState("");
   const [submittingModeration, setSubmittingModeration] = useState(false);
   const [moderationSubmitResult, setModerationSubmitResult] = useState<string | null>(null);
+
+  type InstagramProposal = {
+    id: string;
+    photoUrl: string;
+    fileName: string;
+    proposedBy: string;
+    proposedAt: string;
+    status: "pending" | "posted" | "rejected";
+  };
+  const [igProposals, setIgProposals] = useState<InstagramProposal[]>([]);
+  const [igProposeMode, setIgProposeMode] = useState(false);
+  const [selectedIgPropose, setSelectedIgPropose] = useState<Set<string>>(new Set());
+  const [submittingIgPropose, setSubmittingIgPropose] = useState(false);
+  const [igProposeResult, setIgProposeResult] = useState<string | null>(null);
+  const [igUpdatingId, setIgUpdatingId] = useState<string | null>(null);
 
   const photosTopRef = useRef<HTMLDivElement | null>(null);
   const shareBoxRef = useRef<HTMLDivElement | null>(null);
@@ -673,6 +689,93 @@ export default function MediaAlbumPage() {
     }
   };
 
+  useEffect(() => {
+    if (!auth.authorise || !auth.accessToken || !slug) return;
+    fetch(`/api/instagram-proposals/album/${slug}`, {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((response) => response.json())
+      .then((data) => { if (data.proposals) setIgProposals(data.proposals); })
+      .catch(() => {});
+  }, [auth.authorise, auth.accessToken, slug]);
+
+  const toggleIgPhoto = (src: string) => {
+    const fileName = fileNameFromUrl(src);
+    setSelectedIgPropose((prev) => {
+      const next = new Set(prev);
+      next.has(fileName) ? next.delete(fileName) : next.add(fileName);
+      return next;
+    });
+  };
+
+  const submitIgProposals = async () => {
+    if (!slug || !auth.accessToken || selectedIgPropose.size === 0 || !album) return;
+    setSubmittingIgPropose(true);
+    try {
+      const photos = album.photos ?? [];
+      const toPropose = photos.filter((url) => selectedIgPropose.has(fileNameFromUrl(url)));
+      const results = await Promise.all(
+        toPropose.map((photoUrl) =>
+          fetch("/api/instagram-proposals", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+            body: JSON.stringify({ albumSlug: slug, photoUrl, fileName: fileNameFromUrl(photoUrl) }),
+          }).then((r) => r.json())
+        )
+      );
+      const added = results.filter((r) => r.ok && !r.alreadyProposed);
+      setIgProposals((prev) => [
+        ...added.map((r, i) => ({
+          id: r.id,
+          photoUrl: toPropose[i],
+          fileName: fileNameFromUrl(toPropose[i]),
+          proposedBy: auth.user?.email ?? "",
+          proposedAt: new Date().toISOString(),
+          status: "pending" as const,
+        })),
+        ...prev,
+      ]);
+      setIgProposeResult(`${added.length} ${added.length === 1 ? "poză propusă" : "poze propuse"} pentru Instagram.`);
+      setSelectedIgPropose(new Set());
+      setIgProposeMode(false);
+    } catch {
+    } finally {
+      setSubmittingIgPropose(false);
+    }
+  };
+
+  const updateIgStatus = async (id: string, status: "posted" | "rejected") => {
+    if (!auth.accessToken) return;
+    setIgUpdatingId(id);
+    try {
+      await fetch(`/api/instagram-proposals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({ status }),
+      });
+      setIgProposals((previous) => previous.map((proposal) => proposal.id === id ? { ...proposal, status } : proposal));
+    } catch {
+    } finally {
+      setIgUpdatingId(null);
+    }
+  };
+
+  const deleteIgProposal = async (id: string) => {
+    if (!auth.accessToken) return;
+    setIgUpdatingId(id);
+    try {
+      await fetch(`/api/instagram-proposals/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      setIgProposals((previous) => previous.filter((proposal) => proposal.id !== id));
+    } catch {
+    } finally {
+      setIgUpdatingId(null);
+    }
+  };
+
+
   const toggleModerationPhoto = (src: string) => {
     const filename = fileNameFromUrl(src);
     setSelectedModeration((previous) => {
@@ -721,7 +824,7 @@ export default function MediaAlbumPage() {
     <div className={styles.page}>
       <div className={styles.container}>
 
-        {slug && !isAdmin && !auth.authorise && (
+        {slug && !isAdmin && !auth.authorise && typeof window !== "undefined" && window.location.hostname !== "localhost" && (
           <MediaConsentModal slug={slug} onAccepted={() => setConsentGiven(true)} />
         )}
 
@@ -760,22 +863,11 @@ export default function MediaAlbumPage() {
           </button>
         )}
 
-        {showAdminButton && !isAdmin && (
+        {showAdminButton && !isAdmin && !auth.authorise && (
           <div className={styles.adminTempButton}>
             <button
               className={styles.adminTempBtn}
-              onClick={() => {
-                const input = prompt("Introdu parola pentru acces admin:");
-                if (input === "ankvisuals1994") {
-                  setAdminKey(input);
-                  setIsAdmin(true);
-                  localStorage.setItem(`adminKey_${slug}`, input);
-                  alert("🛡️ Acces admin activat!");
-                  window.location.reload();
-                } else if (input !== null) {
-                  alert("Parolă incorectă.");
-                }
-              }}
+              onClick={() => { window.location.href = `/login?redirect=/media/${slug}`; }}
             >
               🔑 Acces administrare
             </button>
@@ -801,11 +893,13 @@ export default function MediaAlbumPage() {
                 setIsAdmin(false);
                 setAdminKey("");
                 localStorage.removeItem(`adminKey_${slug}`);
-                alert("🔓 Mod admin dezactivat.");
+                window.location.reload();
+              } else if (auth.authorise) {
+                setIsAdmin(true);
+                localStorage.setItem(`adminKey_${slug}`, "firebase");
                 window.location.reload();
               } else {
                 setShowAdminButton(true);
-                alert("🔓 Butonul de acces admin a apărut mai sus!");
               }
               adminWindow.adminClickCount = 0;
             }
@@ -882,26 +976,78 @@ export default function MediaAlbumPage() {
           </>
         )}
 
-        {isModerationMode && (
+        {auth.authorise && mode === "none" && (
+          <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#0d0d1f", border: "1px solid #3730a3", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ color: "#a5b4fc", fontWeight: 600, fontSize: "13px", margin: 0 }}>📸 Propune poze pentru Instagram</p>
+              {igProposeResult && <p style={{ color: "#4ade80", fontSize: "12px", margin: "2px 0 0" }}>{igProposeResult}</p>}
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              {igProposals.filter((p) => p.status === "pending").length > 0 && (
+                <span style={{ background: "#312e81", color: "#a5b4fc", fontSize: "12px", fontWeight: 600, padding: "4px 12px", borderRadius: "999px", whiteSpace: "nowrap" }}>
+                  {igProposals.filter((p) => p.status === "pending").length} propuse
+                </span>
+              )}
+              {igProposeMode ? (
+                <>
+                  <button
+                    onClick={submitIgProposals}
+                    disabled={submittingIgPropose || selectedIgPropose.size === 0}
+                    style={{ padding: "6px 14px", background: selectedIgPropose.size > 0 ? "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)" : "#1e1b4b", border: "none", borderRadius: "6px", color: selectedIgPropose.size > 0 ? "#fff" : "#4338ca", fontSize: "13px", fontWeight: 600, cursor: selectedIgPropose.size > 0 ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
+                  >
+                    {submittingIgPropose ? "Se trimite..." : `Trimite propunere (${selectedIgPropose.size})`}
+                  </button>
+                  <button
+                    onClick={() => { setIgProposeMode(false); setSelectedIgPropose(new Set()); }}
+                    style={{ padding: "6px 12px", background: "none", border: "1px solid #3730a3", borderRadius: "6px", color: "#6366f1", fontSize: "13px", cursor: "pointer" }}
+                  >
+                    Anulează
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setModerationMode(false); setSelectedModeration(new Set()); }}
+                  style={{ padding: "6px 14px", background: "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Selectează poze
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {auth.authorise && mode === "none" && (
           <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#1c1200", border: "1px solid #92400e", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
             <div>
-              <p style={{ color: "#fbbf24", fontWeight: 600, fontSize: "13px", margin: 0 }}>Mod moderare activ</p>
-              <p style={{ color: "#92400e", fontSize: "12px", margin: "2px 0 0" }}>
-                Selectează pozele care crezi că trebuie șterse din album, apoi trimite spre moderare.
-              </p>
+              <p style={{ color: "#fbbf24", fontWeight: 600, fontSize: "13px", margin: 0 }}>🗑️ Propune poze pentru ștergere</p>
+              {moderationSubmitResult && <p style={{ color: "#4ade80", fontSize: "12px", margin: "2px 0 0" }}>{moderationSubmitResult}</p>}
             </div>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {moderationSubmitResult && (
-                <p style={{ color: "#4ade80", fontSize: "12px", alignSelf: "center" }}>{moderationSubmitResult}</p>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              {moderationMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowModerationSubmitModal(true)}
+                    disabled={selectedModeration.size === 0}
+                    style={{ padding: "6px 14px", background: selectedModeration.size > 0 ? "#d97706" : "#374151", border: "none", borderRadius: "6px", color: selectedModeration.size > 0 ? "#fff" : "#6b7280", fontSize: "13px", fontWeight: 600, cursor: selectedModeration.size > 0 ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
+                  >
+                    {`Trimite spre moderare (${selectedModeration.size})`}
+                  </button>
+                  <button
+                    onClick={() => { setModerationMode(false); setSelectedModeration(new Set()); }}
+                    style={{ padding: "6px 12px", background: "none", border: "1px solid #92400e", borderRadius: "6px", color: "#d97706", fontSize: "13px", cursor: "pointer" }}
+                  >
+                    Anulează
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { setModerationMode(true); setIgProposeMode(false); setSelectedIgPropose(new Set()); }}
+                  style={{ padding: "6px 14px", background: "#d97706", border: "none", borderRadius: "6px", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Selectează poze
+                </button>
               )}
-              <button
-                type="button"
-                onClick={() => setShowModerationSubmitModal(true)}
-                disabled={selectedModeration.size === 0}
-                style={{ padding: "8px 14px", background: selectedModeration.size > 0 ? "#d97706" : "#374151", border: "none", borderRadius: "6px", color: selectedModeration.size > 0 ? "#fff" : "#6b7280", fontSize: "13px", fontWeight: 600, cursor: selectedModeration.size > 0 ? "pointer" : "not-allowed" }}
-              >
-                Trimite spre moderare ({selectedModeration.size})
-              </button>
             </div>
           </div>
         )}
@@ -985,7 +1131,19 @@ export default function MediaAlbumPage() {
             />
 
             <div className={styles.photosScroller}>
-              {isModerationMode && mode === "none" ? (
+              {igProposeMode && mode === "none" ? (
+                <BunnyPhotoGallery
+                  key={`${slug}:${safePage}:ig`}
+                  photos={galleryPhotos}
+                  orgPhoto={galleryOrgPhotos}
+                  variant="plain"
+                  selectable={true}
+                  selected={selectedIgPropose}
+                  getKey={fileNameFromUrl}
+                  onToggle={toggleIgPhoto}
+                  mobileColumns={mobileColumns}
+                />
+              ) : isModerationMode && mode === "none" ? (
                 <BunnyPhotoGallery
                   key={`${slug}:${safePage}:mod`}
                   photos={galleryPhotos}
@@ -1198,6 +1356,79 @@ export default function MediaAlbumPage() {
         </div>}
       </div>
     </div>
+
+    {auth.authorise && igProposals.length > 0 && (
+      <div style={{ background: "#0a0a0a", borderTop: "1px solid #1a1a1a", padding: "32px 32px 48px", marginTop: "16px" }}>
+        <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+            <span style={{ fontSize: "18px" }}>📸</span>
+            <h2 style={{ color: "#fff", fontSize: "16px", fontWeight: 500, margin: 0 }}>
+              Propuneri Instagram
+            </h2>
+            <span style={{ background: "#831843", color: "#fda4af", fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "999px" }}>
+              {igProposals.filter((proposal) => proposal.status === "pending").length} în așteptare
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" }}>
+            {igProposals.map((proposal) => (
+              <div key={proposal.id} style={{ position: "relative", borderRadius: "10px", overflow: "hidden", border: "1px solid #222", background: "#111" }}>
+                <img
+                  src={proposal.photoUrl}
+                  alt={proposal.fileName}
+                  style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
+                  loading="lazy"
+                />
+                <div style={{ padding: "8px 10px" }}>
+                  <p style={{ color: "#aaa", fontSize: "11px", margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {proposal.proposedBy}
+                  </p>
+                  <span style={{
+                    display: "inline-block",
+                    fontSize: "10px",
+                    fontWeight: 600,
+                    padding: "2px 7px",
+                    borderRadius: "999px",
+                    background: proposal.status === "posted" ? "#14532d" : proposal.status === "rejected" ? "#450a0a" : "#1e1b4b",
+                    color: proposal.status === "posted" ? "#4ade80" : proposal.status === "rejected" ? "#f87171" : "#a5b4fc",
+                  }}>
+                    {proposal.status === "posted" ? "Postat" : proposal.status === "rejected" ? "Respins" : "În așteptare"}
+                  </span>
+                </div>
+                {auth.user?.email === "ancadaniel1994@gmail.com" && (
+                  <div style={{ display: "flex", gap: "4px", padding: "0 10px 10px" }}>
+                    {proposal.status !== "posted" && (
+                      <button
+                        onClick={() => updateIgStatus(proposal.id, "posted")}
+                        disabled={igUpdatingId === proposal.id}
+                        style={{ flex: 1, padding: "4px 0", fontSize: "10px", background: "#166534", color: "#4ade80", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
+                      >
+                        Postat
+                      </button>
+                    )}
+                    {proposal.status !== "rejected" && (
+                      <button
+                        onClick={() => updateIgStatus(proposal.id, "rejected")}
+                        disabled={igUpdatingId === proposal.id}
+                        style={{ flex: 1, padding: "4px 0", fontSize: "10px", background: "#450a0a", color: "#f87171", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
+                      >
+                        Respins
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteIgProposal(proposal.id)}
+                      disabled={igUpdatingId === proposal.id}
+                      style={{ padding: "4px 8px", fontSize: "10px", background: "#1a1a1a", color: "#555", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
 
     {showModerationSubmitModal && (
       <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "16px" }}>

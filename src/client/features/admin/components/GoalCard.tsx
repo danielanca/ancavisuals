@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Goal, ClientEvent } from "../types";
+import Redacted from "./Redacted";
 
 interface GoalUpdate {
   targetRevenue: number;
@@ -184,9 +185,9 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
 
       <div>
         <div className="flex items-end justify-between mb-1.5">
-          <span className="text-white text-xl font-light">{formatEUR(revenueRealized)}</span>
+          <span className="text-white text-xl font-light"><Redacted>{formatEUR(revenueRealized)}</Redacted></span>
           {!editing && (
-            <span className="text-neutral-400 text-sm">din {formatEUR(goal.targetRevenue)}</span>
+            <span className="text-neutral-400 text-sm">din <Redacted>{formatEUR(goal.targetRevenue)}</Redacted></span>
           )}
         </div>
 
@@ -207,13 +208,13 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
             {received > 0 && (
               <span className="text-xs text-emerald-400 flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                {formatEUR(received)} primit
+                <Redacted>{formatEUR(received)}</Redacted> primit
               </span>
             )}
             {upcoming > 0 && (
               <span className="text-xs text-amber-400 flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
-                {formatEUR(upcoming)} rezervat
+                <Redacted>{formatEUR(upcoming)}</Redacted> rezervat
               </span>
             )}
           </div>
