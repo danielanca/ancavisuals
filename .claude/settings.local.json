@@ -17,7 +17,10 @@
       "Bash(kill 47966 *)",
       "Bash(mkdir -p /Users/daniel.anca/IdeaProjects/ancavisuals/ancavisuals/src/server/middleware)",
       "Bash(mkdir -p /Users/daniel.anca/IdeaProjects/ancavisuals/ancavisuals/src/client/features/admin/components/Moderation)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git stash *)",
+      "Bash(git ls-remote *)"
     ]
   }
 }
