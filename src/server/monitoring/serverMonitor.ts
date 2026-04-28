@@ -20,7 +20,15 @@ function serializeArg(arg: unknown): string {
   return String(arg);
 }
 
-async function saveError(severity: Severity, message: string, source: Source, stack = "", page = ""): Promise<void> {
+async function saveError(
+  severity: Severity,
+  message: string,
+  source: Source,
+  stack = "",
+  page = "",
+  ip?: string,
+  geo?: { city?: string; region?: string; country?: string },
+): Promise<void> {
   try {
     await firestore().collection(ERRORS_COLLECTION).add({
       message,
@@ -28,6 +36,8 @@ async function saveError(severity: Severity, message: string, source: Source, st
       source,
       severity,
       page,
+      ...(ip ? { ip } : {}),
+      ...(geo ? { geo } : {}),
       seen: false,
       capturedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -42,8 +52,14 @@ function capture(severity: Severity, args: unknown[]): void {
   saveError(severity, message, "server").catch(() => {});
 }
 
-export function captureClientError(message: string, stack: string, page: string): void {
-  saveError("error", message, "client", stack, page).catch(() => {});
+export function captureClientError(
+  message: string,
+  stack: string,
+  page: string,
+  ip?: string,
+  geo?: { city?: string; region?: string; country?: string },
+): void {
+  saveError("error", message, "client", stack, page, ip, geo).catch(() => {});
 }
 
 async function sendCrashEmail(message: string): Promise<void> {

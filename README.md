@@ -44,6 +44,25 @@ The runtime entrypoint is [`server.ts`](/Users/daniel.anca/IdeaProjects/ancavisu
 - Calendar-style overview of booked dates
 - Admin event settings and revenue goals
 
+### Instagram Proposals
+
+Logged-in users (family members or collaborators with Firebase accounts) can propose photos from a delivered album for Instagram posting.
+
+- A 📸 button appears on hover over each photo when viewing an album while authenticated
+- Clicking it saves the photo as a proposal in the `instagramProposals` Firestore collection with `pending` status
+- The proposal is attributed to the logged-in user's email
+- A proposals panel appears at the bottom of the album page, visible only to authenticated users
+- The supreme admin can mark each proposal as **Postat** or **Respins**, or delete it
+
+API routes (all require Firebase auth):
+
+- `POST /api/instagram-proposals` — create a proposal
+- `GET /api/instagram-proposals/album/:slug` — list proposals for an album
+- `PATCH /api/instagram-proposals/:id` — update status (supreme admin only)
+- `DELETE /api/instagram-proposals/:id` — delete a proposal (supreme admin only)
+
+To give a family member access, create a Firebase account for them from the Firebase Console and share the album link.
+
 ### Backend integrations
 
 - Firebase / Firestore for auth and admin data
@@ -275,3 +294,4 @@ Recommended setup:
 - Replaced the inherited template README with project-specific documentation
 - Added setup, scripts, architecture, route overview, and deployment notes
 - Documented the main product flows present in this repository
+- Added Instagram Proposals feature for authenticated family/collaborator users

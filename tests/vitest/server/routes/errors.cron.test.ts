@@ -24,10 +24,8 @@ async function loadErrorsCron() {
     firestore: () => ({
       collection: vi.fn(() => ({
         where: vi.fn(() => ({
-          orderBy: vi.fn(() => ({
-            limit: vi.fn(() => ({
-              get: whereMock,
-            })),
+          limit: vi.fn(() => ({
+            get: whereMock,
           })),
         })),
       })),

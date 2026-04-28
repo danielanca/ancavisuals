@@ -63,6 +63,11 @@ async function loadMonitoringRouter() {
     ERRORS_COLLECTION: "serverErrors",
   }));
 
+  vi.doMock("src/server/utils/ipinfo", () => ({
+    getClientIp: vi.fn().mockReturnValue(""),
+    fetchIpInfo: vi.fn().mockResolvedValue(null),
+  }));
+
   vi.doMock("firebase-admin/firestore", () => ({
     Timestamp: {
       fromDate: (d: Date) => ({ toDate: () => d }),
@@ -114,6 +119,8 @@ describe("monitoring.routes", () => {
         "TypeError: Cannot read property",
         "at App.tsx:42",
         "/gallery",
+        undefined,
+        undefined,
       );
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
@@ -196,6 +203,8 @@ describe("monitoring.routes", () => {
             severity: "error",
             page: "/gallery",
             seen: false,
+            ip: null,
+            geo: null,
             capturedAt: new Date("2026-04-20T10:00:00.000Z").toISOString(),
           },
         ],

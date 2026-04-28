@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../../auth/useAuth";
+import Breadcrumb from "../Breadcrumb";
 
 type ProposedPhoto = {
   filename: string;
@@ -106,13 +107,9 @@ export default function ModerationReviewPage() {
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-4xl mx-auto space-y-6">
 
+        <Breadcrumb />
+
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/admin")}
-            className="text-neutral-500 hover:text-white transition-colors text-sm"
-          >
-            ← Înapoi
-          </button>
           <h1 className="text-white text-xl font-light tracking-tight">Propuneri de moderare</h1>
         </div>
 

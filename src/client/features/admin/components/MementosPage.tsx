@@ -1,5 +1,6 @@
 import React, { useReducer, useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import Breadcrumb from "./Breadcrumb";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 import AncaLoader from "../../../components/UI/AncaLoader";
 
@@ -161,13 +162,7 @@ export default function MementosPage() {
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-2xl mx-auto space-y-6">
 
-        <nav className="flex items-center gap-2 text-sm">
-          <button onClick={() => navigate("/admin")} className="text-neutral-500 hover:text-white transition-colors">
-            Dashboard
-          </button>
-          <span className="text-neutral-700">/</span>
-          <span className="text-neutral-300">MementoUri</span>
-        </nav>
+        <Breadcrumb />
 
         <div className="flex items-center justify-between">
           <div>

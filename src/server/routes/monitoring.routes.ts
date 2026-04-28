@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { captureClientError, ERRORS_COLLECTION } from "../monitoring/serverMonitor";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
+import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 
 const router = Router();
 
@@ -37,7 +38,13 @@ router.post("/client-error", async (req: Request, res: Response) => {
       return;
     }
 
-    captureClientError(message, stack, page);
+    const ip = getClientIp(req);
+    const geoData = await fetchIpInfo(ip).catch(() => null);
+    const geo = geoData
+      ? { city: geoData.city, region: geoData.region, country: geoData.country }
+      : undefined;
+
+    captureClientError(message, stack, page, ip || undefined, geo);
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "failed" });
@@ -63,6 +70,8 @@ router.get("/errors", async (_req: Request, res: Response) => {
         severity: data.severity,
         page: data.page,
         seen: data.seen,
+        ip: data.ip ?? null,
+        geo: data.geo ?? null,
         capturedAt: (data.capturedAt as Timestamp)?.toDate().toISOString() ?? null,
       };
     });

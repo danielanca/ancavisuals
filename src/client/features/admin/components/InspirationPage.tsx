@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 import { useNavigate } from "react-router-dom";
+import Breadcrumb from "./Breadcrumb";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { storage } from "../../../firebase";
 import AncaLoader from "../../../components/UI/AncaLoader";
@@ -231,17 +232,7 @@ export default function InspirationPage() {
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-5xl mx-auto space-y-6">
 
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm">
-          <button
-            onClick={() => navigate("/admin")}
-            className="text-neutral-500 hover:text-white transition-colors"
-          >
-            Dashboard
-          </button>
-          <span className="text-neutral-700">/</span>
-          <span className="text-neutral-300">Inspirație Foto</span>
-        </nav>
+        <Breadcrumb />
 
         {/* Header */}
         <div className="flex items-center justify-between">

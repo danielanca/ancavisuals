@@ -28,11 +28,11 @@ import moderationRouter from "./src/server/routes/moderation.routes";
 import inspirationProposalsRouter from "./src/server/routes/inspiration-proposals.routes";
 import routeSheetsRouter from "./src/server/routes/routeSheets.routes";
 import monitoringRouter from "./src/server/routes/monitoring.routes";
-import routeSheetsRouter from "./src/server/routes/routeSheets.routes";
 import expensesRouter from "./src/server/routes/expenses.routes";
 import invoicesRouter from "./src/server/routes/invoices.routes";
 import loginEventsRouter from "./src/server/routes/loginEvents.routes";
 import landingRouter from "./src/server/routes/landing.routes";
+import instagramProposalsRouter from "./src/server/routes/instagramProposals.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
@@ -146,6 +146,7 @@ async function createServer() {
   app.use("/api/admin", invoicesRouter);
   app.use("/api", loginEventsRouter);
   app.use("/api/admin/landing", landingRouter);
+  app.use("/api/instagram-proposals", instagramProposalsRouter);
 
   startServerMonitor();
   startMementosCron();

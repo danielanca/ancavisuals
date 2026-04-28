@@ -1,5 +1,6 @@
 import React, { useEffect, useReducer, useMemo, useState } from "react";
 import AncaLoader from "../../../components/UI/AncaLoader";
+import Breadcrumb from "./Breadcrumb";
 
 interface ServerError {
   id: string;
@@ -9,6 +10,8 @@ interface ServerError {
   severity: "error" | "warn";
   page: string;
   seen: boolean;
+  ip: string | null;
+  geo: { city?: string; region?: string; country?: string } | null;
   capturedAt: string | null;
 }
 
@@ -99,6 +102,7 @@ export default function ErrorsPage() {
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-5xl mx-auto space-y-6">
+        <Breadcrumb />
 
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -203,6 +207,20 @@ function ErrorRow({ error, expanded, onToggle }: { error: ServerError; expanded:
 
       {expanded && (
         <div className="px-4 pb-4 border-t border-neutral-800">
+          {error.source === "client" && (error.ip || error.geo) && (
+            <div className="mt-3 flex flex-wrap gap-3 text-xs">
+              {error.ip && (
+                <span className="bg-neutral-800 text-neutral-300 px-2 py-1 rounded font-mono">
+                  IP: {error.ip}
+                </span>
+              )}
+              {error.geo && (
+                <span className="bg-neutral-800 text-neutral-300 px-2 py-1 rounded">
+                  📍 {[error.geo.city, error.geo.region, error.geo.country].filter(Boolean).join(", ")}
+                </span>
+              )}
+            </div>
+          )}
           <pre className="mt-3 text-xs text-neutral-400 font-mono whitespace-pre-wrap break-words leading-relaxed bg-neutral-950 rounded-lg p-3 overflow-auto max-h-64">
             {[error.message, error.stack].filter(Boolean).join("\n\n")}
           </pre>
