@@ -141,7 +141,6 @@ async function createServer() {
   app.use("/api/admin/route-sheets", routeSheetsRouter);
   app.use("/api/monitoring", monitoringRouter);
   app.use("/api/admin/monitoring", monitoringRouter);
-  app.use("/api/admin", routeSheetsRouter);
   app.use("/api/admin", expensesRouter);
   app.use("/api/admin", invoicesRouter);
   app.use("/api", loginEventsRouter);

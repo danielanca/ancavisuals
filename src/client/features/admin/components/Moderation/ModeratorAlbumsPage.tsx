@@ -35,7 +35,7 @@ export default function ModeratorAlbumsPage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-white text-xl font-light tracking-tight">Moderare albume</h1>
-            <p className="text-neutral-500 text-xs mt-1">{auth.user?.email}</p>
+            <p className="text-emerald-400 text-xs mt-1">{auth.user?.email}</p>
           </div>
           <button
             onClick={handleLogout}

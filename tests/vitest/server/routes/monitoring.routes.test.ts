@@ -68,6 +68,11 @@ async function loadMonitoringRouter() {
     fetchIpInfo: vi.fn().mockResolvedValue(null),
   }));
 
+  vi.doMock("src/server/middleware/requireFirebaseAuth", () => ({
+    requireFirebaseAuth: (_req: any, _res: any, next: any) => next(),
+    requireSupremeAdmin: (_req: any, _res: any, next: any) => next(),
+  }));
+
   vi.doMock("firebase-admin/firestore", () => ({
     Timestamp: {
       fromDate: (d: Date) => ({ toDate: () => d }),
@@ -82,7 +87,7 @@ async function loadMonitoringRouter() {
       (entry: any) => entry.route?.path === path && entry.route.methods?.[method]
     );
     if (!layer) throw new Error(`Missing ${method.toUpperCase()} handler for ${path}`);
-    return layer.route.stack[0].handle;
+    return layer.route.stack[layer.route.stack.length - 1].handle;
   };
 
   return {

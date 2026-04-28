@@ -3,6 +3,7 @@ import { captureClientError, ERRORS_COLLECTION } from "../monitoring/serverMonit
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
+import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 
 const router = Router();
 
@@ -52,7 +53,7 @@ router.post("/client-error", async (req: Request, res: Response) => {
 });
 
 // Admin — listează erori
-router.get("/errors", async (_req: Request, res: Response) => {
+router.get("/errors", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const snapshot = await firestore()
       .collection(ERRORS_COLLECTION)
@@ -83,7 +84,7 @@ router.get("/errors", async (_req: Request, res: Response) => {
 });
 
 // Admin — număr erori nevăzute (pentru badge)
-router.get("/errors/unseen-count", async (_req: Request, res: Response) => {
+router.get("/errors/unseen-count", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const snapshot = await firestore()
       .collection(ERRORS_COLLECTION)
@@ -98,7 +99,7 @@ router.get("/errors/unseen-count", async (_req: Request, res: Response) => {
 });
 
 // Admin — marchează toate ca văzute
-router.patch("/errors/mark-seen", async (_req: Request, res: Response) => {
+router.patch("/errors/mark-seen", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const snapshot = await firestore()
       .collection(ERRORS_COLLECTION)
