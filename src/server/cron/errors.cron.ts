@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { firestore } from "../firestore";
-import { Timestamp } from "firebase-admin/firestore";
+import type { Timestamp } from "firebase-admin/firestore";
 import { sendEmail } from "../notifications/mailer";
 import { ERRORS_COLLECTION } from "../monitoring/serverMonitor";
 

@@ -58,6 +58,7 @@ type MementoAction =
   | { type: "SET"; mementos: Memento[] }
   | { type: "ADD"; memento: Memento }
   | { type: "TOGGLE"; id: string }
+  | { type: "UPDATE"; id: string; updates: Partial<Memento> }
   | { type: "DELETE"; id: string };
 
 function mementosReducer(state: Memento[], action: MementoAction): Memento[] {
@@ -70,6 +71,10 @@ function mementosReducer(state: Memento[], action: MementoAction): Memento[] {
       );
     case "TOGGLE":
       return state.map((m) => m.id === action.id ? { ...m, completed: !m.completed } : m);
+    case "UPDATE":
+      return state
+        .map((m) => m.id === action.id ? { ...m, ...action.updates } : m)
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
     case "DELETE":
       return state.filter((m) => m.id !== action.id);
   }
@@ -104,26 +109,37 @@ function useMementos() {
 
   const addMemento = (memento: Memento) => dispatch({ type: "ADD", memento });
 
+  const updateMemento = async (id: string, updates: Partial<Memento>) => {
+    dispatch({ type: "UPDATE", id, updates });
+    const body: Record<string, unknown> = { ...updates };
+    await fetch(`/api/admin/mementos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  };
+
   const reload = () =>
     fetch("/api/admin/mementos")
       .then((r) => r.json())
       .then((d) => dispatch({ type: "SET", mementos: d.mementos ?? [] }));
 
-  return { mementos, loading, toggleComplete, deleteMemento, addMemento, reload };
+  return { mementos, loading, toggleComplete, deleteMemento, addMemento, updateMemento, reload };
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MementosPage() {
   const navigate = useNavigate();
-  const { mementos, loading, toggleComplete, deleteMemento, addMemento, reload } = useMementos();
+  const { mementos, loading, toggleComplete, deleteMemento, addMemento, updateMemento, reload } = useMementos();
 
   const [filter, setFilter] = useState<"all" | "ancavisuals" | "personal">("all");
   const [showCompleted, setShowCompleted] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  useBodyScrollLock(showAdd || confirmDeleteId !== null);
+  const [editingMemento, setEditingMemento] = useState<Memento | null>(null);
+  useBodyScrollLock(showAdd || confirmDeleteId !== null || editingMemento !== null);
 
   const now = useMemo(() => new Date(), []);
 
@@ -222,19 +238,19 @@ export default function MementosPage() {
 
         {overdue.length > 0 && (
           <Section title="Depășite" accent="text-red-400">
-            {overdue.map((m) => <MementoCard key={m.id} memento={m} onToggle={toggleComplete} onDelete={setConfirmDeleteId} />)}
+            {overdue.map((m) => <MementoCard key={m.id} memento={m} onToggle={toggleComplete} onDelete={setConfirmDeleteId} onEdit={setEditingMemento} />)}
           </Section>
         )}
 
         {upcoming.length > 0 && (
           <Section title="Urmează">
-            {upcoming.map((m) => <MementoCard key={m.id} memento={m} onToggle={toggleComplete} onDelete={setConfirmDeleteId} />)}
+            {upcoming.map((m) => <MementoCard key={m.id} memento={m} onToggle={toggleComplete} onDelete={setConfirmDeleteId} onEdit={setEditingMemento} />)}
           </Section>
         )}
 
         {showCompleted && completed.length > 0 && (
           <Section title="Rezolvate" accent="text-neutral-600">
-            {completed.map((m) => <MementoCard key={m.id} memento={m} onToggle={toggleComplete} onDelete={setConfirmDeleteId} />)}
+            {completed.map((m) => <MementoCard key={m.id} memento={m} onToggle={toggleComplete} onDelete={setConfirmDeleteId} onEdit={setEditingMemento} />)}
           </Section>
         )}
 
@@ -274,6 +290,14 @@ export default function MementosPage() {
           onAdded={(m) => { addMemento(m); setShowAdd(false); }}
         />
       )}
+
+      {editingMemento && (
+        <EditMementoModal
+          memento={editingMemento}
+          onClose={() => setEditingMemento(null)}
+          onSaved={(updates) => { updateMemento(editingMemento.id, updates); setEditingMemento(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -293,10 +317,11 @@ function Section({ title, accent = "text-neutral-400", children }: {
   );
 }
 
-function MementoCard({ memento, onToggle, onDelete }: {
+function MementoCard({ memento, onToggle, onDelete, onEdit }: {
   memento: Memento;
   onToggle: (m: Memento) => void;
   onDelete: (id: string) => void;
+  onEdit: (m: Memento) => void;
 }) {
   const dueDate = new Date(memento.dueDate);
   const isOverdue = !memento.completed && dueDate < new Date();
@@ -355,12 +380,24 @@ function MementoCard({ memento, onToggle, onDelete }: {
         </p>
       </div>
 
-      <button
-        onClick={() => onDelete(memento.id)}
-        className="text-neutral-700 hover:text-red-400 transition-colors text-lg leading-none"
-      >
-        ✕
-      </button>
+      <div className="flex flex-col gap-2 shrink-0">
+        <button
+          onClick={() => onEdit(memento)}
+          className="text-neutral-600 hover:text-white transition-colors"
+          title="Editează"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+        </button>
+        <button
+          onClick={() => onDelete(memento.id)}
+          className="text-neutral-700 hover:text-red-400 transition-colors text-lg leading-none"
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }
@@ -528,6 +565,129 @@ function AddMementoModal({ onClose, onAdded }: {
             </select>
           </div>
 
+          <div>
+            <p className="text-neutral-500 text-xs uppercase tracking-wide mb-1.5">Recurență</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(["none", "weekly", "monthly", "yearly"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => set("recurring")(r)}
+                  className={`py-2 rounded-lg text-xs font-medium transition-colors ${
+                    form.recurring === r ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  {RECURRING_LABELS[r]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {error && <p className="text-red-400 text-xs">{error}</p>}
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-700 text-neutral-300 text-sm hover:border-neutral-500 transition-colors">
+            Anulează
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 disabled:opacity-40 transition-colors"
+          >
+            {saving ? "Se salvează..." : "Salvează"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditMementoModal({ memento, onClose, onSaved }: {
+  memento: Memento;
+  onClose: () => void;
+  onSaved: (updates: Partial<Memento>) => void;
+}) {
+  useBodyScrollLock(true);
+  const [form, setForm] = useState<AddForm>({
+    title: memento.title,
+    description: memento.description ?? "",
+    dueDate: memento.dueDate.slice(0, 16),
+    category: memento.category,
+    reminderMinutesBefore: memento.reminderMinutesBefore,
+    recurring: memento.recurring,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = <K extends keyof AddForm>(key: K) => (value: AddForm[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
+  const handleSave = async () => {
+    if (!form.title.trim() || !form.dueDate) { setError("Completează titlul și data."); return; }
+    setSaving(true);
+    setError("");
+    const res = await fetch(`/api/admin/mementos/${memento.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, title: form.title.trim(), description: form.description.trim() }),
+    });
+    if (!res.ok) { setError("Eroare la salvare."); setSaving(false); return; }
+    onSaved({ ...form, title: form.title.trim(), description: form.description.trim() });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-white text-base font-semibold">Editează memento</h2>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white text-lg">✕</button>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            className="w-full bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-2.5 outline-none focus:border-violet-500 transition-colors placeholder-neutral-600"
+            placeholder="Titlu *"
+            value={form.title}
+            onChange={(e) => set("title")(e.target.value)}
+          />
+          <textarea
+            className="w-full bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors resize-none placeholder-neutral-600"
+            rows={2}
+            placeholder="Descriere (opțional)"
+            value={form.description}
+            onChange={(e) => set("description")(e.target.value)}
+          />
+          <input
+            type="datetime-local"
+            className="w-full bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-2.5 outline-none focus:border-violet-500 transition-colors"
+            value={form.dueDate}
+            onChange={(e) => set("dueDate")(e.target.value)}
+          />
+          <div className="flex gap-2">
+            {(["ancavisuals", "personal"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => set("category")(c)}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  form.category === c ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"
+                }`}
+              >
+                {CATEGORY_LABELS[c]}
+              </button>
+            ))}
+          </div>
+          <div>
+            <p className="text-neutral-500 text-xs uppercase tracking-wide mb-1.5">Reamintire email</p>
+            <select
+              value={form.reminderMinutesBefore}
+              onChange={(e) => set("reminderMinutesBefore")(Number(e.target.value))}
+              className="w-full bg-neutral-800 text-white text-sm border border-neutral-700 rounded-lg px-3 py-2.5 outline-none focus:border-violet-500 transition-colors"
+            >
+              {REMINDER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <p className="text-neutral-500 text-xs uppercase tracking-wide mb-1.5">Recurență</p>
             <div className="grid grid-cols-4 gap-1.5">

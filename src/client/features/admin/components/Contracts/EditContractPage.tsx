@@ -59,7 +59,6 @@ function convertAmount(amount: number, currency: string, eurRate: number): strin
 }
 
 function populateServices(saved: SavedService[]): ServiceEntry[] {
-  const defaultLabels = new Set(DEFAULT_SERVICES.map((s) => s.label));
   return DEFAULT_SERVICES.map((s) => {
     const match = saved.find((cs) => cs.label === s.label);
     if (match) {

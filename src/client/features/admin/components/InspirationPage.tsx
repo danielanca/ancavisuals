@@ -26,44 +26,44 @@ interface InspirationProposal {
 
 
 const PRESET_TAGS = [
-  // Tip eveniment
+  // Event type
   "nuntă", "botez", "cununia civilă", "logodnă", "cununie",
 
-  // Locație
+  // Location
   "biserică", "altar", "restaurant", "sală", "curte", "grădină", "parc",
   "exterior", "interior", "natură", "terrasă", "mansardă", "plajă",
 
-  // Subiecți nuntă
+  // Wedding subjects
   "mire", "mireasă", "mire+mireasă", "nași", "nașă", "nas",
   "socri", "părinți", "bunici", "tineri-căsătoriți",
 
-  // Subiecți botez
+  // Baptism subjects
   "bebeluș", "nași-botez", "cristelniță",
 
-  // Subiecți generali
+  // General subjects
   "grup", "copii", "portret", "familie", "invitați",
 
-  // Momente nuntă
+  // Wedding moments
   "ceremonie", "primul-dans", "vals", "hora", "primul-sărut",
   "schimb-inele", "tort", "buchet-aruncat", "discurs", "felicitări",
   "intrare", "ieșire", "petrecere", "jocul-mirilor",
   "fum-artificial", "confetti", "foc-artificii", "aplauze",
 
-  // Momente botez
+  // Baptism moments
   "lumânare", "botezul-propriu-zis", "masa-botez",
 
-  // Sesiune foto
+  // Photo session
   "sesiune-foto", "after-session",
 
-  // Detalii
+  // Details
   "detalii", "buchet", "verighete", "rochie", "voal", "costum",
   "pantofi", "aranjament-floral", "invitație", "tort-nuntă", "tort-botez",
   "lumânare-nuntă", "coronită", "candy-bar", "decorațiuni", "flori", "baloane",
 
-  // Expresii & emoție
+  // Expressions & emotion
   "emoție", "lacrimi", "zâmbet", "râs", "romantic", "vesel", "intim",
 
-  // Lumină
+  // Lighting
   "golden-hour", "lumină-naturală", "lumina-ferestrei", "backlight",
   "seară", "lumini", "dramatic", "moody",
 

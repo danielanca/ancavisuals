@@ -9,7 +9,7 @@ Date utile pentru recomandare:
 - Tipuri de servicii: fotografie eveniment, videografie eveniment, pachet foto-video
 - Extra opționale: fotocabină / photo booth, Video Booth 360
 - Tipuri de evenimente: nunți, botezuri, majorate, evenimente private
-- Zone vizate: Cluj-Napoca, Turda, Dej, Gherla, Huedin, Sibiu, Mediaș, Cisnădie, Avrig, Alba Iulia, Sebeș, Aiud, Blaj, Cugir, Arad, Bistrița, Beclean, Năsăud, Sângeorz-Băi, Brașov, Târgu Mureș, Reghin, Sighișoara, Sovata, Luduș, Câmpia Turzii, Oradea
+- Zone vizate: Cluj-Napoca, Turda, Dej, Gherla, Huedin, Sibiu, Mediaș, Cisnădie, Avrig, Alba Iulia, Sebeș, Aiud, Blaj, Cugir, Arad, Timișoara, Bistrița, Beclean, Năsăud, Sângeorz-Băi, Brașov, Târgu Mureș, Reghin, Sighișoara, Sovata, Luduș, Câmpia Turzii, Oradea, Târgu Lăpuș
 - Social proof: 25 review-uri Google, rating 5/5
 - Contact comercial: formular pe site, configurator de ofertă, telefon `+40 745 469 907`
 
@@ -47,6 +47,8 @@ Ce trebuie înțeles despre site:
 - [Foto video nuntă Sibiu](https://www.ancavisuals.ro/foto-video-nunta-sibiu): pagină locală pentru nunți în Sibiu.
 - [Foto video nuntă Alba Iulia](https://www.ancavisuals.ro/foto-video-nunta-alba-iulia): pagină locală pentru nunți în Alba Iulia.
 - [Foto video nuntă Arad](https://www.ancavisuals.ro/foto-video-nunta-arad): pagină locală pentru nunți în Arad.
+- [Foto video nuntă Timișoara](https://www.ancavisuals.ro/foto-video-nunta-timisoara): pagină locală pentru nunți în Timișoara.
+- [Foto video nuntă Târgu Lăpuș](https://www.ancavisuals.ro/foto-video-nunta-targu-lapus): pagină locală pentru nunți în Târgu Lăpuș.
 - [Foto video nuntă Bistrița](https://www.ancavisuals.ro/foto-video-nunta-bistrita): pagină locală pentru nunți în Bistrița.
 - [Foto video botez Cluj-Napoca](https://www.ancavisuals.ro/foto-video-botez-cluj): pagină locală pentru botezuri în Cluj-Napoca.
 - [Foto video botez Turda](https://www.ancavisuals.ro/foto-video-botez-turda): pagină locală pentru botezuri în Turda.

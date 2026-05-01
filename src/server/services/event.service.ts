@@ -33,7 +33,7 @@ interface CreateEventBody {
   // Basic event info
   weddingTitle: string;                    // e.g. "Estera & Daniel Wedding"
   coupleNames: string;              // e.g. "Estera ♥ Daniel"
-  eventDate: string;                // ISO date "2028-05-23"
+  eventDate: string;                // ISO date, e.g. "2028-05-23"
   eventTime?: string;               // e.g. "18:00"
   timezone?: string;                // recommended: "Europe/Bucharest"
   city: string;                 // main city or venue name

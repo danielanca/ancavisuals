@@ -7,9 +7,9 @@ function toDateString(value: unknown): string | null {
   return d.toISOString().slice(0, 10);
 }
 
-/** Expandează un eveniment într-o listă de zile ISO (YYYY-MM-DD).
- *  Dacă are eventEndDate, returnează toate zilele din interval inclusiv.
- *  Altfel returnează o singură zi (eventDate).
+/** Expands an event into a list of ISO days (YYYY-MM-DD).
+ *  If it has eventEndDate, return all days in the interval inclusively.
+ *  Otherwise return a single day (eventDate).
  */
 export function expandEventDates(data: Record<string, unknown>): string[] {
   const start = toDateString(data.eventDate);

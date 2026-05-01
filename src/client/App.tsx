@@ -20,6 +20,7 @@ import EditContractPage from "./features/admin/components/Contracts/EditContract
 import InspirationPage from "./features/admin/components/InspirationPage";
 import MementosPage from "./features/admin/components/MementosPage";
 import MediaActivityPage from "./features/admin/components/MediaActivityPage";
+import QRMomentsAdminPage from "./features/admin/components/QRMomentsAdminPage";
 import AnalyticsPage from "./features/admin/components/AnalyticsPage";
 import ImageOptimizerPage from "./features/admin/components/ImageOptimizerPage";
 import GoalDetailPage from "./features/admin/components/GoalDetailPage";
@@ -30,13 +31,21 @@ import ErrorsPage from "./features/admin/components/ErrorsPage";
 import FinancialPage from "./features/admin/components/Financial/FinancialPage";
 import LandingAdminPage from "./features/admin/components/Landing/LandingAdminPage";
 import CollaboratorPage from "./features/collaborator/CollaboratorPage";
+import AccountsPage from "./features/admin/components/AccountsPage";
+import InstagramProposalsAdminPage from "./features/admin/components/InstagramProposalsAdminPage";
 import RevinPage from "./pages/Revin/RevinPage";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
 import AdminBar from "./components/UI/AdminBar";
+import useAuth from "./features/admin/auth/useAuth";
+
+function AdminSpacer() {
+  const { auth } = useAuth();
+  return auth.authorise ? <div style={{ height: 48 }} /> : null;
+}
 
 
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator"];
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator", "/qr-moments"];
 
 export const App = () => {
   const location = useLocation();
@@ -75,6 +84,7 @@ export const App = () => {
     <ContextWrapper>
       <AuthProvider>
       <AdminBar />
+      <AdminSpacer />
       <Suspense fallback={<AncaLoader />}>
         {showChat && <AncaChat />}
         <Routes>
@@ -102,6 +112,7 @@ export const App = () => {
             <Route path="/admin/inspiration" element={<InspirationPage />} />
             <Route path="/admin/mementos" element={<MementosPage />} />
             <Route path="/admin/media-activity" element={<MediaActivityPage />} />
+            <Route path="/admin/qr-moments" element={<QRMomentsAdminPage />} />
             <Route path="/admin/analytics" element={<AnalyticsPage />} />
             <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
             <Route path="/admin/bank-details" element={<BankDetailsPage />} />
@@ -113,6 +124,8 @@ export const App = () => {
             <Route path="/admin/financial" element={<FinancialPage />} />
             <Route path="/admin/landing" element={<LandingAdminPage />} />
             <Route path="/colaborator" element={<CollaboratorPage />} />
+            <Route path="/admin/accounts" element={<AccountsPage />} />
+            <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
           </Route>
 
 

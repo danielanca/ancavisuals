@@ -14,7 +14,7 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   padding: 3rem 1rem;
 }
 
-// Masonry column layout – fără găuri
+// Masonry column layout without gaps
 .pg-masonry {
   column-count: 1;
   column-gap: $pg-gap;
@@ -56,7 +56,7 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   }
 }
 
-// Butonul care deschide lightbox-ul
+// Button that opens the lightbox
 .pg-img-trigger {
   display: block;
   width: 100%;
@@ -76,7 +76,7 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
     filter 0.24s ease;
 }
 
-// Rând de badge-uri per tip de reacție
+// Row of badges for each reaction type
 .pg-reaction-bar {
   position: absolute;
   bottom: 10px;
@@ -89,7 +89,7 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   pointer-events: none;
   transition: opacity 0.25s ease;
 
-  // Desktop: apare la hover
+  // Desktop: appears on hover
   @media (min-width: 769px) {
     .pg-item:hover & {
       opacity: 1;
@@ -97,7 +97,7 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
     }
   }
 
-  // Mobil: apare după 2s în centrul ecranului
+  // Mobile: appears after 2s in the center of the screen
   .pg-item--reactions-visible & {
     opacity: 1;
     pointer-events: auto;
@@ -190,11 +190,11 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   font-size: 0.9rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: #e5e7eb !important; // gri deschis
+  background: #e5e7eb !important; // light gray
   color: #000000;
   cursor: pointer;
 
-  // animație de glow rapid (gri -> alb)
+  // fast glow animation (gray -> white)
   animation: pg-glow-fast 0.6s ease-in-out infinite;
   transition:
     transform 0.15s ease,

@@ -42,23 +42,23 @@ $transition: all 0.35s ease;
       margin-bottom: 6px;
     }
 
-    // ── Subtitlu elegant cu separator decorativ ──
+    // ── Elegant subtitle with a decorative separator ──
     .subtitle {
       font-family: 'Cinzel', serif;
-      font-size: 1.05rem;       // mai mic – nu mai îngroapă pagina
+      font-size: 1.05rem;       // smaller so it does not overwhelm the page
       color: $primary-red-light;
       font-style: italic;
-      line-height: 1.75;         // respira frumos între rânduri
+      line-height: 1.75;         // gives the lines comfortable breathing room
       opacity: 0.88;
       margin: 0 auto 8px;
-      max-width: 380px;          // limitează linia la ceva confortabil
-      padding: 14px 18px;        // un pic de aer în jurul textului
+      max-width: 380px;          // keeps the line length comfortable
+      padding: 14px 18px;        // adds a bit of breathing room around the text
 
-      // chenar discret, tip carte poştală
+      // subtle postcard-style border
       border-top: 1px solid rgba($primary-red, 0.18);
       border-bottom: 1px solid rgba($primary-red, 0.18);
 
-      // suport HTML (dangerouslySetInnerHTML) – bold şi br
+      // HTML support (dangerouslySetInnerHTML) for bold and br
       strong, b {
         font-weight: 700;
         color: $primary-red;

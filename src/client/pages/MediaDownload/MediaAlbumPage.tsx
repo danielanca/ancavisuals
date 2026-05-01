@@ -264,6 +264,9 @@ export default function MediaAlbumPage() {
   const [igProposeResult, setIgProposeResult] = useState<string | null>(null);
   const [igUpdatingId, setIgUpdatingId] = useState<string | null>(null);
 
+  const [subscribeEmail, setSubscribeEmail] = useState("");
+  const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+
   const photosTopRef = useRef<HTMLDivElement | null>(null);
   const shareBoxRef = useRef<HTMLDivElement | null>(null);
   const hydratedRef = useRef(false);
@@ -776,6 +779,22 @@ export default function MediaAlbumPage() {
   };
 
 
+  const handleSubscribe = async () => {
+    if (!subscribeEmail.trim()) return;
+    setSubscribeStatus("loading");
+    try {
+      const response = await fetch("/api/album-subscriptions/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ albumSlug: slug, email: subscribeEmail.trim() }),
+      });
+      const data = await response.json() as { ok?: boolean };
+      setSubscribeStatus(data.ok ? "success" : "error");
+    } catch {
+      setSubscribeStatus("error");
+    }
+  };
+
   const toggleModerationPhoto = (src: string) => {
     const filename = fileNameFromUrl(src);
     setSelectedModeration((previous) => {
@@ -974,6 +993,40 @@ export default function MediaAlbumPage() {
             <h2 className={styles.sectionTitle}>Selectate</h2>
             <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" />
           </>
+        )}
+
+        {mode === "none" && subscribeStatus !== "success" && (
+          <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <p style={{ color: "#888", fontSize: "13px", margin: 0, whiteSpace: "nowrap" }}>
+              🔔 Notifică-mă când fotograful adaugă poze noi
+            </p>
+            <div style={{ display: "flex", gap: "8px", flex: 1, minWidth: "220px" }}>
+              <input
+                type="email"
+                value={subscribeEmail}
+                onChange={(event) => setSubscribeEmail(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") handleSubscribe(); }}
+                placeholder="adresa@email.com"
+                style={{ flex: 1, padding: "6px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ccc", fontSize: "13px", outline: "none" }}
+              />
+              <button
+                onClick={handleSubscribe}
+                disabled={subscribeStatus === "loading" || !subscribeEmail.trim()}
+                style={{ padding: "6px 14px", background: subscribeEmail.trim() ? "#fff" : "#222", color: subscribeEmail.trim() ? "#000" : "#555", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: subscribeEmail.trim() ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
+              >
+                {subscribeStatus === "loading" ? "..." : "Abonează-te"}
+              </button>
+            </div>
+            {subscribeStatus === "error" && (
+              <p style={{ color: "#f87171", fontSize: "12px", margin: 0, width: "100%" }}>A apărut o eroare. Încearcă din nou.</p>
+            )}
+          </div>
+        )}
+
+        {mode === "none" && subscribeStatus === "success" && (
+          <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#052e16", border: "1px solid #166534", borderRadius: "8px" }}>
+            <p style={{ color: "#4ade80", fontSize: "13px", fontWeight: 600, margin: 0 }}>✓ Te-ai abonat! Vei primi un email când fotograful adaugă poze noi.</p>
+          </div>
         )}
 
         {auth.authorise && mode === "none" && (
@@ -1391,7 +1444,7 @@ export default function MediaAlbumPage() {
                     background: proposal.status === "posted" ? "#14532d" : proposal.status === "rejected" ? "#450a0a" : "#1e1b4b",
                     color: proposal.status === "posted" ? "#4ade80" : proposal.status === "rejected" ? "#f87171" : "#a5b4fc",
                   }}>
-                    {proposal.status === "posted" ? "Postat" : proposal.status === "rejected" ? "Respins" : "În așteptare"}
+                    {proposal.status === "posted" ? "Acceptat" : proposal.status === "rejected" ? "Respins" : "În așteptare"}
                   </span>
                 </div>
                 {auth.user?.email === "ancadaniel1994@gmail.com" && (
@@ -1402,7 +1455,7 @@ export default function MediaAlbumPage() {
                         disabled={igUpdatingId === proposal.id}
                         style={{ flex: 1, padding: "4px 0", fontSize: "10px", background: "#166534", color: "#4ade80", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
                       >
-                        Postat
+                        Acceptă
                       </button>
                     )}
                     {proposal.status !== "rejected" && (

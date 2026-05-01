@@ -33,6 +33,9 @@ import invoicesRouter from "./src/server/routes/invoices.routes";
 import loginEventsRouter from "./src/server/routes/loginEvents.routes";
 import landingRouter from "./src/server/routes/landing.routes";
 import instagramProposalsRouter from "./src/server/routes/instagramProposals.routes";
+import albumSubscriptionsRouter from "./src/server/routes/albumSubscriptions.routes";
+import qrMomentsRouter from "./src/server/routes/qrMoments.routes";
+import accountsRouter from "./src/server/routes/accounts.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
@@ -134,6 +137,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.contracts, contractsRouter);
   app.use(API_ROUTE_PREFIXES.admin, inspirationRouter);
   app.use(API_ROUTE_PREFIXES.admin, mementosRouter);
+  app.use(API_ROUTE_PREFIXES.admin, accountsRouter);
   app.use("/api/analytics", analyticsPublicRouter);
   app.use(API_ROUTE_PREFIXES.admin, analyticsAdminRouter);
   app.use("/api/moderare", moderationRouter);
@@ -141,11 +145,13 @@ async function createServer() {
   app.use("/api/admin/route-sheets", routeSheetsRouter);
   app.use("/api/monitoring", monitoringRouter);
   app.use("/api/admin/monitoring", monitoringRouter);
-  app.use("/api/admin", expensesRouter);
-  app.use("/api/admin", invoicesRouter);
+  app.use("/api/admin/expenses", expensesRouter);
+  app.use("/api/admin/invoices", invoicesRouter);
   app.use("/api", loginEventsRouter);
   app.use("/api/admin/landing", landingRouter);
   app.use("/api/instagram-proposals", instagramProposalsRouter);
+  app.use("/api/album-subscriptions", albumSubscriptionsRouter);
+  app.use("/api/qr-moments", qrMomentsRouter);
 
   startServerMonitor();
   startMementosCron();

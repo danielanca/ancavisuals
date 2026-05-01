@@ -50,6 +50,27 @@ router.post("/", requireFirebaseAuth, async (req: Request, res: Response) => {
   }
 });
 
+// GET /admin/all — all proposals across all albums (admin only) — must be before /album/:slug
+router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const snapshot = await db
+      .collection(COLLECTION)
+      .orderBy("proposedAt", "desc")
+      .get();
+
+    const proposals = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      proposedAt: (doc.data().proposedAt as Timestamp).toDate().toISOString(),
+    }));
+
+    res.json({ proposals });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // GET /album/:slug — get proposals for an album (any logged-in user)
 router.get("/album/:slug", requireFirebaseAuth, async (req: Request, res: Response) => {
   const { slug } = req.params;
@@ -75,9 +96,9 @@ router.get("/album/:slug", requireFirebaseAuth, async (req: Request, res: Respon
 // PATCH /:id — update status (supreme admin only)
 router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { status } = req.body as { status: "pending" | "posted" | "rejected" };
+  const { status } = req.body as { status: "pending" | "accepted" | "archived" | "rejected" };
 
-  if (!["pending", "posted", "rejected"].includes(status)) {
+  if (!["pending", "accepted", "archived", "rejected"].includes(status)) {
     res.status(400).json({ error: "Status invalid." });
     return;
   }

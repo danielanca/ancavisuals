@@ -71,6 +71,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ## COMENZI #CMD
 
 #CMD  dev:                npm run dev
+#CMD  dev server:         npm run dev:server
 #CMD  typecheck:          npm run typecheck
 #CMD  test:               npm test
 #CMD  test:e2e:           npm run test:e2e
@@ -139,7 +140,10 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ## QR MOMENTS #QR
 
 #QR  Route:   src/server/routes/QRMoment.routes.ts  ← casing exact
+#QR  Route nou: src/server/routes/qrMoments.routes.ts  ← flux public + galerie + admin QR Moments
 #QR  Service: src/server/services/qrMoment.service.ts
+#QR  Admin UI: src/client/features/admin/components/QRMomentsAdminPage.tsx  → /admin/qr-moments
+#QR  Debugging upload: QRMomentsPage raportează explicit eșecurile de register/upload către `/api/monitoring/client-error`, cu context (eventSlug, guestId, fișiere, userAgent, ultimele console warn/error); monitoring trimite email imediat pentru mesajele prefixate `[QR DEBUG]`. #QR #DEBUG
 #QR  Teste:   tests/vitest/server/services/QRMoment.services.test.ts
 
 ---
@@ -217,6 +221,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ## CAPCANE CUNOSCUTE #PITFALL
 
 #PITFALL  Dacă HTML-ul SSR rămâne în cache după deploy, poate referi asset-uri hash-uite vechi; browserul cere JS inexistent, iar fără protecție serverul poate răspunde cu HTML în catch-all (`text/html` în loc de modul JS) #PITFALL
+#PITFALL  În development, dacă deschizi UI-ul pe Vite (`127.0.0.1:3000`) fără proxy pentru `/api`, fetch-urile relative primesc `index.html` în loc de JSON. `vite.config.ts` trebuie să proxieze `/api` și `/triggerEvent` către Express (`127.0.0.1:1994`). #PITFALL #QR
 #PITFALL  ipinfo.ts ← nu ipInfo.ts  (case sensitivity macOS vs Linux CI)
 #PITFALL  QRMoment.routes.ts ← nu qrMoment.routes.ts
 #PITFALL  Onboardingwizard.tsx ← nu OnboardingWizard.tsx
@@ -239,6 +244,13 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-05-01: QR Moments public page afișează acum jos un card promo AncaVisuals pentru viitori miri: mesaj despre QR Moments + servicii (foto, video, fotocabină, video booth 360) + referral cu ședință foto, plus carousel auto/swipe alimentat din `GET /api/admin/landing/gallery` (imagini landing publice existente). Validat cu `npm run typecheck` și `npm run build`. #RECENT #QR #ADMIN
+#RECENT  2026-05-01: AddLeadModal poate acum încărca un screenshot/imagine și cere lui Claude să extragă conservator telefonul, numele, data și un tip de eveniment doar dacă este clar; nou endpoint protejat `POST /api/admin/leads/extract-from-image` cu `Authorization: Bearer`, iar UI-ul precompletează doar câmpurile găsite. Validat cu `npm run typecheck` și `npm run build`. #RECENT #ADMIN
+#RECENT  2026-05-01: QR Moments upload page afișează acum waveform live în timpul înregistrării vocale, folosind Web Audio API (`AudioContext` + `AnalyserNode`) și `canvas`, cu cleanup explicit pentru stream/context la stop, reset și unmount. Validat cu `npm run typecheck`, `npx vitest run tests/vitest/client/pages/QRMoments/QRMomentsPage.test.tsx` și `npm run build`. #RECENT #QR #PITFALL
+#RECENT  2026-04-29: Dev fix pentru QR/admin API calls — `vite.config.ts` proxiează acum `/api` și `/triggerEvent` către Express (`127.0.0.1:1994`), ca paginile deschise pe Vite (`:3000`) să nu mai primească `index.html` la fetch-uri. `QRMomentsAdminPage` detectează și răspunsurile HTML și afișează un mesaj clar de configurare în loc de dump-ul complet din pagina SSR. #RECENT #QR #DEBUG #PITFALL
+#RECENT  2026-04-29: Admin QR Moments creează acum evenimente doar din `adminEvents` confirmate, viitoare, afișate în lista din modal ca primele 6 cele mai apropiate. Numele QR Moment-ului se generează automat din data nunții (`21martie2026` etc.), iar modalul are `notificationEmail` opțional: când un invitat încarcă fișiere, se trimite email de notificare către acea adresă. Validat cu `npm run typecheck` și `npm run build`. #RECENT #QR #ADMIN
+#RECENT  2026-04-29: QR Moments are debugging explicit pentru eșecuri client-side la register/upload: pagina capturează buffer de `console.error`/`console.warn` și îl trimite în monitoring cu prefix `[QR DEBUG]`; backend-ul salvează eroarea și trimite email imediat către admin cu pagina, IP/geo și contextul JSON al sesiunii. Validat cu `npm run typecheck` și `npm run build`. #RECENT #QR #DEBUG #NOTIFY
+#RECENT  2026-04-29: QR Moments hardening/integration — rutele publice `/qr-moments/:eventSlug`, `/qr-moments/:eventSlug/gallery` și `/qr-moments/unsubscribe/:guestId` sunt acum legate cap-coadă; `pass` este cerut server-side și la register/upload, comentariile sunt protejate cu PIN+eventSlug, iar testele client pentru upload/gallery/unsubscribe trec (`npm run typecheck` + `npx vitest run tests/vitest/client/pages/QRMoments/QRMomentsPage.test.tsx`). #RECENT #QR #PITFALL
 #RECENT  2026-04-22: Mementos admin — modalul "Memento nou" nu se mai închide la click pe overlay, iar formularul păstrează draft-ul în `localStorage` (`admin:mementos:add-draft`) până la salvare reușită; redeschiderea modalului reîncarcă automat draftul. Validat cu `npm run typecheck`. #RECENT #ADMIN
 #RECENT  2026-04-22: FinancialSummary din dashboard a fost aliniat semantic cu cashflow-ul real: progresul este galben, sumarul folosește "Bani primiți" în loc de "Avans încasat", iar detaliul pe evenimente separă sumele deja primite de cele rămase de încasat, pe modelul paginii Goal detail. Validat cu `npm run typecheck`. #RECENT #ADMIN
 #RECENT  2026-04-22: Dashboard admin / EventList afișează acum în tab-ul "Viitoare" 3 blocuri pe ani: anul curent rămâne mereu deschis, iar următorii 2 ani (în prezent 2027 și 2028) apar ca secțiuni colapsabile pentru evidența clienților rezervați în avans. Validat cu `npm run typecheck` și Vitest pe helper-ele `partitionEvents` / `groupByMonth`. #RECENT #ADMIN

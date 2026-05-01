@@ -88,7 +88,5 @@ export { checkAndSendMementos };
 
 export function startMementosCron() {
   cron.schedule("0 8 * * *", checkAndSendMementos);
-  // TODO: remove after testing
-  cron.schedule("* * * * *", checkAndSendMementos);
-  console.log("[mementos cron] Pornit — zilnic 08:00 + fiecare minut (TEST)");
+  console.log("[mementos cron] Pornit — zilnic 08:00");
 }

@@ -32,16 +32,16 @@ export default function ModeratorAlbumsPage() {
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-xl mx-auto space-y-6">
 
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-white text-xl font-light tracking-tight">Moderare albume</h1>
-            <p className="text-emerald-400 text-xs mt-1">{auth.user?.email}</p>
+            <p className="mt-1 max-w-full truncate text-xs text-emerald-400">{auth.user?.email}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-800 text-neutral-400 text-xs hover:border-red-500/50 hover:text-red-400 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-800 px-3 py-2 text-xs text-neutral-400 transition-colors hover:border-red-500/50 hover:text-red-400 sm:w-auto"
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ClientEvent, EventStatus } from "../types";
+import type { ClientEvent, EventExpense, EventStatus } from "../types";
 import Redacted from "./Redacted";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
@@ -25,6 +25,9 @@ const labelClass = "block text-neutral-400 text-xs font-medium mb-1 uppercase tr
 
 const formatEUR = (amount: number) =>
   new Intl.NumberFormat("ro-RO", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amount);
+
+const formatRON = (amount: number) =>
+  new Intl.NumberFormat("ro-RO", { style: "currency", currency: "RON", maximumFractionDigits: 0 }).format(amount);
 
 const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onCollapseChange, onUpdated, onDeleted }) => {
   const navigate = useNavigate();
@@ -51,6 +54,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [albumError, setAlbumError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [processLog, setProcessLog] = useState<string[]>([]);
+  const [expenses, setExpenses] = useState<EventExpense[]>(event.expenses ?? []);
+  const [newExpenseLabel, setNewExpenseLabel] = useState("");
+  const [newExpenseAmount, setNewExpenseAmount] = useState("");
+  const [expenseSaving, setExpenseSaving] = useState(false);
 
   const eventDate = fallbackDate;
   const isPast = eventDate
@@ -225,6 +232,32 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     });
   };
 
+  const persistExpenses = async (updated: EventExpense[]) => {
+    setExpenses(updated);
+    await fetch(`/api/admin/events/${event.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expenses: updated }),
+    });
+    onUpdated?.({ expenses: updated });
+  };
+
+  const addExpense = async () => {
+    const amount = parseFloat(newExpenseAmount);
+    if (!newExpenseLabel.trim() || !amount) return;
+    setExpenseSaving(true);
+    await persistExpenses([
+      ...expenses,
+      { id: crypto.randomUUID(), label: newExpenseLabel.trim(), amount },
+    ]);
+    setNewExpenseLabel("");
+    setNewExpenseAmount("");
+    setExpenseSaving(false);
+  };
+
+  const removeExpense = (id: string) =>
+    persistExpenses(expenses.filter((expense) => expense.id !== id));
+
   const deleteDocUrl = async (field: "contractUrl" | "invoiceUrl") => {
     if (field === "contractUrl") setContractUrl("");
     else setInvoiceUrl("");
@@ -371,6 +404,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
             </span>
             <span className="text-neutral-500 text-xs">•</span>
             <span className="text-white text-sm font-medium truncate"><Redacted>{event.client.fullName}</Redacted></span>
+            <span className="text-neutral-500 text-xs">•</span>
+            <span className={`text-xs ${event.type === "Nuntă" ? "text-emerald-400" : "text-neutral-500"}`}>{event.typeLabel || event.type}</span>
             <span className="text-neutral-500 text-xs">•</span>
             <span className={`text-xs ${eventDate ? "text-neutral-400" : "text-neutral-600 italic"}`}>
               {formattedDate}
@@ -729,6 +764,60 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 </div>
               </div>
             )}
+
+            {/* Cheltuieli eveniment */}
+            <div className="border-t border-neutral-800 pt-3 space-y-2">
+              <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Cheltuieli eveniment</p>
+
+              {expenses.length > 0 && (
+                <div className="space-y-1.5">
+                  {expenses.map((expense) => (
+                    <div key={expense.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-neutral-300 flex-1 truncate">{expense.label}</span>
+                      <span className="text-neutral-400 font-mono shrink-0">{formatRON(expense.amount)}</span>
+                      <button
+                        onClick={() => removeExpense(expense.id)}
+                        className="text-neutral-600 hover:text-red-400 transition-colors shrink-0"
+                        title="Șterge"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60">
+                    <span className="text-neutral-500 text-xs">Total cheltuieli</span>
+                    <span className="text-neutral-300 text-xs font-semibold font-mono">
+                      {formatRON(expenses.reduce((sum, expense) => sum + expense.amount, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 bg-neutral-800 text-white text-xs placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-1.5 outline-none focus:border-neutral-500 transition-colors min-w-0"
+                  placeholder="ex: Motorină, Nepoata Maria..."
+                  value={newExpenseLabel}
+                  onChange={(e) => setNewExpenseLabel(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addExpense(); }}
+                />
+                <input
+                  type="number"
+                  className="w-24 bg-neutral-800 text-white text-xs placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-1.5 outline-none focus:border-neutral-500 transition-colors"
+                  placeholder="RON"
+                  value={newExpenseAmount}
+                  onChange={(e) => setNewExpenseAmount(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addExpense(); }}
+                />
+                <button
+                  onClick={addExpense}
+                  disabled={expenseSaving || !newExpenseLabel.trim() || !newExpenseAmount}
+                  className="px-3 py-1.5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-white text-xs font-medium transition-colors disabled:opacity-40 shrink-0"
+                >
+                  {expenseSaving ? "..." : "Adaugă"}
+                </button>
+              </div>
+            </div>
 
             {/* Edit button for confirmed events */}
             {!isLead && (

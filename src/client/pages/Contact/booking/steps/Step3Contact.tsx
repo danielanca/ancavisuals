@@ -65,7 +65,7 @@ const Step3Contact: React.FC<Step3ContactProps> = ({
           onChange={e => setPhone(e.target.value)}
         />
 
-        {/* Checkbox: acord salvare date */}
+        {/* Checkbox: consent to save contact details */}
         <label className="consent-label">
           <input type="checkbox" checked={saveConsent} onChange={e => setSaveConsent(e.target.checked)} />
           <span>

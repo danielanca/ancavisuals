@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { ClientEvent, EventType } from "../types";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
+import useAuth from "../auth/useAuth";
 
 interface Props {
   onClose: () => void;
@@ -13,8 +14,22 @@ const inputClass =
   "w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors";
 const labelClass = "block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide";
 
+async function fileToBase64(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Nu s-a putut citi fișierul."));
+    reader.readAsDataURL(file);
+  });
+}
+
 const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
   useBodyScrollLock(true);
+  const { auth } = useAuth();
+  const scanInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -30,6 +45,8 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
     fiscalized: false,
   });
   const [saving, setSaving] = useState(false);
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const set =
@@ -44,6 +61,56 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
 
   const formatEUR = (n: number) =>
     new Intl.NumberFormat("ro-RO", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+
+  const handleScan = async () => {
+    if (!scanFile) return;
+    if (!auth.accessToken) {
+      setError("Trebuie să fii autentificat ca admin pentru extracția AI.");
+      return;
+    }
+
+    setScanning(true);
+    setError(null);
+
+    try {
+      const imageBase64 = await fileToBase64(scanFile);
+      const response = await fetch("/api/admin/leads/extract-from-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+        body: JSON.stringify({
+          imageBase64,
+          mediaType: scanFile.type,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? "Extracția AI a eșuat.");
+      }
+
+      const extracted = (data.extracted ?? {}) as {
+        phone?: string | null;
+        fullName?: string | null;
+        eventDate?: string | null;
+        eventTypeGuess?: EventType | null;
+      };
+
+      setForm((prev) => ({
+        ...prev,
+        phone: extracted.phone ?? prev.phone,
+        fullName: extracted.fullName ?? prev.fullName,
+        eventDate: extracted.eventDate ?? prev.eventDate,
+        type: extracted.eventTypeGuess ?? prev.type,
+      }));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Nu s-au putut extrage datele.");
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.fullName.trim()) {
@@ -138,6 +205,59 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
         </div>
 
         <div className="space-y-3">
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3 space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-neutral-200 text-sm font-medium">Extrage din screenshot cu Claude</p>
+                <p className="text-neutral-500 text-xs mt-1">
+                  Încearcă să completeze telefonul, numele, data și tipul evenimentului dacă apar clar în imagine.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => scanInputRef.current?.click()}
+                className="shrink-0 px-3 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 transition-colors"
+              >
+                {scanFile ? "Schimbă poza" : "Alege poză"}
+              </button>
+            </div>
+
+            <input
+              ref={scanInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => setScanFile(event.target.files?.[0] ?? null)}
+            />
+
+            {scanFile && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-neutral-200 text-xs">{scanFile.name}</p>
+                  <p className="text-neutral-500 text-[11px]">JPG, PNG, WebP sau screenshot din conversație</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleScan}
+                    disabled={scanning}
+                    className="px-3 py-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs hover:bg-amber-500/20 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {scanning ? "Extrage..." : "Extrage AI"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScanFile(null)}
+                    className="text-neutral-500 hover:text-red-400 transition-colors text-lg leading-none"
+                    aria-label="Elimină poza"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Nume */}
           <div>
             <label className={labelClass}>Nume client *</label>

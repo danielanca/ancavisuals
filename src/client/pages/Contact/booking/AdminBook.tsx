@@ -257,7 +257,7 @@ export default function AdminBook() {
             </div>
           </div>
 
-          {/* Curs de schimb (doar la RON) */}
+          {/* Exchange rate (RON only) */}
           {currency === "RON" && (
             <div>
               <label className={labelClass}>Curs de schimb (1 EUR = ? RON)</label>

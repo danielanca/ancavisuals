@@ -1,7 +1,5 @@
 import React, { useReducer, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { storage } from "../../../../firebase";
 import useAuth from "../../auth/useAuth";
 import type { ClientEvent } from "../../types";
 import Breadcrumb from "../Breadcrumb";
@@ -188,13 +186,20 @@ interface DocSlot {
   scanning: boolean;
 }
 
-async function uploadExpenseFile(file: File, date: string): Promise<ExpenseDoc> {
+async function uploadExpenseFile(file: File, date: string, accessToken: string): Promise<ExpenseDoc> {
   const year = new Date(date).getFullYear();
   const month = new Date(date).getMonth() + 1;
-  const storageRef = ref(storage, `expenses/${year}/${month}/${Date.now()}-${file.name}`);
-  const snapshot = await uploadBytesResumable(storageRef, file);
-  const url = await getDownloadURL(snapshot.ref);
-  return { url, name: file.name };
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("year", String(year));
+  formData.append("month", String(month));
+  const response = await fetch("/api/admin/expenses/upload-doc", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+  if (!response.ok) throw new Error(`Upload eșuat: ${response.status}`);
+  return response.json() as Promise<ExpenseDoc>;
 }
 
 function DocUploadRow({
@@ -299,8 +304,8 @@ function AddExpenseModal({ accessToken, onClose, onAdded }: AddExpenseModalProps
 
     try {
       const uploads = await Promise.all([
-        facturaSlot.file ? uploadExpenseFile(facturaSlot.file, date) : Promise.resolve(null),
-        chitantaSlot.file ? uploadExpenseFile(chitantaSlot.file, date) : Promise.resolve(null),
+        facturaSlot.file ? uploadExpenseFile(facturaSlot.file, date, accessToken) : Promise.resolve(null),
+        chitantaSlot.file ? uploadExpenseFile(chitantaSlot.file, date, accessToken) : Promise.resolve(null),
       ]);
       factura = uploads[0];
       chitanta = uploads[1];

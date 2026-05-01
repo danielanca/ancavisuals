@@ -95,7 +95,7 @@ describe("ContractListPage", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Acțiuni" }));
       fireEvent.click(await screen.findByRole("button", { name: /Trimite link/ }));
 
-      // ConfirmModal apare — confirmăm acțiunea
+      // ConfirmModal appears — confirm the action
       fireEvent.click(await screen.findByRole("button", { name: "Trimite" }));
 
       await waitFor(() => {

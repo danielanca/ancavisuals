@@ -25,7 +25,18 @@ export default defineConfig({
     },
   },
   server: {
+    host: "127.0.0.1",
     port: 3000,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:1994",
+        changeOrigin: true,
+      },
+      "/triggerEvent": {
+        target: "http://127.0.0.1:1994",
+        changeOrigin: true,
+      },
+    },
   },
   ssr: {
     noExternal: ["react-helmet-async"],

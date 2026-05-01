@@ -1,9 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import { captureClientError, ERRORS_COLLECTION } from "../monitoring/serverMonitor";
 import { firestore } from "../firestore";
-import { Timestamp } from "firebase-admin/firestore";
+import type { Timestamp } from "firebase-admin/firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
+import { sendEmail } from "../notifications/mailer";
+import { adminUser } from "../constants/credentials";
 
 const router = Router();
 
@@ -18,6 +20,36 @@ const EXTENSION_PATTERNS = [
 function isExtensionError(message: string, stack: string): boolean {
   const combined = `${message} ${stack}`;
   return EXTENSION_PATTERNS.some((pattern) => combined.includes(pattern));
+}
+
+function isQrDebugError(message: string, page: string): boolean {
+  return message.startsWith("[QR DEBUG]") || page.startsWith("/qr-moments/");
+}
+
+async function sendQrDebugEmail(message: string, stack: string, page: string, ip?: string, geo?: { city?: string; region?: string; country?: string }) {
+  const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const location = geo ? [geo.city, geo.region, geo.country].filter(Boolean).join(", ") : "";
+
+  await sendEmail({
+    to: adminUser.email,
+    subject: `[QR DEBUG] Problemă upload pe ${page || "/qr-moments"}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:680px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5;border-radius:12px;">
+        <h2 style="color:#f5f5f5;margin-bottom:8px;">QR Moments client debug</h2>
+        <p style="color:#a3a3a3;margin-top:0;"><strong>Page:</strong> ${safe(page || "-")}</p>
+        <p style="color:#a3a3a3;"><strong>IP:</strong> ${safe(ip || "-")}</p>
+        <p style="color:#a3a3a3;"><strong>Geo:</strong> ${safe(location || "-")}</p>
+        <div style="background:#171717;border:1px solid #262626;border-radius:8px;padding:14px 16px;margin-top:16px;">
+          <p style="margin:0 0 8px;color:#f59e0b;font-weight:600;">Message</p>
+          <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:#f5f5f5;">${safe(message)}</pre>
+        </div>
+        <div style="background:#171717;border:1px solid #262626;border-radius:8px;padding:14px 16px;margin-top:16px;">
+          <p style="margin:0 0 8px;color:#f59e0b;font-weight:600;">Stack / Context</p>
+          <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:#d4d4d4;">${safe(stack || "-")}</pre>
+        </div>
+      </div>
+    `,
+  });
 }
 
 // Public — trimis din browser
@@ -46,13 +78,16 @@ router.post("/client-error", async (req: Request, res: Response) => {
       : undefined;
 
     captureClientError(message, stack, page, ip || undefined, geo);
+    if (isQrDebugError(message, page)) {
+      sendQrDebugEmail(message, stack, page, ip || undefined, geo).catch(() => {});
+    }
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "failed" });
   }
 });
 
-// Admin — listează erori
+// Admin — list errors
 router.get("/errors", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const snapshot = await firestore()
@@ -83,7 +118,7 @@ router.get("/errors", requireFirebaseAuth, requireSupremeAdmin, async (_req: Req
   }
 });
 
-// Admin — număr erori nevăzute (pentru badge)
+// Admin — unseen error count (for the badge)
 router.get("/errors/unseen-count", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const snapshot = await firestore()
@@ -98,7 +133,25 @@ router.get("/errors/unseen-count", requireFirebaseAuth, requireSupremeAdmin, asy
   }
 });
 
-// Admin — marchează toate ca văzute
+router.get("/errors/qr-unseen-count", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const snapshot = await firestore()
+      .collection(ERRORS_COLLECTION)
+      .where("seen", "==", false)
+      .get();
+
+    const count = snapshot.docs.filter((doc) => {
+      const data = doc.data();
+      return isQrDebugError(String(data.message ?? ""), String(data.page ?? ""));
+    }).length;
+
+    res.json({ count });
+  } catch {
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+// Admin — mark all as seen
 router.patch("/errors/mark-seen", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const snapshot = await firestore()
