@@ -286,6 +286,8 @@ export default function MediaAlbumPage() {
     photos: string[];
     videos: string[];
     audio: string[];
+    eventSlug?: string | null;
+    galleryUrl?: string | null;
   } | null>(null);
 
   // ── DERIVED STATE ──────────────────────────────────────────────────────────
@@ -844,7 +846,7 @@ export default function MediaAlbumPage() {
       <div className={styles.container}>
 
         {slug && !isAdmin && !auth.authorise && typeof window !== "undefined" && window.location.hostname !== "localhost" && (
-          <MediaConsentModal slug={slug} onAccepted={() => setConsentGiven(true)} />
+          <MediaConsentModal slug={slug} retention={album?.retention ?? null} onAccepted={() => setConsentGiven(true)} />
         )}
 
         <OnboardingWizard />
@@ -1338,6 +1340,24 @@ export default function MediaAlbumPage() {
               <h2 className={styles.sectionTitle}>
                 QR Moments ({qrMoments.photos.length + qrMoments.videos.length + qrMoments.audio.length})
               </h2>
+
+              {qrMoments.galleryUrl && (
+                <div style={{ margin: "0 0 16px", padding: "14px 16px", background: "#111111", border: "1px solid #2f2f2f", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                  <div>
+                    <p style={{ color: "#f5f5f5", fontWeight: 600, fontSize: "13px", margin: 0 }}>Mirii pot comenta direct la upload-uri</p>
+                    <p style={{ color: "#8b8b8b", fontSize: "12px", margin: "4px 0 0" }}>
+                      Deschide galeria QR Moments pentru comentarii la poze, video și mesaje vocale.
+                    </p>
+                  </div>
+                  <a
+                    href={qrMoments.galleryUrl}
+                    className={styles.downloadBtn}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    COMENTEAZĂ ÎN QR MOMENTS
+                  </a>
+                </div>
+              )}
 
               {qrMoments.photos.length > 0 && (
                 <>

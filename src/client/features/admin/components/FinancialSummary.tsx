@@ -19,6 +19,7 @@ type FinancialRow = {
 };
 
 const FinancialSummary: React.FC<Props> = ({ events }) => {
+  const [collapsed, setCollapsed] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const year = new Date().getFullYear();
 
@@ -64,27 +65,61 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
   const collectedPct = totalAn > 0 ? Math.round((incasat / totalAn) * 100) : 0;
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+    <div className={`bg-neutral-900 border border-neutral-800 rounded-2xl p-5 ${collapsed ? "space-y-2" : "space-y-4"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Situație financiară</p>
-          <h3 className="text-white font-medium text-sm">{year} · {relevant.length} evenimente confirmate/finalizate</h3>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-              {finalizateCount} finalizate
-            </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-              {confirmateCount} de terminat
-            </span>
-          </div>
+          <h3 className="text-white font-medium text-sm truncate">{year} · {relevant.length} evenimente confirmate/finalizate</h3>
+          {!collapsed && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                {finalizateCount} finalizate
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                {confirmateCount} de terminat
+              </span>
+            </div>
+          )}
         </div>
+        <button
+          type="button"
+          onClick={() => setCollapsed((value) => !value)}
+          title={collapsed ? "Extinde" : "Restrânge"}
+          className="self-start text-neutral-600 hover:text-neutral-300 transition-colors"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
       </div>
 
-      {/* Progress collected / total */}
+      {!collapsed && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-neutral-800/50 rounded-xl px-4 py-3">
+            <p className="text-xs text-neutral-500 mb-1">Bani primiți</p>
+            <p className="text-emerald-400 font-semibold"><Redacted>{formatEUR(incasat)}</Redacted></p>
+          </div>
+          <div className="bg-neutral-800/50 rounded-xl px-4 py-3">
+            <p className="text-xs text-neutral-500 mb-1">Urmează să primești</p>
+            <p className="text-amber-400 font-semibold"><Redacted>{formatEUR(urmeaza)}</Redacted></p>
+          </div>
+        </div>
+      )}
+
+      {!collapsed && (
+        <>
       <div>
         <p className="text-xs text-neutral-500 uppercase tracking-widest mb-2">Progres încasare</p>
         <div className="flex items-end justify-between mb-1.5">
@@ -103,19 +138,6 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
         <p className="text-neutral-500 text-xs mt-1.5">{collectedPct}% din totalul contractat pe {year}</p>
       </div>
 
-      {/* Sumarul rapid */}
-      <div className="grid grid-cols-2 gap-3 pt-1 border-t border-neutral-800">
-        <div className="bg-neutral-800/50 rounded-xl px-4 py-3">
-          <p className="text-xs text-neutral-500 mb-1">Bani primiți</p>
-          <p className="text-emerald-400 font-semibold"><Redacted>{formatEUR(incasat)}</Redacted></p>
-        </div>
-        <div className="bg-neutral-800/50 rounded-xl px-4 py-3">
-          <p className="text-xs text-neutral-500 mb-1">Urmează să primești</p>
-          <p className="text-amber-400 font-semibold"><Redacted>{formatEUR(urmeaza)}</Redacted></p>
-        </div>
-      </div>
-
-      {/* Lista evenimente */}
       {(receivedRows.length > 0 || upcomingRows.length > 0) && (
         <div className="border-t border-neutral-800 pt-3 space-y-1">
           <button
@@ -168,6 +190,8 @@ const FinancialSummary: React.FC<Props> = ({ events }) => {
             </div>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

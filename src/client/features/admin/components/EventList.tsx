@@ -74,6 +74,7 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("viitor");
   const [fiscalFilter, setFiscalFilter] = useState<FiscalFilter>("toate");
+  const [collapsed, setCollapsed] = useState(false);
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [collapseKey, setCollapseKey] = useState(0);
   const [cardStates, setCardStates] = useState<Record<string, boolean>>({});
@@ -414,7 +415,7 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-start justify-between gap-3 mb-5">
           <h2 className="text-white font-medium">Evenimente {currentYear}</h2>
           <div className="flex items-center gap-2">
             <button
@@ -437,57 +438,88 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
               <span className="text-base leading-none">+</span>
               Lead nou
             </button>
+            <button
+              type="button"
+              onClick={() => setCollapsed((value) => !value)}
+              title={collapsed ? "Extinde lista" : "Restrânge lista"}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-white transition-colors"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={`transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {([
-            { key: "toate", label: "Toate" },
-            { key: "fiscalizate", label: "Fiscalizate" },
-            { key: "nefiscalizate", label: "Nefiscalizate" },
-          ] as const).map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              onClick={() => setFiscalFilter(option.key)}
-              className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                fiscalFilter === option.key
-                  ? "border-white bg-white text-black"
-                  : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white"
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        {!collapsed && (
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {([
+                { key: "toate", label: "Toate" },
+                { key: "fiscalizate", label: "Fiscalizate" },
+                { key: "nefiscalizate", label: "Nefiscalizate" },
+              ] as const).map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setFiscalFilter(option.key)}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                    fiscalFilter === option.key
+                      ? "border-white bg-white text-black"
+                      : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 bg-neutral-800/60 rounded-xl p-1 mb-6">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                tab === t.key
-                  ? "bg-neutral-900 text-white shadow"
-                  : "text-neutral-500 hover:text-neutral-300"
-              }`}
-            >
-              {t.label}
-              {t.count > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-xs ${tab === t.key ? t.color : "bg-neutral-700 text-neutral-500"}`}>
-                  {t.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+            {/* Tabs */}
+            <div className="flex gap-1 bg-neutral-800/60 rounded-xl p-1 mb-6">
+              {tabs.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    tab === t.key
+                      ? "bg-neutral-900 text-white shadow"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
+                >
+                  {t.label}
+                  {t.count > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs ${tab === t.key ? t.color : "bg-neutral-700 text-neutral-500"}`}>
+                      {t.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {!statesLoaded ? (
           <div className="py-8 flex justify-center">
             <svg className="animate-spin text-neutral-600" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" />
             </svg>
+          </div>
+        ) : collapsed ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+            <span className="rounded-full border border-neutral-700 px-2 py-1">Lead-uri {filteredLeads.length}</span>
+            <span className="rounded-full border border-neutral-700 px-2 py-1">Viitoare {filteredUpcoming.length}</span>
+            <span className="rounded-full border border-neutral-700 px-2 py-1">Trecute {filteredPast.length}</span>
+            <span className="rounded-full border border-neutral-700 px-2 py-1">Arhivă {filteredArchived.length}</span>
           </div>
         ) : (
           (tab !== "leaduri" && tab !== "arhiva") && (

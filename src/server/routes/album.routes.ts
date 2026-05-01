@@ -3,10 +3,13 @@ import express from "express";
 import type { Request, Response } from "express";
 import { getAlbum, downloadSelectedPhotos, postPrintSelection, downloadAll, deletePhoto, downloadPrintDynamic, addDeliveryAddress, getDeliveryAddress, addSwissLink } from "../controllers/album.controller";
 import { getAlbumStats } from "../services/albumStats.service";
+import { getAlbumRetentionBySlug } from "../services/albumRetention.service";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { sendEmail } from "../notifications/mailer";
+import { firestore } from "../firestore";
+import { adminUser } from "../constants/credentials";
 
-const ADMIN_EMAIL = "ancadaniel1994@gmail.com";
+const ADMIN_EMAIL = adminUser.email;
 
 const router = Router();
 
@@ -29,6 +32,18 @@ router.get("/admin/list", async (_req: Request, res: Response) => {
 
 router.get("/:slug", getAlbum);
 router.get("/:slug/stats", getAlbumStats);
+router.get("/:slug/retention", async (req: Request, res: Response) => {
+  try {
+    const retention = await getAlbumRetentionBySlug(req.params.slug);
+    if (!retention) {
+      res.status(404).json({ error: "Retention not found" });
+      return;
+    }
+    res.json(retention);
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
 
 router.post("/:slug/download-selected", express.urlencoded({ extended: false }), downloadSelectedPhotos);
 router.post("/:slug/print-selection", express.json(), postPrintSelection);
@@ -64,7 +79,35 @@ router.get("/:slug/qr-moments", async (req: Request, res: Response) => {
       listFolder("audio"),
     ]);
 
-    res.json({ photos, videos, audio });
+    let eventSlug: string | null = null;
+    let galleryUrl: string | null = null;
+
+    const adminEventSnapshot = await firestore()
+      .collection("adminEvents")
+      .where("albumSlug", "==", slug)
+      .limit(1)
+      .get();
+
+    if (!adminEventSnapshot.empty) {
+      const adminEventId = adminEventSnapshot.docs[0].id;
+      const qrEventSnapshot = await firestore()
+        .collection("qr_events")
+        .where("adminEventId", "==", adminEventId)
+        .limit(1)
+        .get();
+
+      if (!qrEventSnapshot.empty) {
+        const qrEventDoc = qrEventSnapshot.docs[0];
+        const qrEventData = qrEventDoc.data();
+        eventSlug = (qrEventData.eventSlug as string | undefined) ?? qrEventDoc.id;
+        const pin = qrEventData.pin as string | undefined;
+        if (eventSlug && pin) {
+          galleryUrl = `/qr-moments/${eventSlug}/gallery?pin=${encodeURIComponent(pin)}`;
+        }
+      }
+    }
+
+    res.json({ photos, videos, audio, eventSlug, galleryUrl });
   } catch (error) {
     console.error("[album] qr-moments failed:", error);
     res.status(500).json({ error: "Failed to load QR moments" });
@@ -74,6 +117,7 @@ router.get("/:slug/qr-moments", async (req: Request, res: Response) => {
 router.post("/:slug/consent", express.json(), async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
+    const retention = await getAlbumRetentionBySlug(slug);
     const ip = getClientIp(req);
     const ipInfo = await fetchIpInfo(ip);
     const now = new Date().toLocaleString("ro-RO", {
@@ -97,6 +141,7 @@ router.post("/:slug/consent", express.json(), async (req: Request, res: Response
             <tr><td style="padding:8px 0;color:#6b7280;width:120px;">Data</td><td style="color:#111;font-weight:600;">${now}</td></tr>
             <tr><td style="padding:8px 0;color:#6b7280;">IP</td><td style="color:#111;font-weight:600;">${ip || "necunoscut"}</td></tr>
             <tr><td style="padding:8px 0;color:#6b7280;">Locație</td><td style="color:#111;font-weight:600;">${location}</td></tr>
+            ${retention ? `<tr><td style="padding:8px 0;color:#6b7280;">Expiră la</td><td style="color:#111;font-weight:600;">${new Date(retention.expiresAt).toLocaleString("ro-RO", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Bucharest" })}</td></tr>` : ""}
             ${ipInfo?.org ? `<tr><td style="padding:8px 0;color:#6b7280;">ISP</td><td style="color:#111;">${ipInfo.org}</td></tr>` : ""}
           </table>
           <p style="color:#9ca3af;font-size:12px;margin-top:24px;">Clientul a confirmat că a luat la cunoștință că materialele vor fi șterse după 60 de zile.</p>

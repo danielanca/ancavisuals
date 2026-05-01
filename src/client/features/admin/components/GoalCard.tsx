@@ -42,6 +42,7 @@ function computeRevenueSplit(
 
 const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange, detailRoute, onGoalUpdate }) => {
   const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(true);
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(String(goal.targetRevenue));
   const [startDate, setStartDate] = useState(goal.startDate);
@@ -76,6 +77,7 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
     setInputValue(String(goal.targetRevenue));
     setStartDate(goal.startDate);
     setEndDate(goal.endDate);
+    setCollapsed(false);
     setEditing(true);
   };
 
@@ -98,17 +100,19 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
   };
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 flex flex-col gap-4">
-      <div className="flex items-start justify-between">
-        <div>
+    <div className={`bg-neutral-900 border border-neutral-800 rounded-2xl p-5 flex flex-col ${collapsed ? "gap-2" : "gap-4"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Obiectiv</p>
-          <h3 className="text-white font-medium text-sm">{title}</h3>
-          <p className="text-neutral-500 text-xs mt-0.5">
-            {formatDate(goal.startDate)} → {formatDate(goal.endDate)}
-          </p>
+          <h3 className="text-white font-medium text-sm truncate">{title}</h3>
+          {!collapsed && (
+            <p className="text-neutral-500 text-xs mt-0.5">
+              {formatDate(goal.startDate)} → {formatDate(goal.endDate)}
+            </p>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          {!editing && (
+        <div className="flex items-center gap-2 shrink-0">
+          {!collapsed && !editing && (
             <button
               onClick={openEdit}
               title="Editează"
@@ -120,13 +124,42 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
               </svg>
             </button>
           )}
-          <span className="text-2xl">{onTrack ? "✅" : "⚠️"}</span>
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            title={collapsed ? "Extinde" : "Restrânge"}
+            className="text-neutral-600 hover:text-neutral-300 transition-colors"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      {editing && (
+      {!collapsed && !editing && (
+        <div className="flex items-end justify-between">
+          <span className="text-white text-xl font-light"><Redacted>{formatEUR(revenueRealized)}</Redacted></span>
+          <div className="flex items-center gap-3">
+            <span className="text-neutral-400 text-sm">din <Redacted>{formatEUR(goal.targetRevenue)}</Redacted></span>
+            <span className="text-neutral-400 text-xs">{percentage}%</span>
+            <span className="text-2xl">{onTrack ? "✅" : "⚠️"}</span>
+          </div>
+        </div>
+      )}
+
+      {!collapsed && editing && (
         <div className="flex flex-col gap-3 pt-1 border-t border-neutral-800">
-          {/* Target EUR */}
           <div className="flex items-center gap-2">
             <span className="text-neutral-500 text-xs w-16 shrink-0">Target</span>
             <input
@@ -140,7 +173,6 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
             <span className="text-neutral-400 text-xs">EUR</span>
           </div>
 
-          {/* Date range — only for editableRange cards */}
           {editableRange && (
             <>
               <div className="flex items-center gap-2">
@@ -164,7 +196,6 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
             </>
           )}
 
-          {/* Actions */}
           <div className="flex gap-2 pt-1">
             <button
               onClick={handleSave}
@@ -183,43 +214,34 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
         </div>
       )}
 
-      <div>
-        <div className="flex items-end justify-between mb-1.5">
-          <span className="text-white text-xl font-light"><Redacted>{formatEUR(revenueRealized)}</Redacted></span>
-          {!editing && (
-            <span className="text-neutral-400 text-sm">din <Redacted>{formatEUR(goal.targetRevenue)}</Redacted></span>
-          )}
-        </div>
-
-        {/* Progress bar — green = received, amber = upcoming confirmed */}
-        <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden flex">
-          <div
-            className="h-full bg-emerald-500 transition-all duration-500"
-            style={{ width: `${pctReceived}%` }}
-          />
-          <div
-            className="h-full bg-amber-400 transition-all duration-500"
-            style={{ width: `${pctUpcoming}%` }}
-          />
-        </div>
-
-        <div className="flex items-center justify-between mt-1.5">
-          <div className="flex items-center gap-3">
-            {received > 0 && (
-              <span className="text-xs text-emerald-400 flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                <Redacted>{formatEUR(received)}</Redacted> primit
-              </span>
-            )}
-            {upcoming > 0 && (
-              <span className="text-xs text-amber-400 flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
-                <Redacted>{formatEUR(upcoming)}</Redacted> rezervat
-              </span>
-            )}
+      {!collapsed && !editing && (
+        <div>
+          <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden flex">
+            <div
+              className="h-full bg-emerald-500 transition-all duration-500"
+              style={{ width: `${pctReceived}%` }}
+            />
+            <div
+              className="h-full bg-amber-400 transition-all duration-500"
+              style={{ width: `${pctUpcoming}%` }}
+            />
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-neutral-400 text-xs">{percentage}%</span>
+
+          <div className="flex items-center justify-between mt-1.5">
+            <div className="flex items-center gap-3">
+              {received > 0 && (
+                <span className="text-xs text-emerald-400 flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                  <Redacted>{formatEUR(received)}</Redacted> primit
+                </span>
+              )}
+              {upcoming > 0 && (
+                <span className="text-xs text-amber-400 flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                  <Redacted>{formatEUR(upcoming)}</Redacted> rezervat
+                </span>
+              )}
+            </div>
             {detailRoute && (
               <button
                 onClick={() => navigate(detailRoute)}
@@ -230,7 +252,7 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
             )}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

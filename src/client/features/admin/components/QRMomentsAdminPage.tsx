@@ -80,20 +80,21 @@ type QREventFormValues = {
 };
 
 function QRLinkRow({ eventSlug, pin }: { eventSlug: string; pin: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState<"guest" | "gallery" | null>(null);
   const guestUrl = `https://ancavisuals.ro/qr-moments/${eventSlug}?pass=${pin}`;
+  const galleryUrl = `https://ancavisuals.ro/qr-moments/${eventSlug}/gallery?pin=${pin}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(guestUrl)}`;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(guestUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleCopy = (target: "guest" | "gallery", value: string) => {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopiedTarget(target);
+      setTimeout(() => setCopiedTarget((current) => (current === target ? null : current)), 2000);
     }).catch(() => {});
   };
 
   return (
     <div className="mt-4 rounded-xl bg-neutral-900 border border-neutral-800 p-4">
-      <p className="text-neutral-500 text-xs uppercase tracking-wide mb-3">QR Code pentru invitați</p>
+      <p className="text-neutral-500 text-xs uppercase tracking-wide mb-3">Acces public QR Moments</p>
       <div className="flex gap-4 items-start">
         <img
           src={qrImageUrl}
@@ -102,23 +103,49 @@ function QRLinkRow({ eventSlug, pin }: { eventSlug: string; pin: string }) {
           height={120}
           className="rounded-lg shrink-0 bg-white p-1"
         />
-        <div className="flex-1 space-y-2 min-w-0">
-          <p className="text-neutral-400 text-xs">URL cu PIN inclus:</p>
-          <p className="text-amber-300 text-xs font-mono break-all">{guestUrl}</p>
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleCopy}
-              className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
-            >
-              {copied ? "Copiat!" : "Copiază link"}
-            </button>
-            <a
-              href={qrImageUrl}
-              download={`qr-${eventSlug}.png`}
-              className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
-            >
-              Descarcă QR
-            </a>
+        <div className="flex-1 space-y-4 min-w-0">
+          <div className="space-y-2">
+            <p className="text-neutral-400 text-xs">Link invitați pentru upload:</p>
+            <p className="text-amber-300 text-xs font-mono break-all">{guestUrl}</p>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => handleCopy("guest", guestUrl)}
+                className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                {copiedTarget === "guest" ? "Copiat!" : "Copiază link invitați"}
+              </button>
+              <a
+                href={qrImageUrl}
+                download={`qr-${eventSlug}.png`}
+                className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                Descarcă QR
+              </a>
+            </div>
+          </div>
+
+          <div className="space-y-2 border-t border-neutral-800 pt-4">
+            <p className="text-neutral-400 text-xs">Link miri pentru galerie + comentarii:</p>
+            <p className="text-emerald-300 text-xs font-mono break-all">{galleryUrl}</p>
+            <p className="text-neutral-500 text-[11px] leading-relaxed">
+              Acest link deschide galeria cu PIN-ul inclus, astfel încât mireasa și mirele pot vedea upload-urile și pot comenta direct la poze, video și mesaje.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => handleCopy("gallery", galleryUrl)}
+                className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                {copiedTarget === "gallery" ? "Copiat!" : "Copiază link miri"}
+              </button>
+              <a
+                href={galleryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                Deschide ca mire/mireasă
+              </a>
+            </div>
           </div>
         </div>
       </div>

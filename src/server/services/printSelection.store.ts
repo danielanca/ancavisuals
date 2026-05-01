@@ -21,6 +21,13 @@ type PrintSelectionDocument = {
   deliveryAddressUpdatedAt?: number;
   updatedAt?: number;
   swissLink?: string;
+  retentionNotifications?: AlbumRetentionNotificationState;
+};
+
+export type AlbumRetentionNotificationState = {
+  sevenDaysSentAt?: number;
+  oneDaySentAt?: number;
+  expiredSentAt?: number;
 };
 
 export async function savePrintSelection(slug: string, items: string[]) {
@@ -91,8 +98,6 @@ export async function readDeliveryAddress(slug: string): Promise<PrintSelectionD
   return data ?? null;
 }
 
-
-
 export async function addLink(slug: string,link: string): Promise<void> {
   await firestore()
     .collection(COL)
@@ -103,4 +108,31 @@ export async function addLink(slug: string,link: string): Promise<void> {
     .catch((err) => {
       throw err;
     });
+}
+
+export async function readRetentionNotifications(slug: string): Promise<AlbumRetentionNotificationState> {
+  const snap = await firestore().collection(COL).doc(slug).get();
+  if (!snap.exists) return {};
+  const data = (snap.data() as PrintSelectionDocument | undefined) ?? {};
+  return data.retentionNotifications ?? {};
+}
+
+export async function markRetentionNotificationSent(
+  slug: string,
+  type: keyof AlbumRetentionNotificationState,
+  sentAt = Date.now(),
+): Promise<void> {
+  const current = await readRetentionNotifications(slug);
+
+  await firestore().collection(COL).doc(slug).set(
+    {
+      slug,
+      retentionNotifications: {
+        ...current,
+        [type]: sentAt,
+      },
+      updatedAt: sentAt,
+    },
+    { merge: true },
+  );
 }

@@ -1,3 +1,10 @@
+export interface AlbumRetention {
+  eventDate: string;
+  expiresAt: string;
+  remainingMs: number;
+  isExpired: boolean;
+}
+
 export interface Album {
   slug: string;
   title: string;
@@ -6,4 +13,5 @@ export interface Album {
   originalPhoto: string[];
   shortvideo?: string | null;
   longvideo?: string | null;
+  retention?: AlbumRetention | null;
 }

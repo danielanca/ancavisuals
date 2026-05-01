@@ -193,4 +193,56 @@ describe("printSelection.store", () => {
 
     expect(updateMock).toHaveBeenCalledWith({ swissLink: "https://swiss.example/link" });
   });
+
+  test("readRetentionNotifications returns an empty object when the document is missing", async () => {
+    const { module } = await loadPrintSelectionStore();
+
+    await expect(module.readRetentionNotifications("missing")).resolves.toEqual({});
+  });
+
+  test("readRetentionNotifications returns the stored reminder state", async () => {
+    const { module } = await loadPrintSelectionStore({
+      getSnapshot: {
+        exists: true,
+        data: () => ({
+          retentionNotifications: {
+            sevenDaysSentAt: 111,
+            oneDaySentAt: 222,
+          },
+        }),
+      },
+    });
+
+    await expect(module.readRetentionNotifications("slug")).resolves.toEqual({
+      sevenDaysSentAt: 111,
+      oneDaySentAt: 222,
+    });
+  });
+
+  test("markRetentionNotificationSent merges the new reminder timestamp", async () => {
+    const { module, setMock } = await loadPrintSelectionStore({
+      getSnapshot: {
+        exists: true,
+        data: () => ({
+          retentionNotifications: {
+            sevenDaysSentAt: 111,
+          },
+        }),
+      },
+    });
+
+    await module.markRetentionNotificationSent("slug-5", "expiredSentAt", 333);
+
+    expect(setMock).toHaveBeenCalledWith(
+      {
+        slug: "slug-5",
+        retentionNotifications: {
+          sevenDaysSentAt: 111,
+          expiredSentAt: 333,
+        },
+        updatedAt: 333,
+      },
+      { merge: true },
+    );
+  });
 });

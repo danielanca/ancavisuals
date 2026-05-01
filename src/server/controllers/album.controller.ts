@@ -9,6 +9,7 @@ import type { ReadableStream as NodeReadableStream } from "stream/web";
 import archiver from "archiver";
 import { loadAlbum } from "../services/album.service";
 import { readPrintSelection, savePrintSelection, saveDeliveryAddress, readDeliveryAddress, addLink } from "../services/printSelection.store";
+import { getAlbumRetentionBySlug } from "../services/albumRetention.service";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { db } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
@@ -77,8 +78,9 @@ export async function getAlbum(req: Request, res: Response) {
   const photoPath = await checkPreviewExist(slug);
   const clean = Array.from(new Set(saved.filter(isSafeFile)));
   const print = clean.map(f => signBunnyUrl(`/${slug}/${photoPath}/${f}`));
+  const retention = await getAlbumRetentionBySlug(slug);
 
-  return res.json({ ...album, print });
+  return res.json({ ...album, print, retention });
 }
 
 export async function downloadSelectedPhotos(req: Request, res: Response) {

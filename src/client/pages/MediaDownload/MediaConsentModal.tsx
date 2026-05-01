@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import type { AlbumRetention } from "./AlbumTypes";
 
 const CONSENT_KEY_PREFIX = "av:consent:";
 const ADMIN_BYPASS_KEY = "av:consent:admin:bypass";
@@ -7,10 +8,31 @@ const ADMIN_TAP_TARGET = 10;
 
 interface Props {
   slug: string;
+  retention: AlbumRetention | null;
   onAccepted: () => void;
 }
 
-export default function MediaConsentModal({ slug, onAccepted }: Props) {
+const formatCountdown = (ms: number) => {
+  const safeMs = Math.max(0, ms);
+  const totalSeconds = Math.floor(safeMs / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${days}z ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+};
+
+const formatExpiry = (value: string) =>
+  new Date(value).toLocaleString("ro-RO", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+export default function MediaConsentModal({ slug, retention, onAccepted }: Props) {
   const consentKey = CONSENT_KEY_PREFIX + slug;
 
   const [phase, setPhase] = useState<"hidden" | "modal" | "banner">("hidden");
@@ -18,9 +40,14 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [remainingMs, setRemainingMs] = useState<number | null>(retention?.remainingMs ?? null);
 
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setRemainingMs(retention?.remainingMs ?? null);
+  }, [retention?.remainingMs]);
 
   useEffect(() => {
     if (localStorage.getItem(ADMIN_BYPASS_KEY)) return; // admin bypass
@@ -30,6 +57,22 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
       setPhase("modal");
     }
   }, [consentKey]);
+
+  useEffect(() => {
+    if (!retention?.expiresAt) return;
+
+    const updateRemaining = () => {
+      setRemainingMs(new Date(retention.expiresAt).getTime() - Date.now());
+    };
+
+    updateRemaining();
+    const interval = window.setInterval(updateRemaining, 1000);
+    return () => window.clearInterval(interval);
+  }, [retention?.expiresAt]);
+
+  const countdownLabel = remainingMs !== null ? formatCountdown(remainingMs) : null;
+  const hasExpired = typeof remainingMs === "number" && remainingMs <= 0;
+  const expiryLabel = retention?.expiresAt ? formatExpiry(retention.expiresAt) : null;
 
   const handleEmojiTap = () => {
     tapCountRef.current += 1;
@@ -104,6 +147,12 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
             <p style={{ margin: "10px 0 0", color: "#b38600", fontSize: "13px", lineHeight: "1.5" }}>
               Pozele și videoul tău vor fi <strong>șterse automat după 60 de zile</strong> de la livrare. Salvează-le pe calculatorul sau laptopul tău cât mai curând. AncaVisuals nu poate fi responsabilă pentru materialele nedescărcate în acest interval.
             </p>
+            {countdownLabel && (
+              <p style={{ margin: "10px 0 0", color: "#d4a800", fontSize: "13px", fontWeight: 700 }}>
+                {hasExpired ? "Timpul a expirat." : `Timp rămas: ${countdownLabel}`}
+                {expiryLabel ? ` · expiră la ${expiryLabel}` : ""}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -148,6 +197,12 @@ export default function MediaConsentModal({ slug, onAccepted }: Props) {
           <p style={{ color: "#d4a800", fontSize: "13px", margin: 0, lineHeight: "1.5" }}>
             ⚠️ <strong>Atenție:</strong> materialele vor fi <strong>șterse automat după 60 de zile</strong> de la livrare. AncaVisuals nu poate fi responsabilă pentru materialele nedescărcate în acest interval.
           </p>
+          {countdownLabel && (
+            <p style={{ color: "#facc15", fontSize: "13px", margin: "10px 0 0", lineHeight: "1.5", fontWeight: 700 }}>
+              {hasExpired ? "Timpul a expirat." : `Timp rămas: ${countdownLabel}`}
+              {expiryLabel ? ` · expiră la ${expiryLabel}` : ""}
+            </p>
+          )}
         </div>
 
         <label style={{

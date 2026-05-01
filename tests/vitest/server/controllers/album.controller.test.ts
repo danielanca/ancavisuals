@@ -42,9 +42,25 @@ const loadAlbumController = async () => {
   const dbDocMock = vi.fn(() => ({
     get: dbGetMock,
   }));
-  const collectionMock = vi.fn(() => ({
-    doc: dbDocMock,
-  }));
+  const adminEventsGetMock = vi.fn().mockResolvedValue({
+    empty: true,
+    docs: [],
+  });
+  const collectionMock = vi.fn((name?: string) => {
+    if (name === "adminEvents") {
+      return {
+        where: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            get: adminEventsGetMock,
+          })),
+        })),
+      };
+    }
+
+    return {
+      doc: dbDocMock,
+    };
+  });
   const archiveAppendMock = vi.fn();
   const archiveFinalizeMock = vi.fn().mockResolvedValue(undefined);
   const archivePipeMock = vi.fn();
@@ -244,6 +260,7 @@ describe("album.controller", () => {
       slug: "demo",
       originalPhoto: [],
       print: ["signed:/demo/photos_preview/a.jpg", "signed:/demo/photos_preview/b.png"],
+      retention: null,
     });
   });
 

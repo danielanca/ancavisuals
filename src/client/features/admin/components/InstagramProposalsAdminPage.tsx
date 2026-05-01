@@ -123,6 +123,47 @@ export default function InstagramProposalsAdminPage() {
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
   };
 
+  const renderAcceptedGroup = ([albumSlug, albumProposals]: [string, InstagramProposal[]]) => {
+    const isCollapsed = collapsedAlbums.has(albumSlug);
+    return (
+      <div key={albumSlug} style={{ marginBottom: "20px", border: "1px solid #1a1a1a", borderRadius: "12px", overflow: "hidden", background: "#0a0a0a" }}>
+        <div
+          onClick={() => toggleAlbum(albumSlug)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            padding: "14px 20px",
+            cursor: "pointer",
+            borderBottom: isCollapsed ? "none" : "1px solid #1a1a1a",
+            userSelect: "none",
+          }}
+        >
+          <span style={{ fontSize: "12px", color: "#444" }}>{isCollapsed ? "▶" : "▼"}</span>
+          <a
+            href={`/media/${albumSlug}`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            style={{ color: "#818cf8", fontSize: "14px", fontWeight: 600, textDecoration: "none", flex: 1 }}
+          >
+            {albumSlug}
+          </a>
+          <span style={{ background: "#0f766e", color: "#fff", fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "999px" }}>
+            {albumProposals.length} acceptate
+          </span>
+        </div>
+        {!isCollapsed && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "1px", background: "#1a1a1a" }}>
+            {albumProposals.map((proposal) => (
+              renderAcceptedCard(proposal)
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const albums = useMemo(
     () => Array.from(new Set(proposals.map((p) => p.albumSlug))).sort(),
     [proposals]
@@ -299,9 +340,7 @@ export default function InstagramProposalsAdminPage() {
                 <p style={{ color: "#555", fontSize: "13px", marginBottom: "20px" }}>
                   Descarcă poza, apoi butonul „Mută în Arhivate" se activează.
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "12px" }}>
-                  {accepted.map(renderAcceptedCard)}
-                </div>
+                {groupByAlbum(accepted).map(renderAcceptedGroup)}
               </>
             );
         })()}

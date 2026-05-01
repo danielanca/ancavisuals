@@ -38,6 +38,7 @@ import qrMomentsRouter from "./src/server/routes/qrMoments.routes";
 import accountsRouter from "./src/server/routes/accounts.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
+import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 
@@ -156,6 +157,7 @@ async function createServer() {
   startServerMonitor();
   startMementosCron();
   startAnalyticsCron();
+  startAlbumRetentionCron();
   startErrorsCron();
 
   let vite: ViteDevServer | undefined;
