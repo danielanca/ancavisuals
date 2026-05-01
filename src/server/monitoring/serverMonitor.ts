@@ -75,11 +75,16 @@ async function sendCrashEmail(message: string): Promise<void> {
       `,
     });
   } catch {
-    // nu mai logăm, suntem deja în crash handler
+    // Do not log again, we are already in the crash handler
   }
 }
 
 export function startServerMonitor(): void {
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[server-monitor] Dezactivat în development — erorile nu se salvează în Firestore");
+    return;
+  }
+
   originalConsoleError = console.error;
   originalConsoleWarn = console.warn;
 

@@ -1,4 +1,5 @@
-import React, { useEffect, useReducer, useMemo, useState } from "react";
+import React, { useEffect, useReducer, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import Breadcrumb from "./Breadcrumb";
 
@@ -16,19 +17,20 @@ interface ServerError {
 }
 
 type Filter = "all" | "error" | "warn" | "server" | "client" | "unseen";
+type ExtendedFilter = Filter | "qr";
 
 interface State {
   errors: ServerError[];
   loading: boolean;
   marking: boolean;
-  filter: Filter;
+  filter: ExtendedFilter;
   expandedId: string | null;
 }
 
 type Action =
   | { type: "loaded"; errors: ServerError[] }
   | { type: "mark_done" }
-  | { type: "set_filter"; filter: Filter }
+  | { type: "set_filter"; filter: ExtendedFilter }
   | { type: "toggle_expand"; id: string }
   | { type: "set_marking"; value: boolean };
 
@@ -49,21 +51,27 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-const FILTERS: { value: Filter; label: string }[] = [
+const FILTERS: { value: ExtendedFilter; label: string }[] = [
   { value: "all", label: "Toate" },
   { value: "unseen", label: "Nevăzute" },
+  { value: "qr", label: "QR Moments" },
   { value: "error", label: "Errors" },
   { value: "warn", label: "Warnings" },
   { value: "server", label: "Server" },
   { value: "client", label: "Client" },
 ];
 
+function isQrError(error: ServerError): boolean {
+  return error.message.includes("[QR DEBUG]") || error.page.startsWith("/qr-moments/");
+}
+
 export default function ErrorsPage() {
+  const location = useLocation();
   const [state, dispatch] = useReducer(reducer, {
     errors: [],
     loading: true,
     marking: false,
-    filter: "unseen",
+    filter: ((location.state as { filter?: ExtendedFilter } | null)?.filter ?? "unseen"),
     expandedId: null,
   });
 
@@ -77,6 +85,7 @@ export default function ErrorsPage() {
   const filtered = useMemo(() => {
     return state.errors.filter((error) => {
       if (state.filter === "unseen") return !error.seen;
+      if (state.filter === "qr") return isQrError(error);
       if (state.filter === "error") return error.severity === "error";
       if (state.filter === "warn") return error.severity === "warn";
       if (state.filter === "server") return error.source === "server";
@@ -86,6 +95,7 @@ export default function ErrorsPage() {
   }, [state.errors, state.filter]);
 
   const unseenCount = useMemo(() => state.errors.filter((e) => !e.seen).length, [state.errors]);
+  const qrCount = useMemo(() => state.errors.filter((error) => isQrError(error)).length, [state.errors]);
 
   const handleMarkSeen = async () => {
     dispatch({ type: "set_marking", value: true });
@@ -113,6 +123,9 @@ export default function ErrorsPage() {
                 ? `${unseenCount} erori nevăzute din ${state.errors.length} total`
                 : `${state.errors.length} erori total — toate văzute`}
             </p>
+            <p className="text-neutral-600 text-xs mt-1">
+              Aici sunt centralizate erorile de server, client și QR Moments.
+            </p>
           </div>
           {unseenCount > 0 && (
             <button
@@ -138,6 +151,9 @@ export default function ErrorsPage() {
               }`}
             >
               {filterOption.label}
+              {filterOption.value === "qr" && qrCount > 0 && (
+                <span className="ml-1.5 text-amber-300">{qrCount}</span>
+              )}
             </button>
           ))}
         </div>
@@ -168,6 +184,7 @@ function ErrorRow({ error, expanded, onToggle }: { error: ServerError; expanded:
   const severityColor = error.severity === "error" ? "text-red-400" : "text-amber-400";
   const severityBg = error.severity === "error" ? "bg-red-500/10 border-red-500/20" : "bg-amber-500/10 border-amber-500/20";
   const sourceColor = error.source === "client" ? "text-blue-400" : "text-violet-400";
+  const qrError = isQrError(error);
 
   const time = error.capturedAt
     ? new Date(error.capturedAt).toLocaleString("ro-RO", {
@@ -194,6 +211,7 @@ function ErrorRow({ error, expanded, onToggle }: { error: ServerError; expanded:
           )}
           <span className={`text-xs font-bold uppercase ${severityColor}`}>{error.severity}</span>
           <span className={`text-xs uppercase ${sourceColor}`}>{error.source}</span>
+          {qrError && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20">QR</span>}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-neutral-200 text-sm font-mono truncate">{shortMessage}</p>

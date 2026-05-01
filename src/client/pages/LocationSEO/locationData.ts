@@ -383,6 +383,30 @@ export const CITIES: CityData[] = [
     photoSpots: ["centrul istoric", "Turnul Trompeților", "piațetele vechi"],
   },
   {
+    slug: "timisoara",
+    name: "Timișoara",
+    county: "Timiș",
+    description:
+      "cel mai mare oraș din vestul României, cu o vibrație cosmopolită, locații premium și o scenă de evenimente bine pusă la punct",
+    intro:
+      "În Timișoara acoperim nunți, botezuri și evenimente private cu un stil curat, ritm bun și atenție la detaliile care fac diferența în galeria finală.",
+    nearbyAreas: ["Giroc", "Dumbrăvița", "Ghiroda", "Moșnița Nouă"],
+    venues: ["Grand Hotel Continental", "Savoy Events", "Mercure Timișoara", "Palatul Braunschweig"],
+    photoSpots: ["Piața Victoriei", "Piața Unirii", "Parcul Rozelor"],
+  },
+  {
+    slug: "targu-lapus",
+    name: "Târgu Lăpuș",
+    county: "Maramureș",
+    description:
+      "un oraș din inima Maramureșului, cu evenimente de familie calde, tradiții puternice și un cadru natural autentic",
+    intro:
+      "La evenimentele din Târgu Lăpuș documentăm cu respect față de tradiție și cu atenție la momentele reale, de la familie până la atmosfera specifică locului.",
+    nearbyAreas: ["Copalnic-Mănăștur", "Groși", "Cupșeni", "Suciu de Sus"],
+    venues: ["saloanele locale", "Pensiunea Moieciu", "restaurantele din centru", "locațiile din zonă"],
+    photoSpots: ["centrul orașului", "dealurile din jur", "Valea Lăpușului"],
+  },
+  {
     slug: "cisnadie",
     name: "Cisnădie",
     county: "Sibiu",

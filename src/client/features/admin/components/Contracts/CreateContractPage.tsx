@@ -327,7 +327,6 @@ const CreateContractPage: React.FC = () => {
                 const parsed = parsePrice(s.priceRaw);
                 const isGratuit = parsed === "gratuit";
                 const isMissing = serviceErrors.has(s.id);
-                const numericPrice = typeof parsed === "number" ? parsed : 0;
                 const conversion = typeof parsed === "number" && parsed > 0
                   ? convertAmount(parsed, currency, eurRate)
                   : "";

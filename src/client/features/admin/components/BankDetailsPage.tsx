@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import type { AdminSettings } from "../types";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import Breadcrumb from "./Breadcrumb";
@@ -36,7 +35,6 @@ const inputClass =
   "w-full bg-neutral-950 text-white text-sm placeholder-neutral-600 border border-neutral-800 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors";
 
 const BankDetailsPage: React.FC = () => {
-  const navigate = useNavigate();
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
   const [pageLoading, setPageLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);

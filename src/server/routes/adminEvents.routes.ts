@@ -2,10 +2,122 @@ import type { Request, Response } from "express";
 import { Router } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
+import Anthropic from "@anthropic-ai/sdk";
 import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_QR_MOMENT_FOLDER } from "../constants/bunny";
+import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import sharp from "sharp";
 
 const router = Router();
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+type LeadEventTypeGuess = "Nuntă" | "Botez" | "Logodnă" | "Aniversare" | "Altele" | null;
+
+function sanitizePhone(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const compact = trimmed.replace(/[^\d+]/g, "");
+  const hasEnoughDigits = compact.replace(/\D/g, "").length >= 7;
+  return hasEnoughDigits ? compact : null;
+}
+
+function sanitizeName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function sanitizeDate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+function sanitizeEventTypeGuess(value: unknown): LeadEventTypeGuess {
+  const allowed: Exclude<LeadEventTypeGuess, null>[] = ["Nuntă", "Botez", "Logodnă", "Aniversare", "Altele"];
+  return typeof value === "string" && allowed.includes(value as Exclude<LeadEventTypeGuess, null>)
+    ? (value as Exclude<LeadEventTypeGuess, null>)
+    : null;
+}
+
+router.post("/leads/extract-from-image", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { imageBase64, mediaType } = req.body as { imageBase64?: string; mediaType?: string };
+
+  if (!imageBase64 || !mediaType) {
+    res.status(400).json({ error: "imageBase64 și mediaType sunt obligatorii." });
+    return;
+  }
+
+  if (!mediaType.startsWith("image/")) {
+    res.status(400).json({ error: "Sunt acceptate doar imagini." });
+    return;
+  }
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 400,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                data: imageBase64,
+              },
+            },
+            {
+              type: "text",
+              text: `Analizezi un screenshot sau o imagine cu text pentru un CRM de lead-uri foto/video.
+
+Extrage DOAR dacă apare clar în imagine:
+- numărul de telefon
+- numele persoanei
+- data evenimentului
+- tipul evenimentului, doar dacă este destul de clar
+
+Reguli stricte:
+1. Nu inventa și nu deduce agresiv. Dacă nu e clar, pune null.
+2. Pentru telefon, extrage cel mai probabil număr principal al persoanei.
+3. Pentru nume, extrage doar numele persoanei, nu și text promoțional.
+4. Pentru dată, convertește în format YYYY-MM-DD dacă poți identifica rezonabil ziua, luna și anul; altfel null.
+5. Pentru tipul evenimentului, folosește doar una din: "Nuntă", "Botez", "Logodnă", "Aniversare", "Altele" sau null.
+6. Dacă vezi doar indicii slabe pentru "nuntă", dar nu e destul de clar, returnează null.
+7. Răspunde DOAR cu JSON valid, fără explicații.
+
+Format:
+{
+  "phone": "string sau null",
+  "fullName": "string sau null",
+  "eventDate": "YYYY-MM-DD sau null",
+  "eventTypeGuess": "Nuntă | Botez | Logodnă | Aniversare | Altele | null"
+}`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "{}";
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) as Record<string, unknown> : {};
+
+    res.json({
+      extracted: {
+        phone: sanitizePhone(parsed.phone),
+        fullName: sanitizeName(parsed.fullName),
+        eventDate: sanitizeDate(parsed.eventDate),
+        eventTypeGuess: sanitizeEventTypeGuess(parsed.eventTypeGuess),
+      },
+    });
+  } catch (error) {
+    console.error("[adminEvents] POST /leads/extract-from-image failed:", error);
+    res.status(500).json({ error: "Nu s-au putut extrage datele din imagine." });
+  }
+});
 
 // GET /api/admin/events — all events, sorted by eventDate
 router.get("/events", async (_req: Request, res: Response) => {

@@ -2,12 +2,53 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { Timestamp } from "firebase-admin/firestore";
 import Anthropic from "@anthropic-ai/sdk";
+import multer from "multer";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
+import { BUNNY_ACCESS_KEY_HEADER, BUNNY_STORAGE_BASE_URL, getBunnyStorageZone, getBunnyStoragePassword } from "../constants/bunny";
 
 const router = Router();
 const COLLECTION = "expenses";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// POST /upload-doc — upload a receipt/invoice file to Bunny CDN
+router.post("/upload-doc", requireFirebaseAuth, requireSupremeAdmin, upload.single("file"), async (req: Request, res: Response) => {
+  const file = req.file;
+  const { year, month } = req.body as { year?: string; month?: string };
+
+  if (!file) {
+    res.status(400).json({ error: "Fișier lipsă." });
+    return;
+  }
+
+  const safeFileName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const folder = year && month ? `expenses/${year}/${month}` : "expenses";
+  const storageZone = getBunnyStorageZone();
+  const password = getBunnyStoragePassword();
+  const uploadUrl = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${folder}/${safeFileName}`;
+
+  try {
+    const response = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: password, "Content-Type": "application/octet-stream" },
+      body: file.buffer,
+    });
+
+    if (!response.ok) {
+      res.status(500).json({ error: `Bunny upload failed: ${response.status}` });
+      return;
+    }
+
+    const cdnDomain = process.env.BUNNY_CDN_DOMAIN ?? "";
+    const url = `${cdnDomain}/${folder}/${safeFileName}`;
+    res.json({ url, name: file.originalname });
+  } catch (error) {
+    console.error("[expenses] POST /upload-doc failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
 
 // POST /scan-receipt — AI extraction from image or PDF
 router.post("/scan-receipt", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {

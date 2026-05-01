@@ -47,22 +47,22 @@
   outline-offset: 2px;
 }
 
-/* Formularul să nu mai forțeze centrare pe tot conținutul */
+/* Prevent the form from forcing centered alignment for all content */
 .booking-form {
   display: flex;
   flex-direction: column;
   align-items: stretch; /* important */
-  text-align: left; /* text la stânga în interior */
+  text-align: left; /* keep text left-aligned inside */
 }
 
-/* Labelul de consimțământ ancorat corect */
+/* Keep the consent label properly anchored */
 .consent-label {
-  align-self: flex-start; /* nu mai ia centrare de la părinte */
+  align-self: flex-start; /* avoid inheriting centering from the parent */
   display: flex;
   align-items: flex-start;
   gap: 10px;
   margin-top: 12px;
-  max-width: 520px; /* să nu fugă pe lățimi mari */
+  max-width: 520px; /* avoid stretching too far on wide layouts */
   font-size: 13px;
   color: #9ca3af;
   text-align: left;
@@ -93,7 +93,7 @@
   color: #9ca3af;
 }
 
-/* Mobile: asigură-te că stă frumos pe o coloană */
+/* Mobile: keep it clean in a single-column layout */
 @media (max-width: 640px) {
   .consent-label {
     max-width: 100%;

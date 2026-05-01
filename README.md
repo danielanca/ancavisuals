@@ -289,6 +289,15 @@ Recommended setup:
 
 ## README Changelog
 
+### 2026-04-30
+
+- **AdminBar**: restored top bar (email + logout + Dashboard button) on all admin pages including `/admin`; trimmed email to show only the part before `@`; increased bar height to 48px; added `whiteSpace: nowrap` on buttons
+- **Event cheltuieli**: added `EventExpense` type to `ClientEvent`; new inline expenses section in `EventCard` — add/delete per-event expenses (label + RON amount), total computed automatically, persisted to Firestore via PATCH
+- **Dashboard quick nav — drag to reorder**: long-press (280ms) any nav tile to enter drag mode, drag over another to reorder; new order saved in `/api/admin/ui-state` as `quickNavOrder` and restored on next load; `onContextMenu` suppresses browser right-click/long-press menu on touchpad
+- **EventCard header**: event type (Nuntă / Botez etc.) now shown in header row next to name; Nuntă rendered in green
+- **Mementouri — edit**: added edit button (✎) on each memento card; opens `EditMementoModal` pre-filled with title, description, due date, category, reminder, and recurrence; PATCH endpoint extended to accept all editable fields (not just `completed`)
+- **Conturi admin (`/admin/accounts`)**: new page listing all Firebase Auth users with role (Admin / Moderator), creation date, last sign-in; inline form to update email and/or password; protected by `requireSupremeAdmin` middleware; accessible from Dashboard quick nav
+
 ### 2026-04
 
 - Replaced the inherited template README with project-specific documentation

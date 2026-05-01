@@ -28,10 +28,10 @@ const REACTIONS = [
 
 type ReactionKey = (typeof REACTIONS)[number]["key"];
 type ReactionCounts = Partial<Record<ReactionKey, number>>;
-// { [imageId]: reactionKey } — ce a ales userul
+// { [imageId]: reactionKey } — the reaction selected by the user
 type MyReactions = Record<string, ReactionKey>;
 
-/** Seed consistent între 10–25 per imagine + tip reacție */
+/** Consistent seed between 10-25 per image and reaction type */
 const seedForReaction = (id: string, key: string): number => {
   const s = id + key;
   let h = 0;
@@ -294,7 +294,7 @@ export default function PortfolioGallery({
                     />
                   </button>
 
-                  {/* Picker emoji — apare la long press sau click pe cercul gri */}
+                  {/* Emoji picker — appears on long press or click on the gray circle */}
                   {isPickerOpen && (
                     <div className="pg-picker" onClick={e => e.stopPropagation()}>
                       {REACTIONS.map(r => (

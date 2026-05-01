@@ -1,11 +1,14 @@
 import React from "react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import useAuth from "../../features/admin/auth/useAuth";
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { auth } = useAuth();
+  const topOffset = auth.authorise ? "top-12" : "top-0";
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 p-4 md:p-8 bg-black/20 backdrop-blur-sm text-white">
+    <nav className={`fixed ${topOffset} left-0 right-0 z-50 p-4 md:p-8 bg-black/20 backdrop-blur-sm text-white`}>
       <div className="flex justify-between items-center max-w-7xl mx-auto">
         {/* Left Navigation - Hidden on mobile, visible on tablet+ */}
         <div className="hidden lg:flex space-x-6 xl:space-x-8">

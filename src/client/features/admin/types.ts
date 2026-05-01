@@ -7,6 +7,12 @@ export interface EventService {
   price: number;
 }
 
+export interface EventExpense {
+  id: string;
+  label: string;
+  amount: number;
+}
+
 export interface ClientEvent {
   id: string;
   type: EventType;
@@ -36,6 +42,7 @@ export interface ClientEvent {
   templateUrls?: string[];
   albumSlug?: string;
   albumPin?: string;
+  expenses?: EventExpense[];
 }
 
 export interface Goal {

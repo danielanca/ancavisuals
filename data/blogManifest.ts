@@ -1,5 +1,5 @@
-// AUTO-MAINTAINED — adaugă câte o intrare pentru fiecare fișier nou din data/blog/
-// slug trebuie să corespundă exact cu numele fișierului .md (fără extensie)
+// AUTO-MAINTAINED — add one entry for each new file in data/blog/
+// slug must match the .md filename exactly (without the extension)
 
 export interface BlogMeta {
   slug: string;
@@ -12,7 +12,7 @@ export interface BlogMeta {
 }
 
 export const BLOG_POSTS: BlogMeta[] = [
-  // ── Articole generale ──────────────────────────────────────────────────────
+  // ── General articles ───────────────────────────────────────────────────────
   {
     slug: "ce-trebuie-sa-stii-la-nunta",
     title: "Ce trebuie să știi la o nuntă — ghid complet",
@@ -62,7 +62,7 @@ export const BLOG_POSTS: BlogMeta[] = [
     tags: ["nunta", "fotograf", "sfaturi"],
   },
 
-  // ── Acte căsătorie per oraș ─────────────────────────────────────────────────
+  // ── Marriage documents by city ─────────────────────────────────────────────
   { slug: "acte-casatorie-primarie-turda", title: "Acte necesare căsătorie primărie Turda — ghid 2026", description: "Lista documentelor pentru dosarul de căsătorie la Primăria Turda. Termene, taxe și sfaturi practice.", date: "2026-06-10", category: "acte", tags: ["casatorie", "acte", "turda"], city: "turda" },
   { slug: "acte-casatorie-primarie-cluj", title: "Acte necesare căsătorie primărie Cluj-Napoca — ghid 2026", description: "Lista documentelor pentru dosarul de căsătorie la Primăria Cluj-Napoca. Termene, taxe și sfaturi practice.", date: "2026-06-10", category: "acte", tags: ["casatorie", "acte", "cluj"], city: "cluj" },
   { slug: "acte-casatorie-primarie-sibiu", title: "Acte necesare căsătorie primărie Sibiu — ghid 2026", description: "Lista documentelor pentru dosarul de căsătorie la Primăria Sibiu. Termene, taxe și sfaturi practice.", date: "2026-06-10", category: "acte", tags: ["casatorie", "acte", "sibiu"], city: "sibiu" },
@@ -91,7 +91,7 @@ export const BLOG_POSTS: BlogMeta[] = [
   { slug: "acte-casatorie-primarie-nasaud", title: "Acte necesare căsătorie primărie Năsăud — ghid 2026", description: "Lista documentelor pentru dosarul de căsătorie la Primăria Năsăud. Termene, taxe și sfaturi practice.", date: "2026-06-10", category: "acte", tags: ["casatorie", "acte", "nasaud"], city: "nasaud" },
   { slug: "acte-casatorie-primarie-sangeorz-bai", title: "Acte necesare căsătorie primărie Sângeorz-Băi — ghid 2026", description: "Lista documentelor pentru dosarul de căsătorie la Primăria Sângeorz-Băi. Termene, taxe și sfaturi practice.", date: "2026-06-10", category: "acte", tags: ["casatorie", "acte", "sangeorz-bai"], city: "sangeorz-bai" },
 
-  // ── Acte botez per oraș ─────────────────────────────────────────────────────
+  // ── Baptism documents by city ──────────────────────────────────────────────
   { slug: "acte-botez-turda", title: "Acte necesare botez Turda — ghid complet 2026", description: "Ce documente pregătești pentru botez la biserica și starea civilă din Turda. Lista completă, termene și sfaturi.", date: "2026-06-20", category: "acte", tags: ["botez", "acte", "turda"], city: "turda" },
   { slug: "acte-botez-cluj", title: "Acte necesare botez Cluj-Napoca — ghid complet 2026", description: "Ce documente pregătești pentru botez la biserica și starea civilă din Cluj-Napoca. Lista completă, termene și sfaturi.", date: "2026-06-20", category: "acte", tags: ["botez", "acte", "cluj"], city: "cluj" },
   { slug: "acte-botez-sibiu", title: "Acte necesare botez Sibiu — ghid complet 2026", description: "Ce documente pregătești pentru botez la biserica și starea civilă din Sibiu. Lista completă, termene și sfaturi.", date: "2026-06-20", category: "acte", tags: ["botez", "acte", "sibiu"], city: "sibiu" },

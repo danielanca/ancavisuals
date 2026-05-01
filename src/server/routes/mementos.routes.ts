@@ -56,19 +56,27 @@ router.post("/mementos", async (req: Request, res: Response) => {
 
 router.patch("/mementos/:id", async (req: Request, res: Response) => {
   try {
-    const { completed } = req.body;
+    const { completed, title, description, dueDate, reminderMinutesBefore, recurring } = req.body;
     const db = firestore();
-    const updates: Record<string, unknown> = { completed };
+    const updates: Record<string, unknown> = {};
 
-    // When marked as done, reset due date for the next occurrence if recurring
-    if (completed === true) {
-      const doc = await db.collection(COLLECTION).doc(req.params.id).get();
-      const data = doc.data();
-      if (data?.recurring && data.recurring !== "none") {
-        const nextDate = getNextOccurrence(data.dueDate.toDate(), data.recurring);
-        updates.dueDate = Timestamp.fromDate(nextDate);
-        updates.completed = false;
-        updates.emailSent = false;
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (dueDate !== undefined) updates.dueDate = Timestamp.fromDate(new Date(dueDate));
+    if (reminderMinutesBefore !== undefined) updates.reminderMinutesBefore = reminderMinutesBefore;
+    if (recurring !== undefined) updates.recurring = recurring;
+
+    if (completed !== undefined) {
+      updates.completed = completed;
+      if (completed === true) {
+        const doc = await db.collection(COLLECTION).doc(req.params.id).get();
+        const data = doc.data();
+        if (data?.recurring && data.recurring !== "none") {
+          const nextDate = getNextOccurrence(data.dueDate.toDate(), data.recurring);
+          updates.dueDate = Timestamp.fromDate(nextDate);
+          updates.completed = false;
+          updates.emailSent = false;
+        }
       }
     }
 

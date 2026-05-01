@@ -18,6 +18,8 @@ const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), opt
 const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerificationPage"), opts(true));
 const InvitationLandingPage = loadable(() => import("../pages/InvitationLanding/InvitationLandingPage"), opts(true));
 const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMomentsPage"), opts(true));
+const QRMomentsGalleryPage = loadable(() => import("../pages/QRMoments/QRMomentsGalleryPage"), opts(true));
+const QRMomentsUnsubscribePage = loadable(() => import("../pages/QRMoments/QRMomentsUnsubscribePage"), opts(true));
 const BioPage = loadable(() => import("../pages/Bio/BioPage"), opts(true));
 const CopyrightPage = loadable(() => import("../pages/Copyright/Copyright"), opts(true));
 const PrivacyPage = loadable(() => import("../pages/Privacy/Privacy"), opts(true));
@@ -149,7 +151,17 @@ const publicRoutes: publicRoutesType[] = [
     component: InvitationLandingPage,
   },
   {
-    path: "/qr-moments/:eventDate",
+    path: "/qr-moments/unsubscribe/:guestId",
+    layout: null,
+    component: QRMomentsUnsubscribePage,
+  },
+  {
+    path: "/qr-moments/:eventSlug/gallery",
+    layout: null,
+    component: QRMomentsGalleryPage,
+  },
+  {
+    path: "/qr-moments/:eventSlug",
     layout: null,
     component: QRMomentsPage,
   },

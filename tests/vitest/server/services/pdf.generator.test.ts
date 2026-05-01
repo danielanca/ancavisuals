@@ -94,7 +94,7 @@ describe("generateContractPDF", () => {
       expect(html).toContain("Plata se realizează în numerar (cash)");
       expect(html).toContain("________________________");
       expect(html).toContain("Metodă de plată: Cash.");
-      // Data invalidă produce placeholder "___________" (formatDate guard)
+      // An invalid date produces the "___________" placeholder (formatDate guard)
       expect(html).toContain("___________");
     });
   });

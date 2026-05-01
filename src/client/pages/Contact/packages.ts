@@ -17,7 +17,7 @@ export type Pkg = {
   samples?: string[];
 };
 
-// Sample images/videos per pachet — URL-urile Firebase rămân aici
+// Sample images/videos per package — keep the Firebase URLs here
 const PACKAGE_SAMPLES: Record<string, string[]> = {
   photo: [
     "https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FPoze-125.jpg?alt=media&token=364b1285-b470-4251-8002-8ba6a7a1bb98",
