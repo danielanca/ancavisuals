@@ -38,81 +38,92 @@ export default function AdminBar() {
 
   return (
     <div style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 60,
+      position: "relative",
+      zIndex: 20,
       background: "#0f0f0f",
       borderBottom: "1px solid #222",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "12px",
-      padding: "0 16px",
-      height: "48px",
-      fontSize: "13px",
       fontFamily: "sans-serif",
     }}>
-      <span style={{ color: "#555" }}>
-        Admin:&nbsp;<span style={{ color: "#aaa" }}>{auth.user?.email?.split("@")[0]}</span>
-      </span>
+      <div style={{
+        maxWidth: "56rem",
+        width: "100%",
+        margin: "0 auto",
+        paddingBlock: "12px",
+        paddingInline: "16px",
+        minHeight: "64px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "12px",
+        flexWrap: "wrap",
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "180px" }}>
+          <span style={{ color: "#555", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Admin
+          </span>
+          <span style={{ color: "#d4d4d4", fontSize: "15px", fontWeight: 600, lineHeight: 1.2 }}>
+            {auth.user?.email?.split("@")[0]}
+          </span>
+        </div>
 
-      {albumSlug && (
-        <button
-          onClick={handleNotify}
-          disabled={notifyStatus === "loading"}
-          style={{
-            background: notifyStatus === "success" ? "#052e16" : "none",
-            border: `1px solid ${notifyStatus === "success" ? "#166534" : notifyStatus === "error" ? "#7f1d1d" : "#333"}`,
-            borderRadius: "6px",
-            color: notifyStatus === "success" ? "#4ade80" : notifyStatus === "error" ? "#f87171" : "#888",
-            fontSize: "12px",
-            padding: "5px 14px",
-            cursor: notifyStatus === "loading" ? "not-allowed" : "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {notifyStatus === "loading" && "Se trimite..."}
-          {notifyStatus === "success" && `✓ Trimis către ${subscriberCount} abonat${subscriberCount === 1 ? "" : "i"}`}
-          {notifyStatus === "error" && "Eroare trimitere"}
-          {notifyStatus === "idle" && "🔔 Notifică abonații"}
-        </button>
-      )}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {albumSlug && (
+            <button
+              onClick={handleNotify}
+              disabled={notifyStatus === "loading"}
+              style={{
+                background: notifyStatus === "success" ? "#052e16" : "none",
+                border: `1px solid ${notifyStatus === "success" ? "#166534" : notifyStatus === "error" ? "#7f1d1d" : "#333"}`,
+                borderRadius: "8px",
+                color: notifyStatus === "success" ? "#4ade80" : notifyStatus === "error" ? "#f87171" : "#888",
+                fontSize: "12px",
+                padding: "8px 14px",
+                cursor: notifyStatus === "loading" ? "not-allowed" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {notifyStatus === "loading" && "Se trimite..."}
+              {notifyStatus === "success" && `✓ Trimis către ${subscriberCount} abonat${subscriberCount === 1 ? "" : "i"}`}
+              {notifyStatus === "error" && "Eroare trimitere"}
+              {notifyStatus === "idle" && "🔔 Notifică abonații"}
+            </button>
+          )}
 
-      {location.pathname !== "/admin" && (
-        <a
-          href="/admin"
-          style={{
-            background: "none",
-            border: "1px solid #333",
-            borderRadius: "6px",
-            color: "#888",
-            fontSize: "12px",
-            padding: "5px 14px",
-            textDecoration: "none",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Dashboard →
-        </a>
-      )}
+          {location.pathname !== "/admin" && (
+            <a
+              href="/admin"
+              style={{
+                background: "none",
+                border: "1px solid #333",
+                borderRadius: "8px",
+                color: "#888",
+                fontSize: "12px",
+                padding: "8px 14px",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Dashboard →
+            </a>
+          )}
 
-      <button
-        onClick={logOut}
-        style={{
-          background: "none",
-          border: "1px solid #333",
-          borderRadius: "6px",
-          color: "#888",
-          fontSize: "12px",
-          padding: "5px 14px",
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        Deloghează-te
-      </button>
+          <a
+            onClick={logOut}
+            style={{
+              background: "none",
+              border: "1px solid #333",
+              borderRadius: "8px",
+              color: "#888",
+              fontSize: "12px",
+              padding: "8px 14px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Deloghează-te
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

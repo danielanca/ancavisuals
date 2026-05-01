@@ -41,19 +41,21 @@ export default function Breadcrumb() {
   if (crumbs.length <= 1) return null;
 
   return (
-    <nav className="flex items-center gap-1.5 text-xs text-neutral-500 mb-6">
-      {crumbs.map(({ path, label, isLast }) => (
-        <React.Fragment key={path}>
-          {isLast ? (
-            <span className="text-neutral-300 font-medium">{label}</span>
-          ) : (
-            <Link to={path} className="hover:text-neutral-300 transition-colors">
-              {label}
-            </Link>
-          )}
-          {!isLast && <span className="text-neutral-700">›</span>}
-        </React.Fragment>
-      ))}
-    </nav>
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 mb-6">
+      <nav className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
+        {crumbs.map(({ path, label, isLast }) => (
+          <React.Fragment key={path}>
+            {isLast ? (
+              <span className="text-neutral-300 font-medium">{label}</span>
+            ) : (
+              <Link to={path} className="hover:text-neutral-300 transition-colors">
+                {label}
+              </Link>
+            )}
+            {!isLast && <span className="text-neutral-700">›</span>}
+          </React.Fragment>
+        ))}
+      </nav>
+    </div>
   );
 }

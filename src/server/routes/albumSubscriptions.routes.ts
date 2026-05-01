@@ -3,6 +3,8 @@ import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { sendEmail } from "../notifications/mailer";
+import { adminUser } from "../constants/credentials";
+import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 
 const router = express.Router();
 const COLLECTION = "albumSubscriptions";
@@ -38,6 +40,60 @@ router.post("/subscribe", async (req: Request, res: Response) => {
   }
 });
 
+// GET /click/:slug — track subscriber click-through from email, notify admin, then redirect
+router.get("/click/:slug", async (req: Request, res: Response) => {
+  const { slug } = req.params;
+  const email = typeof req.query.email === "string" ? req.query.email.trim().toLowerCase() : "";
+  const albumUrl = `${BASE_URL}/media/${slug}`;
+
+  if (!slug || !email) {
+    res.redirect(albumUrl);
+    return;
+  }
+
+  try {
+    const ip = getClientIp(req);
+    const ipInfo = await fetchIpInfo(ip);
+    const clickedAt = new Date().toLocaleString("ro-RO", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: "Europe/Bucharest",
+    });
+
+    const location = ipInfo
+      ? [ipInfo.city, ipInfo.region, ipInfo.country].filter(Boolean).join(", ")
+      : "unknown";
+
+    await sendEmail({
+      to: adminUser.email,
+      subject: `👀 Subscriber opened album ${slug}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+          <h2 style="color:#111;margin:0 0 16px;">Subscriber clicked "Vezi albumul"</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <tr><td style="padding:8px 0;color:#666;width:120px;">Album</td><td style="color:#111;font-weight:600;">${slug}</td></tr>
+            <tr><td style="padding:8px 0;color:#666;">Email</td><td style="color:#111;font-weight:600;">${email}</td></tr>
+            <tr><td style="padding:8px 0;color:#666;">Clicked at</td><td style="color:#111;">${clickedAt}</td></tr>
+            <tr><td style="padding:8px 0;color:#666;">IP</td><td style="color:#111;">${ip || "unknown"}</td></tr>
+            <tr><td style="padding:8px 0;color:#666;">Location</td><td style="color:#111;">${location}</td></tr>
+          </table>
+          <p style="margin:20px 0 0;">
+            <a href="${albumUrl}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px;">Open album</a>
+          </p>
+        </div>
+      `,
+    });
+  } catch {
+    // Ignore tracking failures and still redirect the subscriber to the album.
+  }
+
+  res.redirect(albumUrl);
+});
+
 // POST /notify/:slug — send notification email to all subscribers (admin only)
 router.post("/notify/:slug", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { slug } = req.params;
@@ -54,7 +110,6 @@ router.post("/notify/:slug", requireFirebaseAuth, requireSupremeAdmin, async (re
     }
 
     const emails = snapshot.docs.map((doc) => (doc.data() as { email: string }).email);
-    const albumUrl = `${BASE_URL}/media/${slug}`;
 
     await Promise.all(
       emails.map((email) =>
@@ -67,7 +122,7 @@ router.post("/notify/:slug", requireFirebaseAuth, requireSupremeAdmin, async (re
               <p style="color:#aaa;font-size:15px;line-height:1.6;margin:0 0 24px;">
                 Albumul <strong style="color:#fff">${slug}</strong> a fost actualizat cu fotografii și/sau videoclipuri noi.
               </p>
-              <a href="${albumUrl}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
+              <a href="${BASE_URL}/api/album-subscriptions/click/${encodeURIComponent(slug)}?email=${encodeURIComponent(email)}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
                 Vezi albumul →
               </a>
               <hr style="border:none;border-top:1px solid #222;margin:32px 0;" />
