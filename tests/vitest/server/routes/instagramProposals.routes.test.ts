@@ -210,14 +210,14 @@ describe("instagramProposals.routes", () => {
   });
 
   describe("PATCH /:id", () => {
-    test("updates status to posted", async () => {
+    test("updates status to accepted", async () => {
       const { patchStatus, updateMock, docMock } = await loadInstagramProposalsRouter();
       const res = createMockResponse();
 
-      await patchStatus({ params: { id: "prop-1" }, body: { status: "posted" } }, res);
+      await patchStatus({ params: { id: "prop-1" }, body: { status: "accepted" } }, res);
 
       expect(docMock).toHaveBeenCalledWith("prop-1");
-      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ status: "posted" }));
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ status: "accepted" }));
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
 

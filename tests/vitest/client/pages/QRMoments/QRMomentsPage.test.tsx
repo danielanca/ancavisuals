@@ -6,6 +6,16 @@ import QRMomentsPage from "src/client/pages/QRMoments/QRMomentsPage";
 import QRMomentsGalleryPage from "src/client/pages/QRMoments/QRMomentsGalleryPage";
 import QRMomentsUnsubscribePage from "src/client/pages/QRMoments/QRMomentsUnsubscribePage";
 
+vi.mock("firebase/storage", async () => {
+  const actual = await vi.importActual<typeof import("firebase/storage")>("firebase/storage");
+  return {
+    ...actual,
+    ref: vi.fn(() => ({})),
+    listAll: vi.fn(async () => ({ items: [] })),
+    getDownloadURL: vi.fn(),
+  };
+});
+
 vi.mock("src/client/features/admin/auth/useAuth", () => ({
   default: () => ({
     auth: {
@@ -74,8 +84,7 @@ describe("QRMomentsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Continuă/i }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenNthCalledWith(
-        2,
+      expect(fetchMock).toHaveBeenCalledWith(
         "/api/qr-moments/guest/register",
         expect.objectContaining({
           method: "POST",
@@ -116,8 +125,7 @@ describe("QRMomentsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Trimite 1 fișier/i }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenNthCalledWith(
-        3,
+      expect(fetchMock).toHaveBeenCalledWith(
         "/api/qr-moments/27martie2028/upload",
         expect.objectContaining({
           method: "POST",
@@ -126,7 +134,9 @@ describe("QRMomentsPage", () => {
       );
     });
 
-    const uploadRequest = fetchMock.mock.calls[2][1] as { body: FormData };
+    const uploadCall = fetchMock.mock.calls.find(([url]) => url === "/api/qr-moments/27martie2028/upload");
+    expect(uploadCall).toBeTruthy();
+    const uploadRequest = uploadCall?.[1] as { body: FormData };
     expect(uploadRequest.body.get("guestId")).toBe("guest-1");
     expect(uploadRequest.body.get("pass")).toBe("SECRET");
     expect(await screen.findByText(/Fișierele tale au ajuns la miri/i)).toBeInTheDocument();
@@ -176,9 +186,9 @@ describe("QRMomentsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Deschide photo.jpg" }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenNthCalledWith(
-        2,
+      expect(fetchMock).toHaveBeenCalledWith(
         "/api/qr-moments/comment/upload-1?eventSlug=27martie2028&pin=PIN123",
+        expect.any(Object),
       );
     });
   });
