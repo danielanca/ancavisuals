@@ -296,7 +296,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
               <label className={labelClass}>
                 {form.type === "Altele" ? "Dată început" : "Dată estimată"}
               </label>
-              <input type="date" className={inputClass} value={form.eventDate} onChange={set("eventDate")} />
+              <input type="date" className={`${inputClass} h-10`} value={form.eventDate} onChange={set("eventDate")} />
             </div>
           </div>
 
@@ -310,7 +310,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
               <div>
                 <label className={labelClass}>Dată sfârșit</label>
                 <input
-                  type="date" className={inputClass} value={form.eventEndDate}
+                  type="date" className={`${inputClass} h-10`} value={form.eventEndDate}
                   onChange={set("eventEndDate")} min={form.eventDate || undefined}
                 />
               </div>

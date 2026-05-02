@@ -378,7 +378,7 @@ const SeatingPlanPage: React.FC = () => {
             {pageState.createErrorMessage}
           </div>
         )}
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
           <input
             type="text"
             placeholder="Numele mesei (ex: Masa 1, Familie)"
@@ -393,24 +393,26 @@ const SeatingPlanPage: React.FC = () => {
             onChange={(e) => dispatch({ type: "SET_TABLE_ALIAS", value: e.target.value })}
             className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-rose-500 transition-colors"
           />
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={pageState.newTableCapacity}
-            onChange={(e) => dispatch({ type: "SET_TABLE_CAPACITY", value: Number(e.target.value) })}
-            title="Locuri masă"
-            aria-label="Locuri masă"
-            placeholder="Locuri masă"
-            className="w-20 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-rose-500 transition-colors text-center"
-          />
-          <button
-            type="submit"
-            disabled={pageState.isCreatingTable || !pageState.newTableName.trim()}
-            className="bg-rose-600 hover:bg-rose-500 disabled:bg-neutral-700 disabled:text-neutral-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
-          >
-            {pageState.isCreatingTable ? "..." : "+ Masă"}
-          </button>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={pageState.newTableCapacity}
+              onChange={(e) => dispatch({ type: "SET_TABLE_CAPACITY", value: Number(e.target.value) })}
+              title="Locuri masă"
+              aria-label="Locuri masă"
+              placeholder="Locuri"
+              className="w-20 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-rose-500 transition-colors text-center"
+            />
+            <button
+              type="submit"
+              disabled={pageState.isCreatingTable || !pageState.newTableName.trim()}
+              className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-500 disabled:bg-neutral-700 disabled:text-neutral-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+            >
+              {pageState.isCreatingTable ? "..." : "+ Masă"}
+            </button>
+          </div>
         </div>
         <p className="text-neutral-600 text-xs mt-2">Capacitate: numărul de locuri la masă</p>
       </form>
