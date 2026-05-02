@@ -8,6 +8,13 @@
   background: #000;
 }
 
+.brandStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
 .brandLabel {
   animation: ancaPulse 0.85s ease-in-out infinite;
   color: #fff;
@@ -21,6 +28,16 @@
 
 .brandAccent {
   font-weight: 700;
+}
+
+.subtitle {
+  color: rgba(255, 255, 255, 0.58);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  user-select: none;
 }
 
 .topBar {

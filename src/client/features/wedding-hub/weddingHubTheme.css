@@ -1,0 +1,206 @@
+.wedding-hub-shell[data-theme="light"] {
+  background:
+    radial-gradient(circle at top left, rgba(221, 169, 141, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(244, 196, 170, 0.16), transparent 22%),
+    linear-gradient(180deg, #fbf5ee 0%, #f4ebdf 52%, #f6efe6 100%) !important;
+  color: #2f2a26 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-neutral-950 {
+  background-color: transparent !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-neutral-900,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-900\/70,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-900\/50,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-900\/40 {
+  background-color: rgba(255, 252, 248, 0.9) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-neutral-800,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-800\/60,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-800\/50 {
+  background-color: #f2e6d8 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-neutral-700 {
+  background-color: #e7d8ca !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-black\/60 {
+  background-color: rgba(78, 52, 36, 0.24) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-black\/10,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-950\/70,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-950\/40 {
+  background-color: rgba(252, 246, 238, 0.92) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .border-neutral-900\/20,
+.wedding-hub-shell[data-theme="light"] .border-neutral-800,
+.wedding-hub-shell[data-theme="light"] .border-neutral-700,
+.wedding-hub-shell[data-theme="light"] .border-neutral-700\/90,
+.wedding-hub-shell[data-theme="light"] .border-neutral-600 {
+  border-color: #ddcdbd !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-white,
+.wedding-hub-shell[data-theme="light"] .text-neutral-200 {
+  color: #312922 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-neutral-300,
+.wedding-hub-shell[data-theme="light"] .text-neutral-400 {
+  color: #685d54 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-neutral-500,
+.wedding-hub-shell[data-theme="light"] .text-neutral-600 {
+  color: #938272 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] input,
+.wedding-hub-shell[data-theme="light"] textarea,
+.wedding-hub-shell[data-theme="light"] select {
+  color: #312922 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] input::placeholder,
+.wedding-hub-shell[data-theme="light"] textarea::placeholder {
+  color: #ad9b89 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .wedding-hub-sidebar,
+.wedding-hub-shell[data-theme="light"] .wedding-hub-mobile-header,
+.wedding-hub-shell[data-theme="light"] .wedding-hub-mobile-drawer {
+  background:
+    linear-gradient(180deg, rgba(255, 251, 247, 0.97), rgba(248, 239, 229, 0.94)) !important;
+  backdrop-filter: blur(14px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.wedding-hub-shell[data-theme="light"] .wedding-hub-navlink[aria-current="page"] {
+  background:
+    linear-gradient(180deg, #fff7f1 0%, #f8e7d8 100%) !important;
+  color: #8a4d35 !important;
+  border: 1px solid #e9c9b2 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 20px rgba(197, 133, 94, 0.12);
+}
+
+.wedding-hub-shell[data-theme="light"] .wedding-hub-navlink:not([aria-current="page"]):hover {
+  background: rgba(247, 236, 224, 0.92) !important;
+  color: #4f4238 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .wedding-hub-ghost-button {
+  background: rgba(255, 249, 243, 0.95) !important;
+  color: #665245 !important;
+  border-color: #dbc7b4 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .wedding-hub-ghost-button:hover {
+  background: #f7edde !important;
+  color: #49382d !important;
+  border-color: #cdb49d !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-rose-600 {
+  background: linear-gradient(180deg, #cf7358 0%, #bc6148 100%) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .hover\:bg-rose-500:hover {
+  background: linear-gradient(180deg, #c9684e 0%, #af553f 100%) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-rose-400 {
+  color: #bf674e !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-red-400 {
+  color: #c24141 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-green-400 {
+  color: #2f7d57 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-yellow-400 {
+  color: #a16207 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-red-900\/20,
+.wedding-hub-shell[data-theme="light"] .bg-red-900\/30 {
+  background-color: rgba(239, 68, 68, 0.07) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-green-900\/20 {
+  background-color: rgba(34, 197, 94, 0.07) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-rose-900\/20,
+.wedding-hub-shell[data-theme="light"] .bg-rose-950\/10 {
+  background-color: rgba(191, 103, 78, 0.08) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-yellow-900\/40 {
+  background-color: rgba(250, 204, 21, 0.12) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-green-900\/40 {
+  background-color: rgba(34, 197, 94, 0.12) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-red-900\/40 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-yellow-300 {
+  color: #956200 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-green-300 {
+  color: #2f7856 !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .text-red-300 {
+  color: #b15b5b !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .border-yellow-800\/40 {
+  border-color: rgba(202, 138, 4, 0.2) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .border-green-800\/40 {
+  border-color: rgba(22, 101, 52, 0.18) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .border-red-800\/40,
+.wedding-hub-shell[data-theme="light"] .border-red-800 {
+  border-color: rgba(185, 40, 40, 0.18) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .shadow-lg,
+.wedding-hub-shell[data-theme="light"] .shadow-2xl {
+  box-shadow: 0 18px 40px rgba(116, 86, 59, 0.08) !important;
+}
+
+.wedding-hub-shell[data-theme="light"] .rounded-xl {
+  box-shadow: 0 14px 34px rgba(137, 106, 79, 0.05);
+}
+
+.wedding-hub-shell[data-theme="light"] input,
+.wedding-hub-shell[data-theme="light"] textarea,
+.wedding-hub-shell[data-theme="light"] select {
+  background: linear-gradient(180deg, rgba(255, 252, 248, 0.95), rgba(247, 239, 230, 0.95)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.wedding-hub-shell[data-theme="light"] .bg-neutral-900.border,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-900\/50.border,
+.wedding-hub-shell[data-theme="light"] .bg-neutral-900\/40.border {
+  background:
+    linear-gradient(180deg, rgba(255, 252, 248, 0.96), rgba(249, 241, 233, 0.92)) !important;
+}

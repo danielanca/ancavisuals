@@ -33,6 +33,21 @@ import LandingAdminPage from "./features/admin/components/Landing/LandingAdminPa
 import CollaboratorPage from "./features/collaborator/CollaboratorPage";
 import AccountsPage from "./features/admin/components/AccountsPage";
 import InstagramProposalsAdminPage from "./features/admin/components/InstagramProposalsAdminPage";
+import WeddingHubAdminPage from "./features/admin/components/WeddingHub/WeddingHubAdminPage";
+import WeddingHubAuthWrapper from "./features/wedding-hub/WeddingHubAuthWrapper";
+import WeddingHubLayout from "./features/wedding-hub/WeddingHubLayout";
+import RequireWeddingAuth from "./features/wedding-hub/components/RequireWeddingAuth";
+import CheckWeddingAuth from "./features/wedding-hub/components/CheckWeddingAuth";
+import WeddingLoginPage from "./features/wedding-hub/pages/WeddingLogin";
+import WeddingDashboard from "./features/wedding-hub/pages/WeddingDashboard";
+import GuestManagerPage from "./features/wedding-hub/pages/GuestManagerPage";
+import SeatingPlanPage from "./features/wedding-hub/pages/SeatingPlanPage";
+import WeddingMessagesPage from "./features/wedding-hub/pages/WeddingMessagesPage";
+import GuestInvitationPage from "./features/wedding-hub/pages/GuestInvitationPage";
+import WeddingSettingsPage from "./features/wedding-hub/pages/WeddingSettingsPage";
+import WeddingMockLabPage from "./features/wedding-hub/pages/WeddingMockLabPage";
+import ChecklistPage from "./features/wedding-hub/pages/ChecklistPage";
+import TimelinePage from "./features/wedding-hub/pages/TimelinePage";
 import RevinPage from "./pages/Revin/RevinPage";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
@@ -45,7 +60,7 @@ function AdminSpacer() {
 }
 
 
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator", "/qr-moments"];
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite"];
 
 export const App = () => {
   const location = useLocation();
@@ -126,12 +141,34 @@ export const App = () => {
             <Route path="/colaborator" element={<CollaboratorPage />} />
             <Route path="/admin/accounts" element={<AccountsPage />} />
             <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
+            <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
           </Route>
-
 
           {/* Login-only routes */}
           <Route element={<CheckAuth />}>
             <Route path="/login" element={<Login />} />
+          </Route>
+
+          {/* Public guest invitation page */}
+          <Route path="/invite/:token" element={<GuestInvitationPage />} />
+
+          {/* Wedding Hub — couple-facing (separate Firebase Auth instance) */}
+          <Route element={<WeddingHubAuthWrapper />}>
+            <Route element={<CheckWeddingAuth />}>
+              <Route path="/wedding-hub/login" element={<WeddingLoginPage />} />
+            </Route>
+            <Route element={<RequireWeddingAuth />}>
+              <Route element={<WeddingHubLayout />}>
+                <Route path="/wedding-hub/dashboard" element={<WeddingDashboard />} />
+                <Route path="/wedding-hub/guests" element={<GuestManagerPage />} />
+                <Route path="/wedding-hub/seating" element={<SeatingPlanPage />} />
+                <Route path="/wedding-hub/messages" element={<WeddingMessagesPage />} />
+                <Route path="/wedding-hub/timeline" element={<TimelinePage />} />
+                <Route path="/wedding-hub/checklist" element={<ChecklistPage />} />
+                <Route path="/wedding-hub/mock" element={<WeddingMockLabPage />} />
+                <Route path="/wedding-hub/settings" element={<WeddingSettingsPage />} />
+              </Route>
+            </Route>
           </Route>
           
           

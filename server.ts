@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { devLogger } from "./src/server/utils/devStartup";
 import type { Request, Response, NextFunction } from 'express';
 import fs from 'fs/promises';
 import path, { dirname } from 'path';
@@ -36,10 +37,17 @@ import instagramProposalsRouter from "./src/server/routes/instagramProposals.rou
 import albumSubscriptionsRouter from "./src/server/routes/albumSubscriptions.routes";
 import qrMomentsRouter from "./src/server/routes/qrMoments.routes";
 import accountsRouter from "./src/server/routes/accounts.routes";
+import weddingHubRouter from "./src/server/routes/weddingHub.routes";
+import weddingHubMockRouter from "./src/server/routes/weddingHubMock.routes";
+import weddingChecklistRouter from "./src/server/routes/weddingChecklist.routes";
+import weddingTimelineRouter from "./src/server/routes/weddingTimeline.routes";
+import weddingRemindersRouter from "./src/server/routes/weddingReminders.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
+import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
+import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 
 // Shared HTTP defaults used by both local development and the production server.
@@ -96,6 +104,11 @@ const isAssetRequest = (url: string) => {
 };
 
 async function createServer() {
+  const showProgress = !isProd && !isTest;
+  const startTime = Date.now();
+
+  if (showProgress) devLogger.header();
+
   const app = express();
 
   app.set('trust proxy', true);
@@ -103,7 +116,8 @@ async function createServer() {
   app.use(express.urlencoded({ extended: true, limit: BODY_PAYLOAD_LIMIT }));
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
-  
+
+  if (showProgress) devLogger.step("Express middleware");
 
   // --- API routes ---
   const apiUrl = isProd
@@ -153,12 +167,23 @@ async function createServer() {
   app.use("/api/instagram-proposals", instagramProposalsRouter);
   app.use("/api/album-subscriptions", albumSubscriptionsRouter);
   app.use("/api/qr-moments", qrMomentsRouter);
+  app.use("/api/wedding-hub", weddingHubRouter);
+  app.use("/api/mock/wedding-hub", weddingHubMockRouter);
+  app.use("/api/wedding-hub/checklist", weddingChecklistRouter);
+  app.use("/api/wedding-hub/timeline", weddingTimelineRouter);
+  app.use("/api/wedding-hub/reminders", weddingRemindersRouter);
+
+  if (showProgress) devLogger.step("Rute API", "29 rute înregistrate");
 
   startServerMonitor();
   startMementosCron();
   startAnalyticsCron();
   startAlbumRetentionCron();
+  startPostEventBackupCron();
   startErrorsCron();
+  startRemindersCron();
+
+  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors");
 
   let vite: ViteDevServer | undefined;
   let template: string;
@@ -168,11 +193,15 @@ async function createServer() {
 
   if (!isProd) {
     // ******** DEV MODE (HMR ON) ********
+    if (showProgress) devLogger.startSpinner("Vite dev server");
+
     vite = await createViteServer({
       server: { host: '127.0.0.1', middlewareMode: true, hmr: isPlaywright ? false : undefined },
       appType: 'custom',
-      logLevel: isTest ? 'error' : 'info',
+      logLevel: isTest ? 'error' : 'warn',
     });
+
+    if (showProgress) devLogger.stopSpinner("Vite dev server");
 
     app.use(vite.middlewares);
 
@@ -249,8 +278,12 @@ async function createServer() {
 
   const port = process.env.PORT || DEFAULT_APP_PORT;
   app.listen(Number(port), '127.0.0.1', () => {
-  console.log(`App is listening on http://127.0.0.1:${port}`);
-});
+    if (showProgress) {
+      devLogger.ready(Number(port), Date.now() - startTime);
+    } else {
+      console.log(`App is listening on http://127.0.0.1:${port}`);
+    }
+  });
 }
 
 createServer();
