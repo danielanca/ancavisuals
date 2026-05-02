@@ -23,6 +23,7 @@ const LABELS: Record<string, string> = {
   landing: "Landing Page",
   goals: "Obiective",
   analytics: "Analytics",
+  "wedding-hub": "Wedding Hub",
 };
 
 export default function Breadcrumb() {

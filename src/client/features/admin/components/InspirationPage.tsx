@@ -497,11 +497,6 @@ function PreviewModal({
   }
 
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
-  }, []);
-
-  useEffect(() => {
     setEditing(false);
     setEditTags(currentPhoto.tags);
     setEditNotes(currentPhoto.notes ?? "");

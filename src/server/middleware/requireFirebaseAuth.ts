@@ -46,3 +46,40 @@ export function requireSupremeAdmin(
   }
   next();
 }
+
+export interface CoupleAuthenticatedRequest extends Request {
+  weddingId: string;
+  coupleUid: string;
+}
+
+export async function requireCoupleAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Token lipsă" });
+    return;
+  }
+  const token = authHeader.slice(7);
+  try {
+    const database = firestore();
+    const decoded = await getAuth().verifyIdToken(token);
+    const snapshot = await database
+      .collection("wh_weddings")
+      .where("coupleUid", "==", decoded.uid)
+      .limit(1)
+      .get();
+    if (snapshot.empty) {
+      res.status(403).json({ error: "Nunta nu a fost găsită pentru acest cont" });
+      return;
+    }
+    const coupleReq = req as CoupleAuthenticatedRequest;
+    coupleReq.coupleUid = decoded.uid;
+    coupleReq.weddingId = snapshot.docs[0].id;
+    next();
+  } catch {
+    res.status(401).json({ error: "Token invalid" });
+  }
+}

@@ -217,6 +217,70 @@ router.patch("/events/:id", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/admin/events/:id/post-event-backup/confirm?token=...
+router.get("/events/:id/post-event-backup/confirm", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const { id } = req.params;
+    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
+
+    if (!token) {
+      return res.status(400).send("Token lipsă.");
+    }
+
+    const doc = await db.collection("adminEvents").doc(id).get();
+    if (!doc.exists) {
+      return res.status(404).send("Evenimentul nu a fost găsit.");
+    }
+
+    const data = doc.data()!;
+    const expectedToken = typeof data.postEventBackupConfirmationToken === "string"
+      ? data.postEventBackupConfirmationToken.trim()
+      : "";
+
+    if (expectedToken && expectedToken !== token) {
+      return res.status(403).send("Token invalid.");
+    }
+
+    await doc.ref.update({
+      postEventBackupConfirmedAt: Timestamp.now(),
+      postEventBackupConfirmationToken: null,
+    });
+
+    res.status(200).send(`
+      <!doctype html>
+      <html lang="ro">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>Backup confirmat</title>
+          <style>
+            body { margin: 0; font-family: Arial, sans-serif; background: #0b0b0b; color: #f5f5f5; }
+            .wrap { max-width: 560px; margin: 0 auto; padding: 40px 24px; }
+            .card { border: 1px solid #262626; border-radius: 16px; padding: 24px; background: #111; }
+            h1 { margin: 0 0 12px; font-size: 28px; font-weight: 500; }
+            p { margin: 0 0 14px; color: #d4d4d4; line-height: 1.65; }
+            .ok { display: inline-block; margin-top: 12px; padding: 10px 16px; border-radius: 999px; background: #10b981; color: #08120f; font-weight: 700; }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <div class="card">
+              <h1>Backup confirmat</h1>
+              <p>Am înregistrat confirmarea pentru backup-ul pozelor și video-ului.</p>
+              <p>Nu vei mai primi remindere pentru acest eveniment.</p>
+              <div class="ok">Confirmat</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error("[adminEvents] GET /events/:id/post-event-backup/confirm failed:", error);
+    res.status(500).send("Nu s-a putut confirma backup-ul.");
+  }
+});
+
 // DELETE /api/admin/events/:id — permanently delete event
 router.delete("/events/:id", async (req: Request, res: Response) => {
   try {

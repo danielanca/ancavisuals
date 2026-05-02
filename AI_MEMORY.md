@@ -41,6 +41,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #   rg -n "#DEBUG"    AI_MEMORY.md   → debugging rapid
 #   rg -n "#RECENT"   AI_MEMORY.md   → modificări recente
 #   rg -n "#ADMIN"    AI_MEMORY.md   → admin dashboard, events, contracte
+#   rg -n "#WH"       AI_MEMORY.md   → Wedding Hub — miri, invitați, mese, RSVP
 
 ---
 
@@ -79,6 +80,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #CMD  test:e2e report:    npm run test:e2e:report
 #CMD  coverage open:      npm run coverage:open
 #CMD  build:              npm run build
+#CMD  înainte de build:    npm install apoi npm run build, ca să se prindă dependențe noi sau lockfile changes în scripts #CMD
 #CMD  lint:               npm run lint
 #CMD  pm2 serve:          npm run serve:pm2
 #CMD  fișiere după pat:   rg --files src | rg 'pattern'
@@ -218,6 +220,44 @@ Același principiu se aplică și pentru căutări în codul sursă:
 
 ---
 
+## WEDDING HUB #WH
+
+#WH  Scop: modul de organizare nuntă pentru miri — invitați, RSVP, plan de mese, invitații digitale
+#WH  Trăiește în: src/client/features/wedding-hub/ (client) + src/server/routes/weddingHub.routes.ts (server)
+#WH  Admin creează nunți: /admin/wedding-hub → POST /api/wedding-hub/admin/weddings → creează Firebase Auth user + doc Firestore
+#WH  Miri se autentifică la: /wedding-hub/login (auth complet separat de /login al fotografului)
+#WH  Auth miri: instanță Firebase separată — src/client/features/wedding-hub/firebaseWeddingHub.ts (named app "wedding-hub")
+#WH  De ce instanță separată: evită conflictul cu AuthProvider al adminului care setează authorise:true pentru orice user Firebase
+#WH  Middleware server: requireCoupleAuth în requireFirebaseAuth.ts — verifică token + caută weddingId după coupleUid
+#WH  Colecții Firestore: wh_weddings | wh_guests | wh_tables
+#WH  API prefix: /api/wedding-hub/*
+#WH  Rute couple (auth): GET /me | PATCH /settings | GET/PATCH /messages/templates | GET /messages/broadcasts | POST /messages/broadcasts | POST /guests | PATCH /guests/:id | POST /guests/bulk-update | DELETE /guests/:id | POST /tables | PATCH /tables/:id | DELETE /tables/:id
+#WH  Mock zone separată: /wedding-hub/mock în UI + /api/mock/wedding-hub/* în backend; folosește stare în memorie, gate pe `VITE_WEDDING_HUB_MOCKS=1` / `WEDDING_HUB_MOCKS=1`, pentru simulări RSVP, preview, broadcast queue și istoric per destinatar. #WH
+#WH  Rute publice (fără auth): GET /invite/:token | POST /invite/:token/rsvp
+#WH  Rute admin (requireSupremeAdmin): POST /admin/weddings | GET /admin/weddings | DELETE /admin/weddings/:id
+#WH  Pagini couple: /wedding-hub/dashboard | /wedding-hub/guests | /wedding-hub/seating | /wedding-hub/settings
+#WH  Pagina publică invitat: /invite/:token — UI dark rose, complet în română
+#WH  Model date invitat: tableId pe guest (nu assignedGuestIds pe table) — tableguestlist derivată pe client cu useMemo
+#WH  Meniu copii: câmp separat childrenMenuPreference apare în formularul RSVP când childrenCount > 0
+#WH  Token invitație: UUID v4 generat la creare guest, nu conține PII în URL
+#WH  State management couple: useReducer+useMemo în WeddingHubContext — acțiuni SET/ADD/UPDATE/REMOVE pentru profile/guests/tables
+#WH  Date loading: useWeddingData hook → GET /me returnează profile + guests + tables într-un singur call (Promise.all)
+#WH  SSR safe: isBrowser() guard în WeddingHubAuthContext, coupleLoading:true pe server, RequireWeddingAuth arată Loader
+#WH  App.tsx routing: WeddingHubAuthWrapper (outer, provide auth) → CheckWeddingAuth/WeddingHubLayout → RequireWeddingAuth → pages
+#WH  Evită flash pe refresh: RequireWeddingAuth trebuie să stea înainte de WeddingHubLayout; dacă layout-ul se montează primul, se vede header-ul brut ("Wedding Hub", "Ieși") înainte să se rezolve auth-ul #WH
+#WH  Loader Wedding Hub: folosește Loader fullscreen cu label implicit AncaVisuals + subtitle "Wedding Planner" în CheckWeddingAuth/RequireWeddingAuth pentru refresh și auth restore #WH
+#WH  Bulk automation: POST /api/wedding-hub/guests/bulk-update actualizează până la 500 invitați într-un singur request (ex: tableId null / asignări în masă / RSVP în masă) și validează ownership-ul pe wedding + mesele referite #WH
+#WH  Script local seating: npm run seed:wedding-seating → scripts/seedWeddingSeating.ts; poate crea mese lipsă, reseta seating-ul și repartiza invitații secvențial pentru testare rapidă #WH
+#WH  Setări email: `wh_weddings.settings = { emailNotificationsEnabled, notifyOnAccept, notifyOnDecline }`; pagina couple `/wedding-hub/settings` salvează preferințele prin PATCH /api/wedding-hub/settings #WH
+#WH  RSVP email notification: la POST /api/wedding-hub/invite/:token/rsvp se trimite email către `coupleEmail` doar dacă email notifications sunt active și bifarea pentru tipul răspunsului (`accept` / `refuz`) este pornită #WH
+#WH  RSVP familie: invitația publică acceptă acum `accompanyingAdultNames`, `childrenNames` și `sameTableWithFamily`; copilul / soțul nu sunt așezați automat la aceeași masă, ci doar grupați ca familie în UI și search, iar bifa "Vrem să fim toți împreună la aceeași masă" rămâne doar preferință. #WH
+#WH  Mesele au acum și `tableAlias` separat de `tableName`; aliasul poate fi ceva de tip `BFF Mire`, `BFF Mireasa`, `Bunicii`, `Parinti Mire`, `Familie Mireasa` și se poate edita în cardul mesei. #WH
+#WH  Tema Wedding Hub: local-only, nu în backend; `WeddingHubThemeProvider` salvează `dark|light` în localStorage key `wedding-hub-theme`, iar `weddingHubTheme.css` face override pentru tema light doar în shell-ul couple-facing #WH
+#WH  Admin breadcrumb: "wedding-hub" adăugat în LABELS din Breadcrumb.tsx
+#WH  rg shortcut: rg -n "#WH" AI_MEMORY.md
+
+---
+
 ## CAPCANE CUNOSCUTE #PITFALL
 
 #PITFALL  Dacă HTML-ul SSR rămâne în cache după deploy, poate referi asset-uri hash-uite vechi; browserul cere JS inexistent, iar fără protecție serverul poate răspunde cu HTML în catch-all (`text/html` în loc de modul JS) #PITFALL
@@ -244,6 +284,23 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-05-02: RSVP-ul public Wedding Hub permite acum un mesaj liber la confirmare, plus sugestii de text și emoji-uri rapide; mesajul este salvat pe guest și inclus în emailul de notificare către miri. Validat cu `npm run typecheck` și `npm run build`. #RECENT #WH
+#RECENT  2026-05-02: Parser-ul pentru importul AI din poză a fost făcut tolerant la JSON imperfect: răspunsul Claude este extras din blocurile markdown/code fence și reparat cu `jsonrepair` înainte de `JSON.parse`, ca să nu mai pice la virgule/lipsă de bracket. Validat cu `npm run typecheck` și `npm run build`. #RECENT #WH
+#RECENT  2026-05-02: Importul AI din poză pentru Wedding Hub acceptă acum și HEIC/HEIF direct din iPhone: backend-ul normalizează `image/jpg`, încearcă conversia HEIC prin `heic-convert` și are fallback la `sharp` înainte de apelul către Claude. Validat cu `npm run typecheck` și `npm run build`. #RECENT #WH
+#RECENT  2026-05-02: Wedding Hub a primit import AI din poză pentru invitați: `POST /api/wedding-hub/guests/extract-from-image` folosește Claude pentru a extrage nume/telefon/email/notes din screenshot-uri, iar `AddGuestModal` are secțiune `Import din poză` cu preview editabil și `POST /api/wedding-hub/guests/bulk-create` pentru import în bulk cu deduplicare. Validat cu `npm run typecheck` și `npm run build`. #RECENT #WH
+#RECENT  2026-05-02: Reminder-ul post-eveniment pentru backup media a fost extins: emailul ajunge la ~24h după evenimentul `finalizat`, apoi se repetă la fiecare 48h până când confirmi backup-ul din linkul din email. Confirmarea setează `postEventBackupConfirmedAt` în `adminEvents`, iar subiectul include data de trimis + numărul reminder-ului ca să nu se grupeze în același thread. Validat cu `npm run typecheck` și `npm run build`. #RECENT #ADMIN #NOTIFY #MEDIA
+#RECENT  2026-05-02: Adăugat reminder post-eveniment pentru backup media: cron nou `src/server/cron/postEventBackupReminder.cron.ts` trimite un email la `adminUser.email` la ~24h după un eveniment `finalizat`, folosind flag-ul Firestore `postEventBackupReminderSentAt` ca anti-duplicat și link direct către albumul media dacă există `albumSlug`. Validat cu `npm run typecheck` și `npm run build`. #RECENT #ADMIN #NOTIFY #MEDIA
+#RECENT  2026-05-02: RSVP-ul Wedding Hub poate acum să captureze familie/plus-one separat: invitația publică permite nume pentru adulții și copiii care vin, plus bifa "Vrem să fim toți împreună la aceeași masă" ca preferință, fără auto-seating; listarea invitaților și planul de mese caută și afișează membrii familiei ca grup. Validat cu `npm run typecheck` și `npm run build`. #RECENT #WH
+#RECENT  2026-05-02: Mesele Wedding Hub au primit `tableAlias` separat de `tableName`; aliasul e editabil din cardul mesei și poate fi folosit pentru etichete de tip `BFF Mire`, `Bunicii` sau `Familie Mireasa`, fără să pierzi denumirea oficială a mesei. #RECENT #WH
+#RECENT  2026-05-02: Adăugată zona separată de mock pentru Wedding Hub: sidebar-ul are acum `Mock`, pagina `/wedding-hub/mock` simulează RSVP + mesaje bulk + preview dry-run + coadă în memorie, iar backend-ul expune `/api/mock/wedding-hub/*` fără să atingă Firestore. Zona e gate-uită explicit de `VITE_WEDDING_HUB_MOCKS=1` și `WEDDING_HUB_MOCKS=1`. #RECENT #WH
+#RECENT  2026-05-02: Wedding Hub guests page ajustată incremental pentru UX, fără redesign complet: filtrele și căutarea au rămas în stilul inițial, dar cu target-uri tactice mai bune, stats discrete, empty state mai clar și CTA sticky pe mobil; modalele Add/Edit păstrează look-ul anterior cu mici ajustări de spacing și responsive behavior. #RECENT #WH
+#RECENT  2026-05-02: Wedding Hub Mesaje a trecut pe broadcast async cu istoric și șabloane: API-ul are acum GET/PATCH /messages/templates, GET /messages/broadcasts și POST /messages/broadcasts, broadcast-urile se salvează în Firestore cu status queue/processing/sent/partial/failed, iar UI-ul are tab-uri pentru trimitere, șabloane editabile și istoric. Filtrele suportă confirmați, fără/cu masă și tipuri de contact, cu fallback explicit între email și SMS. #RECENT #WH
+#RECENT  2026-05-02: Wedding Hub are acum pagina `Mesaje` și endpoint-ul `POST /api/wedding-hub/messages/broadcasts` pentru trimitere bulk către invitații confirmați; mesajul merge pe email și, dacă există telefon valid + SMS configurat, și pe telefon, iar dacă un invitat are ambele contacte primește pe ambele canale. #RECENT #WH
+#RECENT  2026-05-02: Wedding Hub settings extinse pentru email RSVP: toggle master + toggle separat pentru acceptări și refuzuri; cuplul poate primi email doar la confirmări, doar la refuzuri sau la ambele. #RECENT #WH
+#RECENT  2026-05-02: Wedding Hub are acum dark/light mode pentru zona couple-facing; tema se schimbă din Setări și persistă local în browser, fără modificări în backend. #RECENT #WH
+#RECENT  2026-05-02: Wedding Hub automation pentru teste: endpoint nou POST /api/wedding-hub/guests/bulk-update pentru update-uri în masă pe invitați (inclusiv mutări între mese / scoatere din mese) și script nou npm run seed:wedding-seating care poate crea mese lipsă, reseta seating-ul și face asignare secvențială automată. #RECENT #WH
+#RECENT  2026-05-02: Fix pentru flash la refresh pe Wedding Hub: în App.tsx, RequireWeddingAuth a fost mutat înainte de WeddingHubLayout ca să nu se mai monteze shell-ul înainte de auth restore; Loader fullscreen suportă acum subtitle și Wedding Hub afișează "Wedding Planner" sub AncaVisuals în stările de încărcare. #RECENT #WH
+#RECENT  2026-05-02: Wedding Hub MVP implementat complet — modul dedicat pentru miri, complet separat de /admin. Fișiere noi: src/client/features/wedding-hub/ (16 fișiere: types, auth context, data context, hooks, layout, guards, 5 pagini, 3 componente), src/server/routes/weddingHub.routes.ts, src/client/features/admin/components/WeddingHub/WeddingHubAdminPage.tsx. Modificate: server.ts (înregistrare router), App.tsx (rute + HIDE_CHAT_PREFIXES), requireFirebaseAuth.ts (adăugat requireCoupleAuth + CoupleAuthenticatedRequest), Breadcrumb.tsx (label wedding-hub). Auth couple pe instanță Firebase separată (named app "wedding-hub") pentru izolare față de admin. Colecții Firestore: wh_weddings, wh_guests, wh_tables. Zero erori TypeScript. #RECENT #WH
 #RECENT  2026-05-01: Media albums expun acum `retention` derivat din `adminEvents.eventDate + 60 zile` direct în `GET /api/album/:slug`; `MediaConsentModal` afișează countdown live până la expirare, iar cronul nou `src/server/cron/albumRetention.cron.ts` trimite reminder abonaților la 7 zile și 1 zi înainte plus email admin la expirare (album de șters / mutat offline). Starea reminderelor trimise se salvează în `printSelections.retentionNotifications`. Validat cu `npm test` și `npm run build`. #RECENT #MEDIA #NOTIFY #ADMIN
 #RECENT  2026-05-01: Dashboard admin — `GoalCard` și `FinancialSummary` sunt acum colapsabile din săgeata din dreapta sus și pornesc compactate pentru a reduce înălțimea secțiunii de obiective și situație financiară. Validat cu `npm test` și `npm run build`. #RECENT #ADMIN
 #RECENT  2026-05-01: QR Moments public page afișează acum jos un card promo AncaVisuals pentru viitori miri: mesaj despre QR Moments + servicii (foto, video, fotocabină, video booth 360) + referral cu ședință foto, plus carousel auto/swipe alimentat din `GET /api/admin/landing/gallery` (imagini landing publice existente). Validat cu `npm run typecheck` și `npm run build`. #RECENT #QR #ADMIN
