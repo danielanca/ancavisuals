@@ -286,7 +286,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Tip eveniment</label>
-              <select className={inputClass} value={form.type} onChange={set("type")}>
+              <select className={`${inputClass} h-10`} value={form.type} onChange={set("type")}>
                 {EVENT_TYPES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}

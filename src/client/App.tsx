@@ -62,7 +62,7 @@ function AdminSpacer() {
 }
 
 
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite"];
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta"];
 
 export const App = () => {
   const location = useLocation();
@@ -156,6 +156,8 @@ export const App = () => {
 
           {/* Public guest invitation page */}
           <Route path="/invite/:token" element={<GuestInvitationPage />} />
+          <Route path="/oferta/:slug" element={<OfertaPage />} />
+          <Route path="/oferta" element={<OfertaPage />} />
 
           {/* Public offer pages */}
           <Route path="/oferta/:slug" element={<OfertaPage />} />

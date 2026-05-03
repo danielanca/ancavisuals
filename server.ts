@@ -42,6 +42,7 @@ import weddingHubMockRouter from "./src/server/routes/weddingHubMock.routes";
 import weddingChecklistRouter from "./src/server/routes/weddingChecklist.routes";
 import weddingTimelineRouter from "./src/server/routes/weddingTimeline.routes";
 import weddingRemindersRouter from "./src/server/routes/weddingReminders.routes";
+import oferteRouter from "./src/server/routes/oferte.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
@@ -168,6 +169,7 @@ async function createServer() {
   app.use("/api/album-subscriptions", albumSubscriptionsRouter);
   app.use("/api/qr-moments", qrMomentsRouter);
   app.use("/api/wedding-hub", weddingHubRouter);
+  app.use("/api/oferte", oferteRouter);
   app.use("/api/mock/wedding-hub", weddingHubMockRouter);
   app.use("/api/wedding-hub/checklist", weddingChecklistRouter);
   app.use("/api/wedding-hub/timeline", weddingTimelineRouter);

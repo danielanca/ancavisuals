@@ -4,6 +4,7 @@ import { useWeddingHubAuth } from "./context/WeddingHubAuthContext";
 import { WeddingHubProvider } from "./context/WeddingHubContext";
 import { useWeddingHubTheme } from "./context/WeddingHubThemeContext";
 import { useWeddingData } from "./hooks/useWeddingData";
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import "./weddingHubTheme.css";
 
 const NAV_ITEMS = [
@@ -24,6 +25,7 @@ function WeddingHubShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useBodyScrollLock(mobileMenuOpen);
 
   const handleSignOut = async () => {
     await signOutAsCouple();
@@ -92,13 +94,7 @@ function WeddingHubShell() {
               <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-500">Wedding Hub</p>
               <p className="text-sm text-white">{activeLabel}</p>
             </div>
-            <button
-              type="button"
-              onClick={toggleThemeOverride}
-              className="wedding-hub-ghost-button rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white"
-            >
-              {theme === "dark" ? "☀" : "☾"}
-            </button>
+            <div className="w-[58px]" />
           </div>
         </header>
 

@@ -5,6 +5,7 @@ import TableCard from "../components/TableCard";
 import Loader from "../../../components/UI/Loader";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 import type { RsvpStatus } from "../types";
+import { printSeatingPlan } from "../utils/seatingPlanPdf";
 
 const RSVP_ACCENT_CLASSES: Record<RsvpStatus, string> = {
   asteptare: "ring-1 ring-inset ring-yellow-400/40",
@@ -21,7 +22,7 @@ const RSVP_SELECTED_CLASSES: Record<RsvpStatus, string> = {
 type PageState = {
   newTableName: string;
   newTableAlias: string;
-  newTableCapacity: number;
+  newTableCapacity: string;
   isCreatingTable: boolean;
   createErrorMessage: string | null;
   showBulkCreateModal: boolean;
@@ -41,7 +42,7 @@ type PageState = {
 type PageAction =
   | { type: "SET_TABLE_NAME"; value: string }
   | { type: "SET_TABLE_ALIAS"; value: string }
-  | { type: "SET_TABLE_CAPACITY"; value: number }
+  | { type: "SET_TABLE_CAPACITY"; value: string }
   | { type: "SET_CREATING"; value: boolean }
   | { type: "SET_CREATE_ERROR"; value: string | null }
   | { type: "OPEN_BULK_CREATE"; bulkStartIndex: number }
@@ -114,13 +115,13 @@ function getGuestFamilySummary(guest: { accompanyingAdultNames?: string[]; child
 const SeatingPlanPage: React.FC = () => {
   const { state, addTable, removeTable, updateGuest, updateTable } = useWeddingHub();
   const { coupleAuth } = useWeddingHubAuth();
-  const { guests, tables, loadingTables } = state;
+  const { guests, tables, loadingTables, weddingProfile } = state;
   const tablesSectionRef = useRef<HTMLDivElement>(null);
 
   const [pageState, dispatch] = useReducer(pageReducer, {
     newTableName: "",
     newTableAlias: "",
-    newTableCapacity: 8,
+    newTableCapacity: "8",
     isCreatingTable: false,
     createErrorMessage: null,
     showBulkCreateModal: false,
@@ -181,7 +182,7 @@ const SeatingPlanPage: React.FC = () => {
         body: JSON.stringify({
           tableName: pageState.newTableName.trim(),
           tableAlias: pageState.newTableAlias.trim(),
-          capacity: pageState.newTableCapacity,
+          capacity: Number(pageState.newTableCapacity) || 1,
         }),
       });
 
@@ -331,6 +332,20 @@ const SeatingPlanPage: React.FC = () => {
             </p>
           )}
         </div>
+        {tables.length > 0 && weddingProfile && (
+          <button
+            type="button"
+            onClick={() => printSeatingPlan(weddingProfile, tables, guests)}
+            className="flex items-center gap-2 self-start sm:self-auto rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-400 transition-colors hover:border-neutral-500 hover:text-white"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Descarcă PDF
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-2 text-[11px] text-neutral-500">
@@ -399,7 +414,7 @@ const SeatingPlanPage: React.FC = () => {
               min={1}
               max={50}
               value={pageState.newTableCapacity}
-              onChange={(e) => dispatch({ type: "SET_TABLE_CAPACITY", value: Number(e.target.value) })}
+              onChange={(e) => dispatch({ type: "SET_TABLE_CAPACITY", value: e.target.value })}
               title="Locuri masă"
               aria-label="Locuri masă"
               placeholder="Locuri"
@@ -590,7 +605,7 @@ const SeatingPlanPage: React.FC = () => {
               ))}
             </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto">
             {filteredUnassignedGuests.map((guest) => (
               <button
                 key={guest.id}

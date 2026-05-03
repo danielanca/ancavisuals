@@ -9,6 +9,7 @@ const ADMIN_TAP_TARGET = 10;
 interface Props {
   slug: string;
   retention: AlbumRetention | null;
+  isAdmin?: boolean;
   onAccepted: () => void;
 }
 
@@ -32,8 +33,9 @@ const formatExpiry = (value: string) =>
     minute: "2-digit",
   });
 
-export default function MediaConsentModal({ slug, retention, onAccepted }: Props) {
+export default function MediaConsentModal({ slug, retention, isAdmin = false, onAccepted }: Props) {
   const consentKey = CONSENT_KEY_PREFIX + slug;
+  const adminBypassKey = `${ADMIN_BYPASS_KEY}:${slug}`;
 
   const [phase, setPhase] = useState<"hidden" | "modal" | "banner">("hidden");
   useBodyScrollLock(phase === "modal");
@@ -50,13 +52,22 @@ export default function MediaConsentModal({ slug, retention, onAccepted }: Props
   }, [retention?.remainingMs]);
 
   useEffect(() => {
+    if (isAdmin) {
+      if (localStorage.getItem(adminBypassKey)) {
+        setPhase("hidden");
+      } else {
+        setPhase("modal");
+      }
+      return;
+    }
+
     if (localStorage.getItem(ADMIN_BYPASS_KEY)) return; // admin bypass
     if (localStorage.getItem(consentKey)) {
       setPhase("banner");
     } else {
       setPhase("modal");
     }
-  }, [consentKey]);
+  }, [adminBypassKey, consentKey, isAdmin]);
 
   useEffect(() => {
     if (!retention?.expiresAt) return;
@@ -87,6 +98,13 @@ export default function MediaConsentModal({ slug, retention, onAccepted }: Props
   };
 
   const handleAccept = async () => {
+    if (isAdmin) {
+      localStorage.setItem(adminBypassKey, "1");
+      setPhase("hidden");
+      onAccepted();
+      return;
+    }
+
     if (!checked) return;
     setLoading(true);
     try {
@@ -183,11 +201,13 @@ export default function MediaConsentModal({ slug, retention, onAccepted }: Props
           color: "#fff", fontSize: "18px", fontWeight: 600,
           textAlign: "center", margin: "0 0 12px",
         }}>
-          Materialele tale sunt gata
+          {isAdmin ? "Acces administrare materiale" : "Materialele tale sunt gata"}
         </h2>
 
         <p style={{ color: "#9ca3af", fontSize: "14px", lineHeight: "1.6", margin: "0 0 20px" }}>
-          Pozele și videoul tău sunt disponibile pentru descărcare. Te rugăm să le salvezi pe calculatorul sau laptopul tău cât mai curând posibil.
+          {isAdmin
+            ? "Ești în modul admin. Nu trimitem emailul de confirmare pentru acordul de descărcare; acest email este rezervat clienților."
+            : "Pozele și videoul tău sunt disponibile pentru descărcare. Te rugăm să le salvezi pe calculatorul sau laptopul tău cât mai curând posibil."}
         </p>
 
         <div style={{
@@ -205,36 +225,55 @@ export default function MediaConsentModal({ slug, retention, onAccepted }: Props
           )}
         </div>
 
-        <label style={{
-          display: "flex", alignItems: "flex-start", gap: "10px",
-          cursor: "pointer", marginBottom: "24px",
-        }}>
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={(e) => setChecked(e.target.checked)}
-            style={{ marginTop: "2px", width: "16px", height: "16px", flexShrink: 0, accentColor: "#7c3aed" }}
-          />
-          <span style={{ color: "#d1d5db", fontSize: "13px", lineHeight: "1.5" }}>
-            Am înțeles că materialele vor fi șterse după 60 de zile și îmi asum responsabilitatea descărcării lor.
-          </span>
-        </label>
+        {isAdmin ? (
+          <button
+            onClick={handleAccept}
+            style={{
+              width: "100%", padding: "14px",
+              borderRadius: "12px", border: "none",
+              background: "#7c3aed",
+              color: "#fff",
+              fontSize: "15px", fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            Am înțeles
+          </button>
+        ) : (
+          <>
+            <label style={{
+              display: "flex", alignItems: "flex-start", gap: "10px",
+              cursor: "pointer", marginBottom: "24px",
+            }}>
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => setChecked(e.target.checked)}
+                style={{ marginTop: "2px", width: "16px", height: "16px", flexShrink: 0, accentColor: "#7c3aed" }}
+              />
+              <span style={{ color: "#d1d5db", fontSize: "13px", lineHeight: "1.5" }}>
+                Am înțeles că materialele vor fi șterse după 60 de zile și îmi asum responsabilitatea descărcării lor.
+              </span>
+            </label>
 
-        <button
-          onClick={handleAccept}
-          disabled={!checked || loading}
-          style={{
-            width: "100%", padding: "14px",
-            borderRadius: "12px", border: "none",
-            background: checked ? "#7c3aed" : "#2a2a2a",
-            color: checked ? "#fff" : "#6b7280",
-            fontSize: "15px", fontWeight: 600,
-            cursor: checked ? "pointer" : "not-allowed",
-            transition: "all 0.2s",
-          }}
-        >
-          {loading ? "Se înregistrează..." : "Am înțeles, continuă →"}
-        </button>
+            <button
+              onClick={handleAccept}
+              disabled={!checked || loading}
+              style={{
+                width: "100%", padding: "14px",
+                borderRadius: "12px", border: "none",
+                background: checked ? "#7c3aed" : "#2a2a2a",
+                color: checked ? "#fff" : "#6b7280",
+                fontSize: "15px", fontWeight: 600,
+                cursor: checked ? "pointer" : "not-allowed",
+                transition: "all 0.2s",
+              }}
+            >
+              {loading ? "Se înregistrează..." : "Am înțeles, continuă →"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
