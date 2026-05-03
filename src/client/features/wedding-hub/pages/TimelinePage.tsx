@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer } from "react";
+import React, { useEffect, useReducer, useRef, useState } from "react";
 import { TimelineProvider, useTimeline } from "../context/TimelineContext";
 import type { TimelineCategory, TimelineMoment } from "../context/TimelineContext";
 import { useWeddingHubAuth } from "../context/WeddingHubAuthContext";
@@ -285,6 +285,66 @@ function MomentForm({
   );
 }
 
+// ─── Moment menu ─────────────────────────────────────────────────────────────
+
+function MomentMenu({
+  onEdit,
+  onDelete,
+  deleting,
+  disabled,
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+  deleting: boolean;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((previousOpen) => !previousOpen)}
+        disabled={deleting}
+        className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-800 hover:text-white transition-colors disabled:opacity-40"
+      >
+        ⋮
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-8 z-20 w-36 rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onEdit(); }}
+            disabled={disabled}
+            className="w-full px-4 py-2.5 text-left text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors disabled:opacity-40"
+          >
+            Editează
+          </button>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onDelete(); }}
+            disabled={deleting}
+            className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors disabled:opacity-40"
+          >
+            {deleting ? "Se șterge..." : "Șterge"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Inner page ───────────────────────────────────────────────────────────────
 
 function TimelinePageContent() {
@@ -550,7 +610,7 @@ function TimelinePageContent() {
             return (
               <div
                 key={moment.id}
-                className="group rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden"
+                className="rounded-xl border border-neutral-800 bg-neutral-900"
               >
                 <div className="flex items-start gap-4 px-5 py-4">
                   {/* Time column */}
@@ -582,24 +642,12 @@ function TimelinePageContent() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex-shrink-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      onClick={() => dispatch({ type: "START_EDIT", moment })}
-                      disabled={!!pageState.editingMomentId || pageState.showAddForm}
-                      className="text-xs text-neutral-500 hover:text-white transition-colors disabled:opacity-30"
-                    >
-                      Editează
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteMoment(moment.id)}
-                      disabled={isDeleting}
-                      className="text-xs text-neutral-600 hover:text-red-400 transition-colors disabled:opacity-40"
-                    >
-                      {isDeleting ? "..." : "×"}
-                    </button>
-                  </div>
+                  <MomentMenu
+                    onEdit={() => dispatch({ type: "START_EDIT", moment })}
+                    onDelete={() => handleDeleteMoment(moment.id)}
+                    deleting={isDeleting}
+                    disabled={!!pageState.editingMomentId || pageState.showAddForm}
+                  />
                 </div>
               </div>
             );

@@ -8,7 +8,7 @@ import { jsonrepair } from "jsonrepair";
 import sharp from "sharp";
 import { v4 as uuidv4 } from "uuid";
 import { firestore } from "../firestore";
-import { sendEmail } from "../notifications/mailer";
+import { sendEmail, getTestEmailMode, setTestEmailMode, isTestTransportAvailable } from "../notifications/mailer";
 import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from "../notifications/sms";
 import {
   requireFirebaseAuth,
@@ -552,6 +552,8 @@ function buildWeddingProfile(doc: FirebaseFirestore.DocumentSnapshot) {
     groomFirstName: data.groomFirstName,
     weddingDate: data.weddingDate,
     city: data.city,
+    venueName: data.venueName ?? "",
+    venueAddress: data.venueAddress ?? "",
     coupleEmail: data.coupleEmail,
     coupleUid: data.coupleUid,
     createdAt: serializeTimestamp(data.createdAt),
@@ -959,6 +961,91 @@ router.delete(
   },
 );
 
+// GET /api/wedding-hub/admin/email-mode — get current test email mode state
+router.get(
+  "/admin/email-mode",
+  requireFirebaseAuth,
+  requireSupremeAdmin,
+  (_req: Request, res: Response) => {
+    res.json({
+      testEmailMode: getTestEmailMode(),
+      testTransportAvailable: isTestTransportAvailable(),
+    });
+  },
+);
+
+// POST /api/wedding-hub/admin/email-mode — toggle test email mode
+router.post(
+  "/admin/email-mode",
+  requireFirebaseAuth,
+  requireSupremeAdmin,
+  (req: Request, res: Response) => {
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ error: "enabled trebuie să fie boolean." });
+    }
+    if (enabled && !isTestTransportAvailable()) {
+      return res.status(400).json({ error: "SMTP_TEST_HOST nu este configurat în .env." });
+    }
+    setTestEmailMode(enabled);
+    res.json({ testEmailMode: getTestEmailMode() });
+  },
+);
+
+// PATCH /api/wedding-hub/admin/weddings/:weddingId/password — reset couple password
+router.patch(
+  "/admin/weddings/:weddingId/password",
+  requireFirebaseAuth,
+  requireSupremeAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const { weddingId } = req.params;
+      const { newPassword } = req.body;
+
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ error: "Parola trebuie să aibă cel puțin 6 caractere." });
+      }
+
+      const database = firestore();
+      const weddingDoc = await database.collection("wh_weddings").doc(weddingId).get();
+      if (!weddingDoc.exists) {
+        return res.status(404).json({ error: "Nunta nu a fost găsită." });
+      }
+
+      const coupleUid = weddingDoc.data()!.coupleUid as string;
+      await getAuth().updateUser(coupleUid, { password: newPassword });
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("[wedding-hub] PATCH /admin/weddings/:id/password failed:", error);
+      res.status(500).json({ error: "Nu s-a putut schimba parola." });
+    }
+  },
+);
+
+// POST /api/wedding-hub/admin/weddings/:weddingId/impersonate — generate custom token for couple
+router.post(
+  "/admin/weddings/:weddingId/impersonate",
+  requireFirebaseAuth,
+  requireSupremeAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const { weddingId } = req.params;
+      const database = firestore();
+      const weddingDoc = await database.collection("wh_weddings").doc(weddingId).get();
+      if (!weddingDoc.exists) {
+        return res.status(404).json({ error: "Nunta nu a fost găsită." });
+      }
+      const coupleUid = weddingDoc.data()!.coupleUid as string;
+      const customToken = await getAuth().createCustomToken(coupleUid);
+      res.json({ customToken });
+    } catch (error) {
+      console.error("[wedding-hub] POST /admin/weddings/:id/impersonate failed:", error);
+      res.status(500).json({ error: "Nu s-a putut genera tokenul." });
+    }
+  },
+);
+
 // ─── COUPLE ENDPOINTS ────────────────────────────────────────────────────────
 
 // GET /api/wedding-hub/me — fetch full wedding data (profile + guests + tables)
@@ -1032,6 +1119,12 @@ router.patch("/settings", requireCoupleAuth, async (req: Request, res: Response)
     }
     if (req.body.notifyOnDecline !== undefined) {
       updates["settings.notifyOnDecline"] = Boolean(req.body.notifyOnDecline);
+    }
+    if (typeof req.body.venueName === "string") {
+      updates["venueName"] = req.body.venueName.trim();
+    }
+    if (typeof req.body.venueAddress === "string") {
+      updates["venueAddress"] = req.body.venueAddress.trim();
     }
 
     if (Object.keys(updates).length === 0) {
@@ -2043,6 +2136,8 @@ router.get("/invite/:token", async (req: Request, res: Response) => {
         groomFirstName: weddingData.groomFirstName,
         weddingDate: weddingData.weddingDate,
         city: weddingData.city,
+        venueName: weddingData.venueName ?? "",
+        venueAddress: weddingData.venueAddress ?? "",
       },
     });
   } catch (error) {
@@ -2209,6 +2304,149 @@ router.post("/invite/:token/rsvp", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[wedding-hub] POST /invite/:token/rsvp failed:", error);
     res.status(500).json({ error: "Eroare la salvarea răspunsului." });
+  }
+});
+
+// ─── TIMELINE ENDPOINTS ───────────────────────────────────────────────────────
+
+const TIMELINE_TEMPLATE = [
+  { title: "Trezire & pregătiri", startTime: "07:00", endTime: "10:00", category: "other", location: "", notes: "" },
+  { title: "Cununie Civilă", startTime: "10:00", endTime: "11:30", category: "civil", location: "Starea Civilă", notes: "" },
+  { title: "Sesiune foto oficială", startTime: "11:30", endTime: "13:00", category: "photos", location: "", notes: "" },
+  { title: "Cununie Religioasă", startTime: "13:00", endTime: "14:30", category: "church", location: "Biserica", notes: "" },
+  { title: "Fotografii cu nașii", startTime: "14:30", endTime: "15:30", category: "photos", location: "", notes: "" },
+  { title: "Sesiune foto cuplu", startTime: "15:30", endTime: "17:00", category: "photos", location: "", notes: "" },
+  { title: "Cocktail & primire invitați", startTime: "17:00", endTime: "19:00", category: "restaurant", location: "", notes: "" },
+  { title: "Deschiderea petrecerii", startTime: "19:00", endTime: "20:00", category: "party", location: "", notes: "" },
+  { title: "Cina & program artistic", startTime: "20:00", endTime: "01:00", category: "restaurant", location: "", notes: "" },
+  { title: "Finalul serii", startTime: "01:00", endTime: "03:00", category: "party", location: "", notes: "" },
+];
+
+// GET /api/wedding-hub/timeline
+router.get("/timeline", requireCoupleAuth, async (req: Request, res: Response) => {
+  try {
+    const database = firestore();
+    const coupleReq = req as CoupleAuthenticatedRequest;
+    const snapshot = await database
+      .collection("wh_timeline")
+      .where("weddingId", "==", coupleReq.weddingId)
+      .get();
+    const moments = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    moments.sort((momentA: any, momentB: any) => momentA.startTime.localeCompare(momentB.startTime));
+    res.json({ moments });
+  } catch (error) {
+    console.error("[wedding-hub] GET /timeline failed:", error);
+    res.status(500).json({ error: "Nu s-a putut încărca timeline-ul." });
+  }
+});
+
+// POST /api/wedding-hub/timeline
+router.post("/timeline", requireCoupleAuth, async (req: Request, res: Response) => {
+  try {
+    const coupleReq = req as CoupleAuthenticatedRequest;
+    const { title, startTime, endTime, location, notes, category } = req.body;
+    if (!title?.trim() || !startTime || !endTime) {
+      return res.status(400).json({ error: "Titlu, ora start și ora final sunt obligatorii." });
+    }
+    const now = new Date().toISOString();
+    const newMoment = {
+      weddingId: coupleReq.weddingId,
+      title: title.trim(),
+      startTime,
+      endTime,
+      location: location?.trim() ?? "",
+      notes: notes?.trim() ?? "",
+      category: category ?? "other",
+      isFromTemplate: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const docRef = await firestore().collection("wh_timeline").add(newMoment);
+    res.json({ id: docRef.id, ...newMoment });
+  } catch (error) {
+    console.error("[wedding-hub] POST /timeline failed:", error);
+    res.status(500).json({ error: "Nu s-a putut adăuga momentul." });
+  }
+});
+
+// PATCH /api/wedding-hub/timeline/:momentId
+router.patch("/timeline/:momentId", requireCoupleAuth, async (req: Request, res: Response) => {
+  try {
+    const coupleReq = req as CoupleAuthenticatedRequest;
+    const { momentId } = req.params;
+    const database = firestore();
+    const docRef = database.collection("wh_timeline").doc(momentId);
+    const doc = await docRef.get();
+    if (!doc.exists || doc.data()!.weddingId !== coupleReq.weddingId) {
+      return res.status(404).json({ error: "Momentul nu a fost găsit." });
+    }
+    const { title, startTime, endTime, location, notes, category } = req.body;
+    if (!title?.trim() || !startTime || !endTime) {
+      return res.status(400).json({ error: "Titlu, ora start și ora final sunt obligatorii." });
+    }
+    const updates = {
+      title: title.trim(),
+      startTime,
+      endTime,
+      location: location?.trim() ?? "",
+      notes: notes?.trim() ?? "",
+      category: category ?? "other",
+      updatedAt: new Date().toISOString(),
+    };
+    await docRef.update(updates);
+    res.json({ id: momentId, ...doc.data(), ...updates });
+  } catch (error) {
+    console.error("[wedding-hub] PATCH /timeline/:id failed:", error);
+    res.status(500).json({ error: "Nu s-a putut salva momentul." });
+  }
+});
+
+// DELETE /api/wedding-hub/timeline/:momentId
+router.delete("/timeline/:momentId", requireCoupleAuth, async (req: Request, res: Response) => {
+  try {
+    const coupleReq = req as CoupleAuthenticatedRequest;
+    const { momentId } = req.params;
+    const database = firestore();
+    const docRef = database.collection("wh_timeline").doc(momentId);
+    const doc = await docRef.get();
+    if (!doc.exists || doc.data()!.weddingId !== coupleReq.weddingId) {
+      return res.status(404).json({ error: "Momentul nu a fost găsit." });
+    }
+    await docRef.delete();
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[wedding-hub] DELETE /timeline/:id failed:", error);
+    res.status(500).json({ error: "Nu s-a putut șterge momentul." });
+  }
+});
+
+// POST /api/wedding-hub/timeline/apply-template
+router.post("/timeline/apply-template", requireCoupleAuth, async (req: Request, res: Response) => {
+  try {
+    const coupleReq = req as CoupleAuthenticatedRequest;
+    const database = firestore();
+    const now = new Date().toISOString();
+    const batch = database.batch();
+    const newMoments: object[] = [];
+
+    for (const template of TIMELINE_TEMPLATE) {
+      const docRef = database.collection("wh_timeline").doc();
+      const moment = {
+        weddingId: coupleReq.weddingId,
+        ...template,
+        isFromTemplate: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      batch.set(docRef, moment);
+      newMoments.push({ id: docRef.id, ...moment });
+    }
+
+    await batch.commit();
+    res.json({ moments: newMoments });
+  } catch (error) {
+    console.error("[wedding-hub] POST /timeline/apply-template failed:", error);
+    res.status(500).json({ error: "Nu s-a putut aplica șablonul." });
   }
 });
 

@@ -20,6 +20,8 @@ export interface WeddingProfile {
   groomFirstName: string;
   weddingDate: string;
   city: string;
+  venueName: string;
+  venueAddress: string;
   coupleEmail: string;
   coupleUid: string;
   createdAt: string;

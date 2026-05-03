@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { weddingHubAuth } from "../firebaseWeddingHub";
 import type { User } from "firebase/auth";
-import { onIdTokenChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { onIdTokenChanged, signInWithCustomToken, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { isBrowser } from "../../../utils/functions";
 
 type WeddingHubAuthState = {
@@ -14,6 +14,7 @@ type WeddingHubAuthState = {
 type WeddingHubAuthContextType = {
   coupleAuth: WeddingHubAuthState;
   signInAsCouple: (email: string, password: string) => Promise<void>;
+  signInWithToken: (customToken: string) => Promise<void>;
   signOutAsCouple: () => Promise<void>;
 };
 
@@ -49,14 +50,18 @@ export const WeddingHubAuthProvider: React.FC<React.PropsWithChildren> = ({ chil
     await signInWithEmailAndPassword(weddingHubAuth, email, password);
   }, []);
 
+  const signInWithToken = useCallback(async (customToken: string) => {
+    await signInWithCustomToken(weddingHubAuth, customToken);
+  }, []);
+
   const signOutAsCouple = useCallback(async () => {
     await signOut(weddingHubAuth);
     setState({ coupleUser: null, coupleAccessToken: "", coupleAuthorised: false, coupleLoading: false });
   }, []);
 
   const contextValue = useMemo<WeddingHubAuthContextType>(
-    () => ({ coupleAuth: state, signInAsCouple, signOutAsCouple }),
-    [state, signInAsCouple, signOutAsCouple],
+    () => ({ coupleAuth: state, signInAsCouple, signInWithToken, signOutAsCouple }),
+    [state, signInAsCouple, signInWithToken, signOutAsCouple],
   );
 
   return (

@@ -1,7 +1,9 @@
-import React, { useReducer, useEffect } from "react";
+import React, { useReducer, useEffect, useCallback, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import useAuth from "../../auth/useAuth";
 import type { WeddingProfile } from "../../../wedding-hub/types";
 import Breadcrumb from "../Breadcrumb";
+import { useWeddingHubAuth } from "../../../wedding-hub/context/WeddingHubAuthContext";
 
 type CreateFormData = {
   brideFirstName: string;
@@ -22,6 +24,14 @@ type PageState = {
   saveError: string | null;
   saveSuccess: boolean;
   deletingWeddingId: string | null;
+  changingPasswordForId: string | null;
+  newPassword: string;
+  passwordSaving: boolean;
+  passwordError: string | null;
+  passwordSuccess: boolean;
+  testEmailMode: boolean;
+  testTransportAvailable: boolean;
+  emailModeToggling: boolean;
 };
 
 type PageAction =
@@ -33,7 +43,15 @@ type PageAction =
   | { type: "SAVE_ERROR"; message: string }
   | { type: "SAVE_SUCCESS"; wedding: WeddingProfile }
   | { type: "SET_DELETING"; weddingId: string | null }
-  | { type: "DELETE_SUCCESS"; weddingId: string };
+  | { type: "DELETE_SUCCESS"; weddingId: string }
+  | { type: "OPEN_PASSWORD_FORM"; weddingId: string }
+  | { type: "CLOSE_PASSWORD_FORM" }
+  | { type: "SET_NEW_PASSWORD"; value: string }
+  | { type: "SET_PASSWORD_SAVING"; value: boolean }
+  | { type: "PASSWORD_ERROR"; message: string }
+  | { type: "PASSWORD_SUCCESS" }
+  | { type: "SET_EMAIL_MODE"; testEmailMode: boolean; testTransportAvailable: boolean }
+  | { type: "SET_EMAIL_MODE_TOGGLING"; value: boolean };
 
 const emptyCreateForm: CreateFormData = {
   brideFirstName: "",
@@ -79,6 +97,22 @@ function pageReducer(state: PageState, action: PageAction): PageState {
         deletingWeddingId: null,
         weddings: state.weddings.filter((wedding) => wedding.id !== action.weddingId),
       };
+    case "OPEN_PASSWORD_FORM":
+      return { ...state, changingPasswordForId: action.weddingId, newPassword: "", passwordError: null, passwordSuccess: false };
+    case "CLOSE_PASSWORD_FORM":
+      return { ...state, changingPasswordForId: null, newPassword: "", passwordError: null, passwordSuccess: false };
+    case "SET_NEW_PASSWORD":
+      return { ...state, newPassword: action.value };
+    case "SET_PASSWORD_SAVING":
+      return { ...state, passwordSaving: action.value };
+    case "PASSWORD_ERROR":
+      return { ...state, passwordError: action.message, passwordSaving: false };
+    case "PASSWORD_SUCCESS":
+      return { ...state, passwordSuccess: true, passwordSaving: false, passwordError: null };
+    case "SET_EMAIL_MODE":
+      return { ...state, testEmailMode: action.testEmailMode, testTransportAvailable: action.testTransportAvailable, emailModeToggling: false };
+    case "SET_EMAIL_MODE_TOGGLING":
+      return { ...state, emailModeToggling: action.value };
     default:
       return state;
   }
@@ -98,6 +132,9 @@ function formatDate(dateString: string): string {
 
 const WeddingHubAdminPage: React.FC = () => {
   const { auth } = useAuth();
+  const { signInWithToken } = useWeddingHubAuth();
+  const navigate = useNavigate();
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
 
   const [pageState, dispatch] = useReducer(pageReducer, {
     weddings: [],
@@ -109,7 +146,26 @@ const WeddingHubAdminPage: React.FC = () => {
     saveError: null,
     saveSuccess: false,
     deletingWeddingId: null,
+    changingPasswordForId: null,
+    newPassword: "",
+    passwordSaving: false,
+    passwordError: null,
+    passwordSuccess: false,
+    testEmailMode: false,
+    testTransportAvailable: false,
+    emailModeToggling: false,
   });
+
+  useEffect(() => {
+    fetch("/api/wedding-hub/admin/email-mode", {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((response) => response.json())
+      .then((data: { testEmailMode: boolean; testTransportAvailable: boolean }) =>
+        dispatch({ type: "SET_EMAIL_MODE", testEmailMode: data.testEmailMode, testTransportAvailable: data.testTransportAvailable })
+      )
+      .catch(() => {});
+  }, [auth.accessToken]);
 
   useEffect(() => {
     fetch("/api/wedding-hub/admin/weddings", {
@@ -149,6 +205,30 @@ const WeddingHubAdminPage: React.FC = () => {
     }
   };
 
+  const handleChangePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!pageState.changingPasswordForId) return;
+    dispatch({ type: "SET_PASSWORD_SAVING", value: true });
+    try {
+      const response = await fetch(`/api/wedding-hub/admin/weddings/${pageState.changingPasswordForId}/password`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+        body: JSON.stringify({ newPassword: pageState.newPassword }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error ?? "Nu s-a putut schimba parola.");
+      }
+      dispatch({ type: "PASSWORD_SUCCESS" });
+      setTimeout(() => dispatch({ type: "CLOSE_PASSWORD_FORM" }), 1500);
+    } catch (error: unknown) {
+      dispatch({ type: "PASSWORD_ERROR", message: (error as Error).message });
+    }
+  };
+
   const handleDeleteWedding = async (weddingId: string) => {
     if (!confirm("Ești sigur? Se vor șterge și toți invitații și mesele asociate.")) return;
 
@@ -165,6 +245,43 @@ const WeddingHubAdminPage: React.FC = () => {
     }
   };
 
+  const handleImpersonate = useCallback(async (weddingId: string) => {
+    setImpersonatingId(weddingId);
+    try {
+      const response = await fetch(`/api/wedding-hub/admin/weddings/${weddingId}/impersonate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      if (!response.ok) throw new Error("Eroare la generarea tokenului.");
+      const { customToken } = await response.json() as { customToken: string };
+      await signInWithToken(customToken);
+      navigate("/wedding-hub/dashboard");
+    } catch {
+      alert("Nu s-a putut intra în contul cuplului.");
+    } finally {
+      setImpersonatingId(null);
+    }
+  }, [auth.accessToken, signInWithToken, navigate]);
+
+  const handleToggleEmailMode = async () => {
+    dispatch({ type: "SET_EMAIL_MODE_TOGGLING", value: true });
+    try {
+      const response = await fetch("/api/wedding-hub/admin/email-mode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+        body: JSON.stringify({ enabled: !pageState.testEmailMode }),
+      });
+      const data = await response.json() as { testEmailMode?: boolean; error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Eroare.");
+      dispatch({ type: "SET_EMAIL_MODE", testEmailMode: data.testEmailMode ?? false, testTransportAvailable: pageState.testTransportAvailable });
+    } catch {
+      dispatch({ type: "SET_EMAIL_MODE_TOGGLING", value: false });
+    }
+  };
+
   return (
     <div>
       <Breadcrumb />
@@ -174,12 +291,31 @@ const WeddingHubAdminPage: React.FC = () => {
             <h1 className="text-xl font-light text-white">Wedding Hub</h1>
             <p className="text-neutral-500 text-sm">{pageState.weddings.length} nunți înregistrate</p>
           </div>
-          <button
-            onClick={() => dispatch({ type: "TOGGLE_CREATE_FORM" })}
-            className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            {pageState.showCreateForm ? "Anulează" : "+ Nuntă nouă"}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleToggleEmailMode}
+              disabled={pageState.emailModeToggling || !pageState.testTransportAvailable}
+              title={!pageState.testTransportAvailable ? "SMTP_TEST_HOST nu e configurat în .env" : undefined}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                pageState.testEmailMode
+                  ? "border-amber-500/60 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                  : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${pageState.testEmailMode ? "bg-amber-400" : "bg-neutral-600"}`} />
+              {pageState.emailModeToggling
+                ? "..."
+                : pageState.testEmailMode
+                  ? "Fake emails ON"
+                  : "Fake emails OFF"}
+            </button>
+            <button
+              onClick={() => dispatch({ type: "TOGGLE_CREATE_FORM" })}
+              className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              {pageState.showCreateForm ? "Anulează" : "+ Nuntă nouă"}
+            </button>
+          </div>
         </div>
 
         {pageState.showCreateForm && (
@@ -318,13 +454,28 @@ const WeddingHubAdminPage: React.FC = () => {
                       <p className="text-neutral-400 text-sm">{wedding.coupleEmail}</p>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleDeleteWedding(wedding.id)}
-                        disabled={pageState.deletingWeddingId === wedding.id}
-                        className="text-neutral-600 hover:text-red-400 text-xs transition-colors disabled:opacity-50"
-                      >
-                        {pageState.deletingWeddingId === wedding.id ? "..." : "Șterge"}
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          onClick={() => handleImpersonate(wedding.id)}
+                          disabled={impersonatingId === wedding.id}
+                          className="text-neutral-500 hover:text-rose-400 text-xs transition-colors disabled:opacity-50"
+                        >
+                          {impersonatingId === wedding.id ? "..." : "Intră ca"}
+                        </button>
+                        <button
+                          onClick={() => dispatch({ type: "OPEN_PASSWORD_FORM", weddingId: wedding.id })}
+                          className="text-neutral-500 hover:text-blue-400 text-xs transition-colors"
+                        >
+                          Parolă
+                        </button>
+                        <button
+                          onClick={() => handleDeleteWedding(wedding.id)}
+                          disabled={pageState.deletingWeddingId === wedding.id}
+                          className="text-neutral-600 hover:text-red-400 text-xs transition-colors disabled:opacity-50"
+                        >
+                          {pageState.deletingWeddingId === wedding.id ? "..." : "Șterge"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -333,6 +484,66 @@ const WeddingHubAdminPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {pageState.changingPasswordForId && (() => {
+        const targetWedding = pageState.weddings.find((wedding) => wedding.id === pageState.changingPasswordForId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+            <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-white font-medium text-sm">
+                  Schimbă parola — {targetWedding?.brideFirstName} & {targetWedding?.groomFirstName}
+                </h2>
+                <button
+                  onClick={() => dispatch({ type: "CLOSE_PASSWORD_FORM" })}
+                  className="text-neutral-500 hover:text-white text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {pageState.passwordError && (
+                <div className="bg-red-900/30 border border-red-800 text-red-300 text-sm rounded-lg px-4 py-3">
+                  {pageState.passwordError}
+                </div>
+              )}
+
+              {pageState.passwordSuccess ? (
+                <div className="bg-green-900/30 border border-green-800 text-green-300 text-sm rounded-lg px-4 py-3">
+                  Parola a fost schimbată cu succes.
+                </div>
+              ) : (
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                  <Field
+                    label="Parolă nouă *"
+                    type="password"
+                    value={pageState.newPassword}
+                    onChange={(value) => dispatch({ type: "SET_NEW_PASSWORD", value })}
+                    placeholder="min. 6 caractere"
+                    required
+                  />
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: "CLOSE_PASSWORD_FORM" })}
+                      className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 py-2.5 rounded-lg text-sm transition-colors"
+                    >
+                      Anulează
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={pageState.passwordSaving}
+                      className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+                    >
+                      {pageState.passwordSaving ? "Se salvează..." : "Salvează"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
