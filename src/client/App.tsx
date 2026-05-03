@@ -33,6 +33,8 @@ import LandingAdminPage from "./features/admin/components/Landing/LandingAdminPa
 import CollaboratorPage from "./features/collaborator/CollaboratorPage";
 import AccountsPage from "./features/admin/components/AccountsPage";
 import InstagramProposalsAdminPage from "./features/admin/components/InstagramProposalsAdminPage";
+import OferteAdminPage from "./features/admin/components/OferteAdminPage";
+import OfertaPage from "./pages/OfertaPage";
 import WeddingHubAdminPage from "./features/admin/components/WeddingHub/WeddingHubAdminPage";
 import WeddingHubAuthWrapper from "./features/wedding-hub/WeddingHubAuthWrapper";
 import WeddingHubLayout from "./features/wedding-hub/WeddingHubLayout";
@@ -60,7 +62,7 @@ function AdminSpacer() {
 }
 
 
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite"];
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta"];
 
 export const App = () => {
   const location = useLocation();
@@ -141,7 +143,10 @@ export const App = () => {
             <Route path="/colaborator" element={<CollaboratorPage />} />
             <Route path="/admin/accounts" element={<AccountsPage />} />
             <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
-            <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
+            <Route path="/admin/oferte" element={<OferteAdminPage />} />
+            <Route element={<WeddingHubAuthWrapper />}>
+              <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
+            </Route>
           </Route>
 
           {/* Login-only routes */}
@@ -151,6 +156,8 @@ export const App = () => {
 
           {/* Public guest invitation page */}
           <Route path="/invite/:token" element={<GuestInvitationPage />} />
+          <Route path="/oferta/:slug" element={<OfertaPage />} />
+          <Route path="/oferta" element={<OfertaPage />} />
 
           {/* Wedding Hub — couple-facing (separate Firebase Auth instance) */}
           <Route element={<WeddingHubAuthWrapper />}>

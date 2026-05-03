@@ -845,8 +845,13 @@ export default function MediaAlbumPage() {
     <div className={styles.page}>
       <div className={styles.container}>
 
-        {slug && !isAdmin && !auth.authorise && typeof window !== "undefined" && window.location.hostname !== "localhost" && (
-          <MediaConsentModal slug={slug} retention={album?.retention ?? null} onAccepted={() => setConsentGiven(true)} />
+        {slug && typeof window !== "undefined" && window.location.hostname !== "localhost" && (
+          <MediaConsentModal
+            slug={slug}
+            retention={album?.retention ?? null}
+            isAdmin={isAdmin || auth.authorise}
+            onAccepted={() => setConsentGiven(true)}
+          />
         )}
 
         <OnboardingWizard />

@@ -56,6 +56,8 @@ interface InvitationData {
     groomFirstName: string;
     weddingDate: string;
     city: string;
+    venueName: string;
+    venueAddress: string;
   };
 }
 
@@ -303,24 +305,128 @@ const GuestInvitationPage: React.FC = () => {
   if (pageState.hasSubmitted && pageState.finalStatus) {
     const isConfirmed = pageState.finalStatus === "confirmat";
 
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 50%, #1a0a0a 100%)" }}>
-        <div className="text-center max-w-sm">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
-            style={{ background: isConfirmed ? "rgba(220,38,38,0.2)" : "rgba(100,100,100,0.2)", border: `1px solid ${isConfirmed ? "rgba(220,38,38,0.4)" : "rgba(100,100,100,0.3)"}` }}>
-            <span className="text-2xl">{isConfirmed ? "♥" : "✕"}</span>
+    if (!isConfirmed) {
+      return (
+        <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 50%, #1a0a0a 100%)" }}>
+          <div className="text-center max-w-sm">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+              style={{ background: "rgba(100,100,100,0.2)", border: "1px solid rgba(100,100,100,0.3)" }}>
+              <span className="text-2xl">✕</span>
+            </div>
+            <h2 className="text-2xl font-light text-white mb-3">Îți mulțumim pentru răspuns</h2>
+            <p className="text-rose-200/60 text-sm leading-relaxed">
+              Răspunsul tău a fost înregistrat. Îți mulțumim că ai anunțat.
+            </p>
           </div>
-          <h2 className="text-2xl font-light text-white mb-3">
-            {isConfirmed ? "Ne bucurăm că vii!" : "Îți mulțumim pentru răspuns"}
-          </h2>
-          <p className="text-rose-200/60 text-sm leading-relaxed">
-            {isConfirmed
-              ? `Te așteptăm cu drag la nunta lui ${wedding.brideFirstName} & ${wedding.groomFirstName} pe ${formatWeddingDate(wedding.weddingDate)}.`
-              : `Răspunsul tău a fost înregistrat. Îți mulțumim că ai anunțat.`}
+        </div>
+      );
+    }
+
+    const hasVenue = Boolean(wedding.venueName || wedding.venueAddress);
+    const mapsQuery = wedding.venueAddress || wedding.venueName || wedding.city;
+    const mapsEmbedUrl = mapsQuery
+      ? `https://maps.google.com/maps?q=${encodeURIComponent(mapsQuery)}&output=embed&hl=ro`
+      : null;
+
+    return (
+      <div className="min-h-screen flex flex-col items-center px-4 py-12" style={{ background: "linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 50%, #1a0a0a 100%)" }}>
+        <div className="w-full max-w-md space-y-6">
+
+          {/* Confirmation header */}
+          <div className="rounded-2xl overflow-hidden text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(220,38,38,0.2)", boxShadow: "0 25px 60px rgba(0,0,0,0.5)" }}>
+            <div className="h-1" style={{ background: "linear-gradient(90deg, transparent, rgba(220,38,38,0.6), transparent)" }} />
+            <div className="px-8 py-8">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+                style={{ background: "rgba(220,38,38,0.15)", border: "1px solid rgba(220,38,38,0.35)" }}>
+                <span className="text-2xl">♥</span>
+              </div>
+              <h2 className="text-2xl font-light text-white mb-2">Ne bucurăm că vii!</h2>
+              <p className="text-rose-200/60 text-sm leading-relaxed">
+                Te așteptăm cu drag la nunta lui{" "}
+                <span className="text-rose-300">{wedding.brideFirstName} & {wedding.groomFirstName}</span>
+                {" "}pe {formatWeddingDate(wedding.weddingDate)}.
+              </p>
+            </div>
+            <div className="h-1" style={{ background: "linear-gradient(90deg, transparent, rgba(220,38,38,0.3), transparent)" }} />
+          </div>
+
+          {/* Event details */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(220,38,38,0.15)" }}>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-xs text-rose-400/60 uppercase tracking-widest">Detalii eveniment</p>
+
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-rose-400/50 mt-0.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                  </span>
+                  <div>
+                    <p className="text-white text-sm">{formatWeddingDate(wedding.weddingDate)}</p>
+                  </div>
+                </div>
+
+                {hasVenue && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-rose-400/50 mt-0.5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                      </svg>
+                    </span>
+                    <div>
+                      {wedding.venueName && <p className="text-white text-sm">{wedding.venueName}</p>}
+                      {wedding.venueAddress && <p className="text-rose-200/50 text-xs mt-0.5">{wedding.venueAddress}</p>}
+                      {!wedding.venueAddress && wedding.city && <p className="text-rose-200/50 text-xs mt-0.5">{wedding.city}</p>}
+                    </div>
+                  </div>
+                )}
+
+                {!hasVenue && wedding.city && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-rose-400/50 mt-0.5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                      </svg>
+                    </span>
+                    <p className="text-white text-sm">{wedding.city}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Google Maps embed */}
+            {mapsEmbedUrl && (
+              <div className="overflow-hidden" style={{ borderTop: "1px solid rgba(220,38,38,0.1)" }}>
+                <iframe
+                  title="Locație eveniment"
+                  src={mapsEmbedUrl}
+                  width="100%"
+                  height="240"
+                  style={{ border: 0, display: "block" }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+                {mapsQuery && (
+                  <div className="px-4 py-3 text-center">
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-rose-400/70 hover:text-rose-300 transition-colors"
+                    >
+                      Deschide în Google Maps →
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <p className="text-center text-rose-900/50 text-xs">
+            Cu drag,{" "}
+            <span className="text-rose-700/70">{wedding.brideFirstName} & {wedding.groomFirstName}</span>
           </p>
-          {isConfirmed && wedding.city && (
-            <p className="text-rose-300/50 text-xs mt-3">{wedding.city}</p>
-          )}
         </div>
       </div>
     );

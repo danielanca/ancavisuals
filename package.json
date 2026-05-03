@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "concurrently \"npm:dev:*\"",
-    "dev:server": "tsx server.ts",
+    "dev:server": "concurrently \"tsx server.ts\" \"sleep 2 && open http://localhost:1994/admin\"",
     "dev:client": "vite --config vite.config.ts",
     "clean": "rimraf dist",
     "build": "npm install && npm run clean && tsc -p tsconfig.json && npm run build:client && npm run build:server && npm run copy-files && node fix-extensions.js",

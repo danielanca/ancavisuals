@@ -8,6 +8,8 @@ type PageState = {
   emailNotificationsEnabled: boolean;
   notifyOnAccept: boolean;
   notifyOnDecline: boolean;
+  venueName: string;
+  venueAddress: string;
   isSaving: boolean;
   savedMessage: string | null;
   errorMessage: string | null;
@@ -17,10 +19,12 @@ type PageAction =
   | { type: "SET_MASTER_TOGGLE"; value: boolean }
   | { type: "SET_ACCEPT_TOGGLE"; value: boolean }
   | { type: "SET_DECLINE_TOGGLE"; value: boolean }
+  | { type: "SET_VENUE_NAME"; value: string }
+  | { type: "SET_VENUE_ADDRESS"; value: string }
   | { type: "SET_SAVING"; value: boolean }
   | { type: "SET_ERROR"; value: string | null }
   | { type: "SET_SAVED"; value: string | null }
-  | { type: "SYNC_FROM_PROFILE"; value: { emailNotificationsEnabled: boolean; notifyOnAccept: boolean; notifyOnDecline: boolean } };
+  | { type: "SYNC_FROM_PROFILE"; value: { emailNotificationsEnabled: boolean; notifyOnAccept: boolean; notifyOnDecline: boolean; venueName: string; venueAddress: string } };
 
 function pageReducer(state: PageState, action: PageAction): PageState {
   switch (action.type) {
@@ -30,6 +34,10 @@ function pageReducer(state: PageState, action: PageAction): PageState {
       return { ...state, notifyOnAccept: action.value, savedMessage: null, errorMessage: null };
     case "SET_DECLINE_TOGGLE":
       return { ...state, notifyOnDecline: action.value, savedMessage: null, errorMessage: null };
+    case "SET_VENUE_NAME":
+      return { ...state, venueName: action.value, savedMessage: null, errorMessage: null };
+    case "SET_VENUE_ADDRESS":
+      return { ...state, venueAddress: action.value, savedMessage: null, errorMessage: null };
     case "SET_SAVING":
       return { ...state, isSaving: action.value };
     case "SET_ERROR":
@@ -42,6 +50,8 @@ function pageReducer(state: PageState, action: PageAction): PageState {
         emailNotificationsEnabled: action.value.emailNotificationsEnabled,
         notifyOnAccept: action.value.notifyOnAccept,
         notifyOnDecline: action.value.notifyOnDecline,
+        venueName: action.value.venueName,
+        venueAddress: action.value.venueAddress,
       };
     default:
       return state;
@@ -58,6 +68,8 @@ const WeddingSettingsPage: React.FC = () => {
     emailNotificationsEnabled: false,
     notifyOnAccept: true,
     notifyOnDecline: true,
+    venueName: "",
+    venueAddress: "",
     isSaving: false,
     savedMessage: null,
     errorMessage: null,
@@ -71,6 +83,8 @@ const WeddingSettingsPage: React.FC = () => {
           emailNotificationsEnabled: weddingProfile.emailSettings.emailNotificationsEnabled,
           notifyOnAccept: weddingProfile.emailSettings.notifyOnAccept,
           notifyOnDecline: weddingProfile.emailSettings.notifyOnDecline,
+          venueName: weddingProfile.venueName,
+          venueAddress: weddingProfile.venueAddress,
         },
       });
     }
@@ -93,6 +107,8 @@ const WeddingSettingsPage: React.FC = () => {
           emailNotificationsEnabled: pageState.emailNotificationsEnabled,
           notifyOnAccept: pageState.notifyOnAccept,
           notifyOnDecline: pageState.notifyOnDecline,
+          venueName: pageState.venueName,
+          venueAddress: pageState.venueAddress,
         }),
       });
 
@@ -170,6 +186,35 @@ const WeddingSettingsPage: React.FC = () => {
         <p className="mt-3 text-xs text-neutral-500">
           Tema activă acum: <span className="text-neutral-300">{theme === "dark" ? "Dark" : "Light"}</span>
         </p>
+
+        <div className="pt-5 border-t border-neutral-800">
+          <h2 className="text-sm font-medium text-white mb-1">Locație eveniment</h2>
+          <p className="text-sm text-neutral-400 mb-3">
+            Invitații confirmați vor vedea aceste detalii pe pagina de invitație, împreună cu o hartă Google Maps.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs uppercase tracking-wide text-neutral-500 mb-1 block">Numele locației</label>
+              <input
+                type="text"
+                value={pageState.venueName}
+                onChange={(e) => dispatch({ type: "SET_VENUE_NAME", value: e.target.value })}
+                placeholder="ex: Palazzo Brancoveanu"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-rose-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-wide text-neutral-500 mb-1 block">Adresa completă (pentru Google Maps)</label>
+              <input
+                type="text"
+                value={pageState.venueAddress}
+                onChange={(e) => dispatch({ type: "SET_VENUE_ADDRESS", value: e.target.value })}
+                placeholder="ex: Calea Floreasca 167, București"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-rose-500 focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
 
         <div className="pt-5">
         <div className="flex items-start justify-between gap-4">

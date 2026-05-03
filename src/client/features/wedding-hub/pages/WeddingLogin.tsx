@@ -26,6 +26,9 @@ function loginReducer(state: LoginState, action: LoginAction): LoginState {
   }
 }
 
+const DEMO_EMAIL = import.meta.env.VITE_WH_DEMO_EMAIL as string | undefined;
+const DEMO_PASS = import.meta.env.VITE_WH_DEMO_PASS as string | undefined;
+
 const WeddingLoginPage: React.FC = () => {
   const { signInAsCouple } = useWeddingHubAuth();
   const { theme, toggleThemeOverride } = useWeddingHubTheme();
@@ -47,6 +50,18 @@ const WeddingLoginPage: React.FC = () => {
 
     try {
       await signInAsCouple(loginState.emailInput.trim(), loginState.passwordInput);
+      navigate("/wedding-hub/dashboard");
+    } catch {
+      dispatch({ type: "SET_ERROR", payload: "Email sau parolă incorecte." });
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    if (!DEMO_EMAIL || !DEMO_PASS) return;
+    dispatch({ type: "SET_LOADING", payload: true });
+    dispatch({ type: "SET_ERROR", payload: null });
+    try {
+      await signInAsCouple(DEMO_EMAIL, DEMO_PASS);
       navigate("/wedding-hub/dashboard");
     } catch {
       dispatch({ type: "SET_ERROR", payload: "Email sau parolă incorecte." });
@@ -143,6 +158,21 @@ const WeddingLoginPage: React.FC = () => {
             {loginState.isLoading ? "Se autentifică..." : "Intră în cont"}
           </button>
         </form>
+
+        {DEMO_EMAIL && DEMO_PASS && (
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              disabled={loginState.isLoading}
+              className={`text-xs underline underline-offset-2 transition-colors disabled:opacity-40 ${
+                theme === "light" ? "text-[#9b7e6d] hover:text-[#6b5043]" : "text-neutral-500 hover:text-neutral-300"
+              }`}
+            >
+              Intră ca Mireasă & Mire
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
