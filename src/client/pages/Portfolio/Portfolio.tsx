@@ -1,4 +1,5 @@
 import React from "react";
+import { WWW_ORIGIN } from "../../utils/address";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import Breadcrumbs from "../../components/SEO/Breadcrumbs";
@@ -21,7 +22,7 @@ const Portfolio = () => {
         breadcrumbs={breadcrumbs}
         schema={{
           "@type": "CollectionPage",
-          "@id": "https://www.ancavisuals.ro/portofoliu#collection",
+          "@id": `${WWW_ORIGIN}/portofoliu#collection`,
           name: "Portofoliu Anca Visuals",
           description:
             "Colecție de imagini și materiale vizuale din nunți, botezuri, majorate și evenimente private.",

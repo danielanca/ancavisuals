@@ -9,6 +9,7 @@ import { generateContractPDF, buildContractHTML } from "../services/pdf.generato
 import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail } from "../notifications/templates/contractEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { expandEventDates } from "../utils/expandEventDates";
+import { APP_BASE_URL } from "../constants/domain";
 
 const router = Router();
 const BOOKED_EVENT_STATUSES = new Set(["confirmat", "finalizat"]);
@@ -592,7 +593,7 @@ router.post("/:id/send", async (req: Request, res: Response) => {
 
     await db.collection("contracts").doc(req.params.id).update({ status: "sent", sentAt: Timestamp.now() });
 
-    const baseUrl = process.env.APP_BASE_URL ?? "https://ancavisuals.ro";
+    const baseUrl = APP_BASE_URL;
     await sendContractLinkEmail({
       to: contract.clientEmail,
       token: contract.token,

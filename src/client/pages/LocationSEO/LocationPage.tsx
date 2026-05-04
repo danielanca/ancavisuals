@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { WWW_ORIGIN } from "../../utils/address";
 import { Link, Navigate } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
@@ -66,7 +67,7 @@ const LocationPage: React.FC<Props> = ({
 
   const title = `Foto video ${service.accusative} ${city.name} | Fotograf și videograf | Anca Visuals`;
   const metaDescription = `Anca Visuals oferă foto, video și pachete foto-video pentru ${service.accusative} în ${city.name}. Vezi portofoliu, review-uri Google, prețuri orientative și cere o ofertă personalizată.`;
-  const canonicalUrl = `https://www.ancavisuals.ro${canonicalPath}`;
+  const canonicalUrl = `${WWW_ORIGIN}${canonicalPath}`;
   const galleryAltBase = `fotograf video ${service.slug} ${city.slug}`;
   const breadcrumbs = [
     { label: "Acasă", to: "/" },
@@ -96,7 +97,7 @@ const LocationPage: React.FC<Props> = ({
       "@id": `${canonicalUrl}#service`,
       name: "Anca Visuals",
       url: canonicalUrl,
-      image: "https://www.ancavisuals.ro/android-chrome-512x512.png",
+      image: `${WWW_ORIGIN}/android-chrome-512x512.png`,
       description: metaDescription,
       telephone: "+40745469907",
       areaServed: [

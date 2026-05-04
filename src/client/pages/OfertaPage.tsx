@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { remoteAddress } from "../utils/address";
 import { useParams } from "react-router-dom";
 
 type Offer = {
@@ -102,7 +103,7 @@ export default function OfertaPage() {
         <p className="text-violet-400/60 text-xs tracking-widest uppercase mb-4">Ancavisuals</p>
         <h1 className="text-2xl font-light text-white mb-3">Oferta nu a fost găsită</h1>
         <p className="text-neutral-500 text-sm">Linkul poate fi incorect sau oferta a expirat.</p>
-        <a href="https://ancavisuals.ro" className="mt-8 text-xs text-neutral-600 hover:text-neutral-400 transition-colors underline underline-offset-2">
+        <a href={remoteAddress} className="mt-8 text-xs text-neutral-600 hover:text-neutral-400 transition-colors underline underline-offset-2">
           ancavisuals.ro
         </a>
       </div>

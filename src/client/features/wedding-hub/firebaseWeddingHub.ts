@@ -1,14 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAK1PxPnxLzGocve2OeKappgBHaKqmaijE",
-  authDomain: "joculdetectivului.firebaseapp.com",
-  projectId: "joculdetectivului",
-  storageBucket: "joculdetectivului.appspot.com",
-  messagingSenderId: "245201277429",
-  appId: "1:245201277429:web:d68ff347883c18838b90bc",
-};
+import { firebaseConfig } from "../../firebaseConfig";
 
 const WEDDING_HUB_APP_NAME = "wedding-hub";
 

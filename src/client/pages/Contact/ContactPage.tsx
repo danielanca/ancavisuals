@@ -1,4 +1,5 @@
 import React from "react";
+import { WWW_ORIGIN } from "../../utils/address";
 import "./contact.css";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
@@ -23,7 +24,7 @@ const ContactPage = () => {
         breadcrumbs={breadcrumbs}
         schema={{
           "@type": "ContactPage",
-          "@id": "https://www.ancavisuals.ro/contact#contact",
+          "@id": `${WWW_ORIGIN}/contact#contact`,
           name: "Contact și configurator ofertă Anca Visuals",
           description:
             "Pagină de contact și configurare ofertă pentru foto, video, foto-video, fotocabină și Video Booth 360.",

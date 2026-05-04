@@ -1,4 +1,5 @@
 import React from "react";
+import { WWW_ORIGIN } from "../../utils/address";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import Breadcrumbs from "../../components/SEO/Breadcrumbs";
@@ -20,7 +21,7 @@ const AboutPage = () => {
         breadcrumbs={breadcrumbs}
         schema={{
           "@type": "AboutPage",
-          "@id": "https://www.ancavisuals.ro/despre#about",
+          "@id": `${WWW_ORIGIN}/despre#about`,
           name: "Despre Anca Visuals",
           description:
             "Pagina despre echipa Anca Visuals, cu informații despre stilul de lucru, servicii foto-video și abordarea în evenimente.",

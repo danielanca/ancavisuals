@@ -1,0 +1,73 @@
+import React from "react";
+import { Route } from "react-router-dom";
+import loadable from "@loadable/component";
+import AncaLoader from "../components/UI/AncaLoader";
+import RequireAuth from "../features/admin/components/RequireAuth";
+import CheckAuth from "../features/admin/components/CheckAuth";
+import WeddingHubAuthWrapper from "../features/wedding-hub/WeddingHubAuthWrapper";
+
+const opts = { fallback: <AncaLoader /> };
+
+const Login = loadable(() => import("../features/admin/components/Login"), opts);
+const Dashboard = loadable(() => import("../features/admin/components/Dashboard"), opts);
+const AdminBook = loadable(() => import("../pages/Contact/booking/AdminBook"), opts);
+const BookedCalendar = loadable(() => import("../features/admin/components/BookedCalendar"), opts);
+const CreateEventWedding = loadable(() => import("../features/admin/components/EventDashboard/CreateEvent"), opts);
+const ContractListPage = loadable(() => import("../features/admin/components/Contracts/ContractListPage"), opts);
+const CreateContractPage = loadable(() => import("../features/admin/components/Contracts/CreateContractPage"), opts);
+const EditContractPage = loadable(() => import("../features/admin/components/Contracts/EditContractPage"), opts);
+const InspirationPage = loadable(() => import("../features/admin/components/InspirationPage"), opts);
+const MementosPage = loadable(() => import("../features/admin/components/MementosPage"), opts);
+const MediaActivityPage = loadable(() => import("../features/admin/components/MediaActivityPage"), opts);
+const QRMomentsAdminPage = loadable(() => import("../features/admin/components/QRMomentsAdminPage"), opts);
+const AnalyticsPage = loadable(() => import("../features/admin/components/AnalyticsPage"), opts);
+const ImageOptimizerPage = loadable(() => import("../features/admin/components/ImageOptimizerPage"), opts);
+const GoalDetailPage = loadable(() => import("../features/admin/components/GoalDetailPage"), opts);
+const BankDetailsPage = loadable(() => import("../features/admin/components/BankDetailsPage"), opts);
+const ModerationReviewPage = loadable(() => import("../features/admin/components/Moderation/ModerationReviewPage"), opts);
+const RouteSheetsPage = loadable(() => import("../features/admin/components/RouteSheets/RouteSheetsPage"), opts);
+const ErrorsPage = loadable(() => import("../features/admin/components/ErrorsPage"), opts);
+const FinancialPage = loadable(() => import("../features/admin/components/Financial/FinancialPage"), opts);
+const LandingAdminPage = loadable(() => import("../features/admin/components/Landing/LandingAdminPage"), opts);
+const CollaboratorPage = loadable(() => import("../features/collaborator/CollaboratorPage"), opts);
+const AccountsPage = loadable(() => import("../features/admin/components/AccountsPage"), opts);
+const InstagramProposalsAdminPage = loadable(() => import("../features/admin/components/InstagramProposalsAdminPage"), opts);
+const OferteAdminPage = loadable(() => import("../features/admin/components/OferteAdminPage"), opts);
+const WeddingHubAdminPage = loadable(() => import("../features/admin/components/WeddingHub/WeddingHubAdminPage"), opts);
+
+export function adminRoutes() {
+  return [
+    <Route key="protected" element={<RequireAuth />}>
+      <Route path="/admin" element={<Dashboard />} />
+      <Route path="/admin/calendar" element={<BookedCalendar />} />
+      <Route path="/admin/create-event" element={<AdminBook />} />
+      <Route path="/admin/create-event-wedding" element={<CreateEventWedding />} />
+      <Route path="/admin/contracts" element={<ContractListPage />} />
+      <Route path="/admin/contracts/create" element={<CreateContractPage />} />
+      <Route path="/admin/contracts/:id/edit" element={<EditContractPage />} />
+      <Route path="/admin/inspiration" element={<InspirationPage />} />
+      <Route path="/admin/mementos" element={<MementosPage />} />
+      <Route path="/admin/media-activity" element={<MediaActivityPage />} />
+      <Route path="/admin/qr-moments" element={<QRMomentsAdminPage />} />
+      <Route path="/admin/analytics" element={<AnalyticsPage />} />
+      <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
+      <Route path="/admin/bank-details" element={<BankDetailsPage />} />
+      <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
+      <Route path="/admin/moderare" element={<ModerationReviewPage />} />
+      <Route path="/admin/route-sheets" element={<RouteSheetsPage />} />
+      <Route path="/admin/errors" element={<ErrorsPage />} />
+      <Route path="/admin/financial" element={<FinancialPage />} />
+      <Route path="/admin/landing" element={<LandingAdminPage />} />
+      <Route path="/colaborator" element={<CollaboratorPage />} />
+      <Route path="/admin/accounts" element={<AccountsPage />} />
+      <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
+      <Route path="/admin/oferte" element={<OferteAdminPage />} />
+      <Route element={<WeddingHubAuthWrapper />}>
+        <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
+      </Route>
+    </Route>,
+    <Route key="login" element={<CheckAuth />}>
+      <Route path="/login" element={<Login />} />
+    </Route>,
+  ];
+}

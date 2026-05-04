@@ -1,5 +1,6 @@
 import { sendEmail } from "../mailer";
 import { adminUser } from "../../constants/credentials";
+import { APP_BASE_URL } from "../../constants/domain";
 
 const brandHeader = `
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">
@@ -22,7 +23,7 @@ interface ProposalSubmittedOptions {
 
 export async function sendInspirationProposalSubmittedEmail(options: ProposalSubmittedOptions): Promise<void> {
   const { proposerEmail, photoCount } = options;
-  const reviewLink = "https://ancavisuals.ro/admin/inspiration";
+  const reviewLink = `${APP_BASE_URL}/admin/inspiration`;
 
   await sendEmail({
     to: adminUser.email,

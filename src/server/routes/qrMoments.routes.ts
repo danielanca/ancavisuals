@@ -11,6 +11,7 @@ import {
   getBunnyStoragePassword,
 } from '../constants/bunny';
 import { sendEmail } from '../notifications/mailer';
+import { APP_BASE_URL } from '../constants/domain';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -120,7 +121,7 @@ function detectMediaType(mimeType: string, originalName: string): 'photo' | 'vid
 }
 
 function buildUnsubscribeUrl(guestId: string): string {
-  const base = process.env.APP_BASE_URL ?? 'https://ancavisuals.ro';
+  const base = APP_BASE_URL;
   return `${base}/qr-moments/unsubscribe/${guestId}`;
 }
 
@@ -133,7 +134,7 @@ async function sendCommentNotification(
   thumbnailUrl: string | null,
   hostDisplayName: string,
 ): Promise<void> {
-  const galleryUrl = `${process.env.APP_BASE_URL ?? 'https://ancavisuals.ro'}/qr-moments/${eventSlug}/gallery`;
+  const galleryUrl = `${APP_BASE_URL}/qr-moments/${eventSlug}/gallery`;
   const unsubscribeUrl = buildUnsubscribeUrl(guestId);
 
   const thumbnailHtml = thumbnailUrl
@@ -183,7 +184,7 @@ async function sendUploadNotification(
   uploadedCount: number,
 ): Promise<void> {
   const uploadLabel = uploadedCount === 1 ? 'un fișier nou' : `${uploadedCount} fișiere noi`;
-  const galleryUrl = `${process.env.APP_BASE_URL ?? 'https://ancavisuals.ro'}/qr-moments/${eventSlug}/gallery`;
+  const galleryUrl = `${APP_BASE_URL}/qr-moments/${eventSlug}/gallery`;
 
   await sendEmail({
     to: notificationEmail,

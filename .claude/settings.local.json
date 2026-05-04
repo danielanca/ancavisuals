@@ -21,7 +21,8 @@
       "Bash(git push *)",
       "Bash(git stash *)",
       "Bash(git ls-remote *)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(grep *)"
     ]
   }
 }

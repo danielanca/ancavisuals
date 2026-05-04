@@ -1,4 +1,5 @@
 import React from "react";
+import { WWW_ORIGIN } from "../../utils/address";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
@@ -22,17 +23,17 @@ const HomePage = () => {
         schema={[
           {
             "@type": "Organization",
-            "@id": "https://www.ancavisuals.ro/#organization",
+            "@id": `${WWW_ORIGIN}/#organization`,
             name: "Anca Visuals",
-            url: "https://www.ancavisuals.ro/",
+            url: `${WWW_ORIGIN}/`,
             telephone: "+40745469907",
             sameAs: ["https://instagram.com/ancavisuals", "https://tiktok.com/@ancavisuals"],
           },
           {
             "@type": "ProfessionalService",
-            "@id": "https://www.ancavisuals.ro/#service",
+            "@id": `${WWW_ORIGIN}/#service`,
             name: "Anca Visuals",
-            url: "https://www.ancavisuals.ro/",
+            url: `${WWW_ORIGIN}/`,
             description:
               "Servicii foto, video și foto-video pentru nunți, botezuri, majorate și evenimente private.",
             areaServed: CITIES.map(city => ({ "@type": "City", name: city.name })),

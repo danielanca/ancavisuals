@@ -16,6 +16,7 @@
     "copy-files": "copyfiles \"public/**/*\" dist && copyfiles -u 2 \"data/blog/**/*.md\" dist && copyfiles -u 2 \"dist/client/**/*\" dist && copyfiles -u 2 \"dist/client/assets/**/*\" dist/public",
     "deploy": "npm run killport && npm install --production && npm run build && npm run serve:pm2",
     "deploy:quick": "npm run killport && npm run build && npm run pm2:restart",
+    "redeploy": "npm run killport && npm run build && pm2 stop ancavisuals && pm2 start ancavisuals",
     "deploy:no-build": "npm run killport && npm install --production && npm run pm2:restart",
     "start": "npm run serve:pm2",
     "serve": "npm run serve:pm2",

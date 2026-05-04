@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { sendEmail } from "../notifications/mailer";
+import { APP_BASE_URL } from "../constants/domain";
 
 function buildReminderEmailHtml(title: string, message: string): string {
   return `
@@ -11,7 +12,7 @@ function buildReminderEmailHtml(title: string, message: string): string {
       <p style="margin:0 0 28px;font-size:15px;color:#5a4a3e;line-height:1.65;">${message}</p>
       <hr style="border:none;border-top:1px solid #e3d0bf;margin:0 0 20px;">
       <p style="margin:0;font-size:11px;color:#b09882;">
-        Accesează <a href="https://ancavisuals.ro/wedding-hub/reminders" style="color:#b07d5c;">Wedding Hub</a> pentru a gestiona notificările.
+        Accesează <a href="${APP_BASE_URL}/wedding-hub/reminders" style="color:#b07d5c;">Wedding Hub</a> pentru a gestiona notificările.
       </p>
     </div>
   `;

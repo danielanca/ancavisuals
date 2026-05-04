@@ -6,7 +6,7 @@ import { listAlbumRetentionCandidates } from "../services/albumRetention.service
 import { markRetentionNotificationSent } from "../services/printSelection.store";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const BASE_URL = process.env.BASE_URL || "https://ancavisuals.ro";
+import { APP_BASE_URL as BASE_URL } from "../constants/domain";
 
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString("ro-RO", {

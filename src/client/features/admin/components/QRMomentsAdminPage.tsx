@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { destination } from "../../../utils/address";
 import Breadcrumb from "./Breadcrumb";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import useAuth from "../auth/useAuth";
@@ -81,8 +82,8 @@ type QREventFormValues = {
 
 function QRLinkRow({ eventSlug, pin }: { eventSlug: string; pin: string }) {
   const [copiedTarget, setCopiedTarget] = useState<"guest" | "gallery" | null>(null);
-  const guestUrl = `https://ancavisuals.ro/qr-moments/${eventSlug}?pass=${pin}`;
-  const galleryUrl = `https://ancavisuals.ro/qr-moments/${eventSlug}/gallery?pin=${pin}`;
+  const guestUrl = `${destination}/qr-moments/${eventSlug}?pass=${pin}`;
+  const galleryUrl = `${destination}/qr-moments/${eventSlug}/gallery?pin=${pin}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(guestUrl)}`;
 
   const handleCopy = (target: "guest" | "gallery", value: string) => {
