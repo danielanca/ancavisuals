@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { WWW_ORIGIN } from "../../utils/address";
 import { Link, Navigate } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
@@ -13,7 +13,6 @@ import {
   getServiceBySlug,
 } from "./locationData";
 import pricesData from "../../../shared/pricing/prices.json";
-import { sendTriggerEmail } from "../../utils/triggers";
 import PortfolioGallery from "../Portfolio/PortfolioGallery";
 
 const photoPackage = pricesData.packages.find(pkg => pkg.id === "photo");
@@ -55,13 +54,6 @@ const LocationPage: React.FC<Props> = ({
   const city = getCityBySlug(citySlug);
   const service = getServiceBySlug(serviceSlug);
 
-  useEffect(() => {
-    if (!city || !service) return;
-    sendTriggerEmail({
-      typeEvent: "Vizitator nou pe pagini locale",
-      url: window.location.pathname,
-    });
-  }, [city, service]);
 
   if (!city || !service) return <Navigate to="/" replace />;
 

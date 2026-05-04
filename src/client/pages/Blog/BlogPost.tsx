@@ -35,6 +35,7 @@ const BlogPost: React.FC = () => {
 
   useEffect(() => {
     if (!slug) return;
+    sendTriggerEmail({ typeEvent: "Vizitator blog", url: `/blog/${slug}` }).catch(() => {});
     setLoading(true);
     fetch(`/api/blog/${slug}`)
       .then(res => {

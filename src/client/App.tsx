@@ -6,6 +6,7 @@ import AdminBar from "./components/UI/AdminBar";
 import AncaLoader from "./components/UI/AncaLoader";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
+import { useVisitorNotification } from "./hooks/useVisitorNotification";
 import useAuth from "./features/admin/auth/useAuth";
 import publicRoutes from "./routes/publicRoutes";
 import { adminRoutes } from "./routes/adminRoutes";
@@ -25,6 +26,7 @@ export const App = () => {
   const showChat = !HIDE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
   usePageTracking();
   useClientErrorReporting();
+  useVisitorNotification();
 
   useEffect(() => {
     const removeUcDialog = () => {

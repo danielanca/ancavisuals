@@ -2312,7 +2312,7 @@ router.post("/invite/:token/rsvp", async (req: Request, res: Response) => {
           `<p style="margin:0 0 8px;"><strong>Copii:</strong> ${normalizedChildrenCount}</p>`,
           `<p style="margin:0 0 8px;"><strong>Meniu adulți:</strong> ${menuPreference ?? "Nespecificat"}</p>`,
           `<p style="margin:0 0 8px;"><strong>Meniu copii:</strong> ${childrenMenuPreference ?? "Nespecificat"}</p>`,
-          `<p style="margin:0 0 8px;"><strong>Vrem să stăm toți la aceeași masă:</strong> ${Boolean(sameTableWithFamily) ? "Da" : "Nu"}</p>`,
+          `<p style="margin:0 0 8px;"><strong>Vrem să stăm toți la aceeași masă:</strong> ${sameTableWithFamily ? "Da" : "Nu"}</p>`,
         );
 
         if (familyNames.length > 0) {
@@ -2397,8 +2397,8 @@ router.get("/timeline", requireCoupleAuth, async (req: Request, res: Response) =
       .collection("wh_timeline")
       .where("weddingId", "==", coupleReq.weddingId)
       .get();
-    const moments = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    moments.sort((momentA: any, momentB: any) => momentA.startTime.localeCompare(momentB.startTime));
+    const moments = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Record<string, unknown> & { id: string }));
+    moments.sort((momentA, momentB) => String(momentA.startTime ?? "").localeCompare(String(momentB.startTime ?? "")));
     res.json({ moments });
   } catch (error) {
     console.error("[wedding-hub] GET /timeline failed:", error);
