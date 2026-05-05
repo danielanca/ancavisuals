@@ -1,6 +1,7 @@
 import React from "react";
 import { Helmet } from "react-helmet-async";
 import type { BreadcrumbItem } from "./Breadcrumbs";
+import { WWW_ORIGIN } from "../../utils/address";
 
 interface SeoPageHeadProps {
   title: string;
@@ -12,7 +13,7 @@ interface SeoPageHeadProps {
   schema?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
-const DEFAULT_IMAGE = "https://www.ancavisuals.ro/android-chrome-512x512.png";
+const DEFAULT_IMAGE = `${WWW_ORIGIN}/android-chrome-512x512.png`;
 
 const SeoPageHead: React.FC<SeoPageHeadProps> = ({
   title,
@@ -23,7 +24,7 @@ const SeoPageHead: React.FC<SeoPageHeadProps> = ({
   breadcrumbs,
   schema,
 }) => {
-  const canonicalUrl = `https://www.ancavisuals.ro${canonicalPath}`;
+  const canonicalUrl = `${WWW_ORIGIN}${canonicalPath}`;
   const graph: Array<Record<string, unknown>> = [];
 
   if (breadcrumbs?.length) {
@@ -34,7 +35,7 @@ const SeoPageHead: React.FC<SeoPageHeadProps> = ({
         "@type": "ListItem",
         position: index + 1,
         name: item.label,
-        item: item.to ? `https://www.ancavisuals.ro${item.to}` : canonicalUrl,
+        item: item.to ? `${WWW_ORIGIN}${item.to}` : canonicalUrl,
       })),
     });
   }

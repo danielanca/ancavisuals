@@ -1,54 +1,33 @@
-import { getUserBrowser } from "./onScreen";
 import { destination } from "./address";
 
-const isProd = process.env.NODE_ENV === "production";
 interface EventsTrigger {
   typeEvent: string;
   url: string;
 }
 
+const sanitizeInput = (input: string): string =>
+  input.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 export const sendTriggerEmail = async ({ typeEvent, url }: EventsTrigger) => {
-  try {
-    if (!typeEvent || !url) {
-      console.log("SEND ERROR:", typeEvent, url);
-      throw new Error("Invalid input: typeEvent and url are required and url must be valid.");
-    }
-
-    // if (!isProd) {
-    //   console.error('You are on the local host, so we dont send the email');
-    //   return;
-    // }
-    const response = await fetch(`${destination}/triggerEvent`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      mode: "cors",
-      body: JSON.stringify({
-        typeEvent: sanitizeInput(typeEvent),
-        url: sanitizeInput(url),
-        browserVersion: getUserBrowser(),
-        referrer: sanitizeInput(document.referrer || "direct"),
-      }),
-    });
-
-    if (response.status === 204) {
-      console.log("[Trigger] Email nesimplu — ești pe local sau vizitator din afara României. Nu s-a trimis.");
-      return response;
-    }
-
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.statusText}`);
-    }
-
-    console.log("[Trigger] Email trimis cu succes.");
-    return response;
-  } catch (error) {
-    console.error("Error sending trigger email:", error);
-    throw error;
+  if (!typeEvent || !url) {
+    throw new Error("Invalid input: typeEvent and url are required.");
   }
-};
 
-const sanitizeInput = (input: string): string => {
-  return input.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const response = await fetch(`${destination}/triggerEvent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    mode: "cors",
+    body: JSON.stringify({
+      typeEvent: sanitizeInput(typeEvent),
+      url: sanitizeInput(url),
+      browserVersion: navigator.userAgent,
+      referrer: sanitizeInput(document.referrer || "direct"),
+    }),
+  });
+
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`Server error: ${response.statusText}`);
+  }
+
+  return response;
 };

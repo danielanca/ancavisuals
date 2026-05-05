@@ -2,6 +2,7 @@ import React, { useEffect, useReducer, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import Breadcrumb from "./Breadcrumb";
+import useAuth from "../auth/useAuth";
 
 interface ServerError {
   id: string;
@@ -67,6 +68,7 @@ function isQrError(error: ServerError): boolean {
 
 export default function ErrorsPage() {
   const location = useLocation();
+  const { auth } = useAuth();
   const [state, dispatch] = useReducer(reducer, {
     errors: [],
     loading: true,
@@ -76,11 +78,14 @@ export default function ErrorsPage() {
   });
 
   useEffect(() => {
-    fetch("/api/admin/monitoring/errors")
+    if (!auth.accessToken) return;
+    fetch("/api/admin/monitoring/errors", {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
       .then((r) => r.json())
       .then((data: { errors: ServerError[] }) => dispatch({ type: "loaded", errors: data.errors ?? [] }))
       .catch(() => dispatch({ type: "loaded", errors: [] }));
-  }, []);
+  }, [auth.accessToken]);
 
   const filtered = useMemo(() => {
     return state.errors.filter((error) => {
@@ -100,7 +105,10 @@ export default function ErrorsPage() {
   const handleMarkSeen = async () => {
     dispatch({ type: "set_marking", value: true });
     try {
-      await fetch("/api/admin/monitoring/errors/mark-seen", { method: "PATCH" });
+      await fetch("/api/admin/monitoring/errors/mark-seen", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
       dispatch({ type: "mark_done" });
     } catch {
       dispatch({ type: "set_marking", value: false });

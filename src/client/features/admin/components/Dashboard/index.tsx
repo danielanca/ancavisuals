@@ -165,7 +165,9 @@ const DashboardInner: React.FC = () => {
         .catch(() => {});
     }
 
-    fetch("/api/admin/monitoring/errors/unseen-count")
+    fetch("/api/admin/monitoring/errors/unseen-count", {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
       .then((r) => r.json())
       .then((data: { count?: number }) => setUnseenErrorsCount(data.count ?? 0))
       .catch(() => {});

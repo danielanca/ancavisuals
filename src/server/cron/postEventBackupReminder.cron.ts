@@ -7,7 +7,7 @@ import { sendEmail } from "../notifications/mailer";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const REMINDER_INTERVAL_MS = 48 * 60 * 60 * 1000;
-const BASE_URL = process.env.BASE_URL || "https://ancavisuals.ro";
+import { APP_BASE_URL as BASE_URL } from "../constants/domain";
 
 function toIsoString(value: unknown): string | null {
   if (!value) return null;

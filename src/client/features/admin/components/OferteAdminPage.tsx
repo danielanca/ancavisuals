@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer } from "react";
+import { useEffect, useReducer } from "react";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
 
@@ -40,6 +40,19 @@ const emptyForm: FormData = {
   validUntil: "",
 };
 
+function offerToForm(offer: Offer): FormData {
+  return {
+    slug: offer.slug,
+    clientName: offer.clientName,
+    title: offer.title,
+    description: offer.description,
+    pdfUrl: offer.pdfUrl,
+    price: offer.price,
+    packageName: offer.packageName,
+    validUntil: offer.validUntil,
+  };
+}
+
 type State = {
   offers: Offer[];
   loading: boolean;
@@ -50,6 +63,11 @@ type State = {
   saveError: string | null;
   deletingId: string | null;
   copied: string | null;
+  editingId: string | null;
+  editForm: FormData;
+  editSaving: boolean;
+  editError: string | null;
+  resettingId: string | null;
 };
 
 type Action =
@@ -64,7 +82,15 @@ type Action =
   | { type: "SET_DELETING"; id: string | null }
   | { type: "DELETE_OK"; id: string }
   | { type: "SET_COPIED"; id: string | null }
-  | { type: "TOGGLE_ACTIVE"; id: string; active: boolean };
+  | { type: "TOGGLE_ACTIVE"; id: string; active: boolean }
+  | { type: "OPEN_EDIT"; offer: Offer }
+  | { type: "CLOSE_EDIT" }
+  | { type: "EDIT_FIELD"; field: keyof FormData; value: string }
+  | { type: "EDIT_SAVING" }
+  | { type: "EDIT_OK"; offer: Offer }
+  | { type: "EDIT_ERR"; error: string }
+  | { type: "SET_RESETTING"; id: string | null }
+  | { type: "RESET_STATS_OK"; id: string };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -81,11 +107,39 @@ function reducer(state: State, action: Action): State {
     case "SET_COPIED": return { ...state, copied: action.id };
     case "TOGGLE_ACTIVE":
       return { ...state, offers: state.offers.map((o) => o.id === action.id ? { ...o, active: action.active } : o) };
+    case "OPEN_EDIT":
+      return { ...state, editingId: action.offer.id, editForm: offerToForm(action.offer), editError: null };
+    case "CLOSE_EDIT":
+      return { ...state, editingId: null, editForm: emptyForm, editError: null };
+    case "EDIT_FIELD":
+      return { ...state, editForm: { ...state.editForm, [action.field]: action.value } };
+    case "EDIT_SAVING":
+      return { ...state, editSaving: true, editError: null };
+    case "EDIT_OK":
+      return {
+        ...state,
+        editSaving: false,
+        editingId: null,
+        editForm: emptyForm,
+        offers: state.offers.map((o) => o.id === action.offer.id ? action.offer : o),
+      };
+    case "EDIT_ERR":
+      return { ...state, editSaving: false, editError: action.error };
+    case "SET_RESETTING":
+      return { ...state, resettingId: action.id };
+    case "RESET_STATS_OK":
+      return {
+        ...state,
+        resettingId: null,
+        offers: state.offers.map((o) => o.id === action.id ? { ...o, viewCount: 0, downloadCount: 0 } : o),
+      };
     default: return state;
   }
 }
 
 const BASE_URL = typeof window !== "undefined" ? window.location.origin : "https://ancavisuals.ro";
+
+const inputClass = "w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors";
 
 export default function OferteAdminPage() {
   const { auth } = useAuth();
@@ -99,6 +153,11 @@ export default function OferteAdminPage() {
     saveError: null,
     deletingId: null,
     copied: null,
+    editingId: null,
+    editForm: emptyForm,
+    editSaving: false,
+    editError: null,
+    resettingId: null,
   });
 
   useEffect(() => {
@@ -131,6 +190,23 @@ export default function OferteAdminPage() {
     }
   };
 
+  const handleEdit = async (event: React.FormEvent, id: string) => {
+    event.preventDefault();
+    dispatch({ type: "EDIT_SAVING" });
+    try {
+      const response = await fetch(`/api/oferte/admin/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify(state.editForm),
+      });
+      const data = await response.json() as Offer & { error?: string };
+      if (!response.ok) { dispatch({ type: "EDIT_ERR", error: data.error ?? "Eroare." }); return; }
+      dispatch({ type: "EDIT_OK", offer: data });
+    } catch (error: unknown) {
+      dispatch({ type: "EDIT_ERR", error: String(error) });
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Ștergi această ofertă?")) return;
     dispatch({ type: "SET_DELETING", id });
@@ -155,6 +231,21 @@ export default function OferteAdminPage() {
     }).catch(() => {
       dispatch({ type: "TOGGLE_ACTIVE", id: offer.id, active: offer.active });
     });
+  };
+
+  const handleResetStats = async (id: string) => {
+    if (!confirm("Resetezi contoarele la 0?")) return;
+    dispatch({ type: "SET_RESETTING", id });
+    try {
+      await fetch(`/api/oferte/admin/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({ viewCount: 0, downloadCount: 0 }),
+      });
+      dispatch({ type: "RESET_STATS_OK", id });
+    } catch {
+      dispatch({ type: "SET_RESETTING", id: null });
+    }
   };
 
   const copyLink = (slug: string, id: string) => {
@@ -204,7 +295,7 @@ export default function OferteAdminPage() {
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "slug", value: e.target.value })}
                   placeholder="28aprilie"
                   required
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                  className={inputClass}
                 />
               </div>
 
@@ -214,7 +305,7 @@ export default function OferteAdminPage() {
                   value={state.form.clientName}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "clientName", value: e.target.value })}
                   placeholder="Ana și Mihai"
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                  className={inputClass}
                 />
               </div>
 
@@ -224,7 +315,7 @@ export default function OferteAdminPage() {
                   value={state.form.title}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "title", value: e.target.value })}
                   placeholder="Pachet foto-video nuntă 2027"
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                  className={inputClass}
                 />
               </div>
 
@@ -234,7 +325,7 @@ export default function OferteAdminPage() {
                   value={state.form.packageName}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "packageName", value: e.target.value })}
                   placeholder="Pachet Complet"
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                  className={inputClass}
                 />
               </div>
 
@@ -244,7 +335,7 @@ export default function OferteAdminPage() {
                   value={state.form.price}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "price", value: e.target.value })}
                   placeholder="2.500 EUR"
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                  className={inputClass}
                 />
               </div>
 
@@ -254,7 +345,7 @@ export default function OferteAdminPage() {
                   type="date"
                   value={state.form.validUntil}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "validUntil", value: e.target.value })}
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                  className={inputClass}
                 />
               </div>
 
@@ -264,7 +355,7 @@ export default function OferteAdminPage() {
                   value={state.form.pdfUrl}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "pdfUrl", value: e.target.value })}
                   placeholder="https://..."
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                  className={inputClass}
                 />
               </div>
 
@@ -275,7 +366,7 @@ export default function OferteAdminPage() {
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "description", value: e.target.value })}
                   placeholder="Ce include pachetul, condiții speciale..."
                   rows={4}
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors resize-none"
+                  className={`${inputClass} resize-none`}
                 />
               </div>
             </div>
@@ -364,7 +455,7 @@ export default function OferteAdminPage() {
                     </div>
 
                     {/* Stats */}
-                    <div className="flex items-center gap-4 text-xs">
+                    <div className="flex items-center gap-4 text-xs flex-wrap">
                       <span className="flex items-center gap-1 text-neutral-400">
                         <span>👁</span>
                         <span className="font-semibold text-white">{offer.viewCount ?? 0}</span>
@@ -378,11 +469,28 @@ export default function OferteAdminPage() {
                       {offer.price && (
                         <span className="text-violet-400 font-medium">{offer.price}</span>
                       )}
+                      <button
+                        onClick={() => handleResetStats(offer.id)}
+                        disabled={state.resettingId === offer.id}
+                        className="text-neutral-600 hover:text-amber-400 transition-colors disabled:opacity-40"
+                      >
+                        {state.resettingId === offer.id ? "..." : "Resetează stats"}
+                      </button>
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-3 flex-shrink-0">
+                    <button
+                      onClick={() =>
+                        state.editingId === offer.id
+                          ? dispatch({ type: "CLOSE_EDIT" })
+                          : dispatch({ type: "OPEN_EDIT", offer })
+                      }
+                      className="text-xs text-neutral-500 hover:text-white transition-colors"
+                    >
+                      {state.editingId === offer.id ? "Anulează" : "Editează"}
+                    </button>
                     <button
                       onClick={() => handleToggleActive(offer)}
                       className="text-xs text-neutral-500 hover:text-white transition-colors"
@@ -398,6 +506,115 @@ export default function OferteAdminPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Inline edit form */}
+                {state.editingId === offer.id && (
+                  <form
+                    onSubmit={(e) => handleEdit(e, offer.id)}
+                    className="mt-5 pt-5 border-t border-neutral-800 space-y-4"
+                  >
+                    {state.editError && (
+                      <div className="bg-red-900/30 border border-red-800 text-red-300 text-sm rounded-lg px-4 py-3">
+                        {state.editError}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Slug (URL)</label>
+                        <input
+                          value={state.editForm.slug}
+                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "slug", value: e.target.value })}
+                          required
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">URL PDF</label>
+                        <input
+                          value={state.editForm.pdfUrl}
+                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "pdfUrl", value: e.target.value })}
+                          placeholder="https://..."
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Nume client</label>
+                        <input
+                          value={state.editForm.clientName}
+                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "clientName", value: e.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Titlu</label>
+                        <input
+                          value={state.editForm.title}
+                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "title", value: e.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Pachet</label>
+                        <input
+                          value={state.editForm.packageName}
+                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "packageName", value: e.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Preț</label>
+                        <input
+                          value={state.editForm.price}
+                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "price", value: e.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Valabilă până la</label>
+                        <input
+                          type="date"
+                          value={state.editForm.validUntil}
+                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "validUntil", value: e.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Descriere</label>
+                        <textarea
+                          value={state.editForm.description}
+                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "description", value: e.target.value })}
+                          rows={3}
+                          className={`${inputClass} resize-none`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => dispatch({ type: "CLOSE_EDIT" })}
+                        className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 py-2.5 rounded-lg text-sm transition-colors"
+                      >
+                        Anulează
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={state.editSaving}
+                        className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:bg-neutral-700 disabled:text-neutral-500 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+                      >
+                        {state.editSaving ? "Se salvează..." : "Salvează"}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             ))}
           </div>

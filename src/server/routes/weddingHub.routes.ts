@@ -1193,22 +1193,39 @@ router.patch("/messages/templates", requireCoupleAuth, async (req: Request, res:
   }
 });
 
-// GET /api/wedding-hub/messages/broadcasts — fetch message history
+// GET /api/wedding-hub/messages/broadcasts — fetch message history (paginated)
+// Query params: limit (default 20, max 100), cursor (last document ID from previous page)
 router.get("/messages/broadcasts", requireCoupleAuth, async (req: Request, res: Response) => {
   try {
     const database = firestore();
     const coupleReq = req as CoupleAuthenticatedRequest;
-    const snapshot = await database
+    const pageLimit = Math.min(Number(req.query.limit) || 20, 100);
+    const cursorId = typeof req.query.cursor === "string" ? req.query.cursor.trim() : null;
+
+    let query = database
       .collection("wh_message_broadcasts")
       .where("weddingId", "==", coupleReq.weddingId)
-      .get();
+      .orderBy("createdAt", "desc")
+      .limit(pageLimit + 1);
 
-    const broadcasts = snapshot.docs
+    if (cursorId) {
+      const cursorDoc = await database.collection("wh_message_broadcasts").doc(cursorId).get();
+      if (cursorDoc.exists) {
+        query = query.startAfter(cursorDoc);
+      }
+    }
+
+    const snapshot = await query.get();
+    const hasMore = snapshot.docs.length > pageLimit;
+    const pageDocs = snapshot.docs.slice(0, pageLimit);
+
+    const broadcasts = pageDocs
       .map((doc) => serializeBroadcast(doc))
-      .filter((broadcast): broadcast is NonNullable<ReturnType<typeof serializeBroadcast>> => broadcast !== null)
-      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+      .filter((broadcast): broadcast is NonNullable<ReturnType<typeof serializeBroadcast>> => broadcast !== null);
 
-    res.json({ broadcasts });
+    const nextCursor = hasMore && pageDocs.length > 0 ? pageDocs[pageDocs.length - 1].id : null;
+
+    res.json({ broadcasts, hasMore, nextCursor });
   } catch (error) {
     console.error("[wedding-hub] GET /messages/broadcasts failed:", error);
     res.status(500).json({ error: "Nu s-a putut încărca istoricul." });
@@ -1227,29 +1244,44 @@ router.get("/messages/broadcasts/:broadcastId/deliveries", requireCoupleAuth, as
       return res.status(404).json({ error: "Broadcast-ul nu a fost găsit." });
     }
 
-    const snapshot = await database
+    const pageLimit = Math.min(Number(req.query.limit) || 100, 500);
+    const cursorId = typeof req.query.cursor === "string" ? req.query.cursor.trim() : null;
+
+    let deliveriesQuery = database
       .collection("wh_message_delivery_logs")
       .where("broadcastId", "==", broadcastId)
-      .get();
+      .orderBy("createdAt", "desc")
+      .limit(pageLimit + 1);
 
-    const deliveries = snapshot.docs
-      .map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          guestId: data.guestId,
-          guestName: data.guestName,
-          channel: data.channel,
-          recipient: data.recipient,
-          status: data.status,
-          fallbackFrom: data.fallbackFrom ?? null,
-          errorMessage: data.errorMessage ?? null,
-          createdAt: serializeTimestamp(data.createdAt),
-        };
-      })
-      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+    if (cursorId) {
+      const cursorDoc = await database.collection("wh_message_delivery_logs").doc(cursorId).get();
+      if (cursorDoc.exists) {
+        deliveriesQuery = deliveriesQuery.startAfter(cursorDoc);
+      }
+    }
 
-    res.json({ deliveries });
+    const snapshot = await deliveriesQuery.get();
+    const hasMore = snapshot.docs.length > pageLimit;
+    const pageDocs = snapshot.docs.slice(0, pageLimit);
+
+    const deliveries = pageDocs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        guestId: data.guestId,
+        guestName: data.guestName,
+        channel: data.channel,
+        recipient: data.recipient,
+        status: data.status,
+        fallbackFrom: data.fallbackFrom ?? null,
+        errorMessage: data.errorMessage ?? null,
+        createdAt: serializeTimestamp(data.createdAt),
+      };
+    });
+
+    const nextCursor = hasMore && pageDocs.length > 0 ? pageDocs[pageDocs.length - 1].id : null;
+
+    res.json({ deliveries, hasMore, nextCursor });
   } catch (error) {
     console.error("[wedding-hub] GET /messages/broadcasts/:broadcastId/deliveries failed:", error);
     res.status(500).json({ error: "Nu s-au putut încărca livrările." });
@@ -1480,7 +1512,7 @@ router.post("/messages/broadcasts", requireCoupleAuth, async (req: Request, res:
       errorMessage: null,
     });
 
-    void processBroadcastJob({
+    processBroadcastJob({
       database,
       broadcastRef,
       weddingId,
@@ -1492,6 +1524,17 @@ router.post("/messages/broadcasts", requireCoupleAuth, async (req: Request, res:
       sendSmsToGuests,
       filters: normalizedFilters,
       smsConfigured: isSmsConfigured(),
+    }).catch(async (error) => {
+      console.error("[wedding-hub] processBroadcastJob crashed:", error);
+      try {
+        await broadcastRef.update({
+          status: "failed" satisfies BroadcastStatus,
+          errorMessage: String(error),
+          completedAt: Timestamp.now(),
+        });
+      } catch {
+        // ignore secondary failure
+      }
     });
 
     res.status(202).json({
@@ -2090,6 +2133,22 @@ router.delete("/tables/:tableId", requireCoupleAuth, async (req: Request, res: R
 
 // ─── PUBLIC INVITATION ENDPOINTS ─────────────────────────────────────────────
 
+const rsvpRateLimiter = new Map<string, { count: number; resetAt: number }>();
+
+function checkRsvpRateLimit(token: string): boolean {
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const maxRequests = 10;
+  const entry = rsvpRateLimiter.get(token);
+  if (!entry || now > entry.resetAt) {
+    rsvpRateLimiter.set(token, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= maxRequests) return false;
+  entry.count += 1;
+  return true;
+}
+
 // GET /api/wedding-hub/invite/:token — resolve invitation token (public)
 router.get("/invite/:token", async (req: Request, res: Response) => {
   try {
@@ -2151,6 +2210,11 @@ router.post("/invite/:token/rsvp", async (req: Request, res: Response) => {
   try {
     const database = firestore();
     const { token } = req.params;
+
+    if (!checkRsvpRateLimit(token)) {
+      return res.status(429).json({ error: "Prea multe cereri. Încearcă din nou în 15 minute." });
+    }
+
     const {
       rsvpStatus,
       menuPreference,
@@ -2248,7 +2312,7 @@ router.post("/invite/:token/rsvp", async (req: Request, res: Response) => {
           `<p style="margin:0 0 8px;"><strong>Copii:</strong> ${normalizedChildrenCount}</p>`,
           `<p style="margin:0 0 8px;"><strong>Meniu adulți:</strong> ${menuPreference ?? "Nespecificat"}</p>`,
           `<p style="margin:0 0 8px;"><strong>Meniu copii:</strong> ${childrenMenuPreference ?? "Nespecificat"}</p>`,
-          `<p style="margin:0 0 8px;"><strong>Vrem să stăm toți la aceeași masă:</strong> ${Boolean(sameTableWithFamily) ? "Da" : "Nu"}</p>`,
+          `<p style="margin:0 0 8px;"><strong>Vrem să stăm toți la aceeași masă:</strong> ${sameTableWithFamily ? "Da" : "Nu"}</p>`,
         );
 
         if (familyNames.length > 0) {
@@ -2285,7 +2349,7 @@ router.post("/invite/:token/rsvp", async (req: Request, res: Response) => {
         `<p style="margin:16px 0 0;color:#737373;font-size:13px;">Wedding Hub · ${weddingName}</p>`,
       );
 
-      await sendEmail({
+      sendEmail({
         to: weddingData.coupleEmail,
         subject: `RSVP nou: ${guestName} ${rsvpStatus === "confirmat" ? "a confirmat" : "a refuzat"}`,
         html: `
@@ -2297,6 +2361,8 @@ router.post("/invite/:token/rsvp", async (req: Request, res: Response) => {
             </div>
           </div>
         `,
+      }).catch((error) => {
+        console.error("[wedding-hub] RSVP couple notification email failed:", error);
       });
     }
 
@@ -2331,8 +2397,8 @@ router.get("/timeline", requireCoupleAuth, async (req: Request, res: Response) =
       .collection("wh_timeline")
       .where("weddingId", "==", coupleReq.weddingId)
       .get();
-    const moments = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    moments.sort((momentA: any, momentB: any) => momentA.startTime.localeCompare(momentB.startTime));
+    const moments = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Record<string, unknown> & { id: string }));
+    moments.sort((momentA, momentB) => String(momentA.startTime ?? "").localeCompare(String(momentB.startTime ?? "")));
     res.json({ moments });
   } catch (error) {
     console.error("[wedding-hub] GET /timeline failed:", error);

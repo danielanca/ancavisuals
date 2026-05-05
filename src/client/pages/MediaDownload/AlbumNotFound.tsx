@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { remoteAddress } from "../../utils/address";
 import styles from "./AlbumNotFound.module.scss";
 
 type Props = {
@@ -11,7 +12,7 @@ type Props = {
 export default function AlbumNotFound({
   title = "404",
   message = "Album inexistent.",
-  redirectTo = "https://ancavisuals.ro",
+  redirectTo = remoteAddress,
   seconds = 10,
 }: Props) {
   const [remaining, setRemaining] = useState(seconds);

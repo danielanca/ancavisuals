@@ -1,4 +1,5 @@
 import React from "react";
+import { WWW_ORIGIN } from "../../utils/address";
 import { Link, Navigate } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
@@ -26,7 +27,7 @@ const ServiceHubPage: React.FC<Props> = ({ serviceSlug }) => {
 
   const schema = {
     "@type": "CollectionPage",
-    "@id": `https://www.ancavisuals.ro${canonicalPath}#collection`,
+    "@id": `${WWW_ORIGIN}${canonicalPath}#collection`,
     name: title,
     description,
     about: service.nameLong,

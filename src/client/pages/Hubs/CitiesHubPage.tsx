@@ -1,4 +1,5 @@
 import React from "react";
+import { WWW_ORIGIN } from "../../utils/address";
 import { Link } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
@@ -21,7 +22,7 @@ const CitiesHubPage: React.FC = () => {
         breadcrumbs={breadcrumbs}
         schema={{
           "@type": "CollectionPage",
-          "@id": "https://www.ancavisuals.ro/orase#collection",
+          "@id": `${WWW_ORIGIN}/orase#collection`,
           name: "Orașe acoperite pentru foto video",
           description:
             "Hub local cu orașe și pagini pentru servicii foto, video și foto-video oferite de Anca Visuals.",

@@ -28,6 +28,9 @@ const DeliveryAddressPage = loadable(() => import("../pages/DeliveryAddress/Deli
 const ContractSignPage = loadable(() => import("../pages/Contract/ContractSignPage"), opts(false));
 const BlogList = loadable(() => import("../pages/Blog/BlogList"), opts(true));
 const BlogPost = loadable(() => import("../pages/Blog/BlogPost"), opts(true));
+const RevinPage = loadable(() => import("../pages/Revin/RevinPage"), opts(false));
+const GuestInvitationPage = loadable(() => import("../features/wedding-hub/pages/GuestInvitationPage"), opts(false));
+const OfertaPage = loadable(() => import("../pages/OfertaPage"), opts(false));
 
 type LayoutType = React.ComponentType | null;
 type ComponentType = React.ComponentType;
@@ -174,6 +177,21 @@ const publicRoutes: publicRoutesType[] = [
     path: "/contract/:token",
     layout: null,
     component: ContractSignPage,
+  },
+  {
+    path: "/revin",
+    layout: null,
+    component: RevinPage,
+  },
+  {
+    path: "/invite/:token",
+    layout: null,
+    component: GuestInvitationPage,
+  },
+  {
+    path: "/oferta/:slug",
+    layout: null,
+    component: OfertaPage,
   },
 
   /** ============================================================

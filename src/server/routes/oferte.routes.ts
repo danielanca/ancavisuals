@@ -5,6 +5,7 @@ import { firestore } from "../firestore";
 import { adminUser } from "../constants/credentials";
 import { sendEmail } from "../notifications/mailer";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
+import { APP_BASE_URL } from "../constants/domain";
 
 const router = Router();
 
@@ -84,7 +85,7 @@ router.post("/:slug/view", async (req: Request, res: Response) => {
               <tr><td style="color:#666;padding:6px 0;">Total vizualizări</td><td style="color:#a78bfa;padding:6px 0;font-weight:700;">${newCount}</td></tr>
             </table>
             <div style="margin-top:22px;">
-              <a href="https://ancavisuals.ro/admin/oferte" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+              <a href="${APP_BASE_URL}/admin/oferte" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
                 Deschide admin
               </a>
             </div>
@@ -132,7 +133,7 @@ router.post("/:slug/download", async (req: Request, res: Response) => {
               <tr><td style="color:#666;padding:6px 0;">Total descărcări</td><td style="color:#34d399;padding:6px 0;font-weight:700;">${newCount}</td></tr>
             </table>
             <div style="margin-top:22px;">
-              <a href="https://ancavisuals.ro/admin/oferte" style="display:inline-block;background:#059669;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+              <a href="${APP_BASE_URL}/admin/oferte" style="display:inline-block;background:#059669;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
                 Deschide admin
               </a>
             </div>
@@ -211,8 +212,18 @@ router.patch("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, async (req:
     const doc = await docRef.get();
     if (!doc.exists) return res.status(404).json({ error: "Oferta nu a fost găsită." });
 
-    const allowed = ["clientName", "title", "description", "pdfUrl", "price", "packageName", "validUntil", "active"];
     const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+
+    if ("slug" in req.body) {
+      const cleanSlug = String(req.body.slug).trim().toLowerCase().replace(/\s+/g, "-");
+      const existing = await db.collection("offers").where("slug", "==", cleanSlug).limit(1).get();
+      if (!existing.empty && existing.docs[0].id !== id) {
+        return res.status(409).json({ error: `Slug-ul „${cleanSlug}" există deja.` });
+      }
+      updates.slug = cleanSlug;
+    }
+
+    const allowed = ["clientName", "title", "description", "pdfUrl", "price", "packageName", "validUntil", "active", "viewCount", "downloadCount"];
     for (const key of allowed) {
       if (key in req.body) updates[key] = req.body[key];
     }
