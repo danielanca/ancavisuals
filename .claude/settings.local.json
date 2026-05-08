@@ -22,7 +22,9 @@
       "Bash(git stash *)",
       "Bash(git ls-remote *)",
       "Bash(grep -v \"^$\")",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
     ]
   }
 }

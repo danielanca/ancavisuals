@@ -36,7 +36,7 @@ const SeoPageHead: React.FC<SeoPageHeadProps> = ({
         position: index + 1,
         name: item.label,
         item: item.to ? `${WWW_ORIGIN}${item.to}` : canonicalUrl,
-      })),
+    })),
     });
   }
 
