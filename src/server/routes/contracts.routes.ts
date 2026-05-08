@@ -16,10 +16,12 @@ const BOOKED_EVENT_STATUSES = new Set(["confirmat", "finalizat"]);
 
 type AdminEventType = "Nuntă" | "Botez" | "Logodnă" | "Aniversare" | "Altele";
 
+const DIRECT_ADMIN_EVENT_TYPES = new Set<AdminEventType>(["Nuntă", "Botez", "Logodnă", "Aniversare"]);
+
 function mapContractEventType(rawType: unknown): { type: AdminEventType; typeLabel?: string } {
   const normalized = String(rawType ?? "").trim();
-  if (normalized === "Nuntă" || normalized === "Botez" || normalized === "Logodnă" || normalized === "Aniversare") {
-    return { type: normalized };
+  if (DIRECT_ADMIN_EVENT_TYPES.has(normalized as AdminEventType)) {
+    return { type: normalized as AdminEventType };
   }
   return {
     type: "Altele",
