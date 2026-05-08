@@ -10,7 +10,7 @@ type PhotoLightboxProps = {
   onPrev: () => void;
   selectedPrint?: Set<string>;
   onTogglePrint?: (fileName: string) => void;
-  getFileName?: (src: string) => string;
+  getFileName?: (src: string, index: number) => string;
 };
 
 const SWIPE_THRESHOLD = 50;
@@ -32,7 +32,7 @@ export default function PhotoLightbox({
   const isDraggingRef = useRef(false);
 
   const currentSrc = photos[currentIndex];
-  const currentFileName = getFileName ? getFileName(currentSrc) : currentSrc;
+  const currentFileName = getFileName ? getFileName(currentSrc, currentIndex) : currentSrc;
   const isInPrint = selectedPrint?.has(currentFileName) ?? false;
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {

@@ -165,6 +165,12 @@ const fileNameFromUrl = (src: string) => {
   }
 };
 
+const mediaKeyFromUrl = (src: string) => {
+  const fileName = fileNameFromUrl(src);
+  const dotIndex = fileName.lastIndexOf(".");
+  return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
+};
+
 const getSwissUrl = async (slug: string) => {
   const response = await fetch(`/api/album/${slug}/delivery-address`);
   if (response.ok) {
@@ -318,24 +324,41 @@ export default function MediaAlbumPage() {
     return map;
   }, [album?.originalPhoto]);
 
+  const originalByMediaKey = useMemo(() => {
+    const map = new Map<string, string>();
+    (album?.originalPhoto ?? []).forEach((url) => map.set(mediaKeyFromUrl(url), url));
+    return map;
+  }, [album?.originalPhoto]);
+
   const previewByName = useMemo(() => {
     const map = new Map<string, string>();
     (album?.photos ?? []).forEach((url) => map.set(fileNameFromUrl(url), url));
     return map;
   }, [album?.photos]);
 
+  const resolveOriginalPhoto = useCallback((url: string) => {
+    return originalByName.get(fileNameFromUrl(url)) ?? originalByMediaKey.get(mediaKeyFromUrl(url)) ?? url;
+  }, [originalByName, originalByMediaKey]);
+
   const galleryOrgPhotos = useMemo(() => {
     if (!galleryPhotos.length) return [];
     if (!album?.originalPhoto?.length) return galleryPhotos;
-    return galleryPhotos.map((url) => originalByName.get(fileNameFromUrl(url)) ?? url);
-  }, [galleryPhotos, album?.originalPhoto, originalByName]);
+    return galleryPhotos.map(resolveOriginalPhoto);
+  }, [galleryPhotos, album?.originalPhoto, resolveOriginalPhoto]);
 
   const featuredOrgPhotos = useMemo(() => {
     const featured = album?.featured ?? [];
     if (!featured.length) return [];
     if (!album?.originalPhoto?.length) return featured;
-    return featured.map((url) => originalByName.get(fileNameFromUrl(url)) ?? url);
-  }, [album?.featured, album?.originalPhoto, originalByName]);
+    return featured.map(resolveOriginalPhoto);
+  }, [album?.featured, album?.originalPhoto, resolveOriginalPhoto]);
+
+  const lightboxPhotos = useMemo(() => {
+    const photos = album?.photos ?? [];
+    if (!photos.length) return [];
+    if (!album?.originalPhoto?.length) return photos;
+    return photos.map(resolveOriginalPhoto);
+  }, [album?.photos, album?.originalPhoto, resolveOriginalPhoto]);
 
   const printPhotos = useMemo(() => {
     return (album?.print ?? []).map((item) => {
@@ -857,16 +880,16 @@ export default function MediaAlbumPage() {
         <OnboardingWizard />
 
 
-        {lightboxIndex !== null && album?.photos && (
+        {lightboxIndex !== null && lightboxPhotos.length > 0 && album?.photos && (
           <PhotoLightbox
-            photos={album.photos}
+            photos={lightboxPhotos}
             currentIndex={lightboxIndex}
             onClose={closeLightbox}
-            onNext={() => setLightboxIndex((prev) => (prev !== null ? Math.min(album.photos!.length - 1, prev + 1) : 0))}
+            onNext={() => setLightboxIndex((prev) => (prev !== null ? Math.min(lightboxPhotos.length - 1, prev + 1) : 0))}
             onPrev={() => setLightboxIndex((prev) => (prev !== null ? Math.max(0, prev - 1) : 0))}
             selectedPrint={selectedPrint}
             onTogglePrint={(fileName) => dispatch({ type: "TOGGLE_PHOTO", mode: "print", name: fileName })}
-            getFileName={fileNameFromUrl}
+            getFileName={(src, index) => fileNameFromUrl(album.photos[index] ?? src)}
           />
         )}
 
