@@ -80,9 +80,9 @@ const WeddingSettingsPage: React.FC = () => {
       dispatch({
         type: "SYNC_FROM_PROFILE",
         value: {
-          emailNotificationsEnabled: weddingProfile.emailSettings.emailNotificationsEnabled,
-          notifyOnAccept: weddingProfile.emailSettings.notifyOnAccept,
-          notifyOnDecline: weddingProfile.emailSettings.notifyOnDecline,
+          emailNotificationsEnabled: weddingProfile.emailSettings?.emailNotificationsEnabled ?? false,
+          notifyOnAccept: weddingProfile.emailSettings?.notifyOnAccept ?? true,
+          notifyOnDecline: weddingProfile.emailSettings?.notifyOnDecline ?? true,
           venueName: weddingProfile.venueName,
           venueAddress: weddingProfile.venueAddress,
         },

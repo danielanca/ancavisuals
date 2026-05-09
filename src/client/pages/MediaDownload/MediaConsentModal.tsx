@@ -33,6 +33,113 @@ const formatExpiry = (value: string) =>
     minute: "2-digit",
   });
 
+function useRetentionCountdown(retention: AlbumRetention | null) {
+  const [remainingMs, setRemainingMs] = useState<number | null>(retention?.remainingMs ?? null);
+
+  useEffect(() => {
+    setRemainingMs(retention?.remainingMs ?? null);
+  }, [retention?.remainingMs]);
+
+  useEffect(() => {
+    if (!retention?.expiresAt) return;
+
+    const updateRemaining = () => {
+      setRemainingMs(new Date(retention.expiresAt).getTime() - Date.now());
+    };
+
+    updateRemaining();
+    const interval = window.setInterval(updateRemaining, 1000);
+    return () => window.clearInterval(interval);
+  }, [retention?.expiresAt]);
+
+  const countdownLabel = remainingMs !== null ? formatCountdown(remainingMs) : null;
+  const hasExpired = typeof remainingMs === "number" && remainingMs <= 0;
+  const expiryLabel = retention?.expiresAt ? formatExpiry(retention.expiresAt) : null;
+
+  return { countdownLabel, hasExpired, expiryLabel };
+}
+
+export function MediaRetentionReminder({ retention, slug }: { retention: AlbumRetention | null; slug: string }) {
+  const consentKey = CONSENT_KEY_PREFIX + slug;
+  const adminBypassKey = `${ADMIN_BYPASS_KEY}:${slug}`;
+  const [collapsed, setCollapsed] = useState(true);
+  const [visible, setVisible] = useState(false);
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { countdownLabel, hasExpired, expiryLabel } = useRetentionCountdown(retention);
+
+  useEffect(() => {
+    if (localStorage.getItem(ADMIN_BYPASS_KEY)) return;
+    if (localStorage.getItem(adminBypassKey)) return;
+    setVisible(Boolean(localStorage.getItem(consentKey)));
+  }, [adminBypassKey, consentKey]);
+
+  const handleEmojiTap = () => {
+    tapCountRef.current += 1;
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 2000);
+
+    if (tapCountRef.current >= ADMIN_TAP_TARGET) {
+      localStorage.setItem(ADMIN_BYPASS_KEY, "1");
+      setVisible(false);
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div style={{
+      margin: "32px 0 16px",
+      borderRadius: "12px",
+      background: "rgba(234,179,8,0.08)",
+      border: "1px solid rgba(234,179,8,0.25)",
+      overflow: "hidden",
+      transition: "all 0.2s",
+    }}>
+      <div
+        onClick={() => setCollapsed((p) => !p)}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "10px 14px", cursor: "pointer",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span
+            onClick={(e) => { e.stopPropagation(); handleEmojiTap(); }}
+            style={{ fontSize: "15px", userSelect: "none" }}
+          >
+            ⚠️
+          </span>
+          <span style={{ color: "#d4a800", fontSize: "13px", fontWeight: 600 }}>
+            Reminder: descarcă materialele în 60 de zile
+          </span>
+        </div>
+        <span style={{
+          color: "#d4a800", fontSize: "12px",
+          transform: collapsed ? "rotate(180deg)" : "rotate(0deg)",
+          transition: "transform 0.2s", display: "inline-block",
+        }}>
+          ▲
+        </span>
+      </div>
+
+      {!collapsed && (
+        <div style={{ padding: "0 14px 12px", borderTop: "1px solid rgba(234,179,8,0.15)" }}>
+          <p style={{ margin: "10px 0 0", color: "#b38600", fontSize: "13px", lineHeight: "1.5" }}>
+            Pozele și videoul tău vor fi <strong>șterse automat după 60 de zile</strong> de la livrare. Salvează-le pe calculatorul sau laptopul tău cât mai curând. AncaVisuals nu poate fi responsabilă pentru materialele nedescărcate în acest interval.
+          </p>
+          {countdownLabel && (
+            <p style={{ margin: "10px 0 0", color: "#d4a800", fontSize: "13px", fontWeight: 700 }}>
+              {hasExpired ? "Timpul a expirat." : `Timp rămas: ${countdownLabel}`}
+              {expiryLabel ? ` · expiră la ${expiryLabel}` : ""}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MediaConsentModal({ slug, retention, isAdmin = false, onAccepted }: Props) {
   const consentKey = CONSENT_KEY_PREFIX + slug;
   const adminBypassKey = `${ADMIN_BYPASS_KEY}:${slug}`;
@@ -41,15 +148,10 @@ export default function MediaConsentModal({ slug, retention, isAdmin = false, on
   useBodyScrollLock(phase === "modal");
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [remainingMs, setRemainingMs] = useState<number | null>(retention?.remainingMs ?? null);
 
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setRemainingMs(retention?.remainingMs ?? null);
-  }, [retention?.remainingMs]);
+  const { countdownLabel, hasExpired, expiryLabel } = useRetentionCountdown(retention);
 
   useEffect(() => {
     if (isAdmin) {
@@ -68,22 +170,6 @@ export default function MediaConsentModal({ slug, retention, isAdmin = false, on
       setPhase("modal");
     }
   }, [adminBypassKey, consentKey, isAdmin]);
-
-  useEffect(() => {
-    if (!retention?.expiresAt) return;
-
-    const updateRemaining = () => {
-      setRemainingMs(new Date(retention.expiresAt).getTime() - Date.now());
-    };
-
-    updateRemaining();
-    const interval = window.setInterval(updateRemaining, 1000);
-    return () => window.clearInterval(interval);
-  }, [retention?.expiresAt]);
-
-  const countdownLabel = remainingMs !== null ? formatCountdown(remainingMs) : null;
-  const hasExpired = typeof remainingMs === "number" && remainingMs <= 0;
-  const expiryLabel = retention?.expiresAt ? formatExpiry(retention.expiresAt) : null;
 
   const handleEmojiTap = () => {
     tapCountRef.current += 1;
@@ -119,63 +205,7 @@ export default function MediaConsentModal({ slug, retention, isAdmin = false, on
   };
 
   if (phase === "hidden") return null;
-
-  // ── BANNER (return visits) ────────────────────────────────────────────────
-  if (phase === "banner") {
-    return (
-      <div style={{
-        margin: "16px 0",
-        borderRadius: "12px",
-        background: "rgba(234,179,8,0.08)",
-        border: "1px solid rgba(234,179,8,0.25)",
-        overflow: "hidden",
-        transition: "all 0.2s",
-      }}>
-        {/* Header with arrow */}
-        <div
-          onClick={() => setCollapsed((p) => !p)}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "10px 14px", cursor: "pointer",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span
-              onClick={(e) => { e.stopPropagation(); handleEmojiTap(); }}
-              style={{ fontSize: "15px", userSelect: "none" }}
-            >
-              ⚠️
-            </span>
-            <span style={{ color: "#d4a800", fontSize: "13px", fontWeight: 600 }}>
-              Descarcă materialele în 60 de zile
-            </span>
-          </div>
-          <span style={{
-            color: "#d4a800", fontSize: "12px",
-            transform: collapsed ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.2s", display: "inline-block",
-          }}>
-            ▲
-          </span>
-        </div>
-
-        {/* Collapsible content */}
-        {!collapsed && (
-          <div style={{ padding: "0 14px 12px", borderTop: "1px solid rgba(234,179,8,0.15)" }}>
-            <p style={{ margin: "10px 0 0", color: "#b38600", fontSize: "13px", lineHeight: "1.5" }}>
-              Pozele și videoul tău vor fi <strong>șterse automat după 60 de zile</strong> de la livrare. Salvează-le pe calculatorul sau laptopul tău cât mai curând. AncaVisuals nu poate fi responsabilă pentru materialele nedescărcate în acest interval.
-            </p>
-            {countdownLabel && (
-              <p style={{ margin: "10px 0 0", color: "#d4a800", fontSize: "13px", fontWeight: 700 }}>
-                {hasExpired ? "Timpul a expirat." : `Timp rămas: ${countdownLabel}`}
-                {expiryLabel ? ` · expiră la ${expiryLabel}` : ""}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
+  if (phase === "banner") return null;
 
   // ── MODAL (first visit) ───────────────────────────────────────────────────
   return (

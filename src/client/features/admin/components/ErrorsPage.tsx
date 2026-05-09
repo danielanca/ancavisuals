@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useMemo } from "react";
+import React, { useEffect, useReducer, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import Breadcrumb from "./Breadcrumb";
@@ -16,6 +16,8 @@ interface ServerError {
   geo: { city?: string; region?: string; country?: string } | null;
   capturedAt: string | null;
 }
+
+type CompactErrorRow = [0 | 1, number, number, number, number];
 
 type Filter = "all" | "error" | "warn" | "server" | "client" | "unseen";
 type ExtendedFilter = Filter | "qr";
@@ -66,6 +68,100 @@ function isQrError(error: ServerError): boolean {
   return error.message.includes("[QR DEBUG]") || error.page.startsWith("/qr-moments/");
 }
 
+function getOrInsertRef<T>(list: T[], value: T, equals?: (a: T, b: T) => boolean): number {
+  const index = list.findIndex(item => equals ? equals(item, value) : item === value);
+  if (index >= 0) return index;
+  list.push(value);
+  return list.length - 1;
+}
+
+function stripAnsi(value: string): string {
+  const esc = String.fromCharCode(27);
+  return value.replace(new RegExp(`${esc}\\[[0-9;]*m`, "g"), "");
+}
+
+function formatCronMiss(value: string): string | null {
+  const match = value.match(/missed execution at ([A-Za-z]{3} [A-Za-z]{3} \d{2} \d{4} \d{2}:\d{2}:\d{2}) GMT/i);
+  if (!match) return null;
+
+  const parts = match[1].split(" ");
+  if (parts.length !== 5) return null;
+
+  const [, monthLabel, day, year, time] = parts;
+  const monthMap: Record<string, string> = {
+    Jan: "01",
+    Feb: "02",
+    Mar: "03",
+    Apr: "04",
+    May: "05",
+    Jun: "06",
+    Jul: "07",
+    Aug: "08",
+    Sep: "09",
+    Oct: "10",
+    Nov: "11",
+    Dec: "12",
+  };
+
+  const month = monthMap[monthLabel];
+  if (!month) return null;
+
+  return `NC miss ${year}-${month}-${day} ${time.slice(0, 5)}`;
+}
+
+function compactDebugText(value: string): string {
+  const clean = stripAnsi(value).replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+
+  const cronMiss = formatCronMiss(clean);
+  if (cronMiss) return cronMiss;
+
+  return clean
+    .replace(/\[PID:\s*\d+\]/g, "")
+    .replace(/\[NODE-CRON\]/g, "NC")
+    .replace(/Possible blocking IO or high CPU user at the same process used by node-cron\.?/gi, "blockIO/highCPU")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toHourBucket(value: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hour}:00`;
+}
+
+function buildCompactErrorsPayload(errors: ServerError[]) {
+  const h: string[] = [];
+  const m: string[] = [];
+  const s: string[] = [];
+  const p: string[] = [];
+
+  const e: CompactErrorRow[] = errors.map(error => [
+    error.severity === "error" ? 1 : 0,
+    getOrInsertRef(h, toHourBucket(error.capturedAt)),
+    getOrInsertRef(m, compactDebugText(error.message ?? "")),
+    getOrInsertRef(s, compactDebugText(error.stack ?? "")),
+    getOrInsertRef(p, compactDebugText(error.page ?? "")),
+  ]);
+
+  return {
+    v: 2,
+    c: errors.length,
+    k: ["sev", "h", "m", "s", "p"],
+    sev: ["warn", "error"],
+    h,
+    m,
+    s,
+    p,
+    e,
+  };
+}
+
 export default function ErrorsPage() {
   const location = useLocation();
   const { auth } = useAuth();
@@ -101,6 +197,23 @@ export default function ErrorsPage() {
 
   const unseenCount = useMemo(() => state.errors.filter((e) => !e.seen).length, [state.errors]);
   const qrCount = useMemo(() => state.errors.filter((error) => isQrError(error)).length, [state.errors]);
+  const unseenErrors = useMemo(() => state.errors.filter((error) => !error.seen), [state.errors]);
+  const unseenErrorsCompact = useMemo(() => buildCompactErrorsPayload(unseenErrors), [unseenErrors]);
+  const unseenErrorsJson = useMemo(
+    () => JSON.stringify({
+      exportedAt: new Date().toISOString(),
+      unseenCount: unseenErrors.length,
+      errors: unseenErrors,
+    }, null, 2),
+    [unseenErrors],
+  );
+  const unseenErrorsCompactJson = useMemo(
+    () => JSON.stringify(unseenErrorsCompact, null, 1),
+    [unseenErrorsCompact],
+  );
+  const [jsonOpen, setJsonOpen] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "done" | "error">("idle");
+  const [jsonMode, setJsonMode] = useState<"compact" | "full">("compact");
 
   const handleMarkSeen = async () => {
     dispatch({ type: "set_marking", value: true });
@@ -113,6 +226,18 @@ export default function ErrorsPage() {
     } catch {
       dispatch({ type: "set_marking", value: false });
     }
+  };
+
+  const handleCopyJson = async () => {
+    const valueToCopy = jsonMode === "compact" ? unseenErrorsCompactJson : unseenErrorsJson;
+    try {
+      await navigator.clipboard.writeText(valueToCopy);
+      setCopyState("done");
+    } catch {
+      setCopyState("error");
+    }
+
+    window.setTimeout(() => setCopyState("idle"), 1800);
   };
 
   if (state.loading) return <AncaLoader />;
@@ -135,15 +260,28 @@ export default function ErrorsPage() {
               Aici sunt centralizate erorile de server, client și QR Moments.
             </p>
           </div>
-          {unseenCount > 0 && (
-            <button
-              onClick={handleMarkSeen}
-              disabled={state.marking}
-              className="px-4 py-2 text-sm bg-neutral-800 text-neutral-300 rounded-lg hover:bg-neutral-700 hover:text-white transition-colors disabled:opacity-50"
-            >
-              {state.marking ? "Se marchează..." : `Marchează toate ca văzute (${unseenCount})`}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {unseenCount > 0 && (
+              <button
+                onClick={() => {
+                  setJsonMode("compact");
+                  setJsonOpen(true);
+                }}
+                className="px-4 py-2 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-500 transition-colors"
+              >
+                Vezi JSON compact ({unseenCount})
+              </button>
+            )}
+            {unseenCount > 0 && (
+              <button
+                onClick={handleMarkSeen}
+                disabled={state.marking}
+                className="px-4 py-2 text-sm bg-neutral-800 text-neutral-300 rounded-lg hover:bg-neutral-700 hover:text-white transition-colors disabled:opacity-50"
+              >
+                {state.marking ? "Se marchează..." : `Marchează toate ca văzute (${unseenCount})`}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filters */}
@@ -184,6 +322,60 @@ export default function ErrorsPage() {
           </div>
         )}
       </div>
+
+      {jsonOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
+          onClick={() => setJsonOpen(false)}
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800 px-5 py-4">
+              <div>
+                <h2 className="text-white text-lg font-medium">JSON erori nevăzute</h2>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Varianta compactă păstrează doar severitatea, ora bucket, mesajul, stack-ul și pagina.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-lg border border-neutral-700 p-1">
+                  <button
+                    onClick={() => setJsonMode("compact")}
+                    className={`rounded-md px-3 py-1.5 text-xs transition-colors ${jsonMode === "compact" ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}
+                  >
+                    Compact
+                  </button>
+                  <button
+                    onClick={() => setJsonMode("full")}
+                    className={`rounded-md px-3 py-1.5 text-xs transition-colors ${jsonMode === "full" ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}
+                  >
+                    Full
+                  </button>
+                </div>
+                <button
+                  onClick={handleCopyJson}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500"
+                >
+                  {copyState === "done" ? "Copiat" : copyState === "error" ? "Copy failed" : "Copy to clipboard"}
+                </button>
+                <button
+                  onClick={() => setJsonOpen(false)}
+                  className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+                >
+                  Închide
+                </button>
+              </div>
+            </div>
+            <div className="overflow-auto p-5">
+              <pre className="min-h-[320px] rounded-xl bg-neutral-950 p-4 text-xs leading-relaxed text-neutral-300">
+                {jsonMode === "compact" ? unseenErrorsCompactJson : unseenErrorsJson}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

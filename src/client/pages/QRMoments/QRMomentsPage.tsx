@@ -36,6 +36,19 @@ const HEADLINE_TEXT = 'Ești mireasă, mire sau cunoști pe cineva care își pr
 const SUBHEAD_TEXT = 'Creăm experiențe complete pentru evenimente: foto, video, fotocabină, video booth 360 și QR Moments.';
 const REFERRAL_TEXT = 'Recomandă-ne mai departe și primești o ședință foto cadou.';
 
+function mapQrApiError(error: string): string {
+  if (error === 'Acces interzis.') {
+    return 'Link invalid. Verifică codul QR sau cere un link nou.';
+  }
+  if (error === 'Perioada de upload s-a închis.') {
+    return 'Perioada de upload s-a închis pentru acest eveniment.';
+  }
+  if (error === 'Evenimentul nu există.') {
+    return 'Evenimentul nu a fost găsit. Verifică linkul primit.';
+  }
+  return error;
+}
+
 export default function QRMomentsPage() {
   const { eventSlug: routeEventSlug } = useParams<{ eventSlug: string }>();
   const [searchParams] = useSearchParams();
@@ -368,9 +381,15 @@ export default function QRMomentsPage() {
         if (result.guestId) {
           setGuestId(result.guestId);
           setStep('upload');
+        } else {
+          reportQrDebug('Admin auto-register failed', { apiError: result.error });
+          setFormError(result.error ?? 'Auto-înregistrare admin eșuată.');
         }
       })
-      .catch(() => {});
+      .catch((error) => {
+        reportQrDebug('Admin auto-register network failure', { error: serializeDebugValue(error) });
+        setFormError('Eroare de rețea la auto-înregistrare admin.');
+      });
   }, [step, auth.authorise, auth.accessToken]);
 
   const handleFormSubmit = async () => {
@@ -388,7 +407,7 @@ export default function QRMomentsPage() {
 
       if (result.error) {
         reportQrDebug('Guest register failed', { apiError: result.error, guestEmail: email.trim(), guestName: name.trim() });
-        setFormError(result.error);
+        setFormError(mapQrApiError(result.error));
         return;
       }
       setGuestId(result.guestId);
@@ -530,7 +549,7 @@ export default function QRMomentsPage() {
 
       if (result.error) {
         reportQrDebug('Upload failed with API error', { apiError: result.error });
-        setUploadError(result.error);
+        setUploadError(mapQrApiError(result.error));
         return;
       }
 

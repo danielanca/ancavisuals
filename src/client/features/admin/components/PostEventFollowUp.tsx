@@ -15,11 +15,14 @@ function isPastEvent(event: ClientEvent): boolean {
 export default function PostEventFollowUp({ events, onEventUpdated }: Props) {
   const [saving, setSaving] = useState<string | null>(null);
 
-  const pending = events.filter(
+  const pendingFinancial = events.filter(
     (e) => e.status === "confirmat" && isPastEvent(e),
   );
+  const pendingBackup = events.filter(
+    (e) => (e.status === "confirmat" || e.status === "finalizat") && isPastEvent(e) && !e.postEventBackupConfirmedAt,
+  );
 
-  if (pending.length === 0) return null;
+  if (pendingFinancial.length === 0 && pendingBackup.length === 0) return null;
 
   const patch = async (
     event: ClientEvent,
@@ -52,6 +55,19 @@ export default function PostEventFollowUp({ events, onEventUpdated }: Props) {
     patch(event, { status: "anulat" }, { status: "anulat" });
   };
 
+  const handleBackupConfirmed = async (event: ClientEvent) => {
+    setSaving(event.id);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/post-event-backup/confirm-admin`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error();
+      onEventUpdated(event.id, { postEventBackupConfirmedAt: new Date() });
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const formatDate = (date: Date | null) =>
     date
       ? new Date(date).toLocaleDateString("ro-RO", {
@@ -62,7 +78,64 @@ export default function PostEventFollowUp({ events, onEventUpdated }: Props) {
 
   return (
     <div className="space-y-3">
-      {pending.map((event) => {
+      {pendingBackup.map((event) => {
+        const isSaving = saving === event.id;
+        const backupPageUrl = event.postEventBackupConfirmationToken
+          ? `/backup/${event.id}?token=${encodeURIComponent(event.postEventBackupConfirmationToken)}`
+          : null;
+        const date = event.eventEndDate ?? event.eventDate;
+
+        return (
+          <div
+            key={`backup-${event.id}`}
+            className="bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-4"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-xl leading-none mt-0.5">🛟</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-medium">Backup media în așteptare</p>
+                <p className="text-orange-400/80 text-xs mt-0.5">
+                  {event.client.fullName}
+                  {date && (
+                    <span className="text-neutral-500"> · {formatDate(date)}</span>
+                  )}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <button
+                    disabled={isSaving}
+                    onClick={() => handleBackupConfirmed(event)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Am făcut backup-ul
+                  </button>
+                  {backupPageUrl && (
+                    <a
+                      href={backupPageUrl}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-neutral-300 text-xs font-medium hover:bg-white/10 transition-colors"
+                    >
+                      Vezi pagina de backup
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {pendingFinancial.map((event) => {
         const isSaving = saving === event.id;
         const remaining = event.pricing?.remainingAmount ?? 0;
         const date = event.eventEndDate ?? event.eventDate;

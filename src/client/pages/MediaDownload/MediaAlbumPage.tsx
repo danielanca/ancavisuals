@@ -10,7 +10,7 @@ import DeliveryForm from './DeliveryForm';
 import DeliveryAddressModal from "../DeliveryAddress/AddressList";
 import PhotoLightbox from "./PhotoLightbox";
 import OnboardingWizard from "./Onboardingwizard";
-import MediaConsentModal from "./MediaConsentModal";
+import MediaConsentModal, { MediaRetentionReminder } from "./MediaConsentModal";
 import AncaLoader from "../../components/UI/AncaLoader";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
@@ -1340,7 +1340,7 @@ export default function MediaAlbumPage() {
             </>
           )}
 
-          {qrMoments && (qrMoments.photos.length > 0 || qrMoments.videos.length > 0 || qrMoments.audio.length > 0) && (
+        {qrMoments && (qrMoments.photos.length > 0 || qrMoments.videos.length > 0 || qrMoments.audio.length > 0) && (
             <>
               <h2 className={styles.sectionTitle}>
                 QR Moments ({qrMoments.photos.length + qrMoments.videos.length + qrMoments.audio.length})
@@ -1431,6 +1431,8 @@ export default function MediaAlbumPage() {
               )}
             </>
           )}
+
+          <MediaRetentionReminder slug={slug || ""} retention={album?.retention ?? null} />
         </div>}
       </div>
     </div>

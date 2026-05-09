@@ -125,12 +125,22 @@ const DashboardInner: React.FC = () => {
       .then(([eventsData, settingsData]) => {
         if (eventsData.error) throw new Error(eventsData.error);
         setEvents(
-          (eventsData.events ?? []).map((event: ClientEvent & { eventDate: string | null; eventEndDate?: string | null; createdAt: string }) => ({
+          (eventsData.events ?? []).map((event: ClientEvent & {
+            eventDate: string | null;
+            eventEndDate?: string | null;
+            createdAt: string;
+            postEventBackupConfirmedAt?: string | null;
+            postEventBackupReminderSentAt?: string | null;
+            postEventBackupReminderDueAt?: string | null;
+          }) => ({
             ...event,
             fiscalized: event.fiscalized === true,
             eventDate: event.eventDate ? new Date(event.eventDate) : null,
             eventEndDate: event.eventEndDate ? new Date(event.eventEndDate) : null,
             createdAt: new Date(event.createdAt),
+            postEventBackupConfirmedAt: event.postEventBackupConfirmedAt ? new Date(event.postEventBackupConfirmedAt) : null,
+            postEventBackupReminderSentAt: event.postEventBackupReminderSentAt ? new Date(event.postEventBackupReminderSentAt) : null,
+            postEventBackupReminderDueAt: event.postEventBackupReminderDueAt ? new Date(event.postEventBackupReminderDueAt) : null,
           })),
         );
         if (!settingsData.error) setSettings(normalizeSettings(settingsData));

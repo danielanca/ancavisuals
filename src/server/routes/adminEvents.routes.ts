@@ -3,12 +3,17 @@ import { Router } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import Anthropic from "@anthropic-ai/sdk";
+import multer from "multer";
 import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_QR_MOMENT_FOLDER } from "../constants/bunny";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import sharp from "sharp";
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const backupProofUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 
 type LeadEventTypeGuess = "Nuntă" | "Botez" | "Logodnă" | "Aniversare" | "Altele" | null;
 
@@ -38,6 +43,72 @@ function sanitizeEventTypeGuess(value: unknown): LeadEventTypeGuess {
   return typeof value === "string" && allowed.includes(value as Exclude<LeadEventTypeGuess, null>)
     ? (value as Exclude<LeadEventTypeGuess, null>)
     : null;
+}
+
+function serializeAdminEvent(doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot) {
+  const data = doc.data();
+  if (!data) return null;
+
+  const serializeTimestamp = (value: unknown) =>
+    value instanceof Timestamp ? value.toDate().toISOString() : (value ?? null);
+
+  return {
+    id: doc.id,
+    ...data,
+    createdAt: serializeTimestamp(data.createdAt),
+    eventDate: serializeTimestamp(data.eventDate),
+    eventEndDate: serializeTimestamp(data.eventEndDate),
+    postEventBackupConfirmedAt: serializeTimestamp(data.postEventBackupConfirmedAt),
+    postEventBackupReminderSentAt: serializeTimestamp(data.postEventBackupReminderSentAt),
+    postEventBackupReminderDueAt: serializeTimestamp(data.postEventBackupReminderDueAt),
+  };
+}
+
+async function getBackupEventWithToken(id: string, token: string) {
+  const doc = await firestore().collection("adminEvents").doc(id).get();
+  if (!doc.exists) return { status: 404 as const, error: "Evenimentul nu a fost găsit.", doc: null, data: null };
+
+  const data = doc.data()!;
+  const expectedToken = typeof data.postEventBackupConfirmationToken === "string"
+    ? data.postEventBackupConfirmationToken.trim()
+    : "";
+
+  if (!token || !expectedToken || expectedToken !== token) {
+    return { status: 403 as const, error: "Link invalid sau expirat.", doc: null, data: null };
+  }
+
+  return { status: 200 as const, error: null, doc, data };
+}
+
+async function uploadBackupProof(file: Express.Multer.File, eventId: string) {
+  const storageKey = process.env.BUNNY_STORAGE_PASSWORD || getBunnyStorageKey();
+  const cdnDomain = process.env.BUNNY_CDN_DOMAIN ?? "";
+
+  if (!storageKey || !cdnDomain) {
+    throw new Error("Upload proof indisponibil: lipsește configurarea Bunny.");
+  }
+
+  const ext = (file.originalname.split(".").pop() || "jpg").replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "jpg";
+  const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+  const folder = `admin-events/${eventId}/backup-proof`;
+  const uploadUrl = buildBunnyStorageUrl(folder, safeFileName);
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      [BUNNY_ACCESS_KEY_HEADER]: storageKey,
+      "Content-Type": file.mimetype || "application/octet-stream",
+    },
+    body: file.buffer,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Bunny upload failed: ${response.status}`);
+  }
+
+  return {
+    url: `${cdnDomain.replace(/\/$/, "")}/${folder}/${safeFileName}`,
+    name: file.originalname,
+  };
 }
 
 router.post("/leads/extract-from-image", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
@@ -124,17 +195,7 @@ router.get("/events", async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const snapshot = await db.collection("adminEvents").orderBy("eventDate", "asc").get();
-
-    const events = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
-        eventDate: data.eventDate instanceof Timestamp ? data.eventDate.toDate().toISOString() : (data.eventDate ?? null),
-        eventEndDate: data.eventEndDate instanceof Timestamp ? data.eventEndDate.toDate().toISOString() : (data.eventEndDate ?? null),
-      };
-    });
+    const events = snapshot.docs.map(serializeAdminEvent).filter(Boolean);
 
     res.json({ events });
   } catch (error) {
@@ -217,67 +278,110 @@ router.patch("/events/:id", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/admin/events/:id/post-event-backup/confirm?token=...
-router.get("/events/:id/post-event-backup/confirm", async (req: Request, res: Response) => {
+router.post("/events/:id/post-event-backup/confirm-admin", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { id } = req.params;
-    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
-
-    if (!token) {
-      return res.status(400).send("Token lipsă.");
-    }
-
     const doc = await db.collection("adminEvents").doc(id).get();
     if (!doc.exists) {
-      return res.status(404).send("Evenimentul nu a fost găsit.");
-    }
-
-    const data = doc.data()!;
-    const expectedToken = typeof data.postEventBackupConfirmationToken === "string"
-      ? data.postEventBackupConfirmationToken.trim()
-      : "";
-
-    if (expectedToken && expectedToken !== token) {
-      return res.status(403).send("Token invalid.");
+      return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
     }
 
     await doc.ref.update({
       postEventBackupConfirmedAt: Timestamp.now(),
-      postEventBackupConfirmationToken: null,
     });
 
-    res.status(200).send(`
-      <!doctype html>
-      <html lang="ro">
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>Backup confirmat</title>
-          <style>
-            body { margin: 0; font-family: Arial, sans-serif; background: #0b0b0b; color: #f5f5f5; }
-            .wrap { max-width: 560px; margin: 0 auto; padding: 40px 24px; }
-            .card { border: 1px solid #262626; border-radius: 16px; padding: 24px; background: #111; }
-            h1 { margin: 0 0 12px; font-size: 28px; font-weight: 500; }
-            p { margin: 0 0 14px; color: #d4d4d4; line-height: 1.65; }
-            .ok { display: inline-block; margin-top: 12px; padding: 10px 16px; border-radius: 999px; background: #10b981; color: #08120f; font-weight: 700; }
-          </style>
-        </head>
-        <body>
-          <div class="wrap">
-            <div class="card">
-              <h1>Backup confirmat</h1>
-              <p>Am înregistrat confirmarea pentru backup-ul pozelor și video-ului.</p>
-              <p>Nu vei mai primi remindere pentru acest eveniment.</p>
-              <div class="ok">Confirmat</div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
+    res.json({ ok: true, confirmedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("[adminEvents] POST /events/:id/post-event-backup/confirm-admin failed:", error);
+    res.status(500).json({ error: "Nu s-a putut confirma backup-ul." });
+  }
+});
+
+router.get("/events/:id/post-event-backup/status", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
+    const result = await getBackupEventWithToken(id, token);
+
+    if (result.error || !result.doc || !result.data) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    const dateSource = result.data.eventEndDate ?? result.data.eventDate;
+    const eventDate = dateSource instanceof Timestamp ? dateSource.toDate().toISOString() : (dateSource ?? null);
+
+    res.json({
+      event: {
+        id: result.doc.id,
+        name: result.data.client?.fullName?.trim() || result.data.typeLabel || result.data.type || "Eveniment",
+        eventDate,
+        albumSlug: typeof result.data.albumSlug === "string" ? result.data.albumSlug : null,
+        confirmedAt: result.data.postEventBackupConfirmedAt instanceof Timestamp
+          ? result.data.postEventBackupConfirmedAt.toDate().toISOString()
+          : (result.data.postEventBackupConfirmedAt ?? null),
+        proofUrl: typeof result.data.postEventBackupProofUrl === "string" ? result.data.postEventBackupProofUrl : null,
+        proofName: typeof result.data.postEventBackupProofName === "string" ? result.data.postEventBackupProofName : null,
+      },
+    });
+  } catch (error) {
+    console.error("[adminEvents] GET /events/:id/post-event-backup/status failed:", error);
+    res.status(500).json({ error: "Nu s-a putut încărca statusul backup-ului." });
+  }
+});
+
+router.post("/events/:id/post-event-backup/submit", backupProofUpload.single("proof"), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const token = typeof req.body.token === "string" ? req.body.token.trim() : "";
+    const result = await getBackupEventWithToken(id, token);
+
+    if (result.error || !result.doc) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    const updates: Record<string, unknown> = {
+      postEventBackupConfirmedAt: Timestamp.now(),
+    };
+
+    if (req.file) {
+      const uploadedProof = await uploadBackupProof(req.file, id);
+      updates.postEventBackupProofUrl = uploadedProof.url;
+      updates.postEventBackupProofName = uploadedProof.name;
+    }
+
+    await result.doc.ref.update(updates);
+
+    res.json({
+      ok: true,
+      confirmedAt: new Date().toISOString(),
+      proofUrl: typeof updates.postEventBackupProofUrl === "string" ? updates.postEventBackupProofUrl : null,
+      proofName: typeof updates.postEventBackupProofName === "string" ? updates.postEventBackupProofName : null,
+    });
+  } catch (error) {
+    console.error("[adminEvents] POST /events/:id/post-event-backup/submit failed:", error);
+    res.status(500).json({ error: "Nu s-a putut salva confirmarea backup-ului." });
+  }
+});
+
+// Legacy email links now redirect to the interactive site page instead of confirming directly.
+router.get("/events/:id/post-event-backup/confirm", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
+    const result = await getBackupEventWithToken(id, token);
+
+    if (result.error) {
+      res.status(result.status).send(result.error);
+      return;
+    }
+
+    res.redirect(302, `/backup/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`);
   } catch (error) {
     console.error("[adminEvents] GET /events/:id/post-event-backup/confirm failed:", error);
-    res.status(500).send("Nu s-a putut confirma backup-ul.");
+    res.status(500).send("Nu s-a putut deschide pagina de backup.");
   }
 });
 
