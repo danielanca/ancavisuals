@@ -98,7 +98,7 @@ describe("printSelection.store", () => {
     await expect(module.readPrintSelection("demo")).resolves.toEqual(["1.jpg", "2", "true"]);
   });
 
-  test("saveDeliveryAddress trims fields on update and stores null for blank easybox", async () => {
+  test("saveDeliveryAddress trims fields and stores null for blank easybox", async () => {
     const { module, updateMock, setMock } = await loadPrintSelectionStore();
 
     await module.saveDeliveryAddress("slug-1", {
@@ -109,22 +109,25 @@ describe("printSelection.store", () => {
       easybox: " ",
     });
 
-    expect(updateMock).toHaveBeenCalledWith({
-      deliveryAddress: {
-        fullName: "Anca Visuals",
-        phone: "0712345678",
-        street: "Strada Lalelelor 10",
-        city: "Cluj",
-        easybox: null,
+    expect(setMock).toHaveBeenCalledWith(
+      {
+        slug: "slug-1",
+        deliveryAddress: {
+          fullName: "Anca Visuals",
+          phone: "0712345678",
+          street: "Strada Lalelelor 10",
+          city: "Cluj",
+          easybox: null,
+        },
         deliveryAddressUpdatedAt: Date.now(),
       },
-    });
-    expect(setMock).not.toHaveBeenCalled();
+      { merge: true },
+    );
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
-  test("saveDeliveryAddress falls back to set with merge when update gets not-found", async () => {
-    const updateMock = vi.fn().mockRejectedValue({ code: "not-found" });
-    const { module, setMock } = await loadPrintSelectionStore({ updateImpl: updateMock });
+  test("saveDeliveryAddress always uses set with merge regardless of existing document", async () => {
+    const { module, updateMock, setMock } = await loadPrintSelectionStore();
 
     await module.saveDeliveryAddress("slug-2", {
       fullName: "  Maria  ",
@@ -145,15 +148,15 @@ describe("printSelection.store", () => {
           easybox: "Locker 4",
         },
         deliveryAddressUpdatedAt: Date.now(),
-        updatedAt: Date.now(),
       },
       { merge: true },
     );
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
-  test("saveDeliveryAddress rethrows non not-found update errors", async () => {
-    const updateMock = vi.fn().mockRejectedValue(new Error("permission denied"));
-    const { module } = await loadPrintSelectionStore({ updateImpl: updateMock });
+  test("saveDeliveryAddress propagates errors from set", async () => {
+    const setImpl = vi.fn().mockRejectedValue(new Error("permission denied"));
+    const { module } = await loadPrintSelectionStore({ setImpl });
 
     await expect(
       module.saveDeliveryAddress("slug-3", {

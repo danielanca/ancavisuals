@@ -136,7 +136,7 @@ export async function processPostEventBackupReminders(now = new Date()): Promise
       const confirmationToken = typeof data.postEventBackupConfirmationToken === "string" && data.postEventBackupConfirmationToken.trim()
         ? data.postEventBackupConfirmationToken.trim()
         : uuidv4();
-      const confirmationUrl = `${BASE_URL}/api/admin/events/${doc.id}/post-event-backup/confirm?token=${encodeURIComponent(confirmationToken)}`;
+      const confirmationUrl = `${BASE_URL}/backup/${doc.id}?token=${encodeURIComponent(confirmationToken)}`;
 
       await sendBackupReminderEmail({
         eventName,

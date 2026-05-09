@@ -25,6 +25,7 @@ function detectSource(referrer: string): { label: string; color: string; emoji: 
 }
 
 function parseDevice(ua: string): { device: string; browser: string; os: string } {
+  if (!ua) return { device: "Unknown", browser: "Unknown", os: "Unknown" };
   const uaLower = ua.toLowerCase();
 
   const device = /mobile|android|iphone|ipad/.test(uaLower)

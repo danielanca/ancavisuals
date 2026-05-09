@@ -55,40 +55,20 @@ export async function saveDeliveryAddress(
   await firestore()
     .collection(COL)
     .doc(slug)
-    .update({
-      deliveryAddress: {
-      'fullName': address.fullName.trim(),
-      'phone': address.phone.trim(),
-      'street': address.street.trim(),
-      'city': address.city.trim(),
-      'easybox': address.easybox?.trim() || null,
-      deliveryAddressUpdatedAt: Date.now(),
-    }
-})
-    .catch((err) => {
-      // If document doesn't exist yet → fallback to set + merge
-      if (err.code === 'not-found') {
-        return firestore()
-          .collection(COL)
-          .doc(slug)
-          .set(
-            {
-              slug,
-              deliveryAddress: {
-                fullName: address.fullName.trim(),
-                phone: address.phone.trim(),
-                street: address.street.trim(),
-                city: address.city.trim(),
-                easybox: address.easybox?.trim() || null,
-              },
-              deliveryAddressUpdatedAt: Date.now(),
-              updatedAt: Date.now(),
-            },
-            { merge: true }
-          );
-      }
-      throw err;
-    });
+    .set(
+      {
+        slug,
+        deliveryAddress: {
+          fullName: address.fullName.trim(),
+          phone: address.phone.trim(),
+          street: address.street.trim(),
+          city: address.city.trim(),
+          easybox: address.easybox?.trim() || null,
+        },
+        deliveryAddressUpdatedAt: Date.now(),
+      },
+      { merge: true },
+    );
 }
 
 export async function readDeliveryAddress(slug: string): Promise<PrintSelectionDocument | null> {

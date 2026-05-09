@@ -43,6 +43,12 @@ export interface ClientEvent {
   albumSlug?: string;
   albumPin?: string;
   expenses?: EventExpense[];
+  postEventBackupConfirmedAt?: Date | null;
+  postEventBackupReminderSentAt?: Date | null;
+  postEventBackupReminderDueAt?: Date | null;
+  postEventBackupConfirmationToken?: string | null;
+  postEventBackupProofUrl?: string | null;
+  postEventBackupProofName?: string | null;
 }
 
 export interface Goal {

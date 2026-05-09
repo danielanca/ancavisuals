@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ClientEvent, EventExpense, EventStatus } from "../types";
 import Redacted from "./Redacted";
@@ -58,13 +58,20 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [newExpenseLabel, setNewExpenseLabel] = useState("");
   const [newExpenseAmount, setNewExpenseAmount] = useState("");
   const [expenseSaving, setExpenseSaving] = useState(false);
+  const [backupSaving, setBackupSaving] = useState(false);
 
   const eventDate = fallbackDate;
-  const isPast = eventDate
-    ? new Date(new Date(eventDate).setHours(23, 59, 59, 999)) < new Date()
+  const effectiveEventDate = event.eventEndDate ? new Date(event.eventEndDate) : eventDate;
+  const isPast = effectiveEventDate
+    ? new Date(new Date(effectiveEventDate).setHours(23, 59, 59, 999)) < new Date()
     : false;
   const isLead = event.status === "lead" || event.status === "tentativ";
   const isFiscalized = event.fiscalized === true;
+  const postEventBackupConfirmedAt = event.postEventBackupConfirmedAt ? new Date(event.postEventBackupConfirmedAt) : null;
+  const backupPending = !isLead && event.status !== "anulat" && isPast && !postEventBackupConfirmedAt;
+  const backupPageUrl = event.postEventBackupConfirmationToken
+    ? `/backup/${event.id}?token=${encodeURIComponent(event.postEventBackupConfirmationToken)}`
+    : null;
 
   const dateSlug = eventDate ? eventDate.toISOString().slice(0, 10) : "no-date";
   const nameSlug = slugify(fallbackName);
@@ -258,6 +265,22 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const removeExpense = (id: string) =>
     persistExpenses(expenses.filter((expense) => expense.id !== id));
 
+  const handleBackupConfirmed = async () => {
+    if (backupSaving) return;
+    setBackupSaving(true);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/post-event-backup/confirm-admin`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error();
+      onUpdated?.({ postEventBackupConfirmedAt: new Date() });
+    } catch {
+      // user can retry
+    } finally {
+      setBackupSaving(false);
+    }
+  };
+
   const deleteDocUrl = async (field: "contractUrl" | "invoiceUrl") => {
     if (field === "contractUrl") setContractUrl("");
     else setInvoiceUrl("");
@@ -402,6 +425,17 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
             >
               <Redacted>{isFiscalized ? "Fiscalizat" : "Nefiscalizat"}</Redacted>
             </span>
+            {!isLead && event.status !== "anulat" && isPast && (
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  backupPending
+                    ? "border-orange-500/30 bg-orange-500/10 text-orange-300"
+                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                }`}
+              >
+                <Redacted>{backupPending ? "Backup pending" : "Backup OK"}</Redacted>
+              </span>
+            )}
             <span className="text-neutral-500 text-xs">•</span>
             <span className="text-white text-sm font-medium truncate"><Redacted>{event.client.fullName}</Redacted></span>
             <span className="text-neutral-500 text-xs">•</span>
@@ -499,6 +533,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               {!isLead && (
                 <>
                   <span className="flex items-center gap-1.5"><span>💶</span><Redacted>{formatEUR(event.pricing?.total ?? 0)}</Redacted></span>
+                  {event.status !== "anulat" && isPast && (
+                    <span className={`flex items-center gap-1.5 ${backupPending ? "text-orange-300" : "text-emerald-300"}`}>
+                      <span>{backupPending ? "🛟" : "✅"}</span>
+                      {backupPending ? "Backup neconfirmat" : "Backup confirmat"}
+                    </span>
+                  )}
                   <span className="flex items-center gap-1.5">
                     <span>{event.pricing?.advancePaid ? "✅" : "⏳"}</span>
                     {event.pricing?.advancePaid ? "Avans încasat (" : "Avans neîncasat ("}
@@ -578,21 +618,6 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   ✗ Renunță
                 </button>
                 <div className="ml-auto flex items-center gap-3">
-                  {onDeleted && (
-                    <button
-                      onClick={() => setDeleteStep("first")}
-                      disabled={deleting}
-                      className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 transition-colors disabled:opacity-40"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                        <path d="M10 11v6M14 11v6" />
-                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                      </svg>
-                      {deleting ? "Se șterge..." : "Șterge"}
-                    </button>
-                  )}
                   <button
                     onClick={() => setEditing(true)}
                     className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-white transition-colors"
@@ -603,6 +628,17 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                     </svg>
                     Modifică
                   </button>
+                  <EventActionMenu
+                    showBackupAction={backupPending}
+                    backupSaving={backupSaving}
+                    backupPageUrl={backupPageUrl}
+                    onConfirmBackup={handleBackupConfirmed}
+                    onEdit={() => setEditing(true)}
+                    onArchive={handleArchive}
+                    onDelete={onDeleted ? () => setDeleteStep("first") : undefined}
+                    archiveDisabled={event.status === "anulat"}
+                    deleteLabel={deleting ? "Se șterge..." : "Șterge definitiv"}
+                  />
                 </div>
               </div>
             )}
@@ -832,21 +868,17 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   </svg>
                   Modifică
                 </button>
-                {onDeleted && (
-                  <button
-                    onClick={() => setDeleteStep("first")}
-                    disabled={deleting}
-                    className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 transition-colors disabled:opacity-40"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6M14 11v6" />
-                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
-                    {deleting ? "Se șterge..." : "Șterge definitiv"}
-                  </button>
-                )}
+                <EventActionMenu
+                  showBackupAction={backupPending}
+                  backupSaving={backupSaving}
+                  backupPageUrl={backupPageUrl}
+                  onConfirmBackup={handleBackupConfirmed}
+                  onEdit={() => setEditing(true)}
+                  onArchive={handleArchive}
+                  onDelete={onDeleted ? () => setDeleteStep("first") : undefined}
+                  archiveDisabled={event.status === "anulat"}
+                  deleteLabel={deleting ? "Se șterge..." : "Șterge definitiv"}
+                />
               </div>
             )}
           </div>
@@ -1067,6 +1099,104 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         </div>
       )}
     </>
+  );
+};
+
+const EventActionMenu: React.FC<{
+  showBackupAction: boolean;
+  backupSaving: boolean;
+  backupPageUrl: string | null;
+  onConfirmBackup: () => void;
+  onEdit: () => void;
+  onArchive: () => void;
+  onDelete?: () => void;
+  archiveDisabled?: boolean;
+  deleteLabel: string;
+}> = ({ showBackupAction, backupSaving, backupPageUrl, onConfirmBackup, onEdit, onArchive, onDelete, archiveDisabled, deleteLabel }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const Item: React.FC<{
+    label: string;
+    onClick?: () => void;
+    href?: string;
+    color?: string;
+    disabled?: boolean;
+  }> = ({ label, onClick, href, color = "text-neutral-200", disabled }) => {
+    if (href) {
+      return (
+        <a
+          href={href}
+          className={`block w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-neutral-800 ${color}`}
+          onClick={() => setOpen(false)}
+        >
+          {label}
+        </a>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          setOpen(false);
+          onClick?.();
+        }}
+        className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-neutral-800 disabled:opacity-40 ${color}`}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex h-8 items-center justify-center rounded-lg border border-neutral-700 px-2.5 text-xs text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+      >
+        More
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-10 z-50 min-w-[220px] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl">
+          {showBackupAction && (
+            <Item
+              label={backupSaving ? "🛟 Se salvează..." : "🛟 Am făcut backup-ul"}
+              onClick={onConfirmBackup}
+              color="text-emerald-400"
+              disabled={backupSaving}
+            />
+          )}
+          {backupPageUrl && (
+            <Item
+              label="↗ Vezi pagina de backup"
+              href={backupPageUrl}
+              color="text-orange-300"
+            />
+          )}
+          <Item label="✏️ Modifică" onClick={onEdit} color="text-amber-300" />
+          <Item label="📦 Mută în arhivă" onClick={onArchive} color="text-neutral-200" disabled={archiveDisabled} />
+          {onDelete && (
+            <>
+              <div className="my-1 border-t border-neutral-800" />
+              <Item label={`🗑 ${deleteLabel}`} onClick={onDelete} color="text-red-400" />
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
