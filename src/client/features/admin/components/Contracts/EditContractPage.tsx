@@ -29,7 +29,18 @@ const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "transport",  label: "Taxă transport spre și de la eveniment",   included: false, priceRaw: "" },
 ];
 
-const EVENT_TYPES = ["Nuntă", "Botez", "Logodnă", "Majorat", "Corporate", "Ședință foto", "Altul"];
+const EVENT_TYPES = [
+  "Nuntă",
+  "Cununie civilă",
+  "Botez",
+  "Logodnă",
+  "Majorat",
+  "Corporate",
+  "Fotocabină / VideoBooth",
+  "Ședință foto",
+  "Înmormântare",
+  "Altul",
+];
 const CURRENCIES = ["RON", "EUR"];
 const PAYMENT_METHODS = ["Transfer bancar", "Cash", "Card", "Revolut"];
 

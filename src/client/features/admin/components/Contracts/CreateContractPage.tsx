@@ -33,7 +33,32 @@ const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "transport",  label: "Taxă transport spre și de la eveniment",   included: false, priceRaw: ""     },
 ];
 
-const EVENT_TYPES = ["Nuntă", "Botez", "Logodnă", "Majorat", "Corporate", "Ședință foto", "Altul"];
+const EVENT_TYPES = [
+  "Nuntă",
+  "Cununie civilă",
+  "Botez",
+  "Logodnă",
+  "Majorat",
+  "Corporate",
+  "Fotocabină / VideoBooth",
+  "Ședință foto",
+  "Înmormântare",
+  "Altul",
+];
+
+// Which services are pre-selected when the admin picks an event type
+const SERVICE_TEMPLATES: Record<string, string[]> = {
+  "Nuntă":                ["foto_video", "album100", "transport"],
+  "Cununie civilă":       ["foto", "transport"],
+  "Botez":                ["foto_video", "transport"],
+  "Logodnă":              ["foto", "transport"],
+  "Majorat":              ["foto_video", "photobooth", "transport"],
+  "Corporate":            ["foto_video", "transport"],
+  "Fotocabină / VideoBooth": ["photobooth", "videobooth"],
+  "Ședință foto":         ["foto"],
+  "Înmormântare":         ["foto", "transport"],
+  "Altul":                [],
+};
 const CURRENCIES = ["RON", "EUR"];
 const PAYMENT_METHODS = ["Transfer bancar", "Cash", "Card", "Revolut"];
 
@@ -71,6 +96,7 @@ const CreateContractPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [serviceErrors, setServiceErrors] = useState<Set<string>>(new Set());
+  const [lastAppliedTemplate, setLastAppliedTemplate] = useState<string | null>(null);
 
   // Event
   const [eventType, setEventType] = useState(fromEvent.eventType ?? "");
@@ -86,6 +112,8 @@ const CreateContractPage: React.FC = () => {
 
   // Exchange rate
   const [eurRate, setEurRate] = useState<number>(5);
+  const [eurRateDate, setEurRateDate] = useState<string | null>(null);
+  const [eurRateLoading, setEurRateLoading] = useState(false);
 
   // Pricing
   const [currency, setCurrency] = useState("RON");
@@ -115,6 +143,22 @@ const CreateContractPage: React.FC = () => {
   const effectiveTotal = manualTotal ? priceTotal : autoTotal;
   const priceRest = Math.max(0, effectiveTotal - (priceAdvance || 0));
 
+  // Fetch live EUR/RON rate from Frankfurter (ECB data) on mount
+  useEffect(() => {
+    setEurRateLoading(true);
+    fetch("https://api.frankfurter.app/latest?from=EUR&to=RON")
+      .then((response) => response.json())
+      .then((data) => {
+        const rate = data?.rates?.RON;
+        if (rate && typeof rate === "number") {
+          setEurRate(parseFloat(rate.toFixed(4)));
+          setEurRateDate(data.date ?? null);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setEurRateLoading(false));
+  }, []);
+
   // Auto-update transport price when km / fuel price changes
   useEffect(() => {
     const km = parseFloat(transportKm);
@@ -124,6 +168,20 @@ const CreateContractPage: React.FC = () => {
       setServices((prev) => prev.map((s) => s.id === "transport" ? { ...s, priceRaw: estimated } : s));
     }
   }, [transportKm, transportFuelPrice]);
+
+  const applyTemplate = (type: string) => {
+    const templateIds = SERVICE_TEMPLATES[type] ?? [];
+    setServices((prev) => prev.map((s) => ({ ...s, included: templateIds.includes(s.id) })));
+    setLastAppliedTemplate(type);
+    setServiceErrors(new Set());
+  };
+
+  const handleEventTypeChange = (type: string) => {
+    setEventType(type);
+    if (type && SERVICE_TEMPLATES[type] !== undefined) {
+      applyTemplate(type);
+    }
+  };
 
   const toggleService = (id: string) => {
     setServices((prev) => prev.map((s) => s.id === id ? { ...s, included: !s.included } : s));
@@ -254,7 +312,7 @@ const CreateContractPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Tip eveniment *</Label>
-                <select value={eventType} onChange={(e) => setEventType(e.target.value)} className={sel}>
+                <select value={eventType} onChange={(e) => handleEventTypeChange(e.target.value)} className={sel}>
                   <option value="">Selectează...</option>
                   {EVENT_TYPES.map((t) => <option key={t}>{t}</option>)}
                 </select>
@@ -295,6 +353,26 @@ const CreateContractPage: React.FC = () => {
           {/* SERVICII */}
           <Block title="Servicii incluse">
 
+            {/* Template notice */}
+            {lastAppliedTemplate && (
+              <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-3 py-2">
+                <span className="text-xs text-emerald-400">
+                  Template aplicat: <span className="font-semibold">{lastAppliedTemplate}</span>
+                  {" "}— serviciile au fost pre-selectate automat. Poți ajusta mai jos.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServices(DEFAULT_SERVICES.map((s) => ({ ...s, included: false })));
+                    setLastAppliedTemplate(null);
+                  }}
+                  className="text-xs text-neutral-500 hover:text-neutral-300 ml-3 shrink-0 transition-colors"
+                >
+                  Resetează
+                </button>
+              </div>
+            )}
+
             {/* Exchange rate + currency — above the checkboxes */}
             <div className="flex items-center gap-3 pb-3 border-b border-neutral-800 mb-1">
               <div className="flex items-center gap-2">
@@ -309,12 +387,18 @@ const CreateContractPage: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  step="0.01"
+                  step="0.0001"
                   value={eurRate}
-                  onChange={(e) => setEurRate(parseFloat(e.target.value) || 5)}
-                  className="w-20 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-100 text-center focus:outline-none focus:border-emerald-500/50"
+                  onChange={(e) => { setEurRate(parseFloat(e.target.value) || 5); setEurRateDate(null); }}
+                  className="w-24 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-100 text-center focus:outline-none focus:border-emerald-500/50"
                 />
                 <span className="text-xs text-neutral-500">RON</span>
+                {eurRateLoading && (
+                  <span className="text-xs text-neutral-600 animate-pulse">se încarcă...</span>
+                )}
+                {eurRateDate && !eurRateLoading && (
+                  <span className="text-xs text-emerald-500/70">BCE {eurRateDate}</span>
+                )}
               </div>
               <span className="text-xs text-neutral-600 ml-auto">
                 Prețurile sunt în {currency} · conversie afișată în {otherCurrency}
