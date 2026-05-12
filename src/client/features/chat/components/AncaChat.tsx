@@ -334,6 +334,12 @@ export default function AncaChat() {
         </div>
       )}
 
+      {!isOpen && (
+        <div className="fixed bottom-20 right-4 md:bottom-30 md:right-10 z-40 max-w-[220px] rounded-2xl bg-white px-4 py-3 text-sm leading-relaxed text-neutral-900 shadow-xl">
+          Saut, te putem ajuta cu ceva?
+        </div>
+      )}
+
       {/* Toggle button */}
       <button
         onClick={handleToggle}

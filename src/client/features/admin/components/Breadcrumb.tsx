@@ -15,7 +15,7 @@ const LABELS: Record<string, string> = {
   mementos: "Mementouri",
   "media-activity": "Activitate Media",
   "qr-moments": "QR Moments",
-  "instagram-proposals": "Propuneri Instagram",
+  "instagram-proposals": "Propuneri Media",
   "image-optimizer": "Optimizare Poze",
   moderare: "Moderare",
   "route-sheets": "Foi de parcurs",
@@ -24,6 +24,9 @@ const LABELS: Record<string, string> = {
   goals: "Obiective",
   analytics: "Analytics",
   "wedding-hub": "Wedding Hub",
+  "template-oferte": "Template Oferte",
+  oferte: "Oferte",
+  "media-assets": "Media Assets",
 };
 
 export default function Breadcrumb() {

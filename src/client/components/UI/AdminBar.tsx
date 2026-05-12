@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import useAuth from "../../features/admin/auth/useAuth";
+import { useErrorMonitor } from "../../features/admin/providers/ErrorMonitorContext";
 
 export default function AdminBar() {
   const { auth, logOut } = useAuth();
   const location = useLocation();
+  const { debugging, setDebugging } = useErrorMonitor();
   const [notifyStatus, setNotifyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
 
@@ -88,6 +90,33 @@ export default function AdminBar() {
               {notifyStatus === "idle" && "🔔 Notifică abonații"}
             </button>
           )}
+
+          <button
+            onClick={() => setDebugging(!debugging)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: debugging ? "#0f1f0f" : "none",
+              border: `1px solid ${debugging ? "#166534" : "#333"}`,
+              borderRadius: "8px",
+              color: debugging ? "#4ade80" : "#555",
+              fontSize: "12px",
+              padding: "8px 14px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: debugging ? "#4ade80" : "#333",
+              display: "inline-block",
+              flexShrink: 0,
+            }} />
+            Debugging
+          </button>
 
           {location.pathname !== "/admin" && (
             <a

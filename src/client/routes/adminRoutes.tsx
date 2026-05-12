@@ -34,6 +34,9 @@ const AccountsPage = loadable(() => import("../features/admin/components/Account
 const InstagramProposalsAdminPage = loadable(() => import("../features/admin/components/InstagramProposalsAdminPage"), opts);
 const OferteAdminPage = loadable(() => import("../features/admin/components/OferteAdminPage"), opts);
 const WeddingHubAdminPage = loadable(() => import("../features/admin/components/WeddingHub/WeddingHubAdminPage"), opts);
+const OfferTemplateAdminPage = loadable(() => import("../features/admin/components/OfferTemplateAdminPage"), opts);
+const OfferTemplateOrganizerPage = loadable(() => import("../features/admin/components/OfferTemplateOrganizerPage"), opts);
+const MediaAssetsAdminPage = loadable(() => import("../features/admin/components/MediaAssetsAdminPage"), opts);
 
 export function adminRoutes() {
   return [
@@ -62,6 +65,9 @@ export function adminRoutes() {
       <Route path="/admin/accounts" element={<AccountsPage />} />
       <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
       <Route path="/admin/oferte" element={<OferteAdminPage />} />
+      <Route path="/admin/media-assets" element={<MediaAssetsAdminPage />} />
+      <Route path="/admin/template-oferte" element={<OfferTemplateAdminPage />} />
+      <Route path="/admin/template-oferte/:serviceId" element={<OfferTemplateOrganizerPage />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>

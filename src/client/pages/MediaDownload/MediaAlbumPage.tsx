@@ -12,6 +12,7 @@ import PhotoLightbox from "./PhotoLightbox";
 import OnboardingWizard from "./Onboardingwizard";
 import MediaConsentModal, { MediaRetentionReminder } from "./MediaConsentModal";
 import AncaLoader from "../../components/UI/AncaLoader";
+import { OFFER_SERVICES } from "../../../shared/offers/offerServices";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -255,14 +256,23 @@ export default function MediaAlbumPage() {
     fileName: string;
     proposedBy: string;
     proposedAt: string;
-    status: "pending" | "posted" | "rejected";
+    status: "pending" | "accepted" | "rejected" | "archived";
+    destinations?: string[];
+    mediaAssetServiceIds?: string[];
   };
+  const [subscribers, setSubscribers] = useState<{ email: string; subscribedAt?: string }[]>([]);
   const [igProposals, setIgProposals] = useState<InstagramProposal[]>([]);
   const [igProposeMode, setIgProposeMode] = useState(false);
   const [selectedIgPropose, setSelectedIgPropose] = useState<Set<string>>(new Set());
+  const [proposalDestinations, setProposalDestinations] = useState<Set<"instagram" | "media_assets">>(new Set(["instagram"]));
+  const [proposalMediaServices, setProposalMediaServices] = useState<Set<string>>(new Set(["photo"]));
   const [submittingIgPropose, setSubmittingIgPropose] = useState(false);
   const [igProposeResult, setIgProposeResult] = useState<string | null>(null);
   const [igUpdatingId, setIgUpdatingId] = useState<string | null>(null);
+  const [videoImportOpen, setVideoImportOpen] = useState(false);
+  const [videoImportServices, setVideoImportServices] = useState<Set<string>>(new Set(["video"]));
+  const [videoImporting, setVideoImporting] = useState(false);
+  const [videoImportResult, setVideoImportResult] = useState<string | null>(null);
 
   const [subscribeEmail, setSubscribeEmail] = useState("");
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -702,6 +712,14 @@ export default function MediaAlbumPage() {
       .then((response) => response.json())
       .then((data) => { if (data.proposals) setIgProposals(data.proposals); })
       .catch(() => {});
+    fetch(`/api/album-subscriptions/list/${slug}`, {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((response) => response.json())
+      .then((data: { subscribers?: { email: string; subscribedAt?: string }[] }) => {
+        if (data.subscribers) setSubscribers(data.subscribers);
+      })
+      .catch(() => {});
   }, [auth.authorise, auth.accessToken, slug]);
 
   const toggleIgPhoto = (src: string) => {
@@ -715,16 +733,27 @@ export default function MediaAlbumPage() {
 
   const submitIgProposals = async () => {
     if (!slug || !auth.accessToken || selectedIgPropose.size === 0 || !album) return;
+    if (proposalDestinations.has("media_assets") && proposalMediaServices.size === 0) return;
     setSubmittingIgPropose(true);
     try {
-      const photos = album.photos ?? [];
-      const toPropose = photos.filter((url) => selectedIgPropose.has(fileNameFromUrl(url)));
+      const previews = album.photos ?? [];
+      const originals = album.originalPhoto ?? [];
+      const originalByName = new Map(originals.map(url => [fileNameFromUrl(url), url]));
+      const toPropose = previews
+        .filter(url => selectedIgPropose.has(fileNameFromUrl(url)))
+        .map(previewUrl => originalByName.get(fileNameFromUrl(previewUrl)) ?? previewUrl);
       const results = await Promise.all(
         toPropose.map((photoUrl) =>
           fetch("/api/instagram-proposals", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-            body: JSON.stringify({ albumSlug: slug, photoUrl, fileName: fileNameFromUrl(photoUrl) }),
+            body: JSON.stringify({
+              albumSlug: slug,
+              photoUrl,
+              fileName: fileNameFromUrl(photoUrl),
+              destinations: Array.from(proposalDestinations),
+              mediaAssetServiceIds: Array.from(proposalMediaServices),
+            }),
           }).then((r) => r.json())
         )
       );
@@ -737,10 +766,18 @@ export default function MediaAlbumPage() {
           proposedBy: auth.user?.email ?? "",
           proposedAt: new Date().toISOString(),
           status: "pending" as const,
+          destinations: Array.from(proposalDestinations),
+          mediaAssetServiceIds: Array.from(proposalMediaServices),
         })),
         ...prev,
       ]);
-      setIgProposeResult(`${added.length} ${added.length === 1 ? "poză propusă" : "poze propuse"} pentru Instagram.`);
+      const destinationLabel =
+        proposalDestinations.size === 2
+          ? "Instagram + Media Assets"
+          : proposalDestinations.has("media_assets")
+            ? "Media Assets"
+            : "Instagram";
+      setIgProposeResult(`${added.length} ${added.length === 1 ? "poză propusă" : "poze propuse"} pentru ${destinationLabel}.`);
       setSelectedIgPropose(new Set());
       setIgProposeMode(false);
     } catch {
@@ -749,7 +786,30 @@ export default function MediaAlbumPage() {
     }
   };
 
-  const updateIgStatus = async (id: string, status: "posted" | "rejected") => {
+  const submitVideoImport = async () => {
+    if (!album?.shortvideo || !auth.accessToken || videoImportServices.size === 0) return;
+    setVideoImporting(true);
+    setVideoImportResult(null);
+    try {
+      const videoUrl = album.shortvideo;
+      const fileName = fileNameFromUrl(videoUrl);
+      await Promise.all(Array.from(videoImportServices).map(serviceId =>
+        fetch("/api/oferte/admin/media-assets/import-from-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+          body: JSON.stringify({ items: [{ url: videoUrl, fileName }], serviceId, sourceAlbumSlug: slug }),
+        })
+      ));
+      setVideoImportResult(`Video importat în ${videoImportServices.size === 1 ? "1 serviciu" : `${videoImportServices.size} servicii`}.`);
+      setVideoImportOpen(false);
+    } catch {
+      setVideoImportResult("Eroare la import.");
+    } finally {
+      setVideoImporting(false);
+    }
+  };
+
+  const updateIgStatus = async (id: string, status: "accepted" | "rejected") => {
     if (!auth.accessToken) return;
     setIgUpdatingId(id);
     try {
@@ -1039,7 +1099,7 @@ export default function MediaAlbumPage() {
         {auth.authorise && mode === "none" && (
           <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#0d0d1f", border: "1px solid #3730a3", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
             <div>
-              <p style={{ color: "#a5b4fc", fontWeight: 600, fontSize: "13px", margin: 0 }}>📸 Propune poze pentru Instagram</p>
+              <p style={{ color: "#a5b4fc", fontWeight: 600, fontSize: "13px", margin: 0 }}>📸 Propune poze pentru Instagram sau Media Assets</p>
               {igProposeResult && <p style={{ color: "#4ade80", fontSize: "12px", margin: "2px 0 0" }}>{igProposeResult}</p>}
             </div>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
@@ -1050,15 +1110,78 @@ export default function MediaAlbumPage() {
               )}
               {igProposeMode ? (
                 <>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", width: "100%" }}>
+                    {(["instagram", "media_assets"] as const).map((destination) => {
+                      const active = proposalDestinations.has(destination);
+                      return (
+                        <button
+                          key={destination}
+                          type="button"
+                          onClick={() => {
+                            setProposalDestinations((prev) => {
+                              const next = new Set(prev);
+                              next.has(destination) ? next.delete(destination) : next.add(destination);
+                              if (next.size === 0) next.add("instagram");
+                              return next;
+                            });
+                          }}
+                          style={{
+                            padding: "6px 12px",
+                            background: active ? "#312e81" : "transparent",
+                            border: "1px solid #3730a3",
+                            borderRadius: "999px",
+                            color: active ? "#c7d2fe" : "#818cf8",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {destination === "instagram" ? "Instagram" : "Media Assets"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {proposalDestinations.has("media_assets") && (
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", width: "100%" }}>
+                      {OFFER_SERVICES.map((service) => {
+                        const active = proposalMediaServices.has(service.id);
+                        return (
+                          <button
+                            key={service.id}
+                            type="button"
+                            onClick={() => {
+                              setProposalMediaServices((prev) => {
+                                const next = new Set(prev);
+                                next.has(service.id) ? next.delete(service.id) : next.add(service.id);
+                                return next;
+                              });
+                            }}
+                            style={{
+                              padding: "5px 10px",
+                              background: active ? "#0f766e" : "transparent",
+                              border: "1px solid #134e4a",
+                              borderRadius: "999px",
+                              color: active ? "#99f6e4" : "#5eead4",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {service.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   <button
                     onClick={submitIgProposals}
-                    disabled={submittingIgPropose || selectedIgPropose.size === 0}
+                    disabled={submittingIgPropose || selectedIgPropose.size === 0 || (proposalDestinations.has("media_assets") && proposalMediaServices.size === 0)}
                     style={{ padding: "6px 14px", background: selectedIgPropose.size > 0 ? "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)" : "#1e1b4b", border: "none", borderRadius: "6px", color: selectedIgPropose.size > 0 ? "#fff" : "#4338ca", fontSize: "13px", fontWeight: 600, cursor: selectedIgPropose.size > 0 ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
                   >
                     {submittingIgPropose ? "Se trimite..." : `Trimite propunere (${selectedIgPropose.size})`}
                   </button>
                   <button
-                    onClick={() => { setIgProposeMode(false); setSelectedIgPropose(new Set()); }}
+                    onClick={() => { setIgProposeMode(false); setSelectedIgPropose(new Set()); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
                     style={{ padding: "6px 12px", background: "none", border: "1px solid #3730a3", borderRadius: "6px", color: "#6366f1", fontSize: "13px", cursor: "pointer" }}
                   >
                     Anulează
@@ -1066,7 +1189,7 @@ export default function MediaAlbumPage() {
                 </>
               ) : (
                 <button
-                  onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setModerationMode(false); setSelectedModeration(new Set()); }}
+                  onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setModerationMode(false); setSelectedModeration(new Set()); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
                   style={{ padding: "6px 14px", background: "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
                 >
                   Selectează poze
@@ -1321,6 +1444,61 @@ export default function MediaAlbumPage() {
                   {"DESCARCĂ VIDEO" + (stats?.shortVideoBytes ? ` (${fmtBytes(stats.shortVideoBytes)})` : "")}
                 </a>
               </div>
+              {auth.authorise && (
+                <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-start" }}>
+                  {videoImportResult && (
+                    <span style={{ fontSize: "12px", color: "#6ee7b7" }}>{videoImportResult}</span>
+                  )}
+                  {videoImportOpen ? (
+                    <>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        {OFFER_SERVICES.map(service => {
+                          const active = videoImportServices.has(service.id);
+                          return (
+                            <button
+                              key={service.id}
+                              type="button"
+                              onClick={() => setVideoImportServices(prev => {
+                                const next = new Set(prev);
+                                next.has(service.id) ? next.delete(service.id) : next.add(service.id);
+                                return next;
+                              })}
+                              style={{ padding: "5px 10px", background: active ? "#0f766e" : "transparent", border: "1px solid #134e4a", borderRadius: "999px", color: active ? "#99f6e4" : "#5eead4", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
+                            >
+                              {service.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          type="button"
+                          onClick={submitVideoImport}
+                          disabled={videoImporting || videoImportServices.size === 0}
+                          style={{ padding: "6px 14px", background: "#0f766e", border: "none", borderRadius: "6px", color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                        >
+                          {videoImporting ? "Se importă..." : "Importă în Media Assets"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVideoImportOpen(false)}
+                          style={{ padding: "6px 12px", background: "none", border: "1px solid #374151", borderRadius: "6px", color: "#9ca3af", fontSize: "12px", cursor: "pointer" }}
+                        >
+                          Anulează
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { setVideoImportOpen(true); setVideoImportResult(null); setVideoImportServices(new Set(["video"])); }}
+                      style={{ padding: "6px 14px", background: "#134e4a", border: "1px solid #0f766e", borderRadius: "6px", color: "#5eead4", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Adaugă în Media Assets
+                    </button>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -1468,17 +1646,36 @@ export default function MediaAlbumPage() {
                     fontWeight: 600,
                     padding: "2px 7px",
                     borderRadius: "999px",
-                    background: proposal.status === "posted" ? "#14532d" : proposal.status === "rejected" ? "#450a0a" : "#1e1b4b",
-                    color: proposal.status === "posted" ? "#4ade80" : proposal.status === "rejected" ? "#f87171" : "#a5b4fc",
+                    background: proposal.status === "accepted" ? "#14532d" : proposal.status === "rejected" ? "#450a0a" : "#1e1b4b",
+                    color: proposal.status === "accepted" ? "#4ade80" : proposal.status === "rejected" ? "#f87171" : "#a5b4fc",
                   }}>
-                    {proposal.status === "posted" ? "Acceptat" : proposal.status === "rejected" ? "Respins" : "În așteptare"}
+                    {proposal.status === "accepted" ? "Acceptat" : proposal.status === "rejected" ? "Respins" : proposal.status === "archived" ? "Arhivat" : "În așteptare"}
                   </span>
+                  {proposal.destinations && proposal.destinations.length > 0 && (
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
+                      {proposal.destinations.map((destination) => (
+                        <span
+                          key={destination}
+                          style={{
+                            display: "inline-block",
+                            fontSize: "10px",
+                            padding: "2px 6px",
+                            borderRadius: "999px",
+                            background: destination === "media_assets" ? "#0f3d3a" : "#3b1d4d",
+                            color: destination === "media_assets" ? "#99f6e4" : "#f5b3ff",
+                          }}
+                        >
+                          {destination === "media_assets" ? "Media Assets" : "Instagram"}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {auth.user?.email === "ancadaniel1994@gmail.com" && (
                   <div style={{ display: "flex", gap: "4px", padding: "0 10px 10px" }}>
-                    {proposal.status !== "posted" && (
+                    {proposal.status !== "accepted" && (
                       <button
-                        onClick={() => updateIgStatus(proposal.id, "posted")}
+                        onClick={() => updateIgStatus(proposal.id, "accepted")}
                         disabled={igUpdatingId === proposal.id}
                         style={{ flex: 1, padding: "4px 0", fontSize: "10px", background: "#166534", color: "#4ade80", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
                       >
@@ -1504,6 +1701,34 @@ export default function MediaAlbumPage() {
                   </div>
                 )}
               </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {auth.authorise && subscribers.length > 0 && (
+      <div style={{ background: "#0a0a0a", borderTop: "1px solid #1a1a1a", padding: "24px 32px 36px", marginTop: "8px" }}>
+        <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+            <span style={{ fontSize: "16px" }}>🔔</span>
+            <h2 style={{ color: "#fff", fontSize: "15px", fontWeight: 500, margin: 0 }}>
+              Abonați la notificări
+            </h2>
+            <span style={{ background: "#1e3a5f", color: "#93c5fd", fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "999px" }}>
+              {subscribers.length}
+            </span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {subscribers.map((subscriber) => (
+              <a
+                key={subscriber.email}
+                href={`mailto:${subscriber.email}`}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#111827", border: "1px solid #1f2937", borderRadius: "999px", padding: "5px 12px", color: "#93c5fd", fontSize: "12px", textDecoration: "none" }}
+              >
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#3b82f6", flexShrink: 0 }} />
+                {subscriber.email}
+              </a>
             ))}
           </div>
         </div>

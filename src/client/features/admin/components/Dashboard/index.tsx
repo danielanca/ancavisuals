@@ -101,6 +101,7 @@ const DashboardInner: React.FC = () => {
   const [quickNavOrder, setQuickNavOrder] = useState<string[]>([]);
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [liveOrder, setLiveOrder] = useState<string[]>([]);
+  const [goalsOpen, setGoalsOpen] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const wasDraggingRef = useRef(false);
@@ -315,13 +316,39 @@ const DashboardInner: React.FC = () => {
     },
     {
       key: "instagram-proposals",
-      label: "Propuneri Instagram",
+      label: "Propuneri Media",
       onClick: () => navigate("/admin/instagram-proposals"),
       icon: (
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
           <rect x="2" y="2" width="20" height="20" rx="5" />
           <circle cx="12" cy="12" r="4" />
           <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+        </svg>
+      ),
+    },
+    {
+      key: "media-assets",
+      label: "Media Assets",
+      onClick: () => navigate("/admin/media-assets"),
+      icon: (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <polyline points="21 15 16 10 5 21" />
+        </svg>
+      ),
+    },
+    {
+      key: "template-oferte",
+      label: "Template Oferte",
+      onClick: () => navigate("/admin/template-oferte"),
+      icon: (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <line x1="10" y1="9" x2="8" y2="9" />
         </svg>
       ),
     },
@@ -623,7 +650,7 @@ const DashboardInner: React.FC = () => {
           </button>
 
           <div className="hidden flex-wrap gap-2 sm:flex">
-            {quickNavItems.map(renderQuickNavButton)}
+            {displayedQuickNavItems.map(renderQuickNavButton)}
           </div>
         </div>
 
@@ -632,8 +659,8 @@ const DashboardInner: React.FC = () => {
 
         {/* Goal Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <GoalCard title={SIX_MONTHS_GOAL_TITLE} goal={settings.goals.sixMonths} events={events} editableRange detailRoute="/admin/goals/six-months" onGoalUpdate={(u) => handleGoalUpdate("sixMonths", u)} />
-          <GoalCard title={ONE_YEAR_GOAL_TITLE} goal={settings.goals.oneYear} events={events} detailRoute="/admin/goals/one-year" onGoalUpdate={(u) => handleGoalUpdate("oneYear", u)} />
+          <GoalCard title={SIX_MONTHS_GOAL_TITLE} goal={settings.goals.sixMonths} events={events} editableRange detailRoute="/admin/goals/six-months" onGoalUpdate={(u) => handleGoalUpdate("sixMonths", u)} open={goalsOpen} onToggle={() => setGoalsOpen(value => !value)} />
+          <GoalCard title={ONE_YEAR_GOAL_TITLE} goal={settings.goals.oneYear} events={events} detailRoute="/admin/goals/one-year" onGoalUpdate={(u) => handleGoalUpdate("oneYear", u)} open={goalsOpen} onToggle={() => setGoalsOpen(value => !value)} />
         </div>
 
         {/* Financial Summary */}

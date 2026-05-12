@@ -16,6 +16,8 @@ interface GoalCardProps {
   editableRange?: boolean;
   detailRoute?: string;
   onGoalUpdate?: (updates: GoalUpdate) => void;
+  open?: boolean;
+  onToggle?: () => void;
 }
 
 function computeRevenueSplit(
@@ -40,9 +42,10 @@ function computeRevenueSplit(
   return { received, upcoming };
 }
 
-const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange, detailRoute, onGoalUpdate }) => {
+const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange, detailRoute, onGoalUpdate, open, onToggle }) => {
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(true);
+  const [internalCollapsed, setInternalCollapsed] = useState(true);
+  const collapsed = open !== undefined ? !open : internalCollapsed;
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(String(goal.targetRevenue));
   const [startDate, setStartDate] = useState(goal.startDate);
@@ -73,11 +76,16 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
   const formatEUR = (amount: number) =>
     new Intl.NumberFormat("ro-RO", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amount);
 
+  const toggleCollapsed = () => {
+    if (onToggle) { onToggle(); } else { setInternalCollapsed(value => !value); }
+  };
+
   const openEdit = () => {
     setInputValue(String(goal.targetRevenue));
     setStartDate(goal.startDate);
     setEndDate(goal.endDate);
-    setCollapsed(false);
+    if (onToggle && collapsed) onToggle();
+    else setInternalCollapsed(false);
     setEditing(true);
   };
 
@@ -126,7 +134,7 @@ const GoalCard: React.FC<GoalCardProps> = ({ title, goal, events, editableRange,
           )}
           <button
             type="button"
-            onClick={() => setCollapsed((value) => !value)}
+            onClick={toggleCollapsed}
             title={collapsed ? "Extinde" : "Restrânge"}
             className="text-neutral-600 hover:text-neutral-300 transition-colors"
           >
