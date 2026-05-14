@@ -14,4 +14,5 @@ export interface Album {
   shortvideo?: string | null;
   longvideo?: string | null;
   retention?: AlbumRetention | null;
+  zipReady?: boolean;
 }

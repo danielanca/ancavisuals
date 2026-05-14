@@ -1,5 +1,6 @@
 import { signBunnyUrl } from "../utils/signBunnyUrl";
-import { listFiles,checkPreviewExist} from "./bunny.service";
+import { listFiles, checkPreviewExist, checkFileExists } from "./bunny.service";
+import { BUNNY_DEFAULT_ARCHIVE_NAME } from "../constants/bunny";
 import type { Album } from "./../../client/pages/MediaDownload/AlbumTypes";
 
 type BunnyObject = {
@@ -40,7 +41,10 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     }
   };
 
-  const hasPreview = await checkPreviewExist(slug);
+  const [hasPreview, zipReady] = await Promise.all([
+    checkPreviewExist(slug),
+    checkFileExists(slug, BUNNY_DEFAULT_ARCHIVE_NAME),
+  ]);
 
   const photos = hasPreview ? await loadSection("photos_preview") : await loadSection("photos");
   const originalPhoto = await loadSection("photos");
@@ -53,5 +57,6 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     originalPhoto,
     shortvideo: await loadVideoSection("shortvideo"),
     longvideo: await loadVideoSection("longvideo"),
+    zipReady,
   };
 }

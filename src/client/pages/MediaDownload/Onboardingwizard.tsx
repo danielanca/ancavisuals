@@ -10,6 +10,12 @@ type Step = {
 
 const STEPS: Step[] = [
   {
+    targetSelector: '[data-onboarding="pager"]',
+    title: '📄 Pagina următoare',
+    description: 'Pozele sunt împărțite pe pagini. Apasă pe săgeata dreaptă sau pe numărul paginii pentru a merge mai departe.',
+    position: 'bottom',
+  },
+  {
     targetSelector: '[data-onboarding="photo"]',
     title: '👆 Apasă pe o poză',
     description: 'Apasă pe orice poză ca să o vezi mărită. Poți naviga între ele cu săgețile sau swipe stânga/dreapta.',
@@ -17,21 +23,15 @@ const STEPS: Step[] = [
   },
   {
     targetSelector: '[data-onboarding="print-btn"]',
-    title: '🖨️ Adaugă la imprimare',
-    description: 'Când ești în vizualizarea unei poze, apasă butonul verde pentru a o adăuga la lista de imprimare. Apasă din nou pentru a o elimina.',
+    title: '🖨️ Selectează pozele pentru imprimare',
+    description: 'Apasă acest buton pentru a intra în modul de selectare. Bifează pozele pe care vrei să le imprimi, apoi salvează selecția.',
     position: 'top',
   },
   {
     targetSelector: '[data-onboarding="download-btn"]',
-    title: '⬇️ Descarcă pozele',
-    description: 'Poți selecta pozele dorite și le descarci ca arhivă ZIP, sau descarci toate pozele dintr-o dată.',
+    title: '⬇️ Descarcă toate pozele',
+    description: 'Apasă acest buton pentru a descărca toate pozele tale ca arhivă ZIP, la calitate completă.',
     position: 'bottom',
-  },
-  {
-    targetSelector: '[data-onboarding="pager"]',
-    title: '📄 Navigare pagini',
-    description: 'Pozele sunt împărțite pe pagini. Folosește butoanele de navigare pentru a trece la pagina următoare sau anterioară.',
-    position: 'top',
   },
 ];
 
@@ -45,7 +45,12 @@ const STORAGE_KEY = 'av:onboarding:done';
 const TOOLTIP_WIDTH = 300;
 const TOOLTIP_OFFSET = 16;
 
-export default function OnboardingWizard() {
+type Props = {
+  forceShow?: boolean;
+  onClose?: () => void;
+};
+
+export default function OnboardingWizard({ forceShow, onClose }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
   const [visible, setVisible] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
@@ -56,7 +61,7 @@ export default function OnboardingWizard() {
     const rect = targetElement.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const tooltipHeight = 140;
+    const tooltipHeight = 160;
 
     let top = 0;
     let left = 0;
@@ -96,6 +101,7 @@ export default function OnboardingWizard() {
     if (stepIndex >= STEPS.length) {
       setVisible(false);
       localStorage.setItem(STORAGE_KEY, '1');
+      onClose?.();
       return;
     }
 
@@ -115,19 +121,25 @@ export default function OnboardingWizard() {
       setTooltipPosition(computePosition(targetElement, step.position));
       setCurrentStep(stepIndex);
     }, 400);
-  }, [computePosition]);
+  }, [computePosition, onClose]);
+
+  const startWizard = useCallback(() => {
+    setVisible(true);
+    goToStep(0);
+  }, [goToStep]);
 
   useEffect(() => {
     const alreadySeen = localStorage.getItem(STORAGE_KEY);
     if (alreadySeen) return;
 
-    const timer = setTimeout(() => {
-      setVisible(true);
-      goToStep(0);
-    }, 800);
-
+    const timer = setTimeout(startWizard, 800);
     return () => clearTimeout(timer);
-  }, [goToStep]);
+  }, [startWizard]);
+
+  useEffect(() => {
+    if (!forceShow) return;
+    startWizard();
+  }, [forceShow, startWizard]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -147,6 +159,7 @@ export default function OnboardingWizard() {
   const handleSkip = () => {
     setVisible(false);
     localStorage.setItem(STORAGE_KEY, '1');
+    onClose?.();
   };
 
   if (!visible || !tooltipPosition || !highlightRect) return null;
@@ -195,7 +208,7 @@ export default function OnboardingWizard() {
               </button>
             )}
             <button className={styles.btnPrimary} onClick={() => goToStep(currentStep + 1)}>
-              {currentStep === STEPS.length - 1 ? 'Gata!' : 'Următorul'}
+              {currentStep === STEPS.length - 1 ? 'Gata!' : 'Următorul →'}
             </button>
           </div>
         </div>

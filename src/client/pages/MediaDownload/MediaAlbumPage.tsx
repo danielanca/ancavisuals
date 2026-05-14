@@ -276,6 +276,9 @@ export default function MediaAlbumPage() {
 
   const [subscribeEmail, setSubscribeEmail] = useState("");
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [showSaveWarning, setShowSaveWarning] = useState(false);
+  const saveWarningTimerRef = useRef<number | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const photosTopRef = useRef<HTMLDivElement | null>(null);
   const shareBoxRef = useRef<HTMLDivElement | null>(null);
@@ -857,6 +860,12 @@ export default function MediaAlbumPage() {
     }
   };
 
+  const showImageSaveWarning = () => {
+    setShowSaveWarning(true);
+    if (saveWarningTimerRef.current) window.clearTimeout(saveWarningTimerRef.current);
+    saveWarningTimerRef.current = window.setTimeout(() => setShowSaveWarning(false), 5000);
+  };
+
   const toggleModerationPhoto = (src: string) => {
     const filename = fileNameFromUrl(src);
     setSelectedModeration((previous) => {
@@ -902,6 +911,27 @@ export default function MediaAlbumPage() {
 
   return (
     <>
+    {showSaveWarning && (
+      <div
+        onClick={() => setShowSaveWarning(false)}
+        style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(0,0,0,0.92)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "32px", textAlign: "center", cursor: "pointer",
+        }}
+      >
+        <div style={{ fontSize: "48px", marginBottom: "20px" }}>📷</div>
+        <p style={{ color: "#fff", fontSize: "22px", fontWeight: 700, margin: "0 0 16px", lineHeight: 1.4, maxWidth: "480px" }}>
+          Pozele afișate sunt de calitate mai slabă
+        </p>
+        <p style={{ color: "#aaa", fontSize: "15px", margin: "0 0 24px", maxWidth: "440px", lineHeight: 1.6 }}>
+          Acestea sunt versiuni optimizate pentru browser, nu originalele.
+          Dacă dorești să descarci pozele la calitate completă, folosește butonul de descărcare de mai sus.
+        </p>
+        <span style={{ color: "#666", fontSize: "13px" }}>Atinge oriunde pentru a închide</span>
+      </div>
+    )}
     <div className={styles.page}>
       <div className={styles.container}>
 
@@ -914,7 +944,7 @@ export default function MediaAlbumPage() {
           />
         )}
 
-        <OnboardingWizard />
+        <OnboardingWizard forceShow={showOnboarding} onClose={() => setShowOnboarding(false)} />
 
 
         {lightboxIndex !== null && album?.photos && (
@@ -956,6 +986,18 @@ export default function MediaAlbumPage() {
               onClick={() => { window.location.href = `/login?redirect=/media/${slug}`; }}
             >
               🔑 Acces administrare
+            </button>
+          </div>
+        )}
+
+        {!isAdmin && !isModerationMode && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+            <button
+              type="button"
+              onClick={() => { localStorage.removeItem('av:onboarding:done'); setShowOnboarding(true); }}
+              style={{ padding: "5px 14px", background: "transparent", border: "1px solid #333", borderRadius: "999px", color: "#666", fontSize: "12px", cursor: "pointer", letterSpacing: "0.05em" }}
+            >
+              ? AJUTOR
             </button>
           </div>
         )}
@@ -1058,7 +1100,7 @@ export default function MediaAlbumPage() {
         {album.featured?.length > 0 && (
           <>
             <h2 className={styles.sectionTitle}>Selectate</h2>
-            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" />
+            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" protectImages onProtectedContextMenu={showImageSaveWarning} />
           </>
         )}
 
@@ -1243,7 +1285,7 @@ export default function MediaAlbumPage() {
               {mode === "none" ? (
                 <div className={styles.rowActions}>
                   {totalPhotos > 0 && !isModerationMode && (
-                    <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
+                    <button className={styles.pickBtn} type="button" onClick={openPrintMode} data-onboarding="print-btn">
                       Modifică selecția pentru imprimare
                     </button>
                   )}
@@ -1253,9 +1295,15 @@ export default function MediaAlbumPage() {
                     </button>
                   )}
                   {!isModerationMode && (
-                    <button className={styles.pickBtnSecondary} type="button" onClick={downloadAllPhotos} data-onboarding="download-btn">
-                      {"DESCARCĂ TOATE POZELE" + (stats ? ` (${fmtBytes(stats.photosBytesTotal)})` : "")}
-                    </button>
+                    album.zipReady ? (
+                      <button className={styles.pickBtnSecondary} type="button" onClick={downloadAllPhotos} data-onboarding="download-btn">
+                        {"DESCARCĂ TOATE POZELE" + (stats ? ` (${fmtBytes(stats.photosBytesTotal)})` : "")}
+                      </button>
+                    ) : (
+                      <span data-onboarding="download-btn" style={{ fontSize: "13px", color: "#666", padding: "6px 0", display: "inline-block" }}>
+                        Descărcarea tuturor pozelor nu este disponibilă momentan
+                      </span>
+                    )
                   )}
                 </div>
               ) : (
@@ -1325,6 +1373,8 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={toggleIgPhoto}
                   mobileColumns={mobileColumns}
+                  protectImages
+                  onProtectedContextMenu={showImageSaveWarning}
                 />
               ) : isModerationMode && mode === "none" ? (
                 <BunnyPhotoGallery
@@ -1337,6 +1387,8 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={toggleModerationPhoto}
                   mobileColumns={mobileColumns}
+                  protectImages
+                  onProtectedContextMenu={showImageSaveWarning}
                 />
               ) : isAdmin && mode === "none" ? (
                 <div className={styles.adminGalleryGrid} data-columns={mobileColumns}>
@@ -1378,9 +1430,29 @@ export default function MediaAlbumPage() {
                   onToggle={togglePhoto}
                   onPhotoClick={mode === "none" ? openLightbox : undefined}
                   mobileColumns={mobileColumns}
+                  protectImages
+                  onProtectedContextMenu={showImageSaveWarning}
                 />
               )}
             </div>
+
+            <AlbumPager
+              mode={mode}
+              currentPage={safePage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={totalPhotos}
+              shownCount={galleryPhotos.length}
+              allOnPageSelected={allOnPageSelected}
+              onFirst={() => setPage(() => 1)}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+              onLast={() => setPage(() => totalPages)}
+              onGoTo={(p) => setPage(() => p)}
+              onToggleSelectPage={toggleSelectPage}
+              mobileColumns={mobileColumns}
+              onMobileColumnsChange={setMobileColumns}
+            />
           </>
         )}
 
