@@ -136,6 +136,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 
 #MEDIA  Pagina:     src/client/pages/MediaDownload/MediaAlbumPage.tsx
 #MEDIA  Onboarding: src/client/pages/MediaDownload/Onboardingwizard.tsx  ← casing exact
+#MEDIA  Galerie album: grid-ul browse rămâne pe `photos_preview`/WebP pentru performanță, dar lightbox-ul cu navigare stânga/dreapta trebuie să folosească `originalPhoto`; mapează preview→original după basename, nu după extensie, fiindcă preview-ul poate fi `.webp` iar originalul `.jpg/.jpeg/.png` #MEDIA
 
 ---
 
