@@ -169,6 +169,54 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+let activeInfoBadgeId: string | null = null;
+
+function InfoBadge({ title, description }: { title: string; description: string }) {
+  const detailsRef = React.useRef<HTMLDetailsElement>(null);
+  const badgeId = React.useId();
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const details = detailsRef.current;
+      if (!details?.open) return;
+      if (details.contains(event.target as Node)) return;
+      details.open = false;
+      if (activeInfoBadgeId === badgeId) activeInfoBadgeId = null;
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [badgeId]);
+
+  const handleToggle = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+    const details = event.currentTarget;
+    if (details.open) {
+      if (activeInfoBadgeId && activeInfoBadgeId !== badgeId) {
+        const previous = document.getElementById(activeInfoBadgeId) as HTMLDetailsElement | null;
+        if (previous) previous.open = false;
+      }
+      activeInfoBadgeId = badgeId;
+    } else if (activeInfoBadgeId === badgeId) {
+      activeInfoBadgeId = null;
+    }
+  };
+
+  return (
+    <details id={badgeId} ref={detailsRef} onToggle={handleToggle} className="group relative inline-block">
+      <summary
+        className="flex h-4 w-4 cursor-pointer list-none items-center justify-center rounded-full border border-neutral-700 text-[10px] font-semibold text-neutral-400 transition-colors hover:border-neutral-500 hover:text-white"
+        aria-label={`${title}: ${description}`}
+      >
+        i
+      </summary>
+      <div className="absolute left-0 top-6 z-20 w-64 rounded-lg border border-neutral-700 bg-neutral-950 p-3 text-xs text-neutral-200 shadow-2xl">
+        <div className="mb-1 font-medium text-white">{title}</div>
+        <div className="leading-relaxed text-neutral-300">{description}</div>
+      </div>
+    </details>
+  );
+}
+
 function categoryLabel(value: string): string {
   return EXPENSE_CATEGORIES.find((c) => c.value === value)?.label ?? value;
 }
@@ -559,9 +607,22 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
   const [clientCIF, setClientCIF] = React.useState("");
   const [items, setItems] = React.useState<InvoiceItem[]>([{ description: "Servicii fotografiere", quantity: 1, unitPrice: 0, total: 0 }]);
   const [currency, setCurrency] = React.useState("RON");
+  const [exchangeRate, setExchangeRate] = React.useState(5);
   const [notes, setNotes] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/admin/settings", {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    })
+      .then((r) => r.json())
+      .then((data: { exchangeRate?: unknown }) => {
+        const nextRate = Number(data.exchangeRate);
+        if (Number.isFinite(nextRate) && nextRate > 0) setExchangeRate(nextRate);
+      })
+      .catch(() => {});
+  }, [accessToken]);
 
   function prefillFromEvent(eventId: string) {
     setSelectedEventId(eventId);
@@ -601,6 +662,24 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
 
   function removeItem(index: number) {
     setItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function convertInvoiceCurrency(targetCurrency: "RON" | "EUR") {
+    if (currency === targetCurrency) return;
+    const rate = exchangeRate > 0 ? exchangeRate : 5;
+    const multiplier = targetCurrency === "RON" ? rate : 1 / rate;
+
+    setItems((prev) =>
+      prev.map((item) => {
+        const unitPrice = Math.round(item.unitPrice * multiplier * 100) / 100;
+        return {
+          ...item,
+          unitPrice,
+          total: Math.round(item.quantity * unitPrice * 100) / 100,
+        };
+      }),
+    );
+    setCurrency(targetCurrency);
   }
 
   const totalAmount = useMemo(() => Math.round(items.reduce((sum, item) => sum + item.total, 0) * 100) / 100, [items]);
@@ -747,13 +826,31 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
               <p className="text-xs text-neutral-500 pl-1">Cant. · Preț unit · Total</p>
             </div>
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-neutral-800">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-neutral-400">Monedă:</span>
                 <select value={currency} onChange={(e) => setCurrency(e.target.value)}
                   className="bg-neutral-800 border border-neutral-700 text-white text-xs rounded-lg px-2 py-1 focus:outline-none">
                   <option value="RON">RON</option>
                   <option value="EUR">EUR</option>
                 </select>
+                {currency === "EUR" ? (
+                  <button
+                    type="button"
+                    onClick={() => convertInvoiceCurrency("RON")}
+                    className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300"
+                  >
+                    Convertește în RON
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => convertInvoiceCurrency("EUR")}
+                    className="rounded-lg border border-neutral-700 px-2.5 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-500 hover:text-white"
+                  >
+                    Convertește în EUR
+                  </button>
+                )}
+                <span className="text-[11px] text-neutral-500">Curs: 1 EUR = {fmtCurrency(exchangeRate, "RON")}</span>
               </div>
               <span className="text-white font-semibold">Total: {fmtCurrency(totalAmount, currency)}</span>
             </div>
@@ -868,7 +965,14 @@ const FinancialPage: React.FC = () => {
       monthlyMap[month].deductible += exp.deductibleAmount;
     });
 
-    return { totalIncome, totalExpenses, totalDeductible, netBalance, taxableBase, monthlyMap };
+    return {
+      totalIncome,
+      totalExpenses,
+      totalDeductible,
+      netBalance,
+      taxableBase,
+      monthlyMap,
+    };
   }, [state.invoices, state.expenses]);
 
   async function handleDeleteExpense(id: string) {
@@ -941,11 +1045,42 @@ const FinancialPage: React.FC = () => {
                 { label: "Sold", value: overview.netBalance, color: overview.netBalance >= 0 ? "text-emerald-400" : "text-red-400", desc: "incasări − cheltuieli" },
               ].map(({ label, value, color, desc }) => (
                 <div key={label} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-                  <p className="text-xs text-neutral-500 mb-1">{label}</p>
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <p className="text-xs text-neutral-500">{label}</p>
+                    <InfoBadge
+                      title={label}
+                      description={
+                        label === "Incasări"
+                          ? "Totalul din facturile emise. Nu include extrasele de cont."
+                          : label === "Cheltuieli"
+                            ? "Totalul din cheltuielile înregistrate manual. Nu include direct tranzacțiile din extrase."
+                            : label === "Deductibil"
+                              ? "Partea deductibilă calculată doar din cheltuielile înregistrate."
+                              : "Diferența dintre facturile emise și cheltuielile înregistrate."
+                      }
+                    />
+                  </div>
                   <p className={`text-lg font-semibold ${color}`}>{fmtCurrency(value, "RON")}</p>
                   <p className="text-xs text-neutral-600 mt-0.5">{desc}</p>
                 </div>
               ))}
+            </div>
+
+            <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-sky-100">Extrasele de cont au pagină separată.</p>
+                  <p className="text-xs text-sky-100/80">
+                    Le poți gestiona separat de contabilitatea introdusă manual, fără să se amestece cu overview-ul de aici.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate("/admin/bank-statements")}
+                  className="rounded-lg border border-sky-400/40 px-3 py-2 text-xs font-medium text-sky-100 transition-colors hover:border-sky-300 hover:bg-sky-400/10"
+                >
+                  Deschide extrasele
+                </button>
+              </div>
             </div>
 
             {overview.taxableBase > 0 && (

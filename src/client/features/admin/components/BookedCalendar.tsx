@@ -135,8 +135,16 @@ export default function BookedCalendar() {
         <Breadcrumb />
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
+            <button
+              type="button"
+              onClick={() => navigate("/admin")}
+              className="mb-3 inline-flex items-center gap-2 rounded-lg border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400 transition-colors hover:border-neutral-600 hover:text-white"
+            >
+              <span aria-hidden="true">←</span>
+              <span>Înapoi la Dashboard</span>
+            </button>
             <h1 className="text-white text-lg font-semibold tracking-tight">Calendar rezervări</h1>
             <p className="text-neutral-500 text-xs mt-0.5">Zilele marcate cu roșu sunt deja rezervate</p>
           </div>

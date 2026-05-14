@@ -53,8 +53,8 @@ export const App = () => {
               {publicRoutes.map((route) => (
                 <Route key={route.path} path={route.path} element={<route.component />} />
               ))}
-              {...adminRoutes()}
-              {...weddingHubRoutes()}
+              {adminRoutes}
+              {weddingHubRoutes}
             </Routes>
           </Suspense>
       </AuthProvider>

@@ -20,6 +20,7 @@ const LABELS: Record<string, string> = {
   moderare: "Moderare",
   "route-sheets": "Foi de parcurs",
   financial: "Financiar",
+  "bank-statements": "Extrase cont",
   landing: "Landing Page",
   goals: "Obiective",
   analytics: "Analytics",
