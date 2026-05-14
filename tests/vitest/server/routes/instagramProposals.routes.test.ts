@@ -24,7 +24,11 @@ async function loadInstagramProposalsRouter() {
   const getMock = vi.fn();
   const updateMock = vi.fn().mockResolvedValue(undefined);
   const deleteMock = vi.fn().mockResolvedValue(undefined);
-  const docMock = vi.fn(() => ({ update: updateMock, delete: deleteMock }));
+  const docGetMock = vi.fn().mockResolvedValue({
+    exists: true,
+    data: () => ({ destinations: ["instagram"], mediaAssetServiceIds: [] }),
+  });
+  const docMock = vi.fn(() => ({ update: updateMock, delete: deleteMock, get: docGetMock }));
 
   const whereMock = vi.fn();
 
@@ -80,6 +84,7 @@ async function loadInstagramProposalsRouter() {
     updateMock,
     deleteMock,
     docMock,
+    docGetMock,
     whereMock,
     postProposal: getHandler("post", "/"),
     getByAlbum: getHandler("get", "/album/:slug"),
@@ -128,7 +133,14 @@ describe("instagramProposals.routes", () => {
       const { postProposal, addMock, getMock } = await loadInstagramProposalsRouter();
       const res = createMockResponse();
 
-      getMock.mockResolvedValue({ empty: false, docs: [{ id: "prop-existing" }] });
+      getMock.mockResolvedValue({
+        empty: false,
+        docs: [{
+          id: "prop-existing",
+          data: () => ({ destinations: ["instagram"], mediaAssetServiceIds: [] }),
+          ref: { update: vi.fn().mockResolvedValue(undefined) },
+        }],
+      });
 
       await postProposal(
         {
@@ -140,7 +152,13 @@ describe("instagramProposals.routes", () => {
       );
 
       expect(addMock).not.toHaveBeenCalled();
-      expect(res.json).toHaveBeenCalledWith({ ok: true, id: "prop-existing", alreadyProposed: true });
+      expect(res.json).toHaveBeenCalledWith({
+        ok: true,
+        id: "prop-existing",
+        alreadyProposed: true,
+        destinations: ["instagram"],
+        mediaAssetServiceIds: [],
+      });
     });
 
     test("rejects payload missing required fields", async () => {
