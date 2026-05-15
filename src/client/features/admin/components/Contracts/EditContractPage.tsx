@@ -44,6 +44,39 @@ const EVENT_TYPES = [
 const CURRENCIES = ["RON", "EUR"];
 const PAYMENT_METHODS = ["Transfer bancar", "Cash", "Card", "Revolut"];
 
+function parseDecimal(raw: string): number {
+  const num = parseFloat(raw.replace(/\s/g, "").replace(",", "."));
+  return isNaN(num) ? 0 : num;
+}
+
+function formatDecimal(value: number): string {
+  return value === 0 ? "" : String(value).replace(".", ",");
+}
+
+function DecimalInput({
+  value, onChange, step = 0.05, className, placeholder,
+}: { value: number; onChange: (v: number) => void; step?: number; className?: string; placeholder?: string }) {
+  const [raw, setRaw] = React.useState(formatDecimal(value));
+  React.useEffect(() => {
+    if (parseDecimal(raw) !== value) setRaw(formatDecimal(value));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <input type="text" inputMode="decimal" value={raw} placeholder={placeholder}
+      onChange={(e) => { setRaw(e.target.value); onChange(parseDecimal(e.target.value)); }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          const next = Math.max(0, Math.round((value + (e.key === "ArrowUp" ? step : -step)) * 10000) / 10000);
+          onChange(next); setRaw(formatDecimal(next));
+        }
+      }}
+      onBlur={() => { const n = parseDecimal(raw); setRaw(n === 0 ? "" : formatDecimal(n)); onChange(n); }}
+      className={className}
+    />
+  );
+}
+
 function parsePrice(raw: string): number | "gratuit" | "missing" {
   const trimmed = raw.trim().toUpperCase();
   if (trimmed === "GRATUIT") return "gratuit";
@@ -366,7 +399,7 @@ const EditContractPage: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-neutral-500">1 EUR =</span>
-                <input type="number" min="1" step="0.01" value={eurRate}
+                <input type="number" min="1" step="0.05" value={eurRate}
                   onChange={(e) => setEurRate(parseFloat(e.target.value) || 5)}
                   className="w-20 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-100 text-center focus:outline-none focus:border-emerald-500/50" />
                 <span className="text-xs text-neutral-500">RON</span>
@@ -462,7 +495,7 @@ const EditContractPage: React.FC = () => {
                 </label>
               </div>
               {manualTotal ? (
-                <input type="number" min="0" value={priceTotal || ""} onChange={(e) => setPriceTotal(Number(e.target.value))} className={inp} />
+                <DecimalInput value={priceTotal} onChange={setPriceTotal} step={50} className={inp} placeholder="0" />
               ) : (
                 <div className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-neutral-100 flex items-center justify-between">
                   <span>{autoTotal} {currency}</span>
@@ -474,7 +507,7 @@ const EditContractPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Avans ({currency})</Label>
-                <input type="number" min="0" value={priceAdvance || ""} onChange={(e) => setPriceAdvance(Number(e.target.value))} className={inp} />
+                <DecimalInput value={priceAdvance} onChange={setPriceAdvance} step={50} className={inp} placeholder="0" />
               </div>
               <div>
                 <Label>Scadență avans</Label>

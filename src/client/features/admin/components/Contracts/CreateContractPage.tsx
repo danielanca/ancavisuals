@@ -61,6 +61,74 @@ const SERVICE_TEMPLATES: Record<string, string[]> = {
 };
 const CURRENCIES = ["RON", "EUR"];
 const PAYMENT_METHODS = ["Transfer bancar", "Cash", "Card", "Revolut"];
+const DRAFT_KEY = "contract-create-draft";
+
+function parseDecimal(raw: string): number {
+  const normalized = raw.replace(/\s/g, "").replace(",", ".");
+  const num = parseFloat(normalized);
+  return isNaN(num) ? 0 : num;
+}
+
+function formatDecimal(value: number): string {
+  if (value === 0) return "";
+  return String(value).replace(".", ",");
+}
+
+function DecimalInput({
+  value,
+  onChange,
+  step = 0.05,
+  className,
+  placeholder,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  step?: number;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [raw, setRaw] = React.useState(formatDecimal(value));
+
+  React.useEffect(() => {
+    if (parseDecimal(raw) !== value) setRaw(formatDecimal(value));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const text = e.target.value;
+    setRaw(text);
+    onChange(parseDecimal(text));
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const delta = e.key === "ArrowUp" ? step : -step;
+      const next = Math.max(0, Math.round((value + delta) * 10000) / 10000);
+      onChange(next);
+      setRaw(formatDecimal(next));
+    }
+  }
+
+  function handleBlur() {
+    const num = parseDecimal(raw);
+    setRaw(num === 0 ? "" : formatDecimal(num));
+    onChange(num);
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={raw}
+      placeholder={placeholder}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
+      className={className}
+    />
+  );
+}
 
 // Parses the value of a price field
 function parsePrice(raw: string): number | "gratuit" | "missing" {
@@ -142,6 +210,64 @@ const CreateContractPage: React.FC = () => {
   const autoTotal = selectedServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) + customTotal;
   const effectiveTotal = manualTotal ? priceTotal : autoTotal;
   const priceRest = Math.max(0, effectiveTotal - (priceAdvance || 0));
+
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // Restore draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.eventType !== undefined) setEventType(draft.eventType);
+      if (draft.eventDate !== undefined) setEventDate(draft.eventDate);
+      if (draft.eventLocation !== undefined) setEventLocation(draft.eventLocation);
+      if (draft.eventStartTime !== undefined) setEventStartTime(draft.eventStartTime);
+      if (draft.eventEndTime !== undefined) setEventEndTime(draft.eventEndTime);
+      if (draft.eventDetails !== undefined) setEventDetails(draft.eventDetails);
+      if (draft.services !== undefined) setServices(draft.services);
+      if (draft.customServices !== undefined) setCustomServices(draft.customServices);
+      if (draft.currency !== undefined) setCurrency(draft.currency);
+      if (draft.manualTotal !== undefined) setManualTotal(draft.manualTotal);
+      if (draft.priceTotal !== undefined) setPriceTotal(draft.priceTotal);
+      if (draft.priceAdvance !== undefined) setPriceAdvance(draft.priceAdvance);
+      if (draft.advancePaidAt !== undefined) setAdvancePaidAt(draft.advancePaidAt);
+      if (draft.restPaidAt !== undefined) setRestPaidAt(draft.restPaidAt);
+      if (draft.paymentMethod !== undefined) setPaymentMethod(draft.paymentMethod);
+      if (draft.transportKm !== undefined) setTransportKm(draft.transportKm);
+      if (draft.transportFuelPrice !== undefined) setTransportFuelPrice(draft.transportFuelPrice);
+      if (draft.clientEmail !== undefined) setClientEmail(draft.clientEmail);
+      if (draft.clientName !== undefined) setClientName(draft.clientName);
+      if (draft.clientPhone !== undefined) setClientPhone(draft.clientPhone);
+      if (draft.clientAddress !== undefined) setClientAddress(draft.clientAddress);
+      if (draft.clientIdSeries !== undefined) setClientIdSeries(draft.clientIdSeries);
+      if (draft.privateClient !== undefined) setPrivateClient(draft.privateClient);
+      setDraftRestored(true);
+    } catch { /* ignore corrupt draft */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save draft to localStorage
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
+          services, customServices,
+          currency, manualTotal, priceTotal, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
+          transportKm, transportFuelPrice,
+          clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
+        }));
+      } catch { /* quota exceeded, ignore */ }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [
+    eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
+    services, customServices,
+    currency, manualTotal, priceTotal, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
+    transportKm, transportFuelPrice,
+    clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
+  ]);
 
   // Fetch live EUR/RON rate from Frankfurter (ECB data) on mount
   useEffect(() => {
@@ -275,7 +401,7 @@ const CreateContractPage: React.FC = () => {
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error ?? "Eroare la creare");
-      // If coming from an event, navigate back to admin so events can reload
+      localStorage.removeItem(DRAFT_KEY);
       navigate(fromEvent.eventId ? "/admin" : "/admin/contracts");
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Eroare necunoscută");
@@ -289,6 +415,14 @@ const CreateContractPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-2xl mx-auto">
+
+        {draftRestored && (
+          <div className="mb-4 flex items-center justify-between gap-3 bg-sky-500/10 border border-sky-500/30 rounded-xl px-4 py-2.5">
+            <p className="text-sky-300 text-sm">Draft recuperat — continuă de unde ai rămas.</p>
+            <button onClick={() => { localStorage.removeItem(DRAFT_KEY); window.location.reload(); }}
+              className="text-xs text-sky-400/60 hover:text-sky-300 shrink-0">Șterge draft</button>
+          </div>
+        )}
 
         <div className="flex items-center gap-3 mb-8">
           <button type="button" onClick={() => navigate("/admin/contracts")}
@@ -387,7 +521,7 @@ const CreateContractPage: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  step="0.0001"
+                  step="0.05"
                   value={eurRate}
                   onChange={(e) => { setEurRate(parseFloat(e.target.value) || 5); setEurRateDate(null); }}
                   className="w-24 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-100 text-center focus:outline-none focus:border-emerald-500/50"
@@ -537,7 +671,7 @@ const CreateContractPage: React.FC = () => {
                 </label>
               </div>
               {manualTotal ? (
-                <input type="number" min="0" value={priceTotal || ""} onChange={(e) => setPriceTotal(Number(e.target.value))} className={inp} />
+                <DecimalInput value={priceTotal} onChange={setPriceTotal} step={50} className={inp} placeholder="0" />
               ) : (
                 <div className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-neutral-100 flex items-center justify-between">
                   <span>{autoTotal} {currency}</span>
@@ -551,7 +685,7 @@ const CreateContractPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Avans ({currency})</Label>
-                <input type="number" min="0" value={priceAdvance || ""} onChange={(e) => setPriceAdvance(Number(e.target.value))} className={inp} />
+                <DecimalInput value={priceAdvance} onChange={setPriceAdvance} step={50} className={inp} placeholder="0" />
               </div>
               <div>
                 <Label>Scadență avans</Label>

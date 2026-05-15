@@ -51,7 +51,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     await sendEmail({
       to: adminUser.email,
-      subject: `👁 Vizitator nou — ${triggerData.typeEvent} — ${todayString}`,
+      subject: `👁 Vizitator nou — ${triggerData.typeEvent ?? "Vizitator"} — ${todayString}`,
       html: emailHtml,
     });
 

@@ -171,6 +171,7 @@ export default function BookingWizard() {
         const subject = `Lead rapid – ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
 
         const payload = {
+          typeEvent: "Lead Rapid",
           to: BOOKING_TO,
           subject,
           html: `
@@ -301,6 +302,7 @@ export default function BookingWizard() {
       });
 
       const payload = {
+        typeEvent: `Rezervare ${eventType.toUpperCase()}`,
         to: BOOKING_TO,
         subject,
         html, // HTML complet, nu "..."

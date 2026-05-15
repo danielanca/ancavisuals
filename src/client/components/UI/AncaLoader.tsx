@@ -30,7 +30,7 @@ export default function AncaLoader({ variant = "full", subtitle }: Props) {
   const dotSize    = isFull ? "6px" : "4px";
 
   const inner = (
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: "center", fontFamily: "Arial, Helvetica, sans-serif" }}>
       <style>{STYLES}</style>
       <div className="anca-loader-wrap">
         <div className="anca-loader-title" style={{ fontSize: titleSize }}>
