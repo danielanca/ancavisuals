@@ -1,5 +1,3 @@
-import pricesData from "../pricing/prices.json";
-
 export type OfferServiceDefinition = {
   id: string;
   label: string;
@@ -26,8 +24,6 @@ export type OfferTemplateAsset = {
   assetId: string;
   order: number;
 };
-
-void pricesData;
 
 function formatPrice(id: string): string {
   if (id === "qrmoments") return "Inclus gratuit";
