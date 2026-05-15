@@ -1,4 +1,4 @@
-import pricesData from "../pricing/prices.json";
+import pricesData from "../pricing/prices.json" assert { type: "json" };
 
 export type OfferServiceDefinition = {
   id: string;

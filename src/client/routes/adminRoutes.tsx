@@ -3,6 +3,7 @@ import { Route } from "react-router-dom";
 import loadable from "@loadable/component";
 import AncaLoader from "../components/UI/AncaLoader";
 import RequireAuth from "../features/admin/components/RequireAuth";
+import AdminLayout from "../features/admin/components/AdminLayout";
 import CheckAuth from "../features/admin/components/CheckAuth";
 import WeddingHubAuthWrapper from "../features/wedding-hub/WeddingHubAuthWrapper";
 
@@ -41,36 +42,38 @@ const MediaAssetsAdminPage = loadable(() => import("../features/admin/components
 
 export const adminRoutes = [
   <Route key="protected" element={<RequireAuth />}>
-    <Route path="/admin" element={<Dashboard />} />
-    <Route path="/admin/calendar" element={<BookedCalendar />} />
-    <Route path="/admin/create-event" element={<AdminBook />} />
-    <Route path="/admin/create-event-wedding" element={<CreateEventWedding />} />
-    <Route path="/admin/contracts" element={<ContractListPage />} />
-    <Route path="/admin/contracts/create" element={<CreateContractPage />} />
-    <Route path="/admin/contracts/:id/edit" element={<EditContractPage />} />
-    <Route path="/admin/inspiration" element={<InspirationPage />} />
-    <Route path="/admin/mementos" element={<MementosPage />} />
-    <Route path="/admin/media-activity" element={<MediaActivityPage />} />
-    <Route path="/admin/qr-moments" element={<QRMomentsAdminPage />} />
-    <Route path="/admin/analytics" element={<AnalyticsPage />} />
-    <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
-    <Route path="/admin/bank-details" element={<BankDetailsPage />} />
-    <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
-    <Route path="/admin/moderare" element={<ModerationReviewPage />} />
-    <Route path="/admin/route-sheets" element={<RouteSheetsPage />} />
-    <Route path="/admin/errors" element={<ErrorsPage />} />
-    <Route path="/admin/financial" element={<FinancialPage />} />
-    <Route path="/admin/bank-statements" element={<BankStatementsPage />} />
-    <Route path="/admin/landing" element={<LandingAdminPage />} />
-    <Route path="/colaborator" element={<CollaboratorPage />} />
-    <Route path="/admin/accounts" element={<AccountsPage />} />
-    <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
-    <Route path="/admin/oferte" element={<OferteAdminPage />} />
-    <Route path="/admin/media-assets" element={<MediaAssetsAdminPage />} />
-    <Route path="/admin/template-oferte" element={<OfferTemplateAdminPage />} />
-    <Route path="/admin/template-oferte/:serviceId" element={<OfferTemplateOrganizerPage />} />
-    <Route element={<WeddingHubAuthWrapper />}>
-      <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
+    <Route element={<AdminLayout />}>
+      <Route path="/admin" element={<Dashboard />} />
+      <Route path="/admin/calendar" element={<BookedCalendar />} />
+      <Route path="/admin/create-event" element={<AdminBook />} />
+      <Route path="/admin/create-event-wedding" element={<CreateEventWedding />} />
+      <Route path="/admin/contracts" element={<ContractListPage />} />
+      <Route path="/admin/contracts/create" element={<CreateContractPage />} />
+      <Route path="/admin/contracts/:id/edit" element={<EditContractPage />} />
+      <Route path="/admin/inspiration" element={<InspirationPage />} />
+      <Route path="/admin/mementos" element={<MementosPage />} />
+      <Route path="/admin/media-activity" element={<MediaActivityPage />} />
+      <Route path="/admin/qr-moments" element={<QRMomentsAdminPage />} />
+      <Route path="/admin/analytics" element={<AnalyticsPage />} />
+      <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
+      <Route path="/admin/bank-details" element={<BankDetailsPage />} />
+      <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
+      <Route path="/admin/moderare" element={<ModerationReviewPage />} />
+      <Route path="/admin/route-sheets" element={<RouteSheetsPage />} />
+      <Route path="/admin/errors" element={<ErrorsPage />} />
+      <Route path="/admin/financial" element={<FinancialPage />} />
+      <Route path="/admin/bank-statements" element={<BankStatementsPage />} />
+      <Route path="/admin/landing" element={<LandingAdminPage />} />
+      <Route path="/colaborator" element={<CollaboratorPage />} />
+      <Route path="/admin/accounts" element={<AccountsPage />} />
+      <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
+      <Route path="/admin/oferte" element={<OferteAdminPage />} />
+      <Route path="/admin/media-assets" element={<MediaAssetsAdminPage />} />
+      <Route path="/admin/template-oferte" element={<OfferTemplateAdminPage />} />
+      <Route path="/admin/template-oferte/:serviceId" element={<OfferTemplateOrganizerPage />} />
+      <Route element={<WeddingHubAuthWrapper />}>
+        <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
+      </Route>
     </Route>
   </Route>,
   <Route key="login" element={<CheckAuth />}>

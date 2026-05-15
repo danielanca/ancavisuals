@@ -36,6 +36,7 @@ const ContractListPage: React.FC = () => {
   const [sending, setSending] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [resending, setResending] = useState<string | null>(null);
   const [creatingEvent, setCreatingEvent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -232,6 +233,21 @@ const ContractListPage: React.FC = () => {
     }
   };
 
+  const handleResend = async (id: string) => {
+    setResending(id);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/contracts/${id}/resend`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showToast("Contract retrimis pe email către tine și client.");
+    } catch (e: unknown) {
+      setActionError("Eroare la retrimitre: " + (e instanceof Error ? e.message : "necunoscută"));
+    } finally {
+      setResending(null);
+    }
+  };
+
   const handleCreateEvent = async (id: string) => {
     setCreatingEvent(id);
     setActionError(null);
@@ -399,6 +415,7 @@ const ContractListPage: React.FC = () => {
                       sending={sending}
                       cancelling={cancelling}
                       deleting={deleting}
+                      resending={resending}
                       onEdit={() => navigate(`/admin/contracts/${contract.id}/edit`)}
                       onSign={() => { setSigError(null); setSigningId(contract.id); }}
                       onPreview={() => window.open(`/api/contracts/${contract.id}/preview`, "_blank")}
@@ -412,6 +429,7 @@ const ContractListPage: React.FC = () => {
                       onCancel={() => confirmAction("cancel", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
                       onDelete={() => confirmAction("delete", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
                       onResetSignature={() => handleResetSignature(contract.id)}
+                      onResend={() => handleResend(contract.id)}
                     />
                   </div>
                   {creatingEvent === contract.id && (

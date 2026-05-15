@@ -9,7 +9,6 @@ import ErrorMonitorPanel from "./features/admin/components/ErrorMonitorPanel";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
 import { useVisitorNotification } from "./hooks/useVisitorNotification";
-import useAuth from "./features/admin/auth/useAuth";
 import publicRoutes from "./routes/publicRoutes";
 import { adminRoutes } from "./routes/adminRoutes";
 import { weddingHubRoutes } from "./routes/weddingHubRoutes";
@@ -17,11 +16,6 @@ import { weddingHubRoutes } from "./routes/weddingHubRoutes";
 const AncaChat = loadable(() => import("./features/chat/components/AncaChat"), { fallback: <></> });
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/media", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup"];
-
-function AdminSpacer() {
-  const { auth } = useAuth();
-  return auth.authorise ? <div style={{ height: 48 }} /> : null;
-}
 
 export const App = () => {
   const location = useLocation();
@@ -45,7 +39,6 @@ export const App = () => {
     <ErrorMonitorProvider>
       <AuthProvider>
           <AdminBar />
-          <AdminSpacer />
           <ErrorMonitorPanel />
           <Suspense fallback={<AncaLoader />}>
             {showChat && <AncaChat />}

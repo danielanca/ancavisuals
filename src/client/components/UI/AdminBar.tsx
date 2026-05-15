@@ -6,9 +6,10 @@ import { useErrorMonitor } from "../../features/admin/providers/ErrorMonitorCont
 export default function AdminBar() {
   const { auth, logOut } = useAuth();
   const location = useLocation();
-  const { debugging, setDebugging } = useErrorMonitor();
+  useErrorMonitor();
   const [notifyStatus, setNotifyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   if (!auth.authorise) return null;
 
@@ -38,119 +39,74 @@ export default function AdminBar() {
     }
   };
 
+  const btnStyle: React.CSSProperties = {
+    background: "none",
+    border: "1px solid #2a2a2a",
+    borderRadius: "6px",
+    color: "#666",
+    fontSize: "11px",
+    padding: "5px 10px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    lineHeight: 1.4,
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+  };
+
   return (
     <div style={{
       position: "relative",
       zIndex: 20,
-      background: "#0f0f0f",
-      borderBottom: "1px solid #222",
+      background: "#0a0a0a",
+      borderBottom: "1px solid #1a1a1a",
       fontFamily: "sans-serif",
     }}>
       <div style={{
         maxWidth: "56rem",
         width: "100%",
         margin: "0 auto",
-        paddingBlock: "12px",
+        paddingBlock: "4px",
         paddingInline: "16px",
-        minHeight: "64px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: "12px",
-        flexWrap: "wrap",
+        gap: "8px",
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "180px" }}>
-          <span style={{ color: "#555", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Admin
-          </span>
-          <span style={{ color: "#d4d4d4", fontSize: "15px", fontWeight: 600, lineHeight: 1.2 }}>
-            {auth.user?.email?.split("@")[0]}
-          </span>
-        </div>
+        {/* Left: dashboard link */}
+        <a href="/admin" style={{ color: "#444", fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px", textDecoration: "none" }}>
+          Anca Visuals Admin
+        </a>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+        {/* Right: actions — never wrap */}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           {albumSlug && (
-            <button
-              onClick={handleNotify}
-              disabled={notifyStatus === "loading"}
-              style={{
-                background: notifyStatus === "success" ? "#052e16" : "none",
-                border: `1px solid ${notifyStatus === "success" ? "#166534" : notifyStatus === "error" ? "#7f1d1d" : "#333"}`,
-                borderRadius: "8px",
-                color: notifyStatus === "success" ? "#4ade80" : notifyStatus === "error" ? "#f87171" : "#888",
-                fontSize: "12px",
-                padding: "8px 14px",
-                cursor: notifyStatus === "loading" ? "not-allowed" : "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {notifyStatus === "loading" && "Se trimite..."}
-              {notifyStatus === "success" && `✓ Trimis către ${subscriberCount} abonat${subscriberCount === 1 ? "" : "i"}`}
-              {notifyStatus === "error" && "Eroare trimitere"}
-              {notifyStatus === "idle" && "🔔 Notifică abonații"}
+            <button onClick={handleNotify} disabled={notifyStatus === "loading"} style={{
+              ...btnStyle,
+              border: `1px solid ${notifyStatus === "success" ? "#166534" : notifyStatus === "error" ? "#7f1d1d" : "#2a2a2a"}`,
+              color: notifyStatus === "success" ? "#4ade80" : notifyStatus === "error" ? "#f87171" : "#666",
+            }}>
+              {notifyStatus === "loading" && "..."}
+              {notifyStatus === "success" && `✓ ${subscriberCount}`}
+              {notifyStatus === "error" && "!"}
+              {notifyStatus === "idle" && "🔔"}
             </button>
           )}
 
-          <button
-            onClick={() => setDebugging(!debugging)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: debugging ? "#0f1f0f" : "none",
-              border: `1px solid ${debugging ? "#166534" : "#333"}`,
-              borderRadius: "8px",
-              color: debugging ? "#4ade80" : "#555",
-              fontSize: "12px",
-              padding: "8px 14px",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <span style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: debugging ? "#4ade80" : "#333",
-              display: "inline-block",
-              flexShrink: 0,
-            }} />
-            Debugging
-          </button>
-
-          {location.pathname !== "/admin" && (
-            <a
-              href="/admin"
-              style={{
-                background: "none",
-                border: "1px solid #333",
-                borderRadius: "8px",
-                color: "#888",
-                fontSize: "12px",
-                padding: "8px 14px",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Dashboard →
-            </a>
+          {!confirmLogout ? (
+            <button onClick={() => setConfirmLogout(true)} style={btnStyle}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ color: "#555", fontSize: "11px", whiteSpace: "nowrap" }}>Sigur?</span>
+              <button onClick={logOut} style={{ ...btnStyle, border: "1px solid #7f1d1d", color: "#f87171" }}>Da</button>
+              <button onClick={() => setConfirmLogout(false)} style={btnStyle}>Nu</button>
+            </div>
           )}
-
-          <a
-            onClick={logOut}
-            style={{
-              background: "none",
-              border: "1px solid #333",
-              borderRadius: "8px",
-              color: "#888",
-              fontSize: "12px",
-              padding: "8px 14px",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Deloghează-te
-          </a>
         </div>
       </div>
     </div>

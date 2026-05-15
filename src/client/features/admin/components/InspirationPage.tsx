@@ -333,25 +333,6 @@ export default function InspirationPage() {
           )}
         </div>
 
-        {/* Tag pills — full width, below search */}
-        {!searchQuery.trim() && (
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Tag-uri</p>
-              {filterTags.length > 0 && (
-                <button onClick={() => setFilterTags([])} className="text-xs text-neutral-500 hover:text-white transition-colors underline underline-offset-2">
-                  Resetează
-                </button>
-              )}
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {allTags.map((tag) => (
-                <TagPill key={tag} tag={tag} selected={filterTags.includes(tag)} onClick={() => toggleFilter(tag)} />
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Debug panel */}
         {debugLog && (
           <div className="bg-neutral-950 border border-yellow-500/30 rounded-xl overflow-hidden">
@@ -426,6 +407,25 @@ export default function InspirationPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Tag filter — below photos */}
+        {!searchQuery.trim() && (
+          <div className="border-t border-neutral-800 pt-5">
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Filtrează după tag</p>
+              {filterTags.length > 0 && (
+                <button onClick={() => setFilterTags([])} className="text-xs text-neutral-500 hover:text-white transition-colors underline underline-offset-2">
+                  Resetează
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {allTags.map((tag) => (
+                <TagPill key={tag} tag={tag} selected={filterTags.includes(tag)} onClick={() => toggleFilter(tag)} />
+              ))}
+            </div>
           </div>
         )}
 

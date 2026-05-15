@@ -166,7 +166,21 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     return () => { cancelled = true; };
   }, [hasEventData, collapsed, albumSlug, suggestedSlug, isLead, event.id, onUpdated]);
 
-  if (!hasEventData) return null;
+  if (!hasEventData) {
+    return (
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-neutral-500 text-sm italic">Lead fără date completate</p>
+          {fallbackDate && (
+            <p className="text-neutral-600 text-xs mt-0.5">
+              {fallbackDate.toLocaleDateString("ro-RO", { day: "2-digit", month: "long", year: "numeric" })}
+            </p>
+          )}
+        </div>
+        <EventStatusBadge status={event.status} />
+      </div>
+    );
+  }
 
   const set =
     (field: keyof typeof form) =>

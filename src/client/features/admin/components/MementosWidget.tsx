@@ -26,6 +26,7 @@ export default function MementosWidget() {
   const navigate = useNavigate();
   const [mementos, dispatch] = useReducer(reducer, []);
   const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/mementos")
@@ -54,23 +55,34 @@ export default function MementosWidget() {
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
-        <div className="flex items-center gap-2">
-          <span className="text-white text-sm font-medium">Mementouri active</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-white text-sm font-medium whitespace-nowrap">Mementouri active</span>
           {overdue.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-500 text-white">
-              {overdue.length} depășite
+            <span className="w-5 h-5 rounded-full text-xs font-bold bg-red-500 text-white flex items-center justify-center flex-shrink-0">
+              {overdue.length}
             </span>
           )}
         </div>
-        <button
-          onClick={() => navigate("/admin/mementos")}
-          className="text-xs text-neutral-500 hover:text-white transition-colors"
-        >
-          Vezi toate →
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+          <button
+            onClick={() => navigate("/admin/mementos")}
+            className="text-xs text-neutral-500 hover:text-white transition-colors whitespace-nowrap"
+          >
+            Vezi toate →
+          </button>
+          <button
+            onClick={() => setCollapsed((v) => !v)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-white transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              className={`transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <div className="divide-y divide-neutral-800/60">
+      {!collapsed && <div className="divide-y divide-neutral-800/60">
         {[...overdue, ...upcoming].slice(0, 6).map((m) => {
           const isOverdue = new Date(m.dueDate) < now;
           const dueStr = new Date(m.dueDate).toLocaleString("ro-RO", {
@@ -103,19 +115,15 @@ export default function MementosWidget() {
                 </p>
               </div>
 
-              <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                m.category === "ancavisuals"
-                  ? "bg-violet-500/20 text-violet-300"
-                  : "bg-blue-500/20 text-blue-300"
-              }`}>
-                {m.category === "ancavisuals" ? "AncaVisuals" : "Personal"}
-              </span>
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                m.category === "ancavisuals" ? "bg-violet-400" : "bg-blue-400"
+              }`} title={m.category === "ancavisuals" ? "AncaVisuals" : "Personal"} />
             </div>
           );
         })}
-      </div>
+      </div>}
 
-      {pending.length > 6 && (
+      {!collapsed && pending.length > 6 && (
         <div className="px-5 py-3 border-t border-neutral-800">
           <button
             onClick={() => navigate("/admin/mementos")}

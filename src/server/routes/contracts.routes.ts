@@ -8,6 +8,7 @@ import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateContractPDF, buildContractHTML } from "../services/pdf.generator";
 import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail } from "../notifications/templates/contractEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
+import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { expandEventDates } from "../utils/expandEventDates";
 import { APP_BASE_URL } from "../constants/domain";
 
@@ -319,6 +320,33 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[contracts] POST /sign/:token failed:", error);
     res.status(500).json({ error: "Eroare server la semnare." });
+  }
+});
+
+// POST /api/contracts/:id/resend — resend signed contract PDF to both admin and client
+router.post("/:id/resend", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const doc = await db.collection("contracts").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Contract negăsit." });
+
+    const contract = { id: doc.id, ...doc.data() } as Record<string, unknown>;
+
+    if (contract.status !== "signed") {
+      return res.status(400).json({ error: "Contractul nu este semnat." });
+    }
+    if (!contract.clientEmail) {
+      return res.status(400).json({ error: "Lipsește emailul clientului." });
+    }
+
+    generateAndSendPDF(contract).catch((err) => {
+      console.error("[contracts] resend PDF/email failed:", err);
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[contracts] POST /:id/resend failed:", error);
+    res.status(500).json({ error: "Eroare server." });
   }
 });
 
