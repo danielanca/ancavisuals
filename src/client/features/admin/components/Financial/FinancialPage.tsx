@@ -64,8 +64,12 @@ interface State {
   activeTab: ActiveTab;
   selectedYear: number;
   selectedMonth: number;
+  selectedMonthTo: number;
+  expenseRevision: number;
   expenses: Expense[];
   invoices: Invoice[];
+  duplicateAlert: { expense: Expense; year: number } | null;
+  highlightedExpenseId: string | null;
   events: ClientEvent[];
   fiscalSettings: Partial<FiscalSettings>;
   loadingExpenses: boolean;
@@ -82,6 +86,7 @@ type Action =
   | { type: "SET_TAB"; tab: ActiveTab }
   | { type: "SET_YEAR"; year: number }
   | { type: "SET_MONTH"; month: number }
+  | { type: "SET_MONTH_TO"; month: number }
   | { type: "SET_EXPENSES"; expenses: Expense[] }
   | { type: "SET_INVOICES"; invoices: Invoice[] }
   | { type: "SET_EVENTS"; events: ClientEvent[] }
@@ -90,7 +95,10 @@ type Action =
   | { type: "SET_LOADING_INVOICES"; value: boolean }
   | { type: "SET_LOADING_EVENTS"; value: boolean }
   | { type: "ADD_EXPENSE"; expense: Expense }
+  | { type: "BUMP_EXPENSE_REVISION" }
   | { type: "REMOVE_EXPENSE"; id: string }
+  | { type: "SET_DUPLICATE_ALERT"; payload: { expense: Expense; year: number } | null }
+  | { type: "SET_HIGHLIGHTED_EXPENSE"; id: string | null }
   | { type: "ADD_INVOICE"; invoice: Invoice }
   | { type: "REMOVE_INVOICE"; id: string }
   | { type: "SHOW_ADD_EXPENSE"; value: boolean }
@@ -105,7 +113,11 @@ const initialState: State = {
   activeTab: "overview",
   selectedYear: CURRENT_YEAR,
   selectedMonth: 0,
+  selectedMonthTo: 0,
+  expenseRevision: 0,
   expenses: [],
+  duplicateAlert: null,
+  highlightedExpenseId: null,
   invoices: [],
   events: [],
   fiscalSettings: {},
@@ -123,7 +135,8 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "SET_TAB": return { ...state, activeTab: action.tab };
     case "SET_YEAR": return { ...state, selectedYear: action.year };
-    case "SET_MONTH": return { ...state, selectedMonth: action.month };
+    case "SET_MONTH": return { ...state, selectedMonth: action.month, selectedMonthTo: 0 };
+    case "SET_MONTH_TO": return { ...state, selectedMonthTo: action.month };
     case "SET_EXPENSES": return { ...state, expenses: action.expenses, loadingExpenses: false };
     case "SET_INVOICES": return { ...state, invoices: action.invoices, loadingInvoices: false };
     case "SET_EVENTS": return { ...state, events: action.events, loadingEvents: false };
@@ -132,6 +145,7 @@ function reducer(state: State, action: Action): State {
     case "SET_LOADING_INVOICES": return { ...state, loadingInvoices: action.value };
     case "SET_LOADING_EVENTS": return { ...state, loadingEvents: action.value };
     case "ADD_EXPENSE": return { ...state, expenses: [action.expense, ...state.expenses] };
+    case "BUMP_EXPENSE_REVISION": return { ...state, expenseRevision: state.expenseRevision + 1 };
     case "REMOVE_EXPENSE": return { ...state, expenses: state.expenses.filter((e) => e.id !== action.id) };
     case "ADD_INVOICE": return { ...state, invoices: [action.invoice, ...state.invoices] };
     case "REMOVE_INVOICE": return { ...state, invoices: state.invoices.filter((i) => i.id !== action.id) };
@@ -140,6 +154,8 @@ function reducer(state: State, action: Action): State {
     case "SHOW_FISCAL_SETTINGS": return { ...state, showFiscalSettings: action.value };
     case "SET_DELETING": return { ...state, deletingId: action.id };
     case "SET_PDF_LOADING": return { ...state, pdfLoadingId: action.id };
+    case "SET_DUPLICATE_ALERT": return { ...state, duplicateAlert: action.payload };
+    case "SET_HIGHLIGHTED_EXPENSE": return { ...state, highlightedExpenseId: action.id };
     default: return state;
   }
 }
@@ -147,14 +163,14 @@ function reducer(state: State, action: Action): State {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const EXPENSE_CATEGORIES = [
-  { value: "combustibil", label: "Combustibil", defaultDeductibility: 50 },
-  { value: "echipament", label: "Echipament foto/video", defaultDeductibility: 100 },
-  { value: "transport", label: "Transport", defaultDeductibility: 100 },
-  { value: "software", label: "Software / Abonamente", defaultDeductibility: 100 },
-  { value: "cazare", label: "Cazare", defaultDeductibility: 100 },
-  { value: "alimentatie", label: "Alimentație", defaultDeductibility: 50 },
-  { value: "marketing", label: "Marketing / Publicitate", defaultDeductibility: 100 },
-  { value: "altele", label: "Alte cheltuieli", defaultDeductibility: 50 },
+  { value: "combustibil", label: "Combustibil",          emoji: "⛽", color: "bg-orange-500/15 text-orange-400 border-orange-500/30",   defaultDeductibility: 50  },
+  { value: "echipament",  label: "Echipament foto/video", emoji: "📷", color: "bg-blue-500/15 text-blue-400 border-blue-500/30",         defaultDeductibility: 100 },
+  { value: "transport",   label: "Transport",             emoji: "🚗", color: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",         defaultDeductibility: 100 },
+  { value: "software",    label: "Software / Abo.",       emoji: "💻", color: "bg-violet-500/15 text-violet-400 border-violet-500/30",   defaultDeductibility: 100 },
+  { value: "cazare",      label: "Cazare",                emoji: "🏨", color: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",   defaultDeductibility: 100 },
+  { value: "alimentatie", label: "Alimentație",           emoji: "🍽️", color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", defaultDeductibility: 50  },
+  { value: "marketing",   label: "Marketing",             emoji: "📣", color: "bg-pink-500/15 text-pink-400 border-pink-500/30",         defaultDeductibility: 100 },
+  { value: "altele",      label: "Alte cheltuieli",       emoji: "📦", color: "bg-neutral-700/50 text-neutral-400 border-neutral-600/30", defaultDeductibility: 50  },
 ];
 
 const MONTHS = ["Toate", "Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -169,16 +185,71 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function categoryLabel(value: string): string {
-  return EXPENSE_CATEGORIES.find((c) => c.value === value)?.label ?? value;
+let activeInfoBadgeId: string | null = null;
+
+function InfoBadge({ title, description }: { title: string; description: string }) {
+  const detailsRef = React.useRef<HTMLDetailsElement>(null);
+  const badgeId = React.useId();
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const details = detailsRef.current;
+      if (!details?.open) return;
+      if (details.contains(event.target as Node)) return;
+      details.open = false;
+      if (activeInfoBadgeId === badgeId) activeInfoBadgeId = null;
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [badgeId]);
+
+  const handleToggle = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+    const details = event.currentTarget;
+    if (details.open) {
+      if (activeInfoBadgeId && activeInfoBadgeId !== badgeId) {
+        const previous = document.getElementById(activeInfoBadgeId) as HTMLDetailsElement | null;
+        if (previous) previous.open = false;
+      }
+      activeInfoBadgeId = badgeId;
+    } else if (activeInfoBadgeId === badgeId) {
+      activeInfoBadgeId = null;
+    }
+  };
+
+  return (
+    <details id={badgeId} ref={detailsRef} onToggle={handleToggle} className="group relative inline-block">
+      <summary
+        className="flex h-4 w-4 cursor-pointer list-none items-center justify-center rounded-full border border-neutral-700 text-[10px] font-semibold text-neutral-400 transition-colors hover:border-neutral-500 hover:text-white"
+        aria-label={`${title}: ${description}`}
+      >
+        i
+      </summary>
+      <div className="absolute left-0 top-6 z-20 w-64 rounded-lg border border-neutral-700 bg-neutral-950 p-3 text-xs text-neutral-200 shadow-2xl">
+        <div className="mb-1 font-medium text-white">{title}</div>
+        <div className="leading-relaxed text-neutral-300">{description}</div>
+      </div>
+    </details>
+  );
+}
+
+function CategoryBadge({ value }: { value: string }) {
+  const cat = EXPENSE_CATEGORIES.find((c) => c.value === value);
+  return (
+    <span className={`text-xs px-1.5 py-0.5 rounded border font-medium ${cat?.color ?? "bg-neutral-800 text-neutral-400 border-neutral-700"}`}>
+      {cat?.emoji} {cat?.label ?? value}
+    </span>
+  );
 }
 
 // ─── Add Expense Modal ────────────────────────────────────────────────────────
 
 interface AddExpenseModalProps {
   accessToken: string;
+  existingExpenses: Expense[];
   onClose: () => void;
   onAdded: (expense: Expense) => void;
+  onDuplicateFound: (duplicate: Expense) => void;
 }
 
 interface DocSlot {
@@ -241,7 +312,7 @@ function DocUploadRow({
   );
 }
 
-function AddExpenseModal({ accessToken, onClose, onAdded }: AddExpenseModalProps) {
+function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDuplicateFound }: AddExpenseModalProps) {
   const [date, setDate] = React.useState(new Date().toISOString().split("T")[0]);
   const [category, setCategory] = React.useState("combustibil");
   const [description, setDescription] = React.useState("");
@@ -295,6 +366,21 @@ function AddExpenseModal({ accessToken, onClose, onAdded }: AddExpenseModalProps
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!amount || !date || !category) return;
+
+    if (supplier.trim()) {
+      const normalizedSupplier = supplier.trim().toLowerCase();
+      const duplicate = existingExpenses.find(
+        (exp) =>
+          exp.supplier?.toLowerCase() === normalizedSupplier &&
+          exp.amount === Number(amount) &&
+          exp.currency === currency,
+      );
+      if (duplicate) {
+        onDuplicateFound(duplicate);
+        return;
+      }
+    }
+
     setSaving(true);
     setUploading(true);
     setError(null);
@@ -330,7 +416,7 @@ function AddExpenseModal({ accessToken, onClose, onAdded }: AddExpenseModalProps
         }),
       });
       const data = await response.json();
-      if (data.error) throw new Error(data.error);
+      if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
 
       const deductibleAmount = Math.round((Number(amount) * deductibility) / 100 * 100) / 100;
       onAdded({
@@ -559,9 +645,22 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
   const [clientCIF, setClientCIF] = React.useState("");
   const [items, setItems] = React.useState<InvoiceItem[]>([{ description: "Servicii fotografiere", quantity: 1, unitPrice: 0, total: 0 }]);
   const [currency, setCurrency] = React.useState("RON");
+  const [exchangeRate, setExchangeRate] = React.useState(5);
   const [notes, setNotes] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/admin/settings", {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    })
+      .then((r) => r.json())
+      .then((data: { exchangeRate?: unknown }) => {
+        const nextRate = Number(data.exchangeRate);
+        if (Number.isFinite(nextRate) && nextRate > 0) setExchangeRate(nextRate);
+      })
+      .catch(() => {});
+  }, [accessToken]);
 
   function prefillFromEvent(eventId: string) {
     setSelectedEventId(eventId);
@@ -601,6 +700,24 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
 
   function removeItem(index: number) {
     setItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function convertInvoiceCurrency(targetCurrency: "RON" | "EUR") {
+    if (currency === targetCurrency) return;
+    const rate = exchangeRate > 0 ? exchangeRate : 5;
+    const multiplier = targetCurrency === "RON" ? rate : 1 / rate;
+
+    setItems((prev) =>
+      prev.map((item) => {
+        const unitPrice = Math.round(item.unitPrice * multiplier * 100) / 100;
+        return {
+          ...item,
+          unitPrice,
+          total: Math.round(item.quantity * unitPrice * 100) / 100,
+        };
+      }),
+    );
+    setCurrency(targetCurrency);
   }
 
   const totalAmount = useMemo(() => Math.round(items.reduce((sum, item) => sum + item.total, 0) * 100) / 100, [items]);
@@ -747,13 +864,31 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
               <p className="text-xs text-neutral-500 pl-1">Cant. · Preț unit · Total</p>
             </div>
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-neutral-800">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-neutral-400">Monedă:</span>
                 <select value={currency} onChange={(e) => setCurrency(e.target.value)}
                   className="bg-neutral-800 border border-neutral-700 text-white text-xs rounded-lg px-2 py-1 focus:outline-none">
                   <option value="RON">RON</option>
                   <option value="EUR">EUR</option>
                 </select>
+                {currency === "EUR" ? (
+                  <button
+                    type="button"
+                    onClick={() => convertInvoiceCurrency("RON")}
+                    className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300"
+                  >
+                    Convertește în RON
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => convertInvoiceCurrency("EUR")}
+                    className="rounded-lg border border-neutral-700 px-2.5 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-500 hover:text-white"
+                  >
+                    Convertește în EUR
+                  </button>
+                )}
+                <span className="text-[11px] text-neutral-500">Curs: 1 EUR = {fmtCurrency(exchangeRate, "RON")}</span>
               </div>
               <span className="text-white font-semibold">Total: {fmtCurrency(totalAmount, currency)}</span>
             </div>
@@ -799,6 +934,7 @@ const FinancialPage: React.FC = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [exchangeRate, setExchangeRate] = React.useState(5);
 
   const authHeader = useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
@@ -806,14 +942,17 @@ const FinancialPage: React.FC = () => {
   useEffect(() => {
     if (!auth.accessToken) return;
     dispatch({ type: "SET_LOADING_EXPENSES", value: true });
-    const params = state.selectedMonth > 0
-      ? `?year=${state.selectedYear}&month=${state.selectedMonth}`
-      : `?year=${state.selectedYear}`;
+    const hasRange = state.selectedMonth > 0 && state.selectedMonthTo > state.selectedMonth;
+    const params = hasRange
+      ? `?year=${state.selectedYear}&monthFrom=${state.selectedMonth}&monthTo=${state.selectedMonthTo}`
+      : state.selectedMonth > 0
+        ? `?year=${state.selectedYear}&month=${state.selectedMonth}`
+        : `?year=${state.selectedYear}`;
     fetch(`/api/admin/expenses${params}`, { headers: authHeader })
       .then((r) => r.json())
       .then((data) => dispatch({ type: "SET_EXPENSES", expenses: data.expenses ?? [] }))
       .catch(() => dispatch({ type: "SET_LOADING_EXPENSES", value: false }));
-  }, [auth.accessToken, state.selectedYear, state.selectedMonth, authHeader]);
+  }, [auth.accessToken, state.selectedYear, state.selectedMonth, state.selectedMonthTo, state.expenseRevision, authHeader]);
 
   // Load invoices
   useEffect(() => {
@@ -844,13 +983,23 @@ const FinancialPage: React.FC = () => {
       .then((r) => r.json())
       .then((data) => dispatch({ type: "SET_FISCAL", settings: data }))
       .catch(() => {});
+
+    fetch("/api/admin/settings", { headers: authHeader })
+      .then((r) => r.json())
+      .then((data: { exchangeRate?: unknown }) => {
+        const rate = Number(data.exchangeRate);
+        if (rate > 0) setExchangeRate(rate);
+      })
+      .catch(() => {});
   }, [auth.accessToken, authHeader]);
 
   // Overview calculations
   const overview = useMemo(() => {
+    const toRON = (amount: number, currency: string) => currency === "EUR" ? amount * exchangeRate : amount;
+
     const totalIncome = state.invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const totalExpenses = state.expenses.reduce((sum, exp) => sum + exp.amount, 0);
-    const totalDeductible = state.expenses.reduce((sum, exp) => sum + exp.deductibleAmount, 0);
+    const totalExpenses = state.expenses.reduce((sum, exp) => sum + toRON(exp.amount, exp.currency), 0);
+    const totalDeductible = state.expenses.reduce((sum, exp) => sum + toRON(exp.deductibleAmount, exp.currency), 0);
     const netBalance = totalIncome - totalExpenses;
     const taxableBase = totalIncome - totalDeductible;
 
@@ -864,12 +1013,19 @@ const FinancialPage: React.FC = () => {
     });
     state.expenses.forEach((exp) => {
       const month = new Date(exp.date).getMonth() + 1;
-      monthlyMap[month].expenses += exp.amount;
-      monthlyMap[month].deductible += exp.deductibleAmount;
+      monthlyMap[month].expenses += toRON(exp.amount, exp.currency);
+      monthlyMap[month].deductible += toRON(exp.deductibleAmount, exp.currency);
     });
 
-    return { totalIncome, totalExpenses, totalDeductible, netBalance, taxableBase, monthlyMap };
-  }, [state.invoices, state.expenses]);
+    return {
+      totalIncome,
+      totalExpenses,
+      totalDeductible,
+      netBalance,
+      taxableBase,
+      monthlyMap,
+    };
+  }, [state.invoices, state.expenses, exchangeRate]);
 
   async function handleDeleteExpense(id: string) {
     dispatch({ type: "SET_DELETING", id });
@@ -909,15 +1065,46 @@ const FinancialPage: React.FC = () => {
 
         <Breadcrumb />
 
+        {/* Duplicate alert banner */}
+        {state.duplicateAlert && (
+          <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/40 rounded-xl px-4 py-3">
+            <span className="text-amber-400 text-lg shrink-0">⚠️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-300 text-sm font-medium">
+                Există deja o cheltuială identică pe anul {state.duplicateAlert.year}
+              </p>
+              <p className="text-amber-400/70 text-xs mt-0.5">
+                {state.duplicateAlert.expense.supplier} · {fmtCurrency(state.duplicateAlert.expense.amount, state.duplicateAlert.expense.currency)} · {fmtDate(state.duplicateAlert.expense.date)}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                dispatch({ type: "SET_DUPLICATE_ALERT", payload: null });
+                setTimeout(() => dispatch({ type: "SET_HIGHLIGHTED_EXPENSE", id: null }), 3000);
+              }}
+              className="text-amber-400/60 hover:text-amber-300 text-lg leading-none shrink-0"
+              aria-label="Închide alertă"
+            >×</button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-white text-xl font-light tracking-tight">Financiar</h1>
           </div>
-          <select value={state.selectedYear} onChange={(e) => dispatch({ type: "SET_YEAR", year: Number(e.target.value) })}
-            className="bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none">
-            {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <div className="flex items-center gap-1">
+            <button onClick={() => dispatch({ type: "SET_YEAR", year: state.selectedYear - 1 })}
+              className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <span className="text-white text-sm font-medium w-12 text-center">{state.selectedYear}</span>
+            <button onClick={() => dispatch({ type: "SET_YEAR", year: state.selectedYear + 1 })}
+              disabled={state.selectedYear >= CURRENT_YEAR}
+              className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -941,11 +1128,42 @@ const FinancialPage: React.FC = () => {
                 { label: "Sold", value: overview.netBalance, color: overview.netBalance >= 0 ? "text-emerald-400" : "text-red-400", desc: "incasări − cheltuieli" },
               ].map(({ label, value, color, desc }) => (
                 <div key={label} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-                  <p className="text-xs text-neutral-500 mb-1">{label}</p>
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <p className="text-xs text-neutral-500">{label}</p>
+                    <InfoBadge
+                      title={label}
+                      description={
+                        label === "Incasări"
+                          ? "Totalul din facturile emise. Nu include extrasele de cont."
+                          : label === "Cheltuieli"
+                            ? "Totalul din cheltuielile înregistrate manual. Nu include direct tranzacțiile din extrase."
+                            : label === "Deductibil"
+                              ? "Partea deductibilă calculată doar din cheltuielile înregistrate."
+                              : "Diferența dintre facturile emise și cheltuielile înregistrate."
+                      }
+                    />
+                  </div>
                   <p className={`text-lg font-semibold ${color}`}>{fmtCurrency(value, "RON")}</p>
                   <p className="text-xs text-neutral-600 mt-0.5">{desc}</p>
                 </div>
               ))}
+            </div>
+
+            <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-sky-100">Extrasele de cont au pagină separată.</p>
+                  <p className="text-xs text-sky-100/80">
+                    Le poți gestiona separat de contabilitatea introdusă manual, fără să se amestece cu overview-ul de aici.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate("/admin/bank-statements")}
+                  className="rounded-lg border border-sky-400/40 px-3 py-2 text-xs font-medium text-sky-100 transition-colors hover:border-sky-300 hover:bg-sky-400/10"
+                >
+                  Deschide extrasele
+                </button>
+              </div>
             </div>
 
             {overview.taxableBase > 0 && (
@@ -993,14 +1211,45 @@ const FinancialPage: React.FC = () => {
         {state.activeTab === "cheltuieli" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              {/* Month filter */}
+              {/* Month filter with range support */}
               <div className="flex gap-1 flex-wrap">
-                {MONTHS.map((monthName, index) => (
-                  <button key={monthName} onClick={() => dispatch({ type: "SET_MONTH", month: index })}
-                    className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${state.selectedMonth === index ? "bg-white text-neutral-900 border-white font-medium" : "border-neutral-700 text-neutral-400 hover:border-neutral-500"}`}>
-                    {monthName}
-                  </button>
-                ))}
+                {MONTHS.map((monthName, index) => {
+                  const isFrom = state.selectedMonth === index && index > 0;
+                  const isTo = state.selectedMonthTo === index && index > 0;
+                  const inRange = state.selectedMonth > 0 && state.selectedMonthTo > state.selectedMonth
+                    && index > state.selectedMonth && index < state.selectedMonthTo;
+                  const isActive = index === 0 ? state.selectedMonth === 0 : isFrom || isTo || inRange;
+                  return (
+                    <button key={monthName}
+                      onClick={() => {
+                        if (index === 0) {
+                          dispatch({ type: "SET_MONTH", month: 0 });
+                        } else if (state.selectedMonth === 0 || state.selectedMonthTo > 0) {
+                          dispatch({ type: "SET_MONTH", month: index });
+                        } else if (index > state.selectedMonth) {
+                          dispatch({ type: "SET_MONTH_TO", month: index });
+                        } else {
+                          dispatch({ type: "SET_MONTH", month: index });
+                        }
+                      }}
+                      className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                        isFrom || isTo
+                          ? "bg-white text-neutral-900 border-white font-medium"
+                          : inRange
+                            ? "bg-neutral-200 text-neutral-800 border-neutral-300 font-medium"
+                            : isActive
+                              ? "bg-white text-neutral-900 border-white font-medium"
+                              : "border-neutral-700 text-neutral-400 hover:border-neutral-500"
+                      }`}>
+                      {monthName}
+                    </button>
+                  );
+                })}
+                {state.selectedMonthTo > 0 && (
+                  <span className="text-xs text-neutral-500 self-center ml-1">
+                    {MONTHS[state.selectedMonth]}–{MONTHS[state.selectedMonthTo]}
+                  </span>
+                )}
               </div>
               <button onClick={() => dispatch({ type: "SHOW_ADD_EXPENSE", value: true })}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 transition-colors font-medium">
@@ -1019,16 +1268,17 @@ const FinancialPage: React.FC = () => {
             ) : (
               <>
                 <div className="flex gap-4 text-sm px-1">
-                  <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(state.expenses.reduce((s, e) => s + e.amount, 0), "RON")}</span></span>
-                  <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(state.expenses.reduce((s, e) => s + e.deductibleAmount, 0), "RON")}</span></span>
+                  <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(state.expenses.reduce((s, e) => s + (e.currency === "EUR" ? e.amount * exchangeRate : e.amount), 0), "RON")}</span></span>
+                  <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(state.expenses.reduce((s, e) => s + (e.currency === "EUR" ? e.deductibleAmount * exchangeRate : e.deductibleAmount), 0), "RON")}</span></span>
                 </div>
                 <div className="space-y-2">
                   {state.expenses.map((expense) => (
-                    <div key={expense.id} className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 flex items-center gap-4">
+                    <div key={expense.id} id={`expense-${expense.id}`}
+                      className={`rounded-xl px-4 py-3 flex items-center gap-4 border transition-colors duration-500 ${state.highlightedExpenseId === expense.id ? "bg-amber-500/10 border-amber-500/50" : "bg-neutral-900 border-neutral-800"}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-white text-sm font-medium">{fmtCurrency(expense.amount, expense.currency)}</span>
-                          <span className="text-xs px-1.5 py-0.5 bg-neutral-800 text-neutral-400 rounded">{categoryLabel(expense.category)}</span>
+                          <CategoryBadge value={expense.category} />
                           <span className="text-xs text-amber-500">{expense.deductibility}% ded.</span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
@@ -1084,8 +1334,16 @@ const FinancialPage: React.FC = () => {
             </div>
 
             {!hasFiscalSettings && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-300">
-                Completează datele fiscale PFA (CIF, IBAN etc.) pentru a putea genera PDF-uri de factură valide.
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm text-amber-300 font-medium">Date fiscale PFA incomplete</p>
+                  <p className="text-xs text-amber-400/70 mt-0.5">Completează CIF, IBAN etc. pentru a putea genera PDF-uri de factură valide.</p>
+                </div>
+                <button
+                  onClick={() => dispatch({ type: "SHOW_FISCAL_SETTINGS", value: true })}
+                  className="shrink-0 px-3 py-1.5 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg transition-colors">
+                  Completează acum →
+                </button>
               </div>
             )}
 
@@ -1142,8 +1400,24 @@ const FinancialPage: React.FC = () => {
 
       {/* Modals */}
       {state.showAddExpense && (
-        <AddExpenseModal accessToken={auth.accessToken ?? ""} onClose={() => dispatch({ type: "SHOW_ADD_EXPENSE", value: false })}
-          onAdded={(expense) => dispatch({ type: "ADD_EXPENSE", expense })} />
+        <AddExpenseModal
+          accessToken={auth.accessToken ?? ""}
+          existingExpenses={state.expenses}
+          onClose={() => dispatch({ type: "SHOW_ADD_EXPENSE", value: false })}
+          onAdded={(expense) => {
+            dispatch({ type: "ADD_EXPENSE", expense });
+            dispatch({ type: "BUMP_EXPENSE_REVISION" });
+          }}
+          onDuplicateFound={(duplicate) => {
+            dispatch({ type: "SHOW_ADD_EXPENSE", value: false });
+            dispatch({ type: "SET_TAB", tab: "cheltuieli" });
+            dispatch({ type: "SET_DUPLICATE_ALERT", payload: { expense: duplicate, year: new Date(duplicate.date).getFullYear() } });
+            dispatch({ type: "SET_HIGHLIGHTED_EXPENSE", id: duplicate.id });
+            setTimeout(() => {
+              document.getElementById(`expense-${duplicate.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 150);
+          }}
+        />
       )}
 
       {state.showAddInvoice && (

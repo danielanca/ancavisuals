@@ -2,18 +2,15 @@ import React from "react";
 
 interface Props {
   variant?: "full" | "inline";
+  subtitle?: string;
 }
 
 const STYLES = `
-  @keyframes ancaGlow {
-    0%, 100% { opacity: 0.15; }
-    50%       { opacity: 1;   }
-  }
   @keyframes ancaDot {
     0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
     40%           { opacity: 1;   transform: scale(1.2); }
   }
-  .anca-loader-wrap    { animation: ancaGlow 2.4s ease-in-out infinite; user-select: none; }
+  .anca-loader-wrap    { user-select: none; }
   .anca-loader-title   { letter-spacing: 0.25em; text-transform: uppercase; line-height: 1; }
   .anca-loader-sub     { letter-spacing: 0.35em; text-transform: uppercase; color: #9ca3af; font-style: italic; margin-top: 6px; }
   .anca-loader-dots    { display: flex; justify-content: center; gap: 8px; margin-top: 20px; }
@@ -25,7 +22,7 @@ const STYLES = `
   .anca-loader-dots span:nth-child(3) { animation-delay: 0.4s; }
 `;
 
-export default function AncaLoader({ variant = "full" }: Props) {
+export default function AncaLoader({ variant = "full", subtitle }: Props) {
   const isFull = variant === "full";
 
   const titleSize  = isFull ? "clamp(1.6rem, 5vw, 2.4rem)" : "1rem";
@@ -33,14 +30,18 @@ export default function AncaLoader({ variant = "full" }: Props) {
   const dotSize    = isFull ? "6px" : "4px";
 
   const inner = (
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: "center", fontFamily: "Arial, Helvetica, sans-serif" }}>
       <style>{STYLES}</style>
       <div className="anca-loader-wrap">
         <div className="anca-loader-title" style={{ fontSize: titleSize }}>
           <span style={{ fontWeight: 700, color: "#ffffff" }}>Anca</span>
           <span style={{ fontWeight: 300, color: "#d1d5db" }}>Visuals</span>
         </div>
-        {isFull && <div className="anca-loader-sub" style={{ fontSize: subSize }}>You feel it. We frame it.</div>}
+        {isFull && (
+          <div className="anca-loader-sub" style={{ fontSize: subSize }}>
+            {subtitle ?? "You feel it. We frame it."}
+          </div>
+        )}
       </div>
       <div className="anca-loader-dots">
         <span style={{ width: dotSize, height: dotSize }} />

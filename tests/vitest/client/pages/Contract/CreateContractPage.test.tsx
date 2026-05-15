@@ -28,6 +28,20 @@ function renderPage() {
   );
 }
 
+// Builds a fetch mock that routes the EUR rate request separately from the
+// contract submission so tests can assert on the contract call independently.
+function makeFetchMock(contractResponse: { ok: boolean; status?: number; json: () => Promise<unknown> }) {
+  return vi.fn().mockImplementation((url: string) => {
+    if (String(url).includes("frankfurter")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ rates: { RON: 5 }, date: "2026-05-14" }),
+      });
+    }
+    return Promise.resolve(contractResponse);
+  });
+}
+
 function getEventTypeSelect() {
   const select = screen.getAllByRole("combobox")[0];
   if (!select) throw new Error("Event type select not found");
@@ -60,7 +74,7 @@ describe("CreateContractPage", () => {
 
   describe("happy path", () => {
     test("submits computed totals and custom services payload", async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
+      const fetchMock = makeFetchMock({
         ok: true,
         status: 201,
         json: async () => ({ id: "contract-1", token: "token-1" }),
@@ -69,13 +83,13 @@ describe("CreateContractPage", () => {
 
       renderPage();
 
-      fireEvent.change(getEventTypeSelect(), {
-        target: { value: "Botez" },
-      });
+      // "Altul" has no template — all services start unchecked, no transport complications
+      fireEvent.change(getEventTypeSelect(), { target: { value: "Altul" } });
 
       const futureDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
       fireEvent.change(getEventDateInput(), { target: { value: futureDate } });
 
+      // Click first service checkbox (foto_video) to include it, then set price
       fireEvent.click(screen.getAllByRole("checkbox")[0]);
       fireEvent.change(screen.getByPlaceholderText("Preț / GRATUIT"), {
         target: { value: "GRATUIT" },
@@ -92,22 +106,21 @@ describe("CreateContractPage", () => {
       fireEvent.change(screen.getByPlaceholderText("client@email.com"), {
         target: { value: "client@example.com" },
       });
-      fireEvent.change(getAdvanceInput(), {
-        target: { value: "100" },
-      });
+      fireEvent.change(getAdvanceInput(), { target: { value: "100" } });
 
       fireEvent.click(screen.getByRole("button", { name: "Salvează contractul" }));
 
       await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(mockNavigate).toHaveBeenCalledWith("/admin/contracts");
       });
 
-      const [url, request] = fetchMock.mock.calls[0];
-      expect(url).toBe("/api/contracts");
+      const contractCall = fetchMock.mock.calls.find(([url]) => url === "/api/contracts");
+      expect(contractCall).toBeDefined();
+      const [, request] = contractCall!;
       expect(request.method).toBe("POST");
 
-      expect(JSON.parse(request.body)).toEqual({
-        eventType: "Botez",
+      expect(JSON.parse(request.body as string)).toEqual({
+        eventType: "Altul",
         eventDate: futureDate,
         eventLocation: "",
         eventStartTime: "",
@@ -134,7 +147,6 @@ describe("CreateContractPage", () => {
         transportKm: "",
         transportFuelPrice: "10",
       });
-      expect(mockNavigate).toHaveBeenCalledWith("/admin/contracts");
     });
 
     test("allows manual total override and shows the adjusted rest amount", async () => {
@@ -169,9 +181,8 @@ describe("CreateContractPage", () => {
     test("marks selected services with missing prices", async () => {
       renderPage();
 
-      fireEvent.change(getEventTypeSelect(), {
-        target: { value: "Nuntă" },
-      });
+      // "Altul" → no template → click first service to include it, clear its price
+      fireEvent.change(getEventTypeSelect(), { target: { value: "Altul" } });
 
       const futureDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
       fireEvent.change(getEventDateInput(), { target: { value: futureDate } });
@@ -191,7 +202,7 @@ describe("CreateContractPage", () => {
     });
 
     test("shows API errors returned during contract creation", async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
+      const fetchMock = makeFetchMock({
         ok: false,
         status: 500,
         json: async () => ({ error: "Nu s-a putut crea contractul." }),
@@ -200,9 +211,8 @@ describe("CreateContractPage", () => {
 
       renderPage();
 
-      fireEvent.change(getEventTypeSelect(), {
-        target: { value: "Nuntă" },
-      });
+      // "Altul" → no template → no transport complication
+      fireEvent.change(getEventTypeSelect(), { target: { value: "Altul" } });
       const futureDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
       fireEvent.change(getEventDateInput(), { target: { value: futureDate } });
       fireEvent.change(screen.getByPlaceholderText("client@email.com"), {

@@ -12,6 +12,27 @@ interface TypeEvent {
   referrer?: string;
 }
 
+const COOLDOWN_MS = 18 * 60 * 60 * 1000; // 18 hours
+
+// IP → timestamp of last sent email. Cleaned up lazily on each request.
+const lastSentByIp = new Map<string, number>();
+
+function isOnCooldown(ip: string): boolean {
+  const lastSent = lastSentByIp.get(ip);
+  if (!lastSent) return false;
+  return Date.now() - lastSent < COOLDOWN_MS;
+}
+
+function recordSent(ip: string): void {
+  lastSentByIp.set(ip, Date.now());
+  // Evict entries older than cooldown to keep memory bounded
+  for (const [storedIp, timestamp] of lastSentByIp) {
+    if (Date.now() - timestamp >= COOLDOWN_MS) {
+      lastSentByIp.delete(storedIp);
+    }
+  }
+}
+
 export const isLocalIp = (ip: string): boolean => {
   const normalized = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
   return normalized === "127.0.0.1" || normalized === "::1" || normalized === "localhost";
@@ -28,6 +49,11 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const clientIp = getClientIp(request);
 
     if (isLocalIp(clientIp)) {
+      response.status(204).send();
+      return;
+    }
+
+    if (isOnCooldown(clientIp)) {
       response.status(204).send();
       return;
     }
@@ -51,10 +77,11 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     await sendEmail({
       to: adminUser.email,
-      subject: `👁 Vizitator nou — ${triggerData.typeEvent} — ${todayString}`,
+      subject: `👁 Vizitator nou — ${triggerData.typeEvent ?? "Vizitator"} — ${todayString}`,
       html: emailHtml,
     });
 
+    recordSent(clientIp);
     console.log("Trigger email sent successfully.");
     response.status(200).send("Email sent successfully.");
   } catch (error) {

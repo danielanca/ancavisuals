@@ -213,6 +213,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #ADMIN  Settings Firestore:   `settings/admin` doc conține `goals`, `currency`, `exchangeRate`
 #ADMIN  GoalCard:             Editabil (EUR target + date range); 6-luni are `editableRange` prop pentru date picker; titlu "Goal Personalizat"
 #ADMIN  FinancialSummary:     Componentă nouă — filtrează confirmat+finalizat, an curent; arată avans încasat, urmează să primești, detaliu pe evenimente
+#ADMIN  Financiar > Extrase:  tab nou în `FinancialPage` — upload PDF/imagine extras bancar, AI extrage toate tranzacțiile și încearcă justificare automată prin `invoices` + `expenses`; backend: `src/server/routes/bankStatements.routes.ts`, colecție Firestore `bankStatements` #ADMIN
 #ADMIN  MultiFileDropZone:    Componentă nouă — upload multiple fișiere cu thumbnails imagini, progress per fișier, delete individual
 #ADMIN  AddLeadModal pricing: Include câmpuri total/avans/rest cu calcul automat; checkbox "avans deja încasat"; backend citește pricing direct din body
 #ADMIN  Fiscalizare eveniment: `adminEvents.fiscalized` este boolean; default = `false` (nefiscalizat), iar EventCard/EventList expun marker + toggle + filtru `Toate | Fiscalizate | Nefiscalizate` #ADMIN
@@ -272,6 +273,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #PITFALL  blog: articol fără intrare în blogManifest.ts → SSR fără meta tags
 #PITFALL  worktree: nu reseta schimbări care nu sunt ale tale fără git status
 #PITFALL  Firestore Timestamps: când se citesc din Firestore în backend și se pasează la Puppeteer PDF, apar ca obiecte {_seconds, _nanoseconds}. `new Date(timestamp)` → "Invalid Date", String(timestamp) → "[object Object]". Fix: helper toIsoString() în pdf.generator.ts care detectează _seconds și convertește. #PITFALL #ADMIN
+#PITFALL  Nu genera colecții de `<Route>` din funcții apelate direct în render-ul lui `App` pentru zone lazy/protejate (`adminRoutes()`, `weddingHubRoutes()`). Dacă `App` rerandează dintr-un provider/context, React Router poate remonta pagina activă și reaprinde loader-ele. Ține rutele ca constante/module-level exports. #PITFALL #ADMIN #WH
+#PITFALL  `npm run dev` nu trebuie să pornească și `vite --config vite.config.ts` separat cât timp `server.ts` creează deja propriul Vite în `middlewareMode`; altfel HMR/WebSocket intră în conflict (`WebSocket server error: Port is already in use`) și UI-ul poate părea că se restartează. Folosește `npm run dev` pentru SSR app pe `:1994`, iar `npm run dev:dual` doar dacă chiar vrei ambele instanțe. #PITFALL #DEBUG
 
 ---
 
@@ -285,6 +288,9 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-05-13: Zona Financiar are acum tab nou `Extrase cont`: poți încărca un extras bancar PDF/imagine, AI extrage toate entry-urile și încearcă să le justifice automat prin facturile și cheltuielile existente din anul selectat. Implementare: `src/server/routes/bankStatements.routes.ts` + integrare în `src/client/features/admin/components/Financial/FinancialPage.tsx`. Validat cu `npm run typecheck`. #RECENT #ADMIN
+#RECENT  2026-05-13: Dev setup fix — `npm run dev` pornește acum doar `dev:server`, deoarece `server.ts` include deja Vite în `middlewareMode`; rularea paralelă cu `dev:client` crea conflict HMR/WebSocket (`Port is already in use`) și putea face UI-ul din `/admin` să pară că se restartează. Script nou `dev:dual` păstrează varianta cu ambele procese doar pentru debugging explicit. #RECENT #DEBUG #PITFALL
+#RECENT  2026-05-13: Fix pentru `/admin` care repornea vizual loader-ul în buclă: rutele lazy/protejate pentru admin și Wedding Hub nu mai sunt generate din funcții apelate în render-ul lui `App`, ci exportate ca constante module-level (`adminRoutes`, `weddingHubRoutes`), astfel încât rerender-urile globale să nu mai remonteze dashboard-ul și `AncaLoader`. Validat cu `npm run typecheck`. #RECENT #ADMIN #WH #PITFALL
 #RECENT  2026-05-02: RSVP-ul public Wedding Hub permite acum un mesaj liber la confirmare, plus sugestii de text și emoji-uri rapide; mesajul este salvat pe guest și inclus în emailul de notificare către miri. Validat cu `npm run typecheck` și `npm run build`. #RECENT #WH
 #RECENT  2026-05-02: Parser-ul pentru importul AI din poză a fost făcut tolerant la JSON imperfect: răspunsul Claude este extras din blocurile markdown/code fence și reparat cu `jsonrepair` înainte de `JSON.parse`, ca să nu mai pice la virgule/lipsă de bracket. Validat cu `npm run typecheck` și `npm run build`. #RECENT #WH
 #RECENT  2026-05-02: Importul AI din poză pentru Wedding Hub acceptă acum și HEIC/HEIF direct din iPhone: backend-ul normalizează `image/jpg`, încearcă conversia HEIC prin `heic-convert` și are fallback la `sharp` înainte de apelul către Claude. Validat cu `npm run typecheck` și `npm run build`. #RECENT #WH

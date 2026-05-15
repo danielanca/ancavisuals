@@ -125,11 +125,17 @@ Extrage din documentul de mai sus următoarele informații și returnează DOAR 
 router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
-    const { year, month } = req.query as { year?: string; month?: string };
+    const { year, month, monthFrom, monthTo } = req.query as { year?: string; month?: string; monthFrom?: string; monthTo?: string };
 
     let query = db.collection(COLLECTION).orderBy("date", "desc") as FirebaseFirestore.Query;
 
-    if (year && month) {
+    if (year && monthFrom && monthTo) {
+      const startDate = new Date(Number(year), Number(monthFrom) - 1, 1);
+      const endDate = new Date(Number(year), Number(monthTo), 1);
+      query = query
+        .where("date", ">=", Timestamp.fromDate(startDate))
+        .where("date", "<", Timestamp.fromDate(endDate));
+    } else if (year && month) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 1);
       query = query

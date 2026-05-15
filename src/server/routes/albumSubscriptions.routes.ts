@@ -176,4 +176,24 @@ router.get("/count/:slug", requireFirebaseAuth, requireSupremeAdmin, async (req:
   }
 });
 
+// GET /list/:slug — returns subscriber emails for an album (admin only)
+router.get("/list/:slug", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { slug } = req.params;
+  try {
+    const db = firestore();
+    const snapshot = await db
+      .collection(COLLECTION)
+      .where("albumSlug", "==", slug)
+      .orderBy("subscribedAt", "desc")
+      .get();
+    const subscribers = snapshot.docs.map(doc => ({
+      email: doc.data().email as string,
+      subscribedAt: doc.data().subscribedAt ?? null,
+    }));
+    res.json({ subscribers });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 export default router;

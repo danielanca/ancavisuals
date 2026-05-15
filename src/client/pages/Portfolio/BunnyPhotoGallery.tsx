@@ -16,6 +16,8 @@ type Props = {
   scrollable?: boolean;
   mobileColumns?: 1 | 2;
   altBase?: string;
+  protectImages?: boolean;
+  onProtectedContextMenu?: () => void;
 };
 
 type ImgFormat = "webp" | "jpeg" | "png" | "avif" | "auto";
@@ -70,6 +72,8 @@ export default function BunnyPhotoGallery({
   scrollable = false,
   mobileColumns,
   altBase = "fotograf videograf eveniment Anca Visuals",
+  protectImages = false,
+  onProtectedContextMenu,
 }: Props) {
   const [visible, setVisible] = useState(90);
   const [isMobile, setIsMobile] = useState(isMobileNow());
@@ -139,6 +143,11 @@ export default function BunnyPhotoGallery({
         loading="lazy"
         decoding="async"
         alt={buildSeoImageAlt(altBase, index)}
+        {...(protectImages ? {
+          draggable: false,
+          onContextMenu: (e) => { e.preventDefault(); onProtectedContextMenu?.(); },
+          style: { WebkitTouchCallout: "none" as React.CSSProperties["WebkitTouchCallout"], userSelect: "none" },
+        } : {})}
       />
     );
   };
@@ -159,6 +168,7 @@ export default function BunnyPhotoGallery({
         className={cls}
         type="button"
         data-photo-src={src}
+        {...(protectImages && index === 0 ? { 'data-onboarding': 'photo' } : {})}
         onClick={() => {
           if (selectable) {
             onToggle?.(src);
@@ -267,6 +277,7 @@ export default function BunnyPhotoGallery({
                     }
                     onPhotoClick?.(src);
                   }}
+                  onContextMenu={protectImages ? (e) => { e.preventDefault(); onProtectedContextMenu?.(); } : undefined}
                 >
                   {selectable && <div className={styles["pg-check"]}>{isOn ? "✓" : ""}</div>}
                   {renderThumbImg(src, sizes, 720, index)}

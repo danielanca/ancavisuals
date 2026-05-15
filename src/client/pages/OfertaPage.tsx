@@ -2,6 +2,19 @@ import React, { useEffect, useState, useRef } from "react";
 import { remoteAddress } from "../utils/address";
 import { useParams } from "react-router-dom";
 
+type OfferServiceSection = {
+  id: string;
+  label: string;
+  description: string;
+  basePrice: string;
+  assets: Array<{
+    id: string;
+    kind: "image" | "video";
+    url: string;
+    label: string;
+  }>;
+};
+
 type Offer = {
   id: string;
   slug: string;
@@ -12,6 +25,8 @@ type Offer = {
   price: string;
   packageName: string;
   validUntil: string;
+  selectedServices: string[];
+  serviceSections: OfferServiceSection[];
 };
 
 function formatDate(dateString: string): string {
@@ -163,6 +178,22 @@ export default function OfertaPage() {
           </div>
         )}
 
+        {offer.serviceSections?.length > 0 && (
+          <div className="mb-10">
+            <p className="text-neutral-500 text-xs uppercase tracking-[0.2em] mb-4">Servicii incluse</p>
+            <div className="flex flex-wrap gap-2">
+              {offer.serviceSections.map(service => (
+                <span
+                  key={service.id}
+                  className="rounded-full border border-violet-800/60 bg-violet-900/20 px-3 py-1.5 text-xs text-violet-200"
+                >
+                  {service.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Description */}
         {offer.description && (
           <div className="mb-10">
@@ -171,6 +202,52 @@ export default function OfertaPage() {
                 line.trim() === ""
                   ? <br key={index} />
                   : <p key={index} className="text-neutral-300 text-sm leading-relaxed mb-3 last:mb-0">{line}</p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {offer.serviceSections?.length > 0 && (
+          <div className="mb-12">
+            <div className="mb-5">
+              <p className="text-neutral-500 text-xs uppercase tracking-[0.2em] mb-2">Preview vizual</p>
+              <h2 className="text-white text-2xl font-light">Serviciile pe care le-am pregatit pentru tine</h2>
+            </div>
+
+            <div className="space-y-8">
+              {offer.serviceSections.map(service => (
+                <section key={service.id} className="rounded-[28px] border border-neutral-800 bg-neutral-900/70 p-5 sm:p-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-neutral-500 text-xs uppercase tracking-[0.2em] mb-2">{service.label}</p>
+                      <h3 className="text-white text-2xl font-light">{service.basePrice}</h3>
+                      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-400">{service.description}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {service.assets.map((asset, index) => (
+                      <div key={asset.id} className="group overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
+                        {asset.kind === "video" ? (
+                          <video
+                            src={asset.url}
+                            controls
+                            muted
+                            playsInline
+                            className="h-64 w-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={asset.url}
+                            alt={`${service.label} Ancavisuals ${index + 1}`}
+                            loading="lazy"
+                            className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </div>

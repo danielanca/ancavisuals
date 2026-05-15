@@ -4,15 +4,19 @@ import Breadcrumb from "./Breadcrumb";
 
 type ProposalStatus = "pending" | "accepted" | "archived" | "rejected";
 type Tab = "pending" | "all" | "accepted" | "rejected" | "archived";
+type ProposalDestination = "instagram" | "media_assets";
 
 type InstagramProposal = {
   id: string;
   albumSlug: string;
   photoUrl: string;
+  originalPhotoUrl?: string;
   fileName: string;
   proposedBy: string;
   proposedAt: string;
   status: ProposalStatus;
+  destinations?: ProposalDestination[];
+  mediaAssetServiceIds?: string[];
 };
 
 const STATUS_LABEL: Record<ProposalStatus, string> = {
@@ -54,17 +58,30 @@ function PendingCard({
 }: {
   proposal: InstagramProposal;
   busy: boolean;
-  onAccept: () => void;
+  onAccept: (destinations: ProposalDestination[]) => void;
   onReject: () => void;
   onDelete: () => void;
 }) {
+  const [accepting, setAccepting] = useState(false);
+  const [acceptDests, setAcceptDests] = useState<Set<ProposalDestination>>(
+    new Set(proposal.destinations ?? ["instagram"])
+  );
+
+  function toggleDest(dest: ProposalDestination) {
+    setAcceptDests(prev => {
+      const next = new Set(prev);
+      next.has(dest) ? next.delete(dest) : next.add(dest);
+      return next;
+    });
+  }
+
   return (
     <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden">
       {/* Mobile: row layout */}
       <div className="flex sm:flex-col">
         <div className="relative flex-shrink-0 w-28 sm:w-full">
           <img
-            src={proposal.photoUrl}
+            src={proposal.originalPhotoUrl ?? proposal.photoUrl}
             alt={proposal.fileName}
             className="w-full h-28 sm:h-auto sm:aspect-square object-cover block"
             loading="lazy"
@@ -85,30 +102,84 @@ function PendingCard({
             {proposal.albumSlug}
           </a>
 
-          <div className="flex gap-2 sm:gap-1.5">
-            <button
-              onClick={onAccept}
-              disabled={busy}
-              className="flex-1 py-2.5 sm:py-2 rounded-lg text-xs font-bold bg-cyan-900/50 text-cyan-300 hover:bg-cyan-800/60 transition-colors disabled:opacity-40 active:scale-95"
-            >
-              Acceptă
-            </button>
-            <button
-              onClick={onReject}
-              disabled={busy}
-              className="flex-1 py-2.5 sm:py-2 rounded-lg text-xs font-bold bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors disabled:opacity-40 active:scale-95"
-            >
-              Respinge
-            </button>
-            <button
-              onClick={onDelete}
-              disabled={busy}
-              className="px-3 py-2.5 sm:py-2 rounded-lg text-xs text-neutral-600 hover:text-red-400 hover:bg-neutral-800 transition-colors disabled:opacity-40"
-              title="Șterge"
-            >
-              ✕
-            </button>
-          </div>
+          {accepting ? (
+            <>
+              <div className="flex gap-1.5 flex-wrap">
+                {(["instagram", "media_assets"] as ProposalDestination[]).map(dest => {
+                  const active = acceptDests.has(dest);
+                  return (
+                    <button
+                      key={dest}
+                      type="button"
+                      onClick={() => toggleDest(dest)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                        dest === "media_assets"
+                          ? active ? "bg-teal-900/60 text-teal-300 border-teal-700" : "bg-transparent text-teal-700 border-teal-900"
+                          : active ? "bg-fuchsia-900/60 text-fuchsia-300 border-fuchsia-700" : "bg-transparent text-fuchsia-800 border-fuchsia-950"
+                      }`}
+                    >
+                      {dest === "media_assets" ? "Media Assets" : "Instagram"}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2 sm:gap-1.5">
+                <button
+                  onClick={() => { onAccept(Array.from(acceptDests)); setAccepting(false); }}
+                  disabled={busy || acceptDests.size === 0}
+                  className="flex-1 py-2.5 sm:py-2 rounded-lg text-xs font-bold bg-cyan-900/50 text-cyan-300 hover:bg-cyan-800/60 transition-colors disabled:opacity-40 active:scale-95"
+                >
+                  {busy ? "..." : "Confirmă"}
+                </button>
+                <button
+                  onClick={() => setAccepting(false)}
+                  disabled={busy}
+                  className="px-3 py-2.5 sm:py-2 rounded-lg text-xs text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex gap-1 flex-wrap">
+                {(proposal.destinations ?? ["instagram"]).map((destination) => (
+                  <span
+                    key={destination}
+                    className={`text-[10px] px-2 py-0.5 rounded-full ${
+                      destination === "media_assets" ? "bg-teal-950/60 text-teal-300" : "bg-fuchsia-950/60 text-fuchsia-300"
+                    }`}
+                  >
+                    {destination === "media_assets" ? "Media Assets" : "Instagram"}
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2 sm:gap-1.5">
+                <button
+                  onClick={() => setAccepting(true)}
+                  disabled={busy}
+                  className="flex-1 py-2.5 sm:py-2 rounded-lg text-xs font-bold bg-cyan-900/50 text-cyan-300 hover:bg-cyan-800/60 transition-colors disabled:opacity-40 active:scale-95"
+                >
+                  Acceptă
+                </button>
+                <button
+                  onClick={onReject}
+                  disabled={busy}
+                  className="flex-1 py-2.5 sm:py-2 rounded-lg text-xs font-bold bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors disabled:opacity-40 active:scale-95"
+                >
+                  Respinge
+                </button>
+                <button
+                  onClick={onDelete}
+                  disabled={busy}
+                  className="px-3 py-2.5 sm:py-2 rounded-lg text-xs text-neutral-600 hover:text-red-400 hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                  title="Șterge"
+                >
+                  ✕
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -136,7 +207,7 @@ function AcceptedCard({
     <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
       <div className="relative">
         <img
-          src={proposal.photoUrl}
+          src={proposal.originalPhotoUrl ?? proposal.photoUrl}
           alt={proposal.fileName}
           className="w-full aspect-square object-cover block"
           loading="lazy"
@@ -154,6 +225,18 @@ function AcceptedCard({
         >
           {proposal.albumSlug}
         </a>
+        <div className="flex gap-1 flex-wrap">
+          {(proposal.destinations ?? ["instagram"]).map((destination) => (
+            <span
+              key={destination}
+              className={`text-[10px] px-2 py-0.5 rounded-full ${
+                destination === "media_assets" ? "bg-teal-950/60 text-teal-300" : "bg-fuchsia-950/60 text-fuchsia-300"
+              }`}
+            >
+              {destination === "media_assets" ? "Media Assets" : "Instagram"}
+            </span>
+          ))}
+        </div>
         <p className="text-neutral-600 text-xs truncate">{proposal.proposedBy}</p>
         <button
           onClick={onDownload}
@@ -235,6 +318,7 @@ export default function InstagramProposalsAdminPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [collapsedAlbums, setCollapsedAlbums] = useState<Set<string>>(new Set());
   const [allStatusFilter, setAllStatusFilter] = useState<ProposalStatus | "all">("all");
+  const [destinationFilter, setDestinationFilter] = useState<ProposalDestination | "all">("all");
   const [allAlbumFilter, setAllAlbumFilter] = useState("all");
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -253,16 +337,18 @@ export default function InstagramProposalsAdminPage() {
       .finally(() => setLoading(false));
   }, [auth.accessToken]);
 
-  const updateStatus = async (id: string, status: ProposalStatus) => {
+  const updateStatus = async (id: string, status: ProposalStatus, destinations?: ProposalDestination[]) => {
     if (!auth.accessToken) return;
     setUpdatingId(id);
     try {
+      const body: Record<string, unknown> = { status };
+      if (destinations) body.destinations = destinations;
       await fetch(`/api/instagram-proposals/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       });
-      setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+      setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, status, ...(destinations ? { destinations } : {}) } : p)));
     } catch { } finally { setUpdatingId(null); }
   };
 
@@ -276,6 +362,20 @@ export default function InstagramProposalsAdminPage() {
       });
       setProposals((prev) => prev.filter((p) => p.id !== id));
     } catch { } finally { setUpdatingId(null); }
+  };
+
+  const [deletingAll, setDeletingAll] = useState<ProposalStatus | null>(null);
+
+  const deleteAllByStatus = async (status: ProposalStatus) => {
+    if (!auth.accessToken) return;
+    setDeletingAll(status);
+    try {
+      await fetch(`/api/instagram-proposals/admin/bulk?status=${status}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      setProposals((prev) => prev.filter((p) => p.status !== status));
+    } catch { } finally { setDeletingAll(null); }
   };
 
   const handleDownload = async (proposal: InstagramProposal) => {
@@ -309,10 +409,11 @@ export default function InstagramProposalsAdminPage() {
   const allFiltered = useMemo(
     () => proposals.filter((p) => {
       const matchesStatus = allStatusFilter === "all" || p.status === allStatusFilter;
+      const matchesDestination = destinationFilter === "all" || (p.destinations ?? ["instagram"]).includes(destinationFilter);
       const matchesAlbum = allAlbumFilter === "all" || p.albumSlug === allAlbumFilter;
-      return matchesStatus && matchesAlbum;
+      return matchesStatus && matchesDestination && matchesAlbum;
     }),
-    [proposals, allStatusFilter, allAlbumFilter],
+    [proposals, allStatusFilter, destinationFilter, allAlbumFilter],
   );
 
   const counts = {
@@ -338,7 +439,7 @@ export default function InstagramProposalsAdminPage() {
 
         {/* Header */}
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-light text-white">Propuneri Instagram</h1>
+          <h1 className="text-xl font-light text-white">Propuneri Media</h1>
           {counts.pending > 0 && (
             <span className="bg-orange-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full">
               {counts.pending} noi
@@ -417,7 +518,7 @@ export default function InstagramProposalsAdminPage() {
                       <PendingCard
                         proposal={proposal}
                         busy={updatingId === proposal.id}
-                        onAccept={() => updateStatus(proposal.id, "accepted")}
+                        onAccept={(destinations) => updateStatus(proposal.id, "accepted", destinations)}
                         onReject={() => updateStatus(proposal.id, "rejected")}
                         onDelete={() => deleteProposal(proposal.id)}
                       />
@@ -437,9 +538,18 @@ export default function InstagramProposalsAdminPage() {
           }
           return (
             <>
-              <p className="text-neutral-600 text-xs">
-                Descarcă poza — butonul „Mută în Arhivate" se activează după descărcare.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-neutral-600 text-xs">
+                  Descarcă poza — butonul „Mută în Arhivate" se activează după descărcare.
+                </p>
+                <button
+                  onClick={() => { if (window.confirm(`Ștergi definitiv toate cele ${accepted.length} poze acceptate?`)) deleteAllByStatus("accepted"); }}
+                  disabled={deletingAll === "accepted"}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-neutral-800 text-neutral-400 border border-neutral-700 hover:text-red-400 hover:border-red-900/40 transition-colors disabled:opacity-40"
+                >
+                  {deletingAll === "accepted" ? "Se șterge..." : `Șterge tot (${accepted.length})`}
+                </button>
+              </div>
               {groupByAlbum(accepted).map(([albumSlug, albumProposals]) => (
                 <div key={albumSlug} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
                   <AlbumGroupHeader
@@ -478,12 +588,22 @@ export default function InstagramProposalsAdminPage() {
             return <div className="text-center py-16 text-neutral-600 text-sm">Nicio poză respinsă.</div>;
           }
           return (
+            <>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => { if (window.confirm(`Ștergi definitiv toate cele ${rejected.length} poze respinse?`)) deleteAllByStatus("rejected"); }}
+                  disabled={deletingAll === "rejected"}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors disabled:opacity-40"
+                >
+                  {deletingAll === "rejected" ? "Se șterge..." : `Șterge tot (${rejected.length})`}
+                </button>
+              </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {rejected.map((proposal) => (
                 <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                   <div className="relative">
                     <img
-                      src={proposal.photoUrl}
+                      src={proposal.originalPhotoUrl ?? proposal.photoUrl}
                       alt={proposal.fileName}
                       className="w-full aspect-square object-cover block grayscale opacity-50"
                       loading="lazy"
@@ -521,6 +641,7 @@ export default function InstagramProposalsAdminPage() {
                 </div>
               ))}
             </div>
+            </>
           );
         })()}
 
@@ -531,12 +652,22 @@ export default function InstagramProposalsAdminPage() {
             return <div className="text-center py-16 text-neutral-600 text-sm">Nicio poză arhivată.</div>;
           }
           return (
+            <>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => { if (window.confirm(`Ștergi definitiv toate cele ${archived.length} poze arhivate?`)) deleteAllByStatus("archived"); }}
+                  disabled={deletingAll === "archived"}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-neutral-800 text-neutral-400 border border-neutral-700 hover:text-red-400 hover:border-red-900/40 transition-colors disabled:opacity-40"
+                >
+                  {deletingAll === "archived" ? "Se șterge..." : `Șterge tot (${archived.length})`}
+                </button>
+              </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {archived.map((proposal) => (
                 <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                   <div className="relative">
                     <img
-                      src={proposal.photoUrl}
+                      src={proposal.originalPhotoUrl ?? proposal.photoUrl}
                       alt={proposal.fileName}
                       className="w-full aspect-square object-cover block"
                       loading="lazy"
@@ -571,6 +702,7 @@ export default function InstagramProposalsAdminPage() {
                 </div>
               ))}
             </div>
+            </>
           );
         })()}
 
@@ -589,6 +721,20 @@ export default function InstagramProposalsAdminPage() {
                     }`}
                   >
                     {filter === "all" ? "Toate statusurile" : STATUS_LABEL[filter]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-1 bg-neutral-900 rounded-xl p-1 overflow-x-auto scrollbar-none" style={{ scrollbarWidth: "none" }}>
+                {(["all", "instagram", "media_assets"] as (ProposalDestination | "all")[]).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setDestinationFilter(filter)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                      destinationFilter === filter ? "bg-neutral-700 text-white" : "text-neutral-500 hover:text-neutral-300"
+                    }`}
+                  >
+                    {filter === "all" ? "Toate destinațiile" : filter === "media_assets" ? "Media Assets" : "Instagram"}
                   </button>
                 ))}
               </div>
@@ -642,6 +788,18 @@ export default function InstagramProposalsAdminPage() {
                         {proposal.albumSlug}
                       </a>
                       <p className="text-neutral-600 text-xs truncate">{proposal.proposedBy}</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {(proposal.destinations ?? ["instagram"]).map((destination) => (
+                          <span
+                            key={destination}
+                            className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              destination === "media_assets" ? "bg-teal-950/60 text-teal-300" : "bg-fuchsia-950/60 text-fuchsia-300"
+                            }`}
+                          >
+                            {destination === "media_assets" ? "Media Assets" : "Instagram"}
+                          </span>
+                        ))}
+                      </div>
                       <div className="flex gap-1.5 flex-wrap">
                         {proposal.status === "pending" && (
                           <button

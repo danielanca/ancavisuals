@@ -1,6 +1,8 @@
 import { useEffect, useReducer } from "react";
+import { Link } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
+import { OFFER_SERVICES } from "../../../../shared/offers/offerServices";
 
 type Offer = {
   id: string;
@@ -12,6 +14,7 @@ type Offer = {
   price: string;
   packageName: string;
   validUntil: string;
+  selectedServices: string[];
   active: boolean;
   viewCount: number;
   downloadCount: number;
@@ -27,6 +30,7 @@ type FormData = {
   price: string;
   packageName: string;
   validUntil: string;
+  selectedServices: string[];
 };
 
 const emptyForm: FormData = {
@@ -38,6 +42,7 @@ const emptyForm: FormData = {
   price: "",
   packageName: "",
   validUntil: "",
+  selectedServices: [],
 };
 
 function offerToForm(offer: Offer): FormData {
@@ -50,6 +55,7 @@ function offerToForm(offer: Offer): FormData {
     price: offer.price,
     packageName: offer.packageName,
     validUntil: offer.validUntil,
+    selectedServices: Array.isArray(offer.selectedServices) ? offer.selectedServices : [],
   };
 }
 
@@ -76,6 +82,7 @@ type Action =
   | { type: "OPEN_FORM" }
   | { type: "CLOSE_FORM" }
   | { type: "SET_FIELD"; field: keyof FormData; value: string }
+  | { type: "TOGGLE_SERVICE"; serviceId: string }
   | { type: "SAVING" }
   | { type: "SAVE_OK"; offer: Offer }
   | { type: "SAVE_ERR"; error: string }
@@ -86,6 +93,7 @@ type Action =
   | { type: "OPEN_EDIT"; offer: Offer }
   | { type: "CLOSE_EDIT" }
   | { type: "EDIT_FIELD"; field: keyof FormData; value: string }
+  | { type: "EDIT_TOGGLE_SERVICE"; serviceId: string }
   | { type: "EDIT_SAVING" }
   | { type: "EDIT_OK"; offer: Offer }
   | { type: "EDIT_ERR"; error: string }
@@ -99,6 +107,16 @@ function reducer(state: State, action: Action): State {
     case "OPEN_FORM": return { ...state, showForm: true, form: emptyForm, saveError: null };
     case "CLOSE_FORM": return { ...state, showForm: false, form: emptyForm, saveError: null };
     case "SET_FIELD": return { ...state, form: { ...state.form, [action.field]: action.value } };
+    case "TOGGLE_SERVICE":
+      return {
+        ...state,
+        form: {
+          ...state.form,
+          selectedServices: state.form.selectedServices.includes(action.serviceId)
+            ? state.form.selectedServices.filter(id => id !== action.serviceId)
+            : [...state.form.selectedServices, action.serviceId],
+        },
+      };
     case "SAVING": return { ...state, saving: true, saveError: null };
     case "SAVE_OK": return { ...state, saving: false, showForm: false, form: emptyForm, offers: [action.offer, ...state.offers] };
     case "SAVE_ERR": return { ...state, saving: false, saveError: action.error };
@@ -113,6 +131,16 @@ function reducer(state: State, action: Action): State {
       return { ...state, editingId: null, editForm: emptyForm, editError: null };
     case "EDIT_FIELD":
       return { ...state, editForm: { ...state.editForm, [action.field]: action.value } };
+    case "EDIT_TOGGLE_SERVICE":
+      return {
+        ...state,
+        editForm: {
+          ...state.editForm,
+          selectedServices: state.editForm.selectedServices.includes(action.serviceId)
+            ? state.editForm.selectedServices.filter(id => id !== action.serviceId)
+            : [...state.editForm.selectedServices, action.serviceId],
+        },
+      };
     case "EDIT_SAVING":
       return { ...state, editSaving: true, editError: null };
     case "EDIT_OK":
@@ -265,12 +293,20 @@ export default function OferteAdminPage() {
             <h1 className="text-xl font-light text-white">Oferte</h1>
             <p className="text-neutral-500 text-sm">{state.offers.length} oferte create</p>
           </div>
-          <button
-            onClick={() => dispatch({ type: state.showForm ? "CLOSE_FORM" : "OPEN_FORM" })}
-            className="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            {state.showForm ? "Anulează" : "+ Ofertă nouă"}
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/admin/template-oferte"
+              className="border border-neutral-700 hover:border-neutral-500 text-neutral-300 hover:text-white px-4 py-2 rounded-lg text-sm transition-colors"
+            >
+              Template Oferte
+            </Link>
+            <button
+              onClick={() => dispatch({ type: state.showForm ? "CLOSE_FORM" : "OPEN_FORM" })}
+              className="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              {state.showForm ? "Anulează" : "+ Ofertă nouă"}
+            </button>
+          </div>
         </div>
 
         {/* Create form */}
@@ -299,16 +335,6 @@ export default function OferteAdminPage() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-neutral-400 text-xs uppercase tracking-wide">Nume client</label>
-                <input
-                  value={state.form.clientName}
-                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "clientName", value: e.target.value })}
-                  placeholder="Ana și Mihai"
-                  className={inputClass}
-                />
-              </div>
-
               <div className="space-y-1 sm:col-span-2">
                 <label className="text-neutral-400 text-xs uppercase tracking-wide">Titlu ofertă</label>
                 <input
@@ -317,6 +343,34 @@ export default function OferteAdminPage() {
                   placeholder="Pachet foto-video nuntă 2027"
                   className={inputClass}
                 />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-neutral-400 text-xs uppercase tracking-wide">Servicii incluse</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {OFFER_SERVICES.map((service) => {
+                    const checked = state.form.selectedServices.includes(service.id);
+                    return (
+                      <label
+                        key={service.id}
+                        className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+                          checked ? "border-violet-500 bg-violet-500/10" : "border-neutral-800 bg-neutral-950/60 hover:border-neutral-700"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => dispatch({ type: "TOGGLE_SERVICE", serviceId: service.id })}
+                          className="mt-1 h-4 w-4 accent-violet-500"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm text-white">{service.label}</span>
+                          <span className="block text-xs text-neutral-500 mt-1">{service.description}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -541,10 +595,11 @@ export default function OferteAdminPage() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Nume client</label>
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Nume client <span className="normal-case text-neutral-600">(opțional)</span></label>
                         <input
                           value={state.editForm.clientName}
                           onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "clientName", value: e.target.value })}
+                          placeholder="Ana și Mihai"
                           className={inputClass}
                         />
                       </div>
@@ -556,6 +611,34 @@ export default function OferteAdminPage() {
                           onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "title", value: e.target.value })}
                           className={inputClass}
                         />
+                      </div>
+
+                      <div className="space-y-2 sm:col-span-2">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Servicii incluse</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {OFFER_SERVICES.map((service) => {
+                            const checked = state.editForm.selectedServices.includes(service.id);
+                            return (
+                              <label
+                                key={service.id}
+                                className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+                                  checked ? "border-violet-500 bg-violet-500/10" : "border-neutral-800 bg-neutral-950/60 hover:border-neutral-700"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => dispatch({ type: "EDIT_TOGGLE_SERVICE", serviceId: service.id })}
+                                  className="mt-1 h-4 w-4 accent-violet-500"
+                                />
+                                <span className="min-w-0">
+                                  <span className="block text-sm text-white">{service.label}</span>
+                                  <span className="block text-xs text-neutral-500 mt-1">{service.description}</span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div className="space-y-1">

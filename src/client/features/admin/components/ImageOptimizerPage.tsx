@@ -109,8 +109,8 @@ export default function ImageOptimizerPage() {
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
-  // Thumbnail canvases keyed by file id — not in state to avoid re-renders
   const thumbMap = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const fileMap = useRef<Map<string, File>>(new Map());
   const estimateTimer = useRef<number | null>(null);
 
   // Recompute estimates for all pending files at given quality
@@ -164,6 +164,7 @@ export default function ImageOptimizerPage() {
     await Promise.all(
       fresh.map(async (f, i) => {
         const id = newEntries[i].id;
+        fileMap.current.set(id, f);
         try {
           const img = await loadImageFromFile(f);
           const canvas = buildThumbCanvas(img);
@@ -188,13 +189,12 @@ export default function ImageOptimizerPage() {
     dispatch({ type: "SET_PROCESSING", value: true });
     dispatch({ type: "SET_DONE", value: false });
 
-    const rawFiles = inputRef.current?.files ? Array.from(inputRef.current.files) : [];
     const pending = state.files.filter((f) => f.status === "pending");
 
     for (const entry of pending) {
       dispatch({ type: "UPDATE_FILE", id: entry.id, patch: { status: "processing" } });
       try {
-        const rawFile = rawFiles.find((f) => f.name === entry.name && f.size === entry.originalSize);
+        const rawFile = fileMap.current.get(entry.id);
         if (!rawFile) throw new Error("File not found");
         const blob = await convertToWebP(rawFile, state.width, state.quality);
         const baseName = entry.name.replace(/\.[^.]+$/, "");
@@ -322,7 +322,7 @@ export default function ImageOptimizerPage() {
               </button>
             )}
             <button
-              onClick={() => { thumbMap.current.clear(); dispatch({ type: "RESET" }); }}
+              onClick={() => { thumbMap.current.clear(); fileMap.current.clear(); dispatch({ type: "RESET" }); }}
               className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 hover:text-white text-sm transition-colors"
             >
               Resetează

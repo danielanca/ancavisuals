@@ -31,6 +31,7 @@ import routeSheetsRouter from "./src/server/routes/routeSheets.routes";
 import monitoringRouter from "./src/server/routes/monitoring.routes";
 import expensesRouter from "./src/server/routes/expenses.routes";
 import invoicesRouter from "./src/server/routes/invoices.routes";
+import bankStatementsRouter from "./src/server/routes/bankStatements.routes";
 import loginEventsRouter from "./src/server/routes/loginEvents.routes";
 import landingRouter from "./src/server/routes/landing.routes";
 import instagramProposalsRouter from "./src/server/routes/instagramProposals.routes";
@@ -163,6 +164,7 @@ async function createServer() {
   app.use("/api/admin/monitoring", monitoringRouter);
   app.use("/api/admin/expenses", expensesRouter);
   app.use("/api/admin/invoices", invoicesRouter);
+  app.use("/api/admin/bank-statements", bankStatementsRouter);
   app.use("/api", loginEventsRouter);
   app.use("/api/admin/landing", landingRouter);
   app.use("/api/instagram-proposals", instagramProposalsRouter);
@@ -201,6 +203,7 @@ async function createServer() {
       server: { host: '127.0.0.1', middlewareMode: true, hmr: isPlaywright ? false : undefined },
       appType: 'custom',
       logLevel: isTest ? 'error' : 'warn',
+      cacheDir: 'node_modules/.vite-ssr',
     });
 
     if (showProgress) devLogger.stopSpinner("Vite dev server");
@@ -279,13 +282,22 @@ async function createServer() {
   });
 
   const port = process.env.PORT || DEFAULT_APP_PORT;
-  app.listen(Number(port), '127.0.0.1', () => {
+  const httpServer = app.listen(Number(port), '127.0.0.1', () => {
     if (showProgress) {
       devLogger.ready(Number(port), Date.now() - startTime);
     } else {
       console.log(`App is listening on http://127.0.0.1:${port}`);
     }
   });
+
+  if (!isProd && vite) {
+    httpServer.on('upgrade', (req, socket, head) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (vite!.ws as any).handleUpgrade(req, socket, head, (client: any) => {
+        (vite!.ws as any).emit('connection', client, req);
+      });
+    });
+  }
 }
 
 createServer();

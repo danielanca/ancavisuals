@@ -13,7 +13,7 @@ const ADMIN_EMAIL = adminUser.email;
 
 const router = Router();
 
-router.get("/admin/list", async (_req: Request, res: Response) => {
+router.get("/admin/list", async (req: Request, res: Response) => {
   try {
     const { buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER } = await import("../constants/bunny");
     const url = buildBunnyDirectoryUrl();
@@ -24,6 +24,20 @@ router.get("/admin/list", async (_req: Request, res: Response) => {
       .filter((e) => e.IsDirectory)
       .map((e) => e.ObjectName.replace(/\/$/, ""))
       .sort();
+
+    if (req.query.hasShortVideo === "true") {
+      const storageKey = getBunnyStorageKey();
+      const results = await Promise.all(slugs.map(async slug => {
+        const dirUrl = buildBunnyDirectoryUrl(slug, "shortvideo");
+        const dirResponse = await fetch(dirUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+        if (!dirResponse.ok) return null;
+        const files = await dirResponse.json() as { ObjectName: string; IsDirectory: boolean }[];
+        return files.some(f => !f.IsDirectory) ? slug : null;
+      }));
+      const filtered = results.filter((slug): slug is string => slug !== null);
+      return res.json({ slugs: filtered, links: filtered.map(s => `/media/${s}`) });
+    }
+
     res.json({ slugs, links: slugs.map((s) => `/media/${s}`) });
   } catch (error) {
     res.status(500).json({ error: String(error) });

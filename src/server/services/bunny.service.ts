@@ -39,6 +39,11 @@ export async function listFiles(path: string) {
   return Array.isArray(data) ? data : data?.Objects ?? [];
 }
 
+export async function checkFileExists(dir: string, fileName: string): Promise<boolean> {
+  const files = await listFiles(dir);
+  return files.some((f) => (f as BunnyObject).ObjectName === fileName);
+}
+
 export async function checkPreviewExist(slug: string) {
   const url = buildBunnyDirectoryUrl(slug, BUNNY_PREVIEW_FOLDER);
 

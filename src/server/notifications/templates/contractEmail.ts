@@ -71,11 +71,17 @@ interface SignedContractEmailOptions {
   eventDate: string;
   clientName: string;
   pdfUrl: string;
+  hasPdf?: boolean;
 }
 
 export async function sendSignedContractEmail(options: SignedContractEmailOptions): Promise<void> {
-  const { to, eventType, eventDate, clientName, pdfUrl } = options;
+  const { to, eventType, eventDate, clientName, pdfUrl, hasPdf = true } = options;
   const formattedDate = formatRoDate(eventDate);
+
+  const buttonLabel = hasPdf ? "Descarcă Contractul PDF" : "Vezi Contractul Semnat";
+  const bodyText = hasPdf
+    ? "Puteți descărca contractul semnat accesând butonul de mai jos. Link-ul este permanent și poate fi accesat oricând."
+    : "Contractul a fost semnat. PDF-ul se generează — îl puteți accesa în curând accesând link-ul de mai jos.";
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">
@@ -89,10 +95,7 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
         Contractul pentru evenimentul <strong>${eventType}</strong> din <strong>${formattedDate}</strong>
         a fost semnat cu succes de <strong>${clientName}</strong>.
       </p>
-      <p style="color: #555; margin-bottom: 28px;">
-        Puteți descărca contractul semnat accesând butonul de mai jos.
-        Link-ul este permanent și poate fi accesat oricând.
-      </p>
+      <p style="color: #555; margin-bottom: 28px;">${bodyText}</p>
 
       <div style="text-align: center; margin-bottom: 28px;">
         <a href="${pdfUrl}" style="
@@ -105,7 +108,7 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
           font-size: 15px;
           font-weight: 600;
           letter-spacing: 1px;
-        ">Descarcă Contractul PDF</a>
+        ">${buttonLabel}</a>
       </div>
 
       <hr style="border: none; border-top: 1px solid #eee; margin: 28px 0 16px;" />
@@ -115,7 +118,6 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
     </div>
   `;
 
-  // Send to client
   await mailer.sendMail({
     from: emailAuth.email,
     to,
@@ -123,7 +125,6 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
     html,
   });
 
-  // Send to admin
   await mailer.sendMail({
     from: emailAuth.email,
     to: adminUser.email,
