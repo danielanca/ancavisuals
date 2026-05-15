@@ -8,6 +8,7 @@ import MultiFileDropZone from "./MultiFileDropZone";
 import ConfirmModal from "./ConfirmModal";
 import { slugify } from "../../../utils/slugify";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
+import useAuth from "../auth/useAuth";
 
 interface EventCardProps {
   event: ClientEvent;
@@ -31,6 +32,7 @@ const formatRON = (amount: number) =>
 
 const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onCollapseChange, onUpdated, onDeleted }) => {
   const navigate = useNavigate();
+  const auth = useAuth();
   const hasEventData = Boolean(event?.client);
   const fallbackDate = event?.eventDate ? new Date(event.eventDate) : null;
   const fallbackName = event?.client?.fullName ?? "";
@@ -59,6 +61,9 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [newExpenseAmount, setNewExpenseAmount] = useState("");
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [backupSaving, setBackupSaving] = useState(false);
+  const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
+  const [notifying, setNotifying] = useState(false);
+  const [notifyResult, setNotifyResult] = useState<string | null>(null);
 
   const eventDate = fallbackDate;
   const effectiveEventDate = event.eventEndDate ? new Date(event.eventEndDate) : eventDate;
@@ -108,6 +113,38 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const suggestedSlug = eventDate
     ? `${String(eventDate.getDate()).padStart(2, "0")}${eventDate.toLocaleString("ro-RO", { month: "long" }).toLowerCase().replace(/\s+/g, "")}${eventDate.getFullYear()}`
     : "";
+
+  // Fetch subscriber count when album section becomes visible
+  useEffect(() => {
+    if (!albumSlug || collapsed) return;
+    fetch(`/api/album-subscriptions/count/${encodeURIComponent(albumSlug)}`, {
+      headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
+    })
+      .then((response) => response.json())
+      .then((data: { count?: number }) => { if (typeof data.count === "number") setSubscriberCount(data.count); })
+      .catch(() => {});
+  }, [albumSlug, collapsed]);
+
+  const handleNotifySubscribers = async (event_: React.MouseEvent) => {
+    event_.stopPropagation();
+    if (!albumSlug) return;
+    setNotifying(true);
+    setNotifyResult(null);
+    try {
+      const response = await fetch(`/api/album-subscriptions/notify/${encodeURIComponent(albumSlug)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
+      });
+      const data = (await response.json()) as { sent?: number; error?: string };
+      setNotifyResult(data.error ? `Eroare: ${data.error}` : `Notificat ${data.sent ?? 0} abonat(i)`);
+      setTimeout(() => setNotifyResult(null), 4000);
+    } catch {
+      setNotifyResult("Eroare la trimitere.");
+      setTimeout(() => setNotifyResult(null), 3000);
+    } finally {
+      setNotifying(false);
+    }
+  };
 
   // Auto-detect album in Bunny when card is expanded and no albumSlug is set yet
   useEffect(() => {
@@ -744,6 +781,40 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                         </a>
                       )}
                     </div>
+
+                    {/* Album subscribers */}
+                    {subscriberCount !== null && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="inline-flex items-center gap-1 text-xs text-neutral-400">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                          </svg>
+                          <span className={subscriberCount > 0 ? "text-emerald-400 font-medium" : ""}>
+                            {subscriberCount} abonat{subscriberCount !== 1 ? "i" : ""}
+                          </span>
+                        </span>
+                        {subscriberCount > 0 && (
+                          <button
+                            onClick={handleNotifySubscribers}
+                            disabled={notifying}
+                            className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
+                          >
+                            {notifying ? (
+                              <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                            ) : (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.6 3.37 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.95-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16.92z"/>
+                              </svg>
+                            )}
+                            Notifică
+                          </button>
+                        )}
+                        {notifyResult && (
+                          <span className="text-xs text-emerald-400 animate-pulse">{notifyResult}</span>
+                        )}
+                      </div>
+                    )}
 
                     {processLog.length > 0 && (
                       <div className="mt-2 bg-neutral-950 border border-neutral-800 rounded-lg p-3 max-h-40 overflow-y-auto">
