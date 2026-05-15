@@ -634,22 +634,29 @@ async function uploadPdfToStorage(pdfBuffer: Buffer, filename: string): Promise<
 
 async function generateAndSendPDF(contract: Record<string, unknown>): Promise<void> {
   const db = firestore();
-  const bankDetails = await getAdminBankDetails();
-  const pdfBuffer = await generateContractPDF({ ...contract, ...bankDetails });
+  let pdfUrl: string | null = null;
 
-  const filename = buildPdfFilename(contract);
-  const pdfUrl = await uploadPdfToStorage(pdfBuffer, filename);
-
-  if (contract.id) {
-    await db.collection("contracts").doc(contract.id as string).update({ pdfUrl });
+  try {
+    const bankDetails = await getAdminBankDetails();
+    const pdfBuffer = await generateContractPDF({ ...contract, ...bankDetails });
+    const filename = buildPdfFilename(contract);
+    pdfUrl = await uploadPdfToStorage(pdfBuffer, filename);
+    if (contract.id) {
+      await db.collection("contracts").doc(contract.id as string).update({ pdfUrl });
+    }
+  } catch (pdfError) {
+    console.error("[contracts] PDF generation/upload failed, sending email without PDF link:", pdfError);
   }
+
+  const fallbackUrl = `${APP_BASE_URL}/contract/${String(contract.token ?? "")}`;
 
   await sendSignedContractEmail({
     to: contract.clientEmail as string,
     eventType: contract.eventType as string,
     eventDate: contract.eventDate as string,
     clientName: contract.clientName as string,
-    pdfUrl,
+    pdfUrl: pdfUrl ?? fallbackUrl,
+    hasPdf: pdfUrl !== null,
   });
 }
 

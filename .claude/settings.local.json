@@ -24,7 +24,9 @@
       "Bash(grep -v \"^$\")",
       "Bash(grep *)",
       "Bash(git checkout *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Read(//Applications/**)",
+      "Read(//Users/daniel.anca/Applications/**)"
     ]
   }
 }
