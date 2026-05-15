@@ -32,6 +32,10 @@ vi.mock("src/client/utils/slugify", () => ({
   slugify: (s: string) => s,
 }));
 
+vi.mock("src/client/features/admin/auth/useAuth", () => ({
+  default: () => ({ auth: { accessToken: "test-token" } }),
+}));
+
 function makeEvent(overrides: Partial<ClientEvent> = {}): ClientEvent {
   return {
     id: "ev-1",

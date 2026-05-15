@@ -55,13 +55,14 @@ function getEventDateInput() {
 }
 
 function getAdvanceInput(manualTotal = false) {
-  const input = document.querySelectorAll('input[type="number"]')[manualTotal ? 2 : 1];
+  const inputs = document.querySelectorAll('input[inputMode="decimal"]');
+  const input = inputs[manualTotal ? 1 : 0];
   if (!input) throw new Error("Advance input not found");
   return input;
 }
 
 function getPriceTotalInput() {
-  const input = document.querySelectorAll('input[type="number"]')[1];
+  const input = document.querySelectorAll('input[inputMode="decimal"]')[0];
   if (!input) throw new Error("Price total input not found");
   return input;
 }

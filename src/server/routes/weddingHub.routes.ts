@@ -618,11 +618,12 @@ async function normalizeImageForExtraction(args: {
 }): Promise<{ imageBase64: string; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" }> {
   const { imageBase64, mediaType } = args;
   const inputBuffer = Buffer.from(imageBase64, "base64");
+  const inputArrayBuffer = inputBuffer.buffer.slice(inputBuffer.byteOffset, inputBuffer.byteOffset + inputBuffer.byteLength);
 
   if (mediaType === "image/heic" || mediaType === "image/heif") {
     try {
       const convertedBuffer = Buffer.from(await heicConvert({
-        buffer: inputBuffer,
+        buffer: inputArrayBuffer,
         format: "JPEG",
         quality: 0.9,
       }));

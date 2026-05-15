@@ -296,6 +296,7 @@ describe("contracts.routes", () => {
         eventDate: "2026-09-12",
         clientName: "Ion Popescu",
         pdfUrl: "https://storage.example.com/contract.pdf",
+        hasPdf: true,
       });
     });
 

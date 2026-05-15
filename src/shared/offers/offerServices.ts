@@ -1,4 +1,4 @@
-import pricesData from "../pricing/prices.json" with { type: "json" };
+import pricesData from "../pricing/prices.json";
 
 export type OfferServiceDefinition = {
   id: string;
