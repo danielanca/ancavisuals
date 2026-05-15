@@ -16,6 +16,7 @@ interface EventCardProps {
   onCollapseChange?: (collapsed: boolean) => void;
   onUpdated?: (updated: Partial<ClientEvent>) => void;
   onDeleted?: () => void;
+  exchangeRate?: number;
 }
 
 const STATUS_OPTIONS: EventStatus[] = ["lead", "tentativ", "confirmat", "finalizat", "anulat"];
@@ -30,9 +31,12 @@ const formatEUR = (amount: number) =>
 const formatRON = (amount: number) =>
   new Intl.NumberFormat("ro-RO", { style: "currency", currency: "RON", maximumFractionDigits: 0 }).format(amount);
 
-const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onCollapseChange, onUpdated, onDeleted }) => {
+const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, onCollapseChange, onUpdated, onDeleted, exchangeRate }) => {
   const navigate = useNavigate();
   const auth = useAuth();
+  const rate = exchangeRate && exchangeRate > 0 ? exchangeRate : null;
+  const ronOf = (eur: number) => rate ? formatRON(Math.round(eur * rate)) : null;
+  const eurOf = (ron: number) => rate ? formatEUR(Math.round((ron / rate) * 100) / 100) : null;
   const hasEventData = Boolean(event?.client);
   const fallbackDate = event?.eventDate ? new Date(event.eventDate) : null;
   const fallbackName = event?.client?.fullName ?? "";
@@ -498,8 +502,11 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
           </div>
           <div className="flex items-center gap-2.5 shrink-0">
             {!isLead && (
-              <span className="text-neutral-300 text-xs font-medium">
-                <Redacted>{formatEUR(event.pricing?.total ?? 0)}</Redacted>
+              <span className="text-right">
+                <Redacted><span className="text-neutral-300 text-xs font-medium">{formatEUR(event.pricing?.total ?? 0)}</span></Redacted>
+                {ronOf(event.pricing?.total ?? 0) && (
+                  <span className="text-neutral-600 text-[10px] block leading-tight">≈ {ronOf(event.pricing?.total ?? 0)}</span>
+                )}
               </span>
             )}
             {!isLead && (
@@ -583,7 +590,15 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               )}
               {!isLead && (
                 <>
-                  <span className="flex items-center gap-1.5"><span>💶</span><Redacted>{formatEUR(event.pricing?.total ?? 0)}</Redacted></span>
+                  <span className="flex items-center gap-1.5">
+                    <span>💶</span>
+                    <span>
+                      <Redacted>{formatEUR(event.pricing?.total ?? 0)}</Redacted>
+                      {ronOf(event.pricing?.total ?? 0) && (
+                        <span className="text-neutral-500 text-[10px] block leading-tight">≈ {ronOf(event.pricing?.total ?? 0)}</span>
+                      )}
+                    </span>
+                  </span>
                   {event.status !== "anulat" && isPast && (
                     <span className={`flex items-center gap-1.5 ${backupPending ? "text-orange-300" : "text-emerald-300"}`}>
                       <span>{backupPending ? "🛟" : "✅"}</span>
@@ -592,13 +607,20 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   )}
                   <span className="flex items-center gap-1.5">
                     <span>{event.pricing?.advancePaid ? "✅" : "⏳"}</span>
-                    {event.pricing?.advancePaid ? "Avans încasat (" : "Avans neîncasat ("}
-                    <Redacted>{formatEUR(event.pricing?.advanceAmount ?? 0)}</Redacted>)
+                    <span>
+                      {event.pricing?.advancePaid ? "Avans încasat" : "Avans neîncasat"}{" "}
+                      <Redacted>({formatEUR(event.pricing?.advanceAmount ?? 0)}{ronOf(event.pricing?.advanceAmount ?? 0) ? ` · ≈ ${ronOf(event.pricing?.advanceAmount ?? 0)}` : ""})</Redacted>
+                    </span>
                   </span>
                   {(event.pricing?.remainingAmount ?? 0) > 0 && (
                     <span className="flex items-center gap-1.5">
                       <span>💳</span>
-                      Rest de plată: <Redacted>{formatEUR(event.pricing.remainingAmount)}</Redacted>
+                      <span>
+                        Rest: <Redacted>{formatEUR(event.pricing.remainingAmount)}</Redacted>
+                        {ronOf(event.pricing.remainingAmount) && (
+                          <span className="text-neutral-500 text-[10px] block leading-tight">≈ {ronOf(event.pricing.remainingAmount)}</span>
+                        )}
+                      </span>
                     </span>
                   )}
                 </>
@@ -895,7 +917,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   {expenses.map((expense) => (
                     <div key={expense.id} className="flex items-center justify-between gap-2 text-xs">
                       <span className="text-neutral-300 flex-1 truncate">{expense.label}</span>
-                      <span className="text-neutral-400 font-mono shrink-0">{formatRON(expense.amount)}</span>
+                      <span className="text-right shrink-0">
+                        <span className="text-neutral-400 font-mono">{formatRON(expense.amount)}</span>
+                        {eurOf(expense.amount) && (
+                          <span className="text-neutral-600 text-[10px] block leading-tight">≈ {eurOf(expense.amount)}</span>
+                        )}
+                      </span>
                       <button
                         onClick={() => removeExpense(expense.id)}
                         className="text-neutral-600 hover:text-red-400 transition-colors shrink-0"
@@ -907,8 +934,15 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   ))}
                   <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60">
                     <span className="text-neutral-500 text-xs">Total cheltuieli</span>
-                    <span className="text-neutral-300 text-xs font-semibold font-mono">
-                      {formatRON(expenses.reduce((sum, expense) => sum + expense.amount, 0))}
+                    <span className="text-right">
+                      <span className="text-neutral-300 text-xs font-semibold font-mono">
+                        {formatRON(expenses.reduce((sum, expense) => sum + expense.amount, 0))}
+                      </span>
+                      {eurOf(expenses.reduce((sum, expense) => sum + expense.amount, 0)) && (
+                        <span className="text-neutral-600 text-[10px] block leading-tight">
+                          ≈ {eurOf(expenses.reduce((sum, expense) => sum + expense.amount, 0))}
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>

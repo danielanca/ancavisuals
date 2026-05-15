@@ -32,6 +32,20 @@ const DISPLAYABLE_VIDEO = ['video/mp4'];
 const DISPLAYABLE_AUDIO = ['audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/x-m4a'];
 const PORTFOLIO_GALLERY_FOLDER = 'ancavisuals/PortfolioGallery';
 
+const WHATSAPP_SUPPORT = 'https://wa.me/40745469907';
+
+const WhatsAppHelp = ({ message }: { message?: string }) => (
+  <a
+    href={`${WHATSAPP_SUPPORT}?text=${encodeURIComponent(message ?? 'Bună! Am o problemă cu QR Moments.')}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-colors"
+  >
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.136.561 4.14 1.535 5.874L.057 23.943l6.235-1.635A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.369l-.36-.214-3.7.97.988-3.608-.234-.372A9.818 9.818 0 0112 2.182c5.424 0 9.818 4.394 9.818 9.818 0 5.425-4.394 9.818-9.818 9.818z"/></svg>
+    Trimite pe WhatsApp
+  </a>
+);
+
 const HEADLINE_TEXT = 'Ești mireasă, mire sau cunoști pe cineva care își pregătește nunta?';
 const SUBHEAD_TEXT = 'Creăm experiențe complete pentru evenimente: foto, video, fotocabină, video booth 360 și QR Moments.';
 const REFERRAL_TEXT = 'Recomandă-ne mai departe și primești o ședință foto cadou.';
@@ -71,6 +85,7 @@ export default function QRMomentsPage() {
   const [guestId, setGuestId] = useState<string | null>(null);
   const [mediaTab, setMediaTab] = useState<MediaTab>('photo');
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -325,13 +340,16 @@ export default function QRMomentsPage() {
   useEffect(() => {
     if (mediaTab !== 'audio') return;
     if (!navigator.permissions?.query) { setAudioPermission('unknown'); return; }
+    let permStatus: PermissionStatus | null = null;
     navigator.permissions
       .query({ name: 'microphone' as PermissionName })
       .then((status) => {
+        permStatus = status;
         setAudioPermission(status.state === 'granted' ? 'granted' : status.state === 'denied' ? 'denied' : 'unknown');
         status.onchange = () => setAudioPermission(status.state === 'granted' ? 'granted' : status.state === 'denied' ? 'denied' : 'unknown');
       })
       .catch(() => setAudioPermission('unknown'));
+    return () => { if (permStatus) permStatus.onchange = null; };
   }, [mediaTab]);
 
   useEffect(() => {
@@ -473,7 +491,7 @@ export default function QRMomentsPage() {
       recorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
       recorder.onstop = () => {
         stopWaveform();
-        const recordedMime = recorder.mimeType || 'audio/mp4';
+        const recordedMime = recorder.mimeType || mimeType || 'audio/mp4';
         const blob = new Blob(audioChunksRef.current, { type: recordedMime });
         const url = URL.createObjectURL(blob);
         setAudioBlob(blob);
@@ -531,7 +549,11 @@ export default function QRMomentsPage() {
     formData.append('pass', pass);
 
     if (audioBlob) {
-      const ext = audioBlob.type.includes('mp4') ? 'm4a' : 'webm';
+      const blobType = audioBlob.type || '';
+      const ext = blobType.includes('mp4') || blobType.includes('m4a') ? 'm4a'
+        : blobType.includes('ogg') ? 'ogg'
+        : blobType.includes('webm') ? 'webm'
+        : 'm4a';
       formData.append('files', audioBlob, `voice-${Date.now()}.${ext}`);
     } else {
       selectedFiles.forEach(({ file }) => formData.append('files', file));
@@ -581,7 +603,7 @@ export default function QRMomentsPage() {
                   touchStartXRef.current = null;
                   if (startX === null || endX === null) return;
                   const delta = endX - startX;
-                  if (Math.abs(delta) < 30) return;
+                  if (Math.abs(delta) < 50) return;
                   if (delta < 0) goToNextGalleryImage();
                   else goToPreviousGalleryImage();
                 }}
@@ -665,15 +687,19 @@ export default function QRMomentsPage() {
     </div>
   );
 
+  const audioPreviewUrlRef = useRef<string | null>(null);
+  useEffect(() => { audioPreviewUrlRef.current = audioPreviewUrl; }, [audioPreviewUrl]);
+
   useEffect(() => {
     return () => {
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       stopWaveform();
       stopRecordingStream();
       clearSelectedFiles();
-      if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+      if (audioPreviewUrlRef.current) URL.revokeObjectURL(audioPreviewUrlRef.current);
     };
-  }, [audioPreviewUrl]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (step === 'loading') {
     return (
@@ -688,9 +714,11 @@ export default function QRMomentsPage() {
   if (step === 'not-found') {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center px-4">
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-4">
+          <div className="text-4xl">🔍</div>
           <p className="text-neutral-400 text-sm">Evenimentul nu există sau link-ul este invalid.</p>
-          <a href="/" className="text-xs text-neutral-600 underline underline-offset-4">Înapoi acasă</a>
+          <WhatsAppHelp message="Bună! Am scanat codul QR dar primesc eroare că evenimentul nu există." />
+          <a href="/" className="block text-xs text-neutral-600 underline underline-offset-4">Înapoi acasă</a>
         </div>
       </div>
     );
@@ -806,7 +834,12 @@ export default function QRMomentsPage() {
             </label>
           </div>
 
-          {formError && <p className="text-red-400 text-xs">{formError}</p>}
+          {formError && (
+            <div className="space-y-2">
+              <p className="text-red-400 text-xs">{formError}</p>
+              <WhatsAppHelp message="Bună! Am o problemă la înregistrarea pe QR Moments." />
+            </div>
+          )}
 
           <button
             onClick={handleFormSubmit}
@@ -827,6 +860,61 @@ export default function QRMomentsPage() {
           <h1 className="text-white text-xl font-light">QR Moments</h1>
           <p className="text-neutral-500 text-sm">{coupleLabel}</p>
         </div>
+
+        <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-4 text-center space-y-1">
+          <p className="text-amber-200 text-sm font-medium">Lasă o amintire pentru mire și mireasă 💛</p>
+          <p className="text-neutral-400 text-xs leading-relaxed">
+            Ei se vor bucura să vadă o urare video sau vocală pe care tu o faci din toată inima pentru ei.
+          </p>
+        </div>
+
+        {(() => {
+          const suggestions = [
+            { emoji: "🏡", title: "Urare de casă de piatră", desc: "Spune-le ce îți dorești pentru căminul lor nou." },
+            { emoji: "📖", title: "O amintire cu ei", desc: "Povestește un moment pe care l-ai trăit alături de ei." },
+            { emoji: "🥂", title: "Un toast din suflet", desc: "Ridică paharul și spune câteva cuvinte sincere." },
+            { emoji: "💌", title: "Mesaj pentru viitor", desc: "Ce le dorești să trăiască împreună peste 10 ani?" },
+            { emoji: "👶", title: "Copii frumoși și sănătoși", desc: "Urează-le să aibă copii cu ochii mari și inima bună." },
+            { emoji: "🌟", title: "Sfatul tău de viață", desc: "Ce lecție despre dragoste ai vrea să le transmiți?" },
+            { emoji: "😂", title: "O glumă sau amintire haioasă", desc: "Fă-i să râdă — cele mai bune momente sunt cele cu zâmbet." },
+          ];
+          const current = suggestions[suggestionIndex];
+          return (
+            <div className="space-y-2">
+              <p className="text-neutral-500 text-[10px] uppercase tracking-widest font-medium px-1">Sugestii de încărcat</p>
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setSuggestionIndex((i) => (i - 1 + suggestions.length) % suggestions.length)}
+                    className="text-neutral-600 hover:text-neutral-300 transition-colors text-lg shrink-0 w-7 text-center"
+                  >
+                    ‹
+                  </button>
+                  <div className="flex-1 text-center space-y-1.5 min-h-[72px] flex flex-col justify-center">
+                    <span className="text-2xl">{current.emoji}</span>
+                    <p className="text-white text-xs font-medium leading-tight">{current.title}</p>
+                    <p className="text-neutral-500 text-[11px] leading-snug">{current.desc}</p>
+                  </div>
+                  <button
+                    onClick={() => setSuggestionIndex((i) => (i + 1) % suggestions.length)}
+                    className="text-neutral-600 hover:text-neutral-300 transition-colors text-lg shrink-0 w-7 text-center"
+                  >
+                    ›
+                  </button>
+                </div>
+                <div className="flex justify-center gap-1.5 mt-3">
+                  {suggestions.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setSuggestionIndex(i)}
+                      className={`w-1.5 h-1.5 rounded-full transition-colors ${i === suggestionIndex ? 'bg-neutral-300' : 'bg-neutral-700'}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="flex gap-1 bg-neutral-900 rounded-xl p-1">
           {(['photo', 'video', 'audio'] as MediaTab[]).map((tab) => (
@@ -880,17 +968,18 @@ export default function QRMomentsPage() {
         {mediaTab === 'audio' && (
           <div className="space-y-4">
             {audioPermission === 'denied' && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-                <p className="text-red-400 text-xs">Accesul la microfon este blocat. Activează-l din setările browserului.</p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 space-y-3">
+                <p className="text-red-400 text-xs">Accesul la microfon este blocat. Activează-l din setările browserului sau contactează-ne.</p>
+                <WhatsAppHelp message="Bună! Nu pot activa microfonul pe QR Moments. Mă poți ajuta?" />
               </div>
             )}
 
             {audioPermission === 'unknown' && !isRecording && !audioBlob && (
               <button
                 onClick={requestMicPermission}
-                className="w-full py-3 border border-neutral-700 rounded-xl text-neutral-300 text-sm hover:border-neutral-500 transition-colors"
+                className="w-full py-8 border border-dashed border-emerald-600/50 rounded-xl text-emerald-400 text-sm hover:border-emerald-500 hover:bg-emerald-500/5 transition-colors"
               >
-                Permite accesul la microfon
+                🎤 Permite accesul la microfon
               </button>
             )}
 
@@ -961,7 +1050,12 @@ export default function QRMomentsPage() {
           </div>
         )}
 
-        {uploadError && <p className="text-red-400 text-xs">{uploadError}</p>}
+        {uploadError && (
+          <div className="space-y-2">
+            <p className="text-red-400 text-xs">{uploadError}</p>
+            <WhatsAppHelp message="Bună! Am o problemă la încărcarea fișierelor pe QR Moments." />
+          </div>
+        )}
 
         {(selectedFiles.length > 0 || audioBlob) && (
           <button

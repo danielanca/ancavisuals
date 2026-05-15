@@ -13,6 +13,7 @@ interface EventListProps {
   onAddEvent: () => void;
   onEventUpdated?: (id: string, updated: Partial<ClientEvent>) => void;
   onEventDeleted?: (id: string) => void;
+  exchangeRate?: number;
 }
 
 const MONTHS_RO = [
@@ -70,7 +71,7 @@ export function partitionEvents(events: ClientEvent[], today: Date, currentYear:
 type Tab = "leaduri" | "viitor" | "trecut" | "arhiva";
 type FiscalFilter = "toate" | "fiscalizate" | "nefiscalizate";
 
-const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent, onEventUpdated, onEventDeleted }) => {
+const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent, onEventUpdated, onEventDeleted, exchangeRate }) => {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("viitor");
   const [fiscalFilter, setFiscalFilter] = useState<FiscalFilter>("toate");
@@ -198,6 +199,7 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
                 onCollapseChange={(c) => handleCardCollapse(event.id, c)}
                 onUpdated={(updated) => onEventUpdated?.(event.id, updated)}
                 onDeleted={() => onEventDeleted?.(event.id)}
+                exchangeRate={exchangeRate}
               />
             </div>
           ))}

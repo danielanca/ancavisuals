@@ -231,6 +231,7 @@ const DashboardInner: React.FC = () => {
           onAddEvent={handleAddEvent}
           onEventUpdated={handleEventUpdated}
           onEventDeleted={handleEventDeleted}
+          exchangeRate={settings.exchangeRate}
         />
 
       </div>
