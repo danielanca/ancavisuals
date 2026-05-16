@@ -14,11 +14,7 @@ export async function sendContractLinkEmail(options: ContractLinkEmailOptions): 
   const link = `${baseUrl}/contract/${token}`;
   const formattedDate = formatRoDate(eventDate);
 
-  await mailer.sendMail({
-    from: emailAuth.email,
-    to,
-    subject: `Contract servicii foto/video — ${eventType} ${formattedDate}`,
-    html: `
+  const clientHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">
         <div style="text-align: center; margin-bottom: 24px;">
           <h2 style="color: #c9a96e; font-weight: 300; letter-spacing: 3px; font-size: 20px; margin: 0;">ANCA VISUALS</h2>
@@ -61,7 +57,20 @@ export async function sendContractLinkEmail(options: ContractLinkEmailOptions): 
           Anca Visuals &nbsp;•&nbsp; ancadaniel1994@gmail.com
         </p>
       </div>
-    `,
+    `;
+
+  await mailer.sendMail({
+    from: emailAuth.email,
+    to,
+    subject: `Contract servicii foto/video — ${eventType} ${formattedDate}`,
+    html: clientHtml,
+  });
+
+  await mailer.sendMail({
+    from: emailAuth.email,
+    to: adminUser.email,
+    subject: `[Copie] Link contract trimis — ${eventType} ${formattedDate} — ${to}`,
+    html: clientHtml,
   });
 }
 

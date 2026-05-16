@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ConfirmModal from "../ConfirmModal";
 import ContractActionMenu from "./ContractActionMenu";
 import Breadcrumb from "../Breadcrumb";
+import useAuth from "../auth/useAuth";
 
 interface ContractItem {
   id: string;
@@ -30,6 +31,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 const ContractListPage: React.FC = () => {
   const navigate = useNavigate();
+  const { auth } = useAuth();
   const [contracts, setContracts] = useState<ContractItem[]>([]);
   const [bookedDates, setBookedDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -237,7 +239,10 @@ const ContractListPage: React.FC = () => {
     setResending(id);
     setActionError(null);
     try {
-      const res = await fetch(`/api/contracts/${id}/resend`, { method: "POST" });
+      const res = await fetch(`/api/contracts/${id}/resend`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       showToast("Contract retrimis pe email către tine și client.");
