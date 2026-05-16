@@ -172,13 +172,18 @@ const mediaKeyFromUrl = (src: string) => {
   return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
 };
 
-const getSwissUrl = async (slug: string) => {
+type DeliveryAddressData = {
+  swissLink?: string;
+  deliveryAddress?: { fullName?: string };
+};
+
+const getDeliveryData = async (slug: string): Promise<DeliveryAddressData> => {
   const response = await fetch(`/api/album/${slug}/delivery-address`);
   if (response.ok) {
-    const json = await response.json();
-    return json.data.swissLink;
+    const json = await response.json() as { data?: DeliveryAddressData };
+    return json.data ?? {};
   }
-  return "";
+  return {};
 };
 
 // ── MOBILE COLUMNS TOGGLE ────────────────────────────────────────────────────
@@ -219,6 +224,103 @@ function MobileColumnsToggle({
 
 // ── COMPONENT ────────────────────────────────────────────────────────────────
 
+const PROMO_PHONE = "0745469907";
+const PROMO_PHONE_DISPLAY = "0745 469 907";
+
+function PromoPhoneReveal() {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function copyPhone() {
+    navigator.clipboard.writeText(PROMO_PHONE).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const actionBtn: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    padding: "14px 16px",
+    borderRadius: "8px",
+    fontSize: "15px",
+    fontWeight: 600,
+    textDecoration: "none",
+    cursor: "pointer",
+    border: "none",
+    width: "100%",
+    boxSizing: "border-box",
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", width: "100%", maxWidth: "340px", margin: "0 auto" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          ...actionBtn,
+          background: "#1a0f00",
+          color: "#c9a96e",
+          fontSize: "16px",
+          padding: "16px",
+          borderRadius: "8px",
+        }}
+      >
+        📞 Arată număr telefon
+      </button>
+
+      <a
+        href="https://instagram.com/ancavisuals"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ ...actionBtn, border: "2px solid #1a0f00", color: "#1a0f00", background: "transparent", fontSize: "15px" }}
+      >
+        Instagram
+      </a>
+
+      {open && (
+        <div style={{
+          background: "#1a0f00",
+          borderRadius: "12px",
+          padding: "20px 16px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "12px",
+          width: "100%",
+        }}>
+          <p style={{ color: "#c9a96e", fontSize: "26px", fontWeight: 700, margin: 0, letterSpacing: "3px" }}>
+            {PROMO_PHONE_DISPLAY}
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", width: "100%" }}>
+            <button
+              onClick={copyPhone}
+              style={{ ...actionBtn, background: copied ? "#2d5a27" : "#2a2010", color: copied ? "#86efac" : "#c9a96e" }}
+            >
+              {copied ? "✓ Copiat!" : "📋 Copiază"}
+            </button>
+            <a href={`tel:${PROMO_PHONE}`} style={{ ...actionBtn, background: "#1a4a1a", color: "#86efac" }}>
+              📞 Apelează
+            </a>
+            <a href={`sms:${PROMO_PHONE}`} style={{ ...actionBtn, background: "#1a2a4a", color: "#93c5fd" }}>
+              💬 SMS
+            </a>
+            <a
+              href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...actionBtn, background: "#0d2e1a", color: "#4ade80" }}
+            >
+              WhatsApp
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MediaAlbumPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -243,6 +345,7 @@ export default function MediaAlbumPage() {
 
   const [isMobile, setIsMobile] = useState(false);
   const [swissLink, setSwissLink] = useState<string | null>(null);
+  const [hasDeliveryAddress, setHasDeliveryAddress] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
@@ -285,6 +388,7 @@ export default function MediaAlbumPage() {
   const [showSaveWarning, setShowSaveWarning] = useState(false);
   const saveWarningTimerRef = useRef<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [tutorialPrintPhotos, setTutorialPrintPhotos] = useState<string[]>([]);
 
   const photosTopRef = useRef<HTMLDivElement | null>(null);
   const shareBoxRef = useRef<HTMLDivElement | null>(null);
@@ -422,11 +526,14 @@ export default function MediaAlbumPage() {
     let cancelled = false;
     (async () => {
       try {
-        const url = await getSwissUrl(slug);
-        if (!cancelled) setSwissLink(url || null);
+        const data = await getDeliveryData(slug);
+        if (!cancelled) {
+          setSwissLink(data.swissLink || null);
+          setHasDeliveryAddress(!!data.deliveryAddress?.fullName);
+        }
       } catch (error) {
-        console.error("Failed to load swiss link", error);
-        if (!cancelled) setSwissLink(null);
+        console.error("Failed to load delivery data", error);
+        if (!cancelled) { setSwissLink(null); setHasDeliveryAddress(false); }
       }
     })();
     return () => { cancelled = true; };
@@ -963,11 +1070,25 @@ export default function MediaAlbumPage() {
             slug={slug}
             retention={album?.retention ?? null}
             isAdmin={isAdmin || auth.authorise}
-            onAccepted={() => setConsentGiven(true)}
+            onAccepted={() => {
+              setConsentGiven(true);
+              if (!isAdmin && !auth.authorise && !localStorage.getItem('av:onboarding:done')) {
+                setTimeout(() => setShowOnboarding(true), 500);
+              }
+            }}
           />
         )}
 
-        <OnboardingWizard forceShow={showOnboarding} onClose={() => setShowOnboarding(false)} />
+        <OnboardingWizard
+          forceShow={showOnboarding}
+          onStart={() => {
+            if (album?.photos?.length) {
+              const shuffled = [...album.photos].sort(() => Math.random() - 0.5);
+              setTutorialPrintPhotos(shuffled.slice(0, 6));
+            }
+          }}
+          onClose={() => { setShowOnboarding(false); setTutorialPrintPhotos([]); }}
+        />
 
 
         {lightboxIndex !== null && lightboxPhotos.length > 0 && album?.photos && (
@@ -1018,7 +1139,7 @@ export default function MediaAlbumPage() {
             <button
               type="button"
               onClick={() => { localStorage.removeItem('av:onboarding:done'); setShowOnboarding(true); }}
-              style={{ padding: "5px 14px", background: "transparent", border: "1px solid #333", borderRadius: "999px", color: "#666", fontSize: "12px", cursor: "pointer", letterSpacing: "0.05em" }}
+              style={{ padding: "5px 14px", background: "#fef08a", border: "1px solid #ca8a04", borderRadius: "999px", color: "#713f12", fontSize: "12px", cursor: "pointer", letterSpacing: "0.05em", fontWeight: 600 }}
             >
               ? AJUTOR
             </button>
@@ -1070,9 +1191,11 @@ export default function MediaAlbumPage() {
             <button className={styles.fillAction} onClick={() => setIsFormOpen(true)}>
               Completează adresa de livrare
             </button>
-            <button className={styles.viewAction} onClick={() => setShowDeliveryModal(true)}>
-              Vezi adresa de livrare
-            </button>
+            {hasDeliveryAddress && (
+              <button className={styles.viewAction} onClick={() => setShowDeliveryModal(true)}>
+                Vezi adresa de livrare
+              </button>
+            )}
           </div>
         )}
 
@@ -1128,29 +1251,29 @@ export default function MediaAlbumPage() {
         )}
 
         {mode === "none" && subscribeStatus !== "success" && (
-          <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-            <p style={{ color: "#888", fontSize: "13px", margin: 0, whiteSpace: "nowrap" }}>
+          <div data-onboarding="subscribe" style={{ margin: "0 0 16px", padding: "12px 16px", background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: "8px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <p style={{ color: "#888", fontSize: "13px", margin: 0 }}>
               🔔 Notifică-mă când fotograful adaugă poze noi
             </p>
-            <div style={{ display: "flex", gap: "8px", flex: 1, minWidth: "220px" }}>
+            <div style={{ display: "flex", gap: "8px" }}>
               <input
                 type="email"
                 value={subscribeEmail}
                 onChange={(event) => setSubscribeEmail(event.target.value)}
                 onKeyDown={(event) => { if (event.key === "Enter") handleSubscribe(); }}
                 placeholder="adresa@email.com"
-                style={{ flex: 1, padding: "6px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ccc", fontSize: "13px", outline: "none" }}
+                style={{ flex: 1, minWidth: 0, padding: "8px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ccc", fontSize: "13px", outline: "none" }}
               />
               <button
                 onClick={handleSubscribe}
                 disabled={subscribeStatus === "loading" || !subscribeEmail.trim()}
-                style={{ padding: "6px 14px", background: subscribeEmail.trim() ? "#fff" : "#222", color: subscribeEmail.trim() ? "#000" : "#555", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: subscribeEmail.trim() ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
+                style={{ padding: "8px 14px", background: subscribeEmail.trim() ? "#fff" : "#222", color: subscribeEmail.trim() ? "#000" : "#555", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: subscribeEmail.trim() ? "pointer" : "not-allowed", whiteSpace: "nowrap", flexShrink: 0 }}
               >
                 {subscribeStatus === "loading" ? "..." : "Abonează-te"}
               </button>
             </div>
             {subscribeStatus === "error" && (
-              <p style={{ color: "#f87171", fontSize: "12px", margin: 0, width: "100%" }}>A apărut o eroare. Încearcă din nou.</p>
+              <p style={{ color: "#f87171", fontSize: "12px", margin: 0 }}>A apărut o eroare. Încearcă din nou.</p>
             )}
           </div>
         )}
@@ -1480,7 +1603,7 @@ export default function MediaAlbumPage() {
         )}
 
         {!isModerationMode && <div className={mode !== "none" ? styles.dimmedArea : undefined} onPointerDown={onDimmedTap}>
-          <div className={styles.sectionRow}>
+          <div className={styles.sectionRow} data-onboarding="print-zone">
             <h2 className={styles.sectionTitle}>Poze de imprimat{printCount ? ` (${printCount})` : ""}</h2>
             <div className={styles.rowActions}>
               {totalPhotos > 0 && (
@@ -1515,6 +1638,20 @@ export default function MediaAlbumPage() {
                 ))}
               </div>
               <MobileColumnsToggle mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} />
+            </>
+          ) : tutorialPrintPhotos.length > 0 ? (
+            <>
+              <div style={{ margin: "0 0 10px", padding: "8px 14px", background: "#1a1000", border: "1px solid #ca8a04", borderRadius: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "13px" }}>🎓</span>
+                <p style={{ color: "#fbbf24", fontSize: "12px", margin: 0 }}>Exemplu tutorial — pozele tale selectate vor apărea aici</p>
+              </div>
+              <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
+                {tutorialPrintPhotos.map((src) => (
+                  <div key={src} className={styles.printPhotoWrapper} style={{ opacity: 0.6 }}>
+                    <img src={src} alt="Exemplu poză imprimare" className={styles.printPhotoImg} loading="lazy" />
+                  </div>
+                ))}
+              </div>
             </>
           ) : (
             <p className={styles.emptyPrint}>Nu ai selectat încă poze pentru imprimat.</p>
@@ -1707,6 +1844,22 @@ export default function MediaAlbumPage() {
 
           <MediaRetentionReminder slug={slug || ""} retention={album?.retention ?? null} />
         </div>}
+      </div>
+    </div>
+
+    {/* Promo banner — visible to all album visitors */}
+    <div style={{ background: "#c9a96e", padding: "48px 24px 56px" }}>
+      <div style={{ maxWidth: "640px", margin: "0 auto", textAlign: "center" }}>
+        <p style={{ color: "#7a5c1e", fontSize: "10px", letterSpacing: "4px", textTransform: "uppercase", margin: "0 0 16px", fontWeight: 600 }}>
+          Anca Visuals
+        </p>
+        <h2 style={{ color: "#1a0f00", fontSize: "24px", fontWeight: 600, margin: "0 0 10px", lineHeight: 1.35, letterSpacing: "0.3px" }}>
+          Fotografie & Videografie pentru momentele tale
+        </h2>
+        <p style={{ color: "#5a3d10", fontSize: "14px", margin: "0 0 30px", lineHeight: 1.6 }}>
+          Nuntă · Botez · Majorat · Fotocabină · Videobooth 360°
+        </p>
+        <PromoPhoneReveal />
       </div>
     </div>
 

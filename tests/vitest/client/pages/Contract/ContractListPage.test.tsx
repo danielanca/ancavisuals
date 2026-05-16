@@ -10,6 +10,10 @@ import ContractListPage from "src/client/features/admin/components/Contracts/Con
 
 const mockNavigate = vi.fn();
 
+vi.mock("src/client/features/admin/auth/useAuth", () => ({
+  default: () => ({ auth: { accessToken: "test-token" } }),
+}));
+
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return {
@@ -106,6 +110,38 @@ describe("ContractListPage", () => {
       expect(fetchMock.mock.calls[2][0]).toBe("/api/contracts/contract-1/send");
       expect(fetchMock.mock.calls[2][1]).toEqual({ method: "POST" });
       expect(await screen.findByText("Trimis")).toBeInTheDocument();
+    });
+
+    test("resend sends signed contract with Bearer auth header", async () => {
+      const signedContract = {
+        id: "contract-signed",
+        token: "token-signed",
+        status: "signed",
+        eventType: "Nunta",
+        eventDate: "2026-09-12T00:00:00.000Z",
+        clientEmail: "client@example.com",
+        priceTotal: 1200,
+        createdAt: "2026-04-14T10:00:00.000Z",
+      };
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ contracts: [signedContract] }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ dates: [] }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderPage();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Acțiuni" }));
+      fireEvent.click(await screen.findByRole("button", { name: /Retrimite contract semnat/ }));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+
+      expect(fetchMock.mock.calls[2][0]).toBe("/api/contracts/contract-signed/resend");
+      expect(fetchMock.mock.calls[2][1]).toEqual({
+        method: "POST",
+        headers: { Authorization: "Bearer test-token" },
+      });
+      expect(await screen.findByText("Contract retrimis pe email către tine și client.")).toBeInTheDocument();
     });
 
     test("copies the public signing link to clipboard", async () => {

@@ -20,11 +20,12 @@ interface Visit {
 
 interface Stats {
   today: { visitors: number };
+  threeDays: { visitors: number };
   week: { visitors: number };
   month: { visitors: number };
-  halfYear: { visitors: number };
-  year: { visitors: number };
+  threeMonths: { visitors: number };
   topPages: { page: string; count: number }[];
+  topReferrers: { referrer: string; count: number }[];
   topCountries: { country: string; count: number }[];
 }
 
@@ -49,6 +50,16 @@ interface Visitor {
   returnedToday: boolean;
 }
 
+type PeriodKey = "today" | "3d" | "7d" | "30d" | "90d";
+
+const PERIODS: { key: PeriodKey; label: string; statKey: keyof Stats; days: number }[] = [
+  { key: "today", label: "Azi",    statKey: "today",       days: 0  },
+  { key: "3d",    label: "3 zile", statKey: "threeDays",   days: 3  },
+  { key: "7d",    label: "7 zile", statKey: "week",        days: 7  },
+  { key: "30d",   label: "1 lună", statKey: "month",       days: 30 },
+  { key: "90d",   label: "3 luni", statKey: "threeMonths", days: 90 },
+];
+
 function parseDevice(ua: string): string {
   if (!ua) return "Necunoscut";
   const mobile = /android|iphone|ipad|mobile/i.test(ua);
@@ -66,8 +77,7 @@ function timeAgo(iso: string): string {
   if (m < 60) return `${m}min`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  return `${d}z`;
+  return `${Math.floor(h / 24)}z`;
 }
 
 function formatTime(iso: string): string {
@@ -93,43 +103,51 @@ function isSameDay(a: string, b: string): boolean {
     da.getDate() === db.getDate();
 }
 
+function periodCutoff(period: PeriodKey): Date {
+  const now = new Date();
+  if (period === "today") {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+  const days = PERIODS.find((p) => p.key === period)!.days;
+  const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  cutoff.setDate(cutoff.getDate() - (days - 1));
+  return cutoff;
+}
+
 function groupByVisitors(visits: Visit[]): Visitor[] {
   const visitorMap = new Map<string, Visitor>();
   const sessionMap = new Map<string, SessionEntry>();
 
-  // Build sessions first
-  for (const v of visits) {
-    const sid = v.sessionId || v.id;
+  for (const visit of visits) {
+    const sid = visit.sessionId || visit.id;
     if (!sessionMap.has(sid)) {
-      sessionMap.set(sid, { sessionId: sid, pages: [], firstSeen: v.timestamp, lastSeen: v.timestamp });
+      sessionMap.set(sid, { sessionId: sid, pages: [], firstSeen: visit.timestamp, lastSeen: visit.timestamp });
     }
-    const s = sessionMap.get(sid)!;
-    s.pages.push({ page: v.page, timestamp: v.timestamp });
-    if (v.timestamp < s.firstSeen) s.firstSeen = v.timestamp;
-    if (v.timestamp > s.lastSeen) s.lastSeen = v.timestamp;
+    const session = sessionMap.get(sid)!;
+    session.pages.push({ page: visit.page, timestamp: visit.timestamp });
+    if (visit.timestamp < session.firstSeen) session.firstSeen = visit.timestamp;
+    if (visit.timestamp > session.lastSeen) session.lastSeen = visit.timestamp;
   }
 
-  // Sort pages within each session
-  for (const s of sessionMap.values()) {
-    s.pages.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  for (const session of sessionMap.values()) {
+    session.pages.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   }
 
-  // Group sessions by visitorId (fallback to sessionId if no visitorId)
-  for (const v of visits) {
-    const vid = v.visitorId || v.sessionId;
-    const sid = v.sessionId || v.id;
+  for (const visit of visits) {
+    const vid = visit.visitorId || visit.sessionId;
+    const sid = visit.sessionId || visit.id;
     if (!visitorMap.has(vid)) {
       visitorMap.set(vid, {
         visitorId: vid,
-        isNew: v.isNew,
-        ip: v.ip,
-        city: v.city,
-        country: v.country,
-        org: v.org,
-        userAgent: v.userAgent,
+        isNew: visit.isNew,
+        ip: visit.ip,
+        city: visit.city,
+        country: visit.country,
+        org: visit.org,
+        userAgent: visit.userAgent,
         sessions: [],
-        firstSeen: v.timestamp,
-        lastSeen: v.timestamp,
+        firstSeen: visit.timestamp,
+        lastSeen: visit.timestamp,
         returnedToday: false,
       });
     }
@@ -138,29 +156,17 @@ function groupByVisitors(visits: Visit[]): Visitor[] {
     if (!visitor.sessions.find((s) => s.sessionId === sid)) {
       visitor.sessions.push(session);
     }
-    if (v.timestamp < visitor.firstSeen) visitor.firstSeen = v.timestamp;
-    if (v.timestamp > visitor.lastSeen) visitor.lastSeen = v.timestamp;
+    if (visit.timestamp < visitor.firstSeen) visitor.firstSeen = visit.timestamp;
+    if (visit.timestamp > visitor.lastSeen) visitor.lastSeen = visit.timestamp;
   }
 
   const today = new Date().toISOString();
   for (const visitor of visitorMap.values()) {
     visitor.sessions.sort((a, b) => a.firstSeen.localeCompare(b.firstSeen));
-    // Returned today = has more than 1 session and at least 2 of them are today
-    const todaySessions = visitor.sessions.filter((s) => isSameDay(s.firstSeen, today));
-    visitor.returnedToday = todaySessions.length > 1;
+    visitor.returnedToday = visitor.sessions.filter((s) => isSameDay(s.firstSeen, today)).length > 1;
   }
 
   return Array.from(visitorMap.values()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-      <p className="text-neutral-500 text-xs uppercase tracking-wider mb-2">{label}</p>
-      <p className="text-white text-2xl font-light">{value}</p>
-      <p className="text-neutral-700 text-[10px] mt-1">vizitatori unici</p>
-    </div>
-  );
 }
 
 export default function AnalyticsPage() {
@@ -169,11 +175,12 @@ export default function AnalyticsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [period, setPeriod] = useState<PeriodKey>("7d");
 
   const load = () => {
     setLoading(true);
     Promise.all([
-      fetch("/api/admin/analytics/visits?limit=1000").then((r) => r.json()),
+      fetch("/api/admin/analytics/visits?limit=2000").then((r) => r.json()),
       fetch("/api/admin/analytics/stats").then((r) => r.json()),
     ])
       .then(([visitsData, statsData]) => {
@@ -185,7 +192,14 @@ export default function AnalyticsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const visitors = useMemo(() => groupByVisitors(visits), [visits]);
+  const cutoff = useMemo(() => periodCutoff(period), [period]);
+
+  const filteredVisits = useMemo(
+    () => visits.filter((v) => new Date(v.timestamp) >= cutoff),
+    [visits, cutoff],
+  );
+
+  const visitors = useMemo(() => groupByVisitors(filteredVisits), [filteredVisits]);
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
@@ -196,6 +210,9 @@ export default function AnalyticsPage() {
   }
 
   if (loading) return <AncaLoader />;
+
+  const activePeriod = PERIODS.find((p) => p.key === period)!;
+  const activeCount = stats ? (stats[activePeriod.statKey] as { visitors: number }).visitors : 0;
 
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
@@ -214,7 +231,9 @@ export default function AnalyticsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-white text-2xl font-light tracking-tight">Analytics</h1>
-            <p className="text-neutral-500 text-sm mt-1">{visitors.length} vizitatori unici</p>
+            <p className="text-neutral-500 text-sm mt-1">
+              {activeCount} vizitatori unici · {activePeriod.label.toLowerCase()}
+            </p>
           </div>
           <button
             onClick={load}
@@ -228,24 +247,39 @@ export default function AnalyticsPage() {
           </button>
         </div>
 
-        {/* Stats */}
+        {/* Period tabs — also stat cards */}
         {stats && (
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-            <StatCard label="Azi" value={stats.today.visitors} />
-            <StatCard label="7 zile" value={stats.week.visitors} />
-            <StatCard label="30 zile" value={stats.month.visitors} />
-            <StatCard label="6 luni" value={stats.halfYear.visitors} />
-            <StatCard label="1 an" value={stats.year.visitors} />
+          <div className="grid grid-cols-5 gap-2">
+            {PERIODS.map(({ key, label, statKey }) => {
+              const count = (stats[statKey] as { visitors: number }).visitors;
+              const isActive = period === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setPeriod(key)}
+                  className={`rounded-xl p-3 text-left border transition-all ${
+                    isActive
+                      ? "bg-violet-500/10 border-violet-500/40"
+                      : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"
+                  }`}
+                >
+                  <p className={`text-[10px] uppercase tracking-wider mb-1.5 ${isActive ? "text-violet-400" : "text-neutral-500"}`}>
+                    {label}
+                  </p>
+                  <p className={`text-xl font-light ${isActive ? "text-white" : "text-neutral-300"}`}>{count}</p>
+                </button>
+              );
+            })}
           </div>
         )}
 
-        {/* Top pages + countries */}
+        {/* Top pages + countries + referrers */}
         {stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-              <p className="text-neutral-400 text-xs uppercase tracking-wider mb-3">Top Pagini (7 zile)</p>
-              <div className="space-y-2">
-                {stats.topPages.map(({ page, count }) => (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+              <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Top pagini · 30 zile</p>
+              <div className="space-y-1.5">
+                {stats.topPages.slice(0, 8).map(({ page, count }) => (
                   <div key={page} className="flex items-center gap-2">
                     <span className="text-neutral-300 text-xs font-mono truncate flex-1">{page}</span>
                     <span className="text-violet-400 text-xs font-semibold flex-shrink-0">{count}</span>
@@ -253,9 +287,9 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             </div>
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-              <p className="text-neutral-400 text-xs uppercase tracking-wider mb-3">Top Țări (7 zile)</p>
-              <div className="space-y-2">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+              <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Top țări · 30 zile</p>
+              <div className="space-y-1.5">
                 {stats.topCountries.map(({ country, count }) => (
                   <div key={country} className="flex items-center gap-2">
                     <span className="text-neutral-300 text-xs flex-1">{country || "Necunoscut"}</span>
@@ -264,133 +298,139 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             </div>
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+              <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Surse trafic · 30 zile</p>
+              <div className="space-y-1.5">
+                {stats.topReferrers.length === 0 ? (
+                  <p className="text-neutral-600 text-xs">Fără trafic extern</p>
+                ) : stats.topReferrers.map(({ referrer, count }) => (
+                  <div key={referrer} className="flex items-center gap-2">
+                    <span className="text-neutral-300 text-xs truncate flex-1">{referrer}</span>
+                    <span className="text-amber-400 text-xs font-semibold flex-shrink-0">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
         {/* Visitor feed */}
-        {visitors.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-neutral-500 text-sm">Niciun vizitator înregistrat.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {visitors.map((visitor) => {
-              const isOpen = expanded.has(visitor.visitorId);
-              const location = [visitor.city, visitor.country].filter(Boolean).join(", ");
-              const device = parseDevice(visitor.userAgent);
-              const totalPages = visitor.sessions.reduce((acc, s) => acc + s.pages.length, 0);
-              const totalDuration = visitor.sessions.length > 0
-                ? formatDuration(visitor.firstSeen, visitor.lastSeen)
-                : null;
+        <div>
+          <p className="text-neutral-600 text-xs uppercase tracking-wider mb-3">
+            {visitors.length} vizitatori · {activePeriod.label.toLowerCase()}
+          </p>
 
-              return (
-                <div key={visitor.visitorId} className="rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden">
-                  {/* Visitor header */}
-                  <button
-                    onClick={() => toggleExpanded(visitor.visitorId)}
-                    className="w-full flex items-start gap-3 p-4 text-left hover:bg-neutral-800/50 transition-colors"
-                  >
-                    {/* Icon */}
-                    <div className="w-8 h-8 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-                      </svg>
-                    </div>
+          {visitors.length === 0 ? (
+            <div className="text-center py-16 bg-neutral-900 border border-neutral-800 rounded-xl">
+              <p className="text-neutral-500 text-sm">Niciun vizitator în perioada selectată.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {visitors.map((visitor) => {
+                const isOpen = expanded.has(visitor.visitorId);
+                const location = [visitor.city, visitor.country].filter(Boolean).join(", ");
+                const device = parseDevice(visitor.userAgent);
+                const totalPages = visitor.sessions.reduce((acc, s) => acc + s.pages.length, 0);
+                const totalDuration = visitor.sessions.length > 0
+                  ? formatDuration(visitor.firstSeen, visitor.lastSeen)
+                  : null;
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-white text-sm font-medium">
-                          {location || visitor.ip || "Locație necunoscută"}
-                        </span>
-                        {/* Badges */}
-                        {visitor.isNew ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">nou</span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">revenit</span>
-                        )}
-                        {visitor.returnedToday && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">revenit azi</span>
-                        )}
-                        <span className="text-neutral-600 text-xs">·</span>
-                        <span className="text-neutral-500 text-xs">{device}</span>
+                return (
+                  <div key={visitor.visitorId} className="rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden">
+                    <button
+                      onClick={() => toggleExpanded(visitor.visitorId)}
+                      className="w-full flex items-start gap-3 p-4 text-left hover:bg-neutral-800/50 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                        </svg>
                       </div>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-neutral-600 text-xs font-mono">{visitor.ip || "—"}</span>
-                        <span className="text-neutral-700 text-xs">·</span>
-                        <span className="text-violet-400 text-xs">
-                          {visitor.sessions.length > 1
-                            ? `${visitor.sessions.length} vizite · ${totalPages} pagini`
-                            : `${totalPages} ${totalPages === 1 ? "pagină" : "pagini"}`}
-                        </span>
-                        {totalDuration && (
-                          <>
-                            <span className="text-neutral-700 text-xs">·</span>
-                            <span className="text-neutral-600 text-xs">{totalDuration}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Time + chevron */}
-                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                      <span className="text-neutral-400 text-xs">{timeAgo(visitor.lastSeen)}</span>
-                      <svg
-                        width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                        strokeLinecap="round" strokeLinejoin="round"
-                        className={`text-neutral-600 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </div>
-                  </button>
-
-                  {/* Timeline expandat */}
-                  {isOpen && (
-                    <div className="border-t border-neutral-800 px-4 py-4 space-y-5">
-                      {visitor.sessions.map((session, si) => (
-                        <div key={session.sessionId}>
-                          {/* Session label if there are multiple */}
-                          {visitor.sessions.length > 1 && (
-                            <p className="text-neutral-600 text-[10px] uppercase tracking-wider mb-2">
-                              Vizita {si + 1} · {formatTime(session.firstSeen)}
-                              {session.pages.length > 1 && ` · ${formatDuration(session.firstSeen, session.lastSeen)}`}
-                            </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-white text-sm font-medium">
+                            {location || visitor.ip || "Locație necunoscută"}
+                          </span>
+                          {visitor.isNew ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">nou</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">revenit</span>
                           )}
+                          {visitor.returnedToday && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">revenit azi</span>
+                          )}
+                          <span className="text-neutral-600 text-xs">·</span>
+                          <span className="text-neutral-500 text-xs">{device}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-neutral-600 text-xs font-mono">{visitor.ip || "—"}</span>
+                          <span className="text-neutral-700 text-xs">·</span>
+                          <span className="text-violet-400 text-xs">
+                            {visitor.sessions.length > 1
+                              ? `${visitor.sessions.length} vizite · ${totalPages} pagini`
+                              : `${totalPages} ${totalPages === 1 ? "pagină" : "pagini"}`}
+                          </span>
+                          {totalDuration && (
+                            <>
+                              <span className="text-neutral-700 text-xs">·</span>
+                              <span className="text-neutral-600 text-xs">{totalDuration}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
 
-                          {/* Timeline pagini */}
-                          <div className="relative pl-4">
-                            {/* Vertical line */}
-                            <div className="absolute left-[5px] top-2 bottom-2 w-px bg-neutral-800" />
+                      <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+                        <span className="text-neutral-400 text-xs">{timeAgo(visitor.lastSeen)}</span>
+                        <svg
+                          width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                          strokeLinecap="round" strokeLinejoin="round"
+                          className={`text-neutral-600 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        >
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </div>
+                    </button>
 
-                            <div className="space-y-3">
-                              {session.pages.map((p, i) => (
-                                <div key={i} className="relative flex items-start gap-3">
-                                  <div className="absolute -left-[11px] top-[5px] w-2 h-2 rounded-full bg-violet-500/60 border border-violet-500 flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <span className="text-neutral-200 text-xs font-mono">{p.page}</span>
+                    {isOpen && (
+                      <div className="border-t border-neutral-800 px-4 py-4 space-y-5">
+                        {visitor.sessions.map((session, si) => (
+                          <div key={session.sessionId}>
+                            {visitor.sessions.length > 1 && (
+                              <p className="text-neutral-600 text-[10px] uppercase tracking-wider mb-2">
+                                Vizita {si + 1} · {formatTime(session.firstSeen)}
+                                {session.pages.length > 1 && ` · ${formatDuration(session.firstSeen, session.lastSeen)}`}
+                              </p>
+                            )}
+                            <div className="relative pl-4">
+                              <div className="absolute left-[5px] top-2 bottom-2 w-px bg-neutral-800" />
+                              <div className="space-y-3">
+                                {session.pages.map((p, i) => (
+                                  <div key={i} className="relative flex items-start gap-3">
+                                    <div className="absolute -left-[11px] top-[5px] w-2 h-2 rounded-full bg-violet-500/60 border border-violet-500 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-neutral-200 text-xs font-mono">{p.page}</span>
+                                    </div>
+                                    <span className="text-neutral-600 text-xs flex-shrink-0">{formatTime(p.timestamp)}</span>
                                   </div>
-                                  <span className="text-neutral-600 text-xs flex-shrink-0">{formatTime(p.timestamp)}</span>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-
-                      {/* Footer info */}
-                      {visitor.org && (
-                        <p className="text-neutral-700 text-xs pt-2 border-t border-neutral-800/60">
-                          {visitor.org}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                        ))}
+                        {visitor.org && (
+                          <p className="text-neutral-700 text-xs pt-2 border-t border-neutral-800/60">
+                            {visitor.org}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

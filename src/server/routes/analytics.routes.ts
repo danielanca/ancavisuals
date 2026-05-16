@@ -142,29 +142,45 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
     const uniqueVisitors = (snap: FirebaseFirestore.QuerySnapshot): number =>
       new Set(snap.docs.map((d) => d.data().visitorId || d.data().sessionId)).size;
 
-    const [todaySnap, weekSnap, monthSnap, halfYearSnap, yearSnap] = await Promise.all([
+    const [todaySnap, threeDaysSnap, weekSnap, monthSnap, threeMonthsSnap] = await Promise.all([
       db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(todayStart)).get(),
+      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(3))).get(),
       db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(7))).get(),
       db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(30))).get(),
-      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(180))).get(),
-      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(365))).get(),
+      db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(daysAgo(90))).get(),
     ]);
 
     const pageCount: Record<string, number> = {};
+    const referrerCount: Record<string, number> = {};
+    const countryCount: Record<string, number> = {};
+
     monthSnap.docs.forEach((d) => {
-      const page = d.data().page as string;
+      const data = d.data();
+      const page = data.page as string;
       pageCount[page] = (pageCount[page] ?? 0) + 1;
+
+      const ref = data.referrer as string;
+      if (ref && !ref.includes("ancavisuals.ro")) {
+        try {
+          const host = new URL(ref).hostname.replace(/^www\./, "");
+          referrerCount[host] = (referrerCount[host] ?? 0) + 1;
+        } catch { /* invalid URL */ }
+      }
+
+      const country = data.country as string;
+      if (country) countryCount[country] = (countryCount[country] ?? 0) + 1;
     });
+
     const topPages = Object.entries(pageCount)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
       .map(([page, count]) => ({ page, count }));
 
-    const countryCount: Record<string, number> = {};
-    monthSnap.docs.forEach((d) => {
-      const country = d.data().country as string;
-      if (country) countryCount[country] = (countryCount[country] ?? 0) + 1;
-    });
+    const topReferrers = Object.entries(referrerCount)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([referrer, count]) => ({ referrer, count }));
+
     const topCountries = Object.entries(countryCount)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
@@ -172,11 +188,12 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
 
     res.json({
       today: { visitors: uniqueVisitors(todaySnap) },
+      threeDays: { visitors: uniqueVisitors(threeDaysSnap) },
       week: { visitors: uniqueVisitors(weekSnap) },
       month: { visitors: uniqueVisitors(monthSnap) },
-      halfYear: { visitors: uniqueVisitors(halfYearSnap) },
-      year: { visitors: uniqueVisitors(yearSnap) },
+      threeMonths: { visitors: uniqueVisitors(threeMonthsSnap) },
       topPages,
+      topReferrers,
       topCountries,
     });
   } catch (error) {

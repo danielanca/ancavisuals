@@ -39,6 +39,7 @@ const ContractListPage: React.FC = () => {
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [resending, setResending] = useState<string | null>(null);
+  const [reminding, setReminding] = useState<string | null>(null);
   const [creatingEvent, setCreatingEvent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -253,6 +254,24 @@ const ContractListPage: React.FC = () => {
     }
   };
 
+  const handleReminder = async (id: string) => {
+    setReminding(id);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/contracts/${id}/reminder`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showToast("Email de re-amintire trimis clientului.");
+    } catch (e: unknown) {
+      setActionError("Eroare la reminder: " + (e instanceof Error ? e.message : "necunoscută"));
+    } finally {
+      setReminding(null);
+    }
+  };
+
   const handleCreateEvent = async (id: string) => {
     setCreatingEvent(id);
     setActionError(null);
@@ -421,6 +440,7 @@ const ContractListPage: React.FC = () => {
                       cancelling={cancelling}
                       deleting={deleting}
                       resending={resending}
+                      reminding={reminding}
                       onEdit={() => navigate(`/admin/contracts/${contract.id}/edit`)}
                       onSign={() => { setSigError(null); setSigningId(contract.id); }}
                       onPreview={() => window.open(`/api/contracts/${contract.id}/preview`, "_blank")}
@@ -435,6 +455,7 @@ const ContractListPage: React.FC = () => {
                       onDelete={() => confirmAction("delete", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
                       onResetSignature={() => handleResetSignature(contract.id)}
                       onResend={() => handleResend(contract.id)}
+                      onReminder={() => handleReminder(contract.id)}
                     />
                   </div>
                   {creatingEvent === contract.id && (

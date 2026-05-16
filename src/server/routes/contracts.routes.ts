@@ -6,7 +6,7 @@ import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestore";
 import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateContractPDF, buildContractHTML } from "../services/pdf.generator";
-import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail } from "../notifications/templates/contractEmail";
+import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail, sendContractReminderEmail } from "../notifications/templates/contractEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { expandEventDates } from "../utils/expandEventDates";
@@ -14,6 +14,12 @@ import { APP_BASE_URL } from "../constants/domain";
 
 const router = Router();
 const BOOKED_EVENT_STATUSES = new Set(["confirmat", "finalizat"]);
+
+function tsToISO(value: unknown): string | null {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (typeof value === "string") return value;
+  return null;
+}
 
 type AdminEventType = "Nuntă" | "Botez" | "Logodnă" | "Aniversare" | "Altele";
 
@@ -116,9 +122,9 @@ router.get("/", async (_req: Request, res: Response) => {
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
-        signedAt: data.signedAt instanceof Timestamp ? data.signedAt.toDate().toISOString() : (data.signedAt ?? null),
-        sentAt: data.sentAt instanceof Timestamp ? data.sentAt.toDate().toISOString() : (data.sentAt ?? null),
+        createdAt: tsToISO(data.createdAt),
+        signedAt: tsToISO(data.signedAt),
+        sentAt: tsToISO(data.sentAt),
       };
     });
 
@@ -146,7 +152,7 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
     const pdfBuffer = await generateContractPDF({
       ...publicData,
       ...bankDetails,
-      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+      createdAt: tsToISO(data.createdAt),
       ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
       ...(req.query.clientPhone !== undefined ? { clientPhone: String(req.query.clientPhone) } : {}),
@@ -176,7 +182,7 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
     const html = buildContractHTML({
       ...publicData,
       ...bankDetails,
-      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+      createdAt: tsToISO(data.createdAt),
       ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
       ...(req.query.clientPhone !== undefined ? { clientPhone: String(req.query.clientPhone) } : {}),
@@ -224,7 +230,7 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
       id: doc.id,
       ...publicData,
       ...bankDetails,
-      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+      createdAt: tsToISO(data.createdAt),
     });
   } catch (error) {
     console.error("[contracts] GET /sign/:token failed:", error);
@@ -413,8 +419,8 @@ router.get("/:id", async (req: Request, res: Response) => {
     res.json({
       id: doc.id,
       ...data,
-      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
-      signedAt: data.signedAt instanceof Timestamp ? data.signedAt.toDate().toISOString() : (data.signedAt ?? null),
+      createdAt: tsToISO(data.createdAt),
+      signedAt: tsToISO(data.signedAt),
     });
   } catch (error) {
     console.error("[contracts] GET /:id failed:", error);
@@ -555,7 +561,7 @@ router.get("/:id/preview", async (req: Request, res: Response) => {
       ...data,
       ...bankDetails,
       id: doc.id,
-      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+      createdAt: tsToISO(data.createdAt),
     };
     const pdfBuffer = await generateContractPDF(contract as Record<string, unknown>);
     res.setHeader("Content-Type", "application/pdf");
@@ -602,6 +608,33 @@ router.post("/:id/prestator-sign", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[contracts] POST /:id/prestator-sign failed:", error);
     res.status(500).json({ error: "Eroare server." });
+  }
+});
+
+// POST /api/contracts/:id/reminder — send unsigned-contract reminder to client (admin)
+router.post("/:id/reminder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const doc = await db.collection("contracts").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Contract negăsit." });
+
+    const contract = doc.data()!;
+    if (contract.status !== "sent") {
+      return res.status(400).json({ error: "Reminder-ul se poate trimite doar pentru contracte nesemnate (status: trimis)." });
+    }
+
+    await sendContractReminderEmail({
+      to: contract.clientEmail,
+      token: contract.token,
+      eventType: contract.eventType,
+      eventDate: contract.eventDate,
+      baseUrl: APP_BASE_URL,
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[contracts] POST /:id/reminder failed:", error);
+    res.status(500).json({ error: "Nu s-a putut trimite reminder-ul." });
   }
 });
 
