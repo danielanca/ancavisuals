@@ -156,6 +156,23 @@ $transition: 0.2s ease;
     background-color: #236640;
     border-color: #236640;
   }
+
+  @media (max-width: 640px) {
+    padding: 10px;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    gap: 0;
+
+    span {
+      display: none;
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
 }
 
 .printBtnActive {

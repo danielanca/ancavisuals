@@ -55,6 +55,11 @@ async function loadContractsRouter() {
     })),
   }));
 
+  vi.doMock("src/server/middleware/requireFirebaseAuth", () => ({
+    requireFirebaseAuth: (_req: any, _res: any, next: () => void) => next(),
+    requireSupremeAdmin: (_req: any, _res: any, next: () => void) => next(),
+  }));
+
   vi.doMock("src/server/firestore", () => ({
     firestore: () => ({
       collection: collectionMock,
@@ -94,7 +99,8 @@ async function loadContractsRouter() {
     if (!layer) {
       throw new Error(`Missing ${method.toUpperCase()} handler for ${path}`);
     }
-    return layer.route.stack[0].handle;
+    const stack = layer.route.stack;
+    return stack[stack.length - 1].handle;
   };
 
   return {
@@ -111,6 +117,7 @@ async function loadContractsRouter() {
     getPublicSign: getHandler("get", "/sign/:token"),
     postPublicSign: getHandler("post", "/sign/:token"),
     postSend: getHandler("post", "/:id/send"),
+    postResend: getHandler("post", "/:id/resend"),
   };
 }
 
@@ -391,6 +398,64 @@ describe("contracts.routes", () => {
         status: "signed",
         pdfUrl: null,
       });
+    });
+
+    test("POST /:id/resend responds immediately and triggers PDF email in background for signed contracts", async () => {
+      const { postResend, docGetMock, generateContractPDFMock, sendSignedContractEmailMock } = await loadContractsRouter();
+      const res = createMockResponse();
+
+      docGetMock.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          status: "signed",
+          clientEmail: "client@example.com",
+          eventType: "Nunta",
+          eventDate: "2026-09-12",
+          clientName: "Ion Popescu",
+          token: "token-1",
+        }),
+      });
+
+      await postResend({ params: { id: "contract-1" } }, res);
+
+      expect(res.json).toHaveBeenCalledWith({ ok: true });
+
+      await flushPromises();
+
+      expect(generateContractPDFMock).toHaveBeenCalledTimes(1);
+      expect(sendSignedContractEmailMock).toHaveBeenCalledTimes(1);
+      expect(sendSignedContractEmailMock).toHaveBeenCalledWith(expect.objectContaining({
+        to: "client@example.com",
+        eventType: "Nunta",
+        clientName: "Ion Popescu",
+      }));
+    });
+
+    test("POST /:id/resend rejects unsigned contracts", async () => {
+      const { postResend, docGetMock } = await loadContractsRouter();
+      const res = createMockResponse();
+
+      docGetMock.mockResolvedValue({
+        exists: true,
+        data: () => ({ status: "sent", clientEmail: "client@example.com" }),
+      });
+
+      await postResend({ params: { id: "contract-1" } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: "Contractul nu este semnat." });
+    });
+
+    test("POST /:id/resend returns 404 for unknown contract", async () => {
+      const { postResend, docGetMock } = await loadContractsRouter();
+      const res = createMockResponse();
+
+      docGetMock.mockResolvedValue({ exists: false });
+
+      await postResend({ params: { id: "unknown" } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: "Contract negăsit." });
     });
 
     test("POST /:id/send rejects contracts that are already signed", async () => {

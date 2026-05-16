@@ -18,9 +18,34 @@ $arrow-size: 8px;
 .backdrop {
   position: absolute;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: transparent;
   pointer-events: all;
   cursor: pointer;
+}
+
+.skipTopBtn {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: all;
+  background: rgba(30, 30, 30, 0.92);
+  border: 1px solid #444;
+  color: #ccc;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  padding: 8px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  transition: background $transition, color $transition;
+
+  &:hover {
+    background: rgba(50, 50, 50, 0.95);
+    color: #fff;
+  }
 }
 
 .highlight {

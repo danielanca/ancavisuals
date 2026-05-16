@@ -14,6 +14,7 @@ interface Props {
   cancelling: string | null;
   deleting: string | null;
   resending: string | null;
+  reminding: string | null;
   onEdit: () => void;
   onSign: () => void;
   onPreview: () => void;
@@ -24,11 +25,12 @@ interface Props {
   onDelete: () => void;
   onResetSignature: () => void;
   onResend: () => void;
+  onReminder: () => void;
 }
 
 const ContractActionMenu: React.FC<Props> = ({
-  contract, canCreateEvent, isSigned, sending, cancelling, deleting, resending,
-  onEdit, onSign, onPreview, onCreateEvent, onSend, onCopyLink, onCancel, onDelete, onResetSignature, onResend,
+  contract, canCreateEvent, isSigned, sending, cancelling, deleting, resending, reminding,
+  onEdit, onSign, onPreview, onCreateEvent, onSend, onCopyLink, onCancel, onDelete, onResetSignature, onResend, onReminder,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -92,6 +94,14 @@ const ContractActionMenu: React.FC<Props> = ({
               onClick={onSend}
               color="text-emerald-400"
               loading={sending === contract.id}
+            />
+          )}
+          {contract.status === "sent" && (
+            <Item
+              label="📩  Email re-amintire"
+              onClick={onReminder}
+              color="text-sky-400"
+              loading={reminding === contract.id}
             />
           )}
           <Item label="🔗  Copiază link" onClick={onCopyLink} />

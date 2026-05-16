@@ -29,7 +29,7 @@ describe("contractEmail helpers", () => {
   });
 
   describe("happy path", () => {
-    test("sendContractLinkEmail builds the public signing link and subject", async () => {
+    test("sendContractLinkEmail sends to client first then copies admin", async () => {
       const { sendContractLinkEmail, sendMailMock } = await buildModule();
 
       await sendContractLinkEmail({
@@ -40,13 +40,33 @@ describe("contractEmail helpers", () => {
         baseUrl: "https://ancavisuals.ro",
       });
 
-      expect(sendMailMock).toHaveBeenCalledTimes(1);
-      expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
+      expect(sendMailMock).toHaveBeenCalledTimes(2);
+      expect(sendMailMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
         from: "studio@ancavisuals.ro",
         to: "client@example.com",
         subject: expect.stringContaining("Contract servicii foto/video"),
         html: expect.stringContaining("https://ancavisuals.ro/contract/token-1"),
       }));
+      expect(sendMailMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        to: "admin@ancavisuals.ro",
+        subject: expect.stringContaining("[Copie] Link contract trimis"),
+        html: expect.stringContaining("https://ancavisuals.ro/contract/token-1"),
+      }));
+    });
+
+    test("sendContractLinkEmail does not send admin copy if client delivery fails", async () => {
+      const { sendContractLinkEmail, sendMailMock } = await buildModule();
+      sendMailMock.mockRejectedValueOnce(new Error("SMTP connection refused"));
+
+      await expect(sendContractLinkEmail({
+        to: "client@example.com",
+        token: "token-1",
+        eventType: "Nuntă",
+        eventDate: "2026-09-12",
+        baseUrl: "https://ancavisuals.ro",
+      })).rejects.toThrow("SMTP connection refused");
+
+      expect(sendMailMock).toHaveBeenCalledTimes(1);
     });
 
     test("sendSignedContractEmail sends one mail to the client and one to admin with a download link", async () => {

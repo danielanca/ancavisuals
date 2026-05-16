@@ -10,28 +10,52 @@ type Step = {
 
 const STEPS: Step[] = [
   {
-    targetSelector: '[data-onboarding="pager"]',
-    title: '📄 Pagina următoare',
-    description: 'Pozele sunt împărțite pe pagini. Apasă pe săgeata dreaptă sau pe numărul paginii pentru a merge mai departe.',
+    targetSelector: '[data-onboarding="photo"]',
+    title: '👆 Apasă pe orice poză',
+    description: 'Apasă pe orice poză ca să o vezi mărită, la rezoluție completă. Poți naviga între poze cu săgețile din lateral sau cu swipe stânga/dreapta pe telefon.',
     position: 'bottom',
   },
   {
-    targetSelector: '[data-onboarding="photo"]',
-    title: '👆 Apasă pe o poză',
-    description: 'Apasă pe orice poză ca să o vezi mărită. Poți naviga între ele cu săgețile sau swipe stânga/dreapta.',
+    targetSelector: '[data-onboarding="pager-prev"]',
+    title: '◀ Pagina anterioară',
+    description: 'Apasă pe săgeata stângă „‹ Anterior" pentru a te întoarce la pagina precedentă de poze.',
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-onboarding="pager-input"]',
+    title: '📄 Sari direct la o pagină',
+    description: 'Scrie numărul paginii dorite în căsuța din mijloc și apasă Enter. Pozele sunt împărțite pe mai multe pagini — poți sări direct la orice pagină.',
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-onboarding="pager-next"]',
+    title: '▶ Pagina următoare',
+    description: 'Apasă pe săgeata dreaptă „Următorul ›" pentru a trece la pagina următoare de poze.',
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-onboarding="subscribe"]',
+    title: '🔔 Primești notificare când vin poze noi',
+    description: 'Introdu adresa ta de email și apasă „Abonează-te". Vei primi automat un email imediat ce fotograful adaugă poze noi în acest album — fără să trebuiască să intri zilnic să verifici.',
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-onboarding="download-btn"]',
+    title: '⬇️ Descarcă toate pozele',
+    description: 'Apasă acest buton pentru a descărca toate pozele din album ca arhivă ZIP, la calitate completă, exact cum au ieșit din aparat. Descărcarea poate dura câteva minute în funcție de dimensiunea albumului.',
     position: 'bottom',
   },
   {
     targetSelector: '[data-onboarding="print-btn"]',
     title: '🖨️ Selectează pozele pentru imprimare',
-    description: 'Apasă acest buton pentru a intra în modul de selectare. Bifează pozele pe care vrei să le imprimi, apoi salvează selecția.',
+    description: 'Vrei să imprimi unele poze? Apasă acest buton pentru a intra în modul de selectare. Bifează pozele dorite, salvează selecția — fotograful va vedea exact ce ai ales și va pregăti comanda de imprimare.',
     position: 'top',
   },
   {
-    targetSelector: '[data-onboarding="download-btn"]',
-    title: '⬇️ Descarcă toate pozele',
-    description: 'Apasă acest buton pentru a descărca toate pozele tale ca arhivă ZIP, la calitate completă.',
-    position: 'bottom',
+    targetSelector: '[data-onboarding="print-zone"]',
+    title: '📋 Zona pozelor selectate',
+    description: 'Aici vor apărea pozele pe care le-ai selectat pentru imprimare. Poți vedea și elimina orice poză din selecție direct din această zonă, înainte ca fotograful să pregătească comanda.',
+    position: 'top',
   },
 ];
 
@@ -48,9 +72,10 @@ const TOOLTIP_OFFSET = 16;
 type Props = {
   forceShow?: boolean;
   onClose?: () => void;
+  onStart?: () => void;
 };
 
-export default function OnboardingWizard({ forceShow, onClose }: Props) {
+export default function OnboardingWizard({ forceShow, onClose, onStart }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
   const [visible, setVisible] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
@@ -125,16 +150,9 @@ export default function OnboardingWizard({ forceShow, onClose }: Props) {
 
   const startWizard = useCallback(() => {
     setVisible(true);
+    onStart?.();
     goToStep(0);
-  }, [goToStep]);
-
-  useEffect(() => {
-    const alreadySeen = localStorage.getItem(STORAGE_KEY);
-    if (alreadySeen) return;
-
-    const timer = setTimeout(startWizard, 800);
-    return () => clearTimeout(timer);
-  }, [startWizard]);
+  }, [goToStep, onStart]);
 
   useEffect(() => {
     if (!forceShow) return;
@@ -169,6 +187,10 @@ export default function OnboardingWizard({ forceShow, onClose }: Props) {
   return (
     <div className={styles.root} ref={overlayRef}>
       <div className={styles.backdrop} onClick={handleSkip} />
+
+      <button className={styles.skipTopBtn} onClick={handleSkip}>
+        Sari peste tutorial ✕
+      </button>
 
       <div
         className={styles.highlight}

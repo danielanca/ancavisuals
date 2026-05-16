@@ -17,6 +17,7 @@ type Props = {
   onToggleSelectPage: () => void;
   mobileColumns?: 1 | 2;
   onMobileColumnsChange?: (columns: 1 | 2) => void;
+  "data-onboarding"?: string;
 };
 
 export default function AlbumPager({
@@ -35,6 +36,7 @@ export default function AlbumPager({
   onToggleSelectPage,
   mobileColumns,
   onMobileColumnsChange,
+  "data-onboarding": dataOnboarding,
 }: Props) {
   const [value, setValue] = useState(String(currentPage));
 
@@ -62,21 +64,21 @@ export default function AlbumPager({
   };
 
   return (
-    <div className={styles.bar}>
+    <div className={styles.bar} data-onboarding={dataOnboarding}>
       <div className={styles.row}>
         <div className={styles.left}>
-          <button className={styles.btn} type="button" onClick={onFirst} disabled={disabled || currentPage <= 1}>
+          <button className={styles.btn} type="button" onClick={onFirst} disabled={disabled || currentPage <= 1} data-onboarding="pager-first">
             <span className={styles.icon} aria-hidden="true">«</span>
             <span className={styles.label}>Primul</span>
           </button>
 
-          <button className={styles.btn} type="button" onClick={onPrev} disabled={disabled || currentPage <= 1}>
+          <button className={styles.btn} type="button" onClick={onPrev} disabled={disabled || currentPage <= 1} data-onboarding="pager-prev">
             <span className={styles.icon} aria-hidden="true">‹</span>
             <span className={styles.label}>Anterior</span>
           </button>
         </div>
 
-        <div className={styles.pg}>
+        <div className={styles.pg} data-onboarding="pager-input">
           <span className={styles.pgLabel}>Pagina</span>
           <input
             className={styles.pgInput}
@@ -95,12 +97,12 @@ export default function AlbumPager({
         </div>
 
         <div className={styles.right}>
-          <button className={styles.btn} type="button" onClick={onNext} disabled={disabled || currentPage >= totalPages}>
+          <button className={styles.btn} type="button" onClick={onNext} disabled={disabled || currentPage >= totalPages} data-onboarding="pager-next">
             <span className={styles.label}>Următorul</span>
             <span className={styles.icon} aria-hidden="true">›</span>
           </button>
 
-          <button className={styles.btn} type="button" onClick={onLast} disabled={disabled || currentPage >= totalPages}>
+          <button className={styles.btn} type="button" onClick={onLast} disabled={disabled || currentPage >= totalPages} data-onboarding="pager-last">
             <span className={styles.label}>Ultimul</span>
             <span className={styles.icon} aria-hidden="true">»</span>
           </button>

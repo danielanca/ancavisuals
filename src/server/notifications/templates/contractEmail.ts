@@ -1,6 +1,23 @@
 import { mailer } from "../mailer";
 import { adminUser, emailAuth } from "../../constants/credentials";
 
+const EMAIL_HEADER = `
+  <div style="text-align: center; margin-bottom: 24px;">
+    <h2 style="color: #c9a96e; font-weight: 300; letter-spacing: 3px; font-size: 20px; margin: 0;">ANCA VISUALS</h2>
+    <p style="color: #999; font-size: 11px; letter-spacing: 1px; margin: 4px 0 0; text-transform: uppercase;">Fotografie & Videografie</p>
+  </div>
+  <hr style="border: none; border-top: 1px solid #c9a96e; margin: 0 0 28px;" />`;
+
+const EMAIL_FOOTER = `
+  <hr style="border: none; border-top: 1px solid #eee; margin: 28px 0 16px;" />
+  <p style="color: #bbb; font-size: 10px; text-align: center; margin: 0;">
+    Anca Visuals &nbsp;•&nbsp; ancadaniel1994@gmail.com
+  </p>`;
+
+function emailWrap(body: string): string {
+  return `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">${EMAIL_HEADER}${body}${EMAIL_FOOTER}</div>`;
+}
+
 interface ContractLinkEmailOptions {
   to: string;
   token: string;
@@ -14,50 +31,25 @@ export async function sendContractLinkEmail(options: ContractLinkEmailOptions): 
   const link = `${baseUrl}/contract/${token}`;
   const formattedDate = formatRoDate(eventDate);
 
-  const clientHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">
-        <div style="text-align: center; margin-bottom: 24px;">
-          <h2 style="color: #c9a96e; font-weight: 300; letter-spacing: 3px; font-size: 20px; margin: 0;">ANCA VISUALS</h2>
-          <p style="color: #999; font-size: 11px; letter-spacing: 1px; margin: 4px 0 0; text-transform: uppercase;">Fotografie & Videografie</p>
-        </div>
-        <hr style="border: none; border-top: 1px solid #c9a96e; margin: 0 0 28px;" />
-
-        <p style="color: #333; margin-bottom: 12px;">Bună ziua,</p>
-        <p style="color: #333; margin-bottom: 12px;">
-          Contractul de prestări servicii foto/video pentru evenimentul
-          <strong>${eventType}</strong> din data de <strong>${formattedDate}</strong>
-          este gata pentru semnare.
-        </p>
-        <p style="color: #555; margin-bottom: 28px;">
-          Vă rugăm să accesați link-ul de mai jos, să citiți cu atenție contractul,
-          să completați datele personale și să semnați electronic.
-        </p>
-
-        <div style="text-align: center; margin-bottom: 28px;">
-          <a href="${link}" style="
-            display: inline-block;
-            background-color: #c9a96e;
-            color: #fff;
-            padding: 14px 36px;
-            text-decoration: none;
-            border-radius: 4px;
-            font-size: 15px;
-            font-weight: 600;
-            letter-spacing: 1px;
-          ">Semnează Contractul</a>
-        </div>
-
-        <p style="color: #aaa; font-size: 11px; text-align: center;">
-          Sau accesați direct:<br/>
-          <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
-        </p>
-
-        <hr style="border: none; border-top: 1px solid #eee; margin: 28px 0 16px;" />
-        <p style="color: #bbb; font-size: 10px; text-align: center; margin: 0;">
-          Anca Visuals &nbsp;•&nbsp; ancadaniel1994@gmail.com
-        </p>
-      </div>
-    `;
+  const clientHtml = emailWrap(`
+    <p style="color: #333; margin-bottom: 12px;">Bună ziua,</p>
+    <p style="color: #333; margin-bottom: 12px;">
+      Contractul de prestări servicii foto/video pentru evenimentul
+      <strong>${eventType}</strong> din data de <strong>${formattedDate}</strong>
+      este gata pentru semnare.
+    </p>
+    <p style="color: #555; margin-bottom: 28px;">
+      Vă rugăm să accesați link-ul de mai jos, să citiți cu atenție contractul,
+      să completați datele personale și să semnați electronic.
+    </p>
+    <div style="text-align: center; margin-bottom: 28px;">
+      <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Contractul</a>
+    </div>
+    <p style="color: #aaa; font-size: 11px; text-align: center;">
+      Sau accesați direct:<br/>
+      <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
+    </p>
+  `);
 
   await mailer.sendMail({
     from: emailAuth.email,
@@ -92,40 +84,16 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
     ? "Puteți descărca contractul semnat accesând butonul de mai jos. Link-ul este permanent și poate fi accesat oricând."
     : "Contractul a fost semnat. PDF-ul se generează — îl puteți accesa în curând accesând link-ul de mai jos.";
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">
-      <div style="text-align: center; margin-bottom: 24px;">
-        <h2 style="color: #c9a96e; font-weight: 300; letter-spacing: 3px; font-size: 20px; margin: 0;">ANCA VISUALS</h2>
-        <p style="color: #999; font-size: 11px; letter-spacing: 1px; margin: 4px 0 0; text-transform: uppercase;">Fotografie & Videografie</p>
-      </div>
-      <hr style="border: none; border-top: 1px solid #c9a96e; margin: 0 0 28px;" />
-
-      <p style="color: #333; margin-bottom: 12px;">
-        Contractul pentru evenimentul <strong>${eventType}</strong> din <strong>${formattedDate}</strong>
-        a fost semnat cu succes de <strong>${clientName}</strong>.
-      </p>
-      <p style="color: #555; margin-bottom: 28px;">${bodyText}</p>
-
-      <div style="text-align: center; margin-bottom: 28px;">
-        <a href="${pdfUrl}" style="
-          display: inline-block;
-          background-color: #c9a96e;
-          color: #fff;
-          padding: 14px 36px;
-          text-decoration: none;
-          border-radius: 4px;
-          font-size: 15px;
-          font-weight: 600;
-          letter-spacing: 1px;
-        ">${buttonLabel}</a>
-      </div>
-
-      <hr style="border: none; border-top: 1px solid #eee; margin: 28px 0 16px;" />
-      <p style="color: #bbb; font-size: 10px; text-align: center; margin: 0;">
-        Anca Visuals &nbsp;•&nbsp; ancadaniel1994@gmail.com
-      </p>
+  const html = emailWrap(`
+    <p style="color: #333; margin-bottom: 12px;">
+      Contractul pentru evenimentul <strong>${eventType}</strong> din <strong>${formattedDate}</strong>
+      a fost semnat cu succes de <strong>${clientName}</strong>.
+    </p>
+    <p style="color: #555; margin-bottom: 28px;">${bodyText}</p>
+    <div style="text-align: center; margin-bottom: 28px;">
+      <a href="${pdfUrl}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">${buttonLabel}</a>
     </div>
-  `;
+  `);
 
   await mailer.sendMail({
     from: emailAuth.email,
@@ -173,50 +141,74 @@ export async function sendContractDeletedEmail({ contract }: DeletedContractEmai
       <td style="padding: 6px 12px; color: #1a1a1a; font-size: 12px; font-weight: 600;">${value}</td>
     </tr>`).join("");
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">
-      <div style="text-align: center; margin-bottom: 24px;">
-        <h2 style="color: #c9a96e; font-weight: 300; letter-spacing: 3px; font-size: 20px; margin: 0;">ANCA VISUALS</h2>
-        <p style="color: #999; font-size: 11px; letter-spacing: 1px; margin: 4px 0 0; text-transform: uppercase;">Fotografie & Videografie</p>
-      </div>
-      <hr style="border: none; border-top: 2px solid #ef4444; margin: 0 0 28px;" />
-
-      <p style="color: #ef4444; font-weight: 700; font-size: 15px; margin-bottom: 6px;">⚠ Contract șters definitiv</p>
-      <p style="color: #555; font-size: 13px; margin-bottom: 24px;">
-        Acest email conține detaliile contractului șters, pentru arhivă personală.
-        Dacă ștergerea a fost accidentală, contactează imediat furnizorul de hosting pentru recuperare din backup.
-      </p>
-
-      <table style="width: 100%; border-collapse: collapse; background: #fafafa; border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
-        <tbody>${tableRows}</tbody>
-      </table>
-
-      ${pdfUrl ? `
-      <div style="text-align: center; margin: 24px 0;">
-        <a href="${pdfUrl}" style="
-          display: inline-block; background: #c9a96e; color: #fff;
-          padding: 12px 28px; text-decoration: none; border-radius: 4px;
-          font-size: 13px; font-weight: 600; letter-spacing: 1px;
-        ">Descarcă PDF-ul contractului</a>
-        <p style="color: #aaa; font-size: 11px; margin-top: 8px;">
-          Linkul poate expira. Salvează PDF-ul dacă ai nevoie de el.
-        </p>
-      </div>` : `
-      <p style="color: #aaa; font-size: 12px; text-align: center;">
-        PDF-ul nu era disponibil pentru acest contract.
-      </p>`}
-
-      <hr style="border: none; border-top: 1px solid #eee; margin: 28px 0 16px;" />
-      <p style="color: #bbb; font-size: 10px; text-align: center; margin: 0;">
-        Anca Visuals &nbsp;•&nbsp; ancadaniel1994@gmail.com
-      </p>
-    </div>
-  `;
+  const html = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">${EMAIL_HEADER.replace('border-top: 1px solid #c9a96e', 'border-top: 2px solid #ef4444')}
+    <p style="color: #ef4444; font-weight: 700; font-size: 15px; margin-bottom: 6px;">⚠ Contract șters definitiv</p>
+    <p style="color: #555; font-size: 13px; margin-bottom: 24px;">
+      Acest email conține detaliile contractului șters, pentru arhivă personală.
+      Dacă ștergerea a fost accidentală, contactează imediat furnizorul de hosting pentru recuperare din backup.
+    </p>
+    <table style="width: 100%; border-collapse: collapse; background: #fafafa; border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
+      <tbody>${tableRows}</tbody>
+    </table>
+    ${pdfUrl ? `
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${pdfUrl}" style="display:inline-block;background:#c9a96e;color:#fff;padding:12px 28px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:600;letter-spacing:1px;">Descarcă PDF-ul contractului</a>
+      <p style="color: #aaa; font-size: 11px; margin-top: 8px;">Linkul poate expira. Salvează PDF-ul dacă ai nevoie de el.</p>
+    </div>` : `<p style="color: #aaa; font-size: 12px; text-align: center;">PDF-ul nu era disponibil pentru acest contract.</p>`}
+    ${EMAIL_FOOTER}
+  </div>`;
 
   await mailer.sendMail({
     from: emailAuth.email,
     to: adminUser.email,
     subject: `[Șters] Contract ${eventType} — ${eventDate} — ${clientEmail}`,
+    html,
+  });
+}
+
+interface ContractReminderEmailOptions {
+  to: string;
+  token: string;
+  eventType: string;
+  eventDate: string;
+  baseUrl: string;
+}
+
+export async function sendContractReminderEmail(options: ContractReminderEmailOptions): Promise<void> {
+  const { to, token, eventType, eventDate, baseUrl } = options;
+  const link = `${baseUrl}/contract/${token}`;
+  const formattedDate = formatRoDate(eventDate);
+
+  const html = emailWrap(`
+    <p style="color: #333; margin-bottom: 12px;">Bună ziua,</p>
+    <p style="color: #333; margin-bottom: 12px;">
+      Vă trimitem un scurt reminder că contractul pentru evenimentul
+      <strong>${eventType}</strong> din data de <strong>${formattedDate}</strong>
+      nu a fost semnat încă.
+    </p>
+    <p style="color: #555; margin-bottom: 28px;">
+      Vă rugăm să accesați link-ul de mai jos pentru a semna contractul. Procesul durează doar câteva minute.
+    </p>
+    <div style="text-align: center; margin-bottom: 28px;">
+      <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Contractul</a>
+    </div>
+    <p style="color: #aaa; font-size: 11px; text-align: center;">
+      Sau accesați direct:<br/>
+      <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
+    </p>
+  `);
+
+  await mailer.sendMail({
+    from: emailAuth.email,
+    to,
+    subject: `Reminder: Contract nesemnat — ${eventType} ${formattedDate}`,
+    html,
+  });
+
+  await mailer.sendMail({
+    from: emailAuth.email,
+    to: adminUser.email,
+    subject: `[Copie] Reminder trimis — ${eventType} ${formattedDate} — ${to}`,
     html,
   });
 }
