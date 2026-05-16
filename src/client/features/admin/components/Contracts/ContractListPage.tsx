@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ConfirmModal from "../ConfirmModal";
 import ContractActionMenu from "./ContractActionMenu";
 import Breadcrumb from "../Breadcrumb";
-import useAuth from "../auth/useAuth";
+import useAuth from "../../auth/useAuth";
 
 interface ContractItem {
   id: string;
