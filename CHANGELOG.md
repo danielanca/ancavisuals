@@ -4,6 +4,128 @@ Fiecare secțiune documentează ce s-a construit, fișierele implicate și cum f
 
 ---
 
+## [branch: updates-24may26] — Mai 2026
+
+---
+
+### 🖼️ Media Album UX + invitații colaborator
+
+**Ce face:** Pagina `/media/:slug` a primit update-uri consistente pentru album browsing, promo footer și fluxul de invitații către colaboratori.
+
+**Cum funcționează:**
+1. Galeria principală din album folosește acum masonry real și pe mobil, cu minimum 4 coloane pe desktop și toggle de 1/2 coloane disponibil și pe tabletă/desktop
+2. Fiecare poză din galerie are overlay de hover cu eye hint și buton de download în dreapta-jos, mai mare, pătrat și ușor rotunjit
+3. Lightbox-ul închide poza la click în afara imaginii, dar nu la click direct pe imagine; imaginea este constrânsă să încapă complet în viewport
+4. Footerul promo din `/media` păstrează banda foto doar pe desktop, iar galeria promo de dedesubt este masonry clickabilă cu lightbox separat
+5. Chatbotul apare pe `/media` doar când intri în zona promo/reclamă de la finalul paginii
+6. Panoul „Invită colaborator” există direct în album, collapsed by default, trimite email instant și pornește reminder-e per album la 24h, 72h, 7 zile, 14 zile și 30 zile; lanțul se oprește după prima propunere Instagram/Media Assets sau prima propunere de ștergere
+
+**Fișiere:**
+- `src/client/pages/MediaDownload/MediaAlbumPage.tsx`
+- `src/client/pages/MediaDownload/MediaAlbumPage.module.scss`
+- `src/client/pages/MediaDownload/PhotoLightbox.tsx`
+- `src/client/pages/MediaDownload/PhotoLightbox.module.scss`
+- `src/client/pages/Portfolio/BunnyPhotoGallery.tsx`
+- `src/client/pages/Portfolio/BunnyPhotoGallery.module.scss`
+- `src/client/App.tsx`
+- `src/client/features/admin/components/AccountsPage.tsx`
+- `src/server/routes/accounts.routes.ts`
+- `src/server/routes/instagramProposals.routes.ts`
+- `src/server/routes/moderation.routes.ts`
+- `src/server/services/collaboratorInvite.service.ts`
+- `src/server/notifications/templates/collaboratorInviteTemplate.ts`
+- `src/server/cron/collaboratorInviteReminder.cron.ts`
+- `server.ts`
+
+**Notă validare:** `npm run typecheck` rămâne blocat de erori preexistente în `src/client/features/admin/components/Trading/*`, nelegate de acest feature set.
+
+---
+
+### 🔔 Admin Bell — abonați per album cu ștergere
+
+**Ce face:** AdminBar-ul arată câți abonați are albumul curent, cu posibilitate de a vedea emailurile și a șterge abonați individual.
+
+**Cum funcționează:**
+1. Pe orice pagină `/media/:slug`, butonul 🔔 din AdminBar afișează un badge cu numărul de abonați (galben dacă >0, gri „0" dacă niciun abonat — ca să știi că nu are rost să apeși Notifică)
+2. Click pe 🔔 deschide un dropdown cu lista emailurilor + buton „Notifică" (dezactivat când sunt 0 abonați)
+3. La fiecare deschidere a dropdown-ului se re-fetch-uiesc abonații (ca să apară cei noi fără refresh pagină)
+4. Fiecare email are un buton **✕** — click șterge abonatul din Firestore și îl elimină instant din listă
+5. Badge-ul dispare din lista de jos a albumului (acum e centralizat în AdminBar)
+
+**Endpoint-uri noi:**
+- `GET /api/album-subscriptions/list/:slug` — fără `orderBy` (nu mai necesită index composite Firestore)
+- `DELETE /api/album-subscriptions/unsubscribe` — șterge `{ albumSlug, email }`, doar admin
+
+**Fișiere:**
+- `src/client/components/UI/AdminBar.tsx` — fetch subscribers on mount + re-fetch on open, badge, dropdown cu ✕
+- `src/server/routes/albumSubscriptions.routes.ts` — endpoint DELETE /unsubscribe, eliminat orderBy din list
+
+---
+
+### 🧭 Tutorial OnboardingWizard — refăcut complet
+
+**Ce face:** Tutorial pas-cu-pas pentru clienți la prima vizită pe albumul lor, cu 6 pași, highlight vizual și tooltip pozitionat inteligent.
+
+**Cum funcționează:**
+1. La prima vizită (după acceptarea consimțământului), tutorialul pornește automat
+2. Butonul „? CUM FUNCȚIONEAZĂ?" îl repornește oricând (lângă „Completează adresa de livrare")
+3. 6 pași: apasă poză, navigare pagini, abonare notificări, descărcare ZIP, selectare imprimare, zona de imprimare
+4. Scroll blocat pe durata tutorialului (event listeners pe `wheel`/`touchmove`/`keydown`)
+5. Tooltip se poziționează automat față de element, cu fallback la centrul viewport când elementul e prea mare
+6. Pe mobil, tooltip-ul apare ca sheet din josul ecranului
+
+**Bug fix critic:** Butonul „Următor" nu funcționa — cauza: `onClose` inline (recreat la fiecare render) forța re-run-ul effect-ului, resetând wizard-ul la pasul 0. Fix: `useRef` pentru callbacks.
+
+**Fișiere:**
+- `src/client/pages/MediaDownload/Onboardingwizard.tsx` — refs pentru callbacks, scroll lock cu event listeners, 6 STEPS noi
+- `src/client/pages/MediaDownload/OnboardingWizard.module.scss` — buton skip roșu, `strong { color: #facc15 }`
+
+---
+
+### 🖼️ Showcase Zone Editor — layout masonry
+
+**Ce face:** Editorul de zone showcase (`/admin/showcase`) afișează „Selecția curentă" în masonry de sus în jos, cu preview Desktop/Mobile.
+
+**Cum funcționează:**
+- Lista foto: `columns: 2`, fără maxHeight — se extinde liber în jos, badge `#N` pe fiecare poză
+- Preview Desktop: `columns: 4`, max 12 poze, `maxHeight: 200px`
+- Preview Mobile: `columns: 2`, `maxWidth: 180px`, max 6 poze
+
+**Fișiere:**
+- `src/client/features/admin/components/ShowcaseZoneEditorPage.tsx`
+
+---
+
+### 🧪 Teste — acoperire pentru funcționalitățile noi
+
+**Ce testează:**
+- `OnboardingWizard.test.tsx` — 13 teste: navigare pași, regresie stale closure, skip elemente absente, Gata!/Înapoi, ambele butoane skip
+- `AdminBar.test.tsx` — 14 teste: badge 0/N, dropdown, emailuri ca mailto, Notifică dezactivat, re-fetch la deschidere, ✕ șterge abonat
+- `albumSubscriptions.routes.test.ts` — 17 teste: subscribe (nou/duplicat/normalize/câmpuri lipsă), list, count, unsubscribe (găsit/404/400), notify
+
+**Total: 383 teste, toate passed. Typecheck și lint clean.**
+
+---
+
+### 🐛 Client Debug Notification — badge erori cu WhatsApp
+
+**Ce face:** Când apare o eroare JS în browser, apare automat un badge roșu pe dreapta ecranului. Clienții pot trimite direct pe WhatsApp un screenshot cu eroarea. Adminii văd detaliile tehnice complete.
+
+**Cum funcționează:**
+1. `ErrorMonitorContext` capturează mereu erorile reale (`window.error` + `unhandledrejection`), indiferent dacă debug mode e activ
+2. Patch-ul pe `console.error` și `fetch` rămâne doar când debugging e activat manual
+3. Badge-ul roșu apare fix pe dreapta ecranului, pulsează când apare o eroare nouă, arată numărul de erori
+4. Click pe badge → panel slide-in din dreapta:
+   - **Clienți (non-admin):** mesaj friendly + buton verde „Trimite pe WhatsApp" (deschide direct `wa.me/40745469907`)
+   - **Admini:** lista tehnică completă cu tip eroare, mesaj, stack trace, timestamp
+
+**Fișiere:**
+- `src/client/features/admin/providers/ErrorMonitorContext.tsx` — split useEffect: always-on + debugging-only
+- `src/client/features/admin/components/ClientDebugBadge.tsx` — componentă nouă (badge + panel)
+- `src/client/App.tsx` — `<ClientDebugBadge />` adăugat în `AuthProvider`
+
+---
+
 ## [branch: accountable] — Mai 2026
 
 ---

@@ -99,10 +99,8 @@ export default function BunnyPhotoGallery({
   const columnCount = useMemo(() => {
     if (isMobile) return mobileColumns ?? 2;
     const width = size.width;
-    if (width >= 1100) return 5;
-    if (width >= 900) return 4;
-    if (width >= 640) return 3;
-    return 2;
+    if (width >= 1280) return 5;
+    return 4;
   }, [isMobile, size.width, mobileColumns]);
 
   const gap = 16;
@@ -126,6 +124,13 @@ export default function BunnyPhotoGallery({
   const canVirtual = virtualized && scrollable && size.width > 0 && size.height > 0 && tileW > 0 && tileH > 0;
 
   const visiblePhotos = useMemo(() => photos.slice(0, visible), [photos, visible]);
+  const masonryColumns = useMemo(() => {
+    const cols = Array.from({ length: Math.max(1, columnCount) }, () => [] as Array<{ src: string; index: number }>);
+    visiblePhotos.forEach((src, index) => {
+      cols[index % Math.max(1, columnCount)].push({ src, index });
+    });
+    return cols;
+  }, [visiblePhotos, columnCount]);
 
   const renderThumbImg = (src: string, sizes: string, maxW: number, index?: number) => {
     const w1 = Math.min(maxW, Math.max(280, Math.round(tileW * dpr)));
@@ -155,6 +160,7 @@ export default function BunnyPhotoGallery({
   const renderItem = (src: string, index: number) => {
     const key = getKey ? getKey(src) : src;
     const isOn = selectable && selected ? selected.has(key) : false;
+    const downloadSrc = orgPhoto[index] ?? src;
 
     const cls = [styles["pg-item"], selectable ? styles["pg-itemSelectable"] : "", isOn ? styles["pg-itemOn"] : ""]
       .filter(Boolean)
@@ -178,48 +184,31 @@ export default function BunnyPhotoGallery({
         }}
       >
         {selectable && <div className={styles["pg-check"]}>{isOn ? "✓" : ""}</div>}
+        {!selectable && (
+          <a
+            href={downloadSrc}
+            download
+            className={styles["pg-downloadBtn"]}
+            aria-label="Descarcă poza"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v12" />
+              <path d="M7 10l5 5 5-5" />
+              <path d="M5 21h14" />
+            </svg>
+          </a>
+        )}
         {renderThumbImg(src, sizes, 720, index)}
       </button>
     );
   };
 
-  const getColCount = () => {
-    if (typeof window === "undefined") return mobileColumns ?? 2;
-    if (window.matchMedia("(min-width: 1024px)").matches) return 4;
-    if (window.matchMedia("(min-width: 640px)").matches) return 3;
-    return mobileColumns ?? 2;
-  };
-
-  const [colCount, setColCount] = useState(getColCount());
-
-  useEffect(() => {
-    const mq640 = window.matchMedia("(min-width: 640px)");
-    const mq1024 = window.matchMedia("(min-width: 1024px)");
-    const onChange = () => setColCount(getColCount());
-
-    onChange();
-    mq640.addEventListener("change", onChange);
-    mq1024.addEventListener("change", onChange);
-
-    return () => {
-      mq640.removeEventListener("change", onChange);
-      mq1024.removeEventListener("change", onChange);
-    };
-  }, [mobileColumns]);
-
-  const columns = useMemo(() => {
-    const cols = Array.from({ length: colCount }, () => [] as Array<{ src: string; index: number }>);
-    for (let index = 0; index < visiblePhotos.length; index += 1) {
-      cols[index % colCount].push({ src: visiblePhotos[index], index });
-    }
-    return cols;
-  }, [visiblePhotos, colCount]);
-
   const masonry = (
     <div className={styles.pgColumns}>
-      {columns.map((col, index) => (
-        <div key={index} className={styles.pgColumn}>
-          {col.map(item => renderItem(item.src, item.index))}
+      {masonryColumns.map((column, columnIndex) => (
+        <div key={columnIndex} className={styles.pgColumn}>
+          {column.map((item) => renderItem(item.src, item.index))}
         </div>
       ))}
     </div>

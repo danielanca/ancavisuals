@@ -11,6 +11,7 @@ module.exports = {
     {
       name: "ancavisuals",
       script: "dist/server.js",
+      node_args: "--no-deprecation",
       exec_mode: "fork",
       cwd,
       env: {

@@ -218,6 +218,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #ADMIN  AddLeadModal pricing: Include câmpuri total/avans/rest cu calcul automat; checkbox "avans deja încasat"; backend citește pricing direct din body
 #ADMIN  Fiscalizare eveniment: `adminEvents.fiscalized` este boolean; default = `false` (nefiscalizat), iar EventCard/EventList expun marker + toggle + filtru `Toate | Fiscalizate | Nefiscalizate` #ADMIN
 #ADMIN  Detalii bancare:      pagină dedicată `/admin/bank-details`; salvează `settings/admin.bankDetails = { beneficiaryName, iban }` și injectează valorile în contracte/PDF/public sign page când `paymentMethod === "Transfer bancar"` #ADMIN
+#ADMIN  Conturi admin:        `/admin/accounts` poate trimite invitații per album către conturi Firebase existente; colecția Firestore `collaboratorInvites` programează reminder-e automate la 24h, +72h, +7 zile, +14 zile și +30 zile, apoi se opresc. Invitația se închide doar pentru albumul respectiv când colaboratorul face prima acțiune (`instagramProposals` sau `moderationSubmissions`). #ADMIN #NOTIFY #MEDIA
 #ADMIN  rg shortcut:          rg -n "#ADMIN" AI_MEMORY.md
 
 ---
@@ -288,6 +289,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-05-25: Zona Trading din admin a fost eliminată complet (`/admin/trading`, meniuri, breadcrumb, fișierele din `src/client/features/admin/components/Trading/`), iar `npm run typecheck` + `npm run build` trec din nou. #RECENT #ADMIN #PITFALL
+#RECENT  2026-05-25: Admin > Conturi poate trimite invitații per album către colaboratori existenți, cu email inițial + reminder-e automate la 24h, +72h, +7 zile, +14 zile și +30 zile. Reminder-ele sunt per `albumSlug`, se opresc după prima propunere Instagram/Media Assets sau prima propunere de ștergere, iar cronul nou rulează din `src/server/cron/collaboratorInviteReminder.cron.ts`. #RECENT #ADMIN #NOTIFY #MEDIA
 #RECENT  2026-05-13: Zona Financiar are acum tab nou `Extrase cont`: poți încărca un extras bancar PDF/imagine, AI extrage toate entry-urile și încearcă să le justifice automat prin facturile și cheltuielile existente din anul selectat. Implementare: `src/server/routes/bankStatements.routes.ts` + integrare în `src/client/features/admin/components/Financial/FinancialPage.tsx`. Validat cu `npm run typecheck`. #RECENT #ADMIN
 #RECENT  2026-05-13: Dev setup fix — `npm run dev` pornește acum doar `dev:server`, deoarece `server.ts` include deja Vite în `middlewareMode`; rularea paralelă cu `dev:client` crea conflict HMR/WebSocket (`Port is already in use`) și putea face UI-ul din `/admin` să pară că se restartează. Script nou `dev:dual` păstrează varianta cu ambele procese doar pentru debugging explicit. #RECENT #DEBUG #PITFALL
 #RECENT  2026-05-13: Fix pentru `/admin` care repornea vizual loader-ul în buclă: rutele lazy/protejate pentru admin și Wedding Hub nu mai sunt generate din funcții apelate în render-ul lui `App`, ci exportate ca constante module-level (`adminRoutes`, `weddingHubRoutes`), astfel încât rerender-urile globale să nu mai remonteze dashboard-ul și `AncaLoader`. Validat cu `npm run typecheck`. #RECENT #ADMIN #WH #PITFALL

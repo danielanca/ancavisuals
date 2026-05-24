@@ -11,13 +11,22 @@ $transition: 0.2s ease;
   animation: fadeIn 0.15s ease both;
 }
 
+.modal {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+}
+
 .imageWrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   padding: 60px 80px;
+  box-sizing: border-box;
 
   @media (max-width: 640px) {
     padding: 60px 16px;
@@ -25,8 +34,8 @@ $transition: 0.2s ease;
 }
 
 .image {
-  max-width: 100%;
-  max-height: 100%;
+  max-width: min(100%, 92vw);
+  max-height: calc(100vh - 140px);
   object-fit: contain;
   border-radius: 4px;
   animation: zoomIn 0.2s ease both;

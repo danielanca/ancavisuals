@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AncaLoader from "../../../components/UI/AncaLoader";
+import useAuth from "../auth/useAuth";
 
 interface Visit {
   id: string;
@@ -16,6 +17,8 @@ interface Visit {
   region: string;
   country: string;
   org: string;
+  timeSpent?: number;
+  scrollDepth?: number;
 }
 
 interface Stats {
@@ -29,9 +32,16 @@ interface Stats {
   topCountries: { country: string; count: number }[];
 }
 
+interface PageEntry {
+  page: string;
+  timestamp: string;
+  timeSpent?: number;
+  scrollDepth?: number;
+}
+
 interface SessionEntry {
   sessionId: string;
-  pages: { page: string; timestamp: string }[];
+  pages: PageEntry[];
   firstSeen: string;
   lastSeen: string;
 }
@@ -70,14 +80,15 @@ function parseDevice(ua: string): string {
   return mobile ? "Mobile" : "Desktop";
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "acum";
-  if (m < 60) return `${m}min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}z`;
+function formatVisitTime(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const isToday = d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const hhmm = d.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit", hour12: false });
+  if (isToday) return hhmm;
+  return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "short" }) + " · " + hhmm;
 }
 
 function formatTime(iso: string): string {
@@ -85,6 +96,13 @@ function formatTime(iso: string): string {
     day: "2-digit", month: "short",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function formatSeconds(s: number): string {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
 }
 
 function formatDuration(first: string, last: string): string {
@@ -124,7 +142,7 @@ function groupByVisitors(visits: Visit[]): Visitor[] {
       sessionMap.set(sid, { sessionId: sid, pages: [], firstSeen: visit.timestamp, lastSeen: visit.timestamp });
     }
     const session = sessionMap.get(sid)!;
-    session.pages.push({ page: visit.page, timestamp: visit.timestamp });
+    session.pages.push({ page: visit.page, timestamp: visit.timestamp, timeSpent: visit.timeSpent, scrollDepth: visit.scrollDepth });
     if (visit.timestamp < session.firstSeen) session.firstSeen = visit.timestamp;
     if (visit.timestamp > session.lastSeen) session.lastSeen = visit.timestamp;
   }
@@ -171,26 +189,36 @@ function groupByVisitors(visits: Visit[]): Visitor[] {
 
 export default function AnalyticsPage() {
   const navigate = useNavigate();
+  const { auth } = useAuth();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [period, setPeriod] = useState<PeriodKey>("7d");
+  const [includeLocal, setIncludeLocal] = useState(false);
+  const [countryDrill, setCountryDrill] = useState<string | null>(null);
 
-  const load = () => {
+  const load = (token: string, localFlag: boolean) => {
     setLoading(true);
+    const headers: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+    const qs = localFlag ? "?includeLocal=true" : "";
     Promise.all([
-      fetch("/api/admin/analytics/visits?limit=2000").then((r) => r.json()),
-      fetch("/api/admin/analytics/stats").then((r) => r.json()),
+      fetch(`/api/admin/analytics/visits?limit=2000${localFlag ? "&includeLocal=true" : ""}`, { headers }).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/admin/analytics/stats${qs}`, { headers }).then((r) => r.ok ? r.json() : null),
     ])
       .then(([visitsData, statsData]) => {
-        setVisits(visitsData.visits ?? []);
-        setStats(statsData);
+        setVisits(visitsData?.visits ?? []);
+        setStats(statsData ?? null);
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (auth.loading) return;
+    load(auth.accessToken ?? "", includeLocal);
+  }, [auth.loading, auth.accessToken, includeLocal]);
 
   const cutoff = useMemo(() => periodCutoff(period), [period]);
 
@@ -208,6 +236,17 @@ export default function AnalyticsPage() {
       return next;
     });
   }
+
+  const countryPageBreakdown = useMemo(() => {
+    if (!countryDrill) return [];
+    const pageCount: Record<string, number> = {};
+    visits
+      .filter((v) => v.country === countryDrill)
+      .forEach((v) => { pageCount[v.page] = (pageCount[v.page] ?? 0) + 1; });
+    return Object.entries(pageCount)
+      .sort(([, a], [, b]) => b - a)
+      .map(([page, count]) => ({ page, count }));
+  }, [countryDrill, visits]);
 
   if (loading) return <AncaLoader />;
 
@@ -235,8 +274,18 @@ export default function AnalyticsPage() {
               {activeCount} vizitatori unici · {activePeriod.label.toLowerCase()}
             </p>
           </div>
-          <button
-            onClick={load}
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <div
+                onClick={() => setIncludeLocal((v) => !v)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${includeLocal ? "bg-amber-500" : "bg-neutral-700"}`}
+              >
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${includeLocal ? "translate-x-4" : "translate-x-0"}`} />
+              </div>
+              <span className="text-neutral-500 text-xs">Afișează localhost</span>
+            </label>
+            <button
+            onClick={() => load(auth.accessToken ?? "", includeLocal)}
             className="p-2 rounded-lg border border-neutral-800 text-neutral-500 hover:text-white hover:border-neutral-600 transition-colors"
             title="Reîncarcă"
           >
@@ -245,6 +294,7 @@ export default function AnalyticsPage() {
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
             </svg>
           </button>
+          </div>
         </div>
 
         {/* Period tabs — also stat cards */}
@@ -281,7 +331,15 @@ export default function AnalyticsPage() {
               <div className="space-y-1.5">
                 {stats.topPages.slice(0, 8).map(({ page, count }) => (
                   <div key={page} className="flex items-center gap-2">
-                    <span className="text-neutral-300 text-xs font-mono truncate flex-1">{page}</span>
+                    <a
+                      href={page}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-neutral-300 hover:text-violet-400 text-xs font-mono truncate flex-1 transition-colors"
+                      title={page}
+                    >
+                      {page}
+                    </a>
                     <span className="text-violet-400 text-xs font-semibold flex-shrink-0">{count}</span>
                   </div>
                 ))}
@@ -291,10 +349,17 @@ export default function AnalyticsPage() {
               <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Top țări · 30 zile</p>
               <div className="space-y-1.5">
                 {stats.topCountries.map(({ country, count }) => (
-                  <div key={country} className="flex items-center gap-2">
-                    <span className="text-neutral-300 text-xs flex-1">{country || "Necunoscut"}</span>
+                  <button
+                    key={country}
+                    onClick={() => setCountryDrill(country)}
+                    className="w-full flex items-center gap-2 group text-left"
+                  >
+                    <span className="text-neutral-300 group-hover:text-emerald-400 text-xs flex-1 transition-colors">
+                      {country || "Necunoscut"}
+                    </span>
                     <span className="text-emerald-400 text-xs font-semibold flex-shrink-0">{count}</span>
-                  </div>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-700 group-hover:text-emerald-600 flex-shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
                 ))}
               </div>
             </div>
@@ -305,7 +370,15 @@ export default function AnalyticsPage() {
                   <p className="text-neutral-600 text-xs">Fără trafic extern</p>
                 ) : stats.topReferrers.map(({ referrer, count }) => (
                   <div key={referrer} className="flex items-center gap-2">
-                    <span className="text-neutral-300 text-xs truncate flex-1">{referrer}</span>
+                    <a
+                      href={`https://${referrer}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-neutral-300 hover:text-amber-400 text-xs truncate flex-1 transition-colors"
+                      title={referrer}
+                    >
+                      {referrer}
+                    </a>
                     <span className="text-amber-400 text-xs font-semibold flex-shrink-0">{count}</span>
                   </div>
                 ))}
@@ -381,7 +454,7 @@ export default function AnalyticsPage() {
                       </div>
 
                       <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                        <span className="text-neutral-400 text-xs">{timeAgo(visitor.lastSeen)}</span>
+                        <span className="text-neutral-400 text-xs">{formatVisitTime(visitor.lastSeen)}</span>
                         <svg
                           width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                           strokeLinecap="round" strokeLinejoin="round"
@@ -409,7 +482,22 @@ export default function AnalyticsPage() {
                                   <div key={i} className="relative flex items-start gap-3">
                                     <div className="absolute -left-[11px] top-[5px] w-2 h-2 rounded-full bg-violet-500/60 border border-violet-500 flex-shrink-0" />
                                     <div className="flex-1 min-w-0">
-                                      <span className="text-neutral-200 text-xs font-mono">{p.page}</span>
+                                      <a
+                                        href={p.page}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-neutral-200 hover:text-violet-400 text-xs font-mono transition-colors"
+                                      >
+                                        {p.page}
+                                      </a>
+                                      {(p.timeSpent != null && p.timeSpent > 0) && (
+                                        <span className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                          <span className="text-neutral-600 text-[11px]">⏱ {formatSeconds(p.timeSpent)}</span>
+                                          {p.scrollDepth != null && p.scrollDepth > 0 && (
+                                            <span className="text-neutral-600 text-[11px]">↕ {p.scrollDepth}% scroll</span>
+                                          )}
+                                        </span>
+                                      )}
                                     </div>
                                     <span className="text-neutral-600 text-xs flex-shrink-0">{formatTime(p.timestamp)}</span>
                                   </div>
@@ -432,6 +520,58 @@ export default function AnalyticsPage() {
           )}
         </div>
       </div>
+
+      {/* Country drill-down modal */}
+      {countryDrill && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.75)" }}
+          onClick={() => setCountryDrill(null)}
+        >
+          <div
+            className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-md max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-white font-semibold text-lg">{countryDrill}</p>
+                <p className="text-neutral-500 text-xs mt-0.5">
+                  {countryPageBreakdown.reduce((s, r) => s + r.count, 0)} vizite · toate perioadele
+                </p>
+              </div>
+              <button
+                onClick={() => setCountryDrill(null)}
+                className="text-neutral-600 hover:text-white transition-colors text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-1">
+              {countryPageBreakdown.map(({ page, count }) => (
+                <div key={page} className="flex items-center gap-3 py-2 border-b border-neutral-800/60">
+                  <a
+                    href={page}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neutral-300 hover:text-emerald-400 text-xs font-mono truncate flex-1 transition-colors"
+                    title={page}
+                  >
+                    {page}
+                  </a>
+                  <span className="text-emerald-400 text-xs font-semibold flex-shrink-0">{count}</span>
+                  <span className="text-neutral-600 text-xs flex-shrink-0">
+                    {count === 1 ? "vizită" : "vizite"}
+                  </span>
+                </div>
+              ))}
+              {countryPageBreakdown.length === 0 && (
+                <p className="text-neutral-600 text-sm text-center py-8">Nicio vizită găsită.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
