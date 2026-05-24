@@ -28,7 +28,7 @@ export default function AdminBar() {
         setSubscribers(data.subscribers ?? []);
         setSubscribersLoaded(true);
       })
-      .catch(() => { setSubscribersLoaded(true); });
+      .catch((error) => { console.error("[AdminBar] subscribers fetch failed", error); setSubscribersLoaded(true); });
   };
 
   useEffect(() => {

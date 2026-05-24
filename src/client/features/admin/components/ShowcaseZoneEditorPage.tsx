@@ -48,7 +48,7 @@ export default function ShowcaseZoneEditorPage() {
     if (auth.accessToken) {
       fetch(`/api/showcase-zones/${ZONE_ID}/sources`, { headers })
         .then((r) => r.ok ? r.json() : null)
-        .then((data: { proposals?: Proposal[]; assets?: Asset[] } | null) => { if (data) setSources(data); })
+        .then((data: { proposals?: Proposal[]; assets?: Asset[] } | null) => { if (data) setSources({ proposals: data.proposals ?? [], assets: data.assets ?? [] }); })
         .catch(() => {});
     }
   }, [auth.loading, auth.accessToken]);

@@ -760,7 +760,7 @@ export default function MediaAlbumPage() {
       .then((response) => response.json())
       .then((data) => { if (data.proposals) setIgProposals(data.proposals); })
       .catch(() => {});
-    fetch(`/api/album-subscriptions/list/${slug}`, {
+    fetch(`/api/album-subscriptions/list/${encodeURIComponent(slug)}`, {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     })
       .then((response) => response.json())

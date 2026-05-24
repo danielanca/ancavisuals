@@ -184,7 +184,6 @@ router.get("/list/:slug", requireFirebaseAuth, requireSupremeAdmin, async (req: 
     const snapshot = await db
       .collection(COLLECTION)
       .where("albumSlug", "==", slug)
-      .orderBy("subscribedAt", "desc")
       .get();
     const subscribers = snapshot.docs.map(doc => ({
       email: doc.data().email as string,
