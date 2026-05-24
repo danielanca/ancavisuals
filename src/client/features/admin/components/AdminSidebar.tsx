@@ -135,6 +135,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       ],
     },
     {
+      key: "tools",
+      label: "Tools",
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+      ),
+      items: [
+        { label: "Trading Simulator", path: "/admin/trading" },
+      ],
+    },
+    {
       key: "financiar",
       label: "Financiar",
       icon: (
@@ -159,6 +171,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       items: [
         { label: "Landing page", path: "/admin/landing" },
         { label: "Inspirație", path: "/admin/inspiration" },
+        { label: "Zone Showcase", path: "/admin/showcase" },
         { label: "Analytics", path: "/admin/analytics" },
       ],
     },

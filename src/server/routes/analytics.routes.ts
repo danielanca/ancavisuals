@@ -3,6 +3,7 @@ import { Router } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
+import { isLocalIp } from "../controllers/triggerEvent.controller";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 
@@ -66,10 +67,11 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
     if (BOT_UA.test(ua)) return res.json({ ok: true });
 
     const ip = getClientIp(req);
+    if (isLocalIp(ip ?? "")) return res.json({ ok: true });
     const ipInfo = await fetchIpInfo(ip).catch(() => null);
 
     const db = firestore();
-    await db.collection("siteVisits").add({
+    const docRef = await db.collection("siteVisits").add({
       sessionId,
       visitorId: visitorId ?? "",
       isNew: isNew ?? true,
@@ -82,12 +84,36 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
       region: ipInfo?.region ?? "",
       country: ipInfo?.country ?? "",
       org: ipInfo?.org ?? "",
+      timeSpent: 0,
+      scrollDepth: 0,
     });
 
-    res.json({ ok: true });
+    res.json({ ok: true, id: docRef.id });
   } catch (error) {
     console.error("[analytics] POST /pageview failed:", error);
     res.status(500).json({ error: "Failed to log pageview" });
+  }
+});
+
+// PATCH /api/analytics/engagement — update time spent + scroll depth for a visit
+analyticsPublicRouter.patch("/engagement", async (req: Request, res: Response) => {
+  try {
+    const { id, timeSpent, scrollDepth } = req.body as {
+      id?: string;
+      timeSpent?: number;
+      scrollDepth?: number;
+    };
+    if (!id || typeof timeSpent !== "number") return res.status(400).json({ error: "Missing fields" });
+
+    const db = firestore();
+    await db.collection("siteVisits").doc(id).update({
+      timeSpent: Math.min(Math.round(timeSpent), 7200),
+      scrollDepth: typeof scrollDepth === "number" ? Math.min(100, Math.max(0, Math.round(scrollDepth))) : 0,
+    });
+
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to update engagement" });
   }
 });
 
@@ -96,6 +122,7 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
   try {
     const db = firestore();
     const limit = Math.min(Number(req.query.limit) || 1000, 5000);
+    const includeLocal = req.query.includeLocal === "true";
 
     const snapshot = await db
       .collection("siteVisits")
@@ -103,24 +130,28 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
       .limit(limit)
       .get();
 
-    const visits = snapshot.docs.map((doc) => {
-      const d = doc.data();
-      return {
-        id: doc.id,
-        sessionId: d.sessionId,
-        visitorId: d.visitorId ?? "",
-        isNew: d.isNew ?? true,
-        page: d.page,
-        referrer: d.referrer,
-        timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
-        ip: d.ip,
-        userAgent: d.userAgent,
-        city: d.city,
-        region: d.region,
-        country: d.country,
-        org: d.org,
-      };
-    });
+    const visits = snapshot.docs
+      .filter((doc) => includeLocal || !isLocalIp(doc.data().ip ?? ""))
+      .map((doc) => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          sessionId: d.sessionId,
+          visitorId: d.visitorId ?? "",
+          isNew: d.isNew ?? true,
+          page: d.page,
+          referrer: d.referrer,
+          timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
+          ip: d.ip,
+          userAgent: d.userAgent,
+          city: d.city,
+          region: d.region,
+          country: d.country,
+          org: d.org,
+          timeSpent: d.timeSpent ?? 0,
+          scrollDepth: d.scrollDepth ?? 0,
+        };
+      });
 
     res.json({ visits });
   } catch (error) {
@@ -133,6 +164,7 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
 analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response) => {
   try {
     const db = firestore();
+    const includeLocal = req.query.includeLocal === "true";
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -140,7 +172,11 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       new Date(todayStart.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
 
     const uniqueVisitors = (snap: FirebaseFirestore.QuerySnapshot): number =>
-      new Set(snap.docs.map((d) => d.data().visitorId || d.data().sessionId)).size;
+      new Set(
+        snap.docs
+          .filter((d) => includeLocal || !isLocalIp(d.data().ip ?? ""))
+          .map((d) => d.data().visitorId || d.data().sessionId)
+      ).size;
 
     const [todaySnap, threeDaysSnap, weekSnap, monthSnap, threeMonthsSnap] = await Promise.all([
       db.collection("siteVisits").where("timestamp", ">=", Timestamp.fromDate(todayStart)).get(),
@@ -154,7 +190,7 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
     const referrerCount: Record<string, number> = {};
     const countryCount: Record<string, number> = {};
 
-    monthSnap.docs.forEach((d) => {
+    monthSnap.docs.filter((d) => includeLocal || !isLocalIp(d.data().ip ?? "")).forEach((d) => {
       const data = d.data();
       const page = data.page as string;
       pageCount[page] = (pageCount[page] ?? 0) + 1;
@@ -163,6 +199,7 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       if (ref && !ref.includes("ancavisuals.ro")) {
         try {
           const host = new URL(ref).hostname.replace(/^www\./, "");
+          if (!includeLocal && (host === "localhost" || host.startsWith("127.") || host === "::1")) return;
           referrerCount[host] = (referrerCount[host] ?? 0) + 1;
         } catch { /* invalid URL */ }
       }

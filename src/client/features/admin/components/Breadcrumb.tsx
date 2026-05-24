@@ -16,6 +16,7 @@ const LABELS: Record<string, string> = {
   "media-activity": "Activitate Media",
   "qr-moments": "QR Moments",
   "instagram-proposals": "Propuneri Media",
+  trading: "Trading Simulator",
   "image-optimizer": "Optimizare Poze",
   moderare: "Moderare",
   "route-sheets": "Foi de parcurs",
@@ -28,6 +29,7 @@ const LABELS: Record<string, string> = {
   "template-oferte": "Template Oferte",
   oferte: "Oferte",
   "media-assets": "Media Assets",
+  showcase: "Zone Showcase",
 };
 
 export default function Breadcrumb() {

@@ -35,6 +35,7 @@ import bankStatementsRouter from "./src/server/routes/bankStatements.routes";
 import loginEventsRouter from "./src/server/routes/loginEvents.routes";
 import landingRouter from "./src/server/routes/landing.routes";
 import instagramProposalsRouter from "./src/server/routes/instagramProposals.routes";
+import showcaseZonesRouter from "./src/server/routes/showcase-zones.routes";
 import albumSubscriptionsRouter from "./src/server/routes/albumSubscriptions.routes";
 import qrMomentsRouter from "./src/server/routes/qrMoments.routes";
 import accountsRouter from "./src/server/routes/accounts.routes";
@@ -168,6 +169,7 @@ async function createServer() {
   app.use("/api", loginEventsRouter);
   app.use("/api/admin/landing", landingRouter);
   app.use("/api/instagram-proposals", instagramProposalsRouter);
+  app.use("/api/showcase-zones", showcaseZonesRouter);
   app.use("/api/album-subscriptions", albumSubscriptionsRouter);
   app.use("/api/qr-moments", qrMomentsRouter);
   app.use("/api/wedding-hub", weddingHubRouter);

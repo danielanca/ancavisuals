@@ -1,20 +1,50 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import useAuth from "../../features/admin/auth/useAuth";
 import { useErrorMonitor } from "../../features/admin/providers/ErrorMonitorContext";
+
+type Subscriber = { email: string; subscribedAt?: string };
 
 export default function AdminBar() {
   const { auth, logOut } = useAuth();
   const location = useLocation();
   useErrorMonitor();
   const [notifyStatus, setNotifyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
-
-  if (!auth.authorise) return null;
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [subscribersLoaded, setSubscribersLoaded] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
 
   const mediaSlugMatch = location.pathname.match(/^\/media\/([^/]+)$/);
   const albumSlug = mediaSlugMatch ? mediaSlugMatch[1] : null;
+
+  const fetchSubscribers = (slug: string, token: string) => {
+    fetch(`/api/album-subscriptions/list/${encodeURIComponent(slug)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(response => response.json() as Promise<{ subscribers?: Subscriber[] }>)
+      .then(data => {
+        setSubscribers(data.subscribers ?? []);
+        setSubscribersLoaded(true);
+      })
+      .catch(() => { setSubscribersLoaded(true); });
+  };
+
+  useEffect(() => {
+    if (!albumSlug || !auth.accessToken) return;
+    setSubscribersLoaded(false);
+    fetchSubscribers(albumSlug, auth.accessToken);
+  }, [albumSlug, auth.accessToken]);
+
+  const handleBellToggle = () => {
+    if (!bellOpen && albumSlug && auth.accessToken) {
+      fetchSubscribers(albumSlug, auth.accessToken);
+    }
+    setBellOpen(open => !open);
+  };
+
+  if (!auth.authorise) return null;
 
   const handleNotify = async () => {
     if (!albumSlug || !auth.accessToken) return;
@@ -27,7 +57,6 @@ export default function AdminBar() {
       const data = await response.json() as { ok?: boolean; sent?: number };
       if (data.ok) {
         setNotifyStatus("success");
-        setSubscriberCount(data.sent ?? 0);
         setTimeout(() => setNotifyStatus("idle"), 4000);
       } else {
         setNotifyStatus("error");
@@ -74,24 +103,83 @@ export default function AdminBar() {
         justifyContent: "space-between",
         gap: "8px",
       }}>
-        {/* Left: dashboard link */}
         <a href="/admin" style={{ color: "#444", fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px", textDecoration: "none" }}>
           Anca Visuals Admin
         </a>
 
-        {/* Right: actions — never wrap */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           {albumSlug && (
-            <button onClick={handleNotify} disabled={notifyStatus === "loading"} style={{
-              ...btnStyle,
-              border: `1px solid ${notifyStatus === "success" ? "#166534" : notifyStatus === "error" ? "#7f1d1d" : "#2a2a2a"}`,
-              color: notifyStatus === "success" ? "#4ade80" : notifyStatus === "error" ? "#f87171" : "#666",
-            }}>
-              {notifyStatus === "loading" && "..."}
-              {notifyStatus === "success" && `✓ ${subscriberCount}`}
-              {notifyStatus === "error" && "!"}
-              {notifyStatus === "idle" && "🔔"}
-            </button>
+            <div ref={bellRef} style={{ position: "relative" }}>
+              {bellOpen && (
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: -1 }}
+                  onClick={() => setBellOpen(false)}
+                />
+              )}
+              <button
+                onClick={handleBellToggle}
+                style={{
+                  ...btnStyle,
+                  color: subscribers.length > 0 ? "#facc15" : "#555",
+                  border: `1px solid ${subscribers.length > 0 ? "#713f12" : "#2a2a2a"}`,
+                }}
+              >
+                🔔
+                {subscribersLoaded && (
+                  <span style={{ background: subscribers.length > 0 ? "#713f12" : "#1a1a1a", color: subscribers.length > 0 ? "#fef08a" : "#555", fontSize: "10px", fontWeight: 700, padding: "0px 5px", borderRadius: "999px", lineHeight: "16px" }}>
+                    {subscribers.length}
+                  </span>
+                )}
+              </button>
+              {bellOpen && (
+                <div style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  background: "#111",
+                  border: "1px solid #2a2a2a",
+                  borderRadius: "10px",
+                  padding: "12px 14px",
+                  minWidth: "200px",
+                  maxWidth: "300px",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+                  zIndex: 100,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "11px", color: "#888" }}>
+                      {subscribers.length > 0 ? `${subscribers.length} abonat${subscribers.length !== 1 ? "i" : ""}` : "Niciun abonat"}
+                    </span>
+                    <button
+                      onClick={handleNotify}
+                      disabled={notifyStatus === "loading" || subscribers.length === 0}
+                      style={{
+                        ...btnStyle,
+                        padding: "3px 8px",
+                        fontSize: "10px",
+                        border: `1px solid ${notifyStatus === "success" ? "#166534" : notifyStatus === "error" ? "#7f1d1d" : "#2a2a2a"}`,
+                        color: notifyStatus === "success" ? "#4ade80" : notifyStatus === "error" ? "#f87171" : "#555",
+                      }}
+                    >
+                      {notifyStatus === "loading" ? "..." : notifyStatus === "success" ? "✓ Trimis" : notifyStatus === "error" ? "Eroare" : "Notifică"}
+                    </button>
+                  </div>
+                  {subscribers.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      {subscribers.map(subscriber => (
+                        <a
+                          key={subscriber.email}
+                          href={`mailto:${subscriber.email}`}
+                          style={{ display: "flex", alignItems: "center", gap: "6px", color: "#93c5fd", fontSize: "11px", textDecoration: "none", padding: "3px 0" }}
+                        >
+                          <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#3b82f6", flexShrink: 0 }} />
+                          {subscriber.email}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {!confirmLogout ? (

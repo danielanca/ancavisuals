@@ -12,49 +12,37 @@ const STEPS: Step[] = [
   {
     targetSelector: '[data-onboarding="photo"]',
     title: '👆 Apasă pe orice poză',
-    description: 'Apasă pe orice poză ca să o vezi mărită, la rezoluție completă. Poți naviga între poze cu săgețile din lateral sau cu swipe stânga/dreapta pe telefon.',
+    description: 'Apasă pe orice poză ca s-o vezi <strong>mărită la rezoluție completă</strong>. Navighezi cu <strong>săgețile</strong> din lateral sau cu <strong>swipe stânga/dreapta</strong> pe telefon.',
     position: 'bottom',
   },
   {
-    targetSelector: '[data-onboarding="pager-prev"]',
-    title: '◀ Pagina anterioară',
-    description: 'Apasă pe săgeata stângă „‹ Anterior" pentru a te întoarce la pagina precedentă de poze.',
-    position: 'bottom',
-  },
-  {
-    targetSelector: '[data-onboarding="pager-input"]',
-    title: '📄 Sari direct la o pagină',
-    description: 'Scrie numărul paginii dorite în căsuța din mijloc și apasă Enter. Pozele sunt împărțite pe mai multe pagini — poți sări direct la orice pagină.',
-    position: 'bottom',
-  },
-  {
-    targetSelector: '[data-onboarding="pager-next"]',
-    title: '▶ Pagina următoare',
-    description: 'Apasă pe săgeata dreaptă „Următorul ›" pentru a trece la pagina următoare de poze.',
-    position: 'bottom',
+    targetSelector: '[data-onboarding="pager"]',
+    title: '📄 Navigare între pagini',
+    description: 'Pozele sunt împărțite pe <strong>mai multe pagini</strong>. Folosești <strong>săgețile ‹ ›</strong> pentru pagina anterioară/următoare, sau scrii <strong>numărul direct</strong> în căsuță și apeși Enter.',
+    position: 'top',
   },
   {
     targetSelector: '[data-onboarding="subscribe"]',
-    title: '🔔 Primești notificare când vin poze noi',
-    description: 'Introdu adresa ta de email și apasă „Abonează-te". Vei primi automat un email imediat ce fotograful adaugă poze noi în acest album — fără să trebuiască să intri zilnic să verifici.',
+    title: '🔔 Notificare poze noi',
+    description: 'Introdu adresa de email și apasă <strong>Abonează-te</strong>. Primești <strong>automat un email</strong> când fotograful adaugă poze noi — fără să mai intri zilnic să verifici.',
     position: 'bottom',
   },
   {
     targetSelector: '[data-onboarding="download-btn"]',
     title: '⬇️ Descarcă toate pozele',
-    description: 'Apasă acest buton pentru a descărca toate pozele din album ca arhivă ZIP, la calitate completă, exact cum au ieșit din aparat. Descărcarea poate dura câteva minute în funcție de dimensiunea albumului.',
-    position: 'bottom',
-  },
-  {
-    targetSelector: '[data-onboarding="print-btn"]',
-    title: '🖨️ Selectează pozele pentru imprimare',
-    description: 'Vrei să imprimi unele poze? Apasă acest buton pentru a intra în modul de selectare. Bifează pozele dorite, salvează selecția — fotograful va vedea exact ce ai ales și va pregăti comanda de imprimare.',
+    description: 'Apasă pentru a descărca <strong>toate pozele</strong> ca arhivă ZIP, la <strong>calitate completă</strong>, exact cum au ieșit din aparat. Poate dura câteva minute.',
     position: 'top',
   },
   {
-    targetSelector: '[data-onboarding="print-zone"]',
-    title: '📋 Zona pozelor selectate',
-    description: 'Aici vor apărea pozele pe care le-ai selectat pentru imprimare. Poți vedea și elimina orice poză din selecție direct din această zonă, înainte ca fotograful să pregătească comanda.',
+    targetSelector: '[data-onboarding="print-btn"]',
+    title: '🖨️ Alege poze pentru imprimare',
+    description: 'Apasă <strong>Modifică selecția pentru imprimare</strong>, bifează pozele dorite, salvează — fotograful vede exact ce ai ales și pregătește <strong>comanda de imprimare</strong>.',
+    position: 'top',
+  },
+  {
+    targetSelector: '[data-onboarding="print-section"]',
+    title: '📋 Zona pozelor de imprimat',
+    description: 'Aceasta este <strong>secțiunea de imprimare</strong>. Pozele pe care le selectezi apar aici. Poți <strong>adăuga sau elimina</strong> orice poză oricând, înainte ca fotograful să pregătească comanda.',
     position: 'top',
   },
 ];
@@ -82,30 +70,45 @@ export default function OnboardingWizard({ forceShow, onClose, onStart }: Props)
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
+  const onCloseRef = useRef(onClose);
+  const onStartRef = useRef(onStart);
+  useEffect(() => { onCloseRef.current = onClose; onStartRef.current = onStart; });
+
   const computePosition = useCallback((targetElement: Element, preferredPosition: Step['position']): TooltipPosition => {
     const rect = targetElement.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const tooltipHeight = 160;
+    const tooltipHeight = 230;
 
     let top = 0;
     let left = 0;
     let arrowSide: TooltipPosition['arrowSide'] = preferredPosition;
 
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
     if (preferredPosition === 'bottom') {
-      top = rect.bottom + TOOLTIP_OFFSET;
-      left = rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2;
-      if (top + tooltipHeight > viewportHeight) {
+      if (spaceBelow >= tooltipHeight + TOOLTIP_OFFSET) {
+        top = rect.bottom + TOOLTIP_OFFSET;
+        arrowSide = 'top';
+      } else {
         top = rect.top - tooltipHeight - TOOLTIP_OFFSET;
         arrowSide = 'bottom';
       }
-    } else if (preferredPosition === 'top') {
-      top = rect.top - tooltipHeight - TOOLTIP_OFFSET;
       left = rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2;
-      if (top < 0) {
+    } else if (preferredPosition === 'top') {
+      if (spaceAbove >= tooltipHeight + TOOLTIP_OFFSET) {
+        top = rect.top - tooltipHeight - TOOLTIP_OFFSET;
+        arrowSide = 'bottom';
+      } else if (spaceBelow >= tooltipHeight + TOOLTIP_OFFSET) {
         top = rect.bottom + TOOLTIP_OFFSET;
         arrowSide = 'top';
+      } else {
+        // Element prea mare — pune tooltip-ul centrat în viewport
+        top = Math.max(12, viewportHeight / 2 - tooltipHeight / 2);
+        arrowSide = 'bottom';
       }
+      left = rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2;
     } else if (preferredPosition === 'right') {
       top = rect.top + rect.height / 2 - tooltipHeight / 2;
       left = rect.right + TOOLTIP_OFFSET;
@@ -117,7 +120,7 @@ export default function OnboardingWizard({ forceShow, onClose, onStart }: Props)
     }
 
     left = Math.max(12, Math.min(left, viewportWidth - TOOLTIP_WIDTH - 12));
-    top = Math.max(12, top);
+    top = Math.max(12, Math.min(top, viewportHeight - tooltipHeight - 12));
 
     return { top, left, arrowSide };
   }, []);
@@ -126,7 +129,7 @@ export default function OnboardingWizard({ forceShow, onClose, onStart }: Props)
     if (stepIndex >= STEPS.length) {
       setVisible(false);
       localStorage.setItem(STORAGE_KEY, '1');
-      onClose?.();
+      onCloseRef.current?.();
       return;
     }
 
@@ -138,26 +141,44 @@ export default function OnboardingWizard({ forceShow, onClose, onStart }: Props)
       return;
     }
 
-    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetElement.scrollIntoView({ behavior: 'instant', block: 'center' });
 
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       const rect = targetElement.getBoundingClientRect();
       setHighlightRect(rect);
       setTooltipPosition(computePosition(targetElement, step.position));
       setCurrentStep(stepIndex);
-    }, 400);
-  }, [computePosition, onClose]);
+    });
+  }, [computePosition]);
 
   const startWizard = useCallback(() => {
     setVisible(true);
-    onStart?.();
+    onStartRef.current?.();
     goToStep(0);
-  }, [goToStep, onStart]);
+  }, [goToStep]);
 
   useEffect(() => {
     if (!forceShow) return;
     startWizard();
-  }, [forceShow, startWizard]);
+  }, [forceShow]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const preventScroll = (e: Event) => e.preventDefault();
+    const preventKeys = (e: KeyboardEvent) => {
+      if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('wheel', preventScroll, { passive: false });
+    document.addEventListener('touchmove', preventScroll, { passive: false });
+    document.addEventListener('keydown', preventKeys);
+    return () => {
+      document.removeEventListener('wheel', preventScroll);
+      document.removeEventListener('touchmove', preventScroll);
+      document.removeEventListener('keydown', preventKeys);
+    };
+  }, [visible]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -165,9 +186,11 @@ export default function OnboardingWizard({ forceShow, onClose, onStart }: Props)
       const step = STEPS[currentStep];
       const targetElement = document.querySelector(step.targetSelector);
       if (!targetElement) return;
-      const rect = targetElement.getBoundingClientRect();
-      setHighlightRect(rect);
-      setTooltipPosition(computePosition(targetElement, step.position));
+      requestAnimationFrame(() => {
+        const rect = targetElement.getBoundingClientRect();
+        setHighlightRect(rect);
+        setTooltipPosition(computePosition(targetElement, step.position));
+      });
     };
 
     window.addEventListener('resize', handleResize);
@@ -217,7 +240,7 @@ export default function OnboardingWizard({ forceShow, onClose, onStart }: Props)
           </button>
         </div>
 
-        <p className={styles.tooltipDescription}>{step.description}</p>
+        <p className={styles.tooltipDescription} dangerouslySetInnerHTML={{ __html: step.description }} />
 
         <div className={styles.tooltipFooter}>
           <span className={styles.stepIndicator}>

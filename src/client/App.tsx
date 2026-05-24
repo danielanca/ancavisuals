@@ -6,6 +6,7 @@ import { ErrorMonitorProvider } from "./features/admin/providers/ErrorMonitorCon
 import AdminBar from "./components/UI/AdminBar";
 import AncaLoader from "./components/UI/AncaLoader";
 import ErrorMonitorPanel from "./features/admin/components/ErrorMonitorPanel";
+import ClientDebugBadge from "./features/admin/components/ClientDebugBadge";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
 import { useVisitorNotification } from "./hooks/useVisitorNotification";
@@ -40,6 +41,7 @@ export const App = () => {
       <AuthProvider>
           <AdminBar />
           <ErrorMonitorPanel />
+          <ClientDebugBadge />
           <Suspense fallback={<AncaLoader />}>
             {showChat && <AncaChat />}
             <Routes>

@@ -48,9 +48,8 @@ export function ErrorMonitorProvider({ children }: { children: React.ReactNode }
 
   const clearErrors = useCallback(() => setErrors([]), []);
 
+  // Always-on: capture real JS errors and unhandled promise rejections
   useEffect(() => {
-    if (!debugging) return;
-
     const handleError = (event: ErrorEvent) => {
       addError({
         type: "client",
@@ -66,6 +65,19 @@ export function ErrorMonitorProvider({ children }: { children: React.ReactNode }
       const detail = reason instanceof Error ? reason.stack : undefined;
       addError({ type: "promise", message: `Promise: ${message}`, detail });
     };
+
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    };
+  }, [addError]);
+
+  // Debugging-only: patch console.error and fetch for verbose capture
+  useEffect(() => {
+    if (!debugging) return;
 
     const origConsoleError = console.error;
     console.error = (...args: unknown[]) => {
@@ -99,12 +111,7 @@ export function ErrorMonitorProvider({ children }: { children: React.ReactNode }
       return response;
     };
 
-    window.addEventListener("error", handleError);
-    window.addEventListener("unhandledrejection", handleUnhandledRejection);
-
     return () => {
-      window.removeEventListener("error", handleError);
-      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
       console.error = origConsoleError;
       window.fetch = origFetch;
     };

@@ -162,8 +162,31 @@ router.post("/", requireFirebaseAuth, async (req: Request, res: Response) => {
   }
 });
 
+// GET /showcase — public endpoint: returns photo URLs from accepted proposals for promo display
+router.get("/showcase", async (_req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const snapshot = await db
+      .collection(COLLECTION)
+      .where("status", "==", "accepted")
+      .orderBy("proposedAt", "desc")
+      .limit(30)
+      .get();
+
+    const all = snapshot.docs.map((doc) => doc.data().photoUrl as string).filter(Boolean);
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [all[i], all[j]] = [all[j], all[i]];
+    }
+
+    res.json({ photos: all.slice(0, 12) });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // GET /admin/all — all proposals across all albums (admin only) — must be before /album/:slug
-router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const snapshot = await db

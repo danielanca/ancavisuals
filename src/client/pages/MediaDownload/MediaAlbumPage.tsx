@@ -227,100 +227,6 @@ function MobileColumnsToggle({
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
 
-function PromoPhoneReveal() {
-  const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  function copyPhone() {
-    navigator.clipboard.writeText(PROMO_PHONE).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  const actionBtn: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    padding: "14px 16px",
-    borderRadius: "8px",
-    fontSize: "15px",
-    fontWeight: 600,
-    textDecoration: "none",
-    cursor: "pointer",
-    border: "none",
-    width: "100%",
-    boxSizing: "border-box",
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", width: "100%", maxWidth: "340px", margin: "0 auto" }}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          ...actionBtn,
-          background: "#1a0f00",
-          color: "#c9a96e",
-          fontSize: "16px",
-          padding: "16px",
-          borderRadius: "8px",
-        }}
-      >
-        📞 Arată număr telefon
-      </button>
-
-      <a
-        href="https://instagram.com/ancavisuals"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ ...actionBtn, border: "2px solid #1a0f00", color: "#1a0f00", background: "transparent", fontSize: "15px" }}
-      >
-        Instagram
-      </a>
-
-      {open && (
-        <div style={{
-          background: "#1a0f00",
-          borderRadius: "12px",
-          padding: "20px 16px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "12px",
-          width: "100%",
-        }}>
-          <p style={{ color: "#c9a96e", fontSize: "26px", fontWeight: 700, margin: 0, letterSpacing: "3px" }}>
-            {PROMO_PHONE_DISPLAY}
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", width: "100%" }}>
-            <button
-              onClick={copyPhone}
-              style={{ ...actionBtn, background: copied ? "#2d5a27" : "#2a2010", color: copied ? "#86efac" : "#c9a96e" }}
-            >
-              {copied ? "✓ Copiat!" : "📋 Copiază"}
-            </button>
-            <a href={`tel:${PROMO_PHONE}`} style={{ ...actionBtn, background: "#1a4a1a", color: "#86efac" }}>
-              📞 Apelează
-            </a>
-            <a href={`sms:${PROMO_PHONE}`} style={{ ...actionBtn, background: "#1a2a4a", color: "#93c5fd" }}>
-              💬 SMS
-            </a>
-            <a
-              href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ ...actionBtn, background: "#0d2e1a", color: "#4ade80" }}
-            >
-              WhatsApp
-            </a>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function MediaAlbumPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -382,6 +288,8 @@ export default function MediaAlbumPage() {
   const [videoImportServices, setVideoImportServices] = useState<Set<string>>(new Set(["video"]));
   const [videoImporting, setVideoImporting] = useState(false);
   const [videoImportResult, setVideoImportResult] = useState<string | null>(null);
+
+  const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
 
   const [subscribeEmail, setSubscribeEmail] = useState("");
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -512,6 +420,13 @@ export default function MediaAlbumPage() {
       .then((data) => setStats(data))
       .catch(() => setStats(null));
   }, [slug]);
+
+  useEffect(() => {
+    fetch("/api/showcase-zones/media_footer")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { photos?: string[] } | null) => { if (data?.photos?.length) setShowcasePhotos(data.photos); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -1046,20 +961,21 @@ export default function MediaAlbumPage() {
         onClick={() => setShowSaveWarning(false)}
         style={{
           position: "fixed", inset: 0, zIndex: 9999,
-          background: "rgba(0,0,0,0.92)",
+          background: "rgba(0,0,0,0.94)",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           padding: "32px", textAlign: "center", cursor: "pointer",
         }}
       >
-        <div style={{ fontSize: "48px", marginBottom: "20px" }}>📷</div>
-        <p style={{ color: "#fff", fontSize: "22px", fontWeight: 700, margin: "0 0 16px", lineHeight: 1.4, maxWidth: "480px" }}>
-          Pozele afișate sunt de calitate mai slabă
+        <div style={{ fontSize: "44px", marginBottom: "18px" }}>📷</div>
+        <p style={{ color: "#facc15", fontSize: "21px", fontWeight: 700, margin: "0 0 14px", lineHeight: 1.4, maxWidth: "480px", letterSpacing: "0.01em" }}>
+          Pozele afișate sunt de <strong>calitate mai slabă</strong>
         </p>
-        <p style={{ color: "#aaa", fontSize: "15px", margin: "0 0 24px", maxWidth: "440px", lineHeight: 1.6 }}>
-          Acestea sunt versiuni optimizate pentru browser, nu originalele.
-          Dacă dorești să descarci pozele la calitate completă, folosește butonul de descărcare de mai sus.
+        <p style={{ color: "#bbb", fontSize: "15px", margin: "0 0 26px", maxWidth: "420px", lineHeight: 1.7 }}>
+          Acestea sunt <strong style={{ color: "#fff" }}>versiuni optimizate pentru browser</strong>, nu originalele.<br />
+          Dacă dorești să descarci pozele la <strong style={{ color: "#fff" }}>calitate completă</strong>, folosește{" "}
+          <strong style={{ color: "#facc15" }}>butonul de descărcare</strong> de mai sus.
         </p>
-        <span style={{ color: "#666", fontSize: "13px" }}>Atinge oriunde pentru a închide</span>
+        <span style={{ color: "#555", fontSize: "12px", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Atinge oriunde pentru a închide</span>
       </div>
     )}
     <div className={styles.page}>
@@ -1082,10 +998,20 @@ export default function MediaAlbumPage() {
         <OnboardingWizard
           forceShow={showOnboarding}
           onStart={() => {
-            if (album?.photos?.length) {
-              const shuffled = [...album.photos].sort(() => Math.random() - 0.5);
-              setTutorialPrintPhotos(shuffled.slice(0, 6));
-            }
+            if (!album?.photos?.length) return;
+            const candidates = [...album.photos].sort(() => Math.random() - 0.5).slice(0, 15);
+            Promise.all(
+              candidates.map(url => new Promise<{ url: string; landscape: boolean }>(resolve => {
+                const img = new Image();
+                const timer = setTimeout(() => resolve({ url, landscape: false }), 3000);
+                img.onload = () => { clearTimeout(timer); resolve({ url, landscape: img.naturalWidth > img.naturalHeight }); };
+                img.onerror = () => { clearTimeout(timer); resolve({ url, landscape: false }); };
+                img.src = url;
+              }))
+            ).then(results => {
+              const landscape = results.filter(r => r.landscape).map(r => r.url);
+              setTutorialPrintPhotos(landscape.length >= 3 ? landscape.slice(0, 3) : candidates.slice(0, 3));
+            });
           }}
           onClose={() => { setShowOnboarding(false); setTutorialPrintPhotos([]); }}
         />
@@ -1130,18 +1056,6 @@ export default function MediaAlbumPage() {
               onClick={() => { window.location.href = `/login?redirect=/media/${slug}`; }}
             >
               🔑 Acces administrare
-            </button>
-          </div>
-        )}
-
-        {!isAdmin && !isModerationMode && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
-            <button
-              type="button"
-              onClick={() => { localStorage.removeItem('av:onboarding:done'); setShowOnboarding(true); }}
-              style={{ padding: "5px 14px", background: "#fef08a", border: "1px solid #ca8a04", borderRadius: "999px", color: "#713f12", fontSize: "12px", cursor: "pointer", letterSpacing: "0.05em", fontWeight: 600 }}
-            >
-              ? AJUTOR
             </button>
           </div>
         )}
@@ -1194,6 +1108,15 @@ export default function MediaAlbumPage() {
             {hasDeliveryAddress && (
               <button className={styles.viewAction} onClick={() => setShowDeliveryModal(true)}>
                 Vezi adresa de livrare
+              </button>
+            )}
+            {!isAdmin && (
+              <button
+                type="button"
+                onClick={() => { localStorage.removeItem('av:onboarding:done'); setShowOnboarding(true); }}
+                style={{ padding: "9px 22px", background: "#fef08a", border: "1px solid #ca8a04", borderRadius: "999px", color: "#713f12", fontSize: "13px", cursor: "pointer", letterSpacing: "0.05em", fontWeight: 700, boxShadow: "0 2px 10px rgba(250,204,21,0.2)" }}
+              >
+                ? CUM FUNCȚIONEAZĂ?
               </button>
             )}
           </div>
@@ -1284,142 +1207,96 @@ export default function MediaAlbumPage() {
           </div>
         )}
 
-        {auth.authorise && mode === "none" && (
-          <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#0d0d1f", border: "1px solid #3730a3", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-            <div>
-              <p style={{ color: "#a5b4fc", fontWeight: 600, fontSize: "13px", margin: 0 }}>📸 Propune poze pentru Instagram sau Media Assets</p>
-              {igProposeResult && <p style={{ color: "#4ade80", fontSize: "12px", margin: "2px 0 0" }}>{igProposeResult}</p>}
-            </div>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+        {auth.authorise && mode === "none" && !igProposeMode && !moderationMode && (
+          <div style={{ display: "flex", gap: "8px", margin: "0 0 12px", flexWrap: "wrap" }}>
+            <button
+              onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
+              style={{ padding: "7px 16px", background: "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              📸 Propune Instagram / Media Assets
               {igProposals.filter((p) => p.status === "pending").length > 0 && (
-                <span style={{ background: "#312e81", color: "#a5b4fc", fontSize: "12px", fontWeight: 600, padding: "4px 12px", borderRadius: "999px", whiteSpace: "nowrap" }}>
-                  {igProposals.filter((p) => p.status === "pending").length} propuse
+                <span style={{ marginLeft: "6px", background: "rgba(0,0,0,0.3)", borderRadius: "999px", padding: "1px 7px", fontSize: "11px" }}>
+                  {igProposals.filter((p) => p.status === "pending").length}
                 </span>
               )}
-              {igProposeMode ? (
-                <>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", width: "100%" }}>
-                    {(["instagram", "media_assets"] as const).map((destination) => {
-                      const active = proposalDestinations.has(destination);
-                      return (
-                        <button
-                          key={destination}
-                          type="button"
-                          onClick={() => {
-                            setProposalDestinations((prev) => {
-                              const next = new Set(prev);
-                              next.has(destination) ? next.delete(destination) : next.add(destination);
-                              if (next.size === 0) next.add("instagram");
-                              return next;
-                            });
-                          }}
-                          style={{
-                            padding: "6px 12px",
-                            background: active ? "#312e81" : "transparent",
-                            border: "1px solid #3730a3",
-                            borderRadius: "999px",
-                            color: active ? "#c7d2fe" : "#818cf8",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {destination === "instagram" ? "Instagram" : "Media Assets"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {proposalDestinations.has("media_assets") && (
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", width: "100%" }}>
-                      {OFFER_SERVICES.map((service) => {
-                        const active = proposalMediaServices.has(service.id);
-                        return (
-                          <button
-                            key={service.id}
-                            type="button"
-                            onClick={() => {
-                              setProposalMediaServices((prev) => {
-                                const next = new Set(prev);
-                                next.has(service.id) ? next.delete(service.id) : next.add(service.id);
-                                return next;
-                              });
-                            }}
-                            style={{
-                              padding: "5px 10px",
-                              background: active ? "#0f766e" : "transparent",
-                              border: "1px solid #134e4a",
-                              borderRadius: "999px",
-                              color: active ? "#99f6e4" : "#5eead4",
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                            }}
-                          >
-                            {service.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <button
-                    onClick={submitIgProposals}
-                    disabled={submittingIgPropose || selectedIgPropose.size === 0 || (proposalDestinations.has("media_assets") && proposalMediaServices.size === 0)}
-                    style={{ padding: "6px 14px", background: selectedIgPropose.size > 0 ? "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)" : "#1e1b4b", border: "none", borderRadius: "6px", color: selectedIgPropose.size > 0 ? "#fff" : "#4338ca", fontSize: "13px", fontWeight: 600, cursor: selectedIgPropose.size > 0 ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
+            </button>
+            <button
+              onClick={() => { setModerationMode(true); }}
+              style={{ padding: "7px 16px", background: "#92400e", border: "none", borderRadius: "6px", color: "#fcd34d", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              🗑️ Propune ștergere
+            </button>
+            {(igProposeResult || moderationSubmitResult) && (
+              <span style={{ alignSelf: "center", color: "#4ade80", fontSize: "12px" }}>
+                {igProposeResult || moderationSubmitResult}
+              </span>
+            )}
+          </div>
+        )}
+
+        {auth.authorise && mode === "none" && igProposeMode && (
+          <div style={{ margin: "0 0 12px", padding: "12px 14px", background: "#0d0d1f", border: "1px solid #3730a3", borderRadius: "8px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ color: "#a5b4fc", fontSize: "12px", fontWeight: 600, marginRight: "4px" }}>Destinație:</span>
+              {(["instagram", "media_assets"] as const).map((destination) => {
+                const active = proposalDestinations.has(destination);
+                return (
+                  <button key={destination} type="button"
+                    onClick={() => setProposalDestinations((prev) => { const next = new Set(prev); next.has(destination) ? next.delete(destination) : next.add(destination); if (next.size === 0) next.add("instagram"); return next; })}
+                    style={{ padding: "4px 12px", background: active ? "#312e81" : "transparent", border: "1px solid #3730a3", borderRadius: "999px", color: active ? "#c7d2fe" : "#818cf8", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
                   >
-                    {submittingIgPropose ? "Se trimite..." : `Trimite propunere (${selectedIgPropose.size})`}
+                    {destination === "instagram" ? "Instagram" : "Media Assets"}
                   </button>
-                  <button
-                    onClick={() => { setIgProposeMode(false); setSelectedIgPropose(new Set()); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
-                    style={{ padding: "6px 12px", background: "none", border: "1px solid #3730a3", borderRadius: "6px", color: "#6366f1", fontSize: "13px", cursor: "pointer" }}
-                  >
-                    Anulează
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setModerationMode(false); setSelectedModeration(new Set()); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
-                  style={{ padding: "6px 14px", background: "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-                >
-                  Selectează poze
-                </button>
-              )}
+                );
+              })}
+            </div>
+            {proposalDestinations.has("media_assets") && (
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ color: "#5eead4", fontSize: "12px", fontWeight: 600, marginRight: "4px" }}>Serviciu:</span>
+                {OFFER_SERVICES.map((service) => {
+                  const active = proposalMediaServices.has(service.id);
+                  return (
+                    <button key={service.id} type="button"
+                      onClick={() => setProposalMediaServices((prev) => { const next = new Set(prev); next.has(service.id) ? next.delete(service.id) : next.add(service.id); return next; })}
+                      style={{ padding: "4px 10px", background: active ? "#0f766e" : "transparent", border: "1px solid #134e4a", borderRadius: "999px", color: active ? "#99f6e4" : "#5eead4", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
+                    >
+                      {service.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={submitIgProposals}
+                disabled={submittingIgPropose || selectedIgPropose.size === 0 || (proposalDestinations.has("media_assets") && proposalMediaServices.size === 0)}
+                style={{ padding: "6px 14px", background: selectedIgPropose.size > 0 ? "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)" : "#1e1b4b", border: "none", borderRadius: "6px", color: selectedIgPropose.size > 0 ? "#fff" : "#4338ca", fontSize: "13px", fontWeight: 600, cursor: selectedIgPropose.size > 0 ? "pointer" : "not-allowed" }}
+              >
+                {submittingIgPropose ? "Se trimite..." : `Trimite propunere (${selectedIgPropose.size})`}
+              </button>
+              <button onClick={() => { setIgProposeMode(false); setSelectedIgPropose(new Set()); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
+                style={{ padding: "6px 12px", background: "none", border: "1px solid #3730a3", borderRadius: "6px", color: "#6366f1", fontSize: "13px", cursor: "pointer" }}
+              >
+                Anulează
+              </button>
+              {igProposeResult && <span style={{ color: "#4ade80", fontSize: "12px" }}>{igProposeResult}</span>}
             </div>
           </div>
         )}
 
-        {auth.authorise && mode === "none" && (
-          <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#1c1200", border: "1px solid #92400e", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-            <div>
-              <p style={{ color: "#fbbf24", fontWeight: 600, fontSize: "13px", margin: 0 }}>🗑️ Propune poze pentru ștergere</p>
-              {moderationSubmitResult && <p style={{ color: "#4ade80", fontSize: "12px", margin: "2px 0 0" }}>{moderationSubmitResult}</p>}
-            </div>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-              {moderationMode ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowModerationSubmitModal(true)}
-                    disabled={selectedModeration.size === 0}
-                    style={{ padding: "6px 14px", background: selectedModeration.size > 0 ? "#d97706" : "#374151", border: "none", borderRadius: "6px", color: selectedModeration.size > 0 ? "#fff" : "#6b7280", fontSize: "13px", fontWeight: 600, cursor: selectedModeration.size > 0 ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
-                  >
-                    {`Trimite spre moderare (${selectedModeration.size})`}
-                  </button>
-                  <button
-                    onClick={() => { setModerationMode(false); setSelectedModeration(new Set()); }}
-                    style={{ padding: "6px 12px", background: "none", border: "1px solid #92400e", borderRadius: "6px", color: "#d97706", fontSize: "13px", cursor: "pointer" }}
-                  >
-                    Anulează
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => { setModerationMode(true); setIgProposeMode(false); setSelectedIgPropose(new Set()); }}
-                  style={{ padding: "6px 14px", background: "#d97706", border: "none", borderRadius: "6px", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-                >
-                  Selectează poze
-                </button>
-              )}
-            </div>
+        {auth.authorise && mode === "none" && moderationMode && (
+          <div style={{ margin: "0 0 12px", padding: "10px 14px", background: "#1c1200", border: "1px solid #92400e", borderRadius: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setShowModerationSubmitModal(true)}
+              disabled={selectedModeration.size === 0}
+              style={{ padding: "6px 14px", background: selectedModeration.size > 0 ? "#d97706" : "#374151", border: "none", borderRadius: "6px", color: selectedModeration.size > 0 ? "#fff" : "#6b7280", fontSize: "13px", fontWeight: 600, cursor: selectedModeration.size > 0 ? "pointer" : "not-allowed" }}
+            >
+              {`Trimite spre moderare (${selectedModeration.size})`}
+            </button>
+            <button onClick={() => { setModerationMode(false); setSelectedModeration(new Set()); }}
+              style={{ padding: "6px 12px", background: "none", border: "1px solid #92400e", borderRadius: "6px", color: "#d97706", fontSize: "13px", cursor: "pointer" }}
+            >
+              Anulează
+            </button>
+            {moderationSubmitResult && <span style={{ color: "#4ade80", fontSize: "12px" }}>{moderationSubmitResult}</span>}
           </div>
         )}
 
@@ -1599,63 +1476,66 @@ export default function MediaAlbumPage() {
               mobileColumns={mobileColumns}
               onMobileColumnsChange={setMobileColumns}
             />
+
           </>
         )}
 
         {!isModerationMode && <div className={mode !== "none" ? styles.dimmedArea : undefined} onPointerDown={onDimmedTap}>
-          <div className={styles.sectionRow} data-onboarding="print-zone">
-            <h2 className={styles.sectionTitle}>Poze de imprimat{printCount ? ` (${printCount})` : ""}</h2>
-            <div className={styles.rowActions}>
-              {totalPhotos > 0 && (
-                <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
-                  Modifică selecția pentru imprimare
-                </button>
-              )}
-              {printCount > 0 && (
-                <button type="button" className={styles.resetAllPrintBtn} onClick={resetAllPrint}>
-                  Resetează toate pozele pentru imprimare
-                </button>
-              )}
+          <div data-onboarding="print-section">
+            <div className={styles.sectionRow} data-onboarding="print-zone">
+              <h2 className={styles.sectionTitle}>Poze de imprimat{printCount ? ` (${printCount})` : ""}</h2>
+              <div className={styles.rowActions}>
+                {totalPhotos > 0 && (
+                  <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
+                    Modifică selecția pentru imprimare
+                  </button>
+                )}
+                {printCount > 0 && (
+                  <button type="button" className={styles.resetAllPrintBtn} onClick={resetAllPrint}>
+                    Resetează toate pozele pentru imprimare
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
 
-          {printCount > 0 ? (
-            <>
-              <MobileColumnsToggle mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} />
-              <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
-                {printPhotos.map(({ fileName, src }) => (
-                  <div key={fileName} className={styles.printPhotoWrapper}>
-                    <img src={src} alt={`Poză pentru imprimare: ${fileName}`} className={styles.printPhotoImg} loading="lazy" />
-                    <button
-                      className={styles.removePrintBtn}
-                      onClick={() => removeFromPrint(fileName)}
-                      aria-label={`Elimină ${fileName} din lista de imprimare`}
-                      title="Elimină din lista de imprimare"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <MobileColumnsToggle mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} />
-            </>
-          ) : tutorialPrintPhotos.length > 0 ? (
-            <>
-              <div style={{ margin: "0 0 10px", padding: "8px 14px", background: "#1a1000", border: "1px solid #ca8a04", borderRadius: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "13px" }}>🎓</span>
-                <p style={{ color: "#fbbf24", fontSize: "12px", margin: 0 }}>Exemplu tutorial — pozele tale selectate vor apărea aici</p>
-              </div>
-              <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
-                {tutorialPrintPhotos.map((src) => (
-                  <div key={src} className={styles.printPhotoWrapper} style={{ opacity: 0.6 }}>
-                    <img src={src} alt="Exemplu poză imprimare" className={styles.printPhotoImg} loading="lazy" />
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className={styles.emptyPrint}>Nu ai selectat încă poze pentru imprimat.</p>
-          )}
+            {printCount > 0 ? (
+              <>
+                <MobileColumnsToggle mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} />
+                <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
+                  {printPhotos.map(({ fileName, src }) => (
+                    <div key={fileName} className={styles.printPhotoWrapper}>
+                      <img src={src} alt={`Poză pentru imprimare: ${fileName}`} className={styles.printPhotoImg} loading="lazy" />
+                      <button
+                        className={styles.removePrintBtn}
+                        onClick={() => removeFromPrint(fileName)}
+                        aria-label={`Elimină ${fileName} din lista de imprimare`}
+                        title="Elimină din lista de imprimare"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <MobileColumnsToggle mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} />
+              </>
+            ) : tutorialPrintPhotos.length > 0 ? (
+              <>
+                <div style={{ margin: "0 0 10px", padding: "8px 14px", background: "#1a1000", border: "1px solid #ca8a04", borderRadius: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "13px" }}>🎓</span>
+                  <p style={{ color: "#fbbf24", fontSize: "12px", margin: 0 }}>Exemplu tutorial — pozele tale selectate vor apărea aici</p>
+                </div>
+                <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
+                  {tutorialPrintPhotos.map((src) => (
+                    <div key={src} className={styles.printPhotoWrapper} style={{ opacity: 0.6 }}>
+                      <img src={src} alt="Exemplu poză imprimare" className={styles.printPhotoImg} loading="lazy" />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className={styles.emptyPrint}>Nu ai selectat încă poze pentru imprimat.</p>
+            )}
+          </div>
 
           {printCount > 0 && (
             <button type="button" className={styles.pickBtnSecondary} onClick={downloadPrintDynamic}>
@@ -1848,18 +1728,113 @@ export default function MediaAlbumPage() {
     </div>
 
     {/* Promo banner — visible to all album visitors */}
-    <div style={{ background: "#c9a96e", padding: "48px 24px 56px" }}>
-      <div style={{ maxWidth: "640px", margin: "0 auto", textAlign: "center" }}>
-        <p style={{ color: "#7a5c1e", fontSize: "10px", letterSpacing: "4px", textTransform: "uppercase", margin: "0 0 16px", fontWeight: 600 }}>
+    <div style={{ background: "#0a0a0a" }}>
+      {/* Gold divider line */}
+      <div style={{
+        height: "2px",
+        background: "linear-gradient(90deg, transparent 0%, #c9a96e 20%, #e8c97a 50%, #c9a96e 80%, transparent 100%)",
+      }} />
+
+      {/* Photo strip */}
+      {showcasePhotos.length > 0 && (
+        <div style={{ display: "flex", height: "200px", overflow: "hidden", gap: "2px" }}>
+          {showcasePhotos.slice(0, 8).map((url, i) => (
+            <div key={i} style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+              <img
+                src={url}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.75, display: "block" }}
+                loading="lazy"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Content */}
+      <div style={{ maxWidth: "680px", margin: "0 auto", textAlign: "center", padding: "56px 24px 64px" }}>
+
+        <div style={{ width: "36px", height: "1px", background: "#c9a96e", margin: "0 auto 28px", opacity: 0.6 }} />
+
+        <p style={{ color: "#c9a96e", fontSize: "10px", letterSpacing: "5px", textTransform: "uppercase", margin: "0 0 22px", fontWeight: 500 }}>
           Anca Visuals
         </p>
-        <h2 style={{ color: "#1a0f00", fontSize: "24px", fontWeight: 600, margin: "0 0 10px", lineHeight: 1.35, letterSpacing: "0.3px" }}>
-          Fotografie & Videografie pentru momentele tale
+
+        <h2 style={{ color: "#f0ebe0", fontSize: "clamp(20px, 4vw, 30px)", fontWeight: 300, margin: "0 0 16px", lineHeight: 1.35, letterSpacing: "0.3px" }}>
+          Fotografie de film pentru<br />momentele tale autentice
         </h2>
-        <p style={{ color: "#5a3d10", fontSize: "14px", margin: "0 0 30px", lineHeight: 1.6 }}>
+
+        <p style={{ color: "#555", fontSize: "13px", margin: "0 0 10px", lineHeight: 1.7 }}>
+          Creăm amintiri fără vârstă prin arta fotografiei analogice.
+        </p>
+
+        <p style={{ color: "#c9a96e", fontSize: "10px", letterSpacing: "3px", textTransform: "uppercase", margin: "0 0 40px", opacity: 0.7 }}>
           Nuntă · Botez · Majorat · Fotocabină · Videobooth 360°
         </p>
-        <PromoPhoneReveal />
+
+        <div style={{ width: "36px", height: "1px", background: "#c9a96e", margin: "0 auto 40px", opacity: 0.25 }} />
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "300px", margin: "0 auto" }}>
+          <a
+            href={`tel:${PROMO_PHONE}`}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: "15px 24px",
+              background: "#c9a96e",
+              color: "#0a0a0a",
+              borderRadius: "3px",
+              textDecoration: "none",
+              fontSize: "12px",
+              fontWeight: 700,
+              letterSpacing: "2.5px",
+              textTransform: "uppercase",
+            }}
+          >
+            Sună — {PROMO_PHONE_DISPLAY}
+          </a>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <a
+              href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: "13px 16px",
+                background: "transparent",
+                border: "1px solid #222",
+                color: "#666",
+                borderRadius: "3px",
+                textDecoration: "none",
+                fontSize: "11px",
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+                transition: "border-color 0.2s, color 0.2s",
+              }}
+            >
+              WhatsApp
+            </a>
+            <a
+              href="https://instagram.com/ancavisuals"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: "13px 16px",
+                background: "transparent",
+                border: "1px solid #222",
+                color: "#666",
+                borderRadius: "3px",
+                textDecoration: "none",
+                fontSize: "11px",
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+              }}
+            >
+              Instagram
+            </a>
+          </div>
+        </div>
+
       </div>
     </div>
 

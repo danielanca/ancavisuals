@@ -4,6 +4,29 @@ Fiecare secțiune documentează ce s-a construit, fișierele implicate și cum f
 
 ---
 
+## [branch: updates-24may26] — Mai 2026
+
+---
+
+### 🐛 Client Debug Notification — badge erori cu WhatsApp
+
+**Ce face:** Când apare o eroare JS în browser, apare automat un badge roșu pe dreapta ecranului. Clienții pot trimite direct pe WhatsApp un screenshot cu eroarea. Adminii văd detaliile tehnice complete.
+
+**Cum funcționează:**
+1. `ErrorMonitorContext` capturează mereu erorile reale (`window.error` + `unhandledrejection`), indiferent dacă debug mode e activ
+2. Patch-ul pe `console.error` și `fetch` rămâne doar când debugging e activat manual
+3. Badge-ul roșu apare fix pe dreapta ecranului, pulsează când apare o eroare nouă, arată numărul de erori
+4. Click pe badge → panel slide-in din dreapta:
+   - **Clienți (non-admin):** mesaj friendly + buton verde „Trimite pe WhatsApp" (deschide direct `wa.me/40745469907`)
+   - **Admini:** lista tehnică completă cu tip eroare, mesaj, stack trace, timestamp
+
+**Fișiere:**
+- `src/client/features/admin/providers/ErrorMonitorContext.tsx` — split useEffect: always-on + debugging-only
+- `src/client/features/admin/components/ClientDebugBadge.tsx` — componentă nouă (badge + panel)
+- `src/client/App.tsx` — `<ClientDebugBadge />` adăugat în `AuthProvider`
+
+---
+
 ## [branch: accountable] — Mai 2026
 
 ---
