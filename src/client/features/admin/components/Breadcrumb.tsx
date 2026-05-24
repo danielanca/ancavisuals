@@ -16,7 +16,6 @@ const LABELS: Record<string, string> = {
   "media-activity": "Activitate Media",
   "qr-moments": "QR Moments",
   "instagram-proposals": "Propuneri Media",
-  trading: "Trading Simulator",
   "image-optimizer": "Optimizare Poze",
   moderare: "Moderare",
   "route-sheets": "Foi de parcurs",

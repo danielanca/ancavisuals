@@ -39,7 +39,6 @@ const WeddingHubAdminPage = loadable(() => import("../features/admin/components/
 const OfferTemplateAdminPage = loadable(() => import("../features/admin/components/OfferTemplateAdminPage"), opts);
 const OfferTemplateOrganizerPage = loadable(() => import("../features/admin/components/OfferTemplateOrganizerPage"), opts);
 const MediaAssetsAdminPage = loadable(() => import("../features/admin/components/MediaAssetsAdminPage"), opts);
-const TradingPage = loadable(() => import("../features/admin/components/Trading/TradingPage"), opts);
 const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/components/ShowcaseZoneEditorPage"), opts);
 
 export const adminRoutes = [
@@ -73,7 +72,6 @@ export const adminRoutes = [
       <Route path="/admin/media-assets" element={<MediaAssetsAdminPage />} />
       <Route path="/admin/template-oferte" element={<OfferTemplateAdminPage />} />
       <Route path="/admin/template-oferte/:serviceId" element={<OfferTemplateOrganizerPage />} />
-      <Route path="/admin/trading" element={<TradingPage />} />
       <Route path="/admin/showcase" element={<ShowcaseZoneEditorPage />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />

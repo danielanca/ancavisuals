@@ -29,7 +29,6 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "QR Moments", path: "/admin/qr-moments", category: "Media" },
   { label: "Activitate album", path: "/admin/media-activity", category: "Media" },
   { label: "Optimizare poze", path: "/admin/image-optimizer", category: "Media", keywords: "optimizare imagini compresie" },
-  { label: "Trading Simulator", path: "/admin/trading", category: "Tools" },
   { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", keywords: "bani venituri cheltuieli" },
   { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar" },
   { label: "Detalii bancare", path: "/admin/bank-details", category: "Financiar", keywords: "iban cont" },
