@@ -28,7 +28,10 @@ export const App = () => {
   useClientErrorReporting();
   useVisitorNotification();
 
+  const suppressCookieBot = location.pathname.startsWith("/media") || location.pathname.startsWith("/admin");
+
   useEffect(() => {
+    if (!suppressCookieBot) return;
     const removeUcDialog = () => {
       const dialog = document.getElementById("uc-main-dialog");
       if (dialog?.parentNode) dialog.parentNode.removeChild(dialog);
@@ -37,7 +40,7 @@ export const App = () => {
     const observer = new MutationObserver(removeUcDialog);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, []);
+  }, [suppressCookieBot]);
 
   useEffect(() => {
     if (!isMediaPage) {
