@@ -169,6 +169,36 @@ describe("AdminBar", () => {
     expect(link.getAttribute("href")).toBe("mailto:ana@test.com");
   });
 
+  test("delete ✕ removes subscriber from list immediately", async () => {
+    let deleteCallCount = 0;
+    vi.stubGlobal("fetch", (url: string, opts?: RequestInit) => {
+      if (opts?.method === "DELETE") {
+        deleteCallCount++;
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ subscribers: [{ email: "ana@test.com" }, { email: "ion@test.com" }] }),
+      });
+    });
+
+    await act(async () => { renderBar(); });
+
+    const bellBtn = screen.getAllByRole("button").find(btn => btn.textContent?.includes("🔔"))!;
+    await act(async () => { fireEvent.click(bellBtn); });
+
+    expect(screen.getByText("ana@test.com")).toBeTruthy();
+    expect(screen.getByText("ion@test.com")).toBeTruthy();
+
+    // Click ✕ next to ana@test.com — first ✕ button in the list
+    const deleteBtns = screen.getAllByTitle(/șterge abonat/i);
+    await act(async () => { fireEvent.click(deleteBtns[0]); });
+
+    expect(deleteCallCount).toBe(1);
+    expect(screen.queryByText("ana@test.com")).toBeNull();
+    expect(screen.getByText("ion@test.com")).toBeTruthy();
+  });
+
   test("does not show bell badge before fetch completes", async () => {
     let resolveFetch!: (value: any) => void;
     vi.stubGlobal("fetch", () => new Promise(resolve => { resolveFetch = resolve; }));

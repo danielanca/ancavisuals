@@ -14,6 +14,7 @@ export default function AdminBar() {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [subscribersLoaded, setSubscribersLoaded] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
+  const [deletingEmail, setDeletingEmail] = useState<string | null>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
   const mediaSlugMatch = location.pathname.match(/^\/media\/([^/]+)$/);
@@ -42,6 +43,21 @@ export default function AdminBar() {
       fetchSubscribers(albumSlug, auth.accessToken);
     }
     setBellOpen(open => !open);
+  };
+
+  const handleDeleteSubscriber = async (email: string) => {
+    if (!albumSlug || !auth.accessToken) return;
+    setDeletingEmail(email);
+    try {
+      await fetch("/api/album-subscriptions/unsubscribe", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({ albumSlug, email }),
+      });
+      setSubscribers(prev => prev.filter(s => s.email !== email));
+    } finally {
+      setDeletingEmail(null);
+    }
   };
 
   if (!auth.authorise) return null;
@@ -166,14 +182,23 @@ export default function AdminBar() {
                   {subscribers.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       {subscribers.map(subscriber => (
-                        <a
-                          key={subscriber.email}
-                          href={`mailto:${subscriber.email}`}
-                          style={{ display: "flex", alignItems: "center", gap: "6px", color: "#93c5fd", fontSize: "11px", textDecoration: "none", padding: "3px 0" }}
-                        >
-                          <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#3b82f6", flexShrink: 0 }} />
-                          {subscriber.email}
-                        </a>
+                        <div key={subscriber.email} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <a
+                            href={`mailto:${subscriber.email}`}
+                            style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", color: "#93c5fd", fontSize: "11px", textDecoration: "none", padding: "3px 0", minWidth: 0 }}
+                          >
+                            <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#3b82f6", flexShrink: 0 }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subscriber.email}</span>
+                          </a>
+                          <button
+                            onClick={() => handleDeleteSubscriber(subscriber.email)}
+                            disabled={deletingEmail === subscriber.email}
+                            title="Șterge abonat"
+                            style={{ background: "none", border: "none", color: "#555", fontSize: "11px", cursor: "pointer", padding: "0 2px", flexShrink: 0, lineHeight: 1 }}
+                          >
+                            {deletingEmail === subscriber.email ? "…" : "✕"}
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}

@@ -195,4 +195,30 @@ router.get("/list/:slug", requireFirebaseAuth, requireSupremeAdmin, async (req: 
   }
 });
 
+// DELETE /unsubscribe — removes a subscriber by albumSlug + email (admin only)
+router.delete("/unsubscribe", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { albumSlug, email } = req.body as { albumSlug?: string; email?: string };
+  if (!albumSlug || !email) {
+    res.status(400).json({ error: "albumSlug și email sunt obligatorii." });
+    return;
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  try {
+    const db = firestore();
+    const snapshot = await db
+      .collection(COLLECTION)
+      .where("albumSlug", "==", albumSlug)
+      .where("email", "==", normalizedEmail)
+      .get();
+    if (snapshot.empty) {
+      res.status(404).json({ error: "Abonatul nu a fost găsit." });
+      return;
+    }
+    await Promise.all(snapshot.docs.map(doc => doc.ref.delete()));
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 export default router;

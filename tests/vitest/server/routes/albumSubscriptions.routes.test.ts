@@ -247,6 +247,59 @@ describe("albumSubscriptions.routes", () => {
     });
   });
 
+  // ── DELETE /unsubscribe ──────────────────────────────────────────────────────
+
+  describe("DELETE /unsubscribe", () => {
+    test("deletes subscriber document and returns ok:true", async () => {
+      const { handlers, getMock } = await loadRouter();
+      const unsubscribe = handlers["DELETE /unsubscribe"];
+      const res = createMockResponse();
+
+      const deleteMock = vi.fn().mockResolvedValue(undefined);
+      getMock.mockResolvedValueOnce({
+        empty: false,
+        docs: [{ ref: { delete: deleteMock } }],
+      });
+
+      await unsubscribe({ body: { albumSlug: "nunta-ana", email: "ana@test.com" } }, res);
+
+      expect(deleteMock).toHaveBeenCalledOnce();
+      expect(res.json).toHaveBeenCalledWith({ ok: true });
+    });
+
+    test("returns 404 when subscriber is not found", async () => {
+      const { handlers, getMock } = await loadRouter();
+      const unsubscribe = handlers["DELETE /unsubscribe"];
+      const res = createMockResponse();
+
+      getMock.mockResolvedValueOnce({ empty: true, docs: [] });
+
+      await unsubscribe({ body: { albumSlug: "nunta-ana", email: "necunoscut@test.com" } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    test("returns 400 when albumSlug is missing", async () => {
+      const { handlers } = await loadRouter();
+      const unsubscribe = handlers["DELETE /unsubscribe"];
+      const res = createMockResponse();
+
+      await unsubscribe({ body: { email: "ana@test.com" } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("returns 400 when email is missing", async () => {
+      const { handlers } = await loadRouter();
+      const unsubscribe = handlers["DELETE /unsubscribe"];
+      const res = createMockResponse();
+
+      await unsubscribe({ body: { albumSlug: "nunta-ana" } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
   // ── POST /notify/:slug ───────────────────────────────────────────────────────
 
   describe("POST /notify/:slug", () => {
