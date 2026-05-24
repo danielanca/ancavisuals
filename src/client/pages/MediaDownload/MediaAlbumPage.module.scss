@@ -533,10 +533,6 @@ $font-body:       'DM Sans', sans-serif;
 .gridToggle {
   display: flex;
   gap: 4px;
-
-  @media (min-width: 641px) {
-    display: none;
-  }
 }
 
 .gridBtn {
@@ -572,13 +568,9 @@ $font-body:       'DM Sans', sans-serif;
 
 // ── GRID TOGGLE (print section) ──────────────────────────
 .gridToggle {
-  display: none;
+  display: flex;
   gap: 6px;
   margin-bottom: 12px;
- 
-  @media (max-width: 640px) {
-    display: flex;
-  }
 }
  
 .gridBtn {

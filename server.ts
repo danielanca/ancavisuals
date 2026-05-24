@@ -51,6 +51,7 @@ import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
+import { startCollaboratorInviteReminderCron } from "./src/server/cron/collaboratorInviteReminder.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 
 // Shared HTTP defaults used by both local development and the production server.
@@ -188,8 +189,9 @@ async function createServer() {
   startPostEventBackupCron();
   startErrorsCron();
   startRemindersCron();
+  startCollaboratorInviteReminderCron();
 
-  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors");
+  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites");
 
   let vite: ViteDevServer | undefined;
   let template: string;

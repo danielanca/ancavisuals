@@ -59,6 +59,23 @@ type ShareCreateResponse = {
   id?: string;
 };
 
+type AdminAccount = {
+  uid: string;
+  email: string;
+  displayName: string;
+};
+
+type CollaboratorInvitation = {
+  id: string;
+  email: string;
+  albumSlug: string;
+  status: "active" | "completed" | "cancelled";
+  reminderCount: number;
+  nextReminderAt: string | null;
+  completedAt: string | null;
+  completedActionType: "instagram" | "moderation" | null;
+};
+
 type AdminWindow = Window & {
   adminClickCount?: number;
   adminClickTimeout?: number | null;
@@ -257,6 +274,7 @@ export default function MediaAlbumPage() {
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [customUrl, setCustomUrl] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [showcaseLightboxIndex, setShowcaseLightboxIndex] = useState<number | null>(null);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
 
   const [selectedModeration, setSelectedModeration] = useState<Set<string>>(new Set());
@@ -288,6 +306,15 @@ export default function MediaAlbumPage() {
   const [videoImportServices, setVideoImportServices] = useState<Set<string>>(new Set(["video"]));
   const [videoImporting, setVideoImporting] = useState(false);
   const [videoImportResult, setVideoImportResult] = useState<string | null>(null);
+  const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([]);
+  const [albumInvitations, setAlbumInvitations] = useState<CollaboratorInvitation[]>([]);
+  const [selectedInviteEmail, setSelectedInviteEmail] = useState("");
+  const [inviteForInstagram, setInviteForInstagram] = useState(true);
+  const [inviteForModeration, setInviteForModeration] = useState(true);
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteFeedback, setInviteFeedback] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [invitePanelOpen, setInvitePanelOpen] = useState(false);
 
   const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
 
@@ -326,6 +353,7 @@ export default function MediaAlbumPage() {
   const { mode, browsePage, printPage, downloadPage, selectedPrint, selectedDownload, shareUrl, shareError } = gallery;
 
   const totalPhotos = album?.photos?.length ?? 0;
+  const hasPhotos = totalPhotos > 0;
   const pageSize = isMobile ? 20 : 30;
   const totalPages = Math.max(1, Math.ceil(totalPhotos / pageSize));
 
@@ -393,6 +421,14 @@ export default function MediaAlbumPage() {
   }, [album?.print, previewByName]);
 
   const pageNames = useMemo(() => pagePhotos.map(fileNameFromUrl), [pagePhotos]);
+  const showcaseGalleryColumns = useMemo(() => {
+    const columnCount = 2;
+    const columns = Array.from({ length: columnCount }, () => [] as Array<{ url: string; index: number }>);
+    showcasePhotos.forEach((url, index) => {
+      columns[index % columnCount].push({ url, index });
+    });
+    return columns;
+  }, [showcasePhotos]);
   const allOnPageSelected = mode !== "none" && pageNames.length > 0 && pageNames.every((name) => activeSelected.has(name));
   const printCount = useMemo(() => album?.print?.length ?? 0, [album?.print]);
   const downloadCount = selectedDownload.size;
@@ -770,6 +806,33 @@ export default function MediaAlbumPage() {
       .catch(() => {});
   }, [auth.authorise, auth.accessToken, slug]);
 
+  useEffect(() => {
+    if (!auth.authorise || !auth.accessToken || !slug) return;
+
+    fetch("/api/admin/accounts", {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((response) => response.json())
+      .then((data: { users?: AdminAccount[] }) => {
+        const users = data.users ?? [];
+        setAdminAccounts(users);
+        if (!selectedInviteEmail && users.length > 0) {
+          setSelectedInviteEmail(users[0].email);
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/admin/account-invitations", {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((response) => response.json())
+      .then((data: { invitations?: CollaboratorInvitation[] }) => {
+        const invites = (data.invitations ?? []).filter((invite) => invite.albumSlug === slug);
+        setAlbumInvitations(invites);
+      })
+      .catch(() => {});
+  }, [auth.authorise, auth.accessToken, slug, selectedInviteEmail]);
+
   const toggleIgPhoto = (src: string) => {
     const fileName = fileNameFromUrl(src);
     setSelectedIgPropose((prev) => {
@@ -949,6 +1012,59 @@ export default function MediaAlbumPage() {
     }
   };
 
+  const sendAlbumInvite = async () => {
+    if (!auth.accessToken || !slug || !selectedInviteEmail) return;
+    if (!inviteForInstagram && !inviteForModeration) {
+      setInviteError("Alege cel puțin un tip de review.");
+      return;
+    }
+    setInviteSending(true);
+    setInviteFeedback(null);
+    setInviteError(null);
+    try {
+      const response = await fetch("/api/admin/account-invitations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+        body: JSON.stringify({
+          email: selectedInviteEmail,
+          albumSlug: slug,
+          inviteInstagram: inviteForInstagram,
+          inviteModeration: inviteForModeration,
+        }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) {
+        setInviteError(data.error ?? "Invitația nu a putut fi trimisă.");
+        return;
+      }
+
+      const invitationsResponse = await fetch("/api/admin/account-invitations", {
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      const invitationsData = await invitationsResponse.json() as { invitations?: CollaboratorInvitation[] };
+      setAlbumInvitations((invitationsData.invitations ?? []).filter((invite) => invite.albumSlug === slug));
+      setInviteFeedback("Invitația a fost trimisă instant. Timerul reminderelor pentru acest album a pornit acum.");
+    } catch {
+      setInviteError("Invitația nu a putut fi trimisă.");
+    } finally {
+      setInviteSending(false);
+    }
+  };
+
+  const formatInviteDate = (value: string | null) => {
+    if (!value) return "—";
+    return new Date(value).toLocaleString("ro-RO", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
   if (loading) return <AncaLoader />;
@@ -988,7 +1104,7 @@ export default function MediaAlbumPage() {
             isAdmin={isAdmin || auth.authorise}
             onAccepted={() => {
               setConsentGiven(true);
-              if (!isAdmin && !auth.authorise && !localStorage.getItem('av:onboarding:done')) {
+              if (hasPhotos && !isAdmin && !auth.authorise && !localStorage.getItem('av:onboarding:done')) {
                 setTimeout(() => setShowOnboarding(true), 500);
               }
             }}
@@ -1027,6 +1143,16 @@ export default function MediaAlbumPage() {
             selectedPrint={selectedPrint}
             onTogglePrint={(fileName) => dispatch({ type: "TOGGLE_PHOTO", mode: "print", name: fileName })}
             getFileName={(src, index) => fileNameFromUrl(album.photos[index] ?? src)}
+          />
+        )}
+
+        {showcaseLightboxIndex !== null && showcasePhotos.length > 0 && (
+          <PhotoLightbox
+            photos={showcasePhotos}
+            currentIndex={showcaseLightboxIndex}
+            onClose={() => setShowcaseLightboxIndex(null)}
+            onNext={() => setShowcaseLightboxIndex((prev) => (prev !== null ? Math.min(showcasePhotos.length - 1, prev + 1) : 0))}
+            onPrev={() => setShowcaseLightboxIndex((prev) => (prev !== null ? Math.max(0, prev - 1) : 0))}
           />
         )}
 
@@ -1110,7 +1236,7 @@ export default function MediaAlbumPage() {
                 Vezi adresa de livrare
               </button>
             )}
-            {!isAdmin && (
+            {!isAdmin && hasPhotos && (
               <button
                 type="button"
                 onClick={() => { localStorage.removeItem('av:onboarding:done'); setShowOnboarding(true); }}
@@ -1204,6 +1330,96 @@ export default function MediaAlbumPage() {
         {mode === "none" && subscribeStatus === "success" && (
           <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#052e16", border: "1px solid #166534", borderRadius: "8px" }}>
             <p style={{ color: "#4ade80", fontSize: "13px", fontWeight: 600, margin: 0 }}>✓ Te-ai abonat! Vei primi un email când fotograful adaugă poze noi.</p>
+          </div>
+        )}
+
+        {auth.authorise && mode === "none" && !igProposeMode && !moderationMode && (
+          <div style={{ margin: "0 0 14px", padding: "14px 16px", background: "#0f0f0f", border: "1px solid #2a2a2a", borderRadius: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <button
+              type="button"
+              onClick={() => setInvitePanelOpen((prev) => !prev)}
+              style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center", background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+            >
+              <div>
+                <p style={{ color: "#fff", fontSize: "13px", fontWeight: 700, margin: 0 }}>Invită colaborator pe albumul acesta</p>
+                {!isMobile && (
+                  <p style={{ color: "#777", fontSize: "12px", margin: "4px 0 0" }}>
+                    Email instant acum, apoi reminder-e automate la 24h, 72h, 7 zile, 14 zile și 30 zile.
+                  </p>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ color: "#555", fontSize: "11px", letterSpacing: "0.06em", textTransform: "uppercase" }}>Album: {slug}</span>
+                <span style={{ color: "#888", fontSize: "16px", lineHeight: 1 }}>{invitePanelOpen ? "−" : "+"}</span>
+              </div>
+            </button>
+
+            {invitePanelOpen && (
+              <>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                  <select
+                    value={selectedInviteEmail}
+                    onChange={(event) => setSelectedInviteEmail(event.target.value)}
+                    style={{ flex: "1 1 280px", minWidth: "220px", padding: "8px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ddd", fontSize: "13px" }}
+                  >
+                    <option value="">Alege colaboratorul</option>
+                    {adminAccounts.map((user) => (
+                      <option key={user.uid} value={user.email}>{user.email}</option>
+                    ))}
+                  </select>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", color: "#ccc", fontSize: "12px" }}>
+                    <input type="checkbox" checked={inviteForInstagram} onChange={() => setInviteForInstagram((prev) => !prev)} />
+                    Instagram / Media Assets
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", color: "#ccc", fontSize: "12px" }}>
+                    <input type="checkbox" checked={inviteForModeration} onChange={() => setInviteForModeration((prev) => !prev)} />
+                    Propuneri ștergere
+                  </label>
+                  <button
+                    type="button"
+                    onClick={sendAlbumInvite}
+                    disabled={inviteSending || !selectedInviteEmail}
+                    style={{ padding: "8px 14px", background: selectedInviteEmail ? "#c9a96e" : "#232323", border: "none", borderRadius: "6px", color: selectedInviteEmail ? "#111" : "#666", fontSize: "12px", fontWeight: 700, cursor: selectedInviteEmail ? "pointer" : "not-allowed" }}
+                  >
+                    {inviteSending ? "Se trimite..." : "Trimite notificarea"}
+                  </button>
+                </div>
+
+                {inviteError && <p style={{ color: "#f87171", fontSize: "12px", margin: 0 }}>{inviteError}</p>}
+                {inviteFeedback && <p style={{ color: "#4ade80", fontSize: "12px", margin: 0 }}>{inviteFeedback}</p>}
+
+                {albumInvitations.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "4px" }}>
+                    {albumInvitations.map((invite) => (
+                      <div key={invite.id} style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center", padding: "8px 10px", background: "#0a0a0a", border: "1px solid #1f1f1f", borderRadius: "8px" }}>
+                        <div>
+                          <p style={{ color: "#ddd", fontSize: "12px", margin: 0 }}>{invite.email}</p>
+                          <p style={{ color: "#666", fontSize: "11px", margin: "3px 0 0" }}>
+                            {invite.status === "completed"
+                              ? `A acționat la ${formatInviteDate(invite.completedAt)}`
+                              : `Următorul reminder: ${formatInviteDate(invite.nextReminderAt)}`}
+                            {" · "}Reminder-e trimise: {invite.reminderCount}
+                          </p>
+                        </div>
+                        <span style={{
+                          padding: "3px 8px",
+                          borderRadius: "999px",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          background: invite.status === "completed" ? "#14532d" : "#3f2b09",
+                          color: invite.status === "completed" ? "#86efac" : "#fcd34d",
+                        }}>
+                          {invite.status === "completed"
+                            ? invite.completedActionType === "moderation" ? "A propus ștergere" : "A propus media"
+                            : "În așteptare"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -1728,7 +1944,7 @@ export default function MediaAlbumPage() {
     </div>
 
     {/* Promo banner — visible to all album visitors */}
-    <div style={{ background: "#0a0a0a" }}>
+    <div id="media-promo-zone" style={{ background: "#0a0a0a" }}>
       {/* Gold divider line */}
       <div style={{
         height: "2px",
@@ -1736,14 +1952,33 @@ export default function MediaAlbumPage() {
       }} />
 
       {/* Photo strip */}
-      {showcasePhotos.length > 0 && (
-        <div style={{ display: "flex", height: "200px", overflow: "hidden", gap: "2px" }}>
-          {showcasePhotos.slice(0, 8).map((url, i) => (
-            <div key={i} style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+      {!isMobile && showcasePhotos.length > 0 && (
+        <div
+          style={{
+            columnCount: 4,
+            columnGap: "2px",
+            padding: 0,
+          }}
+        >
+          {showcasePhotos.slice(0, 12).map((url, i) => (
+            <div
+              key={i}
+              style={{
+                overflow: "hidden",
+                breakInside: "avoid",
+                marginBottom: "2px",
+              }}
+            >
               <img
                 src={url}
                 alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.75, display: "block" }}
+                style={{
+                  width: "100%",
+                  height: "auto",
+                  objectFit: "cover",
+                  opacity: 0.75,
+                  display: "block",
+                }}
                 loading="lazy"
               />
             </div>
@@ -1773,6 +2008,35 @@ export default function MediaAlbumPage() {
         </p>
 
         <div style={{ width: "36px", height: "1px", background: "#c9a96e", margin: "0 auto 40px", opacity: 0.25 }} />
+
+        {showcasePhotos.length > 0 && (
+          <div style={{ margin: "0 0 40px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", alignItems: "start", textAlign: "left" }}>
+              {showcaseGalleryColumns.map((column, columnIndex) => (
+                <div key={columnIndex} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {column.map(({ url, index }) => (
+                    <div
+                      key={url}
+                      style={{
+                        overflow: "hidden",
+                        borderRadius: "6px",
+                        background: "#111",
+                      }}
+                    >
+                      <img
+                        src={url}
+                        alt=""
+                        style={{ width: "100%", height: "auto", objectFit: "cover", opacity: 0.85, display: "block", cursor: "pointer" }}
+                        loading="lazy"
+                        onClick={() => setShowcaseLightboxIndex(index)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "300px", margin: "0 auto" }}>
           <a

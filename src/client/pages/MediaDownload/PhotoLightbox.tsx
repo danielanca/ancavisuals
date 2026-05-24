@@ -83,8 +83,8 @@ export default function PhotoLightbox({
     isDraggingRef.current = false;
   };
 
-  const handleOverlayClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.target === event.currentTarget && !isDraggingRef.current) onClose();
+  const handleOverlayClick = () => {
+    if (!isDraggingRef.current) onClose();
   };
 
   const hasPrev = currentIndex > 0;
@@ -102,65 +102,68 @@ export default function PhotoLightbox({
       aria-modal="true"
       aria-label="Vizualizare foto"
     >
-      <button className={styles.closeBtn} onClick={onClose} aria-label="Închide">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
+      <div className={styles.modal}>
+        <button className={styles.closeBtn} onClick={(event) => { event.stopPropagation(); onClose(); }} aria-label="Închide">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
 
-      <button
-        className={`${styles.navBtn} ${styles.navBtnPrev}`}
-        onClick={onPrev}
-        disabled={!hasPrev}
-        aria-label="Poza anterioară"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-      </button>
+        <button
+          className={`${styles.navBtn} ${styles.navBtnPrev}`}
+          onClick={(event) => { event.stopPropagation(); onPrev(); }}
+          disabled={!hasPrev}
+          aria-label="Poza anterioară"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
 
-      <div className={styles.imageWrap}>
-        <img
-          key={currentIndex}
-          src={currentSrc}
-          alt={`Foto ${currentIndex + 1}`}
-          className={styles.image}
-          draggable={false}
-        />
-      </div>
-
-      <button
-        className={`${styles.navBtn} ${styles.navBtnNext}`}
-        onClick={onNext}
-        disabled={!hasNext}
-        aria-label="Poza următoare"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </button>
-
-      <div className={styles.bottomBar}>
-        <div className={styles.counter}>
-          {currentIndex + 1} / {photos.length}
+        <div className={styles.imageWrap}>
+          <img
+            key={currentIndex}
+            src={currentSrc}
+            alt={`Foto ${currentIndex + 1}`}
+            className={styles.image}
+            draggable={false}
+            onClick={(event) => event.stopPropagation()}
+          />
         </div>
 
-        {onTogglePrint && (
-          <button
-            className={`${styles.printBtn} ${isInPrint ? styles.printBtnActive : ''}`}
-            onClick={() => onTogglePrint(currentFileName)}
-            aria-label={isInPrint ? 'Elimină din imprimare' : 'Adaugă la imprimare'}
-            data-onboarding="print-btn"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-              <rect x="6" y="14" width="12" height="8" />
-            </svg>
-            <span>{isInPrint ? 'Elimină din imprimare' : '+ Adaugă la imprimare'}</span>
-          </button>
-        )}
+        <button
+          className={`${styles.navBtn} ${styles.navBtnNext}`}
+          onClick={(event) => { event.stopPropagation(); onNext(); }}
+          disabled={!hasNext}
+          aria-label="Poza următoare"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+
+        <div className={styles.bottomBar} onClick={(event) => event.stopPropagation()}>
+          <div className={styles.counter}>
+            {currentIndex + 1} / {photos.length}
+          </div>
+
+          {onTogglePrint && (
+            <button
+              className={`${styles.printBtn} ${isInPrint ? styles.printBtnActive : ''}`}
+              onClick={(event) => { event.stopPropagation(); onTogglePrint(currentFileName); }}
+              aria-label={isInPrint ? 'Elimină din imprimare' : 'Adaugă la imprimare'}
+              data-onboarding="print-btn"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+              <span>{isInPrint ? 'Elimină din imprimare' : '+ Adaugă la imprimare'}</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
