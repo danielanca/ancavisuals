@@ -185,21 +185,41 @@ export default function BunnyPhotoGallery({
       >
         {selectable && <div className={styles["pg-check"]}>{isOn ? "✓" : ""}</div>}
         {!selectable && (
-          <a
-            href={downloadSrc}
-            download
+          <button
+            type="button"
             className={styles["pg-downloadBtn"]}
             aria-label="Descarcă poza"
-            onClick={(event) => event.stopPropagation()}
+            onClick={async (event) => {
+              event.stopPropagation();
+              const fileName = downloadSrc.split("?")[0].split("/").pop() ?? "photo.jpg";
+              try {
+                const response = await fetch(downloadSrc);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+                anchor.href = blobUrl;
+                anchor.download = fileName;
+                anchor.click();
+                URL.revokeObjectURL(blobUrl);
+              } catch {
+                window.open(downloadSrc, "_blank");
+              }
+            }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3v12" />
               <path d="M7 10l5 5 5-5" />
               <path d="M5 21h14" />
             </svg>
-          </a>
+          </button>
         )}
         {renderThumbImg(src, sizes, 720, index)}
+        {!selectable && (
+          <svg className={styles["pg-eye"]} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        )}
       </button>
     );
   };
