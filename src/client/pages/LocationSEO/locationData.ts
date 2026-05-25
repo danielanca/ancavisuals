@@ -1,4 +1,4 @@
-export type ServiceType = "nunta" | "botez" | "majorat" | "evenimente";
+export type ServiceType = "nunta" | "botez" | "majorat" | "evenimente" | "cununie-civila" | "logodna" | "corporate" | "inmormantare" | "trash-the-dress" | "save-the-date";
 
 export interface ReviewData {
   author: string;
@@ -430,6 +430,186 @@ export const CITIES: CityData[] = [
     venues: ["Palatul Brukenthal Avrig", "The Garden Events", "saloanele din zonă", "restauranturile locale"],
     photoSpots: ["Palatul Brukenthal", "grădinile domeniului", "zona Avrigului"],
   },
+  {
+    slug: "zalau",
+    name: "Zalău",
+    county: "Sălaj",
+    description:
+      "reședința județului Sălaj, cu o comunitate caldă și evenimente de familie unde contează naturalețea și acoperirea completă a zilei",
+    intro:
+      "În Zalău fotografiem și filmăm evenimente cu un stil curat și un ritm discret, potrivit pentru familii care vor imagini autentice.",
+    nearbyAreas: ["Șimleu Silvaniei", "Jibou", "Cehu Silvaniei", "Cluj-Napoca"],
+    venues: ["Grand Restaurant", "saloanele din centru", "restauranturile locale", "locațiile din zonă"],
+    photoSpots: ["centrul orașului", "Porolissum", "zonele verzi din apropiere"],
+  },
+  {
+    slug: "deva",
+    name: "Deva",
+    county: "Hunedoara",
+    description:
+      "un oraș cu Cetatea Devei ca fundal spectaculos, potrivit pentru cadre memorabile și evenimente elegante cu personalitate",
+    intro:
+      "La evenimentele din Deva valorificăm contextul unic al cetății și al orașului, cu o documentare curată și un ritm bine adaptat la ziua respectivă.",
+    nearbyAreas: ["Simeria", "Hunedoara", "Orăștie", "Brad"],
+    venues: ["Hotel Sarmis", "Colosseum Events", "Belvedere", "restauranturile din centru"],
+    photoSpots: ["Cetatea Devei", "Parcul Cetății", "centrul orașului"],
+  },
+  {
+    slug: "hunedoara",
+    name: "Hunedoara",
+    county: "Hunedoara",
+    description:
+      "un oraș cu Castelul Corvinilor în fundal, unul dintre cele mai spectaculoase decoare medievale din România pentru evenimente și ședințe foto",
+    intro:
+      "În Hunedoara cadrul istoric e puternic — îl folosim inteligent, fără să copleșim imaginile, cu accent pe emoție și pe oamenii zilei.",
+    nearbyAreas: ["Deva", "Simeria", "Călan", "Hațeg"],
+    venues: ["Castelul Corvinilor area", "saloanele din centru", "restauranturile locale", "locațiile din Deva"],
+    photoSpots: ["Castelul Corvinilor", "Parcul Dendrologic", "centrul vechi"],
+  },
+  {
+    slug: "sfantu-gheorghe",
+    name: "Sfântu Gheorghe",
+    county: "Covasna",
+    description:
+      "reședința județului Covasna, cu o comunitate vibrantă și un mix de tradiții care face evenimentele să aibă personalitate proprie",
+    intro:
+      "La evenimentele din Sfântu Gheorghe ne adaptăm natural la ritmul zilei și la specificul local, documentând cu atenție fiecare moment important.",
+    nearbyAreas: ["Târgu Secuiesc", "Covasna", "Bixad", "Brașov"],
+    venues: ["Sugás Hotel", "saloanele din centru", "restauranturile locale", "locațiile din zonă"],
+    photoSpots: ["Parcul Municipal", "centrul orașului", "zonele verzi din apropiere"],
+  },
+  {
+    slug: "miercurea-ciuc",
+    name: "Miercurea Ciuc",
+    county: "Harghita",
+    description:
+      "un oraș cu atmosferă autentică și tradiții puternice, unde evenimentele de familie au o căldură aparte și un caracter unic",
+    intro:
+      "În Miercurea Ciuc documentăm evenimentele cu respect față de tradiție și cu atenție la momentele reale, de la familie până la atmosfera locului.",
+    nearbyAreas: ["Cristuru Secuiesc", "Odorheiu Secuiesc", "Gheorgheni", "Toplița"],
+    venues: ["Főnix Hotel", "saloanele din centru", "restauranturile locale", "locațiile din zonă"],
+    photoSpots: ["centrul orașului", "Lacul Jigodin", "Parcul Municipal"],
+  },
+  {
+    slug: "odorheiu-secuiesc",
+    name: "Odorheiu Secuiesc",
+    county: "Harghita",
+    description:
+      "un oraș pitoresc cu events de familie, cadre curate și o comunitate apropiată care pune preț pe autenticitate",
+    intro:
+      "La evenimentele din Odorheiu Secuiesc venim cu o abordare discretă și autentică, concentrată pe oameni și pe emoția reală a zilei.",
+    nearbyAreas: ["Cristuru Secuiesc", "Miercurea Ciuc", "Sovata", "Sighișoara"],
+    venues: ["Târnava Hotel", "saloanele locale", "restauranturile din centru", "locațiile din zonă"],
+    photoSpots: ["centrul vechi", "Piața Primăriei", "zonele verzi din apropiere"],
+  },
+  {
+    slug: "fagaras",
+    name: "Făgăraș",
+    county: "Brașov",
+    description:
+      "un oraș cu Cetatea Făgărașului și Munții Făgăraș în fundal, potrivit pentru cadre naturale spectaculoase și evenimente cu personalitate",
+    intro:
+      "În Făgăraș avem cadrul natural și istoric la dispoziție — îl integrăm în documentare fără să distragă atenția de la oamenii zilei.",
+    nearbyAreas: ["Avrig", "Victoria", "Brașov", "Sibiu"],
+    venues: ["Cetatea Făgărașului area", "restauranturile din centru", "saloanele locale", "locațiile din zonă"],
+    photoSpots: ["Cetatea Făgărașului", "centrul orașului", "Munții Făgăraș"],
+  },
+  {
+    slug: "sinaia",
+    name: "Sinaia",
+    county: "Prahova",
+    description:
+      "perla Carpaților, cu Castelul Peleș și un decor montan spectaculos — una dintre destinațiile favorite pentru nunți de vis și ședințe foto elegante",
+    intro:
+      "La evenimentele din Sinaia mizăm pe decorul natural excepțional, pe cadre elegante și pe o documentare curată care pune în valoare locul și oamenii.",
+    nearbyAreas: ["Predeal", "Bușteni", "Azuga", "Comarnic"],
+    venues: ["Castelul Peleș area", "Palace Hotel", "Rina Sinaia", "Montana Hotel"],
+    photoSpots: ["Castelul Peleș", "Castelul Pelișor", "Parcul Dimitrie Ghica"],
+  },
+  {
+    slug: "predeal",
+    name: "Predeal",
+    county: "Brașov",
+    description:
+      "cea mai înaltă stațiune din România, cu aer de munte, peisaje curate și un ritm relaxat — ideal pentru eventos intime și ședințe foto în natură",
+    intro:
+      "În Predeal documentăm evenimente unde natura face jumătate din treabă — noi ne concentrăm pe oameni, pe lumina de munte și pe momentele autentice.",
+    nearbyAreas: ["Sinaia", "Azuga", "Brașov", "Râșnov"],
+    venues: ["Rozmarin Hotel", "Cioplea Hotel", "Cerbul", "locațiile din zonă"],
+    photoSpots: ["pârtiile și pădurile din jur", "centrul stațiunii", "Dealul Clăbucet"],
+  },
+  {
+    slug: "baia-mare",
+    name: "Baia Mare",
+    county: "Maramureș",
+    description:
+      "cel mai mare oraș din Maramureș, cu viață culturală bogată, locații bune și evenimente cu tradiție și energie proprie",
+    intro:
+      "La evenimentele din Baia Mare livrăm foto-video cu un stil curat și un ritm adaptat la programul real al zilei, de la pregătiri până la petrecere.",
+    nearbyAreas: ["Tăuții-Măgherăuș", "Baia Sprie", "Sighetu Marmației", "Cavnic"],
+    venues: ["Hotel Eurohotel", "Riviera Events", "saloanele din centru", "restauranturile locale"],
+    photoSpots: ["Piața Libertății", "Turnul Ștefan", "Parcul Municipal"],
+  },
+  {
+    slug: "satu-mare",
+    name: "Satu Mare",
+    county: "Satu Mare",
+    description:
+      "un oraș cu influențe centrale-europene, clădiri elegante și o scenă de evenimente activă, bun pentru nunți clasice și botezuri cu familie mare",
+    intro:
+      "În Satu Mare acoperim evenimente cu un stil echilibrat, curat și adaptat la ritmul familiei, cu livrare rapidă și atenție la detalii.",
+    nearbyAreas: ["Carei", "Ardud", "Negrești-Oaș", "Zalău"],
+    venues: ["Hotel Dacia", "Astoria Events", "Melody Hall", "saloanele din centru"],
+    photoSpots: ["Piața Libertății", "Turnul Pompierilor", "Parcul Dodici"],
+  },
+  {
+    slug: "petrosani",
+    name: "Petroșani",
+    county: "Hunedoara",
+    description:
+      "centrul Văii Jiului, un oraș cu comunitate puternică și evenimente de familie unde apropierea și autenticitatea sunt pe primul loc",
+    intro:
+      "La evenimentele din Petroșani venim cu o documentare sinceră, adaptată la ritmul specific al zilei și la importanța momentelor de familie.",
+    nearbyAreas: ["Vulcan", "Lupeni", "Uricani", "Deva"],
+    venues: ["saloanele din centru", "restauranturile locale", "hotelurile din zonă", "locațiile din Vale"],
+    photoSpots: ["centrul orașului", "zonele montane din jur", "Parâng"],
+  },
+  {
+    slug: "orastie",
+    name: "Orăștie",
+    county: "Hunedoara",
+    description:
+      "un oraș cu istorie dacică bogată și evenimente de familie calde, bun pentru documentare autentică și cadre naturale",
+    intro:
+      "La evenimentele din Orăștie documentăm cu atenție la specificul local și la momentele care fac ziua memorabilă pentru toată familia.",
+    nearbyAreas: ["Deva", "Simeria", "Călan", "Sebeș"],
+    venues: ["saloanele din centru", "restauranturile locale", "locațiile din zonă", "Costești area"],
+    photoSpots: ["Sarmizegetusa Regia", "centrul vechi", "zonele verzi"],
+  },
+  {
+    slug: "toplita",
+    name: "Toplița",
+    county: "Harghita",
+    description:
+      "un orășel la poalele munților, cu natură autentică și evenimente de familie cu atmosferă caldă și tradițională",
+    intro:
+      "La evenimentele din Toplița mizăm pe autenticitate, natură și cadre curate care surprind familia fără artificii inutile.",
+    nearbyAreas: ["Gheorgheni", "Reghin", "Miercurea Ciuc", "Ditrău"],
+    venues: ["saloanele locale", "restauranturile din centru", "pensiunile din zonă", "locațiile din apropiere"],
+    photoSpots: ["centrul orașului", "Parcul Mureșul", "zonele montane din jur"],
+  },
+  {
+    slug: "gheorgheni",
+    name: "Gheorgheni",
+    county: "Harghita",
+    description:
+      "un oraș din inima Harghitei, cu peisaje spectaculoase și evenimente de familie cu caracter autentic și comunitar",
+    intro:
+      "La evenimentele din Gheorgheni documentăm cu respect față de tradiție și cu atenție la momentele care fac ziua specială pentru familie.",
+    nearbyAreas: ["Toplița", "Borsec", "Ditrău", "Miercurea Ciuc"],
+    venues: ["saloanele locale", "hotelurile din centru", "restauranturile din zonă", "locațiile din apropiere"],
+    photoSpots: ["centrul orașului", "Lacul Roșu", "Cheile Bicazului"],
+  },
 ];
 
 export const SERVICES: ServiceData[] = [
@@ -472,6 +652,66 @@ export const SERVICES: ServiceData[] = [
     description:
       "Oferim foto, video și pachete complete pentru evenimente private, aniversări, petreceri restrânse și momente de familie unde contează discreția și livrarea rapidă.",
     shortPitch: "pentru clienți care vor acoperire completă foto-video și un furnizor care se adaptează ușor la tipul evenimentului",
+  },
+  {
+    slug: "cununie-civila",
+    name: "Cununie Civilă",
+    accusative: "cununia civilă",
+    plural: "cununii civile",
+    nameLong: "Fotografie și videografie pentru cununie civilă",
+    description:
+      "Cununia civilă e un moment scurt dar plin de emoție. Documentăm discret întreaga ceremonie — de la pregătiri, la semnătură, până la prima poză de cuplu.",
+    shortPitch: "pentru cupluri care vor imagini curate și emoție autentică la cununia civilă, fără pauze forțate sau cadre artificiale",
+  },
+  {
+    slug: "logodna",
+    name: "Logodnă",
+    accusative: "logodna",
+    plural: "logodne",
+    nameLong: "Fotografie și videografie pentru logodnă și inel de cerere",
+    description:
+      "Surprindem cererea în căsătorie sau ședința de logodnă cu discreție și naturalețe — cadre curate, emoție reală și imagini care spun o poveste.",
+    shortPitch: "pentru cupluri care vor să surprindă cererea în căsătorie sau să facă o ședință de logodnă cu cadre autentice",
+  },
+  {
+    slug: "corporate",
+    name: "Corporate",
+    accusative: "evenimentul corporate",
+    plural: "evenimente corporate",
+    nameLong: "Fotografie și videografie pentru evenimente corporate",
+    description:
+      "Acoperim conferințe, team building-uri, lansări de produse și evenimente de business cu un stil profesionist, discret și livrat rapid.",
+    shortPitch: "pentru companii care au nevoie de foto-video profesionist la evenimente corporate, conferințe sau activări de brand",
+  },
+  {
+    slug: "inmormantare",
+    name: "Înmormântare",
+    accusative: "înmormântarea",
+    plural: "înmormântări",
+    nameLong: "Fotografie și videografie pentru înmormântare și priveghi",
+    description:
+      "Documentăm cu maximă discreție și respect ceremoniile de înmormântare, pomenire și priveghi — pentru ca familia să păstreze amintiri dincolo de durere.",
+    shortPitch: "pentru familii care doresc o documentare discretă și respectuoasă a ceremoniei de înmormântare sau priveghi",
+  },
+  {
+    slug: "trash-the-dress",
+    name: "Trash the Dress",
+    accusative: "ședința trash the dress",
+    plural: "ședințe trash the dress",
+    nameLong: "Fotografie Trash the Dress — ședință foto după nuntă",
+    description:
+      "O ședință foto îndrăzneață cu rochia de mireasă, după nuntă — în apă, în natură sau în locații neconvenționale. Cadre curate, energie autentică.",
+    shortPitch: "pentru mirese care vor o ședință foto creativă și neconvențională cu rochia de nuntă, după marele eveniment",
+  },
+  {
+    slug: "save-the-date",
+    name: "Save the Date",
+    accusative: "ședința save the date",
+    plural: "ședințe save the date",
+    nameLong: "Fotografie Save the Date — ședință foto înainte de nuntă",
+    description:
+      "Ședința save the date e prima oară când fotografiem cuplul împreună — relaxat, natural, fără presiunea zilei mari. Cadre pentru invitații și amintiri.",
+    shortPitch: "pentru cupluri care vor o ședință foto relaxată înainte de nuntă, pentru save the date sau albumul de cuplu",
   },
 ];
 
