@@ -58,14 +58,32 @@ const CITIES = [
   "Zalău", "Șimleu Silvaniei",
 ];
 
-const MESSAGE_TEMPLATES = {
-  whatsapp: (venueName: string) =>
-    `Bună ziua! 👋\n\nSuntem AncaVisuals, o echipă foto-video specializată în nunți, botezuri și majorate.\n\nAm admirat locația dumneavoastră — ${venueName} — și ne-am dori să discutăm o posibilă colaborare.\n\nMulți dintre clienții care rezervă la dumneavoastră caută și un fotograf/cameraman. Am putea fi recomandați reciproc.\n\nPortofoliul nostru: ancavisuals.ro\n\nVă mulțumim!`,
-  email: (venueName: string) =>
-    `Bună ziua,\n\nSuntem echipa AncaVisuals, specializați în fotografie și videografie pentru nunți, botezuri și majorate.\n\nAm observat că ${venueName} este o locație apreciată pentru evenimente speciale și ne-am dori să explorăm o posibilă colaborare de recomandare reciprocă.\n\nClienții dumneavoastră care organizează nunți sau botezuri au nevoie și de servicii foto-video profesionale. Am fi bucuroși să fim recomandați și, la rândul nostru, să vă promovăm locația clienților noștri.\n\nPortofoliu complet: ancavisuals.ro\n\nSuntem disponibili pentru o discuție oricând.\n\nCu stimă,\nEchipa AncaVisuals`,
-  emailSubject: (venueName: string) => `Propunere colaborare foto-video — AncaVisuals & ${venueName}`,
-  sms: () =>
-    `Bună! Suntem AncaVisuals, echipă foto-video pentru nunți și evenimente. Dorim colaborare cu locații de evenimente. Portofoliu: ancavisuals.ro`,
+type Category = "venue" | "rochii-mirese";
+
+const MESSAGE_TEMPLATES: Record<Category, {
+  whatsapp: (name: string) => string;
+  email: (name: string) => string;
+  emailSubject: (name: string) => string;
+  sms: () => string;
+}> = {
+  venue: {
+    whatsapp: (venueName) =>
+      `Bună ziua! 👋\n\nSuntem AncaVisuals, o echipă foto-video specializată în nunți, botezuri și majorate.\n\nAm admirat locația dumneavoastră — ${venueName} — și ne-am dori să discutăm o posibilă colaborare.\n\nMulți dintre clienții care rezervă la dumneavoastră caută și un fotograf/cameraman. Am putea fi recomandați reciproc.\n\nPortofoliul nostru: ancavisuals.ro\n\nVă mulțumim!`,
+    email: (venueName) =>
+      `Bună ziua,\n\nSuntem echipa AncaVisuals, specializați în fotografie și videografie pentru nunți, botezuri și majorate.\n\nAm observat că ${venueName} este o locație apreciată pentru evenimente speciale și ne-am dori să explorăm o posibilă colaborare de recomandare reciprocă.\n\nClienții dumneavoastră care organizează nunți sau botezuri au nevoie și de servicii foto-video profesionale. Am fi bucuroși să fim recomandați și, la rândul nostru, să vă promovăm locația clienților noștri.\n\nPortofoliu complet: ancavisuals.ro\n\nSuntem disponibili pentru o discuție oricând.\n\nCu stimă,\nEchipa AncaVisuals`,
+    emailSubject: (venueName) => `Propunere colaborare foto-video — AncaVisuals & ${venueName}`,
+    sms: () =>
+      `Bună! Suntem AncaVisuals, echipă foto-video pentru nunți și evenimente. Dorim colaborare cu locații de evenimente. Portofoliu: ancavisuals.ro`,
+  },
+  "rochii-mirese": {
+    whatsapp: (shopName) =>
+      `Bună ziua! 👋\n\nSuntem AncaVisuals, o echipă foto-video specializată în nunți.\n\nClienții care aleg rochia la ${shopName} au nevoie și de un fotograf profesionist. Ne-am dori să discutăm o posibilă colaborare de recomandare reciprocă.\n\nPortofoliul nostru: ancavisuals.ro\n\nVă mulțumim!`,
+    email: (shopName) =>
+      `Bună ziua,\n\nSuntem echipa AncaVisuals, specializați în fotografie și videografie pentru nunți.\n\nMiresele care aleg rochia la ${shopName} sunt exact clientele care au nevoie și de un fotograf de nuntă de calitate. Ne-am dori să explorăm o colaborare de recomandare reciprocă.\n\nLa rândul nostru, le vom recomanda mireselor noastre salonul dumneavoastră.\n\nPortofoliu complet: ancavisuals.ro\n\nSuntem disponibili pentru o discuție oricând.\n\nCu stimă,\nEchipa AncaVisuals`,
+    emailSubject: (shopName) => `Propunere colaborare foto-video nuntă — AncaVisuals & ${shopName}`,
+    sms: () =>
+      `Bună! Suntem AncaVisuals, foto-video nuntă. Dorim colaborare cu saloane de rochii mireasă — recomandări reciproce. Portofoliu: ancavisuals.ro`,
+  },
 };
 
 type Tab = "search" | "contacted";
@@ -76,6 +94,7 @@ export default function VenueOutreachPage() {
   const { auth } = useAuth();
   const authHeader = { Authorization: `Bearer ${auth.accessToken}` };
 
+  const [category, setCategory] = useState<Category>("venue");
   const [tab, setTab] = useState<Tab>("search");
   const [city, setCity] = useState("Cluj-Napoca");
   const [customCity, setCustomCity] = useState("");
@@ -172,6 +191,7 @@ export default function VenueOutreachPage() {
     setVenueEmails({});
     try {
       const params = new URLSearchParams();
+      params.set("category", category);
       if (keyword.trim()) {
         params.set("keyword", keyword.trim());
         if (effectiveCity) params.set("city", effectiveCity);
@@ -203,12 +223,14 @@ export default function VenueOutreachPage() {
     else setSelected(new Set(venues.map((venue) => venue.placeId)));
   };
 
+  const tpl = MESSAGE_TEMPLATES[category];
+
   const getTemplate = (venue: Venue) => {
     const base = customMessage.trim();
     if (base) return base;
-    if (activeTemplate === "whatsapp") return MESSAGE_TEMPLATES.whatsapp(venue.name);
-    if (activeTemplate === "sms") return MESSAGE_TEMPLATES.sms();
-    return MESSAGE_TEMPLATES.email(venue.name);
+    if (activeTemplate === "whatsapp") return tpl.whatsapp(venue.name);
+    if (activeTemplate === "sms") return tpl.sms();
+    return tpl.email(venue.name);
   };
 
   const toggleChannel = (ch: "whatsapp" | "email" | "sms") => {
@@ -247,7 +269,7 @@ export default function VenueOutreachPage() {
   const sendWhatsApp = (venue: Venue) => void sendViaApi(venue, "whatsapp");
 
   const sendEmail = (venue: Venue) => {
-    const subject = encodeURIComponent(MESSAGE_TEMPLATES.emailSubject(venue.name));
+    const subject = encodeURIComponent(tpl.emailSubject(venue.name));
     const body = encodeURIComponent(getTemplate(venue));
     const to = encodeURIComponent(venueEmails[venue.placeId] ?? "");
     window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`, "_blank");
@@ -287,6 +309,28 @@ export default function VenueOutreachPage() {
       <p style={{ color: "#888", fontSize: 13, marginBottom: 20 }}>
         Caută restaurante și săli de evenimente și trimite-le un mesaj de colaborare.
       </p>
+
+      {/* Category selector */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {([
+          { key: "venue", label: "🏛 Venue & Restaurante" },
+          { key: "rochii-mirese", label: "👗 Rochii Mireasă" },
+        ] as { key: Category; label: string }[]).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => { setCategory(key); setVenues([]); setSelected(new Set()); setVenueEmails({}); }}
+            style={{
+              padding: "8px 18px", borderRadius: 8, border: "1px solid",
+              borderColor: category === key ? "#c9a96e" : "#333",
+              background: category === key ? "#c9a96e22" : "transparent",
+              color: category === key ? "#c9a96e" : "#666",
+              fontWeight: 700, fontSize: 13, cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid #222" }}>
@@ -383,14 +427,14 @@ export default function VenueOutreachPage() {
 
                 {editingTemplate ? (
                   <textarea
-                    value={customMessage || MESSAGE_TEMPLATES[activeTemplate === "email" ? "email" : activeTemplate === "sms" ? "sms" : "whatsapp"](venues[0]?.name ?? "Locație")}
+                    value={customMessage || (activeTemplate === "sms" ? tpl.sms() : activeTemplate === "email" ? tpl.email(venues[0]?.name ?? "Locație") : tpl.whatsapp(venues[0]?.name ?? "Locație"))}
                     onChange={(e) => setCustomMessage(e.target.value)}
                     rows={8}
                     style={{ width: "100%", background: "#0f0f0f", border: "1px solid #333", borderRadius: 6, color: "#ddd", padding: 12, fontSize: 13, fontFamily: "monospace", resize: "vertical", boxSizing: "border-box" }}
                   />
                 ) : (
                   <pre style={{ background: "#0f0f0f", borderRadius: 6, padding: 12, color: "#bbb", fontSize: 12, whiteSpace: "pre-wrap", margin: 0, maxHeight: 180, overflow: "auto" }}>
-                    {MESSAGE_TEMPLATES[activeTemplate === "email" ? "email" : activeTemplate === "sms" ? "sms" : "whatsapp"](venues[0]?.name ?? "Locație")}
+                    {activeTemplate === "sms" ? tpl.sms() : activeTemplate === "email" ? tpl.email(venues[0]?.name ?? "Locație") : tpl.whatsapp(venues[0]?.name ?? "Locație")}
                   </pre>
                 )}
               </div>

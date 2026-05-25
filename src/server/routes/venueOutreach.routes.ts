@@ -14,13 +14,22 @@ const PLACES_KEY =
 
 const LOG_COLLECTION = "venueOutreachLog";
 
-const SEARCH_QUERIES = [
-  "sală de nunți",
-  "restaurant evenimente",
-  "salon petreceri",
-  "locație nuntă",
-  "restaurant nuntă",
-];
+const SEARCH_QUERIES: Record<string, string[]> = {
+  venue: [
+    "sală de nunți",
+    "restaurant evenimente",
+    "salon petreceri",
+    "locație nuntă",
+    "restaurant nuntă",
+  ],
+  "rochii-mirese": [
+    "magazin rochii mireasă",
+    "atelier rochii de mireasă",
+    "rochii nuntă",
+    "salon rochii mireasă",
+    "boutique rochii mireasă",
+  ],
+};
 
 function toSlug(text: string): string {
   return text
@@ -68,6 +77,7 @@ async function fetchDetails(placeId: string): Promise<PlacesDetailsResult> {
 router.get("/venue-outreach/search", async (req, res) => {
   const city = (req.query.city as string | undefined)?.trim();
   const keyword = (req.query.keyword as string | undefined)?.trim();
+  const category = ((req.query.category as string | undefined)?.trim()) || "venue";
 
   if (!city && !keyword) {
     res.status(400).json({ error: "city or keyword param required" });
@@ -84,7 +94,6 @@ router.get("/venue-outreach/search", async (req, res) => {
     const venues: PlacesTextResult[] = [];
 
     if (keyword) {
-      // Direct keyword search — use keyword as the query, city as location filter if provided
       const queryString = city ? `${keyword} ${city}` : keyword;
       const encoded = encodeURIComponent(queryString);
       const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encoded}&language=ro&region=ro&key=${PLACES_KEY}`;
@@ -100,7 +109,8 @@ router.get("/venue-outreach/search", async (req, res) => {
         }
       }
     } else {
-      for (const query of SEARCH_QUERIES) {
+      const queries = SEARCH_QUERIES[category] ?? SEARCH_QUERIES["venue"];
+      for (const query of queries) {
         const results = await textSearch(query, city!);
         for (const place of results) {
           if (!seen.has(place.place_id)) {
