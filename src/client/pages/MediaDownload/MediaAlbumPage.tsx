@@ -1955,18 +1955,21 @@ export default function MediaAlbumPage() {
       {!isMobile && showcasePhotos.length > 0 && (
         <div
           style={{
-            columnCount: 4,
-            columnGap: "2px",
+            display: "flex",
+            gap: "3px",
+            flexWrap: "nowrap",
             padding: 0,
+            overflow: "hidden",
           }}
         >
-          {showcasePhotos.slice(0, 12).map((url, i) => (
+          {Array.from({ length: 18 }, (_, i) => showcasePhotos[i % showcasePhotos.length]).map((url, i) => (
             <div
               key={i}
               style={{
+                flex: "1 1 0",
+                minWidth: 0,
+                aspectRatio: "1 / 1",
                 overflow: "hidden",
-                breakInside: "avoid",
-                marginBottom: "2px",
               }}
             >
               <img
@@ -1974,7 +1977,7 @@ export default function MediaAlbumPage() {
                 alt=""
                 style={{
                   width: "100%",
-                  height: "auto",
+                  height: "100%",
                   objectFit: "cover",
                   opacity: 0.75,
                   display: "block",

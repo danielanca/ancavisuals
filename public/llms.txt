@@ -29,9 +29,11 @@ Ce trebuie înțeles despre site:
 
 - [Acasă](https://www.ancavisuals.ro/): prezentare generală, stil vizual, introducere în servicii.
 - [Portofoliu](https://www.ancavisuals.ro/portofoliu): galerie foto și video.
-- [Orașe](https://www.ancavisuals.ro/orase): hub local cu orașe și linkuri spre paginile dedicate.
-- [Contact / Configurator ofertă](https://www.ancavisuals.ro/contact): verificare disponibilitate și cerere ofertă.
+- [Orașe](https://www.ancavisuals.ro/orase): hub local cu toate orașele acoperite și linkuri spre paginile dedicate pe serviciu.
+- [Contact / Configurator ofertă](https://www.ancavisuals.ro/contact): verificare disponibilitate și cerere ofertă personalizată.
 - [Despre](https://www.ancavisuals.ro/despre): prezentare studio și abordare.
+- [Bio](https://www.ancavisuals.ro/bio): prezentare scurtă a fotografului, optimizată pentru link-in-bio.
+- [Blog](https://www.ancavisuals.ro/blog): articole despre nunți, botezuri și sfaturi practice pentru clienți.
 
 ## Hub-uri servicii
 
@@ -57,12 +59,24 @@ Ce trebuie înțeles despre site:
 - [Foto video evenimente Turda](https://www.ancavisuals.ro/foto-video-evenimente-turda): pagină locală pentru evenimente private în Turda.
 - [Foto video evenimente Bistrița](https://www.ancavisuals.ro/foto-video-evenimente-bistrita): pagină locală pentru evenimente private în Bistrița.
 
+## Articole editoriale de blog
+
+- [Ce trebuie să știi la nuntă](https://www.ancavisuals.ro/blog/ce-trebuie-sa-stii-la-nunta): ghid complet pentru cupluri aflate la prima nuntă.
+- [Ghid mireasă prima nuntă](https://www.ancavisuals.ro/blog/ghid-mireasa-prima-nunta): sfaturi practice pentru ziua nunții.
+- [Fotograf sau videograf la nuntă](https://www.ancavisuals.ro/blog/fotograf-sau-videograf-nunta): comparație și recomandări pentru alegerea serviciului potrivit.
+- [Cum să alegi fotograful de nuntă](https://www.ancavisuals.ro/blog/cum-sa-alegi-fotograful-de-nunta): criterii de selecție și întrebări cheie de adresat.
+- [Acte necesare botez](https://www.ancavisuals.ro/blog/acte-necesare-botez): lista documentelor necesare pentru botez în România.
+- [Acte necesare căsătorie primărie](https://www.ancavisuals.ro/blog/acte-necesare-casatorie-primarie): lista documentelor necesare pentru cununia civilă.
+
+Există serii de articole locale cu aceleași informații adaptate per oraș: `acte-botez-{oras}` și `acte-casatorie-primarie-{oras}` pentru toate orașele acoperite.
+
 ## Semnale de încredere
 
 - [Google review excerpts and local proof on service pages](https://www.ancavisuals.ro/foto-video-nunta-cluj): recenzii Google afișate pe paginile locale.
 - [Configurare ofertă](https://www.ancavisuals.ro/contact): cerere directă de ofertă pentru foto, video sau foto-video.
 
-## Optional
+## Legal
 
 - [Politică de confidențialitate](https://www.ancavisuals.ro/privacy)
 - [Termeni și condiții](https://www.ancavisuals.ro/terms)
+- [Drepturi de autor](https://www.ancavisuals.ro/copyright)

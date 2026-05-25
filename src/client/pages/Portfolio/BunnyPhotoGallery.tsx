@@ -98,10 +98,8 @@ export default function BunnyPhotoGallery({
 
   const columnCount = useMemo(() => {
     if (isMobile) return mobileColumns ?? 2;
-    const width = size.width;
-    if (width >= 1280) return 5;
     return 4;
-  }, [isMobile, size.width, mobileColumns]);
+  }, [isMobile, mobileColumns]);
 
   const gap = 16;
 
