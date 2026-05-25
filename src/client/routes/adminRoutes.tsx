@@ -41,6 +41,7 @@ const OfferTemplateOrganizerPage = loadable(() => import("../features/admin/comp
 const MediaAssetsAdminPage = loadable(() => import("../features/admin/components/MediaAssetsAdminPage"), opts);
 const VenueOutreachPage = loadable(() => import("../features/admin/components/VenueOutreachPage"), opts);
 const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/components/ShowcaseZoneEditorPage"), opts);
+const SeoGeneratorPage = loadable(() => import("../features/admin/components/SeoGeneratorPage"), opts);
 
 
 export const adminRoutes = [
@@ -76,6 +77,7 @@ export const adminRoutes = [
       <Route path="/admin/template-oferte" element={<OfferTemplateAdminPage />} />
       <Route path="/admin/template-oferte/:serviceId" element={<OfferTemplateOrganizerPage />} />
       <Route path="/admin/showcase" element={<ShowcaseZoneEditorPage />} />
+      <Route path="/admin/seo-generator" element={<SeoGeneratorPage />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>

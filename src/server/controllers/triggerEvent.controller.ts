@@ -10,6 +10,7 @@ interface TypeEvent {
   url: string;
   browserVersion: string;
   referrer?: string;
+  isNewVisitor?: boolean;
 }
 
 const COOLDOWN_MS = 18 * 60 * 60 * 1000; // 18 hours
@@ -65,6 +66,9 @@ export const triggerEvent = async (request: Request, response: Response) => {
       return;
     }
 
+    const isNew = triggerData.isNewVisitor !== false;
+    const visitorLabel = isNew ? "🆕 Vizitator NOU" : "🔁 Vizitator cunoscut";
+
     const emailHtml = renderTriggerTemplate({
       typeEvent: triggerData.typeEvent,
       url: triggerData.url,
@@ -73,11 +77,12 @@ export const triggerEvent = async (request: Request, response: Response) => {
       ipInfo,
       clientIp,
       timestamp: todayString,
+      isNewVisitor: isNew,
     });
 
     await sendEmail({
       to: adminUser.email,
-      subject: `👁 Vizitator nou — ${triggerData.typeEvent ?? "Vizitator"} — ${todayString}`,
+      subject: `${visitorLabel} — ${triggerData.url} — ${todayString}`,
       html: emailHtml,
     });
 

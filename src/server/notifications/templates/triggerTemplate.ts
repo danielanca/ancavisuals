@@ -8,6 +8,7 @@ interface TriggerTemplateData {
   ipInfo: IpInfo | null;
   clientIp: string;
   timestamp: string;
+  isNewVisitor?: boolean;
 }
 
 function detectSource(referrer: string): { label: string; color: string; emoji: string } {
@@ -66,10 +67,13 @@ function row(label: string, value: string, valueColor = "#111827"): string {
 }
 
 export function renderTriggerTemplate(data: TriggerTemplateData): string {
-  const { typeEvent, url, browserVersion, referrer = "direct", ipInfo, clientIp, timestamp } = data;
+  const { typeEvent, url, browserVersion, referrer = "direct", ipInfo, clientIp, timestamp, isNewVisitor = true } = data;
   const source = detectSource(referrer);
   const { device, browser, os } = parseDevice(browserVersion);
   const mapsLink = buildMapsLink(ipInfo?.loc);
+  const visitorBadge = isNewVisitor
+    ? `<span style="display:inline-block;background:#dcfce7;color:#15803d;font-size:11px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:20px;text-transform:uppercase;">🆕 Vizitator NOU</span>`
+    : `<span style="display:inline-block;background:#f3f4f6;color:#6b7280;font-size:11px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:20px;text-transform:uppercase;">🔁 Vizitator cunoscut</span>`;
 
   const locationStr = [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(Boolean).join(", ") || "—";
   const coordsStr = ipInfo?.loc
@@ -96,6 +100,7 @@ export function renderTriggerTemplate(data: TriggerTemplateData): string {
             <td style="background:#111827;border-radius:12px 12px 0 0;padding:28px 32px;">
               <p style="margin:0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9ca3af;">AncaVisuals</p>
               <h1 style="margin:8px 0 0;font-size:22px;font-weight:600;color:#ffffff;">${typeEvent}</h1>
+              <p style="margin:6px 0 0;">${visitorBadge}</p>
               <p style="margin:6px 0 0;font-size:13px;color:#6b7280;">${timestamp}</p>
             </td>
           </tr>

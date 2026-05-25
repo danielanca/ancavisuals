@@ -3,12 +3,13 @@ import { destination } from "./address";
 interface EventsTrigger {
   typeEvent: string;
   url: string;
+  isNewVisitor?: boolean;
 }
 
 const sanitizeInput = (input: string): string =>
   input.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-export const sendTriggerEmail = async ({ typeEvent, url }: EventsTrigger) => {
+export const sendTriggerEmail = async ({ typeEvent, url, isNewVisitor }: EventsTrigger) => {
   if (!typeEvent || !url) {
     throw new Error("Invalid input: typeEvent and url are required.");
   }
@@ -22,6 +23,7 @@ export const sendTriggerEmail = async ({ typeEvent, url }: EventsTrigger) => {
       url: sanitizeInput(url),
       browserVersion: navigator.userAgent,
       referrer: sanitizeInput(document.referrer || "direct"),
+      isNewVisitor: isNewVisitor ?? true,
     }),
   });
 
