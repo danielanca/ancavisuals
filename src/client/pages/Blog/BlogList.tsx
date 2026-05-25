@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
+import MediaPromoFooter from "../../components/Marketing/MediaPromoFooter";
 import Footer from "../../components/Navbar/Footer";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
 import { BLOG_POSTS } from "../../../../data/blogManifest";
@@ -65,6 +66,7 @@ const BlogList: React.FC = () => {
         </div>
       </main>
 
+      <MediaPromoFooter />
       <Footer />
     </>
   );
