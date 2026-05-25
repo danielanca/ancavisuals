@@ -1957,16 +1957,18 @@ export default function MediaAlbumPage() {
           style={{
             display: "flex",
             gap: "2px",
-            flexWrap: "wrap",
+            flexWrap: "nowrap",
             padding: 0,
+            overflow: "hidden",
           }}
         >
-          {showcasePhotos.slice(0, 16).map((url, i) => (
+          {Array.from({ length: 24 }, (_, i) => showcasePhotos[i % showcasePhotos.length]).map((url, i) => (
             <div
               key={i}
               style={{
-                width: "80px",
-                height: "80px",
+                flex: "1 1 0",
+                minWidth: 0,
+                aspectRatio: "1 / 1",
                 overflow: "hidden",
                 flexShrink: 0,
               }}
@@ -1975,8 +1977,8 @@ export default function MediaAlbumPage() {
                 src={url}
                 alt=""
                 style={{
-                  width: "80px",
-                  height: "80px",
+                  width: "100%",
+                  height: "100%",
                   objectFit: "cover",
                   opacity: 0.75,
                   display: "block",
