@@ -44,6 +44,7 @@ import weddingChecklistRouter from "./src/server/routes/weddingChecklist.routes"
 import weddingTimelineRouter from "./src/server/routes/weddingTimeline.routes";
 import weddingRemindersRouter from "./src/server/routes/weddingReminders.routes";
 import oferteRouter from "./src/server/routes/oferte.routes";
+import venueOutreachRouter from "./src/server/routes/venueOutreach.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
@@ -155,6 +156,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.admin, inspirationRouter);
   app.use(API_ROUTE_PREFIXES.admin, mementosRouter);
   app.use(API_ROUTE_PREFIXES.admin, accountsRouter);
+  app.use(API_ROUTE_PREFIXES.admin, venueOutreachRouter);
   app.use("/api/analytics", analyticsPublicRouter);
   app.use(API_ROUTE_PREFIXES.admin, analyticsAdminRouter);
   app.use("/api/moderare", moderationRouter);
