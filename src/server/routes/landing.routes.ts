@@ -103,6 +103,48 @@ router.post(
   }
 );
 
+// Add a photo from existing library (proposals / media assets) by URL — no file upload needed
+router.post("/gallery/add-from-library", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { url, altText } = req.body as { url: string; altText?: string };
+    if (!url) { res.status(400).json({ error: "URL lipsă" }); return; }
+    const db = firestore();
+    const countSnapshot = await db.collection("landing_gallery").count().get();
+    const totalCount = countSnapshot.data().count ?? 0;
+    const docRef = await db.collection("landing_gallery").add({
+      url,
+      bunnyPath: "",
+      altText: altText ?? "",
+      order: totalCount,
+    });
+    res.status(201).json({ id: docRef.id, url });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// Return available photo sources (approved proposals + media assets)
+router.get("/gallery/sources", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const [proposalsSnap, assetsSnap] = await Promise.all([
+      db.collection("instagramProposals").where("status", "==", "accepted").get(),
+      db.collection("offer_media_assets").get(),
+    ]);
+    const proposals = proposalsSnap.docs.map((doc) => {
+      const data = doc.data();
+      return { id: doc.id, photoUrl: String(data.photoUrl ?? ""), albumSlug: String(data.albumSlug ?? "") };
+    });
+    const assets = assetsSnap.docs.map((doc) => {
+      const data = doc.data();
+      return { id: doc.id, url: String(data.url ?? ""), label: String(data.label ?? "") };
+    });
+    res.json({ proposals, assets });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 router.put("/gallery/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     await firestore().collection("landing_gallery").doc(req.params.id).update(req.body);

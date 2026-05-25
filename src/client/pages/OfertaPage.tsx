@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { remoteAddress } from "../utils/address";
 import { useParams } from "react-router-dom";
+import CampaignLandingPage, { type CampaignPage } from "./CampaignLanding/CampaignLandingPage";
 
 type OfferServiceSection = {
   id: string;
@@ -45,6 +46,7 @@ function viewSessionKey(slug: string) {
 export default function OfertaPage() {
   const { slug = "" } = useParams<{ slug?: string }>();
   const [offer, setOffer] = useState<Offer | null>(null);
+  const [campaign, setCampaign] = useState<CampaignPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -59,7 +61,14 @@ export default function OfertaPage() {
 
     fetch(`/api/oferte/${slug}`)
       .then(async (response) => {
-        if (!response.ok) { setNotFound(true); return; }
+        if (!response.ok) {
+          // Not a client offer — check if it's a campaign landing page
+          return fetch(`/api/campaign/public/${slug}`).then(async (campaignResponse) => {
+            if (!campaignResponse.ok) { setNotFound(true); return; }
+            const data = await campaignResponse.json() as CampaignPage;
+            setCampaign(data);
+          });
+        }
         const data = await response.json() as Offer;
         setOffer(data);
       })
@@ -111,6 +120,8 @@ export default function OfertaPage() {
       </div>
     );
   }
+
+  if (campaign) return <CampaignLandingPage page={campaign} />;
 
   if (notFound || !offer) {
     return (
