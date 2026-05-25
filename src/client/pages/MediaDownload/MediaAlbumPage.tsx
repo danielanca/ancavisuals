@@ -1974,7 +1974,7 @@ export default function MediaAlbumPage() {
                 alt=""
                 style={{
                   width: "100%",
-                  height: "auto",
+                  height: "110px",
                   objectFit: "cover",
                   opacity: 0.75,
                   display: "block",
