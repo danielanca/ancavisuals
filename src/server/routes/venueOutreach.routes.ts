@@ -162,7 +162,7 @@ router.get("/venue-outreach/extract-email", async (req, res) => {
     clearTimeout(timeout);
 
     const html = await response.text();
-    const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
     const found = html.match(emailRegex) ?? [];
 
     const blacklist = ["sentry", "wixpress", "example", "schema", "pixel", "cloudflare", "jquery", "bootstrap", "fontawesome", "google", "facebook", "w3.org", "wordpress", "github"];
