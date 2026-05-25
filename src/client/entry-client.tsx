@@ -1,4 +1,10 @@
 import React from "react";
+
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 // ⬇️ pune la loc importul CLASIC:
@@ -33,6 +39,18 @@ const bootstrapUsercentrics = () => {
 };
 
 bootstrapUsercentrics();
+
+if (!LOCAL_HOSTS.has(window.location.hostname)) {
+  import("./firebase").then(({ auth }) => {
+    import("firebase/auth").then(({ onAuthStateChanged }) => {
+      onAuthStateChanged(auth, (user) => {
+        if (user && typeof window.gtag === "function") {
+          window.gtag("set", { traffic_type: "internal" });
+        }
+      });
+    });
+  });
+}
 
 const container = document.getElementById("app");
 
