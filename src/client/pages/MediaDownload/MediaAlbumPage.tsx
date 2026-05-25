@@ -1955,26 +1955,28 @@ export default function MediaAlbumPage() {
       {!isMobile && showcasePhotos.length > 0 && (
         <div
           style={{
-            columnCount: 4,
-            columnGap: "2px",
+            display: "flex",
+            gap: "2px",
+            flexWrap: "wrap",
             padding: 0,
           }}
         >
-          {showcasePhotos.slice(0, 12).map((url, i) => (
+          {showcasePhotos.slice(0, 16).map((url, i) => (
             <div
               key={i}
               style={{
+                width: "80px",
+                height: "80px",
                 overflow: "hidden",
-                breakInside: "avoid",
-                marginBottom: "2px",
+                flexShrink: 0,
               }}
             >
               <img
                 src={url}
                 alt=""
                 style={{
-                  width: "100%",
-                  height: "110px",
+                  width: "80px",
+                  height: "80px",
                   objectFit: "cover",
                   opacity: 0.75,
                   display: "block",
