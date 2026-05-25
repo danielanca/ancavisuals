@@ -39,7 +39,9 @@ const WeddingHubAdminPage = loadable(() => import("../features/admin/components/
 const OfferTemplateAdminPage = loadable(() => import("../features/admin/components/OfferTemplateAdminPage"), opts);
 const OfferTemplateOrganizerPage = loadable(() => import("../features/admin/components/OfferTemplateOrganizerPage"), opts);
 const MediaAssetsAdminPage = loadable(() => import("../features/admin/components/MediaAssetsAdminPage"), opts);
+const VenueOutreachPage = loadable(() => import("../features/admin/components/VenueOutreachPage"), opts);
 const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/components/ShowcaseZoneEditorPage"), opts);
+
 
 export const adminRoutes = [
   <Route key="protected" element={<RequireAuth />}>
@@ -70,6 +72,7 @@ export const adminRoutes = [
       <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
       <Route path="/admin/oferte" element={<OferteAdminPage />} />
       <Route path="/admin/media-assets" element={<MediaAssetsAdminPage />} />
+      <Route path="/admin/venue-outreach" element={<VenueOutreachPage />} />
       <Route path="/admin/template-oferte" element={<OfferTemplateAdminPage />} />
       <Route path="/admin/template-oferte/:serviceId" element={<OfferTemplateOrganizerPage />} />
       <Route path="/admin/showcase" element={<ShowcaseZoneEditorPage />} />

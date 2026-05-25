@@ -161,6 +161,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Inspirație", path: "/admin/inspiration" },
         { label: "Zone Showcase", path: "/admin/showcase" },
         { label: "Analytics", path: "/admin/analytics" },
+        { label: "Venue Outreach", path: "/admin/venue-outreach" },
       ],
     },
     {
