@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import { createHash } from "crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
@@ -23,6 +24,8 @@ router.post("/upload-doc", requireFirebaseAuth, requireSupremeAdmin, upload.sing
     return;
   }
 
+  const fileHash = createHash("sha256").update(new Uint8Array(file.buffer)).digest("hex");
+
   const safeFileName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const folder = year && month ? `expenses/${year}/${month}` : "expenses";
   const storageZone = getBunnyStorageZone();
@@ -30,6 +33,14 @@ router.post("/upload-doc", requireFirebaseAuth, requireSupremeAdmin, upload.sing
   const uploadUrl = `${BUNNY_STORAGE_BASE_URL}/${storageZone}/${folder}/${safeFileName}`;
 
   try {
+    const db = firestore();
+    const [facturaSnap, chitantaSnap] = await Promise.all([
+      db.collection(COLLECTION).where("factura.hash", "==", fileHash).limit(1).get(),
+      db.collection(COLLECTION).where("chitanta.hash", "==", fileHash).limit(1).get(),
+    ]);
+    const existingDoc = facturaSnap.docs[0] ?? chitantaSnap.docs[0];
+    const duplicateExpenseId = existingDoc?.id ?? null;
+
     const response = await fetch(uploadUrl, {
       method: "PUT",
       headers: { [BUNNY_ACCESS_KEY_HEADER]: password, "Content-Type": "application/octet-stream" },
@@ -43,7 +54,7 @@ router.post("/upload-doc", requireFirebaseAuth, requireSupremeAdmin, upload.sing
 
     const cdnDomain = process.env.BUNNY_CDN_DOMAIN ?? "";
     const url = `${cdnDomain}/${folder}/${safeFileName}`;
-    res.json({ url, name: file.originalname });
+    res.json({ url, name: file.originalname, hash: fileHash, duplicateExpenseId });
   } catch (error) {
     console.error("[expenses] POST /upload-doc failed:", error);
     res.status(500).json({ error: String(error) });
@@ -96,7 +107,8 @@ Extrage din documentul de mai sus următoarele informații și returnează DOAR 
   "amount": număr cu 2 zecimale sau null,
   "currency": "RON sau EUR sau null",
   "description": "Descriere scurtă a ce s-a cumpărat sau null",
-  "category": "una din: combustibil, echipament, transport, software, cazare, alimentatie, marketing, altele"
+  "category": "una din: combustibil, echipament, transport, software, cazare, alimentatie, marketing, altele",
+  "invoiceNumber": "Seria și numărul facturii exact cum apare pe document (ex: FA-2024-001, RO 1234) sau null"
 }`,
             },
           ],
@@ -168,7 +180,7 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, r
 
 // POST / — create expense
 router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
-  const { date, category, description, supplier, amount, currency, deductibility, factura, chitanta } = req.body as {
+  const { date, category, description, supplier, amount, currency, deductibility, invoiceNumber, factura, chitanta } = req.body as {
     date: string;
     category: string;
     description?: string;
@@ -176,8 +188,9 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
     amount: number;
     currency?: string;
     deductibility: number;
-    factura?: { url: string; name: string } | null;
-    chitanta?: { url: string; name: string } | null;
+    invoiceNumber?: string;
+    factura?: { url: string; name: string; hash?: string } | null;
+    chitanta?: { url: string; name: string; hash?: string } | null;
   };
 
   if (!date || !category || amount == null || deductibility == null) {
@@ -187,6 +200,30 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
 
   try {
     const db = firestore();
+
+    // Dedup check 1: hash-based (exact same file content)
+    const hashesToCheck = [factura?.hash, chitanta?.hash].filter(Boolean) as string[];
+    for (const hash of hashesToCheck) {
+      const [facturaMatch, chitantaMatch] = await Promise.all([
+        db.collection(COLLECTION).where("factura.hash", "==", hash).limit(1).get(),
+        db.collection(COLLECTION).where("chitanta.hash", "==", hash).limit(1).get(),
+      ]);
+      const existing = facturaMatch.docs[0] ?? chitantaMatch.docs[0];
+      if (existing) {
+        res.status(409).json({ error: "DUPLICATE_FILE", existingId: existing.id, message: "Fișier identic deja înregistrat." });
+        return;
+      }
+    }
+
+    // Dedup check 2: invoice number
+    if (invoiceNumber?.trim()) {
+      const invoiceSnap = await db.collection(COLLECTION).where("invoiceNumber", "==", invoiceNumber.trim()).limit(1).get();
+      if (!invoiceSnap.empty) {
+        res.status(409).json({ error: "DUPLICATE_INVOICE_NUMBER", existingId: invoiceSnap.docs[0].id, message: `Numărul de factură "${invoiceNumber}" există deja.` });
+        return;
+      }
+    }
+
     const numAmount = Number(amount);
     const numDeductibility = Number(deductibility);
     const deductibleAmount = Math.round((numAmount * numDeductibility) / 100 * 100) / 100;
@@ -200,8 +237,9 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       currency: currency ?? "RON",
       deductibility: numDeductibility,
       deductibleAmount,
-      factura: factura ?? null,
-      chitanta: chitanta ?? null,
+      invoiceNumber: invoiceNumber?.trim() ?? null,
+      factura: factura ? { url: factura.url, name: factura.name, hash: factura.hash ?? null } : null,
+      chitanta: chitanta ? { url: chitanta.url, name: chitanta.name, hash: chitanta.hash ?? null } : null,
       createdAt: Timestamp.now(),
     });
 

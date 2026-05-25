@@ -20,6 +20,8 @@ interface FiscalSettings {
 interface ExpenseDoc {
   url: string;
   name: string;
+  hash?: string;
+  duplicateExpenseId?: string | null;
 }
 
 interface Expense {
@@ -32,6 +34,7 @@ interface Expense {
   currency: string;
   deductibility: number;
   deductibleAmount: number;
+  invoiceNumber?: string | null;
   factura: ExpenseDoc | null;
   chitanta: ExpenseDoc | null;
 }
@@ -285,13 +288,36 @@ function DocUploadRow({
   onScan: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = React.useState(false);
+
   return (
     <div>
       <label className="block text-xs text-neutral-400 mb-1">{label}</label>
-      <div className="flex gap-2">
-        <button type="button" onClick={() => inputRef.current?.click()}
-          className="flex-1 px-3 py-2 text-sm border border-neutral-700 text-neutral-300 rounded-lg hover:border-neutral-500 transition-colors text-left truncate">
-          {slot.file ? slot.file.name : "Alege fișier..."}
+      <div
+        className={[
+          "flex gap-2 rounded-lg border transition-colors",
+          dragging ? "border-violet-500 bg-violet-600/10" : "border-transparent",
+        ].join(" ")}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const file = e.dataTransfer.files[0];
+          if (file) onFileChange(file);
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className={[
+            "flex-1 min-w-0 px-3 py-2 text-sm border rounded-lg transition-colors text-left truncate",
+            slot.file
+              ? "border-neutral-600 text-neutral-200"
+              : "border-neutral-700 text-neutral-400 hover:border-neutral-500",
+          ].join(" ")}
+        >
+          {slot.file ? slot.file.name : dragging ? "Dă drumul aici..." : "Trage sau apasă"}
         </button>
         {slot.file && (
           <>
@@ -320,11 +346,13 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
   const [amount, setAmount] = React.useState("");
   const [currency, setCurrency] = React.useState("RON");
   const [deductibility, setDeductibility] = React.useState(50);
+  const [invoiceNumber, setInvoiceNumber] = React.useState("");
   const [facturaSlot, setFacturaSlot] = React.useState<DocSlot>({ file: null, scanning: false });
   const [chitantaSlot, setChitantaSlot] = React.useState<DocSlot>({ file: null, scanning: false });
   const [uploading, setUploading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = React.useState<string | null>(null);
 
   function handleCategoryChange(value: string) {
     setCategory(value);
@@ -355,6 +383,14 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
           const cat = EXPENSE_CATEGORIES.find((c) => c.value === String(extracted.category));
           if (cat) handleCategoryChange(cat.value);
         }
+        if (extracted.invoiceNumber) {
+          const extractedInvoiceNumber = String(extracted.invoiceNumber);
+          setInvoiceNumber(extractedInvoiceNumber);
+          const dupByInvoice = existingExpenses.find((exp) => exp.invoiceNumber === extractedInvoiceNumber);
+          if (dupByInvoice) {
+            setDuplicateWarning(`⚠️ Numărul de factură "${extractedInvoiceNumber}" există deja (${dupByInvoice.supplier ?? ""} · ${new Date(dupByInvoice.date).toLocaleDateString("ro-RO")})`);
+          }
+        }
       }
     } catch {
       setError("Scanare eșuată. Completează manual.");
@@ -367,6 +403,10 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     e.preventDefault();
     if (!amount || !date || !category) return;
 
+    setError(null);
+    setDuplicateWarning(null);
+
+    // Check 1: supplier + amount + currency (client-side)
     if (supplier.trim()) {
       const normalizedSupplier = supplier.trim().toLowerCase();
       const duplicate = existingExpenses.find(
@@ -375,15 +415,17 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
           exp.amount === Number(amount) &&
           exp.currency === currency,
       );
-      if (duplicate) {
-        onDuplicateFound(duplicate);
-        return;
-      }
+      if (duplicate) { onDuplicateFound(duplicate); return; }
+    }
+
+    // Check 2: invoice number (client-side)
+    if (invoiceNumber.trim()) {
+      const duplicate = existingExpenses.find((exp) => exp.invoiceNumber === invoiceNumber.trim());
+      if (duplicate) { onDuplicateFound(duplicate); return; }
     }
 
     setSaving(true);
     setUploading(true);
-    setError(null);
 
     let factura: ExpenseDoc | null = null;
     let chitanta: ExpenseDoc | null = null;
@@ -403,6 +445,20 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     }
     setUploading(false);
 
+    // Check 3: hash duplicate returned from upload-doc
+    const dupeId = factura?.duplicateExpenseId ?? chitanta?.duplicateExpenseId;
+    if (dupeId) {
+      const dupeExpense = existingExpenses.find((exp) => exp.id === dupeId);
+      if (dupeExpense) {
+        onDuplicateFound(dupeExpense);
+      } else {
+        setDuplicateWarning("⚠️ Fișier identic deja încărcat într-o altă cheltuială (alt an/lună).");
+        setError("Duplicat detectat. Verifică cheltuielile din alte perioade.");
+      }
+      setSaving(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/admin/expenses", {
         method: "POST",
@@ -412,15 +468,28 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
           description: description || undefined,
           supplier: supplier || undefined,
           amount: Number(amount), currency, deductibility,
+          invoiceNumber: invoiceNumber.trim() || undefined,
           factura, chitanta,
         }),
       });
-      const data = await response.json();
+      const data = await response.json() as { id?: string; error?: string; existingId?: string; message?: string };
+
+      // Check 4: server-side duplicate (hash or invoice number across all years)
+      if (response.status === 409) {
+        const dupeExpense = data.existingId ? existingExpenses.find((exp) => exp.id === data.existingId) : null;
+        if (dupeExpense) {
+          onDuplicateFound(dupeExpense);
+        } else {
+          setError(`⚠️ ${data.message ?? "Duplicat detectat de server."}`);
+        }
+        return;
+      }
+
       if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
 
       const deductibleAmount = Math.round((Number(amount) * deductibility) / 100 * 100) / 100;
       onAdded({
-        id: data.id,
+        id: data.id!,
         date: new Date(date).toISOString(),
         category,
         description: description || null,
@@ -429,6 +498,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
         currency,
         deductibility,
         deductibleAmount,
+        invoiceNumber: invoiceNumber.trim() || null,
         factura,
         chitanta,
       });
@@ -493,6 +563,13 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
               className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
           </div>
 
+          <div>
+            <label className="block text-xs text-neutral-400 mb-1">Număr factură</label>
+            <input type="text" value={invoiceNumber} onChange={(e) => { setInvoiceNumber(e.target.value); setDuplicateWarning(null); }}
+              placeholder="ex: FA-2024-001"
+              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-neutral-400 mb-1">Sumă *</label>
@@ -531,6 +608,13 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
               </p>
             )}
           </div>
+
+          {duplicateWarning && (
+            <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/40 rounded-lg px-3 py-2.5 text-sm text-amber-300">
+              <span className="shrink-0">⚠️</span>
+              <span>{duplicateWarning}</span>
+            </div>
+          )}
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
 
