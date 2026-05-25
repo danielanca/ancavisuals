@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, Navigate } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
+import MediaPromoFooter from "../../components/Marketing/MediaPromoFooter";
 import Footer from "../../components/Navbar/Footer";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
 import { BLOG_POSTS, getPostMeta } from "../../../../data/blogManifest";
@@ -186,6 +187,7 @@ const BlogPost: React.FC = () => {
         </div>
       </main>
 
+      <MediaPromoFooter />
       <Footer />
     </>
   );

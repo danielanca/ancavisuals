@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
 
@@ -10,29 +10,40 @@ const ZONE_ID = "media_footer";
 
 function photosEqual(a: PhotoItem[], b: PhotoItem[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every((item, i) => item.url === b[i].url && item.sourceType === b[i].sourceType && item.sourceId === b[i].sourceId);
+  return a.every((item, i) => item.url === b[i].url && item.sourceType === b[i].sourceType);
+}
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return isMobile;
 }
 
 export default function ShowcaseZoneEditorPage() {
   const { auth } = useAuth();
+  const isMobile = useIsMobile();
   const [sources, setSources] = useState<{ proposals: Proposal[]; assets: Asset[] } | null>(null);
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [savedPhotos, setSavedPhotos] = useState<PhotoItem[]>([]);
-  const [tab, setTab] = useState<"proposals" | "assets">("proposals");
+  const [sourceTab, setSourceTab] = useState<"proposals" | "assets">("proposals");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile" | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [activePanel, setActivePanel] = useState<"source" | "selection">("source");
+
+  const authHeaders: Record<string, string> = auth.accessToken
+    ? { Authorization: `Bearer ${auth.accessToken}` }
+    : {};
 
   useEffect(() => {
     if (auth.loading) return;
-
-    const headers: Record<string, string> = auth.accessToken
-      ? { Authorization: `Bearer ${auth.accessToken}` }
-      : {};
-
     fetch(`/api/showcase-zones/${ZONE_ID}`)
       .then((r) => r.ok ? r.json() : null)
       .then((zoneData: { photos?: string[] } | null) => {
@@ -46,23 +57,37 @@ export default function ShowcaseZoneEditorPage() {
       .finally(() => setLoading(false));
 
     if (auth.accessToken) {
-      fetch(`/api/showcase-zones/${ZONE_ID}/sources`, { headers })
+      fetch(`/api/showcase-zones/${ZONE_ID}/sources`, { headers: authHeaders })
         .then((r) => r.ok ? r.json() : null)
-        .then((data: { proposals?: Proposal[]; assets?: Asset[] } | null) => { if (data) setSources({ proposals: data.proposals ?? [], assets: data.assets ?? [] }); })
+        .then((data: { proposals?: Proposal[]; assets?: Asset[] } | null) => {
+          if (data) setSources({ proposals: data.proposals ?? [], assets: data.assets ?? [] });
+        })
         .catch(() => {});
     }
   }, [auth.loading, auth.accessToken]);
 
-  const addPhoto = (url: string, sourceType: PhotoItem["sourceType"], sourceId?: string) => {
+  const togglePhoto = useCallback((url: string, sourceType: PhotoItem["sourceType"], sourceId?: string) => {
     setPhotos((prev) => {
       if (prev.some((p) => p.url === url)) return prev.filter((p) => p.url !== url);
       return [...prev, { url, sourceType, sourceId }];
     });
     setSaveResult(null);
-  };
+    if (isMobile) setActivePanel("selection");
+  }, [isMobile]);
 
   const removePhoto = (url: string) => {
     setPhotos((prev) => prev.filter((p) => p.url !== url));
+    setSaveResult(null);
+  };
+
+  const move = (index: number, direction: -1 | 1) => {
+    const next = index + direction;
+    if (next < 0 || next >= photos.length) return;
+    setPhotos((prev) => {
+      const arr = [...prev];
+      [arr[index], arr[next]] = [arr[next], arr[index]];
+      return arr;
+    });
     setSaveResult(null);
   };
 
@@ -77,26 +102,6 @@ export default function ShowcaseZoneEditorPage() {
     setSaveResult(null);
   };
 
-  const moveUp = (index: number) => {
-    if (index === 0) return;
-    setPhotos((prev) => {
-      const next = [...prev];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next;
-    });
-    setSaveResult(null);
-  };
-
-  const moveDown = (index: number) => {
-    setPhotos((prev) => {
-      if (index >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[index], next[index + 1]] = [next[index + 1], next[index]];
-      return next;
-    });
-    setSaveResult(null);
-  };
-
   const save = async () => {
     if (!auth.accessToken) return;
     setSaving(true);
@@ -104,18 +109,11 @@ export default function ShowcaseZoneEditorPage() {
     try {
       const res = await fetch(`/api/showcase-zones/${ZONE_ID}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.accessToken}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
         body: JSON.stringify({ photos }),
       });
-      if (res.ok) {
-        setSavedPhotos([...photos]);
-        setSaveResult("Salvat cu succes.");
-      } else {
-        setSaveResult("Eroare la salvare.");
-      }
+      if (res.ok) { setSavedPhotos([...photos]); setSaveResult("Salvat ✓"); }
+      else setSaveResult("Eroare la salvare.");
     } catch {
       setSaveResult("Eroare la salvare.");
     } finally {
@@ -125,350 +123,303 @@ export default function ShowcaseZoneEditorPage() {
 
   const isDirty = !photosEqual(photos, savedPhotos);
 
-  const containerStyle: React.CSSProperties = {
-    minHeight: "100vh",
-    backgroundColor: "#0a0a0a",
-    color: "#fff",
-    padding: "24px",
-  };
-
-  const headerStyle: React.CSSProperties = {
-    marginBottom: "24px",
-  };
-
-  const titleStyle: React.CSSProperties = {
-    fontSize: "22px",
-    fontWeight: 600,
-    color: "#fff",
-    margin: 0,
-  };
-
-  const subtitleStyle: React.CSSProperties = {
-    fontSize: "13px",
-    color: "#6b6b6b",
-    marginTop: "4px",
-  };
-
-  const columnsStyle: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "24px",
-  };
-
-  const panelStyle: React.CSSProperties = {
-    backgroundColor: "#111",
-    border: "1px solid #1a1a1a",
-    borderRadius: "10px",
-    padding: "20px",
-  };
-
-  const panelTitleStyle: React.CSSProperties = {
-    fontSize: "13px",
-    fontWeight: 600,
-    color: "#aaa",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.08em",
-    marginBottom: "16px",
-  };
-
-  const tabsStyle: React.CSSProperties = {
-    display: "flex",
-    gap: "8px",
-    marginBottom: "16px",
-  };
-
-  const tabButtonStyle = (active: boolean): React.CSSProperties => ({
-    padding: "6px 14px",
-    borderRadius: "6px",
-    border: "1px solid",
-    borderColor: active ? "#7c3aed" : "#2a2a2a",
-    backgroundColor: active ? "#7c3aed22" : "transparent",
-    color: active ? "#a78bfa" : "#666",
-    fontSize: "13px",
-    cursor: "pointer",
-    transition: "all 0.15s",
-  });
-
-  const gridStyle: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
-    gap: "8px",
-    maxHeight: "480px",
-    overflowY: "auto",
-  };
-
-  const thumbStyle = (selected: boolean): React.CSSProperties => ({
-    aspectRatio: "1",
-    objectFit: "cover" as const,
-    borderRadius: "6px",
-    cursor: "pointer",
-    border: selected ? "2px solid #7c3aed" : "2px solid transparent",
-    opacity: selected ? 0.6 : 1,
-    transition: "all 0.15s",
-    width: "100%",
-  });
-
-  const selectedItemStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    padding: "8px 10px",
-    backgroundColor: "#1a1a1a",
-    borderRadius: "6px",
-    marginBottom: "6px",
-  };
-
-  const selectedThumbStyle: React.CSSProperties = {
-    width: "44px",
-    height: "44px",
-    objectFit: "cover" as const,
-    borderRadius: "4px",
-    flexShrink: 0,
-  };
-
-  const selectedUrlStyle: React.CSSProperties = {
-    flex: 1,
-    fontSize: "11px",
-    color: "#666",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap" as const,
-  };
-
-  const iconButtonStyle: React.CSSProperties = {
-    background: "none",
-    border: "1px solid #2a2a2a",
-    borderRadius: "4px",
-    color: "#888",
-    cursor: "pointer",
-    padding: "3px 6px",
-    fontSize: "12px",
-    lineHeight: 1,
-    flexShrink: 0,
-  };
-
-  const removeButtonStyle: React.CSSProperties = {
-    ...iconButtonStyle,
-    color: "#ef4444",
-    borderColor: "#3a1a1a",
-  };
-
-  const previewStripStyle: React.CSSProperties = {
-    display: "flex",
-    gap: "6px",
-    overflowX: "auto",
-    padding: "10px 0",
-    marginTop: "16px",
-    borderTop: "1px solid #1a1a1a",
-  };
-
-  const previewThumbStyle: React.CSSProperties = {
-    width: "60px",
-    height: "60px",
-    objectFit: "cover" as const,
-    borderRadius: "5px",
-    flexShrink: 0,
-  };
-
-  const saveButtonStyle: React.CSSProperties = {
-    marginTop: "20px",
-    padding: "10px 24px",
-    borderRadius: "8px",
-    border: "none",
-    backgroundColor: isDirty && !saving ? "#7c3aed" : "#2a2a2a",
-    color: isDirty && !saving ? "#fff" : "#555",
-    fontSize: "14px",
-    fontWeight: 500,
-    cursor: isDirty && !saving ? "pointer" : "not-allowed",
-    transition: "all 0.15s",
-  };
-
-  const saveResultStyle: React.CSSProperties = {
-    marginTop: "10px",
-    fontSize: "13px",
-    color: saveResult?.startsWith("Salvat") ? "#34d399" : "#f87171",
-  };
-
   if (loading) {
     return (
-      <div style={{ ...containerStyle, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "#555", fontSize: "14px" }}>Se încarcă...</span>
+      <div style={{ minHeight: "100vh", backgroundColor: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ color: "#555", fontSize: 14 }}>Se încarcă...</span>
       </div>
     );
   }
 
+  const sourceList = sourceTab === "proposals"
+    ? (sources?.proposals ?? []).map((p) => ({ id: p.id, url: p.photoUrl, label: p.fileName, sourceType: "proposal" as const }))
+    : (sources?.assets ?? []).map((a) => ({ id: a.id, url: a.url, label: a.label, sourceType: "media_asset" as const }));
+
   return (
-    <div style={containerStyle}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#0a0a0a", color: "#fff", padding: isMobile ? "16px" : "24px", paddingBottom: isMobile ? "100px" : "40px" }}>
       <Breadcrumb />
-      <div style={headerStyle}>
-        <h1 style={titleStyle}>Zone Showcase</h1>
-        <p style={subtitleStyle}>Footer /media</p>
+
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Zone Showcase</h1>
+        <p style={{ fontSize: 13, color: "#555", marginTop: 4 }}>Footer /media · {photos.length} poze selectate</p>
       </div>
 
-      <div style={columnsStyle}>
-        <div style={panelStyle}>
-          <p style={panelTitleStyle}>Surse disponibile</p>
-          <div style={tabsStyle}>
-            <button style={tabButtonStyle(tab === "proposals")} onClick={() => setTab("proposals")}>
-              Propuneri
+      {/* Mobile panel switcher */}
+      {isMobile && (
+        <div style={{ display: "flex", gap: 0, marginBottom: 16, borderRadius: 10, overflow: "hidden", border: "1px solid #222" }}>
+          {(["source", "selection"] as const).map((panel) => (
+            <button
+              key={panel}
+              onClick={() => setActivePanel(panel)}
+              style={{
+                flex: 1, padding: "11px 0", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600,
+                background: activePanel === panel ? "#7c3aed" : "#111",
+                color: activePanel === panel ? "#fff" : "#555",
+                transition: "all 0.15s",
+              }}
+            >
+              {panel === "source" ? "📂 Surse" : `🖼 Selecție (${photos.length})`}
             </button>
-            <button style={tabButtonStyle(tab === "assets")} onClick={() => setTab("assets")}>
-              Media Assets
-            </button>
-          </div>
-
-          {tab === "proposals" && (
-            <div style={gridStyle}>
-              {(sources?.proposals ?? []).map((p) => (
-                <img
-                  key={p.id}
-                  src={p.photoUrl}
-                  alt={p.fileName}
-                  title={p.fileName}
-                  style={thumbStyle(photos.some((ph) => ph.url === p.photoUrl))}
-                  onClick={() => addPhoto(p.photoUrl, "proposal", p.id)}
-                />
-              ))}
-              {(sources?.proposals ?? []).length === 0 && (
-                <span style={{ color: "#555", fontSize: "13px", gridColumn: "1/-1" }}>Nicio propunere acceptată.</span>
-              )}
-            </div>
-          )}
-
-          {tab === "assets" && (
-            <div style={gridStyle}>
-              {(sources?.assets ?? []).map((a) => (
-                <img
-                  key={a.id}
-                  src={a.url}
-                  alt={a.label}
-                  title={a.label}
-                  style={thumbStyle(photos.some((ph) => ph.url === a.url))}
-                  onClick={() => addPhoto(a.url, "media_asset", a.id)}
-                />
-              ))}
-              {(sources?.assets ?? []).length === 0 && (
-                <span style={{ color: "#555", fontSize: "13px", gridColumn: "1/-1" }}>Niciun asset disponibil.</span>
-              )}
-            </div>
-          )}
+          ))}
         </div>
+      )}
 
-        <div style={panelStyle}>
-          <p style={panelTitleStyle}>Selecție curentă ({photos.length} poze)</p>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+        gap: 20,
+      }}>
 
-          {photos.length === 0 && (
-            <span style={{ color: "#555", fontSize: "13px" }}>Nicio poză selectată. Click pe sursele din stânga.</span>
-          )}
+        {/* Source panel */}
+        {(!isMobile || activePanel === "source") && (
+          <div style={{ backgroundColor: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: isMobile ? 14 : 20 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
+              Surse disponibile
+            </p>
 
-          {photos.length > 0 && (
-            <div style={{ columns: 2, columnGap: "8px" }}>
-              {photos.map((photo, index) => (
-                <div
-                  key={photo.url}
-                  draggable
-                  onDragStart={() => setDragIndex(index)}
-                  onDragOver={(e) => { e.preventDefault(); setDropIndex(index); }}
-                  onDragEnd={() => {
-                    if (dragIndex !== null && dropIndex !== null) reorder(dragIndex, dropIndex);
-                    setDragIndex(null); setDropIndex(null);
-                  }}
+            {/* Source tabs */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["proposals", "assets"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setSourceTab(t)}
                   style={{
-                    position: "relative", breakInside: "avoid", marginBottom: "8px",
-                    borderRadius: "8px", overflow: "hidden", cursor: "grab",
-                    outline: dropIndex === index && dragIndex !== index ? "2px solid #7c3aed" : "none",
-                    opacity: dragIndex === index ? 0.45 : 1,
-                    transition: "opacity 0.15s, outline 0.1s",
+                    padding: isMobile ? "9px 18px" : "6px 14px",
+                    borderRadius: 8, border: "1px solid",
+                    borderColor: sourceTab === t ? "#7c3aed" : "#2a2a2a",
+                    background: sourceTab === t ? "#7c3aed22" : "transparent",
+                    color: sourceTab === t ? "#a78bfa" : "#666",
+                    fontSize: 13, cursor: "pointer",
                   }}
                 >
-                  <img src={photo.url} alt="" style={{ width: "100%", display: "block", borderRadius: "8px", pointerEvents: "none" }} />
-
-                  {/* Order badge */}
-                  <div style={{
-                    position: "absolute", top: "6px", left: "6px",
-                    background: "rgba(0,0,0,0.7)", color: "#aaa",
-                    fontSize: "11px", fontWeight: 600, borderRadius: "4px",
-                    padding: "2px 6px", lineHeight: 1.4, pointerEvents: "none",
-                  }}>
-                    #{index + 1}
-                  </div>
-
-                  {/* Remove button */}
-                  <button
-                    style={{
-                      position: "absolute", top: "6px", right: "6px",
-                      background: "rgba(0,0,0,0.7)", border: "none", borderRadius: "4px",
-                      color: "#ef4444", cursor: "pointer", padding: "3px 7px", fontSize: "13px", lineHeight: 1,
-                    }}
-                    onClick={() => removePhoto(photo.url)}
-                  >
-                    ✕
-                  </button>
-                </div>
+                  {t === "proposals" ? "Propuneri" : "Media Assets"}
+                </button>
               ))}
             </div>
-          )}
 
-          {/* Desktop / Mobile preview */}
-          {photos.length > 0 && (
-            <div style={{ marginTop: "16px", borderTop: "1px solid #1a1a1a", paddingTop: "14px" }}>
-              <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
-                {(["desktop", "mobile"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setPreviewMode(previewMode === mode ? null : mode)}
-                    style={{
-                      padding: "5px 14px", borderRadius: "6px", fontSize: "12px", cursor: "pointer",
-                      border: "1px solid", transition: "all 0.15s",
-                      borderColor: previewMode === mode ? "#7c3aed" : "#2a2a2a",
-                      background: previewMode === mode ? "#7c3aed22" : "transparent",
-                      color: previewMode === mode ? "#a78bfa" : "#666",
-                    }}
+            {/* Photo grid */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? "90px" : "90px"}, 1fr))`,
+              gap: isMobile ? 10 : 8,
+              maxHeight: isMobile ? "55vh" : 460,
+              overflowY: "auto",
+            }}>
+              {sourceList.map((item) => {
+                const isSelected = photos.some((p) => p.url === item.url);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => togglePhoto(item.url, item.sourceType, item.id)}
+                    style={{ position: "relative", cursor: "pointer", borderRadius: 8, overflow: "hidden" }}
                   >
-                    {mode === "desktop" ? "🖥 Desktop" : "📱 Mobile"}
-                  </button>
-                ))}
-              </div>
-
-              {previewMode === "desktop" && (
-                <div style={{ borderRadius: "8px", overflow: "hidden", background: "#0a0a0a", border: "1px solid #1a1a1a" }}>
-                  <div style={{ fontSize: "10px", color: "#444", padding: "6px 10px 4px", letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
-                    Desktop — primele {Math.min(photos.length, 12)} poze
-                  </div>
-                  <div style={{ columns: 4, columnGap: "3px", maxHeight: "200px", overflow: "hidden", padding: "0 3px 3px" }}>
-                    {photos.slice(0, 12).map((photo, index) => (
-                      <div key={index} style={{ breakInside: "avoid", marginBottom: "3px" }}>
-                        <img src={photo.url} alt="" style={{ width: "100%", display: "block", borderRadius: "3px" }} />
+                    <img
+                      src={item.url}
+                      alt={item.label}
+                      style={{
+                        width: "100%", aspectRatio: "1", objectFit: "cover", display: "block",
+                        border: isSelected ? "3px solid #7c3aed" : "3px solid transparent",
+                        borderRadius: 8, opacity: isSelected ? 0.55 : 1,
+                        transition: "all 0.15s",
+                      }}
+                    />
+                    {isSelected && (
+                      <div style={{
+                        position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                        background: "rgba(124,58,237,0.3)", borderRadius: 6,
+                      }}>
+                        <span style={{ fontSize: 22, color: "#fff" }}>✓</span>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              )}
-
-              {previewMode === "mobile" && (
-                <div style={{ borderRadius: "8px", overflow: "hidden", background: "#0a0a0a", border: "1px solid #1a1a1a", maxWidth: "180px", margin: "0 auto" }}>
-                  <div style={{ fontSize: "10px", color: "#444", padding: "6px 10px 4px", letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
-                    Mobile — primele {Math.min(photos.length, 6)} poze
-                  </div>
-                  <div style={{ columns: 2, columnGap: "3px", maxHeight: "200px", overflow: "hidden", padding: "0 3px 3px" }}>
-                    {photos.slice(0, 6).map((photo, index) => (
-                      <div key={index} style={{ breakInside: "avoid", marginBottom: "3px" }}>
-                        <img src={photo.url} alt="" style={{ width: "100%", display: "block", borderRadius: "3px" }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                );
+              })}
+              {sourceList.length === 0 && (
+                <span style={{ color: "#444", fontSize: 13, gridColumn: "1/-1" }}>Nicio sursă disponibilă.</span>
               )}
             </div>
-          )}
+          </div>
+        )}
 
-          <button style={saveButtonStyle} onClick={save} disabled={!isDirty || saving}>
-            {saving ? "Se salvează..." : "Salvează"}
-          </button>
+        {/* Selection panel */}
+        {(!isMobile || activePanel === "selection") && (
+          <div style={{ backgroundColor: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: isMobile ? 14 : 20 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
+              Selecție curentă ({photos.length})
+            </p>
 
-          {saveResult && <p style={saveResultStyle}>{saveResult}</p>}
-        </div>
+            {photos.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#444", fontSize: 13 }}>
+                {isMobile ? "Mergi la Surse și apasă pe o poză." : "Click pe sursele din stânga pentru a adăuga."}
+              </div>
+            )}
+
+            {/* Selected photos — masonry on desktop, list on mobile */}
+            {photos.length > 0 && (
+              isMobile ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "55vh", overflowY: "auto" }}>
+                  {photos.map((photo, index) => (
+                    <div
+                      key={photo.url}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        background: "#1a1a1a", borderRadius: 10, padding: "8px 10px",
+                      }}
+                    >
+                      <img src={photo.url} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 11, color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        #{index + 1}
+                      </span>
+                      {/* Up / Down / Remove — large touch targets */}
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        <button
+                          onClick={() => move(index, -1)}
+                          disabled={index === 0}
+                          style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #2a2a2a", background: "none", color: index === 0 ? "#333" : "#aaa", fontSize: 16, cursor: index === 0 ? "default" : "pointer" }}
+                        >↑</button>
+                        <button
+                          onClick={() => move(index, 1)}
+                          disabled={index === photos.length - 1}
+                          style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #2a2a2a", background: "none", color: index === photos.length - 1 ? "#333" : "#aaa", fontSize: 16, cursor: index === photos.length - 1 ? "default" : "pointer" }}
+                        >↓</button>
+                        <button
+                          onClick={() => removePhoto(photo.url)}
+                          style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #3a1a1a", background: "none", color: "#ef4444", fontSize: 16, cursor: "pointer" }}
+                        >✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ columns: 2, columnGap: 8, maxHeight: 400, overflowY: "auto" }}>
+                  {photos.map((photo, index) => (
+                    <div
+                      key={photo.url}
+                      draggable
+                      onDragStart={() => setDragIndex(index)}
+                      onDragOver={(e) => { e.preventDefault(); setDropIndex(index); }}
+                      onDragEnd={() => {
+                        if (dragIndex !== null && dropIndex !== null) reorder(dragIndex, dropIndex);
+                        setDragIndex(null); setDropIndex(null);
+                      }}
+                      style={{
+                        position: "relative", breakInside: "avoid", marginBottom: 8,
+                        borderRadius: 8, overflow: "hidden", cursor: "grab",
+                        outline: dropIndex === index && dragIndex !== index ? "2px solid #7c3aed" : "none",
+                        opacity: dragIndex === index ? 0.4 : 1,
+                      }}
+                    >
+                      <img src={photo.url} alt="" style={{ width: "100%", display: "block", borderRadius: 8, pointerEvents: "none" }} />
+                      <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.7)", color: "#aaa", fontSize: 11, fontWeight: 600, borderRadius: 4, padding: "2px 6px" }}>
+                        #{index + 1}
+                      </div>
+                      <button
+                        onClick={() => removePhoto(photo.url)}
+                        style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.7)", border: "none", borderRadius: 4, color: "#ef4444", cursor: "pointer", padding: "3px 7px", fontSize: 13 }}
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {/* Preview toggle — desktop only */}
+            {!isMobile && photos.length > 0 && (
+              <div style={{ marginTop: 16, borderTop: "1px solid #1a1a1a", paddingTop: 14 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  {(["desktop", "mobile"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setPreviewMode(previewMode === mode ? null : mode)}
+                      style={{
+                        padding: "5px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", border: "1px solid",
+                        borderColor: previewMode === mode ? "#7c3aed" : "#2a2a2a",
+                        background: previewMode === mode ? "#7c3aed22" : "transparent",
+                        color: previewMode === mode ? "#a78bfa" : "#666",
+                      }}
+                    >
+                      {mode === "desktop" ? "🖥 Desktop" : "📱 Mobile"}
+                    </button>
+                  ))}
+                </div>
+                {previewMode === "desktop" && (
+                  <div style={{ borderRadius: 8, overflow: "hidden", background: "#0a0a0a", border: "1px solid #1a1a1a" }}>
+                    <div style={{ fontSize: 10, color: "#444", padding: "6px 10px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>Desktop — primele {Math.min(photos.length, 12)}</div>
+                    <div style={{ columns: 4, columnGap: 3, maxHeight: 200, overflow: "hidden", padding: "0 3px 3px" }}>
+                      {photos.slice(0, 12).map((photo, i) => (
+                        <div key={i} style={{ breakInside: "avoid", marginBottom: 3 }}>
+                          <img src={photo.url} alt="" style={{ width: "100%", display: "block", borderRadius: 3 }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {previewMode === "mobile" && (
+                  <div style={{ borderRadius: 8, overflow: "hidden", background: "#0a0a0a", border: "1px solid #1a1a1a", maxWidth: 180, margin: "0 auto" }}>
+                    <div style={{ fontSize: 10, color: "#444", padding: "6px 10px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>Mobile — primele {Math.min(photos.length, 6)}</div>
+                    <div style={{ columns: 2, columnGap: 3, maxHeight: 200, overflow: "hidden", padding: "0 3px 3px" }}>
+                      {photos.slice(0, 6).map((photo, i) => (
+                        <div key={i} style={{ breakInside: "avoid", marginBottom: 3 }}>
+                          <img src={photo.url} alt="" style={{ width: "100%", display: "block", borderRadius: 3 }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isMobile && (
+              <>
+                <button
+                  onClick={save}
+                  disabled={!isDirty || saving}
+                  style={{
+                    marginTop: 20, padding: "11px 28px", borderRadius: 8, border: "none",
+                    background: isDirty && !saving ? "#7c3aed" : "#1a1a1a",
+                    color: isDirty && !saving ? "#fff" : "#444",
+                    fontSize: 14, fontWeight: 600, cursor: isDirty && !saving ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {saving ? "Se salvează..." : "Salvează"}
+                </button>
+                {saveResult && (
+                  <p style={{ marginTop: 8, fontSize: 13, color: saveResult.startsWith("Salvat") ? "#34d399" : "#f87171" }}>
+                    {saveResult}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Mobile sticky save bar */}
+      {isMobile && (
+        <div style={{
+          position: "fixed", bottom: 0, left: 0, right: 0,
+          background: "#111", borderTop: "1px solid #222",
+          padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, zIndex: 50,
+        }}>
+          <button
+            onClick={save}
+            disabled={!isDirty || saving}
+            style={{
+              flex: 1, padding: "13px 0", borderRadius: 10, border: "none",
+              background: isDirty && !saving ? "#7c3aed" : "#1a1a1a",
+              color: isDirty && !saving ? "#fff" : "#444",
+              fontSize: 15, fontWeight: 700, cursor: isDirty && !saving ? "pointer" : "not-allowed",
+            }}
+          >
+            {saving ? "Se salvează..." : isDirty ? `Salvează (${photos.length} poze)` : "Salvat ✓"}
+          </button>
+          {saveResult && (
+            <span style={{ fontSize: 13, color: saveResult.startsWith("Salvat") ? "#34d399" : "#f87171", flexShrink: 0 }}>
+              {saveResult}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

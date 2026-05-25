@@ -26,7 +26,17 @@
       "Bash(git checkout *)",
       "Bash(git add *)",
       "Read(//Applications/**)",
-      "Read(//Users/daniel.anca/Applications/**)"
+      "Read(//Users/daniel.anca/Applications/**)",
+      "Bash(git -C /Users/daniel.anca/IdeaProjects/ancavisuals/ancavisuals add src/client/components/UI/AdminBar.tsx src/server/routes/albumSubscriptions.routes.ts tests/vitest/client/components/AdminBar.test.tsx tests/vitest/server/routes/albumSubscriptions.routes.test.ts)",
+      "WebFetch(domain:smsalert.mobi)",
+      "WebSearch",
+      "WebFetch(domain:kb.smsalert.co.in)",
+      "WebFetch(domain:apidocs.smsalert.mobi)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s \"https://smsalert.mobi/blog/en/rest-api-v-2-2/\")",
+      "Bash(curl -s \"https://smsalert.mobi/\")",
+      "Bash(curl -s \"https://api.github.com/repos/smsalert-mobi/request-examples/contents/\")",
+      "Bash(git pull *)"
     ]
   }
 }
