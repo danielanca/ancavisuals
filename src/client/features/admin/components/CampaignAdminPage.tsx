@@ -75,7 +75,7 @@ interface State {
   uploadingGallery: boolean;
   deletingGalleryUrl: string | null;
   showAddPackage: boolean;
-  showAddTestimonial: boolean;
+  showTestimonialPicker: boolean;
   newSlug: string;
   newTitle: string;
   creating: boolean;
@@ -93,7 +93,7 @@ type Action =
   | { type: "SET_UPLOADING_GALLERY"; value: boolean }
   | { type: "SET_DELETING_GALLERY"; url: string | null }
   | { type: "SET_SHOW_ADD_PACKAGE"; value: boolean }
-  | { type: "SET_SHOW_ADD_TESTIMONIAL"; value: boolean }
+  | { type: "SET_SHOW_TESTIMONIAL_PICKER"; value: boolean }
   | { type: "SET_NEW_SLUG"; value: string }
   | { type: "SET_NEW_TITLE"; value: string }
   | { type: "SET_CREATING"; value: boolean };
@@ -111,7 +111,7 @@ function reducer(state: State, action: Action): State {
     case "SET_UPLOADING_GALLERY": return { ...state, uploadingGallery: action.value };
     case "SET_DELETING_GALLERY": return { ...state, deletingGalleryUrl: action.url };
     case "SET_SHOW_ADD_PACKAGE": return { ...state, showAddPackage: action.value };
-    case "SET_SHOW_ADD_TESTIMONIAL": return { ...state, showAddTestimonial: action.value };
+    case "SET_SHOW_TESTIMONIAL_PICKER": return { ...state, showTestimonialPicker: action.value };
     case "SET_NEW_SLUG": return { ...state, newSlug: action.value };
     case "SET_NEW_TITLE": return { ...state, newTitle: action.value };
     case "SET_CREATING": return { ...state, creating: action.value };
@@ -130,7 +130,7 @@ const initialState: State = {
   uploadingGallery: false,
   deletingGalleryUrl: null,
   showAddPackage: false,
-  showAddTestimonial: false,
+  showTestimonialPicker: false,
   newSlug: "",
   newTitle: "",
   creating: false,
@@ -184,41 +184,125 @@ function AddPackageModal({ onClose, onSaved }: AddPackageModalProps) {
   );
 }
 
-// ─── Add Testimonial Modal ────────────────────────────────────────────────────
+// ─── Testimonial Picker Modal ─────────────────────────────────────────────────
 
-interface AddTestimonialModalProps {
-  onClose: () => void;
-  onSaved: (testimonial: CampaignTestimonial) => void;
+interface LandingReview {
+  id: string;
+  autor: string;
+  tipEveniment: string;
+  text: string;
+  rating: number;
+  visible: boolean;
 }
 
-function AddTestimonialModal({ onClose, onSaved }: AddTestimonialModalProps) {
-  const [form, setForm] = React.useState({ name: "", eventType: "nuntă", text: "" });
-  const [saving, setSaving] = React.useState(false);
+interface TestimonialPickerModalProps {
+  currentTestimonials: CampaignTestimonial[];
+  onClose: () => void;
+  onSave: (testimonials: CampaignTestimonial[]) => void;
+}
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    try {
-      const testimonial: CampaignTestimonial = { id: Date.now().toString(), ...form };
-      onSaved(testimonial);
-    } finally {
-      setSaving(false);
-    }
+function TestimonialPickerModal({ currentTestimonials, onClose, onSave }: TestimonialPickerModalProps) {
+  const [reviews, setReviews] = React.useState<LandingReview[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [selected, setSelected] = React.useState<Set<string>>(
+    new Set(currentTestimonials.map((testimonial) => testimonial.id))
+  );
+
+  React.useEffect(() => {
+    apiGet<{ reviews: LandingReview[] }>("/api/admin/landing/reviews")
+      .then((data) => setReviews(data.reviews.filter((review) => review.visible)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function toggle(review: LandingReview) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(review.id)) next.delete(review.id);
+      else next.add(review.id);
+      return next;
+    });
+  }
+
+  function handleSave() {
+    const result: CampaignTestimonial[] = reviews
+      .filter((review) => selected.has(review.id))
+      .map((review) => ({
+        id: review.id,
+        name: review.autor,
+        eventType: review.tipEveniment,
+        text: review.text,
+      }));
+    onSave(result);
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-md p-6">
-        <h3 className="text-white font-semibold mb-4">Adaugă testimonial</h3>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm" placeholder="Nume client" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <input className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm" placeholder="Tip eveniment (ex: nuntă)" value={form.eventType} onChange={(e) => setForm({ ...form, eventType: e.target.value })} />
-          <textarea className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm resize-none" rows={4} placeholder="Textul recenziei" value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} required />
-          <div className="flex gap-2 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-neutral-700 text-neutral-400 rounded-lg hover:text-white transition-colors">Anulează</button>
-            <button type="submit" disabled={saving} className="flex-1 px-4 py-2 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50">Adaugă</button>
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-neutral-800 flex-shrink-0">
+          <div>
+            <h3 className="text-white font-semibold">Selectează testimoniale</h3>
+            <p className="text-neutral-500 text-xs mt-0.5">{selected.size} selectate</p>
           </div>
-        </form>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-xl leading-none">×</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-6 h-6 border-2 border-amber-600/30 border-t-amber-600 rounded-full animate-spin" />
+            </div>
+          ) : reviews.length === 0 ? (
+            <p className="text-neutral-600 text-sm text-center py-12">
+              Nicio recenzie vizibilă în sistem.<br />
+              <span className="text-xs">Adaugă recenzii din /admin/landing → tab Recenzii</span>
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {reviews.map((review) => {
+                const isSelected = selected.has(review.id);
+                return (
+                  <button
+                    key={review.id}
+                    onClick={() => toggle(review)}
+                    className={`w-full text-left rounded-xl border p-4 transition-all ${
+                      isSelected
+                        ? "border-amber-600 bg-amber-950/20"
+                        : "border-neutral-800 bg-neutral-800/50 hover:border-neutral-600"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors ${
+                        isSelected ? "bg-amber-600 border-amber-600" : "border-neutral-600"
+                      }`}>
+                        {isSelected && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-white text-sm font-medium">{review.autor}</span>
+                          <span className="text-neutral-500 text-xs capitalize">{review.tipEveniment}</span>
+                          <span className="text-amber-400 text-xs">{"★".repeat(review.rating)}</span>
+                        </div>
+                        <p className="text-neutral-400 text-xs line-clamp-2">{review.text}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-neutral-800 flex gap-2 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-neutral-700 text-neutral-400 rounded-lg hover:text-white transition-colors">Anulează</button>
+          <button onClick={handleSave} className="flex-1 px-4 py-2 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors">
+            Aplică ({selected.size})
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -343,11 +427,6 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
   async function handleDeletePackage(packageId: string) {
     await apiDelete(`/api/campaign/${page.slug}/packages/${packageId}`);
     dispatch({ type: "PATCH_EDITING", patch: { packages: page.packages.filter((pkg) => pkg.id !== packageId) } });
-  }
-
-  async function handleDeleteTestimonial(testimonialId: string) {
-    await apiDelete(`/api/campaign/${page.slug}/testimonials/${testimonialId}`);
-    dispatch({ type: "PATCH_EDITING", patch: { testimonials: page.testimonials.filter((item) => item.id !== testimonialId) } });
   }
 
   return (
@@ -496,20 +575,23 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs text-neutral-400 uppercase tracking-wider">Testimoniale ({page.testimonials.length})</h3>
-              <button onClick={() => dispatch({ type: "SET_SHOW_ADD_TESTIMONIAL", value: true })} className="text-xs text-amber-500 hover:text-amber-400 transition-colors">+ Adaugă</button>
+              <button onClick={() => dispatch({ type: "SET_SHOW_TESTIMONIAL_PICKER", value: true })} className="text-xs text-amber-500 hover:text-amber-400 transition-colors">Selectează</button>
             </div>
             <div className="space-y-2">
               {page.testimonials.map((item) => (
-                <div key={item.id} className="flex items-start justify-between gap-2 bg-neutral-800 rounded-lg p-3">
-                  <div>
+                <div key={item.id} className="flex items-start gap-3 bg-neutral-800 rounded-lg p-3">
+                  <div className="flex-1 min-w-0">
                     <span className="text-white text-xs font-medium">{item.name}</span>
-                    <span className="text-neutral-500 text-xs ml-2">{item.eventType}</span>
+                    <span className="text-neutral-500 text-xs ml-2 capitalize">{item.eventType}</span>
                     <p className="text-neutral-400 text-xs mt-1 line-clamp-2">{item.text}</p>
                   </div>
-                  <button onClick={() => handleDeleteTestimonial(item.id)} className="text-xs text-red-500 hover:text-red-400 flex-shrink-0">Șterge</button>
                 </div>
               ))}
-              {page.testimonials.length === 0 && <p className="text-neutral-600 text-xs text-center py-4">Niciun testimonial</p>}
+              {page.testimonials.length === 0 && (
+                <p className="text-neutral-600 text-xs text-center py-4">
+                  Niciun testimonial selectat. Apasă "Selectează" pentru a alege din recenzii.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -526,13 +608,13 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
         />
       )}
 
-      {state.showAddTestimonial && (
-        <AddTestimonialModal
-          onClose={() => dispatch({ type: "SET_SHOW_ADD_TESTIMONIAL", value: false })}
-          onSaved={async (testimonial) => {
-            await apiPost(`/api/campaign/${page.slug}/testimonials`, testimonial);
-            dispatch({ type: "PATCH_EDITING", patch: { testimonials: [...page.testimonials, testimonial] } });
-            dispatch({ type: "SET_SHOW_ADD_TESTIMONIAL", value: false });
+      {state.showTestimonialPicker && (
+        <TestimonialPickerModal
+          currentTestimonials={page.testimonials}
+          onClose={() => dispatch({ type: "SET_SHOW_TESTIMONIAL_PICKER", value: false })}
+          onSave={(testimonials) => {
+            dispatch({ type: "PATCH_EDITING", patch: { testimonials } });
+            dispatch({ type: "SET_SHOW_TESTIMONIAL_PICKER", value: false });
           }}
         />
       )}
