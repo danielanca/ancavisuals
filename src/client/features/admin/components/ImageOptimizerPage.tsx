@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import Breadcrumb from "./Breadcrumb";
 import JSZip from "jszip";
 
@@ -112,6 +112,12 @@ export default function ImageOptimizerPage() {
   const thumbMap = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const fileMap = useRef<Map<string, File>>(new Map());
   const estimateTimer = useRef<number | null>(null);
+  const pageDragCounter = useRef(0);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addFilesRef = useRef<(f: FileList | File[]) => void>(() => {});
+
+  const [pageIsDragging, setPageIsDragging] = useState(false);
+  const [flashCount, setFlashCount] = useState<number | null>(null);
 
   // Recompute estimates for all pending files at given quality
   const reestimate = useCallback(async (quality: number) => {
@@ -179,10 +185,71 @@ export default function ImageOptimizerPage() {
     dispatch({ type: "UPDATE_ESTIMATES", estimates });
   }, [state.files, state.quality]);
 
-  const onDrop = useCallback((e: React.DragEvent) => {
+  // Keep addFilesRef current so document-level handler avoids stale closure
+  useEffect(() => { addFilesRef.current = addFiles; }, [addFiles]);
+
+  // Page-level drag tracking + browser drop prevention
+  useEffect(() => {
+    const onDragEnter = () => {
+      pageDragCounter.current += 1;
+      setPageIsDragging(true);
+    };
+    const onDragLeave = () => {
+      pageDragCounter.current -= 1;
+      if (pageDragCounter.current <= 0) {
+        pageDragCounter.current = 0;
+        setPageIsDragging(false);
+      }
+    };
+    const onDragOver = (e: DragEvent) => e.preventDefault();
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      pageDragCounter.current = 0;
+      setPageIsDragging(false);
+    };
+
+    document.addEventListener("dragenter", onDragEnter);
+    document.addEventListener("dragleave", onDragLeave);
+    document.addEventListener("dragover", onDragOver);
+    document.addEventListener("drop", onDrop);
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter);
+      document.removeEventListener("dragleave", onDragLeave);
+      document.removeEventListener("dragover", onDragOver);
+      document.removeEventListener("drop", onDrop);
+    };
+  }, []);
+
+  const showFlash = useCallback((files: FileList) => {
+    const accepted = Array.from(files).filter((f) => /\.(jpe?g|png)$/i.test(f.name));
+    const existing = new Set(state.files.map((f) => f.name));
+    const freshCount = accepted.filter((f) => !existing.has(f.name)).length;
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlashCount(freshCount);
+    flashTimer.current = setTimeout(() => setFlashCount(null), 2500);
+  }, [state.files]);
+
+  // Overlay drop handler — fires when user drops on the full-page overlay
+  const onOverlayDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
-  }, [addFiles]);
+    e.stopPropagation();
+    pageDragCounter.current = 0;
+    setPageIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (!files?.length) return;
+    showFlash(files);
+    addFilesRef.current(files);
+  }, [showFlash]);
+
+  // Fallback: dropzone handles drops when overlay isn't showing (shouldn't happen normally)
+  const onZoneDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = e.dataTransfer.files;
+    if (!files?.length) return;
+    showFlash(files);
+    addFiles(files);
+  }, [addFiles, showFlash]);
 
   const processAll = async () => {
     if (state.processing) return;
@@ -282,15 +349,35 @@ export default function ImageOptimizerPage() {
 
         {/* Drop zone */}
         <div
-          onDrop={onDrop}
+          onDrop={onZoneDrop}
           onDragOver={(e) => e.preventDefault()}
           onClick={() => inputRef.current?.click()}
-          className="border-2 border-dashed border-neutral-700 hover:border-violet-500 rounded-xl p-12 text-center cursor-pointer transition-colors"
+          className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-150 select-none ${
+            flashCount !== null && flashCount > 0
+              ? "border-emerald-500 bg-emerald-500/10"
+              : flashCount === 0
+              ? "border-red-500/50 bg-red-500/5"
+              : "border-neutral-700 hover:border-violet-500"
+          }`}
         >
-          <p className="text-neutral-400 text-sm">
-            Trage pozele aici sau <span className="text-violet-400 underline">selectează fișierele</span>
-          </p>
-          <p className="text-neutral-600 text-xs mt-1">JPG, JPEG, PNG — oricâte</p>
+          {flashCount !== null && flashCount > 0 ? (
+            <>
+              <p className="text-emerald-400 text-base font-medium">✓ {flashCount} {flashCount === 1 ? "poză preluată" : "poze preluate"}</p>
+              <p className="text-emerald-600 text-xs mt-1">Gata de optimizat</p>
+            </>
+          ) : flashCount === 0 ? (
+            <>
+              <p className="text-red-400 text-sm font-medium">Nicio poză acceptată</p>
+              <p className="text-neutral-600 text-xs mt-1">Sunt acceptate doar JPG, JPEG, PNG</p>
+            </>
+          ) : (
+            <>
+              <p className="text-neutral-400 text-sm">
+                Trage pozele aici sau <span className="text-violet-400 underline">selectează fișierele</span>
+              </p>
+              <p className="text-neutral-600 text-xs mt-1">JPG, JPEG, PNG — oricâte</p>
+            </>
+          )}
           <input
             ref={inputRef}
             type="file"
@@ -400,6 +487,37 @@ export default function ImageOptimizerPage() {
         )}
 
       </div>
+
+      {/* Full-page drag overlay */}
+      {pageIsDragging && (
+        <div
+          onDrop={onOverlayDrop}
+          onDragOver={(e) => e.preventDefault()}
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(91, 33, 182, 0.35)", backdropFilter: "blur(4px)" }}
+        >
+          <div
+            className="pointer-events-none flex flex-col items-center gap-4"
+            style={{
+              border: "3px dashed rgba(167,139,250,0.7)",
+              borderRadius: "24px",
+              padding: "64px 96px",
+            }}
+          >
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(196,181,253,0.9)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <p style={{ color: "rgba(221,214,254,0.95)", fontSize: "22px", fontWeight: 600, margin: 0 }}>
+              Lasă pozele aici
+            </p>
+            <p style={{ color: "rgba(167,139,250,0.7)", fontSize: "13px", margin: 0 }}>
+              JPG, JPEG, PNG — oricâte
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

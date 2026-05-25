@@ -214,8 +214,8 @@ export default function MediaAssetsAdminPage() {
 
     try {
       const albumsUrl = isVideo
-        ? "/api/albums/admin/list?hasShortVideo=true"
-        : "/api/albums/admin/list";
+        ? "/api/album/admin/list?hasShortVideo=true"
+        : "/api/album/admin/list";
 
       if (isVideo) {
         const albumsResponse = await fetch(albumsUrl, { headers: { Authorization: `Bearer ${auth.accessToken}` } });
@@ -244,7 +244,7 @@ export default function MediaAssetsAdminPage() {
     if (!slug) return;
     setImportModal(current => current ? { ...current, activeAlbumSlug: slug, loadingAlbum: true, albumPhotos: [] } : null);
     try {
-      const response = await fetch(`/api/albums/${slug}`, {
+      const response = await fetch(`/api/album/${slug}`, {
         headers: { Authorization: `Bearer ${auth.accessToken}` },
       });
       const data = await readJsonResponse<{ photos?: string[]; originalPhoto?: string[]; shortvideo?: string | null }>(response);

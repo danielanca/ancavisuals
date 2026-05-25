@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import type { ClientEvent, AdminSettings } from "../../types";
 import GoalCard from "../GoalCard";
 import EventList from "../EventList";
@@ -11,6 +11,150 @@ import PostEventFollowUp from "../PostEventFollowUp";
 import MementosWidget from "../MementosWidget";
 import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
 import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeContext";
+
+// ── Dashboard Search ──────────────────────────────────────────────────────────
+
+type SearchItem = { label: string; path: string; category: string; keywords?: string };
+
+const SEARCH_ITEMS: SearchItem[] = [
+  { label: "Calendar", path: "/admin/calendar", category: "Evenimente" },
+  { label: "Mementouri", path: "/admin/mementos", category: "Evenimente" },
+  { label: "Moderare albume", path: "/admin/moderare", category: "Evenimente" },
+  { label: "Foi de parcurs", path: "/admin/route-sheets", category: "Evenimente" },
+  { label: "Contracte", path: "/admin/contracts", category: "Contracte & Oferte" },
+  { label: "Oferte", path: "/admin/oferte", category: "Contracte & Oferte" },
+  { label: "Template Oferte", path: "/admin/template-oferte", category: "Contracte & Oferte" },
+  { label: "Propuneri Media", path: "/admin/instagram-proposals", category: "Media", keywords: "instagram propuneri poze" },
+  { label: "Media Assets", path: "/admin/media-assets", category: "Media", keywords: "assets imagini fisiere" },
+  { label: "QR Moments", path: "/admin/qr-moments", category: "Media" },
+  { label: "Activitate album", path: "/admin/media-activity", category: "Media" },
+  { label: "Optimizare poze", path: "/admin/image-optimizer", category: "Media", keywords: "optimizare imagini compresie" },
+  { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", keywords: "bani venituri cheltuieli" },
+  { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar" },
+  { label: "Detalii bancare", path: "/admin/bank-details", category: "Financiar", keywords: "iban cont" },
+  { label: "Landing page", path: "/admin/landing", category: "Marketing & Web" },
+  { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web" },
+  { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web" },
+  { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", keywords: "banner reclama footer poze showcase" },
+  { label: "Conturi", path: "/admin/accounts", category: "Sistem" },
+  { label: "Wedding Hub", path: "/admin/wedding-hub", category: "Sistem" },
+  { label: "Erori server", path: "/admin/errors", category: "Sistem", keywords: "logs erori bugs" },
+];
+
+function DashboardSearch() {
+  const navigate = useNavigate();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const results = query.trim().length === 0 ? [] : SEARCH_ITEMS.filter((item) => {
+    const q = query.toLowerCase();
+    return (
+      item.label.toLowerCase().includes(q) ||
+      item.category.toLowerCase().includes(q) ||
+      (item.keywords ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  useEffect(() => { setActiveIndex(0); }, [query]);
+
+  const goTo = useCallback((path: string) => {
+    setQuery("");
+    setFocused(false);
+    navigate(path);
+  }, [navigate]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        setFocused(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") { setQuery(""); setFocused(false); }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, results.length - 1)); }
+    if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); }
+    if (e.key === "Enter" && results[activeIndex]) goTo(results[activeIndex].path);
+  };
+
+  const showDropdown = focused && results.length > 0;
+
+  return (
+    <div style={{ position: "relative", width: "100%" }}>
+      <div style={{ position: "relative" }}>
+        <svg
+          style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        >
+          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          onKeyDown={onKeyDown}
+          placeholder="Caută rapid... (⌘K)"
+          style={{
+            width: "100%",
+            padding: "10px 12px 10px 36px",
+            background: "#111",
+            border: `1px solid ${focused ? "#333" : "#1a1a1a"}`,
+            borderRadius: "10px",
+            color: "#ccc",
+            fontSize: "14px",
+            outline: "none",
+            boxSizing: "border-box",
+            transition: "border-color 0.15s",
+          }}
+        />
+        {query && (
+          <button
+            onClick={() => { setQuery(""); inputRef.current?.focus(); }}
+            style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "16px", lineHeight: 1, padding: "2px" }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {showDropdown && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50,
+          background: "#111", border: "1px solid #222", borderRadius: "10px",
+          overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+        }}>
+          {results.map((item, i) => (
+            <button
+              key={item.path}
+              onMouseDown={() => goTo(item.path)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                width: "100%", padding: "10px 14px", background: i === activeIndex ? "#1a1a1a" : "transparent",
+                border: "none", borderBottom: i < results.length - 1 ? "1px solid #1a1a1a" : "none",
+                color: "#fff", fontSize: "14px", textAlign: "left", cursor: "pointer",
+                transition: "background 0.1s",
+              }}
+              onMouseEnter={() => setActiveIndex(i)}
+            >
+              <span>{item.label}</span>
+              <span style={{ fontSize: "11px", color: "#555", whiteSpace: "nowrap", marginLeft: "12px" }}>{item.category}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const ROBOTS_META_NAME = "robots";
 const ROBOTS_META_CONTENT = "noindex, nofollow";
@@ -208,6 +352,9 @@ const DashboardInner: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Search */}
+        <DashboardSearch />
 
         {/* Post-event follow-up notifications */}
         <PostEventFollowUp events={events} onEventUpdated={handleEventUpdated} />

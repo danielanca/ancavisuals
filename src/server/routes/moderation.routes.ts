@@ -16,6 +16,7 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import type { AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
 import { sendModerationSubmittedEmail, sendModerationResultEmail } from "../notifications/templates/moderationTemplate";
 import { adminUser } from "../constants/credentials";
+import { markCollaboratorInviteCompleted } from "../services/collaboratorInvite.service";
 
 const router = Router();
 const storageKey = getBunnyStorageKey();
@@ -91,6 +92,12 @@ router.post("/submit", requireFirebaseAuth, async (req: Request, res: Response) 
       status: "pending",
       createdAt: Timestamp.now(),
       note: note ?? "",
+    });
+
+    await markCollaboratorInviteCompleted({
+      email: authReq.firebaseEmail,
+      albumSlug,
+      actionType: "moderation",
     });
 
     sendModerationSubmittedEmail({

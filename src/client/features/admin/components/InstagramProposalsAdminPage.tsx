@@ -19,6 +19,54 @@ type InstagramProposal = {
   mediaAssetServiceIds?: string[];
 };
 
+type GroupedProposal = {
+  key: string;
+  albumSlug: string;
+  fileName: string;
+  photoUrl: string;
+  originalPhotoUrl?: string;
+  proposedBy: string[];
+  ids: string[];
+  status: ProposalStatus;
+  destinations: ProposalDestination[];
+};
+
+const STATUS_PRIORITY: Record<ProposalStatus, number> = { pending: 4, accepted: 3, archived: 2, rejected: 1 };
+
+function groupByPhoto(proposals: InstagramProposal[]): GroupedProposal[] {
+  const map = new Map<string, GroupedProposal>();
+  for (const p of proposals) {
+    const key = `${p.albumSlug}::${p.fileName}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        albumSlug: p.albumSlug,
+        fileName: p.fileName,
+        photoUrl: p.photoUrl,
+        originalPhotoUrl: p.originalPhotoUrl,
+        proposedBy: [],
+        ids: [],
+        status: p.status,
+        destinations: [],
+      });
+    }
+    const group = map.get(key)!;
+    group.ids.push(p.id);
+    if (!group.proposedBy.includes(p.proposedBy)) group.proposedBy.push(p.proposedBy);
+    for (const dest of (p.destinations ?? ["instagram"] as ProposalDestination[])) {
+      if (!group.destinations.includes(dest)) group.destinations.push(dest);
+    }
+    if (STATUS_PRIORITY[p.status] > STATUS_PRIORITY[group.status]) group.status = p.status;
+  }
+  return Array.from(map.values());
+}
+
+function formatProposedBy(emails: string[]): string {
+  const names = emails.map((e) => e.split("@")[0]);
+  if (names.length === 1) return names[0];
+  return names.slice(0, -1).join(", ") + " și " + names[names.length - 1];
+}
+
 const STATUS_LABEL: Record<ProposalStatus, string> = {
   pending:  "În așteptare",
   accepted: "Acceptat",
@@ -50,13 +98,13 @@ function triggerDownload(url: string, fileName: string): Promise<void> {
 // ─── Pending card — list layout on mobile, grid on desktop ───────────────────
 
 function PendingCard({
-  proposal,
+  group,
   busy,
   onAccept,
   onReject,
   onDelete,
 }: {
-  proposal: InstagramProposal;
+  group: GroupedProposal;
   busy: boolean;
   onAccept: (destinations: ProposalDestination[]) => void;
   onReject: () => void;
@@ -64,7 +112,7 @@ function PendingCard({
 }) {
   const [accepting, setAccepting] = useState(false);
   const [acceptDests, setAcceptDests] = useState<Set<ProposalDestination>>(
-    new Set(proposal.destinations ?? ["instagram"])
+    new Set(group.destinations.length > 0 ? group.destinations : ["instagram"])
   );
 
   function toggleDest(dest: ProposalDestination) {
@@ -75,31 +123,39 @@ function PendingCard({
     });
   }
 
+  const nameDisplay = formatProposedBy(group.proposedBy);
+  const isJoint = group.proposedBy.length > 1;
+
   return (
     <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden">
-      {/* Mobile: row layout */}
       <div className="flex sm:flex-col">
         <div className="relative flex-shrink-0 w-28 sm:w-full">
           <img
-            src={proposal.originalPhotoUrl ?? proposal.photoUrl}
-            alt={proposal.fileName}
+            src={group.originalPhotoUrl ?? group.photoUrl}
+            alt={group.fileName}
             className="w-full h-28 sm:h-auto sm:aspect-square object-cover block"
             loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-          <span className="absolute bottom-1.5 left-1.5 text-[10px] text-white/60 truncate max-w-[80px]">
-            {proposal.proposedBy.split("@")[0]}
-          </span>
+          {isJoint ? (
+            <span className="absolute bottom-1.5 left-1.5 right-1.5 text-[9px] text-amber-300 font-semibold bg-amber-950/80 rounded px-1 py-0.5 text-center leading-tight">
+              {nameDisplay}
+            </span>
+          ) : (
+            <span className="absolute bottom-1.5 left-1.5 text-[10px] text-white/60 truncate max-w-[80px]">
+              {nameDisplay}
+            </span>
+          )}
         </div>
 
         <div className="flex-1 flex flex-col justify-between p-3 gap-2 sm:p-2.5">
           <a
-            href={`/media/${proposal.albumSlug}`}
+            href={`/media/${group.albumSlug}`}
             target="_blank"
             rel="noreferrer"
             className="text-indigo-400 text-xs font-semibold truncate hover:text-indigo-300 transition-colors"
           >
-            {proposal.albumSlug}
+            {group.albumSlug}
           </a>
 
           {accepting ? (
@@ -143,7 +199,7 @@ function PendingCard({
           ) : (
             <>
               <div className="flex gap-1 flex-wrap">
-                {(proposal.destinations ?? ["instagram"]).map((destination) => (
+                {group.destinations.map((destination) => (
                   <span
                     key={destination}
                     className={`text-[10px] px-2 py-0.5 rounded-full ${
@@ -352,6 +408,23 @@ export default function InstagramProposalsAdminPage() {
     } catch { } finally { setUpdatingId(null); }
   };
 
+  const updateStatusGroup = async (groupKey: string, ids: string[], status: ProposalStatus, destinations?: ProposalDestination[]) => {
+    if (!auth.accessToken) return;
+    setUpdatingId(groupKey);
+    try {
+      const body: Record<string, unknown> = { status };
+      if (destinations) body.destinations = destinations;
+      await Promise.all(ids.map((id) =>
+        fetch(`/api/instagram-proposals/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+          body: JSON.stringify(body),
+        })
+      ));
+      setProposals((prev) => prev.map((p) => ids.includes(p.id) ? { ...p, status, ...(destinations ? { destinations } : {}) } : p));
+    } catch { } finally { setUpdatingId(null); }
+  };
+
   const deleteProposal = async (id: string) => {
     if (!auth.accessToken) return;
     setUpdatingId(id);
@@ -361,6 +434,20 @@ export default function InstagramProposalsAdminPage() {
         headers: { Authorization: `Bearer ${auth.accessToken}` },
       });
       setProposals((prev) => prev.filter((p) => p.id !== id));
+    } catch { } finally { setUpdatingId(null); }
+  };
+
+  const deleteProposalGroup = async (groupKey: string, ids: string[]) => {
+    if (!auth.accessToken) return;
+    setUpdatingId(groupKey);
+    try {
+      await Promise.all(ids.map((id) =>
+        fetch(`/api/instagram-proposals/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+        })
+      ));
+      setProposals((prev) => prev.filter((p) => !ids.includes(p.id)));
     } catch { } finally { setUpdatingId(null); }
   };
 
@@ -493,41 +580,44 @@ export default function InstagramProposalsAdminPage() {
 
         {/* ── PENDING ── */}
         {!loading && tab === "pending" && (() => {
-          const groups = groupByAlbum(byStatus("pending"));
-          if (groups.length === 0) {
+          const albumGroups = groupByAlbum(byStatus("pending"));
+          if (albumGroups.length === 0) {
             return (
               <div className="text-center py-16 text-neutral-600 text-sm">
                 Nicio propunere în așteptare.
               </div>
             );
           }
-          return groups.map(([albumSlug, albumProposals]) => (
-            <div key={albumSlug} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-              <AlbumGroupHeader
-                albumSlug={albumSlug}
-                count={albumProposals.length}
-                label="propuneri"
-                labelColor="bg-orange-500/20 text-orange-400"
-                isCollapsed={collapsedAlbums.has(albumSlug)}
-                onToggle={() => toggleAlbum(albumSlug)}
-              />
-              {!collapsedAlbums.has(albumSlug) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-neutral-800">
-                  {albumProposals.map((proposal) => (
-                    <div key={proposal.id} className="bg-neutral-950">
-                      <PendingCard
-                        proposal={proposal}
-                        busy={updatingId === proposal.id}
-                        onAccept={(destinations) => updateStatus(proposal.id, "accepted", destinations)}
-                        onReject={() => updateStatus(proposal.id, "rejected")}
-                        onDelete={() => deleteProposal(proposal.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ));
+          return albumGroups.map(([albumSlug, albumProposals]) => {
+            const photoGroups = groupByPhoto(albumProposals);
+            return (
+              <div key={albumSlug} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                <AlbumGroupHeader
+                  albumSlug={albumSlug}
+                  count={photoGroups.length}
+                  label={photoGroups.length !== albumProposals.length ? `poze (${albumProposals.length} propuneri)` : "propuneri"}
+                  labelColor="bg-orange-500/20 text-orange-400"
+                  isCollapsed={collapsedAlbums.has(albumSlug)}
+                  onToggle={() => toggleAlbum(albumSlug)}
+                />
+                {!collapsedAlbums.has(albumSlug) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-neutral-800">
+                    {photoGroups.map((group) => (
+                      <div key={group.key} className="bg-neutral-950">
+                        <PendingCard
+                          group={group}
+                          busy={updatingId === group.key}
+                          onAccept={(destinations) => updateStatusGroup(group.key, group.ids, "accepted", destinations)}
+                          onReject={() => updateStatusGroup(group.key, group.ids, "rejected")}
+                          onDelete={() => deleteProposalGroup(group.key, group.ids)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          });
         })()}
 
         {/* ── ACCEPTATE ── */}

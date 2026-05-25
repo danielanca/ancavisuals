@@ -28,6 +28,7 @@ const LABELS: Record<string, string> = {
   "template-oferte": "Template Oferte",
   oferte: "Oferte",
   "media-assets": "Media Assets",
+  showcase: "Zone Showcase",
 };
 
 export default function Breadcrumb() {

@@ -35,6 +35,7 @@ import bankStatementsRouter from "./src/server/routes/bankStatements.routes";
 import loginEventsRouter from "./src/server/routes/loginEvents.routes";
 import landingRouter from "./src/server/routes/landing.routes";
 import instagramProposalsRouter from "./src/server/routes/instagramProposals.routes";
+import showcaseZonesRouter from "./src/server/routes/showcase-zones.routes";
 import albumSubscriptionsRouter from "./src/server/routes/albumSubscriptions.routes";
 import qrMomentsRouter from "./src/server/routes/qrMoments.routes";
 import accountsRouter from "./src/server/routes/accounts.routes";
@@ -51,6 +52,7 @@ import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
+import { startCollaboratorInviteReminderCron } from "./src/server/cron/collaboratorInviteReminder.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 
 // Shared HTTP defaults used by both local development and the production server.
@@ -170,6 +172,7 @@ async function createServer() {
   app.use("/api", loginEventsRouter);
   app.use("/api/admin/landing", landingRouter);
   app.use("/api/instagram-proposals", instagramProposalsRouter);
+  app.use("/api/showcase-zones", showcaseZonesRouter);
   app.use("/api/album-subscriptions", albumSubscriptionsRouter);
   app.use("/api/qr-moments", qrMomentsRouter);
   app.use("/api/wedding-hub", weddingHubRouter);
@@ -188,8 +191,9 @@ async function createServer() {
   startPostEventBackupCron();
   startErrorsCron();
   startRemindersCron();
+  startCollaboratorInviteReminderCron();
 
-  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors");
+  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites");
 
   let vite: ViteDevServer | undefined;
   let template: string;
