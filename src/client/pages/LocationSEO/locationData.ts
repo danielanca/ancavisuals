@@ -929,6 +929,19 @@ export const CITIES: CityData[] = [
     photoSpots: ["podgoriile din zonă", "peisajele de deal", "centrul comunei"],
     services: ["nunta"],
   },
+
+  // [seo-generator]
+  {
+    slug: "fotograf-nunta-cluj",
+    name: "Cluj-Napoca (extindere zone limitrofe)",
+    county: "Cluj",
+    description: "Capitala Transilvaniei cu arhitectură eclectică parcuri verzi și peisaje montane spectaculoase",
+    intro: "Oferim servicii profesionale de fotografie și videografie în Cluj-Napoca și zonele limitrofe, surprinzând fiecare moment important cu pasiune și creativitate.",
+    nearbyAreas: ["Florești","Apahida","Baciu","Gilău"],
+    venues: ["Grand Hotel Italia Cluj-Napoca","Sala Polivalentă Cluj-Napoca","Botanica Events","Château Belin"],
+    photoSpots: ["Parcul Central Simion Bărnuțiu","Cetățuia Cluj-Napoca","Piața Unirii Cluj-Napoca"],
+    services: ["nunta","botez","majorat","evenimente","cununie-civila","logodna","corporate","trash-the-dress","save-the-date"],
+  },
 ];
 
 export const SERVICES: ServiceData[] = [

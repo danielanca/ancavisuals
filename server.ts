@@ -46,6 +46,7 @@ import weddingTimelineRouter from "./src/server/routes/weddingTimeline.routes";
 import weddingRemindersRouter from "./src/server/routes/weddingReminders.routes";
 import oferteRouter from "./src/server/routes/oferte.routes";
 import venueOutreachRouter from "./src/server/routes/venueOutreach.routes";
+import seoGeneratorRouter from "./src/server/routes/seoGenerator.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
@@ -54,6 +55,7 @@ import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startCollaboratorInviteReminderCron } from "./src/server/cron/collaboratorInviteReminder.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
+import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
 
 // Shared HTTP defaults used by both local development and the production server.
 const BODY_PAYLOAD_LIMIT = "5mb";
@@ -159,6 +161,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.admin, mementosRouter);
   app.use(API_ROUTE_PREFIXES.admin, accountsRouter);
   app.use(API_ROUTE_PREFIXES.admin, venueOutreachRouter);
+  app.use("/api/admin/seo", seoGeneratorRouter);
   app.use("/api/analytics", analyticsPublicRouter);
   app.use(API_ROUTE_PREFIXES.admin, analyticsAdminRouter);
   app.use("/api/moderare", moderationRouter);
@@ -185,6 +188,7 @@ async function createServer() {
   if (showProgress) devLogger.step("Rute API", "29 rute înregistrate");
 
   startServerMonitor();
+  generateSitemapFromDb().catch(error => console.error("[sitemap] Startup generation failed:", error));
   startMementosCron();
   startAnalyticsCron();
   startAlbumRetentionCron();

@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { getCookie, isBrowser } from "../utils/functions";
+import { getCookie, setCookie, isBrowser } from "../utils/functions";
 import { sendTriggerEmail } from "../utils/triggers";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin", "/wedding-hub", "/colaborator"];
 const ADMIN_COOKIE = "av_admin";
+const VISITOR_COOKIE = "av_visitor";
+const VISITOR_COOKIE_DAYS = 180; // 6 luni
 const SESSION_KEY = "av_notified";
 
 function getNotifiedUrls(): Set<string> {
@@ -38,6 +40,12 @@ export function useVisitorNotification() {
     if (notified.has(location.pathname)) return;
 
     markUrlNotified(location.pathname);
-    sendTriggerEmail({ typeEvent: "Vizitator", url: location.pathname }).catch(() => {});
+
+    const isNewVisitor = getCookie(VISITOR_COOKIE) === null;
+    if (isNewVisitor) {
+      setCookie(VISITOR_COOKIE, "1", VISITOR_COOKIE_DAYS);
+    }
+
+    sendTriggerEmail({ typeEvent: "Vizitator", url: location.pathname, isNewVisitor }).catch(() => {});
   }, [location.pathname]);
 }

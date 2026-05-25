@@ -158,6 +158,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       ),
       items: [
         { label: "Landing page", path: "/admin/landing" },
+        { label: "Generator SEO", path: "/admin/seo-generator" },
         { label: "Inspirație", path: "/admin/inspiration" },
         { label: "Zone Showcase", path: "/admin/showcase" },
         { label: "Analytics", path: "/admin/analytics" },

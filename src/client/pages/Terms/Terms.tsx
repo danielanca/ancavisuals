@@ -60,7 +60,6 @@ const Terms = () => {
                 "Avansul (de regulă 30% din valoarea totală) se achită la semnarea contractului și este nereturnabil în caz de anulare din partea clientului.",
                 "Restul sumei se achită cu cel puțin 7 zile înainte de eveniment sau conform termenelor din contract.",
                 "Plata se poate face prin transfer bancar sau alte metode agreate în contract.",
-                "Prețurile nu includ TVA dacă nu este specificat altfel.",
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
                   <span className="text-gray-600 mt-1">—</span>
