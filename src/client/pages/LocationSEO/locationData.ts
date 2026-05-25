@@ -16,6 +16,7 @@ export interface CityData {
   nearbyAreas: string[];
   venues: string[];
   photoSpots: string[];
+  services?: ServiceType[]; // if set, only these services generate pages for this city
 }
 
 export interface ServiceData {
@@ -610,6 +611,324 @@ export const CITIES: CityData[] = [
     venues: ["saloanele locale", "hotelurile din centru", "restauranturile din zonă", "locațiile din apropiere"],
     photoSpots: ["centrul orașului", "Lacul Roșu", "Cheile Bicazului"],
   },
+
+  // --- Sate și comune lângă Oradea — doar nuntă ---
+  {
+    slug: "sanmartin-bihor",
+    name: "Sânmartin",
+    county: "Bihor",
+    description: "comună lângă Oradea, cunoscută pentru Băile Felix, cu locații de evenimente elegante și acces ușor din Oradea",
+    intro: "La nunțile din Sânmartin și Băile Felix livrăm acoperire completă foto-video, cu un ritm relaxat și cadre care valorifică locul.",
+    nearbyAreas: ["Oradea", "Băile Felix", "Tășnad", "Nojorid"],
+    venues: ["Termal Hotel", "saloanele din Băile Felix", "locațiile din zonă"],
+    photoSpots: ["Băile Felix", "zonele verzi", "locațiile elegante din stațiune"],
+    services: ["nunta"],
+  },
+  {
+    slug: "baile-felix",
+    name: "Băile Felix",
+    county: "Bihor",
+    description: "stațiune termală lângă Oradea, cu hoteluri cu săli de nunți elegante și o atmosferă relaxată pentru evenimente mari",
+    intro: "Nunțile din Băile Felix au avantajul locațiilor cu tot confortul sub un acoperiș — documentăm tot, de la pregătiri până la petrecere.",
+    nearbyAreas: ["Sânmartin", "Oradea", "Nojorid", "Biharia"],
+    venues: ["Termal Hotel", "Lotus Therm", "International Hotel", "saloanele din stațiune"],
+    photoSpots: ["parcul stațiunii", "lacurile termale", "aleile din Felix"],
+    services: ["nunta"],
+  },
+  {
+    slug: "nojorid",
+    name: "Nojorid",
+    county: "Bihor",
+    description: "comună lângă Oradea, cu acces rapid și evenimente de familie calde, potrivite pentru nunți mai restrânse sau majorate",
+    intro: "La nunțile din Nojorid și comunele din apropierea Oradei venim cu același profesionalism ca în oraș, fără costuri suplimentare.",
+    nearbyAreas: ["Oradea", "Sânmartin", "Girișu de Criș", "Biharia"],
+    venues: ["saloanele locale", "restauranturile din zonă", "locațiile din Oradea"],
+    photoSpots: ["zonele verzi din comună", "drumul spre Oradea", "locuri naturale din jur"],
+    services: ["nunta"],
+  },
+  {
+    slug: "biharia",
+    name: "Biharia",
+    county: "Bihor",
+    description: "comună cu tradiție lângă Oradea, cu nunți mari de familie și o comunitate apropiată unde contează naturalețea și sinceritatea",
+    intro: "La nunțile din Biharia documentăm cu atenție la tradiție și la momentele de familie, cu un stil discret și livrat rapid.",
+    nearbyAreas: ["Oradea", "Sântandrei", "Girișu de Criș", "Borș"],
+    venues: ["saloanele locale", "restauranturile din comună", "locațiile din Oradea"],
+    photoSpots: ["centrul comunei", "zonele verzi", "Cetatea Biharia"],
+    services: ["nunta"],
+  },
+  {
+    slug: "santandrei-bihor",
+    name: "Sântandrei",
+    county: "Bihor",
+    description: "comună lângă Oradea cu acces rapid, nunți de familie și o comunitate caldă unde contează apropierea și livrarea rapidă",
+    intro: "La nunțile din Sântandrei acoperim evenimentul complet, cu același standard ca în Oradea și fără deplasare suplimentară.",
+    nearbyAreas: ["Oradea", "Biharia", "Nojorid", "Paleu"],
+    venues: ["saloanele locale", "restauranturile din zonă", "locațiile din Oradea"],
+    photoSpots: ["centrul comunei", "zonele verzi", "împrejurimile"],
+    services: ["nunta"],
+  },
+  {
+    slug: "salonta",
+    name: "Salonta",
+    county: "Bihor",
+    description: "oraș lângă granița cu Ungaria, cu evenimente de familie mari și o comunitate unde tradițiile de nuntă sunt păstrate cu drag",
+    intro: "La nunțile din Salonta livrăm foto-video complet, cu atenție la specificul local și la momentele care fac diferența în galeria finală.",
+    nearbyAreas: ["Oradea", "Sântana", "Curtici", "Tulca"],
+    venues: ["saloanele din centru", "restauranturile locale", "locațiile din zonă"],
+    photoSpots: ["Turnul Vânătorilor", "centrul orașului", "zonele verzi"],
+    services: ["nunta"],
+  },
+  {
+    slug: "beius",
+    name: "Beiuș",
+    county: "Bihor",
+    description: "oraș la poalele Apusenilor, cu nunți de familie autentice și un cadru natural bun pentru portrete și cadre video memorabile",
+    intro: "La nunțile din Beiuș combinăm documentarea completă a evenimentului cu cadre care valorifică frumusețea zonei Apuseni.",
+    nearbyAreas: ["Oradea", "Ștei", "Vașcău", "Drăgănești"],
+    venues: ["saloanele din centru", "restauranturile locale", "locațiile din zonă"],
+    photoSpots: ["centrul orașului", "Pădurea Neagră", "zonele montane din jur"],
+    services: ["nunta"],
+  },
+
+  // --- Sate și comune lângă Arad — doar nuntă ---
+  {
+    slug: "vladimirescu",
+    name: "Vladimirescu",
+    county: "Arad",
+    description: "suburbie a Aradului cu acces rapid, unde se organizează frecvent nunți mari cu familie extinsă și tradiții puternice",
+    intro: "La nunțile din Vladimirescu și împrejurimile Aradului livrăm acoperire foto-video completă fără costuri de deplasare.",
+    nearbyAreas: ["Arad", "Șiria", "Ghioroc", "Mândruloc"],
+    venues: ["saloanele din Vladimirescu", "restauranturile locale", "locațiile din Arad"],
+    photoSpots: ["zonele verzi", "via spre Arad", "locuri din apropierea Mureșului"],
+    services: ["nunta"],
+  },
+  {
+    slug: "ghioroc",
+    name: "Ghioroc",
+    county: "Arad",
+    description: "comună cu lac și vie lângă Arad, cu nunți organizate în locații cu specific de zonă viticolă și atmosferă autentică",
+    intro: "Nunțile din Ghioroc și zona viticolă de lângă Arad au un farmec aparte — documentăm totul cu atenție la locul și la oamenii zilei.",
+    nearbyAreas: ["Arad", "Miniș", "Pauliș", "Șiria"],
+    venues: ["locațiile cu specific de vie", "saloanele din zonă", "restauranturile locale"],
+    photoSpots: ["lacul Ghioroc", "podgoriile din zonă", "peisajele viticole"],
+    services: ["nunta"],
+  },
+  {
+    slug: "paulis",
+    name: "Păuliș",
+    county: "Arad",
+    description: "comună viticolă lângă Arad cu cadre memorabile pentru nunți, podgorii frumoase și locații cu specific autentic arădean",
+    intro: "La nunțile din Păuliș valorificăm podgoriile și peisajul viticol pentru cadre memorabile, cu o documentare completă a evenimentului.",
+    nearbyAreas: ["Arad", "Ghioroc", "Miniș", "Lipova"],
+    venues: ["cramele și locațiile viticole", "saloanele din zonă", "restauranturile locale"],
+    photoSpots: ["podgoriile din Păuliș", "peisajele viticole", "zonele de deal"],
+    services: ["nunta"],
+  },
+  {
+    slug: "lipova",
+    name: "Lipova",
+    county: "Arad",
+    description: "oraș pe Mureș lângă Arad, cu tradiții puternice de nuntă și locații bune pentru evenimentele de familie mari",
+    intro: "La nunțile din Lipova documentăm complet ziua, cu atenție la tradiție și la momentele de familie care fac diferența în galeria finală.",
+    nearbyAreas: ["Arad", "Radna", "Păuliș", "Sebiș"],
+    venues: ["saloanele din centru", "restauranturile locale", "Mânăstirea Radna area"],
+    photoSpots: ["Mânăstirea Radna", "malul Mureșului", "centrul Lipovei"],
+    services: ["nunta"],
+  },
+  {
+    slug: "pecica",
+    name: "Pecica",
+    county: "Arad",
+    description: "comună mare lângă Arad cu nunți de familie extinse și o comunitate unde tradițiile sunt respectate și celebrate cu bucurie",
+    intro: "La nunțile din Pecica livrăm acoperire foto-video completă, adaptată la ritmul și la tradițiile specifice zonei de câmpie arădeane.",
+    nearbyAreas: ["Arad", "Nădlac", "Sântana", "Turnu"],
+    venues: ["saloanele locale", "restauranturile din centru", "locațiile din zonă"],
+    photoSpots: ["centrul comunei", "malul Mureșului", "zonele verzi din jur"],
+    services: ["nunta"],
+  },
+  {
+    slug: "santana-arad",
+    name: "Sântana",
+    county: "Arad",
+    description: "oraș lângă Arad cu comunitate activă și nunți mari de familie unde contează naturalețea și acoperirea completă a zilei",
+    intro: "La nunțile din Sântana documentăm cu același profesionalism ca în Arad, cu un ritm adaptat la eveniment și livrare rapidă.",
+    nearbyAreas: ["Arad", "Pecica", "Zimandu Nou", "Curtici"],
+    venues: ["saloanele din centru", "restauranturile locale", "locațiile din zonă"],
+    photoSpots: ["centrul orașului", "zonele verzi", "împrejurimile"],
+    services: ["nunta"],
+  },
+  {
+    slug: "curtici",
+    name: "Curtici",
+    county: "Arad",
+    description: "comună la granița cu Ungaria, cu nunți mari de familie și o comunitate diversă unde evenimentele sunt momente de bucurie colectivă",
+    intro: "La nunțile din Curtici venim cu acoperire completă și un stil discret, adaptat la specificul local și la dimensiunea evenimentului.",
+    nearbyAreas: ["Arad", "Nădlac", "Sântana", "Dorobanți"],
+    venues: ["saloanele locale", "restauranturile din zonă", "locațiile din Arad"],
+    photoSpots: ["centrul comunei", "zonele verzi", "împrejurimile"],
+    services: ["nunta"],
+  },
+
+  // --- Sate și comune lângă Turda — doar nuntă ---
+  {
+    slug: "mihai-viteazu",
+    name: "Mihai Viteazu",
+    county: "Cluj",
+    description: "comună lângă Turda și Cheile Turzii, cu nunți de familie și un cadru natural spectaculos în apropiere",
+    intro: "La nunțile din Mihai Viteazu combinăm documentarea completă cu cadre care valorifică proximitatea față de Cheile Turzii.",
+    nearbyAreas: ["Turda", "Câmpia Turzii", "Copăceni", "Săndulești"],
+    venues: ["saloanele locale", "locațiile din Turda", "restauranturile din zonă"],
+    photoSpots: ["Cheile Turzii", "Salina Turda", "zonele naturale din apropiere"],
+    services: ["nunta"],
+  },
+  {
+    slug: "sandulesti",
+    name: "Săndulești",
+    county: "Cluj",
+    description: "comună pitorească lângă Turda, cu nunți de familie autentice și acces facil spre Cheile Turzii pentru cadre memorabile",
+    intro: "La nunțile din Săndulești documentăm complet evenimentul și valorificăm peisajul superb din apropierea Cheilor Turzii.",
+    nearbyAreas: ["Turda", "Mihai Viteazu", "Petreștii de Jos", "Moldovenești"],
+    venues: ["saloanele locale", "locațiile din Turda", "pensiunile din zonă"],
+    photoSpots: ["Cheile Turzii", "peisajele de deal", "zonele naturale"],
+    services: ["nunta"],
+  },
+  {
+    slug: "luna-de-sus",
+    name: "Luna de Sus",
+    county: "Cluj",
+    description: "comună între Cluj și Turda, cu nunți de familie calde și acces rapid spre locațiile premium din ambele orașe",
+    intro: "La nunțile din Luna de Sus și zona dintre Cluj și Turda livrăm acoperire completă fără deplasare suplimentară.",
+    nearbyAreas: ["Turda", "Cluj-Napoca", "Câmpia Turzii", "Apahida"],
+    venues: ["saloanele locale", "locațiile din Cluj și Turda", "restauranturile din zonă"],
+    photoSpots: ["zonele verzi", "peisajele din vale", "împrejurimile"],
+    services: ["nunta"],
+  },
+  {
+    slug: "moldovenesti",
+    name: "Moldovenești",
+    county: "Cluj",
+    description: "comună de munte lângă Turda, cu nunți intime și un cadru natural autentic potrivit pentru imagini memorabile",
+    intro: "La nunțile din Moldovenești valorificăm cadrul natural al zonei de deal și documentăm complet evenimentul.",
+    nearbyAreas: ["Turda", "Săndulești", "Iara", "Petreștii de Jos"],
+    venues: ["saloanele locale", "pensiunile din zonă", "locațiile din Turda"],
+    photoSpots: ["zonele de deal și munte", "văile din jur", "peisajele naturale"],
+    services: ["nunta"],
+  },
+
+  // --- Sate și comune lângă Sibiu — doar nuntă ---
+  {
+    slug: "selimbar",
+    name: "Șelimbăr",
+    county: "Sibiu",
+    description: "comună la marginea Sibiului cu nunți elegante, locații moderne și acces rapid la tot ce oferă Sibiul pentru evenimente",
+    intro: "La nunțile din Șelimbăr livrăm acoperire completă, cu un stil curat care se potrivește locațiilor moderne din apropierea Sibiului.",
+    nearbyAreas: ["Sibiu", "Cisnădie", "Cristian", "Orlat"],
+    venues: ["saloanele moderne din zonă", "locațiile din Sibiu", "restauranturile locale"],
+    photoSpots: ["zonele verzi", "câmpul de la Șelimbăr", "vecinătatea Sibiului"],
+    services: ["nunta"],
+  },
+  {
+    slug: "cristian-sibiu",
+    name: "Cristian",
+    county: "Sibiu",
+    description: "sat săsesc autentic lângă Sibiu, cu nunți de familie și un cadru rural bine conservat potrivit pentru imagini calde",
+    intro: "La nunțile din Cristian valorificăm farmecul satelor săsești din zona Sibiului, cu o documentare discretă și naturală.",
+    nearbyAreas: ["Sibiu", "Șelimbăr", "Rășinari", "Orlat"],
+    venues: ["saloanele locale", "locațiile din Sibiu", "pensiunile din zonă"],
+    photoSpots: ["biserica fortificată", "centrul satului", "peisajele rurale din jur"],
+    services: ["nunta"],
+  },
+  {
+    slug: "rusinari",
+    name: "Rășinari",
+    county: "Sibiu",
+    description: "sat tradițional la poalele munților, cu nunți autentice și un decor natural deosebit pentru cadre memorabile",
+    intro: "La nunțile din Rășinari cadrul muntos și tradiția locului fac diferența — documentăm cu atenție la specificul autentic al zonei.",
+    nearbyAreas: ["Sibiu", "Păltiniș", "Șelimbăr", "Orlat"],
+    venues: ["saloanele locale", "locațiile din Sibiu", "pensiunile din munte"],
+    photoSpots: ["centrul satului", "Păltiniș", "peisajele montane din jur"],
+    services: ["nunta"],
+  },
+  {
+    slug: "ocna-sibiului",
+    name: "Ocna Sibiului",
+    county: "Sibiu",
+    description: "stațiune cu lacuri sărate lângă Sibiu, potrivită pentru nunți cu atmosferă relaxată și cadre naturale neobișnuite",
+    intro: "La nunțile din Ocna Sibiului valorificăm lacurile și peisajul aparte al zonei pentru cadre unice, cu o documentare completă.",
+    nearbyAreas: ["Sibiu", "Mediaș", "Copșa Mică", "Șelimbăr"],
+    venues: ["saloanele din stațiune", "locațiile din Sibiu", "restauranturile locale"],
+    photoSpots: ["lacurile sărate", "parcul stațiunii", "zonele verzi din jur"],
+    services: ["nunta"],
+  },
+  {
+    slug: "talmaciu",
+    name: "Tălmaciu",
+    county: "Sibiu",
+    description: "comună la intrarea în Defileul Oltului, cu nunți de familie și un cadru natural pitoresc pentru cadre foto memorabile",
+    intro: "La nunțile din Tălmaciu documentăm complet ziua și valorificăm peisajul superb de la intrarea în defileu.",
+    nearbyAreas: ["Sibiu", "Avrig", "Cisnădie", "Boița"],
+    venues: ["saloanele locale", "locațiile din Sibiu", "pensiunile din zonă"],
+    photoSpots: ["Defileul Oltului", "Cetatea Tălmaciului", "peisajele din zonă"],
+    services: ["nunta"],
+  },
+
+  // --- Sate și comune lângă Sebeș și Alba Iulia — doar nuntă ---
+  {
+    slug: "lancram",
+    name: "Lancrăm",
+    county: "Alba",
+    description: "sat lângă Sebeș cunoscut ca locul natal al lui Lucian Blaga, cu nunți de familie autentice și cadre rurale cu personalitate",
+    intro: "La nunțile din Lancrăm documentăm cu atenție la farmecul locului și la momentele de familie care fac ziua memorabilă.",
+    nearbyAreas: ["Sebeș", "Alba Iulia", "Petrești", "Săsciori"],
+    venues: ["saloanele din Sebeș", "locațiile din Alba Iulia", "pensiunile locale"],
+    photoSpots: ["Casa memorială Blaga", "centrul satului", "peisajele rurale"],
+    services: ["nunta"],
+  },
+  {
+    slug: "petrestii-de-jos",
+    name: "Petrești",
+    county: "Alba",
+    description: "comună lângă Sebeș cu nunți de familie calde și acces rapid spre locațiile premium din Sebeș și Alba Iulia",
+    intro: "La nunțile din Petrești livrăm acoperire completă foto-video, cu același standard ca în Sebeș, fără deplasare suplimentară.",
+    nearbyAreas: ["Sebeș", "Lancrăm", "Alba Iulia", "Cugir"],
+    venues: ["saloanele din Sebeș", "locațiile din Alba Iulia", "restauranturile locale"],
+    photoSpots: ["peisajele rurale", "zonele verzi", "împrejurimile"],
+    services: ["nunta"],
+  },
+  {
+    slug: "vintu-de-jos",
+    name: "Vințu de Jos",
+    county: "Alba",
+    description: "comună pe Mureș lângă Alba Iulia, cu nunți de familie și un cadru natural plăcut pentru portrete și cadre video",
+    intro: "La nunțile din Vințu de Jos documentăm complet evenimentul, cu atenție la familie și la momentele care fac diferența.",
+    nearbyAreas: ["Alba Iulia", "Sebeș", "Teiuș", "Șibot"],
+    venues: ["saloanele locale", "locațiile din Alba Iulia", "restauranturile din zonă"],
+    photoSpots: ["malul Mureșului", "centrul comunei", "peisajele din vale"],
+    services: ["nunta"],
+  },
+  {
+    slug: "teius",
+    name: "Teiuș",
+    county: "Alba",
+    description: "nod feroviar important în Alba, cu nunți de familie și acces rapid spre Cluj, Alba Iulia și Blaj",
+    intro: "La nunțile din Teiuș livrăm acoperire foto-video completă, cu un ritm adaptat la eveniment și livrare rapidă.",
+    nearbyAreas: ["Alba Iulia", "Blaj", "Aiud", "Vințu de Jos"],
+    venues: ["saloanele locale", "locațiile din Alba Iulia", "restauranturile din zonă"],
+    photoSpots: ["centrul orașului", "zonele verzi", "împrejurimile"],
+    services: ["nunta"],
+  },
+  {
+    slug: "galda-de-jos",
+    name: "Galda de Jos",
+    county: "Alba",
+    description: "comună viticolă între Alba Iulia și Aiud, cu nunți autentice și locații cu specific de zonă viticolă transilvăneană",
+    intro: "La nunțile din Galda de Jos valorificăm podgoriile și cadrul natural autentic pentru imagini memorabile.",
+    nearbyAreas: ["Alba Iulia", "Aiud", "Teiuș", "Meteș"],
+    venues: ["crama Jidvei area", "saloanele locale", "locațiile din Alba Iulia"],
+    photoSpots: ["podgoriile din zonă", "peisajele de deal", "centrul comunei"],
+    services: ["nunta"],
+  },
 ];
 
 export const SERVICES: ServiceData[] = [
@@ -737,8 +1056,13 @@ export function getServiceBySlug(slug: string): ServiceData | undefined {
   return SERVICES.find(s => s.slug === slug);
 }
 
+function allowedServices(city: CityData): ServiceData[] {
+  if (!city.services) return SERVICES;
+  return SERVICES.filter(s => city.services!.includes(s.slug));
+}
+
 export const CANONICAL_LOCATION_ROUTES: LocationRoute[] = CITIES.flatMap(city =>
-  SERVICES.map(service => ({
+  allowedServices(city).map(service => ({
     path: PRIMARY_KEYWORDS[0].template(service, city),
     citySlug: city.slug,
     serviceSlug: service.slug,
@@ -748,9 +1072,8 @@ export const CANONICAL_LOCATION_ROUTES: LocationRoute[] = CITIES.flatMap(city =>
 );
 
 export const ALL_LOCATION_ROUTES: LocationRoute[] = CITIES.flatMap(city =>
-  SERVICES.flatMap(service => {
+  allowedServices(city).flatMap(service => {
     const canonicalPath = PRIMARY_KEYWORDS[0].template(service, city);
-
     return [
       ...PRIMARY_KEYWORDS.map(keyword => ({
         path: keyword.template(service, city),
