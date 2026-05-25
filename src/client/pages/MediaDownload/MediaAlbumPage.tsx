@@ -1956,13 +1956,13 @@ export default function MediaAlbumPage() {
         <div
           style={{
             display: "flex",
-            gap: "2px",
+            gap: "3px",
             flexWrap: "nowrap",
             padding: 0,
             overflow: "hidden",
           }}
         >
-          {Array.from({ length: 24 }, (_, i) => showcasePhotos[i % showcasePhotos.length]).map((url, i) => (
+          {Array.from({ length: 18 }, (_, i) => showcasePhotos[i % showcasePhotos.length]).map((url, i) => (
             <div
               key={i}
               style={{
@@ -1970,7 +1970,6 @@ export default function MediaAlbumPage() {
                 minWidth: 0,
                 aspectRatio: "1 / 1",
                 overflow: "hidden",
-                flexShrink: 0,
               }}
             >
               <img
