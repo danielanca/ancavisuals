@@ -100,12 +100,14 @@ function triggerDownload(url: string, fileName: string): Promise<void> {
 function PendingCard({
   group,
   busy,
+  accepted,
   onAccept,
   onReject,
   onDelete,
 }: {
   group: GroupedProposal;
   busy: boolean;
+  accepted: boolean;
   onAccept: (destinations: ProposalDestination[]) => void;
   onReject: () => void;
   onDelete: () => void;
@@ -127,7 +129,7 @@ function PendingCard({
   const isJoint = group.proposedBy.length > 1;
 
   return (
-    <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden">
+    <div className={`bg-neutral-950 border rounded-xl overflow-hidden ${accepted ? "border-cyan-900/60" : "border-neutral-800"}`}>
       <div className="flex sm:flex-col">
         <div className="relative flex-shrink-0 w-28 sm:w-full">
           <img
@@ -137,7 +139,15 @@ function PendingCard({
             loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-          {isJoint ? (
+          {accepted && (
+            <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-cyan-300 text-2xl font-bold leading-none">✓</span>
+                <span className="text-cyan-300 text-[10px] font-semibold tracking-wide uppercase">Acceptat</span>
+              </div>
+            </div>
+          )}
+          {!accepted && (isJoint ? (
             <span className="absolute bottom-1.5 left-1.5 right-1.5 text-[9px] text-amber-300 font-semibold bg-amber-950/80 rounded px-1 py-0.5 text-center leading-tight">
               {nameDisplay}
             </span>
@@ -145,7 +155,7 @@ function PendingCard({
             <span className="absolute bottom-1.5 left-1.5 text-[10px] text-white/60 truncate max-w-[80px]">
               {nameDisplay}
             </span>
-          )}
+          ))}
         </div>
 
         <div className="flex-1 flex flex-col justify-between p-3 gap-2 sm:p-2.5">
@@ -158,7 +168,20 @@ function PendingCard({
             {group.albumSlug}
           </a>
 
-          {accepting ? (
+          {accepted ? (
+            <div className="flex gap-1 flex-wrap">
+              {group.destinations.map((destination) => (
+                <span
+                  key={destination}
+                  className={`text-[10px] px-2 py-0.5 rounded-full ${
+                    destination === "media_assets" ? "bg-teal-950/60 text-teal-300" : "bg-fuchsia-950/60 text-fuchsia-300"
+                  }`}
+                >
+                  {destination === "media_assets" ? "Media Assets" : "Instagram"}
+                </span>
+              ))}
+            </div>
+          ) : accepting ? (
             <>
               <div className="flex gap-1.5 flex-wrap">
                 {(["instagram", "media_assets"] as ProposalDestination[]).map(dest => {
@@ -377,6 +400,7 @@ export default function InstagramProposalsAdminPage() {
   const [destinationFilter, setDestinationFilter] = useState<ProposalDestination | "all">("all");
   const [allAlbumFilter, setAllAlbumFilter] = useState("all");
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
+  const [acceptedInSession, setAcceptedInSession] = useState<Set<string>>(new Set());
   const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -422,6 +446,7 @@ export default function InstagramProposalsAdminPage() {
         })
       ));
       setProposals((prev) => prev.map((p) => ids.includes(p.id) ? { ...p, status, ...(destinations ? { destinations } : {}) } : p));
+      if (status === "accepted") setAcceptedInSession((prev) => new Set([...prev, groupKey]));
     } catch { } finally { setUpdatingId(null); }
   };
 
@@ -580,7 +605,10 @@ export default function InstagramProposalsAdminPage() {
 
         {/* ── PENDING ── */}
         {!loading && tab === "pending" && (() => {
-          const albumGroups = groupByAlbum(byStatus("pending"));
+          const visiblePending = proposals.filter(
+            (p) => p.status === "pending" || acceptedInSession.has(`${p.albumSlug}::${p.fileName}`)
+          );
+          const albumGroups = groupByAlbum(visiblePending);
           if (albumGroups.length === 0) {
             return (
               <div className="text-center py-16 text-neutral-600 text-sm">
@@ -607,6 +635,7 @@ export default function InstagramProposalsAdminPage() {
                         <PendingCard
                           group={group}
                           busy={updatingId === group.key}
+                          accepted={acceptedInSession.has(group.key)}
                           onAccept={(destinations) => updateStatusGroup(group.key, group.ids, "accepted", destinations)}
                           onReject={() => updateStatusGroup(group.key, group.ids, "rejected")}
                           onDelete={() => deleteProposalGroup(group.key, group.ids)}

@@ -78,6 +78,7 @@ interface State {
   uploadingGallery: boolean;
   uploadingVideo: string | null;
   deletingId: string | null;
+  showLibraryPicker: boolean;
 }
 
 type Action =
@@ -98,7 +99,8 @@ type Action =
   | { type: "SET_SHOW_ADD_FAQ"; value: boolean }
   | { type: "SET_UPLOADING_GALLERY"; value: boolean }
   | { type: "SET_UPLOADING_VIDEO"; id: string | null }
-  | { type: "SET_DELETING"; id: string | null };
+  | { type: "SET_DELETING"; id: string | null }
+  | { type: "SET_SHOW_LIBRARY_PICKER"; value: boolean };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -120,6 +122,7 @@ function reducer(state: State, action: Action): State {
     case "SET_UPLOADING_GALLERY": return { ...state, uploadingGallery: action.value };
     case "SET_UPLOADING_VIDEO": return { ...state, uploadingVideo: action.id };
     case "SET_DELETING": return { ...state, deletingId: action.id };
+    case "SET_SHOW_LIBRARY_PICKER": return { ...state, showLibraryPicker: action.value };
     default: return state;
   }
 }
@@ -146,6 +149,7 @@ const initialState: State = {
   uploadingGallery: false,
   uploadingVideo: null,
   deletingId: null,
+  showLibraryPicker: false,
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -204,6 +208,105 @@ async function apiUploadFile(path: string, file: File, extraFields?: Record<stri
   });
   if (!response.ok) throw new Error(await response.text());
   return response.json() as Promise<{ url: string }>;
+}
+
+// ─── Library Picker Modal ─────────────────────────────────────────────────────
+
+interface LibraryProposal { id: string; photoUrl: string; albumSlug: string }
+interface LibraryAsset { id: string; url: string; label: string }
+
+interface LibraryPickerModalProps {
+  onClose: () => void;
+  onAdd: (url: string, altText: string) => void;
+  alreadyAdded: Set<string>;
+}
+
+function LibraryPickerModal({ onClose, onAdd, alreadyAdded }: LibraryPickerModalProps) {
+  const [tab, setTab] = React.useState<"proposals" | "assets">("proposals");
+  const [proposals, setProposals] = React.useState<LibraryProposal[]>([]);
+  const [assets, setAssets] = React.useState<LibraryAsset[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [addingUrl, setAddingUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    apiGet<{ proposals: LibraryProposal[]; assets: LibraryAsset[] }>("/api/admin/landing/gallery/sources")
+      .then((data) => { setProposals(data.proposals); setAssets(data.assets); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleAdd(url: string, altText: string) {
+    setAddingUrl(url);
+    try {
+      await onAdd(url, altText);
+    } finally {
+      setAddingUrl(null);
+    }
+  }
+
+  const currentList = tab === "proposals"
+    ? proposals.map((proposal) => ({ url: proposal.photoUrl, label: proposal.albumSlug }))
+    : assets.map((asset) => ({ url: asset.url, label: asset.label }));
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-neutral-800 flex-shrink-0">
+          <h3 className="text-white font-semibold">Selectează din bibliotecă</h3>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-xl leading-none">×</button>
+        </div>
+
+        <div className="flex gap-1 px-4 pt-3 flex-shrink-0">
+          {(["proposals", "assets"] as const).map((tabKey) => (
+            <button
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
+              className={`px-4 py-1.5 text-xs rounded-lg transition-colors ${tab === tabKey ? "bg-amber-600 text-white" : "text-neutral-400 hover:text-white"}`}
+            >
+              {tabKey === "proposals" ? `Propuneri (${proposals.length})` : `Media Assets (${assets.length})`}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-6 h-6 border-2 border-amber-600/30 border-t-amber-600 rounded-full animate-spin" />
+            </div>
+          ) : currentList.length === 0 ? (
+            <p className="text-neutral-600 text-sm text-center py-12">Nicio fotografie disponibilă</p>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+              {currentList.map((item) => {
+                const isAdded = alreadyAdded.has(item.url);
+                const isAdding = addingUrl === item.url;
+                return (
+                  <div key={item.url} className="relative group aspect-square">
+                    <img src={item.url} alt={item.label} loading="lazy" className={`w-full h-full object-cover rounded-lg transition-opacity ${isAdded ? "opacity-40" : "opacity-100"}`} />
+                    {isAdded ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
+                        <span className="text-white text-xs font-medium bg-green-700 px-2 py-0.5 rounded">Adăugat</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleAdd(item.url, item.label)}
+                        disabled={isAdding}
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <span className="text-white text-xs font-semibold bg-amber-600 px-3 py-1 rounded-full">
+                          {isAdding ? "..." : "+ Adaugă"}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -590,6 +693,16 @@ export default function LandingAdminPage() {
     }
   }
 
+  async function handleAddFromLibrary(url: string, altText: string) {
+    try {
+      const result = await apiPost("/api/admin/landing/gallery/add-from-library", { url, altText });
+      await loadGallery();
+      return result;
+    } catch {
+      // silently fail if already exists
+    }
+  }
+
   async function handleGalleryUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
     dispatch({ type: "SET_UPLOADING_GALLERY", value: true });
@@ -756,13 +869,19 @@ export default function LandingAdminPage() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-white">{state.gallery.length} imagini</span>
               <div className="flex gap-2">
+                <button
+                  onClick={() => dispatch({ type: "SET_SHOW_LIBRARY_PICKER", value: true })}
+                  className="px-3 py-1.5 text-xs border border-amber-700 text-amber-500 hover:text-amber-400 rounded-lg font-medium transition-colors"
+                >
+                  Din bibliotecă
+                </button>
                 <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => handleGalleryUpload(event.target.files)} />
                 <button
                   onClick={() => galleryInputRef.current?.click()}
                   disabled={state.uploadingGallery}
                   className="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                 >
-                  {state.uploadingGallery ? "Se uploadează..." : "Adaugă imagini"}
+                  {state.uploadingGallery ? "Se uploadează..." : "Upload"}
                 </button>
               </div>
             </div>
@@ -1064,6 +1183,14 @@ export default function LandingAdminPage() {
             dispatch({ type: "SET_SHOW_ADD_FAQ", value: false });
           }}
           nextOrder={state.faqItems.length}
+        />
+      )}
+
+      {state.showLibraryPicker && (
+        <LibraryPickerModal
+          onClose={() => dispatch({ type: "SET_SHOW_LIBRARY_PICKER", value: false })}
+          onAdd={async (url, altText) => { await handleAddFromLibrary(url, altText); }}
+          alreadyAdded={new Set(state.gallery.map((image) => image.url))}
         />
       )}
     </div>

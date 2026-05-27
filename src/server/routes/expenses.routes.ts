@@ -114,7 +114,7 @@ Extrage din documentul de mai sus următoarele informații și returnează DOAR 
           ],
         },
       ],
-    });
+    }, { timeout: 25_000 });
 
     const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "{}";
 
