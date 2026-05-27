@@ -29,6 +29,7 @@ const loadShareController = async () => {
   const readShareRecordMock = vi.fn();
   const signBunnyUrlMock = vi.fn((path: string) => `signed:${path}`);
   const buildBunnyStorageUrlMock = vi.fn((...segments: string[]) => `https://storage.test/${segments.join("/")}`);
+  const downloadBunnyOriginalMock = vi.fn();
   const archiveAppendMock = vi.fn();
   const archiveFinalizeMock = vi.fn().mockResolvedValue(undefined);
   const archivePipeMock = vi.fn();
@@ -47,12 +48,18 @@ const loadShareController = async () => {
     signBunnyUrl: signBunnyUrlMock,
   }));
 
+  vi.doMock("src/server/utils/downloadBunnyOriginal", () => ({
+    downloadBunnyOriginal: downloadBunnyOriginalMock,
+  }));
+
   vi.doMock("src/server/constants/bunny", () => ({
     BUNNY_ACCESS_KEY_HEADER: "AccessKey",
     BUNNY_IMAGE_FILE_PATTERN: /\.(jpg|jpeg|png|webp)$/i,
     BUNNY_PHOTOS_FOLDER: "photos",
+    BUNNY_PREVIEW_FOLDER: "photos_preview",
     ZIP_COMPRESSION_STANDARD: 6,
     buildBunnyStorageUrl: buildBunnyStorageUrlMock,
+    buildBunnyDirectoryUrl: vi.fn(() => "https://storage.test/dir"),
     getBunnyStorageKey: () => "storage-key",
   }));
 
@@ -68,6 +75,7 @@ const loadShareController = async () => {
     readShareRecordMock,
     signBunnyUrlMock,
     buildBunnyStorageUrlMock,
+    downloadBunnyOriginalMock,
     archiverMock,
     archiveAppendMock,
     archiveFinalizeMock,
@@ -149,6 +157,8 @@ describe("share.controller", () => {
   test("getShare returns signed photo urls for active shares", async () => {
     const { module, readShareRecordMock, signBunnyUrlMock } = await loadShareController();
     const res = createMockResponse();
+    // resolvePhotoFolder calls fetch for directory check — return non-ok so it falls back to photos/
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
     readShareRecordMock.mockResolvedValue({
       id: "share-2",
       slug: "event-4",
@@ -214,20 +224,14 @@ describe("share.controller", () => {
   });
 
   test("downloadShareZip streams only safe files into the archive", async () => {
-    const { module, readShareRecordMock, archiverMock, archiveAppendMock, archiveFinalizeMock } =
+    const { module, readShareRecordMock, downloadBunnyOriginalMock, archiverMock, archiveAppendMock, archiveFinalizeMock } =
       await loadShareController();
     const res = createMockResponse();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        body: makeWebStream(["binary-1"]),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        body: makeWebStream(["binary-2"]),
-      });
-    vi.stubGlobal("fetch", fetchMock);
+    // resolvePhotoFolder fetch — return non-ok so it falls back to photos/
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    downloadBunnyOriginalMock
+      .mockResolvedValueOnce({ buffer: Buffer.from("binary-1"), contentType: "image/jpeg" })
+      .mockResolvedValueOnce({ buffer: Buffer.from("binary-2"), contentType: "image/png" });
     readShareRecordMock.mockResolvedValue({
       id: "share-5",
       slug: "event-7",
@@ -244,7 +248,7 @@ describe("share.controller", () => {
       'attachment; filename="event-7-selectie.zip"',
     );
     expect(archiverMock).toHaveBeenCalledOnce();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(downloadBunnyOriginalMock).toHaveBeenCalledTimes(2);
     expect(archiveAppendMock).toHaveBeenCalledTimes(2);
     expect(archiveFinalizeMock).toHaveBeenCalledOnce();
   });

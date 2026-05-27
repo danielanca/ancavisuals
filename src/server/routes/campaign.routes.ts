@@ -163,6 +163,38 @@ router.post(
   }
 );
 
+// ─── BUNNY STREAM VIDEOS (read-only picker) ───────────────────────────────────
+
+router.get("/stream-videos", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID ?? "";
+    const apiKey = process.env.BUNNY_STREAM_API_KEY ?? "";
+    if (!libraryId || !apiKey) {
+      res.status(500).json({ error: "Bunny Stream not configured (BUNNY_STREAM_LIBRARY_ID / BUNNY_STREAM_API_KEY missing)" });
+      return;
+    }
+    const response = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos?page=1&itemsPerPage=100&orderBy=date`, {
+      headers: { AccessKey: apiKey, Accept: "application/json" },
+    });
+    if (!response.ok) {
+      res.status(502).json({ error: `Bunny Stream error: ${response.status}` });
+      return;
+    }
+    const data = await response.json() as { items: Array<{ guid: string; title: string; thumbnailFileName: string; length: number }> };
+    const cdnHostname = `vz-${libraryId}.b-cdn.net`;
+    const videos = data.items.map((video) => ({
+      guid: video.guid,
+      title: video.title,
+      thumbnailUrl: `https://${cdnHostname}/${video.guid}/${video.thumbnailFileName || "thumbnail.jpg"}`,
+      embedUrl: `https://iframe.mediadelivery.net/embed/${libraryId}/${video.guid}`,
+      length: video.length,
+    }));
+    res.json({ videos });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // ─── GALLERY ─────────────────────────────────────────────────────────────────
 
 router.post(

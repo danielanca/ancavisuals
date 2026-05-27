@@ -29,6 +29,7 @@ export interface CampaignPage {
   phoneNumber: string;
   heroImageUrl: string;
   heroVideoUrl: string;
+  videoUrl?: string;
   gallery: CampaignGalleryItem[];
   packages: CampaignPackage[];
   testimonials: CampaignTestimonial[];

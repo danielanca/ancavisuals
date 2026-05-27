@@ -1,6 +1,6 @@
 import React, { useReducer, useEffect, useCallback } from "react";
 import Breadcrumb from "./Breadcrumb";
-import type { CampaignPage, CampaignPackage, CampaignTestimonial } from "../../../pages/CampaignLanding/CampaignLandingPage";
+import type { CampaignPage, CampaignPackage } from "../../../pages/CampaignLanding/CampaignLandingPage";
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
@@ -74,6 +74,7 @@ interface State {
   uploadingHeroVideo: boolean;
   uploadingGallery: boolean;
   deletingGalleryUrl: string | null;
+  showStreamPicker: boolean;
   showAddPackage: boolean;
   showTestimonialPicker: boolean;
   newSlug: string;
@@ -92,6 +93,7 @@ type Action =
   | { type: "SET_UPLOADING_HERO_VIDEO"; value: boolean }
   | { type: "SET_UPLOADING_GALLERY"; value: boolean }
   | { type: "SET_DELETING_GALLERY"; url: string | null }
+  | { type: "SET_SHOW_STREAM_PICKER"; value: boolean }
   | { type: "SET_SHOW_ADD_PACKAGE"; value: boolean }
   | { type: "SET_SHOW_TESTIMONIAL_PICKER"; value: boolean }
   | { type: "SET_NEW_SLUG"; value: string }
@@ -110,6 +112,7 @@ function reducer(state: State, action: Action): State {
     case "SET_UPLOADING_HERO_VIDEO": return { ...state, uploadingHeroVideo: action.value };
     case "SET_UPLOADING_GALLERY": return { ...state, uploadingGallery: action.value };
     case "SET_DELETING_GALLERY": return { ...state, deletingGalleryUrl: action.url };
+    case "SET_SHOW_STREAM_PICKER": return { ...state, showStreamPicker: action.value };
     case "SET_SHOW_ADD_PACKAGE": return { ...state, showAddPackage: action.value };
     case "SET_SHOW_TESTIMONIAL_PICKER": return { ...state, showTestimonialPicker: action.value };
     case "SET_NEW_SLUG": return { ...state, newSlug: action.value };
@@ -129,6 +132,7 @@ const initialState: State = {
   uploadingHeroVideo: false,
   uploadingGallery: false,
   deletingGalleryUrl: null,
+  showStreamPicker: false,
   showAddPackage: false,
   showTestimonialPicker: false,
   newSlug: "",
@@ -184,124 +188,82 @@ function AddPackageModal({ onClose, onSaved }: AddPackageModalProps) {
   );
 }
 
-// ─── Testimonial Picker Modal ─────────────────────────────────────────────────
+// ─── Stream Video Picker Modal ────────────────────────────────────────────────
 
-interface LandingReview {
-  id: string;
-  autor: string;
-  tipEveniment: string;
-  text: string;
-  rating: number;
-  visible: boolean;
+interface StreamVideo {
+  guid: string;
+  title: string;
+  thumbnailUrl: string;
+  embedUrl: string;
+  length: number;
 }
 
-interface TestimonialPickerModalProps {
-  currentTestimonials: CampaignTestimonial[];
+interface StreamVideoPickerModalProps {
   onClose: () => void;
-  onSave: (testimonials: CampaignTestimonial[]) => void;
+  onSelect: (video: StreamVideo) => void;
 }
 
-function TestimonialPickerModal({ currentTestimonials, onClose, onSave }: TestimonialPickerModalProps) {
-  const [reviews, setReviews] = React.useState<LandingReview[]>([]);
+function StreamVideoPickerModal({ onClose, onSelect }: StreamVideoPickerModalProps) {
+  const [videos, setVideos] = React.useState<StreamVideo[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [selected, setSelected] = React.useState<Set<string>>(
-    new Set(currentTestimonials.map((testimonial) => testimonial.id))
-  );
+  const [error, setError] = React.useState("");
 
   React.useEffect(() => {
-    apiGet<{ reviews: LandingReview[] }>("/api/admin/landing/reviews")
-      .then((data) => setReviews(data.reviews.filter((review) => review.visible)))
-      .catch(() => {})
+    apiGet<{ videos: StreamVideo[] }>("/api/campaign/stream-videos")
+      .then((data) => setVideos(data.videos))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
   }, []);
 
-  function toggle(review: LandingReview) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(review.id)) next.delete(review.id);
-      else next.add(review.id);
-      return next;
-    });
-  }
-
-  function handleSave() {
-    const result: CampaignTestimonial[] = reviews
-      .filter((review) => selected.has(review.id))
-      .map((review) => ({
-        id: review.id,
-        name: review.autor,
-        eventType: review.tipEveniment,
-        text: review.text,
-      }));
-    onSave(result);
+  function formatDuration(seconds: number) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
   }
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-xl max-h-[85vh] flex flex-col">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-neutral-800 flex-shrink-0">
           <div>
-            <h3 className="text-white font-semibold">Selectează testimoniale</h3>
-            <p className="text-neutral-500 text-xs mt-0.5">{selected.size} selectate</p>
+            <h3 className="text-white font-semibold">Bunny Stream — bibliotecă</h3>
+            <p className="text-neutral-500 text-xs mt-0.5">{videos.length} videoclipuri</p>
           </div>
           <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-xl leading-none">×</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-16">
               <div className="w-6 h-6 border-2 border-amber-600/30 border-t-amber-600 rounded-full animate-spin" />
             </div>
-          ) : reviews.length === 0 ? (
-            <p className="text-neutral-600 text-sm text-center py-12">
-              Nicio recenzie vizibilă în sistem.<br />
-              <span className="text-xs">Adaugă recenzii din /admin/landing → tab Recenzii</span>
-            </p>
+          ) : error ? (
+            <p className="text-red-400 text-sm text-center py-12">{error}</p>
+          ) : videos.length === 0 ? (
+            <p className="text-neutral-600 text-sm text-center py-12">Niciun videoclip în bibliotecă.</p>
           ) : (
-            <div className="space-y-2">
-              {reviews.map((review) => {
-                const isSelected = selected.has(review.id);
-                return (
-                  <button
-                    key={review.id}
-                    onClick={() => toggle(review)}
-                    className={`w-full text-left rounded-xl border p-4 transition-all ${
-                      isSelected
-                        ? "border-amber-600 bg-amber-950/20"
-                        : "border-neutral-800 bg-neutral-800/50 hover:border-neutral-600"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`mt-0.5 w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors ${
-                        isSelected ? "bg-amber-600 border-amber-600" : "border-neutral-600"
-                      }`}>
-                        {isSelected && (
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-white text-sm font-medium">{review.autor}</span>
-                          <span className="text-neutral-500 text-xs capitalize">{review.tipEveniment}</span>
-                          <span className="text-amber-400 text-xs">{"★".repeat(review.rating)}</span>
-                        </div>
-                        <p className="text-neutral-400 text-xs line-clamp-2">{review.text}</p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {videos.map((video) => (
+                <button
+                  key={video.guid}
+                  onClick={() => { onSelect(video); onClose(); }}
+                  className="group text-left rounded-xl overflow-hidden border border-neutral-800 hover:border-amber-600 transition-all bg-neutral-800/50"
+                >
+                  <div className="relative aspect-video bg-neutral-700 overflow-hidden">
+                    <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" loading="lazy" />
+                    <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">{formatDuration(video.length)}</span>
+                  </div>
+                  <div className="p-2">
+                    <p className="text-white text-xs font-medium line-clamp-2 leading-tight">{video.title}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           )}
         </div>
 
-        <div className="p-4 border-t border-neutral-800 flex gap-2 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-neutral-700 text-neutral-400 rounded-lg hover:text-white transition-colors">Anulează</button>
-          <button onClick={handleSave} className="flex-1 px-4 py-2 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors">
-            Aplică ({selected.size})
-          </button>
+        <div className="p-4 border-t border-neutral-800 flex-shrink-0">
+          <button onClick={onClose} className="w-full px-4 py-2 text-sm border border-neutral-700 text-neutral-400 rounded-lg hover:text-white transition-colors">Închide</button>
         </div>
       </div>
     </div>
@@ -553,6 +515,30 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
 
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs text-neutral-400 uppercase tracking-wider">Video prezentare</h3>
+              <button onClick={() => dispatch({ type: "SET_SHOW_STREAM_PICKER", value: true })} className="text-xs text-amber-500 hover:text-amber-400 transition-colors">
+                {page.videoUrl ? "Schimbă" : "+ Alege din Stream"}
+              </button>
+            </div>
+            {page.videoUrl ? (
+              <div className="space-y-2">
+                <div className="relative aspect-video rounded-lg overflow-hidden bg-neutral-800">
+                  <iframe src={page.videoUrl} className="w-full h-full" allow="autoplay" allowFullScreen />
+                </div>
+                <button
+                  onClick={() => dispatch({ type: "PATCH_EDITING", patch: { videoUrl: "" } })}
+                  className="text-xs text-red-500 hover:text-red-400 transition-colors"
+                >
+                  Elimină video
+                </button>
+              </div>
+            ) : (
+              <p className="text-neutral-600 text-xs text-center py-4">Niciun video selectat.</p>
+            )}
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs text-neutral-400 uppercase tracking-wider">Pachete ({page.packages.length})</h3>
               <button onClick={() => dispatch({ type: "SET_SHOW_ADD_PACKAGE", value: true })} className="text-xs text-amber-500 hover:text-amber-400 transition-colors">+ Adaugă</button>
             </div>
@@ -571,29 +557,6 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
               {page.packages.length === 0 && <p className="text-neutral-600 text-xs text-center py-4">Niciun pachet</p>}
             </div>
           </div>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs text-neutral-400 uppercase tracking-wider">Testimoniale ({page.testimonials.length})</h3>
-              <button onClick={() => dispatch({ type: "SET_SHOW_TESTIMONIAL_PICKER", value: true })} className="text-xs text-amber-500 hover:text-amber-400 transition-colors">Selectează</button>
-            </div>
-            <div className="space-y-2">
-              {page.testimonials.map((item) => (
-                <div key={item.id} className="flex items-start gap-3 bg-neutral-800 rounded-lg p-3">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-white text-xs font-medium">{item.name}</span>
-                    <span className="text-neutral-500 text-xs ml-2 capitalize">{item.eventType}</span>
-                    <p className="text-neutral-400 text-xs mt-1 line-clamp-2">{item.text}</p>
-                  </div>
-                </div>
-              ))}
-              {page.testimonials.length === 0 && (
-                <p className="text-neutral-600 text-xs text-center py-4">
-                  Niciun testimonial selectat. Apasă "Selectează" pentru a alege din recenzii.
-                </p>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -608,16 +571,6 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
         />
       )}
 
-      {state.showTestimonialPicker && (
-        <TestimonialPickerModal
-          currentTestimonials={page.testimonials}
-          onClose={() => dispatch({ type: "SET_SHOW_TESTIMONIAL_PICKER", value: false })}
-          onSave={(testimonials) => {
-            dispatch({ type: "PATCH_EDITING", patch: { testimonials } });
-            dispatch({ type: "SET_SHOW_TESTIMONIAL_PICKER", value: false });
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -651,6 +604,7 @@ export default function CampaignAdminPage() {
         whatsappNumber: state.editingPage.whatsappNumber,
         phoneNumber: state.editingPage.phoneNumber,
         active: state.editingPage.active,
+        videoUrl: state.editingPage.videoUrl,
       });
       dispatch({ type: "SET_PAGES", pages: state.pages.map((page) => page.slug === state.editingPage!.slug ? state.editingPage! : page) });
     } finally {
@@ -678,6 +632,12 @@ export default function CampaignAdminPage() {
           <Breadcrumb />
           <EditView page={state.editingPage} state={state} dispatch={dispatch} onSave={handleSave} onDelete={handleDelete} />
         </div>
+        {state.showStreamPicker && (
+          <StreamVideoPickerModal
+            onClose={() => dispatch({ type: "SET_SHOW_STREAM_PICKER", value: false })}
+            onSelect={(video) => dispatch({ type: "PATCH_EDITING", patch: { videoUrl: video.embedUrl } })}
+          />
+        )}
       </div>
     );
   }

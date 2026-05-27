@@ -352,6 +352,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
   const [uploading, setUploading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [scanError, setScanError] = React.useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = React.useState<string | null>(null);
 
   function handleCategoryChange(value: string) {
@@ -364,14 +365,19 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     if (!slot.file) return;
     setSlot((prev) => ({ ...prev, scanning: true }));
     setError(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
     try {
       const base64 = await fileToBase64(slot.file);
       const response = await fetch("/api/admin/expenses/scan-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ fileBase64: base64, mediaType: slot.file.type }),
+        signal: controller.signal,
       });
-      const data = await response.json();
+      const data = await response.json() as { extracted?: Record<string, unknown>; error?: string };
+      if (!response.ok) throw new Error(data.error ?? `Eroare server (${response.status})`);
+      if (!data.extracted) throw new Error("AI-ul nu a putut extrage date din imagine. Încearcă cu o poză mai clară.");
       if (data.extracted) {
         const extracted = data.extracted as Record<string, unknown>;
         if (extracted.date) setDate(String(extracted.date));
@@ -392,9 +398,14 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
           }
         }
       }
-    } catch {
-      setError("Scanare eșuată. Completează manual.");
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setScanError("Extragerea a depășit 30 de secunde. Încearcă din nou sau completează manual.");
+      } else {
+        setScanError(err instanceof Error ? err.message : "Scanare eșuată. Completează manual.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setSlot((prev) => ({ ...prev, scanning: false }));
     }
   }
@@ -511,6 +522,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-neutral-800">
@@ -616,7 +628,12 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
             </div>
           )}
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && (
+            <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2.5 text-sm text-red-300">
+              <span className="shrink-0">✕</span>
+              <span>{error}</span>
+            </div>
+          )}
 
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2 text-sm border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 transition-colors">
@@ -630,6 +647,29 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
         </form>
       </div>
     </div>
+
+      {/* Scan error dialog — outside z-50 stacking context so it always appears on top */}
+      {scanError && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-red-900/60 bg-neutral-950 p-6 space-y-4 shadow-xl">
+            <div className="flex items-start gap-3">
+              <span className="text-red-400 text-xl leading-none mt-0.5">✕</span>
+              <div>
+                <p className="text-white font-semibold text-sm mb-1">Extragere AI eșuată</p>
+                <p className="text-red-300 text-sm leading-relaxed break-all">{scanError}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setScanError(null)}
+              className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors"
+            >
+              Completează manual
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
