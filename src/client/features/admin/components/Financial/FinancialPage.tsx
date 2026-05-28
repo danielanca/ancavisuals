@@ -546,21 +546,20 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1">Data *</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required
-                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
-            </div>
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1">Categorie *</label>
-              <select value={category} onChange={(e) => handleCategoryChange(e.target.value)} required
-                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500">
-                {EXPENSE_CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>{cat.label}</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs text-neutral-400 mb-1">Data *</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required
+              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+          </div>
+
+          <div>
+            <label className="block text-xs text-neutral-400 mb-1">Categorie *</label>
+            <select value={category} onChange={(e) => handleCategoryChange(e.target.value)} required
+              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500">
+              {EXPENSE_CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>{cat.label}</option>
+              ))}
+            </select>
           </div>
 
           <div>

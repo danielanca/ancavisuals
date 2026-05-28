@@ -129,7 +129,19 @@ Extrage din documentul de mai sus următoarele informații și returnează DOAR 
     res.json({ extracted });
   } catch (error) {
     console.error("[expenses] POST /scan-receipt failed:", error);
-    res.status(500).json({ error: String(error) });
+    let message = "Eroare necunoscută";
+    if (error instanceof Error) {
+      message = error.message;
+      const anyError = error as unknown as Record<string, unknown>;
+      if (anyError.status) message = `[${anyError.status}] ${message}`;
+      if (anyError.error && typeof anyError.error === "object") {
+        const inner = anyError.error as Record<string, unknown>;
+        if (inner.message) message += ` — ${inner.message}`;
+      }
+    } else {
+      message = String(error);
+    }
+    res.status(500).json({ error: message });
   }
 });
 
