@@ -11,6 +11,10 @@ interface TypeEvent {
   browserVersion: string;
   referrer?: string;
   isNewVisitor?: boolean;
+  // Populated by BookingWizard for Lead Rapid / full booking submissions
+  subject?: string;
+  html?: string;
+  to?: string;
 }
 
 const COOLDOWN_MS = 18 * 60 * 60 * 1000; // 18 hours
@@ -69,20 +73,29 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const isNew = triggerData.isNewVisitor !== false;
     const visitorLabel = isNew ? "🆕 Vizitator NOU" : "🔁 Vizitator cunoscut";
 
-    const emailHtml = renderTriggerTemplate({
-      typeEvent: triggerData.typeEvent,
-      url: triggerData.url,
-      browserVersion: triggerData.browserVersion,
-      referrer: triggerData.referrer,
-      ipInfo,
-      clientIp,
-      timestamp: todayString,
-      isNewVisitor: isNew,
-    });
+    // Booking submissions (Lead Rapid / full booking) send their own html+subject
+    const isBookingSubmission = !!triggerData.html && !!triggerData.subject;
+
+    const emailHtml = isBookingSubmission
+      ? triggerData.html!
+      : renderTriggerTemplate({
+          typeEvent: triggerData.typeEvent,
+          url: triggerData.url,
+          browserVersion: triggerData.browserVersion,
+          referrer: triggerData.referrer,
+          ipInfo,
+          clientIp,
+          timestamp: todayString,
+          isNewVisitor: isNew,
+        });
+
+    const emailSubject = isBookingSubmission
+      ? triggerData.subject!
+      : `${visitorLabel} — ${triggerData.url} — ${todayString}`;
 
     await sendEmail({
       to: adminUser.email,
-      subject: `${visitorLabel} — ${triggerData.url} — ${todayString}`,
+      subject: emailSubject,
       html: emailHtml,
     });
 
