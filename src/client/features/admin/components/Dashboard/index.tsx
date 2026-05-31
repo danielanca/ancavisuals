@@ -32,7 +32,6 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", keywords: "bani venituri cheltuieli" },
   { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar" },
   { label: "Detalii bancare", path: "/admin/bank-details", category: "Financiar", keywords: "iban cont" },
-  { label: "Landing page", path: "/admin/landing", category: "Marketing & Web" },
   { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web" },
   { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web" },
   { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", keywords: "banner reclama footer poze showcase" },

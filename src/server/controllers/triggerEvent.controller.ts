@@ -19,6 +19,21 @@ interface TypeEvent {
 
 const COOLDOWN_MS = 18 * 60 * 60 * 1000; // 18 hours
 
+// Europa (inclusiv țări asociate/candidate)
+const ALLOWED_COUNTRIES = new Set([
+  "RO","AD","AL","AM","AT","AZ","BA","BE","BG","BY","CH","CY","CZ","DE","DK",
+  "EE","ES","FI","FR","GB","GE","GR","HR","HU","IE","IS","IT","LI","LT","LU",
+  "LV","MC","MD","ME","MK","MT","NL","NO","PL","PT","RS","RU","SE","SI","SK",
+  "SM","TR","UA","VA","XK","GI","IM","JE","GG",
+]);
+
+const BOT_UA_PATTERN = /bot|spider|crawl|scraper|wget|curl|python|java\/|go-http|libwww|httrack|scrapy|phantomjs|headless|selenium|puppeteer|lighthouse|prerender|facebookexternalhit|slackbot|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|applebot|baiduspider|yandexbot|duckduckbot|bingbot|googlebot|semrushbot|ahrefsbot|mj12bot|dotbot|rogerbot|pingdom|uptimerobot|datadog|newrelic|nagios|zabbix|petalbot|bytespider|gptbot|ccbot|claudebot/i;
+
+function isBot(userAgent: string): boolean {
+  if (!userAgent || userAgent.trim().length < 10) return true;
+  return BOT_UA_PATTERN.test(userAgent);
+}
+
 // IP → timestamp of last sent email. Cleaned up lazily on each request.
 const lastSentByIp = new Map<string, number>();
 
@@ -63,9 +78,14 @@ export const triggerEvent = async (request: Request, response: Response) => {
       return;
     }
 
+    if (isBot(triggerData.browserVersion ?? "")) {
+      response.status(204).send();
+      return;
+    }
+
     const ipInfo = await fetchIpInfo(clientIp);
 
-    if (ipInfo && ipInfo.country !== "RO") {
+    if (ipInfo && ipInfo.country && !ALLOWED_COUNTRIES.has(ipInfo.country)) {
       response.status(204).send();
       return;
     }

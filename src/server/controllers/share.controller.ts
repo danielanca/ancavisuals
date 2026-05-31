@@ -19,7 +19,8 @@ import {
 
 const storageKey = getBunnyStorageKey();
 const MAX_SHARED_FILES = 200;
-const SHARE_EXPIRY_DAYS = 7;
+const MAX_SHARED_FILES_ALL = 2000;
+const SHARE_EXPIRY_DAYS = 365 * 100;
 
 async function resolvePhotoFolder(slug: string): Promise<string> {
   try {
@@ -68,6 +69,8 @@ const toZip = async (slug: string, folder: string, files: string[], res: Respons
 export const createShare = async (req: Request, res: Response) => {
   const slug = String(req.body?.slug || "");
   const itemsRaw = req.body?.items;
+  const allItemsRaw = req.body?.allItems;
+  const showAll = req.body?.showAll === true;
 
   if (!slug) return res.status(400).json({ error: "missing_slug" });
 
@@ -75,9 +78,20 @@ export const createShare = async (req: Request, res: Response) => {
   const clean = Array.from(new Set(items.filter(isSafeFile)));
 
   if (clean.length === 0) return res.status(400).json({ error: "no_files" });
-  if (clean.length > MAX_SHARED_FILES) return res.status(413).json({ error: "too_many_files" });
 
-  const rec = await createShareRecord(slug, clean, SHARE_EXPIRY_DAYS);
+  let finalItems = clean;
+
+  if (showAll && Array.isArray(allItemsRaw)) {
+    const allItems = allItemsRaw.map(String).filter(isSafeFile);
+    const prioritySet = new Set(clean);
+    const rest = allItems.filter((name) => !prioritySet.has(name));
+    finalItems = [...clean, ...rest];
+    if (finalItems.length > MAX_SHARED_FILES_ALL) return res.status(413).json({ error: "too_many_files" });
+  } else {
+    if (clean.length > MAX_SHARED_FILES) return res.status(413).json({ error: "too_many_files" });
+  }
+
+  const rec = await createShareRecord(slug, finalItems, SHARE_EXPIRY_DAYS, showAll);
 
   return res.json({ id: rec.id, expiresAt: rec.expiresAt, count: rec.items.length });
 };
@@ -97,6 +111,7 @@ export const getShare = async (req: Request, res: Response) => {
       slug: rec.slug,
       count: rec.items.length,
       expiresAt: rec.expiresAt,
+      showAll: rec.showAll ?? false,
       photos: urls,
     });
   } catch {

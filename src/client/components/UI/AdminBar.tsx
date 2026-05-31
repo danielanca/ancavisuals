@@ -61,6 +61,8 @@ export default function AdminBar() {
   };
 
   if (!auth.authorise) return null;
+  return null; // replaced by ADMIN button in Navbar
+  // eslint-disable-next-line no-unreachable
 
   const handleNotify = async () => {
     if (!albumSlug || !auth.accessToken) return;

@@ -247,7 +247,7 @@ export default function RevinPage() {
           ) : (
             <>
               <p className="text-5xl">☕</p>
-              <p className="text-white text-xl font-light leading-snug">{state.message}</p>
+              <p className="text-white text-4xl font-light leading-snug">{state.message}</p>
             </>
           )}
         </div>
