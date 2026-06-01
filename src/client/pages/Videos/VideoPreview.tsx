@@ -61,7 +61,6 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ src, poster, previewTime = 
       try {
         const tmpVideo = document.createElement("video");
         tmpVideo.src = src;
-        tmpVideo.crossOrigin = "anonymous";
         tmpVideo.preload = "metadata";
 
         await new Promise<void>((resolve, reject) => {

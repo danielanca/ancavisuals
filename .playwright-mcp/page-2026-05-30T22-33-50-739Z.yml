@@ -1,0 +1,18 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - link "AncaVisuals" [ref=e6] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e7]: AncaVisuals
+    - paragraph [ref=e8]: Panou de administrare
+  - generic [ref=e9]:
+    - heading "Autentificare" [level=2] [ref=e10]
+    - generic [ref=e11]:
+      - generic [ref=e12]: Email
+      - textbox "adresa@email.com" [ref=e13]
+    - generic [ref=e14]:
+      - generic [ref=e15]: Parolă
+      - generic [ref=e16]:
+        - textbox "••••••••" [ref=e17]
+        - button [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+    - button "Intră în cont" [ref=e22] [cursor=pointer]

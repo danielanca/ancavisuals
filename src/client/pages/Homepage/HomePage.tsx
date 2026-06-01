@@ -4,12 +4,12 @@ import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
 import Hero from "./Hero";
-import Featured from "./Featured";
 import Philosophy from "./Philosophy";
 import Approach from "./Approach";
 import CTAPreview from "./CTAPreview/CTAPreview";
 import FAQPage from "../Faq/FAQPage";
 import VideoPreview from "../Videos/VideoPreview";
+import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
 import { Link } from "react-router-dom";
 import { CITIES } from "../LocationSEO/locationData";
 
@@ -58,7 +58,7 @@ const HomePage = () => {
       <Navbar />
       <Hero />
       <CTAPreview />
-      <Featured />
+      <AncaVisualsPromo />
       <VideoPreview
         src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FBucurestiNunta.mp4?alt=media&token=74d6a5b5-0906-45e1-950c-9632bba7889b"
         poster=""
@@ -73,43 +73,6 @@ const HomePage = () => {
       />
       <Philosophy />
       <Approach />
-      <section className="mx-auto max-w-6xl px-6 py-16">
-        <div className="grid gap-6 md:grid-cols-2">
-          <article className="rounded-3xl border border-white/10 bg-white/5 p-8">
-            <h2 className="text-2xl font-light">Servicii foto, video și foto-video</h2>
-            <p className="mt-4 text-sm leading-7 text-gray-300">
-              Lucrăm pentru nunți, botezuri, majorate și evenimente private. Pe lângă pachetele de
-              fotografie și videografie, putem include fotocabină și Video Booth 360.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link to="/foto-video-nunta" className="rounded-full border border-white/10 px-4 py-2 text-sm hover:border-white/25">
-                Foto video nuntă
-              </Link>
-              <Link to="/foto-video-botez" className="rounded-full border border-white/10 px-4 py-2 text-sm hover:border-white/25">
-                Foto video botez
-              </Link>
-              <Link to="/foto-video-evenimente" className="rounded-full border border-white/10 px-4 py-2 text-sm hover:border-white/25">
-                Foto video evenimente
-              </Link>
-            </div>
-          </article>
-          <article className="rounded-3xl border border-white/10 bg-white/5 p-8">
-            <h2 className="text-2xl font-light">Lucrăm în orașe mari și mici</h2>
-            <p className="mt-4 text-sm leading-7 text-gray-300">
-              Acoperim Turda, Cluj-Napoca, Sibiu, Alba Iulia, Sebeș, Arad, Bistrița, Târgu Mureș,
-              Luduș și multe alte localități din zonă.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link to="/orase" className="rounded-full border border-white/10 px-4 py-2 text-sm hover:border-white/25">
-                Vezi toate orașele
-              </Link>
-              <Link to="/contact" className="rounded-full border border-white/10 px-4 py-2 text-sm hover:border-white/25">
-                Configurează oferta
-              </Link>
-            </div>
-          </article>
-        </div>
-      </section>
       <FAQPage />
       <Footer />
     </div>

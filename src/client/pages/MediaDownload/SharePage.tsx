@@ -4,6 +4,7 @@ import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import styles from "./MediaAlbumPage.module.scss";
 import AncaLoader from "../../components/UI/AncaLoader";
 import useAuth from "../../features/admin/auth/useAuth";
+import AncaVisualsPromo from "./AncaVisualsPromo";
 import { OFFER_SERVICES } from "../../../shared/offers/offerServices";
 
 type SharePayload = {
@@ -11,6 +12,7 @@ type SharePayload = {
   slug: string;
   count: number;
   expiresAt: number;
+  showAll?: boolean;
   photos: string[];
 };
 
@@ -51,6 +53,7 @@ export default function SharePage() {
   const [loading, setLoading] = useState(true);
   const [expired, setExpired] = useState(false);
   const [importModal, setImportModal] = useState<ImportModal>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -145,13 +148,86 @@ export default function SharePage() {
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <h1 className={styles.title}>Selecție foto</h1>
+        <h1 className={styles.title}>
+          {data.showAll ? "Album foto" : "Selecție foto"}
+        </h1>
         <p className={styles.meta}>{data.count} fotografii</p>
         <div className={styles.divider} />
 
+        {/* Share CTA — prominent, above photos */}
+        <div style={{
+          margin: "0 0 24px",
+          padding: "18px 20px",
+          background: "linear-gradient(135deg, #0a1a0a, #0d1f0d)",
+          border: "1px solid #166534",
+          borderRadius: "14px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+        }}>
+          <div>
+            <p style={{ color: "#4ade80", fontSize: "14px", fontWeight: 700, margin: "0 0 4px", letterSpacing: "0.01em" }}>
+              📤 Trimite și tu pozele mai departe
+            </p>
+            <p style={{ color: "#555", fontSize: "12px", margin: 0, lineHeight: 1.5 }}>
+              Dă linkul prietenilor și familiei — direct din telefon, prin WhatsApp, SMS sau email.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof navigator.share === "function") {
+                void navigator.share({ title: "Poze eveniment — Anca Visuals", url: window.location.href });
+              } else {
+                void navigator.clipboard.writeText(window.location.href).then(() => {
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2500);
+                });
+              }
+            }}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              padding: "14px 20px",
+              background: "#25D366",
+              color: "#fff",
+              border: "none",
+              borderRadius: "10px",
+              fontSize: "15px",
+              fontWeight: 700,
+              cursor: "pointer",
+              letterSpacing: "0.01em",
+              boxShadow: "0 4px 20px rgba(37,211,102,0.25)",
+            }}
+          >
+            {typeof navigator !== "undefined" && typeof (navigator as { share?: unknown }).share === "function"
+              ? "📤 Trimite prin WhatsApp / SMS / Email..."
+              : linkCopied ? "✓ Link copiat!" : "📋 Copiază linkul"}
+          </button>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              readOnly
+              value={typeof window !== "undefined" ? window.location.href : ""}
+              style={{ flex: 1, minWidth: 0, padding: "8px 12px", background: "#0a0a0a", border: "1px solid #1f1f1f", borderRadius: "6px", color: "#555", fontSize: "12px", outline: "none", fontFamily: "monospace" }}
+              onClick={(event) => (event.target as HTMLInputElement).select()}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard.writeText(window.location.href).then(() => {
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2500);
+                });
+              }}
+              style={{ padding: "8px 14px", background: linkCopied ? "#166534" : "#1a1a1a", border: `1px solid ${linkCopied ? "#166534" : "#333"}`, borderRadius: "6px", color: linkCopied ? "#4ade80" : "#aaa", fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s", flexShrink: 0 }}
+            >
+              {linkCopied ? "✓ Copiat" : "Copiază"}
+            </button>
+          </div>
+        </div>
+
         <div className={styles.actions}>
           <a className={styles.downloadBtn} href={`/api/share/${data.id}/download`}>
-            Descarcă selecția
+            Descarcă pozele
           </a>
         </div>
 
@@ -182,7 +258,30 @@ export default function SharePage() {
         )}
 
         <BunnyPhotoGallery orgPhoto={data.photos} photos={data.photos} variant="plain" />
+
+        {/* Re-share nudge before promo */}
+        <div style={{ margin: "32px 0 0", padding: "16px 20px", background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: "12px", display: "flex", flexDirection: "column", gap: "10px", alignItems: "center", textAlign: "center" }}>
+          <p style={{ color: "#555", fontSize: "12px", margin: 0 }}>Ți-au plăcut pozele? Trimite-le și altora!</p>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof navigator.share === "function") {
+                void navigator.share({ title: "Poze eveniment — Anca Visuals", url: window.location.href });
+              } else {
+                void navigator.clipboard.writeText(window.location.href).then(() => {
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2500);
+                });
+              }
+            }}
+            style={{ padding: "10px 24px", background: "#25D366", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+          >
+            📤 Trimite mai departe
+          </button>
+        </div>
       </div>
+
+      <AncaVisualsPromo />
 
       {/* Import modal */}
       {importModal && (

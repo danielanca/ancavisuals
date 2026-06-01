@@ -1,14 +1,28 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../../features/admin/auth/useAuth";
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { auth } = useAuth();
-  const topOffset = auth.authorise ? "top-12" : "top-0";
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const { auth, logOut } = useAuth();
+  const navigate = useNavigate();
+  const adminMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!adminMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (adminMenuRef.current && !adminMenuRef.current.contains(event.target as Node)) {
+        setAdminMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [adminMenuOpen]);
+
   return (
-    <nav className={`fixed ${topOffset} left-0 right-0 z-50 p-4 md:p-8 bg-black/20 backdrop-blur-sm text-white`}>
+    <nav className="fixed top-0 left-0 right-0 z-50 p-4 md:p-8 bg-black/20 backdrop-blur-sm text-white">
       <div className="flex justify-between items-center max-w-7xl mx-auto">
         {/* Left Navigation - Hidden on mobile, visible on tablet+ */}
         <div className="hidden lg:flex space-x-6 xl:space-x-8">
@@ -77,6 +91,74 @@ const Navbar = () => {
               </svg>
             </a>
           </div>
+
+          {/* ADMIN button — visible only when logged in as admin */}
+          {auth.authorise && (
+            <div ref={adminMenuRef} style={{ position: "relative" }}>
+              <button
+                onClick={() => setAdminMenuOpen((prev) => !prev)}
+                style={{
+                  background: "#dc2626",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                  padding: "5px 10px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                }}
+              >
+                ADMIN
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.8, transform: adminMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+                  <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+
+              {adminMenuOpen && (
+                <div style={{
+                  position: "absolute",
+                  top: "calc(100% + 8px)",
+                  right: 0,
+                  background: "#111",
+                  border: "1px solid #2a2a2a",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  minWidth: "160px",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.8)",
+                  zIndex: 100,
+                }}>
+                  <button
+                    onClick={() => { setAdminMenuOpen(false); navigate("/admin"); }}
+                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#ddd", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                    </svg>
+                    Dashboard
+                  </button>
+                  <div style={{ height: "1px", background: "#1f1f1f", margin: "0 10px" }} />
+                  <button
+                    onClick={() => { setAdminMenuOpen(false); void logOut(); }}
+                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#f87171", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Delogheaza-te
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <Link
             to="/contact"
             className="text-xs md:text-sm font-light tracking-[0.15em] md:tracking-[0.2em] uppercase border-b border-white pb-1 hover:border-gray-300 transition-colors"

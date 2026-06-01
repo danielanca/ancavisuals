@@ -13,6 +13,17 @@ export interface EventExpense {
   amount: number;
 }
 
+export interface EventDelivery {
+  photoSessionEdited?: boolean;
+  allPhotosEdited?: boolean;
+  shortVideoEdited?: boolean;
+  longVideoEdited?: boolean;
+  albumDelivered?: boolean;
+  albumCreated?: boolean;
+  albumSentToClient?: boolean;
+  physicalDelivery?: boolean;
+}
+
 export interface ClientEvent {
   id: string;
   type: EventType;
@@ -49,6 +60,7 @@ export interface ClientEvent {
   postEventBackupConfirmationToken?: string | null;
   postEventBackupProofUrl?: string | null;
   postEventBackupProofName?: string | null;
+  delivery?: EventDelivery;
 }
 
 export interface Goal {

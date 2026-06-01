@@ -14,8 +14,10 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
   const basePath = slug;
 
   try {
-    await listFiles(basePath);
-  } catch {
+    const rootFiles = await listFiles(basePath);
+    console.log(`[album] root listing pentru "${slug}":`, rootFiles.map((f: BunnyObject) => f.ObjectName));
+  } catch (error) {
+    console.error(`[album] EROARE root listing "${slug}":`, error);
     return null;
   }
 
@@ -24,9 +26,11 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
   const loadSection = async (section: string): Promise<AlbumMediaList> => {
     try {
       const objects = await listFiles(`${slug}/${section}`);
+      console.log(`[album] "${slug}/${section}": ${objects.length} fișiere`);
       if (objects.length === 0) return [];
       return objects.map((object: BunnyObject) => signBunnyUrl(`/${slug}/${section}/${object.ObjectName}`));
-    } catch {
+    } catch (error) {
+      console.warn(`[album] "${slug}/${section}" eroare sau gol:`, error);
       return [];
     }
   };
@@ -45,8 +49,10 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     checkPreviewExist(slug),
     checkFileExists(slug, BUNNY_DEFAULT_ARCHIVE_NAME),
   ]);
+  console.log(`[album] "${slug}" — hasPreview=${hasPreview}, zipReady=${zipReady}`);
 
   const photos = hasPreview ? await loadSection("photos_preview") : await loadSection("photos");
+  console.log(`[album] "${slug}" — ${photos.length} poze returnate (din ${hasPreview ? "photos_preview" : "photos"})`);
   const originalPhoto = await loadSection("photos");
 
   return {

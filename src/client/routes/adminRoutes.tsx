@@ -30,7 +30,6 @@ const RouteSheetsPage = loadable(() => import("../features/admin/components/Rout
 const ErrorsPage = loadable(() => import("../features/admin/components/ErrorsPage"), opts);
 const FinancialPage = loadable(() => import("../features/admin/components/Financial/FinancialPage"), opts);
 const BankStatementsPage = loadable(() => import("../features/admin/components/Financial/BankStatementsPage"), opts);
-const LandingAdminPage = loadable(() => import("../features/admin/components/Landing/LandingAdminPage"), opts);
 const CollaboratorPage = loadable(() => import("../features/collaborator/CollaboratorPage"), opts);
 const AccountsPage = loadable(() => import("../features/admin/components/AccountsPage"), opts);
 const InstagramProposalsAdminPage = loadable(() => import("../features/admin/components/InstagramProposalsAdminPage"), opts);
@@ -43,6 +42,7 @@ const VenueOutreachPage = loadable(() => import("../features/admin/components/Ve
 const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/components/ShowcaseZoneEditorPage"), opts);
 const SeoGeneratorPage = loadable(() => import("../features/admin/components/SeoGeneratorPage"), opts);
 const CampaignAdminPage = loadable(() => import("../features/admin/components/CampaignAdminPage"), opts);
+const PhotoCollectionsPage = loadable(() => import("../features/admin/components/PhotoCollectionsPage"), opts);
 
 
 export const adminRoutes = [
@@ -68,7 +68,6 @@ export const adminRoutes = [
       <Route path="/admin/errors" element={<ErrorsPage />} />
       <Route path="/admin/financial" element={<FinancialPage />} />
       <Route path="/admin/bank-statements" element={<BankStatementsPage />} />
-      <Route path="/admin/landing" element={<LandingAdminPage />} />
       <Route path="/colaborator" element={<CollaboratorPage />} />
       <Route path="/admin/accounts" element={<AccountsPage />} />
       <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
@@ -80,6 +79,7 @@ export const adminRoutes = [
       <Route path="/admin/showcase" element={<ShowcaseZoneEditorPage />} />
       <Route path="/admin/seo-generator" element={<SeoGeneratorPage />} />
       <Route path="/admin/campanii" element={<CampaignAdminPage />} />
+      <Route path="/admin/colectii" element={<PhotoCollectionsPage />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>

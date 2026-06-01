@@ -4,6 +4,7 @@ import { adminUser } from "../constants/credentials";
 import { sendEmail } from "../notifications/mailer";
 import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
 import { renderTriggerTemplate } from "../notifications/templates/triggerTemplate";
+import { logActivity, getNotificationSettings } from "../services/activity.service.js";
 
 interface TypeEvent {
   typeEvent: string;
@@ -18,6 +19,21 @@ interface TypeEvent {
 }
 
 const COOLDOWN_MS = 18 * 60 * 60 * 1000; // 18 hours
+
+// Europa (inclusiv țări asociate/candidate)
+const ALLOWED_COUNTRIES = new Set([
+  "RO","AD","AL","AM","AT","AZ","BA","BE","BG","BY","CH","CY","CZ","DE","DK",
+  "EE","ES","FI","FR","GB","GE","GR","HR","HU","IE","IS","IT","LI","LT","LU",
+  "LV","MC","MD","ME","MK","MT","NL","NO","PL","PT","RS","RU","SE","SI","SK",
+  "SM","TR","UA","VA","XK","GI","IM","JE","GG",
+]);
+
+const BOT_UA_PATTERN = /bot|spider|crawl|scraper|wget|curl|python|java\/|go-http|libwww|httrack|scrapy|phantomjs|headless|selenium|puppeteer|lighthouse|prerender|facebookexternalhit|slackbot|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|applebot|baiduspider|yandexbot|duckduckbot|bingbot|googlebot|semrushbot|ahrefsbot|mj12bot|dotbot|rogerbot|pingdom|uptimerobot|datadog|newrelic|nagios|zabbix|petalbot|bytespider|gptbot|ccbot|claudebot/i;
+
+function isBot(userAgent: string): boolean {
+  if (!userAgent || userAgent.trim().length < 10) return true;
+  return BOT_UA_PATTERN.test(userAgent);
+}
 
 // IP → timestamp of last sent email. Cleaned up lazily on each request.
 const lastSentByIp = new Map<string, number>();
@@ -63,18 +79,77 @@ export const triggerEvent = async (request: Request, response: Response) => {
       return;
     }
 
+    if (isBot(triggerData.browserVersion ?? "")) {
+      response.status(204).send();
+      return;
+    }
+
     const ipInfo = await fetchIpInfo(clientIp);
 
-    if (ipInfo && ipInfo.country !== "RO") {
+    if (ipInfo && ipInfo.country && !ALLOWED_COUNTRIES.has(ipInfo.country)) {
       response.status(204).send();
       return;
     }
 
     const isNew = triggerData.isNewVisitor !== false;
     const visitorLabel = isNew ? "🆕 Vizitator NOU" : "🔁 Vizitator cunoscut";
-
-    // Booking submissions (Lead Rapid / full booking) send their own html+subject
     const isBookingSubmission = !!triggerData.html && !!triggerData.subject;
+
+    // Detect source for activity metadata
+    const referrer = triggerData.referrer ?? "direct";
+    const ua = triggerData.browserVersion ?? "";
+    const uaLower = ua.toLowerCase();
+    const device = /mobile|android|iphone|ipad/.test(uaLower) ? "Mobil" : "Desktop";
+    const city = ipInfo?.city ?? "";
+    const source = (() => {
+      const r = referrer.toLowerCase();
+      if (r.includes("instagram")) return "Instagram";
+      if (r.includes("facebook") || r.includes("fb.com")) return "Facebook";
+      if (r.includes("google")) return "Google";
+      if (r.includes("tiktok")) return "TikTok";
+      if (r === "direct") return "Direct";
+      return referrer;
+    })();
+
+    // Always log to activity inbox
+    const activityType = isBookingSubmission ? "lead" : "visitor";
+    const activityTitle = isBookingSubmission
+      ? (triggerData.subject ?? "Lead Rapid")
+      : `${isNew ? "🆕 Vizitator nou" : "🔁 Vizitator"} — ${triggerData.url}`;
+    const activityDesc = [city, device, source].filter(Boolean).join(" · ");
+
+    const settings = await getNotificationSettings().catch(() => null);
+
+    let shouldEmail = false;
+    if (isBookingSubmission) {
+      shouldEmail = settings?.email.lead ?? true;
+    } else if (isNew) {
+      shouldEmail = settings?.email.newVisitor ?? true;
+    } else {
+      shouldEmail = settings?.email.returningVisitor ?? false;
+    }
+
+    // Log to Firestore (fire-and-forget, don't block response)
+    logActivity({
+      type: activityType,
+      title: activityTitle,
+      description: activityDesc,
+      metadata: {
+        url: triggerData.url,
+        ip: clientIp,
+        city,
+        device,
+        source,
+        isNew: String(isNew),
+      },
+      emailSent: shouldEmail,
+    }).catch((err) => console.error("[activity] log failed:", err));
+
+    if (!shouldEmail) {
+      recordSent(clientIp);
+      response.status(204).send();
+      return;
+    }
 
     const emailHtml = isBookingSubmission
       ? triggerData.html!
@@ -93,11 +168,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
       ? triggerData.subject!
       : `${visitorLabel} — ${triggerData.url} — ${todayString}`;
 
-    await sendEmail({
-      to: adminUser.email,
-      subject: emailSubject,
-      html: emailHtml,
-    });
+    await sendEmail({ to: adminUser.email, subject: emailSubject, html: emailHtml });
 
     recordSent(clientIp);
     console.log("Trigger email sent successfully.");

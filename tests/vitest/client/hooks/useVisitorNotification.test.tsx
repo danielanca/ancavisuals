@@ -16,6 +16,7 @@ vi.mock("src/client/utils/triggers", () => ({
 vi.mock("src/client/utils/functions", () => ({
   isBrowser: vi.fn().mockReturnValue(true),
   getCookie: vi.fn().mockReturnValue(null),
+  setCookie: vi.fn(),
 }));
 
 import { sendTriggerEmail } from "src/client/utils/triggers";
@@ -39,7 +40,7 @@ describe("useVisitorNotification", () => {
     renderHook(() => useVisitorNotification(), { wrapper: wrapper("/portofoliu") });
 
     expect(sendTriggerEmail).toHaveBeenCalledOnce();
-    expect(sendTriggerEmail).toHaveBeenCalledWith({ typeEvent: "Vizitator", url: "/portofoliu" });
+    expect(sendTriggerEmail).toHaveBeenCalledWith({ typeEvent: "Vizitator", url: "/portofoliu", isNewVisitor: true });
   });
 
   test("does not send email for the same URL a second time in the same session", () => {

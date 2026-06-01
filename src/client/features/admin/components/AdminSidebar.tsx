@@ -157,8 +157,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         </svg>
       ),
       items: [
-        { label: "Landing page", path: "/admin/landing" },
         { label: "Campanii", path: "/admin/campanii" },
+        { label: "Colecții poze", path: "/admin/colectii" },
         { label: "Generator SEO", path: "/admin/seo-generator" },
         { label: "Inspirație", path: "/admin/inspiration" },
         { label: "Zone Showcase", path: "/admin/showcase" },

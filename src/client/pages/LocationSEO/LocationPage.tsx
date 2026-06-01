@@ -107,9 +107,9 @@ const LocationPage: React.FC<Props> = ({
       aggregateRating: {
         "@type": "AggregateRating",
         ratingValue: "5",
-        reviewCount: "25",
+        reviewCount: String(GOOGLE_REVIEWS.length),
         bestRating: "5",
-        worstRating: "5",
+        worstRating: "1",
       },
       review: GOOGLE_REVIEWS.slice(0, 4).map(review => ({
         "@type": "Review",
