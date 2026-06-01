@@ -44,6 +44,53 @@ router.get("/admin/list", async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/album/:slug/report-error — trimite email admin când un client nu poate vedea pozele
+router.post("/:slug/report-error", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const { photosCount, errorMessage, pageUrl, userAgent, timestamp } = req.body as {
+      photosCount?: number;
+      errorMessage?: string;
+      pageUrl?: string;
+      userAgent?: string;
+      timestamp?: string;
+    };
+
+    const ip = getClientIp(req);
+    const ipInfo = await fetchIpInfo(ip).catch(() => null);
+    const location = [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(Boolean).join(", ") || "—";
+
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `⚠️ Eroare album: clientă nu vede pozele — /${slug}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+          <h2 style="color:#dc2626;margin:0 0 8px;">⚠️ Eroare vizualizare album</h2>
+          <p style="color:#666;font-size:13px;margin:0 0 20px;">Un vizitator nu a putut vedea pozele din album.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <tr><td style="padding:7px 0;color:#888;width:140px;">Album</td><td style="color:#111;font-weight:600;">/${slug}</td></tr>
+            <tr><td style="padding:7px 0;color:#888;">Poze pe server</td><td style="color:#111;">${photosCount ?? "necunoscut"}</td></tr>
+            <tr><td style="padding:7px 0;color:#888;">Eroare</td><td style="color:#dc2626;">${errorMessage ?? "Imagini inaccesibile"}</td></tr>
+            <tr><td style="padding:7px 0;color:#888;">URL</td><td style="color:#4f46e5;word-break:break-all;">${pageUrl ?? "—"}</td></tr>
+            <tr><td style="padding:7px 0;color:#888;">Locație IP</td><td style="color:#111;">${location}</td></tr>
+            <tr><td style="padding:7px 0;color:#888;">IP</td><td style="color:#999;font-size:11px;">${ip}</td></tr>
+            <tr><td style="padding:7px 0;color:#888;">Device</td><td style="color:#555;font-size:11px;word-break:break-all;">${(userAgent ?? "—").slice(0, 120)}</td></tr>
+            <tr><td style="padding:7px 0;color:#888;">Ora</td><td style="color:#111;">${timestamp ?? new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
+          </table>
+          <div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+            <p style="color:#991b1b;font-size:12px;margin:0;">Verifică folderul Bunny: <strong>${slug}/photos_preview/</strong> și <strong>${slug}/photos/</strong></p>
+          </div>
+        </div>
+      `,
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[album] report-error failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 router.get("/:slug", getAlbum);
 router.get("/:slug/stats", getAlbumStats);
 router.get("/:slug/retention", async (req: Request, res: Response) => {

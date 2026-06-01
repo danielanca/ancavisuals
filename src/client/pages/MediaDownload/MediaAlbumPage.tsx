@@ -331,6 +331,8 @@ export default function MediaAlbumPage() {
   const dimTapCountRef = useRef(0);
   const dimTapTimerRef = useRef<number | null>(null);
 
+  const [imageLoadError, setImageLoadError] = useState<string | null>(null);
+
   const [stats, setStats] = useState<null | {
     photosCount: number;
     photosBytesTotal: number;
@@ -440,6 +442,38 @@ export default function MediaAlbumPage() {
     return () => mediaQuery.removeEventListener("change", onChange);
   }, []);
 
+  // Verifică dacă primul URL de imagine e accesibil după ce albumul se încarcă
+  useEffect(() => {
+    if (!album?.photos?.length) return;
+    const firstUrl = album.photos[0];
+    const img = new window.Image();
+    img.onload = () => setImageLoadError(null);
+    img.onerror = () => {
+      const msg = `URL inaccesibil: ${firstUrl.slice(0, 80)}...`;
+      console.error("[album] Prima imagine nu s-a putut încărca:", firstUrl);
+      setImageLoadError(msg);
+    };
+    img.src = firstUrl;
+  }, [album?.photos]);
+
+  // Trimite email admin automat când diagnosticul apare
+  useEffect(() => {
+    if (!slug || !album) return;
+    const photosEmpty = !album.photos?.length;
+    if (!photosEmpty && !imageLoadError) return;
+    fetch(`/api/album/${slug}/report-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        photosCount: album.photos?.length ?? 0,
+        errorMessage: imageLoadError ?? "Array photos gol (0 poze)",
+        pageUrl: typeof window !== "undefined" ? window.location.href : "",
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        timestamp: new Date().toLocaleString("ro-RO"),
+      }),
+    }).catch(() => {});
+  }, [album, imageLoadError, slug]);
+
   useEffect(() => {
     if (!slug) return;
     fetch(`/api/album/${slug}/stats`)
@@ -535,11 +569,31 @@ export default function MediaAlbumPage() {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const response = await fetch(`/api/album/${slug}`);
-      if (!response.ok) { setAlbum(null); setLoading(false); return; }
-      const data = await response.json();
-      setAlbum(data);
-      setLoading(false);
+      console.log(`[album] fetch /api/album/${slug}`);
+      try {
+        const response = await fetch(`/api/album/${slug}`);
+        console.log(`[album] status: ${response.status}`);
+        if (!response.ok) {
+          console.warn(`[album] răspuns non-ok (${response.status}) pentru slug="${slug}"`);
+          setAlbum(null); setLoading(false); return;
+        }
+        const data = await response.json();
+        console.log(`[album] date primite:`, {
+          title: data?.title,
+          photos: data?.photos?.length ?? 0,
+          featured: data?.featured?.length ?? 0,
+          albumSlug: data?.albumSlug,
+          zipReady: data?.zipReady,
+        });
+        if (!data?.photos?.length) {
+          console.warn(`[album] ⚠ pozele sunt goale (photos=[]) pentru slug="${slug}". Verifică folderul Bunny: ${slug}/photos/ sau ${slug}/photos_preview/`);
+        }
+        setAlbum(data);
+        setLoading(false);
+      } catch (error) {
+        console.error(`[album] eroare fetch:`, error);
+        setAlbum(null); setLoading(false);
+      }
     })();
   }, [slug]);
 
@@ -1067,8 +1121,63 @@ export default function MediaAlbumPage() {
   if (loading) return <AncaLoader />;
   if (!album) return <AlbumNotFound />;
 
+  // ── DIAGNOSTIC PANEL — vizibil clientei când pozele nu apar ───────────────
+  const hasNoPhotos = !album.photos?.length;
+  const showDiagnostic = hasNoPhotos || !!imageLoadError;
+  const DiagnosticPanel = showDiagnostic ? (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999, background: "#0a0a0a",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "24px", textAlign: "center",
+    }}>
+      <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+      <p style={{ color: "#fff", fontSize: 18, fontWeight: 700, margin: "0 0 10px" }}>
+        Pozele nu se pot încărca momentan
+      </p>
+      <p style={{ color: "#aaa", fontSize: 14, margin: "0 0 24px", lineHeight: 1.6, maxWidth: 380 }}>
+        Facem un screenshot la acest ecran și trimitem fotografului — el va rezolva problema.
+      </p>
+      <div style={{ background: "#111", border: "1px solid #333", borderRadius: 12, padding: "16px 20px", maxWidth: 420, width: "100%", textAlign: "left" }}>
+        <p style={{ color: "#888", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 10px" }}>Detalii eroare (screenshot)</p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Album:</span> {slug}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Titlu:</span> {album.title}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Poze în server:</span> {album.photos?.length ?? 0}
+        </p>
+        {imageLoadError && (
+          <p style={{ color: "#f87171", fontSize: 12, margin: "0 0 5px" }}>
+            <span style={{ color: "#555" }}>Eroare imagine:</span> {imageLoadError}
+          </p>
+        )}
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Featured:</span> {album.featured?.length ?? 0}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>URL:</span> {typeof window !== "undefined" ? window.location.href : ""}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Browser:</span> {typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : ""}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: 0 }}>
+          <span style={{ color: "#555" }}>Ora:</span> {new Date().toLocaleString("ro-RO")}
+        </p>
+      </div>
+      <button
+        onClick={() => { /* Allow dismiss to still see page */ (document.getElementById("diagnostic-overlay") as HTMLElement | null)?.remove(); }}
+        style={{ marginTop: 20, padding: "10px 24px", background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, color: "#666", fontSize: 13, cursor: "pointer" }}
+      >
+        Încearcă totuși să accesezi albumul
+      </button>
+    </div>
+  ) : null;
+
   return (
     <>
+    {DiagnosticPanel}
     {showSaveWarning && (
       <div
         onClick={() => setShowSaveWarning(false)}
