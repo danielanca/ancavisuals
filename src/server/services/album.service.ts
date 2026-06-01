@@ -45,24 +45,31 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     }
   };
 
-  const [hasPreview, zipReady] = await Promise.all([
-    checkPreviewExist(slug),
-    checkFileExists(slug, BUNNY_DEFAULT_ARCHIVE_NAME),
-  ]);
-  console.log(`[album] "${slug}" — hasPreview=${hasPreview}, zipReady=${zipReady}`);
+  const t0 = Date.now();
 
-  const photos = hasPreview ? await loadSection("photos_preview") : await loadSection("photos");
-  console.log(`[album] "${slug}" — ${photos.length} poze returnate (din ${hasPreview ? "photos_preview" : "photos"})`);
-  const originalPhoto = await loadSection("photos");
+  // TOATE apelurile Bunny în paralel — reduce timpul de la ~30s la ~5s
+  const [zipReady, featured, photosPreview, originalPhoto, shortvideo, longvideo] = await Promise.all([
+    checkFileExists(slug, BUNNY_DEFAULT_ARCHIVE_NAME),
+    loadSection("featured"),
+    loadSection("photos_preview"),
+    loadSection("photos"),
+    loadVideoSection("shortvideo"),
+    loadVideoSection("longvideo"),
+  ]);
+
+  // Folosim preview dacă există, altfel originalele
+  const photos = photosPreview.length > 0 ? photosPreview : originalPhoto;
+
+  console.log(`[album] "${slug}" — ${photos.length} poze (${photosPreview.length > 0 ? "preview" : "original"}), ${Date.now() - t0}ms`);
 
   return {
     slug,
     title,
-    featured: await loadSection("featured"),
+    featured,
     photos,
     originalPhoto,
-    shortvideo: await loadVideoSection("shortvideo"),
-    longvideo: await loadVideoSection("longvideo"),
+    shortvideo,
+    longvideo,
     zipReady,
   };
 }

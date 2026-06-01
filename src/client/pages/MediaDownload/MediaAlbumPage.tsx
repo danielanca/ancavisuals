@@ -255,6 +255,7 @@ export default function MediaAlbumPage() {
 
   const [album, setAlbum] = useState<AlbumWithPrint | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingSlow, setLoadingSlow] = useState(false);
   const [gallery, dispatch] = useReducer(galleryReducer, initialGalleryState);
 
   const [savingPrint, setSavingPrint] = useState(false);
