@@ -175,6 +175,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         </svg>
       ),
       items: [
+        { label: "Health Tracker", path: "/admin/sanatate" },
         { label: "Conturi", path: "/admin/accounts" },
         { label: "Wedding Hub", path: "/admin/wedding-hub" },
         { label: "Erori server", path: "/admin/errors", badge: unseenErrors },
