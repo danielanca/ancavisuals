@@ -255,6 +255,7 @@ export default function MediaAlbumPage() {
 
   const [album, setAlbum] = useState<AlbumWithPrint | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingSlow, setLoadingSlow] = useState(false);
   const [gallery, dispatch] = useReducer(galleryReducer, initialGalleryState);
 
   const [savingPrint, setSavingPrint] = useState(false);
@@ -565,6 +566,13 @@ export default function MediaAlbumPage() {
       try { window.localStorage.setItem(storageKeyFor(slug), JSON.stringify(payload)); } catch {}
     }, 120);
   }, [slug, mode, browsePage, printPage, downloadPage, selectedPrint, selectedDownload]);
+
+  // Arată mesaj după 8s dacă tot se încarcă
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => setLoadingSlow(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     if (!slug) return;
@@ -1118,7 +1126,21 @@ export default function MediaAlbumPage() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
-  if (loading) return <AncaLoader />;
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
+      <AncaLoader />
+      {loadingSlow && (
+        <div style={{ textAlign: "center", padding: "0 24px" }}>
+          <p style={{ color: "#555", fontSize: 14, margin: "0 0 6px" }}>
+            Se încarcă albumul... câteva secunde
+          </p>
+          <p style={{ color: "#333", fontSize: 12, margin: 0 }}>
+            Serverul procesează un număr mare de fotografii
+          </p>
+        </div>
+      )}
+    </div>
+  );
   if (!album) return <AlbumNotFound />;
 
   // ── DIAGNOSTIC PANEL — vizibil clientei când pozele nu apar ───────────────
