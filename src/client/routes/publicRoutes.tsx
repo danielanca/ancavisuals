@@ -199,6 +199,11 @@ const publicRoutes: publicRoutesType[] = [
     layout: null,
     component: OfertaPage,
   },
+  {
+    path: "/p/:slug",
+    layout: null,
+    component: OfertaPage,
+  },
 
   /** ============================================================
    *  ADMIN — rute semi-publice (autentificate în App.tsx via RequireAuth)

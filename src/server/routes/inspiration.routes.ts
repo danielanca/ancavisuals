@@ -2,7 +2,18 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import Anthropic from "@anthropic-ai/sdk";
+
+function storagePathFromUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const segment = u.pathname.split("/o/")[1];
+    return segment ? decodeURIComponent(segment.split("?")[0]) : null;
+  } catch {
+    return null;
+  }
+}
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -192,6 +203,21 @@ router.patch("/inspiration/photos/:id", async (req: Request, res: Response) => {
 router.delete("/inspiration/photos/:id", async (req: Request, res: Response) => {
   try {
     const db = firestore();
+    const doc = await db.collection(COLLECTION).doc(req.params.id).get();
+
+    // Delete from Firebase Storage if URL is present
+    if (doc.exists) {
+      const url = doc.data()?.url as string | undefined;
+      if (url) {
+        const storagePath = storagePathFromUrl(url);
+        if (storagePath) {
+          await getStorage().bucket().file(storagePath).delete().catch(() => {
+            // File may not exist in storage — ignore
+          });
+        }
+      }
+    }
+
     await db.collection(COLLECTION).doc(req.params.id).delete();
     res.json({ ok: true });
   } catch (error) {

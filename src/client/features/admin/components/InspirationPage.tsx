@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "./Breadcrumb";
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../firebase";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import useAuth from "../auth/useAuth";
@@ -193,11 +193,6 @@ export default function InspirationPage() {
       : photos.filter((photo) => activeTags.some((tag) => photo.tags.includes(tag)));
 
   const handleDelete = async (photo: InspirationPhoto) => {
-    try {
-      await deleteObject(ref(storage, photo.url));
-    } catch {
-      // file may not exist in storage
-    }
     await fetch(`/api/admin/inspiration/photos/${photo.id}`, { method: "DELETE" });
     setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
     if (preview?.id === photo.id) setPreview(null);

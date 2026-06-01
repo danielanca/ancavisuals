@@ -6,6 +6,7 @@ import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { APP_BASE_URL } from "../constants/domain";
+import { logActivity, getNotificationSettings } from "../services/activity.service.js";
 
 const router = express.Router();
 const COLLECTION = "albumSubscriptions";
@@ -36,23 +37,38 @@ router.post("/subscribe", async (req: Request, res: Response) => {
       subscribedAt: Timestamp.now(),
     });
 
-    sendEmail({
-      to: adminUser.email,
-      subject: `🔔 Abonat nou la albumul ${albumSlug}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-          <h2 style="color:#111;margin:0 0 16px;">Abonat nou la notificări album</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            <tr><td style="padding:8px 0;color:#666;width:120px;">Album</td><td style="color:#111;font-weight:600;">${albumSlug}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;">Email</td><td style="color:#111;font-weight:600;">${normalizedEmail}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;">Data</td><td style="color:#111;">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
-          </table>
-          <p style="margin:20px 0 0;">
-            <a href="${BASE_URL}/media/${encodeURIComponent(albumSlug)}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px;">Deschide albumul</a>
-          </p>
-        </div>
-      `,
+    // Log to activity inbox
+    logActivity({
+      type: "subscribe",
+      title: `🔔 Abonat nou — ${albumSlug}`,
+      description: normalizedEmail,
+      metadata: { albumSlug, email: normalizedEmail },
+      emailSent: false,
     }).catch(() => {});
+
+    // Send email only if enabled in settings
+    getNotificationSettings()
+      .then((settings) => {
+        if (!settings.email.subscribe) return;
+        return sendEmail({
+          to: adminUser.email,
+          subject: `🔔 Abonat nou la albumul ${albumSlug}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+              <h2 style="color:#111;margin:0 0 16px;">Abonat nou la notificări album</h2>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                <tr><td style="padding:8px 0;color:#666;width:120px;">Album</td><td style="color:#111;font-weight:600;">${albumSlug}</td></tr>
+                <tr><td style="padding:8px 0;color:#666;">Email</td><td style="color:#111;font-weight:600;">${normalizedEmail}</td></tr>
+                <tr><td style="padding:8px 0;color:#666;">Data</td><td style="color:#111;">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
+              </table>
+              <p style="margin:20px 0 0;">
+                <a href="${BASE_URL}/media/${encodeURIComponent(albumSlug)}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px;">Deschide albumul</a>
+              </p>
+            </div>
+          `,
+        });
+      })
+      .catch(() => {});
 
     res.status(201).json({ ok: true });
   } catch (error) {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 // useRef păstrat pentru saveResultTimerRef
+import SmartImage from "../../../components/UI/SmartImage";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
 
@@ -307,7 +308,7 @@ export default function ShowcaseZoneEditorPage() {
                   title={item.label}
                   style={{ position: "relative", cursor: "pointer", borderRadius: 8, overflow: "hidden", userSelect: "none" }}
                 >
-                  <img
+                  <SmartImage
                     src={item.url}
                     alt={item.label}
                     style={{
@@ -413,7 +414,7 @@ export default function ShowcaseZoneEditorPage() {
                   background: "#0a0a0a",
                 }}
               >
-                <img
+                <SmartImage
                   src={photo.url}
                   alt={`Poza ${index + 1}`}
                   style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block", pointerEvents: "none" }}

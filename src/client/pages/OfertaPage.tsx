@@ -76,18 +76,25 @@ export default function OfertaPage() {
       .finally(() => setLoading(false));
   }, [slug]);
 
-  // Track view once per browser session
+  // Track view once per browser session — offer
   useEffect(() => {
     if (!offer || viewTracked.current) return;
     const sessionKey = viewSessionKey(slug);
-    const alreadyViewed = sessionStorage.getItem(sessionKey);
-    if (alreadyViewed) return;
-
+    if (sessionStorage.getItem(sessionKey)) return;
     viewTracked.current = true;
     sessionStorage.setItem(sessionKey, "1");
-
     fetch(`/api/oferte/${slug}/view`, { method: "POST" }).catch(() => {});
   }, [offer, slug]);
+
+  // Track view once per browser session — campaign
+  useEffect(() => {
+    if (!campaign || viewTracked.current) return;
+    const sessionKey = viewSessionKey(`campaign_${slug}`);
+    if (sessionStorage.getItem(sessionKey)) return;
+    viewTracked.current = true;
+    sessionStorage.setItem(sessionKey, "1");
+    fetch(`/api/campaign/${slug}/view`, { method: "POST" }).catch(() => {});
+  }, [campaign, slug]);
 
   const handleDownload = async () => {
     if (!offer?.pdfUrl || downloading) return;

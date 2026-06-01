@@ -9,6 +9,8 @@ import useAuth from "../../auth/useAuth";
 import AncaLoader from "../../../../components/UI/AncaLoader";
 import PostEventFollowUp from "../PostEventFollowUp";
 import MementosWidget from "../MementosWidget";
+import ActivityInbox from "../ActivityInbox";
+import NextEventCountdown from "../NextEventCountdown";
 import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
 import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeContext";
 
@@ -366,6 +368,12 @@ const DashboardInner: React.FC = () => {
 
         {/* Financial Summary */}
         <FinancialSummary events={events} />
+
+        {/* Next Event Countdown */}
+        <NextEventCountdown events={events} />
+
+        {/* Activity Inbox */}
+        <ActivityInbox />
 
         {/* Mementos Widget */}
         <MementosWidget />

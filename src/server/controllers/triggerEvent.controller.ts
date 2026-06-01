@@ -4,6 +4,7 @@ import { adminUser } from "../constants/credentials";
 import { sendEmail } from "../notifications/mailer";
 import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
 import { renderTriggerTemplate } from "../notifications/templates/triggerTemplate";
+import { logActivity, getNotificationSettings } from "../services/activity.service.js";
 
 interface TypeEvent {
   typeEvent: string;
@@ -92,9 +93,63 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     const isNew = triggerData.isNewVisitor !== false;
     const visitorLabel = isNew ? "🆕 Vizitator NOU" : "🔁 Vizitator cunoscut";
-
-    // Booking submissions (Lead Rapid / full booking) send their own html+subject
     const isBookingSubmission = !!triggerData.html && !!triggerData.subject;
+
+    // Detect source for activity metadata
+    const referrer = triggerData.referrer ?? "direct";
+    const ua = triggerData.browserVersion ?? "";
+    const uaLower = ua.toLowerCase();
+    const device = /mobile|android|iphone|ipad/.test(uaLower) ? "Mobil" : "Desktop";
+    const city = ipInfo?.city ?? "";
+    const source = (() => {
+      const r = referrer.toLowerCase();
+      if (r.includes("instagram")) return "Instagram";
+      if (r.includes("facebook") || r.includes("fb.com")) return "Facebook";
+      if (r.includes("google")) return "Google";
+      if (r.includes("tiktok")) return "TikTok";
+      if (r === "direct") return "Direct";
+      return referrer;
+    })();
+
+    // Always log to activity inbox
+    const activityType = isBookingSubmission ? "lead" : "visitor";
+    const activityTitle = isBookingSubmission
+      ? (triggerData.subject ?? "Lead Rapid")
+      : `${isNew ? "🆕 Vizitator nou" : "🔁 Vizitator"} — ${triggerData.url}`;
+    const activityDesc = [city, device, source].filter(Boolean).join(" · ");
+
+    const settings = await getNotificationSettings().catch(() => null);
+
+    let shouldEmail = false;
+    if (isBookingSubmission) {
+      shouldEmail = settings?.email.lead ?? true;
+    } else if (isNew) {
+      shouldEmail = settings?.email.newVisitor ?? true;
+    } else {
+      shouldEmail = settings?.email.returningVisitor ?? false;
+    }
+
+    // Log to Firestore (fire-and-forget, don't block response)
+    logActivity({
+      type: activityType,
+      title: activityTitle,
+      description: activityDesc,
+      metadata: {
+        url: triggerData.url,
+        ip: clientIp,
+        city,
+        device,
+        source,
+        isNew: String(isNew),
+      },
+      emailSent: shouldEmail,
+    }).catch((err) => console.error("[activity] log failed:", err));
+
+    if (!shouldEmail) {
+      recordSent(clientIp);
+      response.status(204).send();
+      return;
+    }
 
     const emailHtml = isBookingSubmission
       ? triggerData.html!
@@ -113,11 +168,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
       ? triggerData.subject!
       : `${visitorLabel} — ${triggerData.url} — ${todayString}`;
 
-    await sendEmail({
-      to: adminUser.email,
-      subject: emailSubject,
-      html: emailHtml,
-    });
+    await sendEmail({ to: adminUser.email, subject: emailSubject, html: emailHtml });
 
     recordSent(clientIp);
     console.log("Trigger email sent successfully.");
