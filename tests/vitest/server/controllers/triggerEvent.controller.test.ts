@@ -87,7 +87,7 @@ describe("triggerEvent controller", () => {
     fetchIpInfoMock.mockResolvedValue(null);
 
     const res = createMockResponse();
-    await triggerEvent(buildReq({ typeEvent: "Vizitator", url: "/portofoliu" }), res);
+    await triggerEvent(buildReq({ typeEvent: "Vizitator", url: "/portofoliu", browserVersion: "Chrome/120" }), res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(sendEmailMock).toHaveBeenCalledOnce();
@@ -116,6 +116,7 @@ describe("triggerEvent controller", () => {
         typeEvent: "Lead Rapid",
         html: leadHtml,
         subject: leadSubject,
+        browserVersion: "Chrome/120",
         booking: { date: "2026-07-15", eventType: "nunta", fullName: "Ion", phone: "0700000000", partial: true },
       }),
       res,
@@ -137,7 +138,7 @@ describe("triggerEvent controller", () => {
 
     const res = createMockResponse();
     await triggerEvent(
-      buildReq({ typeEvent: "Rezervare", html: bookingHtml, subject: bookingSubject }),
+      buildReq({ typeEvent: "Rezervare", html: bookingHtml, subject: bookingSubject, browserVersion: "Chrome/120" }),
       res,
     );
 
@@ -154,8 +155,8 @@ describe("triggerEvent controller", () => {
     const res1 = createMockResponse();
     const res2 = createMockResponse();
 
-    await triggerEvent(buildReq({ typeEvent: "Vizitator", url: "/portofoliu" }), res1);
-    await triggerEvent(buildReq({ typeEvent: "Vizitator", url: "/nunta-cluj" }), res2);
+    await triggerEvent(buildReq({ typeEvent: "Vizitator", url: "/portofoliu", browserVersion: "Chrome/120" }), res1);
+    await triggerEvent(buildReq({ typeEvent: "Vizitator", url: "/nunta-cluj", browserVersion: "Chrome/120" }), res2);
 
     expect(res1.status).toHaveBeenCalledWith(200);
     expect(res2.status).toHaveBeenCalledWith(204);
@@ -167,7 +168,7 @@ describe("triggerEvent controller", () => {
     sendEmailMock.mockRejectedValue(new Error("SMTP down"));
 
     const res = createMockResponse();
-    await triggerEvent(buildReq({ typeEvent: "Vizitator", url: "/portofoliu" }), res);
+    await triggerEvent(buildReq({ typeEvent: "Vizitator", url: "/portofoliu", browserVersion: "Chrome/120" }), res);
 
     expect(res.status).toHaveBeenCalledWith(500);
   });
