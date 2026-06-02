@@ -138,7 +138,7 @@ describe("share.controller", () => {
       res,
     );
 
-    expect(createShareRecordMock).toHaveBeenCalledWith("event-2", ["a.jpg", "b.webp"], 7);
+    expect(createShareRecordMock).toHaveBeenCalledWith("event-2", ["a.jpg", "b.webp"], 36500, false);
     expect(res.json).toHaveBeenCalledWith({ id: "share-1", expiresAt: 123456, count: 2 });
   });
 
@@ -176,6 +176,7 @@ describe("share.controller", () => {
       count: 2,
       expiresAt: Date.now() + 1000,
       photos: ["signed:/event-4/photos/a.jpg", "signed:/event-4/photos/b.png"],
+      showAll: false,
     });
   });
 

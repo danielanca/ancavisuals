@@ -1,4 +1,5 @@
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import type { Timestamp } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import { firestore } from "../firestore.js";
 
 export type ActivityType = "visitor" | "subscribe" | "lead" | "offer_viewed";
