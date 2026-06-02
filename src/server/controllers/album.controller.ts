@@ -7,7 +7,7 @@ import type { Request, Response } from "express";
 import { Readable } from "stream";
 import type { ReadableStream as NodeReadableStream } from "stream/web";
 import archiver from "archiver";
-import { loadAlbum } from "../services/album.service";
+import { loadAlbum, invalidateAlbumCache } from "../services/album.service";
 import { readPrintSelection, savePrintSelection, saveDeliveryAddress, readDeliveryAddress, addLink } from "../services/printSelection.store";
 import { getAlbumRetentionBySlug } from "../services/albumRetention.service";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
@@ -66,9 +66,7 @@ async function logMediaVisit(req: Request, slug: string) {
 export async function getAlbum(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
 
-  const exists = await albumExists(slug);
-  if (!exists) return res.status(404).json({ error: "Album not found" });
-
+  // albumExists + toate apelurile Bunny rulează în paralel în loadAlbum
   const album = await loadAlbum(slug);
   if (!album) return res.status(404).json({ error: "Album not found" });
 
@@ -183,6 +181,7 @@ export async function deletePhoto(req: Request, res: Response) {
       await savePrintSelection(slug, updatedPrint);
     }
 
+    invalidateAlbumCache(slug);
     const album = await loadAlbum(slug);
     if (!album) return res.status(500).json({ error: "failed_to_reload_album" });
 
@@ -262,15 +261,15 @@ export async function downloadPrintDynamic(req: Request, res: Response) {
   const archive = archiver("zip", { zlib: { level: ZIP_COMPRESSION_MAX } });
   archive.pipe(res);
 
-  const photoPath = await checkPreviewExist(slug);
-
   for (const file of items) {
-    const url = buildBunnyStorageUrl(slug, photoPath, file);
+    // Convertim .webp → .jpg și forțăm folderul photos/ (originale JPEG)
+    const originalFile = file.replace(/\.webp$/i, ".jpg");
+    const url = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, originalFile);
     const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
 
     if (!response.ok || !response.body) continue;
 
-    archive.append(Readable.fromWeb(response.body as unknown as NodeReadableStream), { name: file });
+    archive.append(Readable.fromWeb(response.body as unknown as NodeReadableStream), { name: originalFile });
   }
 
   await archive.finalize();

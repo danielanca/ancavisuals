@@ -7,6 +7,7 @@ import multer from "multer";
 import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_QR_MOMENT_FOLDER } from "../constants/bunny";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import sharp from "sharp";
+import { invalidateAlbumCache } from "../services/album.service.js";
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -642,6 +643,7 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
     }
 
     send({ stage: "previews_complete", done: previewsDone, skipped: previewsSkipped });
+    invalidateAlbumCache(slug);
     send({ stage: "done" });
   } catch (err) {
     send({ error: String(err) });
