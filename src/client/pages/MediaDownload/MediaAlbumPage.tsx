@@ -1372,6 +1372,11 @@ export default function MediaAlbumPage() {
             <button type="button" className={styles.viewAction} onClick={() => setShowUrlModal(true)}>
               Adaugă link Swiss Transfer
             </button>
+            {printCount > 0 && (
+              <button type="button" className={styles.pickBtn} onClick={downloadPrintDynamic}>
+                ⬇ Descarcă selecția de imprimat ({printCount})
+              </button>
+            )}
           </div>
         )}
 
@@ -1414,7 +1419,7 @@ export default function MediaAlbumPage() {
         {album.featured?.length > 0 && (
           <>
             <h2 className={styles.sectionTitle}>Selectate</h2>
-            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" protectImages onProtectedContextMenu={showImageSaveWarning} />
+            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" protectImages={!isAdmin && !auth.authorise} onProtectedContextMenu={showImageSaveWarning} />
           </>
         )}
 
@@ -1817,7 +1822,7 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={toggleIgPhoto}
                   mobileColumns={mobileColumns}
-                  protectImages
+                  protectImages={!isAdmin && !auth.authorise}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               ) : isModerationMode && mode === "none" ? (
@@ -1831,7 +1836,7 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={toggleModerationPhoto}
                   mobileColumns={mobileColumns}
-                  protectImages
+                  protectImages={!isAdmin && !auth.authorise}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               ) : isAdmin && mode === "none" ? (
@@ -1874,7 +1879,7 @@ export default function MediaAlbumPage() {
                   onToggle={togglePhoto}
                   onPhotoClick={mode === "none" ? openLightbox : undefined}
                   mobileColumns={mobileColumns}
-                  protectImages
+                  protectImages={!isAdmin && !auth.authorise}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               )}
