@@ -43,6 +43,8 @@ const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/componen
 const SeoGeneratorPage = loadable(() => import("../features/admin/components/SeoGeneratorPage"), opts);
 const CampaignAdminPage = loadable(() => import("../features/admin/components/CampaignAdminPage"), opts);
 const PhotoCollectionsPage = loadable(() => import("../features/admin/components/PhotoCollectionsPage"), opts);
+const AlbumHealthPage = loadable(() => import("../features/admin/components/AlbumHealthPage"), opts);
+const SwipeProposalsPage = loadable(() => import("../features/admin/components/SwipeProposalsPage"), opts);
 
 
 export const adminRoutes = [
@@ -80,6 +82,8 @@ export const adminRoutes = [
       <Route path="/admin/seo-generator" element={<SeoGeneratorPage />} />
       <Route path="/admin/campanii" element={<CampaignAdminPage />} />
       <Route path="/admin/colectii" element={<PhotoCollectionsPage />} />
+      <Route path="/admin/album-health" element={<AlbumHealthPage />} />
+      <Route path="/admin/swipe-proposals" element={<SwipeProposalsPage />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>
