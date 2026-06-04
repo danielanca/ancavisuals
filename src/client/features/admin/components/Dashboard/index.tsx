@@ -13,6 +13,7 @@ import ActivityInbox from "../ActivityInbox";
 import NextEventCountdown from "../NextEventCountdown";
 import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
 import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeContext";
+import AlbumHealthWidget from "../AlbumHealthWidget";
 
 // ── Dashboard Search ──────────────────────────────────────────────────────────
 
@@ -374,6 +375,9 @@ const DashboardInner: React.FC = () => {
 
         {/* Activity Inbox */}
         <ActivityInbox />
+
+        {/* Album Health Widget */}
+        <AlbumHealthWidget />
 
         {/* Mementos Widget */}
         <MementosWidget />

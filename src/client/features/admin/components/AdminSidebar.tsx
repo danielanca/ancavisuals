@@ -128,10 +128,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       ),
       items: [
         { label: "Propuneri Media", path: "/admin/instagram-proposals", badge: pendingProposals },
+        { label: "Swipe Test", path: "/admin/swipe-proposals" },
         { label: "Media Assets", path: "/admin/media-assets" },
         { label: "QR Moments", path: "/admin/qr-moments" },
         { label: "Activitate album", path: "/admin/media-activity" },
         { label: "Optimizare poze", path: "/admin/image-optimizer" },
+        { label: "Albume", path: "/admin/album-health" },
       ],
     },
     {

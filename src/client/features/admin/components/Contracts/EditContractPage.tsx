@@ -151,6 +151,8 @@ const EditContractPage: React.FC = () => {
   const [advancePaidAt, setAdvancePaidAt] = useState("");
   const [restPaidAt, setRestPaidAt] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Transfer bancar");
+  const [bankBeneficiaryName, setBankBeneficiaryName] = useState("");
+  const [bankIban, setBankIban] = useState("");
 
   const [transportKm, setTransportKm] = useState("");
   const [transportFuelPrice, setTransportFuelPrice] = useState("10");
@@ -161,6 +163,7 @@ const EditContractPage: React.FC = () => {
   const [clientAddress, setClientAddress] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
+  const [fiscalized, setFiscalized] = useState(false);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -169,7 +172,6 @@ const EditContractPage: React.FC = () => {
       .then((r) => r.json())
       .then((data) => {
         if (data.error) throw new Error(data.error);
-        if (data.status === "signed") throw new Error("Contractul este deja semnat și nu poate fi editat.");
 
         setEventType(data.eventType ?? "");
         setEventDate(data.eventDate ?? "");
@@ -193,6 +195,8 @@ const EditContractPage: React.FC = () => {
         setAdvancePaidAt(data.advancePaidAt ?? "");
         setRestPaidAt(data.restPaidAt ?? "");
         setPaymentMethod(data.paymentMethod ?? "Transfer bancar");
+        setBankBeneficiaryName(data.bankBeneficiaryName ?? "");
+        setBankIban(data.bankIban ?? "");
         setTransportKm(data.transportKm ?? "");
         setTransportFuelPrice(data.transportFuelPrice ?? "10");
         setClientEmail(data.clientEmail ?? "");
@@ -201,6 +205,7 @@ const EditContractPage: React.FC = () => {
         setClientAddress(data.clientAddress ?? "");
         setClientIdSeries(data.clientIdSeries ?? "");
         setPrivateClient(data.privateClient === true);
+        setFiscalized(data.fiscalized === true);
         setLinkedEventId(data.eventId ?? null);
 
         // Enable manual mode only if the saved total differs from the sum of services
@@ -284,6 +289,9 @@ const EditContractPage: React.FC = () => {
         priceAdvance: priceAdvance || 0,
         priceRest,
         advancePaidAt, restPaidAt, paymentMethod,
+        bankBeneficiaryName: bankBeneficiaryName.trim(),
+        bankIban: bankIban.trim().toUpperCase(),
+        fiscalized,
         clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || "10",
@@ -532,6 +540,31 @@ const EditContractPage: React.FC = () => {
                 {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
               </select>
             </div>
+
+            {paymentMethod === "Transfer bancar" && (
+              <div className="grid grid-cols-2 gap-4 pt-1">
+                <div>
+                  <Label>Beneficiar cont <span className="text-neutral-600 font-normal normal-case">(lasă gol = din setări)</span></Label>
+                  <input
+                    type="text"
+                    value={bankBeneficiaryName}
+                    onChange={(e) => setBankBeneficiaryName(e.target.value)}
+                    placeholder="ex. ANCA DANIEL PFA"
+                    className={inp}
+                  />
+                </div>
+                <div>
+                  <Label>IBAN <span className="text-neutral-600 font-normal normal-case">(lasă gol = din setări)</span></Label>
+                  <input
+                    type="text"
+                    value={bankIban}
+                    onChange={(e) => setBankIban(e.target.value.toUpperCase())}
+                    placeholder="ex. RO49AAAA1B31007593840000"
+                    className={`${inp} font-mono`}
+                  />
+                </div>
+              </div>
+            )}
           </Block>
 
           {/* CLIENT */}
@@ -575,6 +608,29 @@ const EditContractPage: React.FC = () => {
                 </span>
               </span>
             </label>
+          </Block>
+
+          {/* Fiscal status */}
+          <Block title="Fiscal">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-white font-medium">Status fiscal</p>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {fiscalized ? "Factură emisă pentru acest contract." : "Nicio factură emisă încă."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiscalized((v) => !v)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  fiscalized
+                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30"
+                    : "bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-neutral-500"
+                }`}
+              >
+                {fiscalized ? "✓ Fiscalizat" : "Nefiscalizat"}
+              </button>
+            </div>
           </Block>
 
           {submitError && <p className="text-red-400 text-sm text-center">{submitError}</p>}

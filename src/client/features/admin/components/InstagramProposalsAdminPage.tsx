@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
 
@@ -390,6 +391,7 @@ function AlbumGroupHeader({
 
 export default function InstagramProposalsAdminPage() {
   const { auth } = useAuth();
+  const navigate = useNavigate();
   const [proposals, setProposals] = useState<InstagramProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("pending");
@@ -550,12 +552,25 @@ export default function InstagramProposalsAdminPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
 
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-light text-white">Propuneri Media</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-light text-white">Propuneri Media</h1>
+            {counts.pending > 0 && (
+              <span className="bg-orange-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                {counts.pending} noi
+              </span>
+            )}
+          </div>
           {counts.pending > 0 && (
-            <span className="bg-orange-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full">
-              {counts.pending} noi
-            </span>
+            <button
+              onClick={() => navigate("/admin/swipe-proposals")}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/15 text-violet-400 text-xs font-medium hover:bg-violet-500/25 transition-colors border border-violet-500/20"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Folosește Swiper-ul
+            </button>
           )}
         </div>
 
