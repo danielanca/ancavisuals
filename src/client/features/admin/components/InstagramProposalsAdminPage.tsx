@@ -83,13 +83,14 @@ const STATUS_BADGE: Record<ProposalStatus, string> = {
 };
 
 function triggerDownload(url: string, fileName: string): Promise<void> {
+  const normalizedFileName = fileName.replace(/\.webp$/i, ".jpg") || "photo.jpg";
   return fetch(url)
     .then((r) => r.blob())
     .then((blob) => {
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = fileName || "photo.jpg";
+      anchor.download = normalizedFileName;
       anchor.click();
       URL.revokeObjectURL(objectUrl);
     })
@@ -320,29 +321,31 @@ function AcceptedCard({
         <p className="text-neutral-600 text-xs truncate">{proposal.proposedBy}</p>
         <button
           onClick={onDownload}
-          className="w-full py-2.5 rounded-lg text-xs font-bold bg-blue-950/60 text-blue-400 border border-blue-900/50 hover:bg-blue-900/40 transition-colors active:scale-95"
+          className="w-full py-2.5 rounded-lg text-xs font-bold bg-blue-600/80 text-white hover:bg-blue-600 transition-colors active:scale-95"
         >
           ↓ Descarcă
         </button>
-        <button
-          onClick={onArchive}
-          disabled={!wasDownloaded || busy}
-          title={wasDownloaded ? "Mută în Arhivate" : "Descarcă mai întâi"}
-          className={`w-full py-2.5 rounded-lg text-xs font-bold transition-colors active:scale-95 ${
-            wasDownloaded
-              ? "bg-green-950/60 text-green-400 border border-green-900/50 hover:bg-green-900/40"
-              : "bg-neutral-900 text-neutral-700 border border-neutral-800 cursor-not-allowed"
-          }`}
-        >
-          {busy ? "..." : wasDownloaded ? "✓ Mută în Arhivate" : "Arhivează (descarcă mai întâi)"}
-        </button>
-        <button
-          onClick={onDelete}
-          disabled={busy}
-          className="w-full py-2 rounded-lg text-xs text-neutral-600 border border-neutral-800 hover:text-red-400 hover:border-red-900/50 transition-colors"
-        >
-          Șterge
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onArchive}
+            disabled={!wasDownloaded || busy}
+            title={wasDownloaded ? "Mută în Arhivate" : "Descarcă mai întâi"}
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors active:scale-95 ${
+              wasDownloaded
+                ? "bg-green-950/60 text-green-400 border border-green-900/50 hover:bg-green-900/40"
+                : "bg-neutral-900 text-neutral-700 border border-neutral-800 cursor-not-allowed"
+            }`}
+          >
+            {busy ? "..." : "✓ Arhivează"}
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={busy}
+            className="px-3 py-2 rounded-lg text-xs text-neutral-600 border border-neutral-800 hover:text-red-400 hover:border-red-900/50 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -403,10 +406,13 @@ export default function InstagramProposalsAdminPage() {
   const [allAlbumFilter, setAllAlbumFilter] = useState("all");
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const [acceptedInSession, setAcceptedInSession] = useState<Set<string>>(new Set());
+  const [refreshKey, setRefreshKey] = useState(0);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!auth.accessToken) return;
+    setLoading(true);
+    setFetchError(null);
     fetch("/api/instagram-proposals/admin/all", {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     })
@@ -417,7 +423,7 @@ export default function InstagramProposalsAdminPage() {
       })
       .catch((err: unknown) => setFetchError(String(err)))
       .finally(() => setLoading(false));
-  }, [auth.accessToken]);
+  }, [auth.accessToken, refreshKey]);
 
   const updateStatus = async (id: string, status: ProposalStatus, destinations?: ProposalDestination[]) => {
     if (!auth.accessToken) return;
@@ -493,7 +499,7 @@ export default function InstagramProposalsAdminPage() {
   };
 
   const handleDownload = async (proposal: InstagramProposal) => {
-    await triggerDownload(proposal.photoUrl, proposal.fileName);
+    await triggerDownload(proposal.originalPhotoUrl ?? proposal.photoUrl, proposal.fileName);
     setDownloaded((prev) => new Set(prev).add(proposal.id));
   };
 
@@ -561,17 +567,30 @@ export default function InstagramProposalsAdminPage() {
               </span>
             )}
           </div>
-          {counts.pending > 0 && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate("/admin/swipe-proposals")}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/15 text-violet-400 text-xs font-medium hover:bg-violet-500/25 transition-colors border border-violet-500/20"
+              onClick={() => setRefreshKey((k) => k + 1)}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 text-neutral-400 text-xs font-medium hover:bg-neutral-700 hover:text-white transition-colors disabled:opacity-40"
+              title="Reîncarcă propunerile"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={loading ? "animate-spin" : ""}>
+                <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
               </svg>
-              Folosește Swiper-ul
+              Refresh
             </button>
-          )}
+            {counts.pending > 0 && (
+              <button
+                onClick={() => navigate("/admin/swipe-proposals")}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/15 text-violet-400 text-xs font-medium hover:bg-violet-500/25 transition-colors border border-violet-500/20"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                Folosește Swiper-ul
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Tabs — scrollable on mobile */}
@@ -820,7 +839,7 @@ export default function InstagramProposalsAdminPage() {
                       {proposal.albumSlug}
                     </a>
                     <button
-                      onClick={() => triggerDownload(proposal.photoUrl, proposal.fileName)}
+                      onClick={() => triggerDownload(proposal.originalPhotoUrl ?? proposal.photoUrl, proposal.fileName)}
                       className="w-full py-2.5 rounded-lg text-xs font-bold bg-blue-950/60 text-blue-400 border border-blue-900/50 hover:bg-blue-900/40 transition-colors active:scale-95"
                     >
                       ↓ Descarcă din nou
@@ -897,7 +916,7 @@ export default function InstagramProposalsAdminPage() {
                   <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                     <div className="relative">
                       <img
-                        src={proposal.photoUrl}
+                        src={proposal.originalPhotoUrl ?? proposal.photoUrl}
                         alt={proposal.fileName}
                         className="w-full aspect-square object-cover block"
                         loading="lazy"
@@ -906,7 +925,7 @@ export default function InstagramProposalsAdminPage() {
                         {STATUS_LABEL[proposal.status]}
                       </span>
                       <button
-                        onClick={() => triggerDownload(proposal.photoUrl, proposal.fileName)}
+                        onClick={() => triggerDownload(proposal.originalPhotoUrl ?? proposal.photoUrl, proposal.fileName)}
                         className="absolute bottom-2 right-2 px-2 py-1 rounded-lg text-xs bg-black/70 text-blue-400 border border-blue-900/50 hover:bg-black/90 transition-colors"
                       >
                         ↓

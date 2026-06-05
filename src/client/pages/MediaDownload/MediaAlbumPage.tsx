@@ -908,10 +908,10 @@ export default function MediaAlbumPage() {
     try {
       const previews = album.photos ?? [];
       const originals = album.originalPhoto ?? [];
-      const originalByName = new Map(originals.map(url => [fileNameFromUrl(url), url]));
+      const originalByMediaKey = new Map(originals.map(url => [mediaKeyFromUrl(url), url]));
       const toPropose = previews
         .filter(url => selectedIgPropose.has(fileNameFromUrl(url)))
-        .map(previewUrl => originalByName.get(fileNameFromUrl(previewUrl)) ?? previewUrl);
+        .map(previewUrl => originalByMediaKey.get(mediaKeyFromUrl(previewUrl)) ?? previewUrl);
       const results = await Promise.all(
         toPropose.map((photoUrl) =>
           fetch("/api/instagram-proposals", {
