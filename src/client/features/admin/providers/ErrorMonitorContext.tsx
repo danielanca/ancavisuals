@@ -51,18 +51,24 @@ export function ErrorMonitorProvider({ children }: { children: React.ReactNode }
   // Always-on: capture real JS errors and unhandled promise rejections
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
+      const location = `${event.filename}:${event.lineno}:${event.colno}`;
+      const errorClass = event.error?.constructor?.name ?? "Error";
+      const stack = event.error?.stack;
+      const detail = stack ?? `${errorClass}: ${event.message}\n    at ${location}`;
       addError({
         type: "client",
         message: event.message || "Unknown error",
-        detail: event.error?.stack,
-        url: `${event.filename}:${event.lineno}:${event.colno}`,
+        detail,
+        url: location,
       });
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
       const message = reason instanceof Error ? reason.message : String(reason);
-      const detail = reason instanceof Error ? reason.stack : undefined;
+      const errorClass = reason?.constructor?.name ?? "Error";
+      const stack = reason instanceof Error ? reason.stack : undefined;
+      const detail = stack ?? `${errorClass}: ${message}`;
       addError({ type: "promise", message: `Promise: ${message}`, detail });
     };
 
