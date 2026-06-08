@@ -60,6 +60,7 @@ import { startCollaboratorInviteReminderCron } from "./src/server/cron/collabora
 import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
+import healthRouter from "./src/server/routes/health.routes";
 
 // Shared HTTP defaults used by both local development and the production server.
 const BODY_PAYLOAD_LIMIT = "5mb";
@@ -181,6 +182,7 @@ async function createServer() {
   app.use("/api/admin/bank-statements", bankStatementsRouter);
   app.use("/api", loginEventsRouter);
   app.use("/api/admin/landing", landingRouter);
+  app.use("/api/admin/health", healthRouter);
   app.use("/api/instagram-proposals", instagramProposalsRouter);
   app.use("/api/showcase-zones", showcaseZonesRouter);
   app.use("/api/album-subscriptions", albumSubscriptionsRouter);

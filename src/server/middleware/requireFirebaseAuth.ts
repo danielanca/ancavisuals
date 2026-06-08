@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { firestore } from "../firestore";
 
 const SUPREME_ADMIN_EMAIL = "ancadaniel1994@gmail.com";
+export const ESTERA_EMAIL = "estera.pop97@gmail.com";
 
 export interface AuthenticatedRequest extends Request {
   firebaseUid: string;
@@ -32,6 +33,19 @@ export async function requireFirebaseAuth(
   } catch {
     res.status(401).json({ error: "Token invalid" });
   }
+}
+
+export function requireEsteraOrAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isSupremeAdmin && authReq.firebaseEmail !== ESTERA_EMAIL) {
+    res.status(403).json({ error: "Acces interzis" });
+    return;
+  }
+  next();
 }
 
 export function requireSupremeAdmin(

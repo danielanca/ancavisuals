@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from "express";
 import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
-import { requireFirebaseAuth, requireSupremeAdmin, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
+import { requireFirebaseAuth, requireSupremeAdmin, requireEsteraOrAdmin, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
 import { OFFER_SERVICES, normalizeOfferServiceIds } from "../../shared/offers/offerServices";
 import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
@@ -193,7 +193,7 @@ router.get("/showcase", async (_req: Request, res: Response) => {
 });
 
 // GET /admin/all — all proposals across all albums (admin only) — must be before /album/:slug
-router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+router.get("/admin/all", requireFirebaseAuth, requireEsteraOrAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const snapshot = await db

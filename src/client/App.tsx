@@ -31,15 +31,25 @@ export const App = () => {
   const suppressCookieBot = location.pathname.startsWith("/media") || location.pathname.startsWith("/admin");
 
   useEffect(() => {
-    if (!suppressCookieBot) return;
-    const removeUcDialog = () => {
-      const dialog = document.getElementById("uc-main-dialog");
-      if (dialog?.parentNode) dialog.parentNode.removeChild(dialog);
-    };
-    removeUcDialog();
-    const observer = new MutationObserver(removeUcDialog);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    const STYLE_ID = "uc-suppress-style";
+    if (suppressCookieBot) {
+      if (!document.getElementById(STYLE_ID)) {
+        const style = document.createElement("style");
+        style.id = STYLE_ID;
+        style.textContent = "[id^='uc-'], [class^='uc-'], #usercentrics-root { display: none !important; }";
+        document.head.appendChild(style);
+      }
+      // Also remove any already-present nodes for UC dialog
+      const removeUcNodes = () => {
+        document.querySelectorAll("[id^='uc-'], #usercentrics-root").forEach((el) => el.remove());
+      };
+      removeUcNodes();
+      const observer = new MutationObserver(removeUcNodes);
+      observer.observe(document.body, { childList: true, subtree: true });
+      return () => observer.disconnect();
+    } else {
+      document.getElementById(STYLE_ID)?.remove();
+    }
   }, [suppressCookieBot]);
 
   useEffect(() => {
