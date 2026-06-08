@@ -26,11 +26,12 @@ interface Props {
   onResetSignature: () => void;
   onResend: () => void;
   onReminder: () => void;
+  onGenerateInvoice: () => void;
 }
 
 const ContractActionMenu: React.FC<Props> = ({
   contract, canCreateEvent, isSigned, sending, cancelling, deleting, resending, reminding,
-  onEdit, onSign, onPreview, onCreateEvent, onSend, onCopyLink, onCancel, onDelete, onResetSignature, onResend, onReminder,
+  onEdit, onSign, onPreview, onCreateEvent, onSend, onCopyLink, onCancel, onDelete, onResetSignature, onResend, onReminder, onGenerateInvoice,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -45,7 +46,7 @@ const ContractActionMenu: React.FC<Props> = ({
   }, [open]);
 
   const canSend = contract.status === "draft" || contract.status === "sent";
-  const canEdit = contract.status !== "signed";
+  const canEdit = true; // allow editing all contracts, including signed ones
   const canSign = contract.status === "draft" && !isSigned;
 
   const Item: React.FC<{
@@ -85,6 +86,7 @@ const ContractActionMenu: React.FC<Props> = ({
             <Item label="🖊️  Semnează tu" onClick={onSign} color="text-blue-400" />
           )}
           <Item label="👁  Preview PDF" onClick={onPreview} color="text-purple-400" />
+          <Item label="🧾  Generează factură" onClick={onGenerateInvoice} color="text-amber-400" />
           {canCreateEvent && (
             <Item label="📅  Generează eveniment" onClick={onCreateEvent} color="text-violet-400" />
           )}

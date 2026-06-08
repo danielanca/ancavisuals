@@ -14,11 +14,14 @@ interface ContractItem {
   clientEmail: string;
   clientName?: string;
   priceTotal: number;
+  priceAdvance?: number;
+  priceRest?: number;
   currency?: string;
   createdAt: string;
   signedAt?: string;
   prestatorSignatureBase64?: string;
   eventId?: string;
+  fiscalized?: boolean;
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -47,6 +50,7 @@ const ContractListPage: React.FC = () => {
 
   type PendingAction = { type: "delete" | "cancel" | "send"; id: string; contractLabel: string } | null;
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [invoiceModal, setInvoiceModal] = useState<ContractItem | null>(null);
 
   // Provider signature modal
   const [signingId, setSigningId] = useState<string | null>(null);
@@ -300,6 +304,20 @@ const ContractListPage: React.FC = () => {
     }
   };
 
+  const handleToggleFiscalized = async (id: string, current: boolean) => {
+    try {
+      await fetch(`/api/contracts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({ fiscalized: !current }),
+      });
+      setContracts((prev) => prev.map((c) => c.id === id ? { ...c, fiscalized: !current } : c));
+      showToast(!current ? "Marcat ca fiscalizat." : "Marcat ca nefiscalizat.");
+    } catch {
+      setActionError("Eroare la actualizare status fiscal.");
+    }
+  };
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
@@ -408,6 +426,16 @@ const ContractListPage: React.FC = () => {
                             Semnat de tine
                           </span>
                         )}
+                        <button
+                          onClick={() => handleToggleFiscalized(contract.id, contract.fiscalized ?? false)}
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                            contract.fiscalized
+                              ? "text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20"
+                              : "text-neutral-500 bg-neutral-800 hover:bg-neutral-700"
+                          }`}
+                        >
+                          {contract.fiscalized ? "✓ Fiscalizat" : "Nefiscalizat"}
+                        </button>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-neutral-400 text-xs">
                         <span>Data: {formatDate(contract.eventDate)}</span>
@@ -456,6 +484,7 @@ const ContractListPage: React.FC = () => {
                       onResetSignature={() => handleResetSignature(contract.id)}
                       onResend={() => handleResend(contract.id)}
                       onReminder={() => handleReminder(contract.id)}
+                      onGenerateInvoice={() => setInvoiceModal(contract)}
                     />
                   </div>
                   {creatingEvent === contract.id && (
@@ -468,6 +497,16 @@ const ContractListPage: React.FC = () => {
         )}
 
       </div>
+
+      {/* INVOICE MODAL */}
+      {invoiceModal && (
+        <InvoiceModal
+          contract={invoiceModal}
+          accessToken={auth.accessToken}
+          onClose={() => setInvoiceModal(null)}
+          onNavigateToFinancial={() => navigate("/admin/financial")}
+        />
+      )}
 
       {/* PROVIDER SIGNATURE MODAL */}
       {signingId && (
@@ -558,5 +597,211 @@ const ContractListPage: React.FC = () => {
     </div>
   );
 };
+
+// ── Invoice Modal ──────────────────────────────────────────────────────────
+
+interface ContractForInvoice {
+  id: string;
+  eventType: string;
+  eventDate: string;
+  clientName?: string;
+  priceTotal: number;
+  priceAdvance?: number;
+  priceRest?: number;
+  currency?: string;
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function dueDateISO() {
+  const d = new Date();
+  d.setDate(d.getDate() + 5);
+  return d.toISOString().slice(0, 10);
+}
+
+function defaultDescription(contract: ContractForInvoice) {
+  const d = new Date(contract.eventDate);
+  const dateStr = isNaN(d.getTime()) ? contract.eventDate : d.toLocaleDateString("ro-RO", { day: "2-digit", month: "long", year: "numeric" });
+  return `Servicii foto-video ${contract.eventType} — ${dateStr}`;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }: {
+  contract: ContractForInvoice;
+  accessToken: string;
+  onClose: () => void;
+  onNavigateToFinancial: () => void;
+}) {
+  const currency = contract.currency ?? "RON";
+  const priceAdvance = contract.priceAdvance ?? 0;
+  const priceRest = contract.priceRest ?? (contract.priceTotal - priceAdvance);
+
+  const [invoiceDate, setInvoiceDate] = React.useState(todayISO);
+  const [amountType, setAmountType] = React.useState<"total" | "advance" | "rest">("total");
+  const [description, setDescription] = React.useState(() => defaultDescription(contract));
+  const [buyerCIF, setBuyerCIF] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [savedId, setSavedId] = React.useState<string | null>(null);
+  const [savedRef, setSavedRef] = React.useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = React.useState(false);
+  const [downloadingXml, setDownloadingXml] = React.useState(false);
+
+  const downloadFile = async (url: string, filename: string, mimeType: string, setLoading: (v: boolean) => void) => {
+    setLoading(true);
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok) throw new Error("Eroare server");
+      const blob = await res.blob();
+      downloadBlob(new Blob([blob], { type: mimeType }), filename);
+    } catch (e) {
+      alert("Nu s-a putut descărca fișierul: " + (e instanceof Error ? e.message : "eroare"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const displayAmount =
+    amountType === "advance" ? priceAdvance :
+    amountType === "rest" ? priceRest :
+    contract.priceTotal;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/invoices", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: invoiceDate,
+          type: buyerCIF ? "B2B" : "B2C",
+          clientName: contract.clientName ?? "",
+          clientCIF: buyerCIF || undefined,
+          items: [{ description, quantity: 1, unitPrice: displayAmount, total: displayAmount }],
+          totalAmount: displayAmount,
+          currency,
+          notes: `Contract ${contract.eventType} — ${contract.eventDate?.slice(0, 10) ?? ""}`,
+          eventId: contract.id,
+        }),
+      });
+      const data = await res.json() as { id?: string; invoiceNumber?: number; series?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Eroare server.");
+      setSavedId(data.id!);
+      setSavedRef(`${data.series}-${String(data.invoiceNumber).padStart(4, "0")}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Eroare necunoscută.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp = "w-full bg-neutral-950 text-white text-sm placeholder-neutral-600 border border-neutral-800 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4" onClick={onClose}>
+      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-white text-base font-semibold">🧾 Generează factură</h2>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-lg">✕</button>
+        </div>
+
+        <div className="text-xs text-neutral-500 mb-4">
+          {contract.eventType} · {contract.clientName ?? "—"} · {contract.priceTotal} {currency}
+        </div>
+
+        {!savedId ? (
+          <>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Data facturii</label>
+                <input type="date" className={inp} value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+                <p className="text-neutral-600 text-[10px] mt-1">Pune data când ai primit banii, nu neapărat azi.</p>
+              </div>
+
+              <div>
+                <label className="block text-neutral-400 text-xs font-medium mb-2 uppercase tracking-wide">Sumă facturată</label>
+                <div className="flex gap-2">
+                  {([
+                    ["total", `Total — ${contract.priceTotal} ${currency}`],
+                    ["advance", `Avans — ${priceAdvance} ${currency}`],
+                    ["rest", `Rest — ${priceRest} ${currency}`],
+                  ] as const).map(([val, label]) => (
+                    <button key={val} onClick={() => setAmountType(val)}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                        amountType === val
+                          ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                          : "text-neutral-400 border-neutral-800 hover:border-neutral-600"
+                      }`}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Descriere</label>
+                <input className={inp} value={description} onChange={(e) => setDescription(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">CIF cumpărător (opțional — doar B2B)</label>
+                <input className={inp} value={buyerCIF} onChange={(e) => setBuyerCIF(e.target.value)} placeholder="Lasă gol pentru B2C (persoană fizică)" />
+              </div>
+            </div>
+
+            {error && <p className="mt-3 text-red-400 text-xs">{error}</p>}
+
+            <button onClick={handleSave} disabled={saving}
+              className="mt-5 w-full py-2.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 text-sm font-medium hover:bg-amber-500/30 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Se salvează..." : `Creează factura — ${displayAmount} ${currency}`}
+            </button>
+          </>
+        ) : (
+          <div className="space-y-3">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center">
+              <p className="text-emerald-400 text-sm font-semibold">{savedRef}</p>
+              <p className="text-neutral-400 text-xs mt-1">Factura a fost salvată în sistem</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => downloadFile(`/api/admin/invoices/${savedId}/pdf`, `${savedRef}.pdf`, "application/pdf", setDownloadingPdf)}
+                disabled={downloadingPdf}
+                className="py-2.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/25 text-sm font-medium hover:bg-red-500/25 transition-colors disabled:opacity-50"
+              >
+                {downloadingPdf ? "..." : "📄 PDF"}
+              </button>
+              <button
+                onClick={() => downloadFile(`/api/admin/invoices/${savedId}/xml`, `${savedRef}.xml`, "application/xml", setDownloadingXml)}
+                disabled={downloadingXml}
+                className="py-2.5 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/25 text-sm font-medium hover:bg-blue-500/25 transition-colors disabled:opacity-50"
+              >
+                {downloadingXml ? "..." : "📦 XML e-Factura"}
+              </button>
+            </div>
+
+            <button
+              onClick={() => { onClose(); onNavigateToFinancial(); }}
+              className="w-full py-2 text-xs text-neutral-400 hover:text-white border border-neutral-800 rounded-lg hover:border-neutral-600 transition-colors"
+            >
+              → Vezi toate facturile în Rezumat financiar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default ContractListPage;

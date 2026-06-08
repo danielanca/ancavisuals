@@ -57,6 +57,7 @@ import { startPostEventBackupCron } from "./src/server/cron/postEventBackupRemin
 import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startCollaboratorInviteReminderCron } from "./src/server/cron/collaboratorInviteReminder.cron";
+import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
 
@@ -202,6 +203,7 @@ async function createServer() {
   startErrorsCron();
   startRemindersCron();
   startCollaboratorInviteReminderCron();
+  startAlbumZipCheckCron();
 
   if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites");
 

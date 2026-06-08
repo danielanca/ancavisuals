@@ -8,6 +8,10 @@ import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import sharp from "sharp";
 import { invalidateAlbumCache } from "../services/album.service.js";
+import {
+  createJob, getJob, getAllJobs, serializeJob,
+  appendJobLog, setJobProgress, finishJob, errorJob,
+} from "../services/albumProcessingJobs.js";
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -695,6 +699,293 @@ router.delete("/media-activity/:id", async (req: Request, res: Response) => {
     console.error("[adminEvents] DELETE /media-activity/:id failed:", error);
     res.status(500).json({ error: "Nu s-a putut șterge vizita." });
   }
+});
+
+// POST /api/admin/album-health/create — create album folder structure in Bunny
+router.post("/album-health/create", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const slug = String((req.body as { slug?: string }).slug ?? "").trim().toLowerCase();
+
+  if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
+    return res.status(400).json({ error: "Slug invalid. Folosește doar litere mici, cifre și liniuțe." });
+  }
+
+  try {
+    const storageKey = getBunnyStorageKey();
+
+    const checkRes = await fetch(buildBunnyDirectoryUrl(slug), {
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+    });
+    if (checkRes.ok) return res.status(409).json({ error: `Albumul „${slug}" există deja în Bunny.` });
+
+    const folders = ["photos", "photos_preview", "shortvideo", "longvideo"];
+    const uploads = await Promise.all(
+      folders.map((folder) =>
+        fetch(buildBunnyStorageUrl(slug, folder, ".keep"), {
+          method: "PUT",
+          headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "application/octet-stream" },
+          body: new Uint8Array(0),
+        })
+      )
+    );
+
+    if (uploads.some((r) => !r.ok)) return res.status(500).json({ error: "Nu s-a putut crea structura în Bunny." });
+
+    res.json({ ok: true, slug });
+  } catch (error) {
+    console.error("[album-health] create failed:", error);
+    res.status(500).json({ error: "Eroare la creare." });
+  }
+});
+
+// GET /api/admin/album-health — scan all Bunny albums and report WebP preview coverage
+router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const storageKey = getBunnyStorageKey();
+
+    const rootRes = await fetch(buildBunnyDirectoryUrl(""), {
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+    });
+    if (!rootRes.ok) return res.status(500).json({ error: "Nu pot lista root-ul Bunny." });
+
+    const EXCLUDED_DIRS = new Set(["expenses", "bank-statements", "offers", "offers-assets", "qr-moments"]);
+
+    const rootEntries = await rootRes.json() as { ObjectName: string; IsDirectory: boolean }[];
+    const albumDirs = rootEntries.filter((e) => e.IsDirectory && !EXCLUDED_DIRS.has(e.ObjectName));
+
+    const results = await Promise.all(
+      albumDirs.map(async (dir) => {
+        const slug = dir.ObjectName;
+
+        const [photosRes, previewsRes] = await Promise.all([
+          fetch(buildBunnyDirectoryUrl(slug, "photos"), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } }),
+          fetch(buildBunnyDirectoryUrl(slug, "photos_preview"), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } }),
+        ]);
+
+        type BunnyHealthEntry = { ObjectName: string; IsDirectory: boolean; LastChanged?: string };
+
+        const photos: BunnyHealthEntry[] = [];
+        const previewBases = new Set<string>();
+
+        if (photosRes.ok) {
+          const entries = await photosRes.json() as BunnyHealthEntry[];
+          entries
+            .filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png)$/i.test(e.ObjectName))
+            .forEach((e) => photos.push(e));
+        }
+
+        if (previewsRes.ok) {
+          const entries = await previewsRes.json() as BunnyHealthEntry[];
+          entries
+            .filter((e) => !e.IsDirectory && /\.webp$/i.test(e.ObjectName))
+            .forEach((e) => previewBases.add(e.ObjectName.replace(/\.webp$/i, "")));
+        }
+
+        // ZIP status: check photos.zip in album root vs latest photo date
+        const rootRes = await fetch(buildBunnyDirectoryUrl(slug), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+        let zipStatus: "ok" | "stale" | "missing" = "missing";
+        let zipDate: string | null = null;
+
+        if (rootRes.ok) {
+          const rootEntries = await rootRes.json() as BunnyHealthEntry[];
+          const zipEntry = rootEntries.find((e) => !e.IsDirectory && e.ObjectName === "photos.zip");
+          if (zipEntry?.LastChanged) {
+            zipDate = zipEntry.LastChanged;
+            const latestPhoto = photos.reduce((max, p) =>
+              p.LastChanged && new Date(p.LastChanged) > new Date(max) ? p.LastChanged : max,
+              zipEntry.LastChanged
+            );
+            zipStatus = new Date(zipEntry.LastChanged) >= new Date(latestPhoto) ? "ok" : "stale";
+          }
+        }
+
+        const total = photos.length;
+        const missingFiles = photos
+          .filter((p) => !previewBases.has(p.ObjectName.replace(/\.[^.]+$/, "")))
+          .map((p) => p.ObjectName);
+        const withPreview = total - missingFiles.length;
+        const missing = missingFiles.length;
+        const coverage = total > 0 ? Math.round((withPreview / total) * 100) : (previewsRes.ok ? 100 : 0);
+
+        return { slug, total, withPreview, missing, missingFiles, hasPreviewFolder: previewsRes.ok, coverage, zipStatus, zipDate };
+      })
+    );
+
+    results.sort((a, b) => b.missing - a.missing || a.slug.localeCompare(b.slug));
+
+    res.json({ albums: results });
+  } catch (error) {
+    console.error("[album-health] GET failed:", error);
+    res.status(500).json({ error: "Nu s-a putut scana Bunny." });
+  }
+});
+
+// Background processing function — runs independently of any HTTP connection
+async function runAlbumProcessing(slug: string): Promise<void> {
+  const storageKey = getBunnyStorageKey();
+
+  try {
+    const listRes = await fetch(buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER), {
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+    });
+    if (!listRes.ok) {
+      appendJobLog(slug, "❌ Nu pot lista folderul photos din Bunny.");
+      errorJob(slug, "Nu pot lista folderul photos din Bunny.");
+      return;
+    }
+
+    const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
+    const photos = entries
+      .filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png)$/i.test(e.ObjectName) && e.ObjectName !== ".keep")
+      .map((e) => e.ObjectName);
+
+    appendJobLog(slug, `📂 ${photos.length} poze găsite`);
+    setJobProgress(slug, 0, photos.length);
+
+    const previewListRes = await fetch(buildBunnyDirectoryUrl(slug, "photos_preview"), {
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+    });
+    const existingPreviews = new Set<string>();
+    if (previewListRes.ok) {
+      const previewEntries = await previewListRes.json() as { ObjectName: string }[];
+      previewEntries.forEach((e) => existingPreviews.add(e.ObjectName.replace(/\.[^.]+$/, "")));
+    }
+
+    appendJobLog(slug, "🖼 Generez previzualizări WebP...");
+    let done = 0;
+    let skipped = 0;
+
+    for (const filename of photos) {
+      const baseName = filename.replace(/\.[^.]+$/, "");
+      if (existingPreviews.has(baseName)) { skipped++; continue; }
+
+      const dlRes = await fetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename), {
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+      });
+      if (!dlRes.ok || !dlRes.body) {
+        appendJobLog(slug, `⚠️ Skip ${filename}: download failed`);
+        continue;
+      }
+
+      const buffer = Buffer.from(await dlRes.arrayBuffer());
+      const webpBuffer = await sharp(buffer)
+        .resize({ width: 1400, withoutEnlargement: true })
+        .webp({ quality: 72 })
+        .toBuffer();
+
+      const previewName = `${baseName}.webp`;
+      const upRes = await fetch(buildBunnyStorageUrl(slug, "photos_preview", previewName), {
+        method: "PUT",
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "image/webp" },
+        body: webpBuffer,
+      });
+
+      if (upRes.ok) {
+        done++;
+        setJobProgress(slug, done, photos.length);
+        appendJobLog(slug, `✅ ${previewName} (${done}/${photos.length})`);
+      } else {
+        appendJobLog(slug, `⚠️ Upload failed for ${previewName}`);
+      }
+    }
+
+    appendJobLog(slug, `🎉 Gata! ${done} generate, ${skipped} sărite`);
+    invalidateAlbumCache(slug);
+    finishJob(slug);
+  } catch (err) {
+    const message = String(err);
+    appendJobLog(slug, `❌ Eroare: ${message}`);
+    errorJob(slug, message);
+  }
+}
+
+// GET /api/admin/album-health/jobs — all in-memory jobs (must be before /:slug routes)
+router.get("/album-health/jobs", requireFirebaseAuth, requireSupremeAdmin, (_req: Request, res: Response) => {
+  res.json({ jobs: getAllJobs() });
+});
+
+// GET /api/admin/album-health/categories — load persisted category overrides
+router.get("/album-health/categories", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const doc = await firestore().collection("settings").doc("albumHealthCategories").get();
+    res.json(doc.exists ? (doc.data() ?? {}) : {});
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// PUT /api/admin/album-health/categories — persist category override for one or more slugs
+router.put("/album-health/categories", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    await firestore().collection("settings").doc("albumHealthCategories").set(
+      req.body as Record<string, string>,
+      { merge: true }
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// DELETE /api/admin/album-health/:slug/zip — removes photos.zip from Bunny Storage for the given album
+router.delete("/album-health/:slug/zip", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const slug = String(req.params.slug);
+  try {
+    const zipUrl = buildBunnyStorageUrl(slug, "photos.zip");
+    const deleteRes = await fetch(zipUrl, {
+      method: "DELETE",
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
+    });
+    if (!deleteRes.ok && deleteRes.status !== 404) {
+      return res.status(500).json({ error: `Bunny delete failed: ${deleteRes.status}` });
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[album-health] DELETE zip failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// GET /api/admin/album-health/:slug/live — SSE stream, replays history then streams live updates
+router.get("/album-health/:slug/live", requireFirebaseAuth, requireSupremeAdmin, (req: Request, res: Response) => {
+  const slug = String(req.params.slug);
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (data: object) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`); };
+
+  const job = getJob(slug);
+  if (!job) { send({ type: "error", error: "Job negăsit." }); return res.end(); }
+
+  send({ type: "init", ...serializeJob(job) });
+  if (job.status !== "running") return res.end();
+
+  const onUpdate = (event: object) => {
+    send(event);
+    const typed = event as { type: string };
+    if (typed.type === "done" || typed.type === "error") res.end();
+  };
+
+  job.emitter.on("update", onUpdate);
+  req.on("close", () => job.emitter.off("update", onUpdate));
+});
+
+// POST /api/admin/album-health/:slug/process — start background job, returns immediately
+router.post("/album-health/:slug/process", requireFirebaseAuth, requireSupremeAdmin, (req: Request, res: Response) => {
+  const slug = String(req.params.slug);
+  const initialWithPreview = Number((req.body as { initialWithPreview?: number }).initialWithPreview ?? 0);
+
+  const existing = getJob(slug);
+  if (existing?.status === "running") {
+    return res.json({ ok: true, status: "already_running" });
+  }
+
+  createJob(slug, initialWithPreview);
+  runAlbumProcessing(slug).catch(() => {});
+
+  res.json({ ok: true, status: "started" });
 });
 
 export default router;

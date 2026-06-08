@@ -6,6 +6,8 @@ import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { generateInvoicePDF } from "../services/invoice.pdf";
 import type { InvoiceItem, InvoiceData } from "../services/invoice.pdf";
+import { generateInvoiceXML } from "../services/invoice.generator";
+import type { InvoiceData as EFacturaData } from "../services/invoice.generator";
 import { generateFiscalReport, generateRegistru, buildInvoicesCsv, buildExpensesCsv } from "../services/fiscal.reports";
 import type { FiscalInvoice, FiscalExpense } from "../services/fiscal.reports";
 
@@ -198,6 +200,52 @@ router.get("/:id/pdf", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
     res.send(pdfBuffer);
   } catch (error) {
     console.error("[invoices] GET /:id/pdf failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// GET /:id/xml — generate e-Factura UBL XML for an existing invoice
+router.get("/:id/xml", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const [invoiceDoc, fiscalDoc] = await Promise.all([
+      db.collection(COLLECTION).doc(req.params.id).get(),
+      db.collection(SETTINGS_COLLECTION).doc(FISCAL_DOC).get(),
+    ]);
+    if (!invoiceDoc.exists) { res.status(404).json({ error: "Factura nu a fost găsită." }); return; }
+
+    const data = invoiceDoc.data()!;
+    const fiscal = fiscalDoc.exists ? fiscalDoc.data()! : {};
+    const invoiceDate = (data.date as Timestamp).toDate().toISOString().slice(0, 10);
+    const dueDate = data.dueDate ? String(data.dueDate) : invoiceDate;
+    const invoiceRef = `${data.series}-${String(data.invoiceNumber).padStart(4, "0")}`;
+
+    const efData: EFacturaData = {
+      issuerName:       String(fiscal.ownerName ?? ""),
+      issuerCIF:        String(fiscal.cif ?? ""),
+      issuerAddress:    String(fiscal.address ?? ""),
+      issuerCity:       "",
+      issuerCounty:     "",
+      issuerPostalCode: "",
+      issuerIBAN:       String(fiscal.iban ?? ""),
+      buyerName:        String(data.clientName ?? ""),
+      buyerCIF:         data.clientCIF ? String(data.clientCIF) : "",
+      invoiceNumber:    invoiceRef,
+      invoiceDate,
+      dueDate,
+      currency:         String(data.currency ?? "RON"),
+      description:      (data.items as InvoiceItem[])?.[0]?.description ?? "Servicii",
+      amount:           Number(data.totalAmount ?? 0),
+    };
+
+    const xml = generateInvoiceXML(efData);
+    res.set({
+      "Content-Type": "application/xml",
+      "Content-Disposition": `attachment; filename="efactura-${invoiceRef}.xml"`,
+    });
+    res.send(xml);
+  } catch (error) {
+    console.error("[invoices] GET /:id/xml failed:", error);
     res.status(500).json({ error: String(error) });
   }
 });
