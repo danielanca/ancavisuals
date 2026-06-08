@@ -88,7 +88,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
     });
   };
 
-  const categories: NavCategory[] = [
+  const isEstera = auth.role === "estera";
+
+  const allCategories: NavCategory[] = [
     {
       key: "evenimente",
       label: "Evenimente",
@@ -183,6 +185,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
     },
   ];
 
+  const ESTERA_PATHS = new Set(["/admin/instagram-proposals", "/admin/sanatate"]);
+  const categories: NavCategory[] = isEstera
+    ? allCategories
+        .map((cat) => ({ ...cat, items: cat.items.filter((item) => ESTERA_PATHS.has(item.path)) }))
+        .filter((cat) => cat.items.length > 0)
+    : allCategories;
+
   const handleNavItem = (path: string) => {
     navigate(path);
     onClose();
@@ -227,21 +236,23 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         </div>
 
         {/* Dashboard link */}
-        <div className="px-3 pt-3">
-          <button
-            onClick={() => handleNavItem("/admin")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-              location.pathname === "/admin"
-                ? "bg-violet-500/15 text-violet-400"
-                : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
-            }`}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-            <span>Dashboard</span>
-          </button>
-        </div>
+        {!isEstera && (
+          <div className="px-3 pt-3">
+            <button
+              onClick={() => handleNavItem("/admin")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                location.pathname === "/admin"
+                  ? "bg-violet-500/15 text-violet-400"
+                  : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+              }`}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              <span>Dashboard</span>
+            </button>
+          </div>
+        )}
 
         {/* Separator */}
         <div className="mx-3 my-2 border-t border-neutral-800" />
@@ -313,17 +324,19 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         </nav>
 
         {/* Footer — new event button */}
-        <div className="px-3 pb-4 border-t border-neutral-800 pt-3">
-          <button
-            onClick={() => handleNavItem("/admin/create-event")}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Eveniment nou
-          </button>
-        </div>
+        {!isEstera && (
+          <div className="px-3 pb-4 border-t border-neutral-800 pt-3">
+            <button
+              onClick={() => handleNavItem("/admin/create-event")}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Eveniment nou
+            </button>
+          </div>
+        )}
       </aside>
     </>
   );

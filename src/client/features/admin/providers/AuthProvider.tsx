@@ -10,8 +10,9 @@ const ADMIN_COOKIE = "av_admin";
 const ADMIN_COOKIE_DAYS = 365;
 
 const SUPREME_ADMIN_EMAIL = "ancadaniel1994@gmail.com";
+const ESTERA_EMAIL = "estera.pop97@gmail.com";
 
-export type UserRole = "admin" | "moderator" | null;
+export type UserRole = "admin" | "estera" | "moderator" | null;
 
 type AuthState = {
   user: User | null;
@@ -60,7 +61,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       const token = await user.getIdToken(false);
       await setJWT(JWT_COOKIE, token, JWT_TTL_HOURS);
       await setJWT(ADMIN_COOKIE, "1", ADMIN_COOKIE_DAYS * 24);
-      const role: UserRole = user.email === SUPREME_ADMIN_EMAIL ? "admin" : "moderator";
+      const role: UserRole = user.email === SUPREME_ADMIN_EMAIL ? "admin" : user.email === ESTERA_EMAIL ? "estera" : "moderator";
       setState({ user, accessToken: token, authorise: true, loading: false, role });
     });
     return () => unsubscribe();
