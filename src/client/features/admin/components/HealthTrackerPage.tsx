@@ -819,6 +819,7 @@ function FoodSection({
   const [note, setNote] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedBuf, setSelectedBuf] = useState<ArrayBuffer | null>(null);
   const [foodPreview, setFoodPreview] = useState<FoodPreview | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -835,21 +836,24 @@ function FoodSection({
   useEffect(() => { loadToday(); }, [loadToday]);
 
   const resetForm = () => {
-    setNote(""); setSelectedFile(null); setPreviewUrl(null);
+    setNote(""); setSelectedFile(null); setSelectedBuf(null); setPreviewUrl(null);
     setFoodPreview(null); setFormStep("compose"); setError(null); setShowForm(false);
   };
 
-  const handleFileChange = (file: File) => {
+  const handleFileChange = (file: File, buf: ArrayBuffer) => {
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    setSelectedBuf(buf);
+    setPreviewUrl(URL.createObjectURL(new Blob([buf], { type: file.type || "image/jpeg" })));
   };
 
   const analyze = async () => {
-    if (!selectedFile && !note.trim()) return;
+    if (!selectedBuf && !note.trim()) return;
     setAnalyzing(true); setError(null);
     try {
       const formData = new FormData();
-      if (selectedFile) formData.append("photo", selectedFile);
+      // Build Blob fresh from the stored ArrayBuffer — never pass a File reference to FormData
+      // on iOS Safari, File objects tied to an input element get invalidated after input.value=""
+      if (selectedBuf) formData.append("photo", new Blob([selectedBuf], { type: selectedFile?.type || "image/jpeg" }), "photo.jpg");
       formData.append("note", note);
       const res = await fetch(`/api/admin/health/food/${userId}/preview`, {
         method: "POST", headers: authHeaders, body: formData,
@@ -871,7 +875,7 @@ function FoodSection({
     if (!foodPreview) return;
     setFormStep("saving");
     const formData = new FormData();
-    if (selectedFile) formData.append("photo", selectedFile);
+    if (selectedBuf) formData.append("photo", new Blob([selectedBuf], { type: selectedFile?.type || "image/jpeg" }), "photo.jpg");
     formData.append("note", note);
     formData.append("date", today);
     formData.append("analysis", JSON.stringify(foodPreview.analysis));
@@ -954,7 +958,7 @@ function FoodSection({
               onChange={async (e) => {
                 const raw = e.target.files?.[0];
                 if (!raw) return;
-                try { const buf = await raw.arrayBuffer(); e.target.value = ""; handleFileChange(new File([buf], raw.name, { type: raw.type, lastModified: raw.lastModified })); }
+                try { const buf = await raw.arrayBuffer(); e.target.value = ""; handleFileChange(new File([buf], raw.name, { type: raw.type, lastModified: raw.lastModified }), buf); }
                 catch { e.target.value = ""; }
               }}
             />
