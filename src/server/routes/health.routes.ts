@@ -186,20 +186,20 @@ router.post(
   "/activity/:userId",
   requireFirebaseAuth,
   requireHealthAccess,
-  upload.single("photo"),
   async (req: Request, res: Response) => {
     try {
-      const file = req.file;
-      if (!file) { res.status(400).json({ error: "Lipsește poza." }); return; }
+      const { photoBase64, date: reqDate } = req.body as { photoBase64?: string; date?: string };
+      if (!photoBase64) { res.status(400).json({ error: "Lipsește poza." }); return; }
 
-      const steps = await extractStepsFromPhoto(file.buffer);
+      const buffer = Buffer.from(photoBase64, "base64");
+      const steps = await extractStepsFromPhoto(buffer);
       if (steps === 0) {
         res.status(422).json({ error: "Nu am putut extrage pașii din poză. Asigură-te că ecranul e clar și numărul de pași e vizibil." });
         return;
       }
 
-      const date = (req.body.date as string) || TODAY();
-      const photoUrl = await uploadHealthPhoto(file.buffer, req.params.userId, `${date}-${Date.now()}`);
+      const date = reqDate || TODAY();
+      const photoUrl = await uploadHealthPhoto(buffer, req.params.userId, `${date}-${Date.now()}`);
 
       const docRef = firestore().collection(ACTIVITY_COL).doc(`${req.params.userId}_${date}`);
       const existingDoc = await docRef.get();
@@ -450,15 +450,16 @@ router.post(
   "/food/:userId/preview",
   requireFirebaseAuth,
   requireHealthAccess,
-  upload.single("photo"),
   async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
-      const note = String(req.body.note ?? "").trim();
-      if (!req.file && !note) {
+      const { photoBase64, note: rawNote } = req.body as { photoBase64?: string; note?: string };
+      const note = String(rawNote ?? "").trim();
+      if (!photoBase64 && !note) {
         res.status(400).json({ error: "Adaugă o poză sau o notă." }); return;
       }
-      const analysis = await analyzeFood(req.file?.buffer ?? null, note);
+      const buffer = photoBase64 ? Buffer.from(photoBase64, "base64") : null;
+      const analysis = await analyzeFood(buffer, note);
       // Return analysis + current day total so frontend can compute impact
       const today = TODAY();
       const snap = await firestore().collection(FOOD_COL).doc(`${userId}_${today}`).get();
@@ -475,30 +476,33 @@ router.post(
   "/food/:userId",
   requireFirebaseAuth,
   requireHealthAccess,
-  upload.single("photo"),
   async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
-      const note = String(req.body.note ?? "").trim();
-      const date = String(req.body.date ?? TODAY());
+      const { photoBase64, note: rawNote, date: rawDate, analysis: rawAnalysis } = req.body as {
+        photoBase64?: string; note?: string; date?: string; analysis?: string;
+      };
+      const note = String(rawNote ?? "").trim();
+      const date = String(rawDate ?? TODAY());
+      const buffer = photoBase64 ? Buffer.from(photoBase64, "base64") : null;
 
-      if (!req.file && !note) {
+      if (!buffer && !note) {
         res.status(400).json({ error: "Adaugă o poză sau o notă." }); return;
       }
 
       // Accept pre-analyzed data to avoid calling Claude twice
       let analysis: FoodAnalysis;
-      const preAnalyzed = req.body.analysis ? JSON.parse(String(req.body.analysis)) as FoodAnalysis : null;
+      const preAnalyzed = rawAnalysis ? JSON.parse(rawAnalysis) as FoodAnalysis : null;
       if (preAnalyzed && preAnalyzed.food) {
         analysis = preAnalyzed;
       } else {
-        analysis = await analyzeFood(req.file?.buffer ?? null, note);
+        analysis = await analyzeFood(buffer, note);
       }
 
       let photoUrl: string | null = null;
-      if (req.file) {
+      if (buffer) {
         const entryId = Date.now().toString();
-        photoUrl = await uploadHealthPhoto(req.file.buffer, userId, `food-${date}-${entryId}`);
+        photoUrl = await uploadHealthPhoto(buffer, userId, `food-${date}-${entryId}`);
       }
 
       const entryId = Date.now().toString();
