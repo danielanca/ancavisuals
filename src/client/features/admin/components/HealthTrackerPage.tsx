@@ -530,10 +530,24 @@ function OnboardingWizard({
 
 // ── Shared utils ─────────────────────────────────────────────────────────────
 
-function fileToBase64(file: File): Promise<string> {
+function readAndCompressImage(file: File, maxDim = 1200, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve((reader.result as string).split(",")[1]);
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas unavailable")); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -572,11 +586,11 @@ function StepSection({
 
   useEffect(() => { loadBank(); }, [loadBank]);
 
-  const handlePhoto = async (file: File) => {
+  const handlePhoto = async (base64: string) => {
     setUploading(true);
     setError(null);
     try {
-      const photoBase64 = await fileToBase64(file);
+      const photoBase64 = base64;
       const res = await fetch(`/api/admin/health/activity/${userId}`, {
         method: "POST",
         headers: { ...authHeaders, "Content-Type": "application/json" },
@@ -609,7 +623,15 @@ function StepSection({
       {/* Upload input (hidden) */}
       {!readOnly && (
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-          onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void handlePhoto(file); }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const input = e.target;
+            readAndCompressImage(file).then((base64) => {
+              input.value = "";
+              void handlePhoto(base64);
+            }).catch(() => { input.value = ""; });
+          }}
         />
       )}
 
@@ -950,17 +972,18 @@ function FoodSection({
           {/* Step 1: compose */}
           {formStep === "compose" && (<>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-              onChange={async (e) => {
+              onChange={(e) => {
                 const file = e.target.files?.[0];
-                e.target.value = "";
                 if (!file) return;
-                try {
-                  const base64 = await fileToBase64(file);
+                const input = e.target;
+                readAndCompressImage(file).then((base64) => {
+                  input.value = "";
                   setPhotoBase64(base64);
-                  setPreviewUrl(`data:${file.type || "image/jpeg"};base64,${base64}`);
-                } catch (err) {
+                  setPreviewUrl(`data:image/jpeg;base64,${base64}`);
+                }).catch((err: unknown) => {
+                  input.value = "";
                   setError(err instanceof Error ? err.message : String(err));
-                }
+                });
               }}
             />
             <button onClick={() => fileRef.current?.click()}
