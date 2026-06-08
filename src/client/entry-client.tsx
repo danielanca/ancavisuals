@@ -16,6 +16,8 @@ const USERCENTRICS_SCRIPT_ID = "usercentrics-cmp";
 const USERCENTRICS_SETTINGS_ID = "g4Hy0STeVeDNJo";
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
+const SUPPRESS_UC_PREFIXES = ["/admin", "/media"];
+
 const bootstrapUsercentrics = () => {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return;
@@ -23,6 +25,10 @@ const bootstrapUsercentrics = () => {
 
   if (LOCAL_HOSTS.has(window.location.hostname)) {
     console.info("[Usercentrics] CMP nu se incarca pe local; domeniul nu este allow-listed.");
+    return;
+  }
+
+  if (SUPPRESS_UC_PREFIXES.some((p) => window.location.pathname.startsWith(p))) {
     return;
   }
 
