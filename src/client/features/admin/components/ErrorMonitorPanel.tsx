@@ -126,14 +126,14 @@ export default function ErrorMonitorPanel() {
                       </div>
                     )}
 
-                    {isExpanded && error.detail && (
+                    {error.detail && (
                       <pre style={{
                         fontSize: 10,
-                        color: "#484848",
+                        color: isExpanded ? "#888" : "#484848",
                         margin: "6px 0 0",
                         whiteSpace: "pre-wrap",
                         wordBreak: "break-all",
-                        maxHeight: 120,
+                        maxHeight: isExpanded ? 240 : 48,
                         overflow: "auto",
                         background: "#0a0a0a",
                         padding: "6px 8px",
