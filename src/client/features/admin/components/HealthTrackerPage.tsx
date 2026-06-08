@@ -528,6 +528,17 @@ function OnboardingWizard({
   );
 }
 
+// ── Shared utils ─────────────────────────────────────────────────────────────
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // ── Step Section ──────────────────────────────────────────────────────────────
 
 function StepSection({
@@ -565,13 +576,11 @@ function StepSection({
     setUploading(true);
     setError(null);
     try {
-      const formData = new FormData();
-      formData.append("photo", file);
-      formData.append("date", today);
+      const photoBase64 = await fileToBase64(file);
       const res = await fetch(`/api/admin/health/activity/${userId}`, {
         method: "POST",
-        headers: authHeaders,
-        body: formData,
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ photoBase64, date: today }),
       });
       const data = await res.json() as { ok?: boolean; steps?: number; delta?: number; error?: string };
       if (!res.ok || !data.ok) {
@@ -600,13 +609,7 @@ function StepSection({
       {/* Upload input (hidden) */}
       {!readOnly && (
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-          onChange={async (e) => {
-            const raw = e.target.files?.[0];
-            if (!raw) return;
-            // Read into ArrayBuffer before clearing — iOS Safari invalidates File references when input.value is reset
-            try { const buf = await raw.arrayBuffer(); e.target.value = ""; void handlePhoto(new File([buf], raw.name, { type: raw.type, lastModified: raw.lastModified })); }
-            catch { e.target.value = ""; }
-          }}
+          onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void handlePhoto(file); }}
         />
       )}
 
@@ -818,8 +821,7 @@ function FoodSection({
   const [formStep, setFormStep] = useState<FoodFormStep>("compose");
   const [note, setNote] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedBuf, setSelectedBuf] = useState<ArrayBuffer | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [foodPreview, setFoodPreview] = useState<FoodPreview | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -836,27 +838,18 @@ function FoodSection({
   useEffect(() => { loadToday(); }, [loadToday]);
 
   const resetForm = () => {
-    setNote(""); setSelectedFile(null); setSelectedBuf(null); setPreviewUrl(null);
+    setNote(""); setPhotoBase64(null); setPreviewUrl(null);
     setFoodPreview(null); setFormStep("compose"); setError(null); setShowForm(false);
   };
 
-  const handleFileChange = (file: File, buf: ArrayBuffer) => {
-    setSelectedFile(file);
-    setSelectedBuf(buf);
-    setPreviewUrl(URL.createObjectURL(new Blob([buf], { type: file.type || "image/jpeg" })));
-  };
-
   const analyze = async () => {
-    if (!selectedBuf && !note.trim()) return;
+    if (!photoBase64 && !note.trim()) return;
     setAnalyzing(true); setError(null);
     try {
-      const formData = new FormData();
-      // Build Blob fresh from the stored ArrayBuffer — never pass a File reference to FormData
-      // on iOS Safari, File objects tied to an input element get invalidated after input.value=""
-      if (selectedBuf) formData.append("photo", new Blob([selectedBuf], { type: selectedFile?.type || "image/jpeg" }), "photo.jpg");
-      formData.append("note", note);
       const res = await fetch(`/api/admin/health/food/${userId}/preview`, {
-        method: "POST", headers: authHeaders, body: formData,
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ photoBase64, note }),
       });
       const data = await res.json() as { ok?: boolean; analysis?: FoodEntry; currentCalories?: number; error?: string };
       if (!res.ok || !data.ok) {
@@ -874,20 +867,22 @@ function FoodSection({
   const confirm = async () => {
     if (!foodPreview) return;
     setFormStep("saving");
-    const formData = new FormData();
-    if (selectedBuf) formData.append("photo", new Blob([selectedBuf], { type: selectedFile?.type || "image/jpeg" }), "photo.jpg");
-    formData.append("note", note);
-    formData.append("date", today);
-    formData.append("analysis", JSON.stringify(foodPreview.analysis));
-    const res = await fetch(`/api/admin/health/food/${userId}`, {
-      method: "POST", headers: authHeaders, body: formData,
-    });
-    if (res.ok) {
-      resetForm();
-      await loadToday();
-    } else {
+    try {
+      const res = await fetch(`/api/admin/health/food/${userId}`, {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ photoBase64, note, date: today, analysis: JSON.stringify(foodPreview.analysis) }),
+      });
+      if (res.ok) {
+        resetForm();
+        await loadToday();
+      } else {
+        setFormStep("preview");
+        setError("Eroare la salvare.");
+      }
+    } catch (err) {
       setFormStep("preview");
-      setError("Eroare la salvare.");
+      setError(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
     }
   };
 
@@ -956,10 +951,16 @@ function FoodSection({
           {formStep === "compose" && (<>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
               onChange={async (e) => {
-                const raw = e.target.files?.[0];
-                if (!raw) return;
-                try { const buf = await raw.arrayBuffer(); e.target.value = ""; handleFileChange(new File([buf], raw.name, { type: raw.type, lastModified: raw.lastModified }), buf); }
-                catch { e.target.value = ""; }
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                try {
+                  const base64 = await fileToBase64(file);
+                  setPhotoBase64(base64);
+                  setPreviewUrl(`data:${file.type || "image/jpeg"};base64,${base64}`);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : String(err));
+                }
               }}
             />
             <button onClick={() => fileRef.current?.click()}
@@ -971,7 +972,7 @@ function FoodSection({
               }
             </button>
             {previewUrl && (
-              <button onClick={() => { setPreviewUrl(null); setSelectedFile(null); }}
+              <button onClick={() => { setPreviewUrl(null); setPhotoBase64(null); }}
                 style={{ fontSize: 10, color: t.t4, background: "none", border: "none", cursor: "pointer", alignSelf: "flex-end", marginTop: -6 }}
               >✕ Elimină poza</button>
             )}
@@ -981,8 +982,8 @@ function FoodSection({
               style={{ width: "100%", background: t.inp, border: `1px solid ${t.inpB}`, borderRadius: 8, padding: "8px 12px", color: t.t1, fontSize: 12, outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
             />
             {error && <p style={{ fontSize: 11, color: "#f87171", margin: 0 }}>{error}</p>}
-            <button onClick={analyze} disabled={analyzing || (!selectedFile && !note.trim())}
-              style={{ padding: "10px 0", background: (!selectedFile && !note.trim()) ? t.b1 : accentColor, border: "none", borderRadius: 8, color: (!selectedFile && !note.trim()) ? t.t6 : t.bg, fontSize: 13, fontWeight: 700, cursor: (!selectedFile && !note.trim()) ? "default" : "pointer", opacity: analyzing ? 0.7 : 1 }}
+            <button onClick={analyze} disabled={analyzing || (!photoBase64 && !note.trim())}
+              style={{ padding: "10px 0", background: (!photoBase64 && !note.trim()) ? t.b1 : accentColor, border: "none", borderRadius: 8, color: (!photoBase64 && !note.trim()) ? t.t6 : t.bg, fontSize: 13, fontWeight: 700, cursor: (!photoBase64 && !note.trim()) ? "default" : "pointer", opacity: analyzing ? 0.7 : 1 }}
             >
               {analyzing ? "⏳ Claude analizează..." : "✨ Analizează"}
             </button>
