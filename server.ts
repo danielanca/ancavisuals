@@ -63,7 +63,7 @@ import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
 import healthRouter from "./src/server/routes/health.routes";
 
 // Shared HTTP defaults used by both local development and the production server.
-const BODY_PAYLOAD_LIMIT = "5mb";
+const BODY_PAYLOAD_LIMIT = "20mb";
 const DEFAULT_APP_PORT = 1994;
 const API_ROUTE_PREFIXES = {
   album: "/api/album",
