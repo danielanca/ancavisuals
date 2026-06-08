@@ -2,11 +2,15 @@ import { Router, type Request, type Response } from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import multer from "multer";
 import sharp from "sharp";
+import nodeFetch from "node-fetch";
+import https from "node:https";
 import { firestore } from "../firestore.js";
 import type { NextFunction } from "express";
 import { requireFirebaseAuth, requireEsteraOrAdmin, ESTERA_EMAIL, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth.js";
 import { buildBunnyStorageUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER } from "../constants/bunny.js";
 import Anthropic from "@anthropic-ai/sdk";
+
+const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -41,10 +45,11 @@ async function uploadHealthPhoto(buffer: Buffer, userId: string, date: string): 
   const jpegBuffer = await sharp(buffer).jpeg({ quality: 85 }).toBuffer();
   const filename = `${userId}-${date}-${Date.now()}.jpg`;
   const storagePath = `${HEALTH_FOLDER}/${filename}`;
-  await fetch(buildBunnyStorageUrl(storagePath), {
+  await nodeFetch(buildBunnyStorageUrl(storagePath), {
     method: "PUT",
     headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(), "Content-Type": "image/jpeg" },
-    body: jpegBuffer as unknown as BodyInit,
+    body: jpegBuffer,
+    agent: bunnyAgent,
   });
   const cdnDomain = (process.env.BUNNY_CDN_DOMAIN ?? "").replace(/\/$/, "");
   return `${cdnDomain}/${storagePath}`;
