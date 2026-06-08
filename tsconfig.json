@@ -22,7 +22,8 @@
     "target": "ES2018",
     "types": ["vite/client", "google.maps"],
   },
-  "include": ["src/**/*", "tests/**/*", "types/*", "server.ts", "playwright.config.ts", "node_modules/vite/types/*"],
+  "include": ["src/**/*", "types/*", "server.ts", "node_modules/vite/types/*"],
+  "exclude": ["tests/**/*", "playwright.config.ts"],
   "ts-node": {
     "transpileOnly": true,
     "compilerOptions": {
