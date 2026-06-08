@@ -61,6 +61,41 @@ interface Invoice {
   currency: string;
   notes: string | null;
   eventId: string | null;
+  paid: boolean;
+  paidAt: string | null;
+}
+
+// ─── PFA Tax Calculator ───────────────────────────────────────────────────────
+
+const SMIN_2026 = 3_700; // salariu minim brut 2026
+
+function calcPfaTax(taxableBase: number): {
+  impozit: number;
+  cassBase: number;
+  cass: number;
+  total: number;
+  trimestrial: number;
+} {
+  const impozit = Math.round(Math.max(0, taxableBase) * 0.1 * 100) / 100;
+
+  let cassBase = 0;
+  if (taxableBase >= 24 * SMIN_2026) cassBase = 24 * SMIN_2026;
+  else if (taxableBase >= 12 * SMIN_2026) cassBase = 12 * SMIN_2026;
+  else if (taxableBase >= 6 * SMIN_2026) cassBase = 6 * SMIN_2026;
+
+  const cass = Math.round(cassBase * 0.1 * 100) / 100;
+  const total = impozit + cass;
+  const trimestrial = Math.round(total / 4 * 100) / 100;
+  return { impozit, cassBase, cass, total, trimestrial };
+}
+
+function getScadente(year: number): { label: string; date: Date; quarter: number }[] {
+  return [
+    { label: "T1", quarter: 1, date: new Date(year, 3, 25) },
+    { label: "T2", quarter: 2, date: new Date(year, 6, 25) },
+    { label: "T3", quarter: 3, date: new Date(year, 9, 25) },
+    { label: "T4", quarter: 4, date: new Date(year + 1, 0, 25) },
+  ];
 }
 
 interface State {
@@ -104,6 +139,7 @@ type Action =
   | { type: "SET_HIGHLIGHTED_EXPENSE"; id: string | null }
   | { type: "ADD_INVOICE"; invoice: Invoice }
   | { type: "REMOVE_INVOICE"; id: string }
+  | { type: "SET_INVOICE_PAID"; id: string; paid: boolean; paidAt: string | null }
   | { type: "SHOW_ADD_EXPENSE"; value: boolean }
   | { type: "SHOW_ADD_INVOICE"; value: boolean }
   | { type: "SHOW_FISCAL_SETTINGS"; value: boolean }
@@ -152,6 +188,12 @@ function reducer(state: State, action: Action): State {
     case "REMOVE_EXPENSE": return { ...state, expenses: state.expenses.filter((e) => e.id !== action.id) };
     case "ADD_INVOICE": return { ...state, invoices: [action.invoice, ...state.invoices] };
     case "REMOVE_INVOICE": return { ...state, invoices: state.invoices.filter((i) => i.id !== action.id) };
+    case "SET_INVOICE_PAID": return {
+      ...state,
+      invoices: state.invoices.map((inv) =>
+        inv.id === action.id ? { ...inv, paid: action.paid, paidAt: action.paidAt } : inv
+      ),
+    };
     case "SHOW_ADD_EXPENSE": return { ...state, showAddExpense: action.value };
     case "SHOW_ADD_INVOICE": return { ...state, showAddInvoice: action.value };
     case "SHOW_FISCAL_SETTINGS": return { ...state, showFiscalSettings: action.value };
@@ -885,6 +927,8 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
         currency,
         notes: notes || null,
         eventId: selectedEventId || null,
+        paid: false,
+        paidAt: null,
       });
       onClose();
     } catch (err) {
@@ -1120,7 +1164,8 @@ const FinancialPage: React.FC = () => {
   const overview = useMemo(() => {
     const toRON = (amount: number, currency: string) => currency === "EUR" ? amount * exchangeRate : amount;
 
-    const totalIncome = state.invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    const totalIncome = state.invoices.reduce((sum, inv) => sum + toRON(inv.totalAmount, inv.currency), 0);
+    const totalUnpaid = state.invoices.filter(inv => !inv.paid).reduce((sum, inv) => sum + toRON(inv.totalAmount, inv.currency), 0);
     const totalExpenses = state.expenses.reduce((sum, exp) => sum + toRON(exp.amount, exp.currency), 0);
     const totalDeductible = state.expenses.reduce((sum, exp) => sum + toRON(exp.deductibleAmount, exp.currency), 0);
     const netBalance = totalIncome - totalExpenses;
@@ -1142,6 +1187,7 @@ const FinancialPage: React.FC = () => {
 
     return {
       totalIncome,
+      totalUnpaid,
       totalExpenses,
       totalDeductible,
       netBalance,
@@ -1149,6 +1195,39 @@ const FinancialPage: React.FC = () => {
       monthlyMap,
     };
   }, [state.invoices, state.expenses, exchangeRate]);
+
+  const [exportingKey, setExportingKey] = React.useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = React.useState(false);
+  const exportMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!showExportMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (!exportMenuRef.current?.contains(e.target as Node)) setShowExportMenu(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showExportMenu]);
+
+  async function handleExport(key: string, endpoint: string, filename: string) {
+    setExportingKey(key);
+    setShowExportMenu(false);
+    try {
+      const response = await fetch(`/api/admin/invoices/${endpoint}?year=${state.selectedYear}`, { headers: authHeader });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename.replace("{year}", String(state.selectedYear));
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Export eșuat.");
+    } finally {
+      setExportingKey(null);
+    }
+  }
 
   async function handleDeleteExpense(id: string) {
     dispatch({ type: "SET_DELETING", id });
@@ -1162,6 +1241,16 @@ const FinancialPage: React.FC = () => {
     await fetch(`/api/admin/invoices/${id}`, { method: "DELETE", headers: authHeader });
     dispatch({ type: "REMOVE_INVOICE", id });
     dispatch({ type: "SET_DELETING", id: null });
+  }
+
+  async function handleTogglePaid(invoice: Invoice) {
+    const nextPaid = !invoice.paid;
+    dispatch({ type: "SET_INVOICE_PAID", id: invoice.id, paid: nextPaid, paidAt: nextPaid ? new Date().toISOString() : null });
+    await fetch(`/api/admin/invoices/${invoice.id}/paid`, {
+      method: "PATCH",
+      headers: { ...authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ paid: nextPaid }),
+    });
   }
 
   async function handleDownloadPdf(invoiceId: string, ref: string) {
@@ -1216,17 +1305,47 @@ const FinancialPage: React.FC = () => {
           <div>
             <h1 className="text-white text-xl font-light tracking-tight">Financiar</h1>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={() => dispatch({ type: "SET_YEAR", year: state.selectedYear - 1 })}
-              className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-            </button>
-            <span className="text-white text-sm font-medium w-12 text-center">{state.selectedYear}</span>
-            <button onClick={() => dispatch({ type: "SET_YEAR", year: state.selectedYear + 1 })}
-              disabled={state.selectedYear >= CURRENT_YEAR}
-              className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-            </button>
+          <div className="flex items-center gap-2">
+            {/* Export dropdown */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setShowExportMenu(v => !v)}
+                disabled={exportingKey !== null}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                {exportingKey ? "Se generează..." : "Export"}
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 top-9 z-30 w-56 rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl overflow-hidden">
+                  {[
+                    { key: "csv",      label: "CSV pentru contabil",          sub: "2 fișiere Excel-ready",      endpoint: "export-csv",      file: "fiscal-csv-{year}.zip" },
+                    { key: "report",   label: "Raport fiscal PDF",             sub: "Sumar anual complet",         endpoint: "export-report",   file: "raport-fiscal-{year}.pdf" },
+                    { key: "registru", label: "Registru incasări și plăți",   sub: "Document obligatoriu PFA",    endpoint: "export-registru", file: "registru-incasari-plati-{year}.pdf" },
+                    { key: "zip",      label: "ZIP documente",                 sub: "Facturi PDF + chitanțe",      endpoint: "export-zip",      file: "fiscal-{year}.zip" },
+                  ].map(item => (
+                    <button key={item.key} onClick={() => handleExport(item.key, item.endpoint, item.file)}
+                      className="w-full text-left px-4 py-3 hover:bg-neutral-800 transition-colors border-b border-neutral-800 last:border-0">
+                      <div className="text-sm text-white">{item.label}</div>
+                      <div className="text-xs text-neutral-500 mt-0.5">{item.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={() => dispatch({ type: "SET_YEAR", year: state.selectedYear - 1 })}
+                className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+              </button>
+              <span className="text-white text-sm font-medium w-12 text-center">{state.selectedYear}</span>
+              <button onClick={() => dispatch({ type: "SET_YEAR", year: state.selectedYear + 1 })}
+                disabled={state.selectedYear >= CURRENT_YEAR}
+                className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1245,26 +1364,15 @@ const FinancialPage: React.FC = () => {
           <div className="space-y-6">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Incasări", value: overview.totalIncome, color: "text-emerald-400", desc: "din facturi emise" },
-                { label: "Cheltuieli", value: overview.totalExpenses, color: "text-red-400", desc: "total plătit" },
-                { label: "Deductibil", value: overview.totalDeductible, color: "text-amber-400", desc: "din cheltuieli" },
-                { label: "Sold", value: overview.netBalance, color: overview.netBalance >= 0 ? "text-emerald-400" : "text-red-400", desc: "incasări − cheltuieli" },
-              ].map(({ label, value, color, desc }) => (
+                { label: "Incasări", value: overview.totalIncome, color: "text-emerald-400", desc: "din facturi emise", info: "Totalul din facturile emise. Nu include extrasele de cont." },
+                { label: "Cheltuieli", value: overview.totalExpenses, color: "text-red-400", desc: "total plătit", info: "Totalul din cheltuielile înregistrate manual." },
+                { label: "Deductibil", value: overview.totalDeductible, color: "text-amber-400", desc: "din cheltuieli", info: "Partea deductibilă calculată din cheltuielile înregistrate." },
+                { label: "De încasat", value: overview.totalUnpaid, color: overview.totalUnpaid > 0 ? "text-sky-400" : "text-neutral-500", desc: "facturi neplătite", info: "Totalul facturilor marcate ca neplătite." },
+              ].map(({ label, value, color, desc, info }) => (
                 <div key={label} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
                   <div className="mb-1 flex items-center gap-1.5">
                     <p className="text-xs text-neutral-500">{label}</p>
-                    <InfoBadge
-                      title={label}
-                      description={
-                        label === "Incasări"
-                          ? "Totalul din facturile emise. Nu include extrasele de cont."
-                          : label === "Cheltuieli"
-                            ? "Totalul din cheltuielile înregistrate manual. Nu include direct tranzacțiile din extrase."
-                            : label === "Deductibil"
-                              ? "Partea deductibilă calculată doar din cheltuielile înregistrate."
-                              : "Diferența dintre facturile emise și cheltuielile înregistrate."
-                      }
-                    />
+                    <InfoBadge title={label} description={info} />
                   </div>
                   <p className={`text-lg font-semibold ${color}`}>{fmtCurrency(value, "RON")}</p>
                   <p className="text-xs text-neutral-600 mt-0.5">{desc}</p>
@@ -1289,13 +1397,93 @@ const FinancialPage: React.FC = () => {
               </div>
             </div>
 
-            {overview.taxableBase > 0 && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm">
-                <p className="text-amber-300 font-medium mb-1">Estimare bază impozabilă {state.selectedYear}</p>
-                <p className="text-neutral-300">Incasări − cheltuieli deductibile = <span className="text-white font-semibold">{fmtCurrency(overview.taxableBase, "RON")}</span></p>
-                <p className="text-neutral-500 text-xs mt-1">Aceasta este o estimare. Consultă un expert fiscal pentru calculul final al impozitelor.</p>
-              </div>
-            )}
+            {(() => {
+              const tax = calcPfaTax(overview.taxableBase);
+              const scadente = getScadente(state.selectedYear);
+              const today = new Date();
+              const nextScadenta = scadente.find(s => s.date > today);
+              const daysToNext = nextScadenta ? Math.ceil((nextScadenta.date.getTime() - today.getTime()) / 86_400_000) : null;
+
+              return (
+                <>
+                  {/* Calculator taxe PFA */}
+                  <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-white">Estimare taxe PFA {state.selectedYear}</p>
+                      <InfoBadge title="Estimare taxe" description="Calculat pe baza datelor introduse. Consultă un expert fiscal pentru valorile finale." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-neutral-400">Bază impozabilă</span>
+                        <span className="text-white font-medium">{fmtCurrency(Math.max(0, overview.taxableBase), "RON")}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-400">Impozit venit (10%)</span>
+                        <span className="text-amber-400 font-medium">{fmtCurrency(tax.impozit, "RON")}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-400">Bază CASS</span>
+                        <span className="text-white">{tax.cassBase > 0 ? fmtCurrency(tax.cassBase, "RON") : <span className="text-neutral-500">sub prag</span>}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-400">CASS (10%)</span>
+                        <span className="text-amber-400 font-medium">{fmtCurrency(tax.cass, "RON")}</span>
+                      </div>
+                    </div>
+                    <div className="border-t border-neutral-800 pt-3 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs text-neutral-500">Total estimat</span>
+                        <p className="text-lg font-semibold text-amber-300">{fmtCurrency(tax.total, "RON")}</p>
+                      </div>
+                      {tax.total > 0 && (
+                        <div className="text-right">
+                          <span className="text-xs text-neutral-500">Rată trimestrială</span>
+                          <p className="text-base font-semibold text-white">{fmtCurrency(tax.trimestrial, "RON")}</p>
+                        </div>
+                      )}
+                    </div>
+                    {overview.taxableBase <= 0 && (
+                      <p className="text-xs text-neutral-600">Nicio taxă estimată — cheltuielile depășesc incasările.</p>
+                    )}
+                    <p className="text-xs text-neutral-600">Estimare orientativă · SMIN 2026 = 3.700 RON · Curs EUR = {exchangeRate} RON</p>
+                  </div>
+
+                  {/* Scadențe trimestriale */}
+                  {tax.total > 0 && (
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-white">Scadențe plăți anticipate {state.selectedYear}</p>
+                        {daysToNext !== null && nextScadenta && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${daysToNext <= 14 ? "bg-red-500/20 text-red-400" : daysToNext <= 30 ? "bg-amber-500/20 text-amber-400" : "bg-neutral-800 text-neutral-400"}`}>
+                            {nextScadenta.label} în {daysToNext} zile
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {scadente.map(s => {
+                          const isPast = s.date < today;
+                          const isNext = nextScadenta?.quarter === s.quarter;
+                          return (
+                            <div key={s.quarter} className={`rounded-lg p-3 border ${isNext ? "border-amber-500/40 bg-amber-500/10" : isPast ? "border-neutral-800 bg-neutral-800/50 opacity-50" : "border-neutral-800"}`}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-medium text-neutral-300">{s.label}</span>
+                                {isPast && <span className="text-[10px] text-neutral-600">trecut</span>}
+                                {isNext && <span className="text-[10px] text-amber-400">urmează</span>}
+                              </div>
+                              <p className={`text-sm font-semibold ${isNext ? "text-amber-300" : "text-white"}`}>{fmtCurrency(tax.trimestrial, "RON")}</p>
+                              <p className="text-[10px] text-neutral-500 mt-0.5">
+                                {s.date.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: s.date.getFullYear() !== today.getFullYear() ? "numeric" : undefined })}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-neutral-600 mt-3">* Sumele sunt estimative. Baza reală se stabilește prin D212 depusă la ANAF.</p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Monthly breakdown */}
             <div>
@@ -1500,6 +1688,13 @@ const FinancialPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => handleTogglePaid(invoice)}
+                            title={invoice.paid ? "Marchează ca neplătită" : "Marchează ca plătită"}
+                            className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium ${invoice.paid ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-neutral-300"}`}
+                          >
+                            {invoice.paid ? "✓ Plătită" : "Neplătită"}
+                          </button>
                           <button onClick={() => handleDownloadPdf(invoice.id, invoiceRef)} disabled={state.pdfLoadingId === invoice.id}
                             className="text-xs flex items-center gap-1 px-2.5 py-1.5 border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>

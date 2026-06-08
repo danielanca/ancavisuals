@@ -6,6 +6,8 @@ import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestore";
 import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateContractPDF, buildContractHTML } from "../services/pdf.generator";
+import { generateInvoicePDF, generateInvoiceXML } from "../services/invoice.generator";
+import type { InvoiceData } from "../services/invoice.generator";
 import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail, sendContractReminderEmail } from "../notifications/templates/contractEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
@@ -356,7 +358,8 @@ router.post("/:id/resend", requireFirebaseAuth, requireSupremeAdmin, async (req:
   }
 });
 
-// PATCH /api/contracts/:id — edit contract (admin, unsigned only)
+// PATCH /api/contracts/:id — edit contract (admin)
+// Signed contracts allow only metadata updates (bank details, fiscal status, payment dates)
 router.patch("/:id", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -364,10 +367,6 @@ router.patch("/:id", async (req: Request, res: Response) => {
     if (!doc.exists) return res.status(404).json({ error: "Contract negăsit." });
 
     const data = doc.data()!;
-    if (data.status === "signed") {
-      return res.status(400).json({ error: "Contractul semnat nu poate fi modificat." });
-    }
-
     const body = req.body;
     const priceTotal = Number(body.priceTotal) || 0;
     const priceAdvance = Number(body.priceAdvance) || 0;
@@ -393,11 +392,19 @@ router.patch("/:id", async (req: Request, res: Response) => {
       clientAddress: body.clientAddress?.trim() ?? "",
       clientIdSeries: body.clientIdSeries?.trim() ?? "",
       privateClient: body.privateClient === true,
+      fiscalized: body.fiscalized === true,
       transportKm: body.transportKm ?? "",
       transportFuelPrice: body.transportFuelPrice ?? "10",
+      bankBeneficiaryName: body.bankBeneficiaryName?.trim() ?? "",
+      bankIban: body.bankIban?.trim().toUpperCase() ?? "",
     };
 
-    await db.collection("contracts").doc(req.params.id).update(updates);
+    // Remove undefined values — Firestore throws on undefined fields
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([, v]) => v !== undefined)
+    );
+
+    await db.collection("contracts").doc(req.params.id).update(cleanUpdates);
     res.json({ ok: true });
   } catch (error) {
     console.error("[contracts] PATCH /:id failed:", error);
@@ -558,8 +565,8 @@ router.get("/:id/preview", async (req: Request, res: Response) => {
     const data = doc.data()!;
     const bankDetails = await getAdminBankDetails();
     const contract = {
-      ...data,
-      ...bankDetails,
+      ...bankDetails,   // setările globale ca fallback
+      ...data,          // valorile din contract le suprascriu pe cele globale
       id: doc.id,
       createdAt: tsToISO(data.createdAt),
     };
@@ -720,5 +727,135 @@ async function generateAndSendPDF(contract: Record<string, unknown>): Promise<vo
     hasPdf: pdfUrl !== null,
   });
 }
+
+// GET /api/contracts/invoice-next-number — preview next auto-generated invoice number
+router.get("/invoice-next-number", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const counterDoc = await db.collection("settings").doc("invoiceCounter").get();
+    const currentYear = new Date().getFullYear();
+    const data = counterDoc.data() ?? {};
+    const next = data.year === currentYear ? (data.next ?? 1) : 1;
+    const prefix = String(data.prefix ?? "FA");
+    res.json({ invoiceNumber: `${prefix}-${currentYear}-${String(next).padStart(3, "0")}` });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /api/contracts/:id/invoice — generate, save and return PDF + XML
+router.post("/:id/invoice", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const doc = await db.collection("contracts").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Contract negăsit." });
+    const contract = doc.data() as Record<string, unknown>;
+
+    const { invoiceDate, dueDate, description, amountType, buyerCIF, invoiceNumberOverride } = req.body as {
+      invoiceDate: string;
+      dueDate: string;
+      description: string;
+      amountType: "total" | "advance" | "rest";
+      buyerCIF?: string;
+      invoiceNumberOverride?: string;
+    };
+
+    if (!invoiceDate || !dueDate || !description) {
+      return res.status(400).json({ error: "Câmpuri obligatorii: invoiceDate, dueDate, description." });
+    }
+
+    // Load PFA settings
+    const settingsDoc = await db.collection("settings").doc("admin").get();
+    const settings = settingsDoc.data() ?? {};
+    const bankDetails = (settings.bankDetails ?? {}) as Record<string, string>;
+    const issuer = (settings.invoiceIssuer ?? {}) as Record<string, string>;
+
+    // Auto-increment invoice number (or use override)
+    let invoiceNumber = invoiceNumberOverride?.trim() ?? "";
+    if (!invoiceNumber) {
+      invoiceNumber = await db.runTransaction(async (tx) => {
+        const counterRef = db.collection("settings").doc("invoiceCounter");
+        const counterDoc = await tx.get(counterRef);
+        const currentYear = new Date().getFullYear();
+        const data = counterDoc.data() ?? {};
+        const prefix = String(data.prefix ?? "FA");
+        const year = data.year === currentYear ? currentYear : currentYear;
+        const next = data.year === currentYear ? (Number(data.next ?? 1)) : 1;
+        tx.set(counterRef, { year: currentYear, next: next + 1, prefix }, { merge: false });
+        return `${prefix}-${year}-${String(next).padStart(3, "0")}`;
+      });
+    }
+
+    const priceTotal   = Number(contract.priceTotal   ?? 0);
+    const priceAdvance = Number(contract.priceAdvance ?? 0);
+    const priceRest    = Number(contract.priceRest    ?? priceTotal - priceAdvance);
+    const currency     = String(contract.currency ?? "RON");
+    const amount = amountType === "advance" ? priceAdvance : amountType === "rest" ? priceRest : priceTotal;
+
+    const invoiceData: InvoiceData = {
+      issuerName:       issuer.name       || bankDetails.beneficiaryName || "",
+      issuerCIF:        issuer.cif        || "",
+      issuerAddress:    issuer.address    || "",
+      issuerCity:       issuer.city       || "",
+      issuerCounty:     issuer.county     || "",
+      issuerPostalCode: issuer.postalCode || "",
+      issuerIBAN:       bankDetails.iban  || "",
+      buyerName:        String(contract.clientName ?? ""),
+      buyerCIF:         buyerCIF || "",
+      invoiceNumber,
+      invoiceDate,
+      dueDate,
+      currency,
+      description,
+      amount,
+      eventType: String(contract.eventType ?? ""),
+      eventDate: tsToISO(contract.eventDate)?.slice(0, 10) ?? "",
+    };
+
+    const [pdfBuffer, xmlString] = await Promise.all([
+      generateInvoicePDF(invoiceData),
+      Promise.resolve(generateInvoiceXML(invoiceData)),
+    ]);
+
+    // Save invoice record to Firestore
+    const invoiceRecord = {
+      invoiceNumber,
+      contractId: req.params.id,
+      clientName: invoiceData.buyerName,
+      clientCIF: buyerCIF || "",
+      amount,
+      currency,
+      amountType,
+      description,
+      invoiceDate,
+      dueDate,
+      createdAt: Timestamp.now(),
+      eventType: invoiceData.eventType,
+      eventDate: invoiceData.eventDate,
+      issuerData: {
+        name: invoiceData.issuerName,
+        cif: invoiceData.issuerCIF,
+        address: invoiceData.issuerAddress,
+        city: invoiceData.issuerCity,
+        county: invoiceData.issuerCounty,
+        postalCode: invoiceData.issuerPostalCode,
+        iban: invoiceData.issuerIBAN,
+      },
+    };
+    const savedRef = await db.collection("invoices").add(invoiceRecord);
+
+    const fileName = `factura_${invoiceNumber.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    res.json({
+      invoiceId: savedRef.id,
+      invoiceNumber,
+      pdfBase64: pdfBuffer.toString("base64"),
+      xmlString,
+      fileName,
+    });
+  } catch (error) {
+    console.error("[contracts] POST /:id/invoice failed:", error);
+    res.status(500).json({ error: "Nu s-a putut genera factura." });
+  }
+});
 
 export default router;

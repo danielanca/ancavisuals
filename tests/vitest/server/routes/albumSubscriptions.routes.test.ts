@@ -45,10 +45,11 @@ async function loadRouter() {
 
   const whereMock = vi.fn(() => ({ get: getMock, where: vi.fn(() => ({ get: getMock })) }));
 
-  const collectionMock = vi.fn(() => ({
-    add: addMock,
-    where: whereMock,
-  }));
+  const activityAddMock = vi.fn().mockResolvedValue({ id: "log-1" });
+  const collectionMock = vi.fn((name?: string) => {
+    if (name === "site_activity") return { add: activityAddMock };
+    return { add: addMock, where: whereMock };
+  });
 
   vi.doMock("src/server/firestore", () => ({
     firestore: () => ({ collection: collectionMock }),

@@ -72,6 +72,7 @@ const loadAlbumController = async () => {
 
   vi.doMock("src/server/services/album.service", () => ({
     loadAlbum: loadAlbumMock,
+    invalidateAlbumCache: vi.fn(),
   }));
 
   vi.doMock("src/server/services/printSelection.store", () => ({
@@ -223,7 +224,6 @@ describe("album.controller", () => {
 
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ error: "Album not found" });
-    expect(loadAlbumMock).not.toHaveBeenCalled();
   });
 
   test("getAlbum returns 404 when album loading returns null", async () => {
@@ -243,7 +243,6 @@ describe("album.controller", () => {
     const res = createMockResponse();
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ status: 200, ok: true })
       .mockResolvedValueOnce({
         ok: true,
         json: vi.fn().mockResolvedValue([{ ObjectName: "thumb.jpg", IsDirectory: false }]),
@@ -557,10 +556,6 @@ describe("album.controller", () => {
     });
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue([{ ObjectName: "thumb.jpg", IsDirectory: false }]),
-      })
       .mockResolvedValueOnce({
         ok: true,
         body: makeWebStream(["binary-1"]),

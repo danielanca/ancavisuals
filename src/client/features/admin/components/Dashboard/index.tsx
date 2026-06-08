@@ -9,8 +9,11 @@ import useAuth from "../../auth/useAuth";
 import AncaLoader from "../../../../components/UI/AncaLoader";
 import PostEventFollowUp from "../PostEventFollowUp";
 import MementosWidget from "../MementosWidget";
+import ActivityInbox from "../ActivityInbox";
+import NextEventCountdown from "../NextEventCountdown";
 import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
 import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeContext";
+import AlbumHealthWidget from "../AlbumHealthWidget";
 
 // ── Dashboard Search ──────────────────────────────────────────────────────────
 
@@ -32,7 +35,6 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", keywords: "bani venituri cheltuieli" },
   { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar" },
   { label: "Detalii bancare", path: "/admin/bank-details", category: "Financiar", keywords: "iban cont" },
-  { label: "Landing page", path: "/admin/landing", category: "Marketing & Web" },
   { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web" },
   { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web" },
   { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", keywords: "banner reclama footer poze showcase" },
@@ -367,6 +369,15 @@ const DashboardInner: React.FC = () => {
 
         {/* Financial Summary */}
         <FinancialSummary events={events} />
+
+        {/* Next Event Countdown */}
+        <NextEventCountdown events={events} />
+
+        {/* Activity Inbox */}
+        <ActivityInbox />
+
+        {/* Album Health Widget */}
+        <AlbumHealthWidget />
 
         {/* Mementos Widget */}
         <MementosWidget />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ClientEvent, EventExpense, EventStatus } from "../types";
+import type { ClientEvent, EventDelivery, EventExpense, EventStatus } from "../types";
 import Redacted from "./Redacted";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
@@ -20,6 +20,17 @@ interface EventCardProps {
 }
 
 const STATUS_OPTIONS: EventStatus[] = ["lead", "tentativ", "confirmat", "finalizat", "anulat"];
+
+const DELIVERY_STEPS: { key: keyof EventDelivery; label: string }[] = [
+  { key: "photoSessionEdited", label: "Ședință foto editată" },
+  { key: "allPhotosEdited", label: "Toate pozele editate" },
+  { key: "shortVideoEdited", label: "Video scurt editat" },
+  { key: "longVideoEdited", label: "Video lung editat" },
+  { key: "albumDelivered", label: "Albumul dat" },
+  { key: "albumCreated", label: "Album creat" },
+  { key: "albumSentToClient", label: "Album trimis clientului" },
+  { key: "physicalDelivery", label: "Livrare fizică" },
+];
 
 const inputClass =
   "w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors";
@@ -68,6 +79,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [notifying, setNotifying] = useState(false);
   const [notifyResult, setNotifyResult] = useState<string | null>(null);
+  const [delivery, setDelivery] = useState<EventDelivery>(event.delivery ?? {});
 
   const eventDate = fallbackDate;
   const effectiveEventDate = event.eventEndDate ? new Date(event.eventEndDate) : eventDate;
@@ -148,6 +160,17 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     } finally {
       setNotifying(false);
     }
+  };
+
+  const toggleDelivery = async (key: keyof EventDelivery) => {
+    const updated = { ...delivery, [key]: !delivery[key] };
+    setDelivery(updated);
+    onUpdated?.({ delivery: updated });
+    await fetch(`/api/admin/events/${event.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ delivery: updated }),
+    });
   };
 
   // Auto-detect album in Bunny when card is expanded and no albumSlug is set yet
@@ -870,6 +893,50 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                     </svg>
                     Creează album media
                   </button>
+                )}
+              </div>
+            )}
+
+            {/* Evidență livrare */}
+            {!isLead && (
+              <div className="border-t border-neutral-800 pt-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Evidență livrare</p>
+                  <span className="text-xs text-neutral-600 font-mono">
+                    {DELIVERY_STEPS.filter((s) => delivery[s.key]).length}/{DELIVERY_STEPS.length}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {DELIVERY_STEPS.map((step) => (
+                    <button
+                      key={step.key}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleDelivery(step.key); }}
+                      className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                        delivery[step.key]
+                          ? "bg-emerald-950 border-emerald-800 text-emerald-300"
+                          : "bg-neutral-900 border-neutral-700 text-neutral-500 hover:text-neutral-200 hover:border-neutral-500"
+                      }`}
+                    >
+                      <span className="text-[10px] leading-none">{delivery[step.key] ? "✓" : "○"}</span>
+                      {step.label}
+                    </button>
+                  ))}
+                </div>
+                {(albumSlug || suggestedSlug) && (
+                  <a
+                    href={`/media/${albumSlug || suggestedSlug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                      <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                    /media/{albumSlug || suggestedSlug}
+                  </a>
                 )}
               </div>
             )}

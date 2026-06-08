@@ -45,6 +45,77 @@ router.get("/public/:slug", async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/campaign/:slug/view — track a real visitor view
+router.post("/:slug/view", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const ua = String(req.headers["user-agent"] ?? "").toLowerCase();
+    const ip = String(req.headers["x-forwarded-for"] ?? req.socket?.remoteAddress ?? "");
+    const adminCookie = String(req.headers.cookie ?? "").includes("av_admin=1");
+
+    // Filter bots
+    const botPattern = /bot|spider|crawl|wget|curl|python|headless|selenium|puppeteer|lighthouse|googlebot|bingbot|yandex|semrush|ahref|facebookexternalhit|slackbot/;
+    if (botPattern.test(ua) || !ua) { res.status(204).send(); return; }
+
+    // Filter localhost
+    const normalizedIp = ip.startsWith("::ffff:") ? ip.slice(7) : ip.split(",")[0].trim();
+    if (normalizedIp === "127.0.0.1" || normalizedIp === "::1" || normalizedIp === "localhost") {
+      res.status(204).send(); return;
+    }
+
+    // Filter admins
+    if (adminCookie) { res.status(204).send(); return; }
+
+    const db = firestore();
+    const doc = await db.collection(COLLECTION).doc(slug).get();
+    if (!doc.exists) { res.status(404).send(); return; }
+
+    await doc.ref.update({ viewCount: (doc.data()?.viewCount ?? 0) + 1 });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /api/campaign/:slug/contact — form submission from landing page
+router.post("/:slug/contact", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const { name, phone, eventDate, message } = req.body as {
+      name?: string; phone?: string; eventDate?: string; message?: string;
+    };
+    if (!name || !phone) { res.status(400).json({ error: "Nume și telefon sunt obligatorii." }); return; }
+
+    const doc = await firestore().collection(COLLECTION).doc(slug).get();
+    const pageTitle = doc.exists ? (doc.data()?.title ?? slug) : slug;
+
+    const { sendEmail } = await import("../notifications/mailer.js");
+    const { adminUser } = await import("../constants/credentials.js");
+
+    await sendEmail({
+      to: adminUser.email,
+      subject: `📩 Cerere nouă de pe landing "${pageTitle}"`,
+      html: `
+        <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+          <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${name}</td></tr>
+            <tr><td style="padding:8px 0;color:#666;">Telefon</td><td style="color:#111;font-weight:600;">${phone}</td></tr>
+            ${eventDate ? `<tr><td style="padding:8px 0;color:#666;">Dată eveniment</td><td style="color:#111;">${eventDate}</td></tr>` : ""}
+            ${message ? `<tr><td style="padding:8px 0;color:#666;">Mesaj</td><td style="color:#111;">${message}</td></tr>` : ""}
+            <tr><td style="padding:8px 0;color:#666;">Landing</td><td style="color:#6d28d9;">/oferta/${slug}</td></tr>
+          </table>
+        </div>
+      `,
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[campaign] POST /:slug/contact failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // ─── ADMIN: CRUD ──────────────────────────────────────────────────────────────
 
 router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
@@ -86,6 +157,99 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       updatedAt: new Date().toISOString(),
     });
     res.status(201).json({ slug });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// ─── TEMPLATES ───────────────────────────────────────────────────────────────
+
+const TEMPLATES_COLLECTION = "campaignTemplates";
+
+router.get("/templates", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const snap = await firestore().collection(TEMPLATES_COLLECTION).orderBy("createdAt", "desc").get();
+    res.json({ templates: snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.post("/templates", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { name, ...pageData } = req.body as { name: string; [key: string]: unknown };
+    if (!name?.toString().trim()) { res.status(400).json({ error: "Numele template-ului este obligatoriu." }); return; }
+    const ref = await firestore().collection(TEMPLATES_COLLECTION).add({
+      name: name.toString().trim(),
+      ...pageData,
+      createdAt: new Date().toISOString(),
+    });
+    res.json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.delete("/templates/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    await firestore().collection(TEMPLATES_COLLECTION).doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /api/campaign/from-template/:id — create campaign from template
+router.post("/from-template/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.body as { slug: string };
+    if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
+      res.status(400).json({ error: "Slug invalid (litere mici, cifre, liniuțe)" }); return;
+    }
+    const db = firestore();
+    if ((await db.collection(COLLECTION).doc(slug).get()).exists) {
+      res.status(409).json({ error: "Slug-ul există deja" }); return;
+    }
+    const templateDoc = await db.collection(TEMPLATES_COLLECTION).doc(req.params.id).get();
+    if (!templateDoc.exists) { res.status(404).json({ error: "Template inexistent" }); return; }
+    const { name: _name, id: _id, ...templateData } = templateDoc.data() as Record<string, unknown>;
+    await db.collection(COLLECTION).doc(slug).set({
+      ...templateData,
+      slug,
+      active: false,
+      viewCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    res.status(201).json({ slug });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /api/campaign/:slug/duplicate — duplicate an existing campaign
+router.post("/:slug/duplicate", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { newSlug } = req.body as { newSlug: string };
+    if (!newSlug || !/^[a-z0-9-]+$/.test(newSlug)) {
+      res.status(400).json({ error: "Slug invalid" }); return;
+    }
+    const db = firestore();
+    if ((await db.collection(COLLECTION).doc(newSlug).get()).exists) {
+      res.status(409).json({ error: "Slug-ul există deja" }); return;
+    }
+    const source = await db.collection(COLLECTION).doc(req.params.slug).get();
+    if (!source.exists) { res.status(404).json({ error: "Campania sursă nu există" }); return; }
+    const { slug: _s, viewCount: _v, ...sourceData } = source.data() as Record<string, unknown>;
+    await db.collection(COLLECTION).doc(newSlug).set({
+      ...sourceData,
+      slug: newSlug,
+      active: false,
+      viewCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    res.status(201).json({ slug: newSlug });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
@@ -181,7 +345,7 @@ router.get("/stream-videos", requireFirebaseAuth, requireSupremeAdmin, async (_r
       return;
     }
     const data = await response.json() as { items: Array<{ guid: string; title: string; thumbnailFileName: string; length: number }> };
-    const cdnHostname = `vz-${libraryId}.b-cdn.net`;
+    const cdnHostname = process.env.BUNNY_STREAM_CDN_HOSTNAME || `vz-${libraryId}.b-cdn.net`;
     const videos = data.items.map((video) => ({
       guid: video.guid,
       title: video.title,

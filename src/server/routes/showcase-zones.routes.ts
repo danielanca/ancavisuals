@@ -62,6 +62,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 router.put("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
+  console.log(`[showcase] PUT /${id} — body keys:`, Object.keys(req.body ?? {}));
   const { label, photos } = req.body as {
     label?: string;
     photos: Array<{ url: string; sourceType: "proposal" | "media_asset" | "manual"; sourceId?: string }>;
@@ -81,8 +82,10 @@ router.put("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request
     };
     if (label !== undefined) update.label = label;
     await docRef.set(update, { merge: true });
+    console.log(`[showcase] salvat ${photos.length} poze în zona "${id}"`);
     res.json({ ok: true });
   } catch (error) {
+    console.error("[showcase] eroare Firestore:", error);
     res.status(500).json({ error: String(error) });
   }
 });

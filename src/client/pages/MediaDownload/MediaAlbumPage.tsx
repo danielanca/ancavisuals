@@ -12,6 +12,7 @@ import PhotoLightbox from "./PhotoLightbox";
 import OnboardingWizard from "./Onboardingwizard";
 import MediaConsentModal, { MediaRetentionReminder } from "./MediaConsentModal";
 import AncaLoader from "../../components/UI/AncaLoader";
+import AncaVisualsPromo from "./AncaVisualsPromo";
 import { OFFER_SERVICES } from "../../../shared/offers/offerServices";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
@@ -241,8 +242,6 @@ function MobileColumnsToggle({
 
 // ── COMPONENT ────────────────────────────────────────────────────────────────
 
-const PROMO_PHONE = "0745469907";
-const PROMO_PHONE_DISPLAY = "0745 469 907";
 
 export default function MediaAlbumPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -256,6 +255,7 @@ export default function MediaAlbumPage() {
 
   const [album, setAlbum] = useState<AlbumWithPrint | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingSlow, setLoadingSlow] = useState(false);
   const [gallery, dispatch] = useReducer(galleryReducer, initialGalleryState);
 
   const [savingPrint, setSavingPrint] = useState(false);
@@ -272,9 +272,10 @@ export default function MediaAlbumPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
+  const [sharePanelOpen, setSharePanelOpen] = useState(false);
+  const [shareMode, setShareMode] = useState<"selected" | "all">("selected");
   const [customUrl, setCustomUrl] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [showcaseLightboxIndex, setShowcaseLightboxIndex] = useState<number | null>(null);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
 
   const [selectedModeration, setSelectedModeration] = useState<Set<string>>(new Set());
@@ -316,7 +317,6 @@ export default function MediaAlbumPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [invitePanelOpen, setInvitePanelOpen] = useState(false);
 
-  const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
 
   const [subscribeEmail, setSubscribeEmail] = useState("");
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -331,6 +331,8 @@ export default function MediaAlbumPage() {
   const persistTimerRef = useRef<number | null>(null);
   const dimTapCountRef = useRef(0);
   const dimTapTimerRef = useRef<number | null>(null);
+
+  const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 
   const [stats, setStats] = useState<null | {
     photosCount: number;
@@ -421,14 +423,6 @@ export default function MediaAlbumPage() {
   }, [album?.print, previewByName]);
 
   const pageNames = useMemo(() => pagePhotos.map(fileNameFromUrl), [pagePhotos]);
-  const showcaseGalleryColumns = useMemo(() => {
-    const columnCount = 2;
-    const columns = Array.from({ length: columnCount }, () => [] as Array<{ url: string; index: number }>);
-    showcasePhotos.forEach((url, index) => {
-      columns[index % columnCount].push({ url, index });
-    });
-    return columns;
-  }, [showcasePhotos]);
   const allOnPageSelected = mode !== "none" && pageNames.length > 0 && pageNames.every((name) => activeSelected.has(name));
   const printCount = useMemo(() => album?.print?.length ?? 0, [album?.print]);
   const downloadCount = selectedDownload.size;
@@ -449,6 +443,38 @@ export default function MediaAlbumPage() {
     return () => mediaQuery.removeEventListener("change", onChange);
   }, []);
 
+  // Verifică dacă primul URL de imagine e accesibil după ce albumul se încarcă
+  useEffect(() => {
+    if (!album?.photos?.length) return;
+    const firstUrl = album.photos[0];
+    const img = new window.Image();
+    img.onload = () => setImageLoadError(null);
+    img.onerror = () => {
+      const msg = `URL inaccesibil: ${firstUrl.slice(0, 80)}...`;
+      console.error("[album] Prima imagine nu s-a putut încărca:", firstUrl);
+      setImageLoadError(msg);
+    };
+    img.src = firstUrl;
+  }, [album?.photos]);
+
+  // Trimite email admin automat când diagnosticul apare
+  useEffect(() => {
+    if (!slug || !album) return;
+    const photosEmpty = !album.photos?.length;
+    if (!photosEmpty && !imageLoadError) return;
+    fetch(`/api/album/${slug}/report-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        photosCount: album.photos?.length ?? 0,
+        errorMessage: imageLoadError ?? "Array photos gol (0 poze)",
+        pageUrl: typeof window !== "undefined" ? window.location.href : "",
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        timestamp: new Date().toLocaleString("ro-RO"),
+      }),
+    }).catch(() => {});
+  }, [album, imageLoadError, slug]);
+
   useEffect(() => {
     if (!slug) return;
     fetch(`/api/album/${slug}/stats`)
@@ -457,12 +483,6 @@ export default function MediaAlbumPage() {
       .catch(() => setStats(null));
   }, [slug]);
 
-  useEffect(() => {
-    fetch("/api/showcase-zones/media_footer")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { photos?: string[] } | null) => { if (data?.photos?.length) setShowcasePhotos(data.photos); })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -505,6 +525,13 @@ export default function MediaAlbumPage() {
   }, [mode, safePage]);
 
   useEffect(() => {
+    if (mode !== "download") {
+      setSharePanelOpen(false);
+      setShareMode("selected");
+    }
+  }, [mode]);
+
+  useEffect(() => {
     if (!slug || typeof window === "undefined") return;
     hydratedRef.current = false;
     const raw = window.localStorage.getItem(storageKeyFor(slug));
@@ -540,14 +567,41 @@ export default function MediaAlbumPage() {
     }, 120);
   }, [slug, mode, browsePage, printPage, downloadPage, selectedPrint, selectedDownload]);
 
+  // Arată mesaj după 8s dacă tot se încarcă
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => setLoadingSlow(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
+
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const response = await fetch(`/api/album/${slug}`);
-      if (!response.ok) { setAlbum(null); setLoading(false); return; }
-      const data = await response.json();
-      setAlbum(data);
-      setLoading(false);
+      console.log(`[album] fetch /api/album/${slug}`);
+      try {
+        const response = await fetch(`/api/album/${slug}`);
+        console.log(`[album] status: ${response.status}`);
+        if (!response.ok) {
+          console.warn(`[album] răspuns non-ok (${response.status}) pentru slug="${slug}"`);
+          setAlbum(null); setLoading(false); return;
+        }
+        const data = await response.json();
+        console.log(`[album] date primite:`, {
+          title: data?.title,
+          photos: data?.photos?.length ?? 0,
+          featured: data?.featured?.length ?? 0,
+          albumSlug: data?.albumSlug,
+          zipReady: data?.zipReady,
+        });
+        if (!data?.photos?.length) {
+          console.warn(`[album] ⚠ pozele sunt goale (photos=[]) pentru slug="${slug}". Verifică folderul Bunny: ${slug}/photos/ sau ${slug}/photos_preview/`);
+        }
+        setAlbum(data);
+        setLoading(false);
+      } catch (error) {
+        console.error(`[album] eroare fetch:`, error);
+        setAlbum(null); setLoading(false);
+      }
     })();
   }, [slug]);
 
@@ -742,15 +796,21 @@ export default function MediaAlbumPage() {
     }
   };
 
-  const createShareLink = async () => {
+  const createShareLink = async (mode: "selected" | "all" = "selected") => {
     if (!slug || selectedDownload.size === 0) return;
     setCreatingShare(true);
     dispatch({ type: "SET_SHARE_URL", url: null, error: null });
     try {
+      const priorityItems = Array.from(selectedDownload);
+      const allItems = mode === "all" ? (album?.photos ?? []).map(fileNameFromUrl) : undefined;
       const response = await fetch("/api/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, items: Array.from(selectedDownload) }),
+        body: JSON.stringify({
+          slug,
+          items: priorityItems,
+          ...(mode === "all" && allItems ? { allItems, showAll: true } : {}),
+        }),
       });
       const text = await response.text().catch(() => "");
       if (!response.ok) {
@@ -768,7 +828,6 @@ export default function MediaAlbumPage() {
       }
       const url = `${window.location.origin}/share/${data.id}`;
       dispatch({ type: "SET_SHARE_URL", url, error: null });
-      await navigator.clipboard.writeText(url).catch(() => {});
     } finally {
       setCreatingShare(false);
     }
@@ -849,10 +908,10 @@ export default function MediaAlbumPage() {
     try {
       const previews = album.photos ?? [];
       const originals = album.originalPhoto ?? [];
-      const originalByName = new Map(originals.map(url => [fileNameFromUrl(url), url]));
+      const originalByMediaKey = new Map(originals.map(url => [mediaKeyFromUrl(url), url]));
       const toPropose = previews
         .filter(url => selectedIgPropose.has(fileNameFromUrl(url)))
-        .map(previewUrl => originalByName.get(fileNameFromUrl(previewUrl)) ?? previewUrl);
+        .map(previewUrl => originalByMediaKey.get(mediaKeyFromUrl(previewUrl)) ?? previewUrl);
       const results = await Promise.all(
         toPropose.map((photoUrl) =>
           fetch("/api/instagram-proposals", {
@@ -1067,11 +1126,80 @@ export default function MediaAlbumPage() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
-  if (loading) return <AncaLoader />;
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
+      <AncaLoader />
+      {loadingSlow && (
+        <div style={{ textAlign: "center", padding: "0 24px" }}>
+          <p style={{ color: "#555", fontSize: 14, margin: "0 0 6px" }}>
+            Se încarcă albumul... câteva secunde
+          </p>
+          <p style={{ color: "#333", fontSize: 12, margin: 0 }}>
+            Serverul procesează un număr mare de fotografii
+          </p>
+        </div>
+      )}
+    </div>
+  );
   if (!album) return <AlbumNotFound />;
+
+  // ── DIAGNOSTIC PANEL — vizibil clientei când pozele nu apar ───────────────
+  const hasNoPhotos = !album.photos?.length;
+  const showDiagnostic = hasNoPhotos || !!imageLoadError;
+  const DiagnosticPanel = showDiagnostic ? (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999, background: "#0a0a0a",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "24px", textAlign: "center",
+    }}>
+      <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+      <p style={{ color: "#fff", fontSize: 18, fontWeight: 700, margin: "0 0 10px" }}>
+        Pozele nu se pot încărca momentan
+      </p>
+      <p style={{ color: "#aaa", fontSize: 14, margin: "0 0 24px", lineHeight: 1.6, maxWidth: 380 }}>
+        Facem un screenshot la acest ecran și trimitem fotografului — el va rezolva problema.
+      </p>
+      <div style={{ background: "#111", border: "1px solid #333", borderRadius: 12, padding: "16px 20px", maxWidth: 420, width: "100%", textAlign: "left" }}>
+        <p style={{ color: "#888", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 10px" }}>Detalii eroare (screenshot)</p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Album:</span> {slug}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Titlu:</span> {album.title}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Poze în server:</span> {album.photos?.length ?? 0}
+        </p>
+        {imageLoadError && (
+          <p style={{ color: "#f87171", fontSize: 12, margin: "0 0 5px" }}>
+            <span style={{ color: "#555" }}>Eroare imagine:</span> {imageLoadError}
+          </p>
+        )}
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Featured:</span> {album.featured?.length ?? 0}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>URL:</span> {typeof window !== "undefined" ? window.location.href : ""}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
+          <span style={{ color: "#555" }}>Browser:</span> {typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : ""}
+        </p>
+        <p style={{ color: "#ccc", fontSize: 12, margin: 0 }}>
+          <span style={{ color: "#555" }}>Ora:</span> {new Date().toLocaleString("ro-RO")}
+        </p>
+      </div>
+      <button
+        onClick={() => { /* Allow dismiss to still see page */ (document.getElementById("diagnostic-overlay") as HTMLElement | null)?.remove(); }}
+        style={{ marginTop: 20, padding: "10px 24px", background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, color: "#666", fontSize: 13, cursor: "pointer" }}
+      >
+        Încearcă totuși să accesezi albumul
+      </button>
+    </div>
+  ) : null;
 
   return (
     <>
+    {DiagnosticPanel}
     {showSaveWarning && (
       <div
         onClick={() => setShowSaveWarning(false)}
@@ -1146,15 +1274,6 @@ export default function MediaAlbumPage() {
           />
         )}
 
-        {showcaseLightboxIndex !== null && showcasePhotos.length > 0 && (
-          <PhotoLightbox
-            photos={showcasePhotos}
-            currentIndex={showcaseLightboxIndex}
-            onClose={() => setShowcaseLightboxIndex(null)}
-            onNext={() => setShowcaseLightboxIndex((prev) => (prev !== null ? Math.min(showcasePhotos.length - 1, prev + 1) : 0))}
-            onPrev={() => setShowcaseLightboxIndex((prev) => (prev !== null ? Math.max(0, prev - 1) : 0))}
-          />
-        )}
 
         {isAdmin && (
           <button
@@ -1253,6 +1372,11 @@ export default function MediaAlbumPage() {
             <button type="button" className={styles.viewAction} onClick={() => setShowUrlModal(true)}>
               Adaugă link Swiss Transfer
             </button>
+            {printCount > 0 && (
+              <button type="button" className={styles.pickBtn} onClick={downloadPrintDynamic}>
+                ⬇ Descarcă selecția de imprimat ({printCount})
+              </button>
+            )}
           </div>
         )}
 
@@ -1295,7 +1419,7 @@ export default function MediaAlbumPage() {
         {album.featured?.length > 0 && (
           <>
             <h2 className={styles.sectionTitle}>Selectate</h2>
-            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" protectImages onProtectedContextMenu={showImageSaveWarning} />
+            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" protectImages={!isAdmin && !auth.authorise} onProtectedContextMenu={showImageSaveWarning} />
           </>
         )}
 
@@ -1425,6 +1549,12 @@ export default function MediaAlbumPage() {
 
         {auth.authorise && mode === "none" && !igProposeMode && !moderationMode && (
           <div style={{ display: "flex", gap: "8px", margin: "0 0 12px", flexWrap: "wrap" }}>
+            <button
+              onClick={() => window.open("/admin/image-optimizer", "_blank")}
+              style={{ padding: "7px 16px", background: "#1a2a1a", border: "1px solid #166534", borderRadius: "6px", color: "#4ade80", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              🖼️ Optimizare Poze
+            </button>
             <button
               onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
               style={{ padding: "7px 16px", background: "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
@@ -1557,8 +1687,16 @@ export default function MediaAlbumPage() {
                       <button className={styles.pickBtn} type="button" onClick={downloadSelected} disabled={downloadCount === 0}>
                         Descarcă selecția
                       </button>
-                      <button className={styles.pickBtnSecondary} type="button" onClick={createShareLink} disabled={creatingShare || downloadCount === 0}>
-                        {creatingShare ? "Se creează..." : `Creează link share (${downloadCount})`}
+                      <button
+                        className={styles.pickBtnSecondary}
+                        type="button"
+                        disabled={downloadCount === 0}
+                        onClick={() => {
+                          setSharePanelOpen(true);
+                          dispatch({ type: "SET_SHARE_URL", url: null, error: null });
+                        }}
+                      >
+                        📤 Trimite pozele ({downloadCount})
                       </button>
                     </>
                   )}
@@ -1566,16 +1704,88 @@ export default function MediaAlbumPage() {
               )}
             </div>
 
-            {mode === "download" && (shareUrl || shareError) && (
+            {mode === "download" && (sharePanelOpen || shareUrl || shareError) && (
               <div ref={shareBoxRef} className={styles.shareBox}>
-                <div className={styles.shareTitle}>Link de share</div>
-                {shareError ? (
-                  <div className={styles.shareError}>{shareError}</div>
-                ) : (
-                  <div className={styles.shareRow}>
-                    <input className={styles.shareInput} value={shareUrl ?? ""} readOnly />
-                    <button className={styles.shareBtn} type="button" onClick={() => navigator.clipboard.writeText(shareUrl!)}>Copy</button>
-                    <button className={styles.shareBtn} type="button" onClick={() => navigator.share?.({ url: shareUrl ?? undefined })}>Share</button>
+                <div className={styles.shareTitle} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Trimite pozele</span>
+                  <button
+                    type="button"
+                    onClick={() => { setSharePanelOpen(false); dispatch({ type: "SET_SHARE_URL", url: null, error: null }); }}
+                    style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "18px", lineHeight: 1, padding: "0 2px" }}
+                    aria-label="Închide"
+                  >×</button>
+                </div>
+
+                {!shareUrl && !shareError && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {[
+                        { value: "selected" as const, label: `Trimite doar aceste ${downloadCount} ${downloadCount === 1 ? "poză" : "poze"} selectate` },
+                        { value: "all" as const, label: `Trimite toate pozele evenimentului (${totalPhotos}), cu cele selectate primele` },
+                      ].map(({ value, label }) => (
+                        <label
+                          key={value}
+                          style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", fontSize: "13px", color: shareMode === value ? "#fff" : "#888", lineHeight: 1.4 }}
+                        >
+                          <input
+                            type="radio"
+                            name="shareMode"
+                            value={value}
+                            checked={shareMode === value}
+                            onChange={() => setShareMode(value)}
+                            style={{ marginTop: "2px", accentColor: "#c9a96e", flexShrink: 0 }}
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.pickBtn}
+                      onClick={() => void createShareLink(shareMode)}
+                      disabled={creatingShare}
+                      style={{ width: "fit-content" }}
+                    >
+                      {creatingShare ? "Se generează..." : "Generează link de share"}
+                    </button>
+                  </div>
+                )}
+
+                {shareError && <div className={styles.shareError}>{shareError}</div>}
+
+                {shareUrl && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div className={styles.shareRow}>
+                      <input className={styles.shareInput} value={shareUrl} readOnly />
+                      <button className={styles.shareBtn} type="button" onClick={() => navigator.clipboard.writeText(shareUrl!)}>Copiază</button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof navigator.share === "function") {
+                          void navigator.share({ title: "Poze eveniment", url: shareUrl });
+                        } else {
+                          void navigator.clipboard.writeText(shareUrl!);
+                        }
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                        padding: "13px 20px",
+                        background: "#25D366",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "8px",
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        width: "100%",
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      📤 {typeof navigator !== "undefined" && typeof navigator.share === "function"
+                        ? "Trimite prin WhatsApp / SMS / Email..."
+                        : "Copiază linkul"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -1612,7 +1822,7 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={toggleIgPhoto}
                   mobileColumns={mobileColumns}
-                  protectImages
+                  protectImages={!isAdmin && !auth.authorise}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               ) : isModerationMode && mode === "none" ? (
@@ -1626,7 +1836,7 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={toggleModerationPhoto}
                   mobileColumns={mobileColumns}
-                  protectImages
+                  protectImages={!isAdmin && !auth.authorise}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               ) : isAdmin && mode === "none" ? (
@@ -1669,7 +1879,7 @@ export default function MediaAlbumPage() {
                   onToggle={togglePhoto}
                   onPhotoClick={mode === "none" ? openLightbox : undefined}
                   mobileColumns={mobileColumns}
-                  protectImages
+                  protectImages={!isAdmin && !auth.authorise}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               )}
@@ -1943,167 +2153,8 @@ export default function MediaAlbumPage() {
       </div>
     </div>
 
-    {/* Promo banner — visible to all album visitors */}
-    <div id="media-promo-zone" style={{ background: "#0a0a0a" }}>
-      {/* Gold divider line */}
-      <div style={{
-        height: "2px",
-        background: "linear-gradient(90deg, transparent 0%, #c9a96e 20%, #e8c97a 50%, #c9a96e 80%, transparent 100%)",
-      }} />
+    <AncaVisualsPromo />
 
-      {/* Photo strip */}
-      {!isMobile && showcasePhotos.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "3px",
-            flexWrap: "nowrap",
-            padding: 0,
-            overflow: "hidden",
-          }}
-        >
-          {Array.from({ length: 18 }, (_, i) => showcasePhotos[i % showcasePhotos.length]).map((url, i) => (
-            <div
-              key={i}
-              style={{
-                flex: "1 1 0",
-                minWidth: 0,
-                aspectRatio: "1 / 1",
-                overflow: "hidden",
-              }}
-            >
-              <img
-                src={url}
-                alt=""
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  opacity: 0.75,
-                  display: "block",
-                }}
-                loading="lazy"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Content */}
-      <div style={{ maxWidth: "680px", margin: "0 auto", textAlign: "center", padding: "56px 24px 64px" }}>
-
-        <div style={{ width: "36px", height: "1px", background: "#c9a96e", margin: "0 auto 28px", opacity: 0.6 }} />
-
-        <p style={{ color: "#c9a96e", fontSize: "10px", letterSpacing: "5px", textTransform: "uppercase", margin: "0 0 22px", fontWeight: 500 }}>
-          Anca Visuals
-        </p>
-
-        <h2 style={{ color: "#f0ebe0", fontSize: "clamp(20px, 4vw, 30px)", fontWeight: 300, margin: "0 0 16px", lineHeight: 1.35, letterSpacing: "0.3px" }}>
-          Fotografie de film pentru<br />momentele tale autentice
-        </h2>
-
-        <p style={{ color: "#555", fontSize: "13px", margin: "0 0 10px", lineHeight: 1.7 }}>
-          Creăm amintiri fără vârstă prin arta fotografiei analogice.
-        </p>
-
-        <p style={{ color: "#c9a96e", fontSize: "10px", letterSpacing: "3px", textTransform: "uppercase", margin: "0 0 40px", opacity: 0.7 }}>
-          Nuntă · Botez · Majorat · Fotocabină · Videobooth 360°
-        </p>
-
-        <div style={{ width: "36px", height: "1px", background: "#c9a96e", margin: "0 auto 40px", opacity: 0.25 }} />
-
-        {showcasePhotos.length > 0 && (
-          <div style={{ margin: "0 0 40px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", alignItems: "start", textAlign: "left" }}>
-              {showcaseGalleryColumns.map((column, columnIndex) => (
-                <div key={columnIndex} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {column.map(({ url, index }) => (
-                    <div
-                      key={url}
-                      style={{
-                        overflow: "hidden",
-                        borderRadius: "6px",
-                        background: "#111",
-                      }}
-                    >
-                      <img
-                        src={url}
-                        alt=""
-                        style={{ width: "100%", height: "auto", objectFit: "cover", opacity: 0.85, display: "block", cursor: "pointer" }}
-                        loading="lazy"
-                        onClick={() => setShowcaseLightboxIndex(index)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "300px", margin: "0 auto" }}>
-          <a
-            href={`tel:${PROMO_PHONE}`}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              padding: "15px 24px",
-              background: "#c9a96e",
-              color: "#0a0a0a",
-              borderRadius: "3px",
-              textDecoration: "none",
-              fontSize: "12px",
-              fontWeight: 700,
-              letterSpacing: "2.5px",
-              textTransform: "uppercase",
-            }}
-          >
-            Sună — {PROMO_PHONE_DISPLAY}
-          </a>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <a
-              href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                padding: "13px 16px",
-                background: "transparent",
-                border: "1px solid #222",
-                color: "#666",
-                borderRadius: "3px",
-                textDecoration: "none",
-                fontSize: "11px",
-                letterSpacing: "2px",
-                textTransform: "uppercase",
-                transition: "border-color 0.2s, color 0.2s",
-              }}
-            >
-              WhatsApp
-            </a>
-            <a
-              href="https://instagram.com/ancavisuals"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                padding: "13px 16px",
-                background: "transparent",
-                border: "1px solid #222",
-                color: "#666",
-                borderRadius: "3px",
-                textDecoration: "none",
-                fontSize: "11px",
-                letterSpacing: "2px",
-                textTransform: "uppercase",
-              }}
-            >
-              Instagram
-            </a>
-          </div>
-        </div>
-
-      </div>
-    </div>
 
     {auth.authorise && igProposals.length > 0 && (
       <div style={{ background: "#0a0a0a", borderTop: "1px solid #1a1a1a", padding: "32px 32px 48px", marginTop: "16px" }}>

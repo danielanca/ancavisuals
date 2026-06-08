@@ -108,15 +108,6 @@ router.post("/mementos/send-test-email", async (_req: Request, res: Response) =>
   }
 });
 
-// TODO: remove after testing
-router.post("/mementos/trigger-check", async (_req: Request, res: Response) => {
-  try {
-    await checkAndSendMementos();
-    res.json({ ok: true, message: "Check rulat." });
-  } catch (error) {
-    res.status(500).json({ error: String(error) });
-  }
-});
 
 router.delete("/mementos/:id", async (req: Request, res: Response) => {
   try {

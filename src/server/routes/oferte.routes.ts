@@ -6,6 +6,7 @@ import { adminUser } from "../constants/credentials";
 import { sendEmail } from "../notifications/mailer";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { APP_BASE_URL } from "../constants/domain";
+import { logActivity, getNotificationSettings } from "../services/activity.service.js";
 import {
   OFFER_SERVICES,
   mergeOfferShowcase,
@@ -179,30 +180,43 @@ router.post("/:slug/view", async (req: Request, res: Response) => {
     const ip = clientIp(req);
     const time = romanianTime();
 
-    await sendEmail({
-      to: adminUser.email,
-      subject: `👁 Oferta /${slug} a fost vizualizată`,
-      html: `
-        <div style="font-family:Arial,sans-serif;background:#0a0a0a;padding:32px 16px;color:#f5f5f5;">
-          <div style="max-width:480px;margin:0 auto;border:1px solid #262626;border-radius:16px;padding:28px;background:#111;">
-            <p style="color:#a78bfa;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;margin:0 0 14px;">Ancavisuals · Oferte</p>
-            <h1 style="font-size:22px;font-weight:400;margin:0 0 22px;color:#fff;">Ofertă vizualizată</h1>
-            <table style="width:100%;border-collapse:collapse;font-size:14px;">
-              <tr><td style="color:#666;padding:6px 0;">Slug</td><td style="color:#fff;padding:6px 0;font-weight:600;">/${slug}</td></tr>
-              ${offer.clientName ? `<tr><td style="color:#666;padding:6px 0;">Client</td><td style="color:#fff;padding:6px 0;">${offer.clientName}</td></tr>` : ""}
-              <tr><td style="color:#666;padding:6px 0;">Ora</td><td style="color:#fff;padding:6px 0;">${time}</td></tr>
-              <tr><td style="color:#666;padding:6px 0;">IP</td><td style="color:#aaa;padding:6px 0;font-size:12px;">${ip}</td></tr>
-              <tr><td style="color:#666;padding:6px 0;">Total vizualizări</td><td style="color:#a78bfa;padding:6px 0;font-weight:700;">${newCount}</td></tr>
-            </table>
-            <div style="margin-top:22px;">
-              <a href="${APP_BASE_URL}/admin/oferte" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
-                Deschide admin
-              </a>
+    // Log to activity inbox
+    logActivity({
+      type: "offer_viewed",
+      title: `👁 Ofertă vizualizată — ${offer.clientName ?? slug}`,
+      description: `/${slug} · vizualizare #${newCount}`,
+      metadata: { slug, clientName: offer.clientName ?? "", ip, viewCount: String(newCount) },
+      emailSent: false,
+    }).catch(() => {});
+
+    // Send email only if enabled in settings
+    const settings = await getNotificationSettings().catch(() => null);
+    if (settings?.email.offerViewed ?? true) {
+      await sendEmail({
+        to: adminUser.email,
+        subject: `👁 Oferta /${slug} a fost vizualizată`,
+        html: `
+          <div style="font-family:Arial,sans-serif;background:#0a0a0a;padding:32px 16px;color:#f5f5f5;">
+            <div style="max-width:480px;margin:0 auto;border:1px solid #262626;border-radius:16px;padding:28px;background:#111;">
+              <p style="color:#a78bfa;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;margin:0 0 14px;">Ancavisuals · Oferte</p>
+              <h1 style="font-size:22px;font-weight:400;margin:0 0 22px;color:#fff;">Ofertă vizualizată</h1>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                <tr><td style="color:#666;padding:6px 0;">Slug</td><td style="color:#fff;padding:6px 0;font-weight:600;">/${slug}</td></tr>
+                ${offer.clientName ? `<tr><td style="color:#666;padding:6px 0;">Client</td><td style="color:#fff;padding:6px 0;">${offer.clientName}</td></tr>` : ""}
+                <tr><td style="color:#666;padding:6px 0;">Ora</td><td style="color:#fff;padding:6px 0;">${time}</td></tr>
+                <tr><td style="color:#666;padding:6px 0;">IP</td><td style="color:#aaa;padding:6px 0;font-size:12px;">${ip}</td></tr>
+                <tr><td style="color:#666;padding:6px 0;">Total vizualizări</td><td style="color:#a78bfa;padding:6px 0;font-weight:700;">${newCount}</td></tr>
+              </table>
+              <div style="margin-top:22px;">
+                <a href="${APP_BASE_URL}/admin/oferte" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+                  Deschide admin
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-      `,
-    });
+        `,
+      });
+    }
 
     res.json({ ok: true });
   } catch (error) {

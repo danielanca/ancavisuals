@@ -30,7 +30,6 @@ const RouteSheetsPage = loadable(() => import("../features/admin/components/Rout
 const ErrorsPage = loadable(() => import("../features/admin/components/ErrorsPage"), opts);
 const FinancialPage = loadable(() => import("../features/admin/components/Financial/FinancialPage"), opts);
 const BankStatementsPage = loadable(() => import("../features/admin/components/Financial/BankStatementsPage"), opts);
-const LandingAdminPage = loadable(() => import("../features/admin/components/Landing/LandingAdminPage"), opts);
 const CollaboratorPage = loadable(() => import("../features/collaborator/CollaboratorPage"), opts);
 const AccountsPage = loadable(() => import("../features/admin/components/AccountsPage"), opts);
 const InstagramProposalsAdminPage = loadable(() => import("../features/admin/components/InstagramProposalsAdminPage"), opts);
@@ -44,6 +43,9 @@ const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/componen
 const SeoGeneratorPage = loadable(() => import("../features/admin/components/SeoGeneratorPage"), opts);
 const CampaignAdminPage = loadable(() => import("../features/admin/components/CampaignAdminPage"), opts);
 const HealthTrackerPage = loadable(() => import("../features/admin/components/HealthTrackerPage"), opts);
+const PhotoCollectionsPage = loadable(() => import("../features/admin/components/PhotoCollectionsPage"), opts);
+const AlbumHealthPage = loadable(() => import("../features/admin/components/AlbumHealthPage"), opts);
+const SwipeProposalsPage = loadable(() => import("../features/admin/components/SwipeProposalsPage"), opts);
 
 
 export const adminRoutes = [
@@ -69,7 +71,6 @@ export const adminRoutes = [
       <Route path="/admin/errors" element={<ErrorsPage />} />
       <Route path="/admin/financial" element={<FinancialPage />} />
       <Route path="/admin/bank-statements" element={<BankStatementsPage />} />
-      <Route path="/admin/landing" element={<LandingAdminPage />} />
       <Route path="/colaborator" element={<CollaboratorPage />} />
       <Route path="/admin/accounts" element={<AccountsPage />} />
       <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
@@ -82,6 +83,9 @@ export const adminRoutes = [
       <Route path="/admin/seo-generator" element={<SeoGeneratorPage />} />
       <Route path="/admin/campanii" element={<CampaignAdminPage />} />
       <Route path="/admin/sanatate" element={<HealthTrackerPage />} />
+      <Route path="/admin/colectii" element={<PhotoCollectionsPage />} />
+      <Route path="/admin/album-health" element={<AlbumHealthPage />} />
+      <Route path="/admin/swipe-proposals" element={<SwipeProposalsPage />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>

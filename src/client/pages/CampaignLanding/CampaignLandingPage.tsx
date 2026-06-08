@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 export interface CampaignPackage {
   id: string;
@@ -34,6 +34,8 @@ export interface CampaignPage {
   packages: CampaignPackage[];
   testimonials: CampaignTestimonial[];
   active: boolean;
+  viewCount?: number;
+  videoThumbnailUrl?: string;
 }
 
 interface CampaignLandingPageProps {
@@ -59,6 +61,24 @@ function PhoneIcon() {
 
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
+  const [form, setForm] = useState({ name: "", phone: "", eventDate: "" });
+  const [formStatus, setFormStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.phone.trim()) return;
+    setFormStatus("sending");
+    try {
+      const res = await fetch(`/api/campaign/${page.slug}/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      setFormStatus(res.ok ? "sent" : "error");
+    } catch {
+      setFormStatus("error");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -204,24 +224,51 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </section>
       )}
 
-      {/* ── FOOTER CTA ─────────────────────────────────────────────── */}
+      {/* ── CONTACT FORM ───────────────────────────────────────────── */}
       <section className="py-20 px-6 bg-neutral-900 border-t border-neutral-800">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl font-light text-white mb-3">Hai să colaborăm</h2>
-          <p className="text-neutral-400 text-sm mb-8">Contactați-ne pentru o consultație gratuită și o ofertă personalizată.</p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
-              href={whatsappLink}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-8 py-4 rounded-xl text-sm transition-all"
+        <div className="max-w-xl mx-auto">
+          <p className="text-neutral-500 text-xs tracking-[0.25em] uppercase mb-2 text-center">Contact</p>
+          <h2 className="text-3xl font-light text-white mb-2 text-center">Solicită o ofertă</h2>
+          <p className="text-neutral-400 text-sm mb-8 text-center">Completează formularul și te contactăm în cel mai scurt timp.</p>
+
+          {formStatus === "sent" ? (
+            <div className="bg-green-900/30 border border-green-700/40 rounded-2xl p-8 text-center">
+              <p className="text-3xl mb-3">✓</p>
+              <p className="text-green-300 font-medium mb-1">Cererea a fost trimisă!</p>
+              <p className="text-neutral-400 text-sm">Te vom contacta în curând.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <input type="text" placeholder="Numele tău *" required value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3.5 text-white placeholder-neutral-500 text-sm outline-none focus:border-amber-500 transition-colors"
+              />
+              <input type="tel" placeholder="Telefon *" required value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3.5 text-white placeholder-neutral-500 text-sm outline-none focus:border-amber-500 transition-colors"
+              />
+              <input type="date" value={form.eventDate}
+                onChange={(e) => setForm((f) => ({ ...f, eventDate: e.target.value }))}
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3.5 text-white text-sm outline-none focus:border-amber-500 transition-colors"
+              />
+              {formStatus === "error" && <p className="text-red-400 text-sm">A apărut o eroare. Încearcă din nou.</p>}
+              <button type="submit" disabled={formStatus === "sending" || !form.name || !form.phone}
+                className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-neutral-700 disabled:text-neutral-500 text-white font-semibold py-4 rounded-xl text-sm transition-all"
+              >
+                {formStatus === "sending" ? "Se trimite..." : "Trimite cererea"}
+              </button>
+            </form>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 mt-6">
+            <a href={whatsappLink} target="_blank" rel="noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
               <WhatsAppIcon />
               {page.ctaText || "Scrie pe WhatsApp"}
             </a>
-            <a
-              href={`tel:${page.phoneNumber}`}
-              className="inline-flex items-center justify-center gap-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-8 py-4 rounded-xl text-sm border border-neutral-700 transition-all"
+            <a href={`tel:${page.phoneNumber}`}
+              className="flex-1 inline-flex items-center justify-center gap-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 py-3.5 rounded-xl text-sm border border-neutral-700 transition-all"
             >
               <PhoneIcon />
               Sună acum
