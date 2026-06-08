@@ -42,6 +42,7 @@ const VenueOutreachPage = loadable(() => import("../features/admin/components/Ve
 const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/components/ShowcaseZoneEditorPage"), opts);
 const SeoGeneratorPage = loadable(() => import("../features/admin/components/SeoGeneratorPage"), opts);
 const CampaignAdminPage = loadable(() => import("../features/admin/components/CampaignAdminPage"), opts);
+const HealthTrackerPage = loadable(() => import("../features/admin/components/HealthTrackerPage"), opts);
 const PhotoCollectionsPage = loadable(() => import("../features/admin/components/PhotoCollectionsPage"), opts);
 const AlbumHealthPage = loadable(() => import("../features/admin/components/AlbumHealthPage"), opts);
 const SwipeProposalsPage = loadable(() => import("../features/admin/components/SwipeProposalsPage"), opts);
@@ -81,6 +82,7 @@ export const adminRoutes = [
       <Route path="/admin/showcase" element={<ShowcaseZoneEditorPage />} />
       <Route path="/admin/seo-generator" element={<SeoGeneratorPage />} />
       <Route path="/admin/campanii" element={<CampaignAdminPage />} />
+      <Route path="/admin/sanatate" element={<HealthTrackerPage />} />
       <Route path="/admin/colectii" element={<PhotoCollectionsPage />} />
       <Route path="/admin/album-health" element={<AlbumHealthPage />} />
       <Route path="/admin/swipe-proposals" element={<SwipeProposalsPage />} />

@@ -36,7 +36,8 @@
       "Bash(curl -s \"https://smsalert.mobi/blog/en/rest-api-v-2-2/\")",
       "Bash(curl -s \"https://smsalert.mobi/\")",
       "Bash(curl -s \"https://api.github.com/repos/smsalert-mobi/request-examples/contents/\")",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(git branch *)"
     ]
   }
 }
