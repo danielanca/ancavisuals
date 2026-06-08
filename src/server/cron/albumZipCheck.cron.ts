@@ -1,9 +1,15 @@
 import cron from "node-cron";
+import nodeFetch from "node-fetch";
+import https from "node:https";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { firestore } from "../firestore";
 import { buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER } from "../constants/bunny";
 import { APP_BASE_URL } from "../constants/domain";
+
+// Bunny CDN serves a certificate whose chain Node.js can't verify via the native fetch (undici).
+// Using node-fetch with a custom https.Agent bypasses this while scoping the workaround to Bunny only.
+const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
 const EXCLUDED_DIRS = new Set(["expenses", "bank-statements", "offers", "offers-assets", "qr-moments"]);
 const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
@@ -25,8 +31,9 @@ interface AlbumZipInfo {
 
 async function listDir(path: string): Promise<BunnyEntry[]> {
   try {
-    const res = await fetch(buildBunnyDirectoryUrl(path), {
+    const res = await nodeFetch(buildBunnyDirectoryUrl(path), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
+      agent: bunnyAgent,
     });
     if (!res.ok) return [];
     return await res.json() as BunnyEntry[];
@@ -120,8 +127,9 @@ async function runZipCheck() {
   if (!storageKey) return;
 
   try {
-    const rootRes = await fetch(buildBunnyDirectoryUrl(""), {
+    const rootRes = await nodeFetch(buildBunnyDirectoryUrl(""), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+      agent: bunnyAgent,
     });
     if (!rootRes.ok) return;
 

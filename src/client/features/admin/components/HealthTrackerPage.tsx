@@ -564,21 +564,25 @@ function StepSection({
   const handlePhoto = async (file: File) => {
     setUploading(true);
     setError(null);
-    const formData = new FormData();
-    formData.append("photo", file);
-    formData.append("date", today);
-    const res = await fetch(`/api/admin/health/activity/${userId}`, {
-      method: "POST",
-      headers: authHeaders,
-      body: formData,
-    });
-    const data = await res.json() as { ok?: boolean; steps?: number; delta?: number; error?: string };
-    if (!res.ok || !data.ok) {
-      setError(data.error ?? "Eroare la upload.");
-    } else {
-      setJustLogged(data.delta ?? data.steps ?? null);
-      setTimeout(() => setJustLogged(null), 3000);
-      await loadBank();
+    try {
+      const formData = new FormData();
+      formData.append("photo", file);
+      formData.append("date", today);
+      const res = await fetch(`/api/admin/health/activity/${userId}`, {
+        method: "POST",
+        headers: authHeaders,
+        body: formData,
+      });
+      const data = await res.json() as { ok?: boolean; steps?: number; delta?: number; error?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? "Eroare la upload.");
+      } else {
+        setJustLogged(data.delta ?? data.steps ?? null);
+        setTimeout(() => setJustLogged(null), 3000);
+        await loadBank();
+      }
+    } catch {
+      setError("Eroare la upload. Încearcă din nou.");
     }
     setUploading(false);
   };
@@ -596,7 +600,12 @@ function StepSection({
       {/* Upload input (hidden) */}
       {!readOnly && (
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-          onChange={(e) => { const file = e.target.files?.[0]; if (file) handlePhoto(file); e.target.value = ""; }}
+          onChange={(e) => {
+            const raw = e.target.files?.[0];
+            e.target.value = "";
+            // Clone the File before clearing the input — iOS Safari invalidates FileList entries on input reset
+            if (raw) void handlePhoto(new File([raw], raw.name, { type: raw.type, lastModified: raw.lastModified }));
+          }}
         />
       )}
 
@@ -837,18 +846,22 @@ function FoodSection({
   const analyze = async () => {
     if (!selectedFile && !note.trim()) return;
     setAnalyzing(true); setError(null);
-    const formData = new FormData();
-    if (selectedFile) formData.append("photo", selectedFile);
-    formData.append("note", note);
-    const res = await fetch(`/api/admin/health/food/${userId}/preview`, {
-      method: "POST", headers: authHeaders, body: formData,
-    });
-    const data = await res.json() as { ok?: boolean; analysis?: FoodEntry; currentCalories?: number; error?: string };
-    if (!res.ok || !data.ok) {
-      setError(data.error ?? "Eroare la analiză.");
-    } else {
-      setFoodPreview({ analysis: data.analysis!, currentCalories: data.currentCalories ?? 0 });
-      setFormStep("preview");
+    try {
+      const formData = new FormData();
+      if (selectedFile) formData.append("photo", selectedFile);
+      formData.append("note", note);
+      const res = await fetch(`/api/admin/health/food/${userId}/preview`, {
+        method: "POST", headers: authHeaders, body: formData,
+      });
+      const data = await res.json() as { ok?: boolean; analysis?: FoodEntry; currentCalories?: number; error?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? "Eroare la analiză.");
+      } else {
+        setFoodPreview({ analysis: data.analysis!, currentCalories: data.currentCalories ?? 0 });
+        setFormStep("preview");
+      }
+    } catch {
+      setError("Eroare la analiză. Încearcă din nou.");
     }
     setAnalyzing(false);
   };
@@ -937,7 +950,11 @@ function FoodSection({
           {/* Step 1: compose */}
           {formStep === "compose" && (<>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-              onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileChange(file); e.target.value = ""; }}
+              onChange={(e) => {
+                const raw = e.target.files?.[0];
+                e.target.value = "";
+                if (raw) handleFileChange(new File([raw], raw.name, { type: raw.type, lastModified: raw.lastModified }));
+              }}
             />
             <button onClick={() => fileRef.current?.click()}
               style={{ width: "100%", padding: previewUrl ? 0 : "10px 0", background: previewUrl ? "transparent" : t.s1, border: `1px dashed ${previewUrl ? "transparent" : t.b2}`, borderRadius: 8, color: t.t4, fontSize: 12, cursor: "pointer", overflow: "hidden" }}
