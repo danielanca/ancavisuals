@@ -581,8 +581,8 @@ function StepSection({
         setTimeout(() => setJustLogged(null), 3000);
         await loadBank();
       }
-    } catch {
-      setError("Eroare la upload. Încearcă din nou.");
+    } catch (err) {
+      setError(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
     }
     setUploading(false);
   };
@@ -600,11 +600,12 @@ function StepSection({
       {/* Upload input (hidden) */}
       {!readOnly && (
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-          onChange={(e) => {
+          onChange={async (e) => {
             const raw = e.target.files?.[0];
-            e.target.value = "";
-            // Clone the File before clearing the input — iOS Safari invalidates FileList entries on input reset
-            if (raw) void handlePhoto(new File([raw], raw.name, { type: raw.type, lastModified: raw.lastModified }));
+            if (!raw) return;
+            // Read into ArrayBuffer before clearing — iOS Safari invalidates File references when input.value is reset
+            try { const buf = await raw.arrayBuffer(); e.target.value = ""; void handlePhoto(new File([buf], raw.name, { type: raw.type, lastModified: raw.lastModified })); }
+            catch { e.target.value = ""; }
           }}
         />
       )}
@@ -860,8 +861,8 @@ function FoodSection({
         setFoodPreview({ analysis: data.analysis!, currentCalories: data.currentCalories ?? 0 });
         setFormStep("preview");
       }
-    } catch {
-      setError("Eroare la analiză. Încearcă din nou.");
+    } catch (err) {
+      setError(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
     }
     setAnalyzing(false);
   };
@@ -950,10 +951,11 @@ function FoodSection({
           {/* Step 1: compose */}
           {formStep === "compose" && (<>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const raw = e.target.files?.[0];
-                e.target.value = "";
-                if (raw) handleFileChange(new File([raw], raw.name, { type: raw.type, lastModified: raw.lastModified }));
+                if (!raw) return;
+                try { const buf = await raw.arrayBuffer(); e.target.value = ""; handleFileChange(new File([buf], raw.name, { type: raw.type, lastModified: raw.lastModified })); }
+                catch { e.target.value = ""; }
               }}
             />
             <button onClick={() => fileRef.current?.click()}
