@@ -4,8 +4,42 @@ import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { isLocalIp } from "../controllers/triggerEvent.controller";
+import { logActivity } from "../services/activity.service";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
+
+const SEO_PAGE_RE = /^\/(fotograf|videograf|foto-video|foto|video)-[a-z]/i;
+const ORGANIC_REFERRER_RE = /google\.|bing\.|yahoo\.|duckduckgo\.|yandex\.|baidu\.|ecosia\.|startpage\./i;
+
+function isOrganicReferrer(referrer: string): boolean {
+  if (!referrer || referrer.trim() === "") return true; // direct/none counts as organic
+  return ORGANIC_REFERRER_RE.test(referrer);
+}
+
+function parseSeoPage(page: string): { city: string; service: string } | null {
+  if (!SEO_PAGE_RE.test(page)) return null;
+  const slug = page.replace(/^\//, "").replace(/\?.*$/, "");
+  const parts = slug.split("-");
+  // Pattern: {prefix}-{service}-{city} or {prefix}-{city}-{service}
+  // We just extract the full slug and present it cleanly
+  if (parts.length < 3) return null;
+  // Remove prefix (fotograf / videograf / foto-video / foto / video)
+  let rest = slug;
+  for (const prefix of ["foto-video", "fotograf", "videograf", "foto", "video"]) {
+    if (slug.startsWith(prefix + "-")) {
+      rest = slug.slice(prefix.length + 1);
+      break;
+    }
+  }
+  const restParts = rest.split("-");
+  // Known services — first or last segment
+  const SERVICES = new Set(["nunta", "botez", "majorat", "evenimente", "cununie", "civila", "logodna", "corporate", "inmormantare", "trash", "save"]);
+  const serviceIdx = restParts.findIndex((p) => SERVICES.has(p));
+  if (serviceIdx === -1) return { city: rest, service: "" };
+  const service = restParts.slice(serviceIdx).join(" ");
+  const city = restParts.slice(0, serviceIdx).join(" ") || restParts.slice(serviceIdx + 1).join(" ");
+  return { city: city || slug, service };
+}
 
 // Comprehensive bot/crawler/headless UA filter
 const BOT_UA = new RegExp(
@@ -89,6 +123,28 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
     });
 
     res.json({ ok: true, id: docRef.id });
+
+    // Log SEO organic visit to activity feed (fire-and-forget)
+    const seoInfo = parseSeoPage(page);
+    if (seoInfo && isOrganicReferrer(referrer ?? "")) {
+      const cityLabel = ipInfo?.city || seoInfo.city || "necunoscut";
+      const pageSlug = page.replace(/^\//, "");
+      const serviceLabel = seoInfo.service ? ` (${seoInfo.service})` : "";
+      logActivity({
+        type: "seo_visit",
+        title: `Vizitator organic${serviceLabel} — ${cityLabel}`,
+        description: `/${pageSlug}${referrer ? ` · via ${new URL(referrer).hostname.replace(/^www\./, "")}` : " · direct"}`,
+        metadata: {
+          page,
+          city: ipInfo?.city ?? "",
+          region: ipInfo?.region ?? "",
+          country: ipInfo?.country ?? "",
+          referrer: referrer ?? "",
+          isNew: String(isNew ?? true),
+        },
+        emailSent: false,
+      }).catch(() => {});
+    }
   } catch (error) {
     console.error("[analytics] POST /pageview failed:", error);
     res.status(500).json({ error: "Failed to log pageview" });

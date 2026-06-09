@@ -2,7 +2,7 @@ import type { Timestamp } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
 import { firestore } from "../firestore.js";
 
-export type ActivityType = "visitor" | "subscribe" | "lead" | "offer_viewed";
+export type ActivityType = "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit";
 
 export interface ActivityRecord {
   id?: string;
@@ -22,6 +22,7 @@ export interface NotificationSettings {
     subscribe: boolean;
     lead: boolean;
     offerViewed: boolean;
+    seoOrganic: boolean;
   };
 }
 
@@ -32,6 +33,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     subscribe: true,
     lead: true,
     offerViewed: true,
+    seoOrganic: false,
   },
 };
 
