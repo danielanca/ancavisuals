@@ -61,7 +61,39 @@ export interface ClientEvent {
   postEventBackupProofUrl?: string | null;
   postEventBackupProofName?: string | null;
   delivery?: EventDelivery;
+  progress?: EventProgress;
 }
+
+export type EventProgressStatus = "not_started" | "in_progress" | "done" | "blocked";
+
+export interface EventProgressStep {
+  status: EventProgressStatus;
+}
+
+export interface EventProgress {
+  shooting?: EventProgressStep;
+  photoEditing?: EventProgressStep;
+  videoEditing?: EventProgressStep;
+  deliverPhoto?: EventProgressStep;
+  deliverVideo?: EventProgressStep;
+  physicalAlbum?: EventProgressStep;
+}
+
+export const PROGRESS_STEPS: { key: keyof EventProgress; label: string }[] = [
+  { key: "shooting", label: "Fotografiere" },
+  { key: "photoEditing", label: "Editare foto" },
+  { key: "videoEditing", label: "Editare video" },
+  { key: "deliverPhoto", label: "Livrare foto" },
+  { key: "deliverVideo", label: "Livrare video" },
+  { key: "physicalAlbum", label: "Album fizic" },
+];
+
+export const PROGRESS_STATUS_LABELS: Record<EventProgressStatus, string> = {
+  not_started: "Neînceput",
+  in_progress: "În progres",
+  done: "Finalizat",
+  blocked: "Blocat",
+};
 
 export interface Goal {
   targetRevenue: number;

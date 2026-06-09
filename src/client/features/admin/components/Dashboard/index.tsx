@@ -36,6 +36,8 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Activitate album", path: "/admin/media-activity", category: "Media", icon: "📊", keywords: "vizualizari descarcare activitate" },
   { label: "Optimizare poze", path: "/admin/image-optimizer", category: "Media", icon: "⚡", keywords: "compresie webp optimizare imagini" },
   { label: "Sănătate albume", path: "/admin/album-health", category: "Media", icon: "💊", keywords: "zip webp status album health" },
+  // Evenimente
+  { label: "Progres Evenimente", path: "/admin/progress", category: "Evenimente", icon: "📋", keywords: "progres editare livrare fotografiere etape status" },
   // Financiar
   { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", icon: "💰", keywords: "bani venituri cheltuieli profit" },
   { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar", icon: "🏦", keywords: "extras cont tranzactii" },
