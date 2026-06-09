@@ -1417,6 +1417,21 @@ function ProfilePanel({
           </Section>
         )}
 
+        {/* AI Pattern Analysis */}
+        <Section
+          title="Analiză AI — ce funcționează pentru tine"
+          t={t}
+          defaultOpen={false}
+        >
+          <PatternInsightsSection
+            userId={userId}
+            accentColor={accentColor}
+            authHeaders={authHeaders}
+            t={t}
+            currentWeight={history.length > 0 ? history[history.length - 1].weight : (profile?.currentWeight ?? 80)}
+          />
+        </Section>
+
         {/* AI Meal Plan */}
         <Section
           title={`Plan alimentar${rec?.date ? ` — ${rec.date}` : " — azi"}`}
@@ -1460,6 +1475,222 @@ function ProfilePanel({
           )}
         </Section>
       </div>
+    </div>
+  );
+}
+
+// ── Pattern Insights ──────────────────────────────────────────────────────────
+
+interface PatternItem { pattern: string; impact: string; emoji: string; }
+interface PatternInsights {
+  weeklyChange: number;
+  monthlyChange: number;
+  direction: "losing" | "stalling" | "gaining";
+  positivePatterns: PatternItem[];
+  negativePatterns: PatternItem[];
+  todayRecommendation: string;
+  keyInsight: string;
+  dataPoints: number;
+}
+
+function stepsToKcal(steps: number, weightKg: number): number {
+  // ~0.04 kcal per step per kg body weight (average stride ~0.75m, MET ~3.5)
+  return Math.round(steps * 0.04 * (weightKg / 70));
+}
+
+function PatternInsightsSection({
+  userId, accentColor, authHeaders, t, currentWeight,
+}: {
+  userId: string; accentColor: string; authHeaders: Record<string, string>; t: HT; currentWeight: number;
+}) {
+  const [patterns, setPatterns] = useState<PatternInsights | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const fetchPatterns = useCallback(async (force = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (!force) {
+        const cacheRes = await fetch(`/api/admin/health/patterns/${userId}`, { headers: authHeaders });
+        if (cacheRes.ok) {
+          const cacheData = await cacheRes.json() as { patterns: PatternInsights | null; stale?: boolean };
+          if (cacheData.patterns && !cacheData.stale) {
+            setPatterns(cacheData.patterns);
+            setStale(false);
+            setLoaded(true);
+            setLoading(false);
+            return;
+          }
+          if (cacheData.patterns) setPatterns(cacheData.patterns);
+          if (cacheData.stale) setStale(true);
+        }
+      }
+      const res = await fetch(`/api/admin/health/patterns/${userId}`, {
+        method: "POST",
+        headers: authHeaders,
+      });
+      const data = await res.json() as { patterns?: PatternInsights; error?: string };
+      if (!res.ok || !data.patterns) { setError(data.error ?? "Eroare la analiză"); setLoading(false); return; }
+      setPatterns(data.patterns);
+      setStale(false);
+      setLoaded(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setLoading(false);
+  }, [userId, authHeaders]);
+
+  useEffect(() => {
+    fetch(`/api/admin/health/patterns/${userId}`, { headers: authHeaders })
+      .then((r) => r.json() as Promise<{ patterns: PatternInsights | null; stale?: boolean }>)
+      .then((data) => {
+        if (data.patterns) { setPatterns(data.patterns); setStale(!!data.stale); setLoaded(true); }
+      }).catch(() => {});
+  }, [userId, authHeaders]);
+
+  const directionColor = patterns?.direction === "losing" ? "#4ade80"
+    : patterns?.direction === "gaining" ? "#f87171" : "#fbbf24";
+  const directionLabel = patterns?.direction === "losing" ? "Scazi în greutate 🎯"
+    : patterns?.direction === "gaining" ? "Câștigi în greutate ⚠️" : "Stagnare — ajustare necesară ⚡";
+
+  const kcalPer1000 = stepsToKcal(1000, currentWeight);
+  const kcalPer8000 = stepsToKcal(8000, currentWeight);
+  const grPer8000 = (kcalPer8000 / 7700 * 1000).toFixed(0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
+      {/* Steps calorie info */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {[
+          { label: "1.000 pași", kcal: kcalPer1000 },
+          { label: "8.000 pași", kcal: kcalPer8000 },
+          { label: "8.000 pași/zi = grăsime", value: `~${grPer8000}g/zi` },
+        ].map((item) => (
+          <div key={item.label} style={{ flex: "1 1 100px", padding: "8px 10px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 8, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: t.t4, marginBottom: 3 }}>{item.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: accentColor }}>
+              {"value" in item ? item.value : `~${item.kcal} kcal`}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Analysis section */}
+      {!loaded && !loading && (
+        <div style={{ textAlign: "center", padding: "24px 0" }}>
+          <p style={{ color: t.t4, fontSize: 13, marginBottom: 12 }}>
+            🤖 Analizez pattern-urile din datele tale pentru a găsi ce funcționează cel mai bine.
+          </p>
+          <button onClick={() => fetchPatterns(false)}
+            style={{ padding: "10px 24px", background: accentColor, border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
+            ✨ Analizează acum
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ textAlign: "center", padding: "24px 0" }}>
+          <p style={{ color: accentColor, fontSize: 13 }}>🧠 Claude analizează {patterns?.dataPoints ?? "..."} zile de date...</p>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ padding: "10px 12px", background: t.redBg, border: `1px solid ${t.redBdr}`, borderRadius: 8, fontSize: 12, color: "#f87171" }}>
+          {error}
+        </div>
+      )}
+
+      {patterns && !loading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+          {/* Trend */}
+          <div style={{ padding: "12px 14px", background: t.s1, border: `1px solid ${directionColor}33`, borderRadius: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: directionColor }}>{directionLabel}</span>
+              <span style={{ fontSize: 10, color: t.t4 }}>{patterns.dataPoints} zile analizate</span>
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {[
+                { label: "7 zile", val: patterns.weeklyChange },
+                { label: "30 zile", val: patterns.monthlyChange },
+              ].map(({ label, val }) => (
+                <div key={label} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: t.t4 }}>{label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: val < 0 ? "#4ade80" : val > 0 ? "#f87171" : "#fbbf24" }}>
+                    {val > 0 ? "+" : ""}{typeof val === "number" ? val.toFixed(2) : val} kg
+                  </div>
+                </div>
+              ))}
+            </div>
+            {patterns.keyInsight && (
+              <p style={{ fontSize: 11, color: t.t3, fontStyle: "italic", margin: "8px 0 0", lineHeight: 1.5 }}>
+                💡 {patterns.keyInsight}
+              </p>
+            )}
+          </div>
+
+          {/* Positive patterns */}
+          {patterns.positivePatterns.length > 0 && (
+            <div style={{ padding: "10px 12px", background: t.greenBg, border: `1px solid ${t.greenBdr}`, borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#4ade80", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Ce funcționează ✓
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {patterns.positivePatterns.map((p, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{p.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: 12, color: t.t2, fontWeight: 500 }}>{p.pattern}</div>
+                      <div style={{ fontSize: 11, color: "#4ade80" }}>{p.impact}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Negative patterns */}
+          {patterns.negativePatterns.length > 0 && (
+            <div style={{ padding: "10px 12px", background: t.redBg, border: `1px solid ${t.redBdr}`, borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#f87171", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Ce frânează progresul ✗
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {patterns.negativePatterns.map((p, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{p.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: 12, color: t.t2, fontWeight: 500 }}>{p.pattern}</div>
+                      <div style={{ fontSize: 11, color: "#f87171" }}>{p.impact}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Today recommendation */}
+          {patterns.todayRecommendation && (
+            <div style={{ padding: "10px 12px", background: t.purpleBg2, border: `1px solid ${accentColor}33`, borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: accentColor, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Recomandare pentru mâine
+              </div>
+              <p style={{ fontSize: 12, color: t.t2, margin: 0, lineHeight: 1.6 }}>{patterns.todayRecommendation}</p>
+            </div>
+          )}
+
+          <button onClick={() => fetchPatterns(true)} disabled={loading}
+            style={{ alignSelf: "flex-end", fontSize: 10, padding: "5px 12px", background: "transparent", border: `1px solid ${t.b2}`, borderRadius: 6, color: t.t4, cursor: "pointer" }}
+          >
+            {stale ? "⚠ Date vechi — " : ""}🔄 Reanalizeaz&#259;
+          </button>
+        </div>
+      )}
     </div>
   );
 }
