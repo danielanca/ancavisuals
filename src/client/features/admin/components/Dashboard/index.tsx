@@ -160,7 +160,7 @@ function DashboardSearch() {
 
 // ── Widget Order ──────────────────────────────────────────────────────────
 
-const DEFAULT_WIDGET_ORDER = ["goals", "financial", "countdown", "activity", "albumHealth", "mementos"];
+const DEFAULT_WIDGET_ORDER = ["goals", "financial", "countdown", "activity", "albumHealth", "mementos", "events"];
 const WIDGET_ORDER_KEY = "dashboard_widget_order";
 
 function useDashboardWidgetOrder() {
@@ -520,6 +520,16 @@ const DashboardInner: React.FC = () => {
     activity: <ActivityInbox />,
     albumHealth: <AlbumHealthWidget />,
     mementos: <MementosWidget />,
+    events: (
+      <EventList
+        events={events}
+        targetEventId={targetEventId}
+        onAddEvent={handleAddEvent}
+        onEventUpdated={handleEventUpdated}
+        onEventDeleted={handleEventDeleted}
+        exchangeRate={settings.exchangeRate}
+      />
+    ),
   };
 
   return (
@@ -586,15 +596,6 @@ const DashboardInner: React.FC = () => {
           </DraggableWidget>
         ))}
 
-        {/* Event List — fixed at bottom, not reorderable */}
-        <EventList
-          events={events}
-          targetEventId={targetEventId}
-          onAddEvent={handleAddEvent}
-          onEventUpdated={handleEventUpdated}
-          onEventDeleted={handleEventDeleted}
-          exchangeRate={settings.exchangeRate}
-        />
 
       </div>
     </div>
