@@ -436,13 +436,12 @@ export default function AlbumHealthPage() {
         {scanned && (
           <>
             <div className="grid grid-cols-3 gap-3 mb-6">
-              <Stat value={albums.length} label="Albume totale" />
+              <Stat value={activeAlbums.length + deliveredAlbums.length} label="Albume totale" />
               <Stat value={complete} label="Complete (100% WebP)" color="emerald" />
               <Stat value={incomplete} label={`Incomplete · ${totalMissing} lipsă`} color="amber" />
             </div>
             <Section title="În lucru" albums={activeAlbums} jobStates={jobStates} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} currentCategory="active" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} />
             <Section title="Predate" albums={deliveredAlbums} jobStates={jobStates} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} currentCategory="delivered" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} dimmed />
-            <Section title="Arhivate" albums={archivedAlbums} jobStates={jobStates} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} currentCategory="archived" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} dimmed />
           </>
         )}
       </div>
