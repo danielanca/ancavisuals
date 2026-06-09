@@ -214,15 +214,16 @@ function GripIcon() {
 interface DraggableWidgetProps {
   id: string;
   isDragging: boolean;
+  isAnyDragging: boolean;
   isDragOver: boolean;
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
   onDragOver: (id: string) => void;
-  onDrop: (targetId: string) => void;
+  onDrop: (sourceId: string, targetId: string) => void;
   children: React.ReactNode;
 }
 
-function DraggableWidget({ id, isDragging, isDragOver, onDragStart, onDragEnd, onDragOver, onDrop, children }: DraggableWidgetProps) {
+function DraggableWidget({ id, isDragging, isAnyDragging, isDragOver, onDragStart, onDragEnd, onDragOver, onDrop, children }: DraggableWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleHandleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -235,7 +236,6 @@ function DraggableWidget({ id, isDragging, isDragOver, onDragStart, onDragEnd, o
       moveEvent.preventDefault();
       const touch = moveEvent.touches[0];
 
-      // Temporarily disable pointer events to find element underneath
       if (containerRef.current) containerRef.current.style.pointerEvents = "none";
       const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
       if (containerRef.current) containerRef.current.style.pointerEvents = "";
@@ -249,7 +249,7 @@ function DraggableWidget({ id, isDragging, isDragOver, onDragStart, onDragEnd, o
     };
 
     const handleTouchEnd = () => {
-      if (currentOverId && currentOverId !== id) onDrop(currentOverId);
+      if (currentOverId && currentOverId !== id) onDrop(id, currentOverId);
       else onDragEnd();
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("touchend", handleTouchEnd);
@@ -266,13 +266,24 @@ function DraggableWidget({ id, isDragging, isDragOver, onDragStart, onDragEnd, o
       style={{
         position: "relative",
         opacity: isDragging ? 0.35 : 1,
-        outline: isDragOver && !isDragging ? "2px solid rgba(255,255,255,0.12)" : "2px solid transparent",
+        outline: isDragOver && !isDragging ? "2px solid rgba(255,255,255,0.18)" : "2px solid transparent",
         outlineOffset: "3px",
         borderRadius: "12px",
         transition: "opacity 0.18s, outline-color 0.15s",
       }}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; onDragOver(id); }}
-      onDrop={(e) => { e.preventDefault(); onDrop(id); }}
+      onDragLeave={(e) => {
+        // Only clear dragOver if leaving the widget entirely (not entering a child)
+        if (!containerRef.current?.contains(e.relatedTarget as Node)) {
+          onDragOver("");
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const sourceId = e.dataTransfer.getData("text/plain");
+        if (sourceId && sourceId !== id) onDrop(sourceId, id);
+        else onDragEnd();
+      }}
     >
       {/* Drag handle */}
       <div
@@ -304,8 +315,8 @@ function DraggableWidget({ id, isDragging, isDragOver, onDragStart, onDragEnd, o
         }}
         onMouseEnter={(e) => {
           const el = e.currentTarget as HTMLElement;
-          el.style.color = "#666";
-          el.style.backgroundColor = "rgba(255,255,255,0.06)";
+          el.style.color = "#888";
+          el.style.backgroundColor = "rgba(255,255,255,0.08)";
         }}
         onMouseLeave={(e) => {
           const el = e.currentTarget as HTMLElement;
@@ -315,6 +326,11 @@ function DraggableWidget({ id, isDragging, isDragOver, onDragStart, onDragEnd, o
       >
         <GripIcon />
       </div>
+
+      {/* Transparent overlay during any drag so child elements don't intercept drop events */}
+      {isAnyDragging && !isDragging && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 5, borderRadius: "12px" }} />
+      )}
       {children}
     </div>
   );
@@ -410,12 +426,11 @@ const DashboardInner: React.FC = () => {
   }, []);
 
   const handleDragOver = useCallback((id: string) => {
-    setDragOverId(id);
+    if (id) setDragOverId(id);
   }, []);
 
-  const handleDrop = useCallback((targetId: string) => {
-    const sourceId = draggingIdRef.current;
-    if (sourceId && sourceId !== targetId) reorder(sourceId, targetId);
+  const handleDrop = useCallback((sourceId: string, targetId: string) => {
+    reorder(sourceId, targetId);
     draggingIdRef.current = null;
     setDraggingId(null);
     setDragOverId(null);
@@ -586,6 +601,7 @@ const DashboardInner: React.FC = () => {
             key={widgetId}
             id={widgetId}
             isDragging={draggingId === widgetId}
+            isAnyDragging={draggingId !== null}
             isDragOver={dragOverId === widgetId && draggingId !== widgetId}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
