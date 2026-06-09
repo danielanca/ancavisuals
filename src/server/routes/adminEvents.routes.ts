@@ -4,6 +4,8 @@ import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
+import nodeFetch from "node-fetch";
+import https from "node:https";
 import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_QR_MOMENT_FOLDER } from "../constants/bunny";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import sharp from "sharp";
@@ -12,6 +14,8 @@ import {
   createJob, getJob, getAllJobs, serializeJob,
   appendJobLog, setJobProgress, finishJob, errorJob,
 } from "../services/albumProcessingJobs.js";
+
+const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -97,13 +101,14 @@ async function uploadBackupProof(file: Express.Multer.File, eventId: string) {
   const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
   const folder = `admin-events/${eventId}/backup-proof`;
   const uploadUrl = buildBunnyStorageUrl(folder, safeFileName);
-  const response = await fetch(uploadUrl, {
+  const response = await nodeFetch(uploadUrl, {
     method: "PUT",
     headers: {
       [BUNNY_ACCESS_KEY_HEADER]: storageKey,
       "Content-Type": file.mimetype || "application/octet-stream",
     },
     body: file.buffer,
+    agent: bunnyAgent,
   });
 
   if (!response.ok) {
@@ -477,7 +482,7 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
 
     // Check if the folder already exists in Bunny
     const checkUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER) + "/";
-    const checkRes = await fetch(checkUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() } });
+    const checkRes = await nodeFetch(checkUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, agent: bunnyAgent });
     if (checkRes.ok) {
       return res.status(409).json({ error: "Un album cu acest slug există deja în Bunny." });
     }
@@ -494,10 +499,11 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
     ];
     for (const folder of folders) {
       const placeholderUrl = buildBunnyStorageUrl(slug, folder, ".keep");
-      const uploadRes = await fetch(placeholderUrl, {
+      const uploadRes = await nodeFetch(placeholderUrl, {
         method: "PUT",
         headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(), "Content-Type": "application/octet-stream" },
         body: "",
+        agent: bunnyAgent,
       });
       if (!uploadRes.ok) {
         return res.status(500).json({ error: `Bunny upload failed for ${folder}: ${uploadRes.status}` });
@@ -528,7 +534,7 @@ router.post("/events/:id/detect-album", async (req: Request, res: Response) => {
     }
 
     const checkUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER) + "/";
-    const checkRes = await fetch(checkUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() } });
+    const checkRes = await nodeFetch(checkUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, agent: bunnyAgent });
 
     if (!checkRes.ok) return res.json({ found: false });
 
@@ -581,7 +587,7 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
 
     // List all files in photos/
     const listUrl = buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER);
-    const listRes = await fetch(listUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+    const listRes = await nodeFetch(listUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent });
     if (!listRes.ok) {
       send({ error: "Nu pot lista folderul photos din Bunny." });
       return res.end();
@@ -596,7 +602,7 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
 
     // List existing previews to skip already-processed files
     const previewListUrl = buildBunnyDirectoryUrl(slug, "photos_preview");
-    const previewListRes = await fetch(previewListUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+    const previewListRes = await nodeFetch(previewListUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent });
     const existingPreviews = new Set<string>();
     if (previewListRes.ok) {
       const previewEntries = await previewListRes.json() as { ObjectName: string }[];
@@ -619,7 +625,7 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
       }
 
       const originalUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename);
-      const dlRes = await fetch(originalUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+      const dlRes = await nodeFetch(originalUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent });
       if (!dlRes.ok || !dlRes.body) {
         send({ stage: "previews", warning: `Skip ${filename}: download failed` });
         continue;
@@ -633,10 +639,11 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
 
       const previewName = `${baseName}.webp`;
       const uploadUrl = buildBunnyStorageUrl(slug, "photos_preview", previewName);
-      const upRes = await fetch(uploadUrl, {
+      const upRes = await nodeFetch(uploadUrl, {
         method: "PUT",
         headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "image/webp" },
         body: webpBuffer,
+        agent: bunnyAgent,
       });
 
       if (upRes.ok) {
@@ -713,18 +720,20 @@ router.post("/album-health/create", requireFirebaseAuth, requireSupremeAdmin, as
   try {
     const storageKey = getBunnyStorageKey();
 
-    const checkRes = await fetch(buildBunnyDirectoryUrl(slug), {
+    const checkRes = await nodeFetch(buildBunnyDirectoryUrl(slug), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+      agent: bunnyAgent,
     });
     if (checkRes.ok) return res.status(409).json({ error: `Albumul „${slug}" există deja în Bunny.` });
 
     const folders = ["photos", "photos_preview", "shortvideo", "longvideo"];
     const uploads = await Promise.all(
       folders.map((folder) =>
-        fetch(buildBunnyStorageUrl(slug, folder, ".keep"), {
+        nodeFetch(buildBunnyStorageUrl(slug, folder, ".keep"), {
           method: "PUT",
           headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "application/octet-stream" },
-          body: new Uint8Array(0),
+          body: Buffer.alloc(0),
+          agent: bunnyAgent,
         })
       )
     );
@@ -743,8 +752,9 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
   try {
     const storageKey = getBunnyStorageKey();
 
-    const rootRes = await fetch(buildBunnyDirectoryUrl(""), {
+    const rootRes = await nodeFetch(buildBunnyDirectoryUrl(""), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+      agent: bunnyAgent,
     });
     if (!rootRes.ok) return res.status(500).json({ error: "Nu pot lista root-ul Bunny." });
 
@@ -758,8 +768,8 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
         const slug = dir.ObjectName;
 
         const [photosRes, previewsRes] = await Promise.all([
-          fetch(buildBunnyDirectoryUrl(slug, "photos"), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } }),
-          fetch(buildBunnyDirectoryUrl(slug, "photos_preview"), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } }),
+          nodeFetch(buildBunnyDirectoryUrl(slug, "photos"), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent }),
+          nodeFetch(buildBunnyDirectoryUrl(slug, "photos_preview"), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent }),
         ]);
 
         type BunnyHealthEntry = { ObjectName: string; IsDirectory: boolean; LastChanged?: string };
@@ -782,7 +792,7 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
         }
 
         // ZIP status: check photos.zip in album root vs latest photo date
-        const rootRes = await fetch(buildBunnyDirectoryUrl(slug), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+        const rootRes = await nodeFetch(buildBunnyDirectoryUrl(slug), { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent });
         let zipStatus: "ok" | "stale" | "missing" = "missing";
         let zipDate: string | null = null;
 
@@ -825,8 +835,9 @@ async function runAlbumProcessing(slug: string): Promise<void> {
   const storageKey = getBunnyStorageKey();
 
   try {
-    const listRes = await fetch(buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER), {
+    const listRes = await nodeFetch(buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+      agent: bunnyAgent,
     });
     if (!listRes.ok) {
       appendJobLog(slug, "❌ Nu pot lista folderul photos din Bunny.");
@@ -842,8 +853,9 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     appendJobLog(slug, `📂 ${photos.length} poze găsite`);
     setJobProgress(slug, 0, photos.length);
 
-    const previewListRes = await fetch(buildBunnyDirectoryUrl(slug, "photos_preview"), {
+    const previewListRes = await nodeFetch(buildBunnyDirectoryUrl(slug, "photos_preview"), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+      agent: bunnyAgent,
     });
     const existingPreviews = new Set<string>();
     if (previewListRes.ok) {
@@ -859,8 +871,9 @@ async function runAlbumProcessing(slug: string): Promise<void> {
       const baseName = filename.replace(/\.[^.]+$/, "");
       if (existingPreviews.has(baseName)) { skipped++; continue; }
 
-      const dlRes = await fetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename), {
+      const dlRes = await nodeFetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename), {
         headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+        agent: bunnyAgent,
       });
       if (!dlRes.ok || !dlRes.body) {
         appendJobLog(slug, `⚠️ Skip ${filename}: download failed`);
@@ -874,10 +887,11 @@ async function runAlbumProcessing(slug: string): Promise<void> {
         .toBuffer();
 
       const previewName = `${baseName}.webp`;
-      const upRes = await fetch(buildBunnyStorageUrl(slug, "photos_preview", previewName), {
+      const upRes = await nodeFetch(buildBunnyStorageUrl(slug, "photos_preview", previewName), {
         method: "PUT",
         headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "image/webp" },
         body: webpBuffer,
+        agent: bunnyAgent,
       });
 
       if (upRes.ok) {
@@ -932,9 +946,10 @@ router.delete("/album-health/:slug/zip", requireFirebaseAuth, requireSupremeAdmi
   const slug = String(req.params.slug);
   try {
     const zipUrl = buildBunnyStorageUrl(slug, "photos.zip");
-    const deleteRes = await fetch(zipUrl, {
+    const deleteRes = await nodeFetch(zipUrl, {
       method: "DELETE",
       headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
+      agent: bunnyAgent,
     });
     if (!deleteRes.ok && deleteRes.status !== 404) {
       return res.status(500).json({ error: `Bunny delete failed: ${deleteRes.status}` });
