@@ -777,7 +777,7 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
     });
     if (!rootRes.ok) return res.status(500).json({ error: "Nu pot lista root-ul Bunny." });
 
-    const EXCLUDED_DIRS = new Set(["expenses", "bank-statements", "offers", "offers-assets", "qr-moments"]);
+    const EXCLUDED_DIRS = new Set(["expenses", "bank-statements", "offers", "offers-assets", "qr-moments", "health-activity", "admin-events"]);
 
     const rootEntries = await rootRes.json() as { ObjectName: string; IsDirectory: boolean }[];
     const albumDirs = rootEntries.filter((e) => e.IsDirectory && !EXCLUDED_DIRS.has(e.ObjectName));
