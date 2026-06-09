@@ -422,6 +422,7 @@ router.get("/settings", async (_req: Request, res: Response) => {
           beneficiaryName: "",
           iban: "",
         },
+        bankProfiles: [],
       };
       return res.json(defaults);
     }
