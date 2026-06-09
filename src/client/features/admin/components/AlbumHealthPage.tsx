@@ -198,6 +198,20 @@ export default function AlbumHealthPage() {
         setCategoryOverrides((prev) => {
           const merged = { ...prev, ...serverCategories };
           localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(merged));
+
+          // Push any local-only overrides to Firestore so widget picks them up
+          const localOnly: Record<string, AlbumCategory> = {};
+          for (const [slug, cat] of Object.entries(prev)) {
+            if (!serverCategories[slug]) localOnly[slug] = cat;
+          }
+          if (Object.keys(localOnly).length > 0) {
+            fetch("/api/admin/album-health/categories", {
+              method: "PUT",
+              headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify(localOnly),
+            }).catch(() => {});
+          }
+
           return merged;
         });
       }
