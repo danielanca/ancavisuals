@@ -371,6 +371,7 @@ const DEFAULT_SETTINGS: AdminSettings = {
     beneficiaryName: "",
     iban: "",
   },
+  bankProfiles: [],
 };
 
 
