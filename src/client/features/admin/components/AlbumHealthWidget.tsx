@@ -46,6 +46,10 @@ export default function AlbumHealthWidget() {
   useEffect(() => {
     const headers = { Authorization: `Bearer ${auth.accessToken}` };
 
+    const localCategories: Record<string, AlbumCategory> = (() => {
+      try { return JSON.parse(localStorage.getItem("album-health-categories") ?? "{}") as Record<string, AlbumCategory>; } catch { return {}; }
+    })();
+
     Promise.all([
       fetch("/api/admin/album-health", { headers }).then((r) => r.json()),
       fetch("/api/admin/album-health/categories", { headers }).then((r) => r.json()),
@@ -55,8 +59,10 @@ export default function AlbumHealthWidget() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        const allCategories = { ...localCategories, ...categoriesData };
+
         const getCategory = (slug: string): AlbumCategory =>
-          categoriesData[slug] ?? getAutoCategory(slug, today);
+          allCategories[slug] ?? getAutoCategory(slug, today);
 
         const nonArchived = albums.filter((album) => getCategory(album.slug) !== "archived");
         const issues = nonArchived.filter((album) => album.zipStatus !== "ok");
