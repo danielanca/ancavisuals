@@ -158,6 +158,186 @@ function DashboardSearch() {
   );
 }
 
+// ── Widget Order ──────────────────────────────────────────────────────────
+
+const DEFAULT_WIDGET_ORDER = ["goals", "financial", "countdown", "activity", "albumHealth", "mementos", "events"];
+const WIDGET_ORDER_KEY = "dashboard_widget_order";
+
+function useDashboardWidgetOrder() {
+  const [order, setOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(WIDGET_ORDER_KEY);
+      if (saved) {
+        const parsed: string[] = JSON.parse(saved);
+        const valid = parsed.filter(id => DEFAULT_WIDGET_ORDER.includes(id));
+        const missing = DEFAULT_WIDGET_ORDER.filter(id => !valid.includes(id));
+        return [...valid, ...missing];
+      }
+    } catch {}
+    return [...DEFAULT_WIDGET_ORDER];
+  });
+
+  const reorder = useCallback((sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setOrder(prev => {
+      const next = [...prev];
+      const from = next.indexOf(sourceId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, sourceId);
+      try { localStorage.setItem(WIDGET_ORDER_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  return { order, reorder };
+}
+
+// ── Grip Icon ──────────────────────────────────────────────────────────
+
+function GripIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+      <circle cx="4" cy="3" r="1.3" />
+      <circle cx="10" cy="3" r="1.3" />
+      <circle cx="4" cy="7" r="1.3" />
+      <circle cx="10" cy="7" r="1.3" />
+      <circle cx="4" cy="11" r="1.3" />
+      <circle cx="10" cy="11" r="1.3" />
+    </svg>
+  );
+}
+
+// ── Draggable Widget ──────────────────────────────────────────────────────────
+
+interface DraggableWidgetProps {
+  id: string;
+  isDragging: boolean;
+  isAnyDragging: boolean;
+  isDragOver: boolean;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+  onDragOver: (id: string) => void;
+  onDrop: (sourceId: string, targetId: string) => void;
+  children: React.ReactNode;
+}
+
+function DraggableWidget({ id, isDragging, isAnyDragging, isDragOver, onDragStart, onDragEnd, onDragOver, onDrop, children }: DraggableWidgetProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleHandleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation();
+    onDragStart(id);
+
+    let currentOverId: string | null = null;
+
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      moveEvent.preventDefault();
+      const touch = moveEvent.touches[0];
+
+      if (containerRef.current) containerRef.current.style.pointerEvents = "none";
+      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (containerRef.current) containerRef.current.style.pointerEvents = "";
+
+      const widgetEl = elementBelow?.closest("[data-widget-id]") as HTMLElement | null;
+      const overId = widgetEl?.getAttribute("data-widget-id") ?? null;
+      if (overId !== currentOverId) {
+        currentOverId = overId;
+        if (overId) onDragOver(overId);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (currentOverId && currentOverId !== id) onDrop(id, currentOverId);
+      else onDragEnd();
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
+    document.addEventListener("touchend", handleTouchEnd);
+  }, [id, onDragStart, onDragEnd, onDragOver, onDrop]);
+
+  return (
+    <div
+      ref={containerRef}
+      data-widget-id={id}
+      style={{
+        position: "relative",
+        opacity: isDragging ? 0.35 : 1,
+        outline: isDragOver && !isDragging ? "2px solid rgba(255,255,255,0.18)" : "2px solid transparent",
+        outlineOffset: "3px",
+        borderRadius: "12px",
+        transition: "opacity 0.18s, outline-color 0.15s",
+      }}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; onDragOver(id); }}
+      onDragLeave={(e) => {
+        // Only clear dragOver if leaving the widget entirely (not entering a child)
+        if (!containerRef.current?.contains(e.relatedTarget as Node)) {
+          onDragOver("");
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const sourceId = e.dataTransfer.getData("text/plain");
+        if (sourceId && sourceId !== id) onDrop(sourceId, id);
+        else onDragEnd();
+      }}
+    >
+      {/* Drag handle */}
+      <div
+        draggable
+        title="Trage pentru a reordona"
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", id);
+          if (containerRef.current) {
+            e.dataTransfer.setDragImage(containerRef.current, Math.min(containerRef.current.offsetWidth / 2, 100), 24);
+          }
+          onDragStart(id);
+        }}
+        onDragEnd={onDragEnd}
+        onTouchStart={handleHandleTouchStart}
+        style={{
+          position: "absolute",
+          top: "10px",
+          right: "10px",
+          cursor: "grab",
+          color: "#444",
+          padding: "6px",
+          zIndex: 10,
+          borderRadius: "6px",
+          userSelect: "none",
+          touchAction: "none",
+          lineHeight: 0,
+          transition: "color 0.15s, background-color 0.15s",
+        }}
+        onMouseEnter={(e) => {
+          const el = e.currentTarget as HTMLElement;
+          el.style.color = "#888";
+          el.style.backgroundColor = "rgba(255,255,255,0.08)";
+        }}
+        onMouseLeave={(e) => {
+          const el = e.currentTarget as HTMLElement;
+          el.style.color = "#444";
+          el.style.backgroundColor = "transparent";
+        }}
+      >
+        <GripIcon />
+      </div>
+
+      {/* Transparent overlay during any drag so child elements don't intercept drop events */}
+      {isAnyDragging && !isDragging && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 5, borderRadius: "12px" }} />
+      )}
+      {children}
+    </div>
+  );
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+
 const ROBOTS_META_NAME = "robots";
 const ROBOTS_META_CONTENT = "noindex, nofollow";
 const DASHBOARD_HEADING = "Bună, Dani 👋";
@@ -209,6 +389,8 @@ function normalizeSettings(settingsData: Partial<AdminSettings>): AdminSettings 
   };
 }
 
+// ── Dashboard Inner ──────────────────────────────────────────────────────────
+
 const DashboardInner: React.FC = () => {
   const location = useLocation();
   const { auth } = useAuth();
@@ -225,6 +407,34 @@ const DashboardInner: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
+
+  // Widget drag-and-drop state
+  const { order: widgetOrder, reorder } = useDashboardWidgetOrder();
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const draggingIdRef = useRef<string | null>(null);
+
+  const handleDragStart = useCallback((id: string) => {
+    draggingIdRef.current = id;
+    setDraggingId(id);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    draggingIdRef.current = null;
+    setDraggingId(null);
+    setDragOverId(null);
+  }, []);
+
+  const handleDragOver = useCallback((id: string) => {
+    if (id) setDragOverId(id);
+  }, []);
+
+  const handleDrop = useCallback((sourceId: string, targetId: string) => {
+    reorder(sourceId, targetId);
+    draggingIdRef.current = null;
+    setDraggingId(null);
+    setDragOverId(null);
+  }, [reorder]);
 
   useEffect(() => {
     const meta = document.createElement("meta");
@@ -313,6 +523,30 @@ const DashboardInner: React.FC = () => {
     );
   }
 
+  const widgetMap: Record<string, React.ReactNode> = {
+    goals: (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <GoalCard title={SIX_MONTHS_GOAL_TITLE} goal={settings.goals.sixMonths} events={events} editableRange detailRoute="/admin/goals/six-months" onGoalUpdate={(u) => handleGoalUpdate("sixMonths", u)} open={goalsOpen} onToggle={() => setGoalsOpen(value => !value)} />
+        <GoalCard title={ONE_YEAR_GOAL_TITLE} goal={settings.goals.oneYear} events={events} detailRoute="/admin/goals/one-year" onGoalUpdate={(u) => handleGoalUpdate("oneYear", u)} open={goalsOpen} onToggle={() => setGoalsOpen(value => !value)} />
+      </div>
+    ),
+    financial: <FinancialSummary events={events} />,
+    countdown: <NextEventCountdown events={events} />,
+    activity: <ActivityInbox />,
+    albumHealth: <AlbumHealthWidget />,
+    mementos: <MementosWidget />,
+    events: (
+      <EventList
+        events={events}
+        targetEventId={targetEventId}
+        onAddEvent={handleAddEvent}
+        onEventUpdated={handleEventUpdated}
+        onEventDeleted={handleEventDeleted}
+        exchangeRate={settings.exchangeRate}
+      />
+    ),
+  };
+
   return (
     <>
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
@@ -361,36 +595,23 @@ const DashboardInner: React.FC = () => {
         {/* Post-event follow-up notifications */}
         <PostEventFollowUp events={events} onEventUpdated={handleEventUpdated} />
 
-        {/* Goal Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <GoalCard title={SIX_MONTHS_GOAL_TITLE} goal={settings.goals.sixMonths} events={events} editableRange detailRoute="/admin/goals/six-months" onGoalUpdate={(u) => handleGoalUpdate("sixMonths", u)} open={goalsOpen} onToggle={() => setGoalsOpen(value => !value)} />
-          <GoalCard title={ONE_YEAR_GOAL_TITLE} goal={settings.goals.oneYear} events={events} detailRoute="/admin/goals/one-year" onGoalUpdate={(u) => handleGoalUpdate("oneYear", u)} open={goalsOpen} onToggle={() => setGoalsOpen(value => !value)} />
-        </div>
+        {/* Draggable Widgets */}
+        {widgetOrder.map(widgetId => (
+          <DraggableWidget
+            key={widgetId}
+            id={widgetId}
+            isDragging={draggingId === widgetId}
+            isAnyDragging={draggingId !== null}
+            isDragOver={dragOverId === widgetId && draggingId !== widgetId}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            {widgetMap[widgetId]}
+          </DraggableWidget>
+        ))}
 
-        {/* Financial Summary */}
-        <FinancialSummary events={events} />
-
-        {/* Next Event Countdown */}
-        <NextEventCountdown events={events} />
-
-        {/* Activity Inbox */}
-        <ActivityInbox />
-
-        {/* Album Health Widget */}
-        <AlbumHealthWidget />
-
-        {/* Mementos Widget */}
-        <MementosWidget />
-
-        {/* Event List */}
-        <EventList
-          events={events}
-          targetEventId={targetEventId}
-          onAddEvent={handleAddEvent}
-          onEventUpdated={handleEventUpdated}
-          onEventDeleted={handleEventDeleted}
-          exchangeRate={settings.exchangeRate}
-        />
 
       </div>
     </div>
