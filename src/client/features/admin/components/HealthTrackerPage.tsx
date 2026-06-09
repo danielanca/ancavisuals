@@ -302,15 +302,17 @@ function OnboardingWizard({
   const save = async () => {
     setSaving(true);
     const cals = calsPreview();
+    const jsonH = { ...authHeaders, "Content-Type": "application/json" };
+    const weight = parseFloat(form.currentWeight);
     await fetch(`/api/admin/health/profiles/${userId}`, {
       method: "PUT",
-      headers: { ...authHeaders, "Content-Type": "application/json" },
+      headers: jsonH,
       body: JSON.stringify({
         name: form.name,
         age: parseInt(form.age),
         sex: form.sex,
         height: parseFloat(form.height),
-        currentWeight: parseFloat(form.currentWeight),
+        currentWeight: weight,
         targetWeight: parseFloat(form.targetWeight),
         dailyCalories: cals ?? 1500,
         bodyShape: form.bodyShape,
@@ -320,6 +322,10 @@ function OnboardingWizard({
         stepTarget: parseInt(form.stepTarget),
         onboardingComplete: true,
       }),
+    });
+    // Seed today's weight log so latestWeight shows immediately after onboarding
+    await fetch(`/api/admin/health/weight/${userId}`, {
+      method: "POST", headers: jsonH, body: JSON.stringify({ weight }),
     });
     onComplete();
   };

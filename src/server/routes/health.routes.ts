@@ -133,14 +133,30 @@ router.put("/profiles/:userId", requireFirebaseAuth, requireHealthAccess, async 
     const docRef = db.collection(PROFILES_COL).doc(req.params.userId);
     const existing = await docRef.get();
     const payload = { ...req.body };
-    if (!existing.exists) {
+    const isNew = !existing.exists;
+    if (isNew) {
       if (payload.currentWeight) payload.startWeight = payload.currentWeight;
       payload.createdAt = TODAY();
     } else if (payload.onboardingComplete && !existing.data()?.createdAt) {
-      // Backfill createdAt for profiles that completed onboarding before this field existed
       payload.createdAt = TODAY();
     }
     await docRef.set(payload, { merge: true });
+
+    // Seed weight log on profile creation or first onboarding completion so latestWeight is never null
+    if (payload.currentWeight && (isNew || (!existing.data()?.onboardingComplete && payload.onboardingComplete))) {
+      const today = TODAY();
+      const weightRef = db.collection(WEIGHT_COL).doc(`${req.params.userId}_${today}`);
+      const weightDoc = await weightRef.get();
+      if (!weightDoc.exists) {
+        await weightRef.set({
+          userId: req.params.userId,
+          weight: parseFloat(String(payload.currentWeight)),
+          date: today,
+          loggedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: String(error) });
