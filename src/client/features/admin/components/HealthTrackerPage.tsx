@@ -1417,6 +1417,26 @@ function ProfilePanel({
           </Section>
         )}
 
+        {/* Daily Forecast */}
+        <Section title="Analizează ziua de azi" t={t} defaultOpen={false}>
+          <DailyForecastSection
+            userId={userId}
+            accentColor={accentColor}
+            authHeaders={authHeaders}
+            t={t}
+          />
+        </Section>
+
+        {/* Health Chat */}
+        <Section title="💬 Antrenor AI personal" t={t} defaultOpen={false}>
+          <HealthChatSection
+            userId={userId}
+            accentColor={accentColor}
+            authHeaders={authHeaders}
+            t={t}
+          />
+        </Section>
+
         {/* AI Pattern Analysis */}
         <Section
           title="Analiză AI — ce funcționează pentru tine"
@@ -1474,6 +1494,267 @@ function ProfilePanel({
             </div>
           )}
         </Section>
+      </div>
+    </div>
+  );
+}
+
+// ── Daily Forecast ────────────────────────────────────────────────────────────
+
+interface ForecastMeal { when: string; suggestion: string; calories: number; tip: string; }
+interface DailyForecast {
+  summary: string;
+  stepsLeft: number;
+  caloriesLeft: number;
+  caloriesBurned: number;
+  movement: { activity: string; duration: string; why: string; };
+  meals: ForecastMeal[];
+  warning: string | null;
+  motivation: string;
+}
+
+function DailyForecastSection({
+  userId, accentColor, authHeaders, t,
+}: { userId: string; accentColor: string; authHeaders: Record<string, string>; t: HT; }) {
+  const [forecast, setForecast] = useState<DailyForecast | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const analyze = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/health/forecast/${userId}`, { method: "POST", headers: authHeaders });
+      const data = await res.json() as { forecast?: DailyForecast; error?: string };
+      if (!res.ok || !data.forecast) { setError(data.error ?? "Eroare la analiză"); }
+      else setForecast(data.forecast);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {!forecast && !loading && (
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          <p style={{ color: t.t4, fontSize: 13, marginBottom: 14 }}>
+            Analizez ultimele 14 zile și îți spun exact ce să faci azi pentru a slăbi cât mai eficient.
+          </p>
+          <button onClick={analyze}
+            style={{ padding: "12px 28px", background: accentColor, border: "none", borderRadius: 10, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: "0.02em" }}
+          >
+            🔍 Analizează
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ textAlign: "center", padding: "28px 0" }}>
+          <p style={{ color: accentColor, fontSize: 13 }}>🧠 Analizez istoricul și calculez planul optim pentru azi...</p>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ padding: "10px 12px", background: t.redBg, border: `1px solid ${t.redBdr}`, borderRadius: 8, fontSize: 12, color: "#f87171" }}>
+          {error}
+        </div>
+      )}
+
+      {forecast && !loading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Summary */}
+          <div style={{ padding: "12px 14px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 10 }}>
+            <p style={{ fontSize: 13, color: t.t2, margin: 0, lineHeight: 1.6 }}>{forecast.summary}</p>
+          </div>
+
+          {/* Stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {[
+              { label: "Pași rămași", value: (forecast.stepsLeft ?? 0).toLocaleString(), unit: "pași", color: "#3b82f6" },
+              { label: "Calorii rămase", value: forecast.caloriesLeft ?? 0, unit: "kcal", color: "#10b981" },
+              { label: "Arși până acum", value: forecast.caloriesBurned ?? 0, unit: "kcal", color: accentColor },
+            ].map((s) => (
+              <div key={s.label} style={{ padding: "10px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 8, textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: t.t4, marginBottom: 4 }}>{s.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+                <div style={{ fontSize: 10, color: t.t5 }}>{s.unit}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Movement */}
+          <div style={{ padding: "10px 12px", background: t.greenBg, border: `1px solid ${t.greenBdr}`, borderRadius: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#4ade80", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Mișcare recomandată azi</div>
+            <div style={{ fontSize: 13, color: t.t1, fontWeight: 600 }}>{forecast.movement.activity} · {forecast.movement.duration}</div>
+            <div style={{ fontSize: 11, color: t.t3, marginTop: 3 }}>{forecast.movement.why}</div>
+          </div>
+
+          {/* Meals */}
+          {forecast.meals.length > 0 && (
+            <div style={{ padding: "10px 12px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: t.t4, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Ce să mănânci azi</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {forecast.meals.map((meal, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <div style={{ fontSize: 10, color: accentColor, fontWeight: 600, minWidth: 48, marginTop: 2 }}>{meal.when}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, color: t.t2, fontWeight: 500 }}>{meal.suggestion}</div>
+                      {meal.tip && <div style={{ fontSize: 11, color: t.t4, marginTop: 2 }}>{meal.tip}</div>}
+                    </div>
+                    <div style={{ fontSize: 11, color: t.t4, whiteSpace: "nowrap" }}>{meal.calories} kcal</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Warning */}
+          {forecast.warning && (
+            <div style={{ padding: "10px 12px", background: t.yellowBg, border: `1px solid #78350f44`, borderRadius: 10, fontSize: 12, color: "#fbbf24" }}>
+              ⚠️ {forecast.warning}
+            </div>
+          )}
+
+          {/* Motivation */}
+          <div style={{ padding: "10px 12px", background: t.purpleBg2, border: `1px solid ${accentColor}22`, borderRadius: 10, fontSize: 12, color: t.t3, fontStyle: "italic", lineHeight: 1.6 }}>
+            💜 {forecast.motivation}
+          </div>
+
+          <button onClick={analyze} disabled={loading}
+            style={{ alignSelf: "flex-end", fontSize: 10, padding: "5px 12px", background: "transparent", border: `1px solid ${t.b2}`, borderRadius: 6, color: t.t4, cursor: "pointer" }}
+          >
+            🔄 Reanalizeaz&#259;
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Health Chat ────────────────────────────────────────────────────────────────
+
+interface HealthChatMsg { role: "user" | "assistant"; content: string; }
+
+function HealthChatSection({
+  userId, accentColor, authHeaders, t,
+}: { userId: string; accentColor: string; authHeaders: Record<string, string>; t: HT; }) {
+  const [messages, setMessages] = useState<HealthChatMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    const userMsg: HealthChatMsg = { role: "user", content: text };
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    setInput("");
+    setSending(true);
+    try {
+      const res = await fetch(`/api/admin/health/chat/${userId}`, {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: updated }),
+      });
+      const data = await res.json() as { reply?: string; error?: string };
+      if (data.reply) setMessages((prev) => [...prev, { role: "assistant", content: data.reply! }]);
+      else setMessages((prev) => [...prev, { role: "assistant", content: `⚠️ ${data.error ?? "Eroare"}` }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: "assistant", content: `⚠️ ${err instanceof Error ? err.message : String(err)}` }]);
+    }
+    setSending(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const SUGGESTIONS = [
+    "Ce ar trebui să mănânc azi ca să slăbesc?",
+    "Câte calorii ard dacă merg 10.000 de pași?",
+    "De ce staghez? Ce fac greșit?",
+    "Ce exerciții să fac dacă am 30 min liber?",
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 0, border: `1px solid ${t.b1}`, borderRadius: 12, overflow: "hidden" }}>
+      {/* Messages */}
+      <div style={{ minHeight: 200, maxHeight: 380, overflowY: "auto", padding: "14px 14px 10px", display: "flex", flexDirection: "column", gap: 10, background: t.bg }}>
+        {messages.length === 0 && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+            <p style={{ fontSize: 12, color: t.t4, textAlign: "center", margin: "20px 0 12px" }}>
+              🏋️ Antrenor personal AI — bazat pe datele tale reale
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {SUGGESTIONS.map((s) => (
+                <button key={s} onClick={() => { setInput(s); setTimeout(() => inputRef.current?.focus(), 50); }}
+                  style={{ padding: "8px 12px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 8, color: t.t3, fontSize: 12, cursor: "pointer", textAlign: "left", transition: "border-color 0.15s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = accentColor + "88")}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.b1)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{
+              maxWidth: "85%", padding: "9px 12px", borderRadius: msg.role === "user" ? "12px 12px 3px 12px" : "12px 12px 12px 3px",
+              background: msg.role === "user" ? accentColor : t.s1,
+              border: msg.role === "assistant" ? `1px solid ${t.b1}` : "none",
+              fontSize: 13, color: msg.role === "user" ? "#fff" : t.t2, lineHeight: 1.55,
+              whiteSpace: "pre-wrap",
+            }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        {sending && (
+          <div style={{ display: "flex", alignItems: "flex-start" }}>
+            <div style={{ padding: "9px 14px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: "12px 12px 12px 3px", fontSize: 13, color: t.t4 }}>
+              <span style={{ display: "inline-flex", gap: 3 }}>
+                {[0, 1, 2].map((j) => (
+                  <span key={j} style={{ width: 5, height: 5, borderRadius: "50%", background: t.t4, display: "inline-block", animation: `pulse 1.2s ${j * 0.2}s infinite` }} />
+                ))}
+              </span>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div style={{ display: "flex", gap: 0, borderTop: `1px solid ${t.b1}`, background: t.s1 }}>
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
+          placeholder="Întreabă ceva despre nutriție, sport, greutate..."
+          rows={2}
+          style={{
+            flex: 1, padding: "10px 12px", background: "transparent", border: "none", outline: "none",
+            color: t.t1, fontSize: 13, resize: "none", lineHeight: 1.5, fontFamily: "inherit",
+          }}
+        />
+        <button
+          onClick={() => void send()}
+          disabled={!input.trim() || sending}
+          style={{
+            padding: "0 16px", background: input.trim() && !sending ? accentColor : t.b1,
+            border: "none", color: input.trim() && !sending ? "#fff" : t.t5,
+            fontSize: 18, cursor: input.trim() && !sending ? "pointer" : "default",
+            transition: "background 0.15s, color 0.15s", flexShrink: 0,
+          }}
+        >
+          ↑
+        </button>
       </div>
     </div>
   );
