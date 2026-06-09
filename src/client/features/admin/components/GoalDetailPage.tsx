@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS: AdminSettings = {
     beneficiaryName: "",
     iban: "",
   },
+  bankProfiles: [],
 };
 
 function normalizeSettings(settingsData: Partial<AdminSettings>): AdminSettings {
