@@ -238,7 +238,14 @@ async function runZipCheck() {
 
     console.log(`[album-zip-check] Notificat pentru ${toNotify.length} albume: ${toNotify.map((album) => album.slug).join(", ")}`);
   } catch (error) {
-    console.error("[album-zip-check] Eroare:", error);
+    const isNetworkError = error instanceof Error &&
+      ("code" in error) &&
+      (error as NodeJS.ErrnoException).code === "ENOTFOUND";
+    if (isNetworkError) {
+      console.warn("[album-zip-check] DNS unavailable — skip (storage.bunnycdn.com not reachable)");
+    } else {
+      console.error("[album-zip-check] Eroare:", error);
+    }
   }
 }
 
