@@ -69,6 +69,13 @@ export interface Goal {
   endDate: string;
 }
 
+export interface BankProfile {
+  id: string;
+  label: string;
+  beneficiaryName: string;
+  iban: string;
+}
+
 export interface AdminSettings {
   goals: {
     sixMonths: Goal;
@@ -80,4 +87,5 @@ export interface AdminSettings {
     beneficiaryName: string;
     iban: string;
   };
+  bankProfiles: BankProfile[];
 }

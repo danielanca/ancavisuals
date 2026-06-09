@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import type { BankProfile } from "../../types";
 
 interface CreateContractState {
   eventId?: string;
@@ -192,6 +193,10 @@ const CreateContractPage: React.FC = () => {
   const [restPaidAt, setRestPaidAt] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Transfer bancar");
 
+  // Bank profiles
+  const [bankProfiles, setBankProfiles] = useState<BankProfile[]>([]);
+  const [selectedBankProfileId, setSelectedBankProfileId] = useState("");
+
   // Transport
   const [transportKm, setTransportKm] = useState("");
   const [transportFuelPrice, setTransportFuelPrice] = useState("10");
@@ -242,6 +247,7 @@ const CreateContractPage: React.FC = () => {
       if (draft.clientAddress !== undefined) setClientAddress(draft.clientAddress);
       if (draft.clientIdSeries !== undefined) setClientIdSeries(draft.clientIdSeries);
       if (draft.privateClient !== undefined) setPrivateClient(draft.privateClient);
+      if (draft.selectedBankProfileId !== undefined) setSelectedBankProfileId(draft.selectedBankProfileId);
       setDraftRestored(true);
     } catch { /* ignore corrupt draft */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,6 +263,7 @@ const CreateContractPage: React.FC = () => {
           currency, manualTotal, priceTotal, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
           transportKm, transportFuelPrice,
           clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
+          selectedBankProfileId,
         }));
       } catch { /* quota exceeded, ignore */ }
     }, 600);
@@ -267,6 +274,7 @@ const CreateContractPage: React.FC = () => {
     currency, manualTotal, priceTotal, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
     transportKm, transportFuelPrice,
     clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
+    selectedBankProfileId,
   ]);
 
   // Fetch live EUR/RON rate from Frankfurter (ECB data) on mount
@@ -283,6 +291,31 @@ const CreateContractPage: React.FC = () => {
       })
       .catch(() => {})
       .finally(() => setEurRateLoading(false));
+  }, []);
+
+  // Fetch bank profiles from settings
+  useEffect(() => {
+    fetch("/api/admin/settings")
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) return;
+        let profiles: BankProfile[] = Array.isArray(data.bankProfiles) ? data.bankProfiles : [];
+        if (profiles.length === 0 && (data.bankDetails?.beneficiaryName || data.bankDetails?.iban)) {
+          profiles = [{
+            id: "legacy",
+            label: "Cont principal",
+            beneficiaryName: data.bankDetails.beneficiaryName ?? "",
+            iban: data.bankDetails.iban ?? "",
+          }];
+        }
+        setBankProfiles(profiles);
+        setSelectedBankProfileId(prev => {
+          if (prev) return prev;
+          return profiles[0]?.id ?? "";
+        });
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-update transport price when km / fuel price changes
@@ -371,6 +404,7 @@ const CreateContractPage: React.FC = () => {
           })),
       ];
 
+      const selectedBankProfile = bankProfiles.find(p => p.id === selectedBankProfileId);
       const payload = {
         eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
         services: allServices,
@@ -382,6 +416,8 @@ const CreateContractPage: React.FC = () => {
         advancePaidAt,
         restPaidAt,
         paymentMethod,
+        bankBeneficiaryName: paymentMethod === "Transfer bancar" ? (selectedBankProfile?.beneficiaryName ?? "") : "",
+        bankIban: paymentMethod === "Transfer bancar" ? (selectedBankProfile?.iban ?? "") : "",
         clientEmail,
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
@@ -710,6 +746,53 @@ const CreateContractPage: React.FC = () => {
                 {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
               </select>
             </div>
+
+            {paymentMethod === "Transfer bancar" && bankProfiles.length > 0 && (
+              <div>
+                <Label>Cont bancar pentru transfer</Label>
+                <div className="space-y-2">
+                  {bankProfiles.map(profile => (
+                    <label
+                      key={profile.id}
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                        selectedBankProfileId === profile.id
+                          ? "border-emerald-500/40 bg-emerald-500/5"
+                          : "border-neutral-700 hover:border-neutral-600"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="bankProfile"
+                        value={profile.id}
+                        checked={selectedBankProfileId === profile.id}
+                        onChange={() => setSelectedBankProfileId(profile.id)}
+                        className="accent-emerald-500 mt-0.5 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm text-neutral-200 font-medium">{profile.label}</div>
+                        {profile.beneficiaryName && (
+                          <div className="text-xs text-neutral-500 mt-0.5">{profile.beneficiaryName}</div>
+                        )}
+                        {profile.iban && (
+                          <div className="text-xs text-neutral-400 font-mono mt-0.5 tracking-wide">{profile.iban}</div>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === "Transfer bancar" && bankProfiles.length === 0 && (
+              <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
+                <span className="text-amber-400 text-xs">
+                  Nu ai configurat niciun cont bancar.{" "}
+                  <a href="/admin/bank-details" className="underline hover:text-amber-300">
+                    Adaugă un profil →
+                  </a>
+                </span>
+              </div>
+            )}
 
             {/* Payment overview */}
             {effectiveTotal > 0 && (

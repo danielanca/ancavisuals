@@ -93,6 +93,9 @@ router.post("/", async (req: Request, res: Response) => {
       clientPhone: body.clientPhone?.trim() ?? "",
       clientAddress: body.clientAddress?.trim() ?? "",
       clientIdSeries: body.clientIdSeries?.trim() ?? "",
+
+      bankBeneficiaryName: body.bankBeneficiaryName?.trim() ?? "",
+      bankIban: body.bankIban?.trim().toUpperCase() ?? "",
     };
 
     const docRef = await db.collection("contracts").add({
@@ -148,12 +151,12 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
     const snapshot = await db.collection("contracts").where("token", "==", token).limit(1).get();
     if (snapshot.empty) return res.status(404).json({ error: "Contract negăsit." });
     const data = snapshot.docs[0].data();
-    const bankDetails = await getAdminBankDetails();
+    const settingsBankDetails = await getAdminBankDetails();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { clientSignatureBase64, prestatorSignatureBase64, clientIp, clientEmail, pdfUrl, ...publicData } = data;
     const pdfBuffer = await generateContractPDF({
-      ...publicData,
-      ...bankDetails,
+      ...settingsBankDetails,  // settings as fallback
+      ...publicData,           // contract-stored bank details take precedence
       createdAt: tsToISO(data.createdAt),
       ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
@@ -178,12 +181,12 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
     const snapshot = await db.collection("contracts").where("token", "==", token).limit(1).get();
     if (snapshot.empty) return res.status(404).send("<p>Contract negăsit.</p>");
     const data = snapshot.docs[0].data();
-    const bankDetails = await getAdminBankDetails();
+    const settingsBankDetails = await getAdminBankDetails();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { clientSignatureBase64, clientIp, clientEmail, pdfUrl, ...publicData } = data;
     const html = buildContractHTML({
+      ...settingsBankDetails,
       ...publicData,
-      ...bankDetails,
       createdAt: tsToISO(data.createdAt),
       ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
@@ -222,7 +225,7 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
       return res.status(410).json({ error: "Contractul a expirat.", status: "expired" });
     }
 
-    const bankDetails = await getAdminBankDetails();
+    const settingsBankDetails = await getAdminBankDetails();
 
     // Don't expose sensitive fields to the client
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -230,8 +233,8 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
 
     res.json({
       id: doc.id,
+      ...settingsBankDetails,
       ...publicData,
-      ...bankDetails,
       createdAt: tsToISO(data.createdAt),
     });
   } catch (error) {
@@ -705,8 +708,8 @@ async function generateAndSendPDF(contract: Record<string, unknown>): Promise<vo
   let pdfUrl: string | null = null;
 
   try {
-    const bankDetails = await getAdminBankDetails();
-    const pdfBuffer = await generateContractPDF({ ...contract, ...bankDetails });
+    const settingsBankDetails = await getAdminBankDetails();
+    const pdfBuffer = await generateContractPDF({ ...settingsBankDetails, ...contract });
     const filename = buildPdfFilename(contract);
     pdfUrl = await uploadPdfToStorage(pdfBuffer, filename);
     if (contract.id) {

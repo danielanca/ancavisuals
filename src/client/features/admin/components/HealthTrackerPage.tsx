@@ -1417,6 +1417,41 @@ function ProfilePanel({
           </Section>
         )}
 
+        {/* Daily Forecast */}
+        <Section title="Analizează ziua de azi" t={t} defaultOpen={false}>
+          <DailyForecastSection
+            userId={userId}
+            accentColor={accentColor}
+            authHeaders={authHeaders}
+            t={t}
+          />
+        </Section>
+
+        {/* Health Chat */}
+        <Section title="💬 Antrenor AI personal" t={t} defaultOpen={false}>
+          <HealthChatSection
+            userId={userId}
+            accentColor={accentColor}
+            authHeaders={authHeaders}
+            t={t}
+          />
+        </Section>
+
+        {/* AI Pattern Analysis */}
+        <Section
+          title="Analiză AI — ce funcționează pentru tine"
+          t={t}
+          defaultOpen={false}
+        >
+          <PatternInsightsSection
+            userId={userId}
+            accentColor={accentColor}
+            authHeaders={authHeaders}
+            t={t}
+            currentWeight={history.length > 0 ? history[history.length - 1].weight : (profile?.currentWeight ?? 80)}
+          />
+        </Section>
+
         {/* AI Meal Plan */}
         <Section
           title={`Plan alimentar${rec?.date ? ` — ${rec.date}` : " — azi"}`}
@@ -1460,6 +1495,483 @@ function ProfilePanel({
           )}
         </Section>
       </div>
+    </div>
+  );
+}
+
+// ── Daily Forecast ────────────────────────────────────────────────────────────
+
+interface ForecastMeal { when: string; suggestion: string; calories: number; tip: string; }
+interface DailyForecast {
+  summary: string;
+  stepsLeft: number;
+  caloriesLeft: number;
+  caloriesBurned: number;
+  movement: { activity: string; duration: string; why: string; };
+  meals: ForecastMeal[];
+  warning: string | null;
+  motivation: string;
+}
+
+function DailyForecastSection({
+  userId, accentColor, authHeaders, t,
+}: { userId: string; accentColor: string; authHeaders: Record<string, string>; t: HT; }) {
+  const [forecast, setForecast] = useState<DailyForecast | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const analyze = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/health/forecast/${userId}`, { method: "POST", headers: authHeaders });
+      const data = await res.json() as { forecast?: DailyForecast; error?: string };
+      if (!res.ok || !data.forecast) { setError(data.error ?? "Eroare la analiză"); }
+      else setForecast(data.forecast);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {!forecast && !loading && (
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          <p style={{ color: t.t4, fontSize: 13, marginBottom: 14 }}>
+            Analizez ultimele 14 zile și îți spun exact ce să faci azi pentru a slăbi cât mai eficient.
+          </p>
+          <button onClick={analyze}
+            style={{ padding: "12px 28px", background: accentColor, border: "none", borderRadius: 10, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: "0.02em" }}
+          >
+            🔍 Analizează
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ textAlign: "center", padding: "28px 0" }}>
+          <p style={{ color: accentColor, fontSize: 13 }}>🧠 Analizez istoricul și calculez planul optim pentru azi...</p>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ padding: "10px 12px", background: t.redBg, border: `1px solid ${t.redBdr}`, borderRadius: 8, fontSize: 12, color: "#f87171" }}>
+          {error}
+        </div>
+      )}
+
+      {forecast && !loading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Summary */}
+          <div style={{ padding: "12px 14px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 10 }}>
+            <p style={{ fontSize: 13, color: t.t2, margin: 0, lineHeight: 1.6 }}>{forecast.summary}</p>
+          </div>
+
+          {/* Stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {[
+              { label: "Pași rămași", value: (forecast.stepsLeft ?? 0).toLocaleString(), unit: "pași", color: "#3b82f6" },
+              { label: "Calorii rămase", value: forecast.caloriesLeft ?? 0, unit: "kcal", color: "#10b981" },
+              { label: "Arși până acum", value: forecast.caloriesBurned ?? 0, unit: "kcal", color: accentColor },
+            ].map((s) => (
+              <div key={s.label} style={{ padding: "10px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 8, textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: t.t4, marginBottom: 4 }}>{s.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+                <div style={{ fontSize: 10, color: t.t5 }}>{s.unit}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Movement */}
+          <div style={{ padding: "10px 12px", background: t.greenBg, border: `1px solid ${t.greenBdr}`, borderRadius: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#4ade80", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Mișcare recomandată azi</div>
+            <div style={{ fontSize: 13, color: t.t1, fontWeight: 600 }}>{forecast.movement.activity} · {forecast.movement.duration}</div>
+            <div style={{ fontSize: 11, color: t.t3, marginTop: 3 }}>{forecast.movement.why}</div>
+          </div>
+
+          {/* Meals */}
+          {forecast.meals.length > 0 && (
+            <div style={{ padding: "10px 12px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: t.t4, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Ce să mănânci azi</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {forecast.meals.map((meal, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <div style={{ fontSize: 10, color: accentColor, fontWeight: 600, minWidth: 48, marginTop: 2 }}>{meal.when}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, color: t.t2, fontWeight: 500 }}>{meal.suggestion}</div>
+                      {meal.tip && <div style={{ fontSize: 11, color: t.t4, marginTop: 2 }}>{meal.tip}</div>}
+                    </div>
+                    <div style={{ fontSize: 11, color: t.t4, whiteSpace: "nowrap" }}>{meal.calories} kcal</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Warning */}
+          {forecast.warning && (
+            <div style={{ padding: "10px 12px", background: t.yellowBg, border: `1px solid #78350f44`, borderRadius: 10, fontSize: 12, color: "#fbbf24" }}>
+              ⚠️ {forecast.warning}
+            </div>
+          )}
+
+          {/* Motivation */}
+          <div style={{ padding: "10px 12px", background: t.purpleBg2, border: `1px solid ${accentColor}22`, borderRadius: 10, fontSize: 12, color: t.t3, fontStyle: "italic", lineHeight: 1.6 }}>
+            💜 {forecast.motivation}
+          </div>
+
+          <button onClick={analyze} disabled={loading}
+            style={{ alignSelf: "flex-end", fontSize: 10, padding: "5px 12px", background: "transparent", border: `1px solid ${t.b2}`, borderRadius: 6, color: t.t4, cursor: "pointer" }}
+          >
+            🔄 Reanalizeaz&#259;
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Health Chat ────────────────────────────────────────────────────────────────
+
+interface HealthChatMsg { role: "user" | "assistant"; content: string; }
+
+function HealthChatSection({
+  userId, accentColor, authHeaders, t,
+}: { userId: string; accentColor: string; authHeaders: Record<string, string>; t: HT; }) {
+  const [messages, setMessages] = useState<HealthChatMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    const userMsg: HealthChatMsg = { role: "user", content: text };
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    setInput("");
+    setSending(true);
+    try {
+      const res = await fetch(`/api/admin/health/chat/${userId}`, {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: updated }),
+      });
+      const data = await res.json() as { reply?: string; error?: string };
+      if (data.reply) setMessages((prev) => [...prev, { role: "assistant", content: data.reply! }]);
+      else setMessages((prev) => [...prev, { role: "assistant", content: `⚠️ ${data.error ?? "Eroare"}` }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: "assistant", content: `⚠️ ${err instanceof Error ? err.message : String(err)}` }]);
+    }
+    setSending(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const SUGGESTIONS = [
+    "Ce ar trebui să mănânc azi ca să slăbesc?",
+    "Câte calorii ard dacă merg 10.000 de pași?",
+    "De ce staghez? Ce fac greșit?",
+    "Ce exerciții să fac dacă am 30 min liber?",
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 0, border: `1px solid ${t.b1}`, borderRadius: 12, overflow: "hidden" }}>
+      {/* Messages */}
+      <div style={{ minHeight: 200, maxHeight: 380, overflowY: "auto", padding: "14px 14px 10px", display: "flex", flexDirection: "column", gap: 10, background: t.bg }}>
+        {messages.length === 0 && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+            <p style={{ fontSize: 12, color: t.t4, textAlign: "center", margin: "20px 0 12px" }}>
+              🏋️ Antrenor personal AI — bazat pe datele tale reale
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {SUGGESTIONS.map((s) => (
+                <button key={s} onClick={() => { setInput(s); setTimeout(() => inputRef.current?.focus(), 50); }}
+                  style={{ padding: "8px 12px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 8, color: t.t3, fontSize: 12, cursor: "pointer", textAlign: "left", transition: "border-color 0.15s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = accentColor + "88")}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.b1)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{
+              maxWidth: "85%", padding: "9px 12px", borderRadius: msg.role === "user" ? "12px 12px 3px 12px" : "12px 12px 12px 3px",
+              background: msg.role === "user" ? accentColor : t.s1,
+              border: msg.role === "assistant" ? `1px solid ${t.b1}` : "none",
+              fontSize: 13, color: msg.role === "user" ? "#fff" : t.t2, lineHeight: 1.55,
+              whiteSpace: "pre-wrap",
+            }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        {sending && (
+          <div style={{ display: "flex", alignItems: "flex-start" }}>
+            <div style={{ padding: "9px 14px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: "12px 12px 12px 3px", fontSize: 13, color: t.t4 }}>
+              <span style={{ display: "inline-flex", gap: 3 }}>
+                {[0, 1, 2].map((j) => (
+                  <span key={j} style={{ width: 5, height: 5, borderRadius: "50%", background: t.t4, display: "inline-block", animation: `pulse 1.2s ${j * 0.2}s infinite` }} />
+                ))}
+              </span>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div style={{ display: "flex", gap: 0, borderTop: `1px solid ${t.b1}`, background: t.s1 }}>
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
+          placeholder="Întreabă ceva despre nutriție, sport, greutate..."
+          rows={2}
+          style={{
+            flex: 1, padding: "10px 12px", background: "transparent", border: "none", outline: "none",
+            color: t.t1, fontSize: 13, resize: "none", lineHeight: 1.5, fontFamily: "inherit",
+          }}
+        />
+        <button
+          onClick={() => void send()}
+          disabled={!input.trim() || sending}
+          style={{
+            padding: "0 16px", background: input.trim() && !sending ? accentColor : t.b1,
+            border: "none", color: input.trim() && !sending ? "#fff" : t.t5,
+            fontSize: 18, cursor: input.trim() && !sending ? "pointer" : "default",
+            transition: "background 0.15s, color 0.15s", flexShrink: 0,
+          }}
+        >
+          ↑
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Pattern Insights ──────────────────────────────────────────────────────────
+
+interface PatternItem { pattern: string; impact: string; emoji: string; }
+interface PatternInsights {
+  weeklyChange: number;
+  monthlyChange: number;
+  direction: "losing" | "stalling" | "gaining";
+  positivePatterns: PatternItem[];
+  negativePatterns: PatternItem[];
+  todayRecommendation: string;
+  keyInsight: string;
+  dataPoints: number;
+}
+
+function stepsToKcal(steps: number, weightKg: number): number {
+  // ~0.04 kcal per step per kg body weight (average stride ~0.75m, MET ~3.5)
+  return Math.round(steps * 0.04 * (weightKg / 70));
+}
+
+function PatternInsightsSection({
+  userId, accentColor, authHeaders, t, currentWeight,
+}: {
+  userId: string; accentColor: string; authHeaders: Record<string, string>; t: HT; currentWeight: number;
+}) {
+  const [patterns, setPatterns] = useState<PatternInsights | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const fetchPatterns = useCallback(async (force = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (!force) {
+        const cacheRes = await fetch(`/api/admin/health/patterns/${userId}`, { headers: authHeaders });
+        if (cacheRes.ok) {
+          const cacheData = await cacheRes.json() as { patterns: PatternInsights | null; stale?: boolean };
+          if (cacheData.patterns && !cacheData.stale) {
+            setPatterns(cacheData.patterns);
+            setStale(false);
+            setLoaded(true);
+            setLoading(false);
+            return;
+          }
+          if (cacheData.patterns) setPatterns(cacheData.patterns);
+          if (cacheData.stale) setStale(true);
+        }
+      }
+      const res = await fetch(`/api/admin/health/patterns/${userId}`, {
+        method: "POST",
+        headers: authHeaders,
+      });
+      const data = await res.json() as { patterns?: PatternInsights; error?: string };
+      if (!res.ok || !data.patterns) { setError(data.error ?? "Eroare la analiză"); setLoading(false); return; }
+      setPatterns(data.patterns);
+      setStale(false);
+      setLoaded(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setLoading(false);
+  }, [userId, authHeaders]);
+
+  useEffect(() => {
+    fetch(`/api/admin/health/patterns/${userId}`, { headers: authHeaders })
+      .then((r) => r.json() as Promise<{ patterns: PatternInsights | null; stale?: boolean }>)
+      .then((data) => {
+        if (data.patterns) { setPatterns(data.patterns); setStale(!!data.stale); setLoaded(true); }
+      }).catch(() => {});
+  }, [userId, authHeaders]);
+
+  const directionColor = patterns?.direction === "losing" ? "#4ade80"
+    : patterns?.direction === "gaining" ? "#f87171" : "#fbbf24";
+  const directionLabel = patterns?.direction === "losing" ? "Scazi în greutate 🎯"
+    : patterns?.direction === "gaining" ? "Câștigi în greutate ⚠️" : "Stagnare — ajustare necesară ⚡";
+
+  const kcalPer1000 = stepsToKcal(1000, currentWeight);
+  const kcalPer8000 = stepsToKcal(8000, currentWeight);
+  const grPer8000 = (kcalPer8000 / 7700 * 1000).toFixed(0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
+      {/* Steps calorie info */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {[
+          { label: "1.000 pași", kcal: kcalPer1000 },
+          { label: "8.000 pași", kcal: kcalPer8000 },
+          { label: "8.000 pași/zi = grăsime", value: `~${grPer8000}g/zi` },
+        ].map((item) => (
+          <div key={item.label} style={{ flex: "1 1 100px", padding: "8px 10px", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 8, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: t.t4, marginBottom: 3 }}>{item.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: accentColor }}>
+              {"value" in item ? item.value : `~${item.kcal} kcal`}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Analysis section */}
+      {!loaded && !loading && (
+        <div style={{ textAlign: "center", padding: "24px 0" }}>
+          <p style={{ color: t.t4, fontSize: 13, marginBottom: 12 }}>
+            🤖 Analizez pattern-urile din datele tale pentru a găsi ce funcționează cel mai bine.
+          </p>
+          <button onClick={() => fetchPatterns(false)}
+            style={{ padding: "10px 24px", background: accentColor, border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
+            ✨ Analizează acum
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ textAlign: "center", padding: "24px 0" }}>
+          <p style={{ color: accentColor, fontSize: 13 }}>🧠 Claude analizează {patterns?.dataPoints ?? "..."} zile de date...</p>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ padding: "10px 12px", background: t.redBg, border: `1px solid ${t.redBdr}`, borderRadius: 8, fontSize: 12, color: "#f87171" }}>
+          {error}
+        </div>
+      )}
+
+      {patterns && !loading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+          {/* Trend */}
+          <div style={{ padding: "12px 14px", background: t.s1, border: `1px solid ${directionColor}33`, borderRadius: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: directionColor }}>{directionLabel}</span>
+              <span style={{ fontSize: 10, color: t.t4 }}>{patterns.dataPoints} zile analizate</span>
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {[
+                { label: "7 zile", val: patterns.weeklyChange },
+                { label: "30 zile", val: patterns.monthlyChange },
+              ].map(({ label, val }) => (
+                <div key={label} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: t.t4 }}>{label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: val < 0 ? "#4ade80" : val > 0 ? "#f87171" : "#fbbf24" }}>
+                    {val > 0 ? "+" : ""}{typeof val === "number" ? val.toFixed(2) : val} kg
+                  </div>
+                </div>
+              ))}
+            </div>
+            {patterns.keyInsight && (
+              <p style={{ fontSize: 11, color: t.t3, fontStyle: "italic", margin: "8px 0 0", lineHeight: 1.5 }}>
+                💡 {patterns.keyInsight}
+              </p>
+            )}
+          </div>
+
+          {/* Positive patterns */}
+          {patterns.positivePatterns.length > 0 && (
+            <div style={{ padding: "10px 12px", background: t.greenBg, border: `1px solid ${t.greenBdr}`, borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#4ade80", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Ce funcționează ✓
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {patterns.positivePatterns.map((p, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{p.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: 12, color: t.t2, fontWeight: 500 }}>{p.pattern}</div>
+                      <div style={{ fontSize: 11, color: "#4ade80" }}>{p.impact}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Negative patterns */}
+          {patterns.negativePatterns.length > 0 && (
+            <div style={{ padding: "10px 12px", background: t.redBg, border: `1px solid ${t.redBdr}`, borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#f87171", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Ce frânează progresul ✗
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {patterns.negativePatterns.map((p, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{p.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: 12, color: t.t2, fontWeight: 500 }}>{p.pattern}</div>
+                      <div style={{ fontSize: 11, color: "#f87171" }}>{p.impact}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Today recommendation */}
+          {patterns.todayRecommendation && (
+            <div style={{ padding: "10px 12px", background: t.purpleBg2, border: `1px solid ${accentColor}33`, borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: accentColor, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Recomandare pentru mâine
+              </div>
+              <p style={{ fontSize: 12, color: t.t2, margin: 0, lineHeight: 1.6 }}>{patterns.todayRecommendation}</p>
+            </div>
+          )}
+
+          <button onClick={() => fetchPatterns(true)} disabled={loading}
+            style={{ alignSelf: "flex-end", fontSize: 10, padding: "5px 12px", background: "transparent", border: `1px solid ${t.b2}`, borderRadius: 6, color: t.t4, cursor: "pointer" }}
+          >
+            {stale ? "⚠ Date vechi — " : ""}🔄 Reanalizeaz&#259;
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -542,6 +542,162 @@ router.get("/food/:userId", requireFirebaseAuth, requireHealthAccess, async (req
   }
 });
 
+// ── AI PATTERN ANALYSIS ──────────────────────────────────────────────────────
+
+const PATTERNS_COL = "health_patterns";
+const PATTERNS_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+router.get("/patterns/:userId", requireFirebaseAuth, requireHealthAccess, async (req: Request, res: Response) => {
+  try {
+    const doc = await firestore().collection(PATTERNS_COL).doc(req.params.userId).get();
+    if (!doc.exists) { res.json({ patterns: null }); return; }
+    const data = doc.data() as { generatedAt?: { toMillis: () => number }; [key: string]: unknown };
+    const ageMs = data.generatedAt ? Date.now() - data.generatedAt.toMillis() : Infinity;
+    const stale = ageMs > PATTERNS_TTL_MS;
+    res.json({ patterns: data, stale });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.post("/patterns/:userId", requireFirebaseAuth, requireHealthAccess, async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const db = firestore();
+
+    const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const [profileDoc, weightSnap, activitySnap, foodSnap] = await Promise.all([
+      db.collection(PROFILES_COL).doc(userId).get(),
+      db.collection(WEIGHT_COL).where("userId", "==", userId).where("date", ">=", cutoff).get(),
+      db.collection(ACTIVITY_COL).where("userId", "==", userId).where("date", ">=", cutoff).get(),
+      db.collection(FOOD_COL).where("userId", "==", userId).get(),
+    ]);
+
+    const profile = profileDoc.data() as {
+      name?: string; height?: number; targetWeight?: number; dailyCalories?: number;
+      age?: number; sex?: string; stepTarget?: number;
+    } | undefined;
+
+    type WeightDoc = { date: string; weight: number };
+    type ActivityDoc = { date: string; steps: number };
+    type FoodDoc = { date: string; totalCalories: number; totalProtein: number; totalCarbs: number; totalFat: number };
+
+    const weightByDate = new Map<string, number>(
+      weightSnap.docs.map((d) => { const w = d.data() as WeightDoc; return [w.date, w.weight]; })
+    );
+    const stepsByDate = new Map<string, number>(
+      activitySnap.docs.map((d) => { const a = d.data() as ActivityDoc; return [a.date, a.steps]; })
+    );
+    const foodByDate = new Map<string, FoodDoc>(
+      foodSnap.docs
+        .map((d) => d.data() as FoodDoc)
+        .filter((f) => f.date >= cutoff)
+        .map((f) => [f.date, f])
+    );
+
+    const sortedDates = [...new Set([...weightByDate.keys(), ...stepsByDate.keys()])]
+      .filter((d) => d >= cutoff)
+      .sort();
+
+    if (sortedDates.length < 5) {
+      res.status(422).json({ error: "Date insuficiente — adaugă cel puțin 5 zile de date pentru analiză." });
+      return;
+    }
+
+    type DayRow = { date: string; weight: string; delta: string; steps: number; stepPct: number; cal: number; prot: number; carbs: number; fat: number };
+    const rows: DayRow[] = [];
+    let prevWeight: number | null = null;
+    for (const date of sortedDates) {
+      const weight = weightByDate.get(date) ?? null;
+      const delta = weight !== null && prevWeight !== null ? weight - prevWeight : null;
+      if (weight !== null) prevWeight = weight;
+      const steps = stepsByDate.get(date) ?? 0;
+      const food = foodByDate.get(date);
+      rows.push({
+        date,
+        weight: weight !== null ? weight.toFixed(1) : "—",
+        delta: delta !== null ? (delta >= 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2)) : "—",
+        steps,
+        stepPct: profile?.stepTarget ? Math.round((steps / profile.stepTarget) * 100) : 0,
+        cal: food?.totalCalories ?? 0,
+        prot: food?.totalProtein ?? 0,
+        carbs: food?.totalCarbs ?? 0,
+        fat: food?.totalFat ?? 0,
+      });
+    }
+
+    const tableText = [
+      "DATA       | KG    | DELTA  | PAȘI  | %ȚINTĂ | CAL  | PROT | CARBS | GRĂS",
+      ...rows.map((r) =>
+        `${r.date} | ${r.weight} | ${r.delta} | ${r.steps} | ${r.stepPct}% | ${r.cal} | ${r.prot} | ${r.carbs} | ${r.fat}`
+      ),
+    ].join("\n");
+
+    const weightValues = rows.map((r) => parseFloat(r.weight)).filter((w) => !isNaN(w));
+    const firstWeight = weightValues[0] ?? 0;
+    const lastWeight = weightValues[weightValues.length - 1] ?? 0;
+    const totalChange = lastWeight - firstWeight;
+
+    const prompt = `Ești un expert în nutriție și pierdere în greutate. Analizează datele de sănătate de mai jos și identifică PATTERN-URIle concrete care au dus la pierdere sau câștig în greutate.
+
+PROFIL:
+- Greutate țintă: ${profile?.targetWeight ?? "?"}kg
+- Calorii zilnice recomandate: ${profile?.dailyCalories ?? "?"}kcal
+- Țintă pași/zi: ${profile?.stepTarget ?? "?"}
+- Perioadă analizată: ${rows.length} zile
+- Schimbare totală: ${totalChange >= 0 ? "+" : ""}${totalChange.toFixed(2)}kg
+
+DATE ZILNICE (ultimele ${rows.length} zile):
+${tableText}
+
+INSTRUCȚIUNI:
+1. Identifică MAXIM 3 pattern-uri POZITIVE (corelații clare cu scădere în greutate)
+2. Identifică MAXIM 3 pattern-uri NEGATIVE (corelații cu stagnare/creștere)
+3. Calculează: schimbare ultimele 7 zile și ultimele 30 zile
+4. Dă O recomandare concretă pentru MÂINE bazată pe date
+5. Formulează O concluzie principală în max 20 cuvinte
+
+Returnează DOAR JSON valid, fără text în jur:
+{
+  "weeklyChange": 0.0,
+  "monthlyChange": 0.0,
+  "direction": "losing|stalling|gaining",
+  "positivePatterns": [
+    { "pattern": "text scurt", "impact": "text scurt cu cifre", "emoji": "emoji" }
+  ],
+  "negativePatterns": [
+    { "pattern": "text scurt", "impact": "text scurt cu cifre", "emoji": "emoji" }
+  ],
+  "todayRecommendation": "text concret actionabil",
+  "keyInsight": "o concluzie în max 20 cuvinte",
+  "dataPoints": ${rows.length}
+}`;
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const rawText = message.content[0].type === "text" ? message.content[0].text : "";
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) { res.status(500).json({ error: "AI nu a returnat JSON valid." }); return; }
+
+    const patterns = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    await db.collection(PATTERNS_COL).doc(userId).set({
+      ...patterns,
+      userId,
+      generatedAt: FieldValue.serverTimestamp(),
+    });
+
+    res.json({ patterns: { ...patterns, userId }, stale: false });
+  } catch (error) {
+    console.error("[health] patterns error:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 router.delete("/food/:userId/:date/:entryId", requireFirebaseAuth, requireHealthAccess, async (req: Request, res: Response) => {
   try {
     const { userId, date, entryId } = req.params;
@@ -559,6 +715,156 @@ router.delete("/food/:userId/:date/:entryId", requireFirebaseAuth, requireHealth
     await docRef.set({ ...existing.data(), entries, totalCalories, totalProtein, totalCarbs, totalFat });
     res.json({ ok: true });
   } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// ── DAILY FORECAST ────────────────────────────────────────────────────────────
+
+router.post("/forecast/:userId", requireFirebaseAuth, requireHealthAccess, async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const db = firestore();
+    const today = TODAY();
+    const cutoff14 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const [profileDoc, weightSnap, activitySnap, foodSnap, todayFoodDoc, todayActivitySnap] = await Promise.all([
+      db.collection(PROFILES_COL).doc(userId).get(),
+      db.collection(WEIGHT_COL).where("userId", "==", userId).where("date", ">=", cutoff14).get(),
+      db.collection(ACTIVITY_COL).where("userId", "==", userId).where("date", ">=", cutoff14).get(),
+      db.collection(FOOD_COL).where("userId", "==", userId).get(),
+      db.collection(FOOD_COL).doc(`${userId}_${today}`).get(),
+      db.collection(ACTIVITY_COL).where("userId", "==", userId).where("date", "==", today).get(),
+    ]);
+
+    type ProfType = { name?: string; height?: number; targetWeight?: number; dailyCalories?: number; age?: number; sex?: string; stepTarget?: number; currentWeight?: number };
+    type WDoc = { date: string; weight: number };
+    type ADoc = { date: string; steps: number };
+    type FDoc = { date: string; totalCalories: number; totalProtein: number; totalCarbs: number; totalFat: number };
+
+    const profile = profileDoc.data() as ProfType | undefined;
+    const weightByDate = new Map(weightSnap.docs.map((d) => { const w = d.data() as WDoc; return [w.date, w.weight]; }));
+    const stepsByDate = new Map(activitySnap.docs.map((d) => { const a = d.data() as ADoc; return [a.date, a.steps]; }));
+    const foodByDate = new Map(
+      foodSnap.docs.map((d) => d.data() as FDoc).filter((f) => f.date >= cutoff14).map((f) => [f.date, f])
+    );
+
+    const sortedDates = [...new Set([...weightByDate.keys(), ...stepsByDate.keys()])].filter((d) => d >= cutoff14 && d < today).sort();
+    const recentRows = sortedDates.slice(-10).map((date) => {
+      const food = foodByDate.get(date);
+      return `${date}: ${weightByDate.get(date) ?? "—"}kg | ${stepsByDate.get(date) ?? 0} pași | ${food?.totalCalories ?? 0}kcal | P:${food?.totalProtein ?? 0}g C:${food?.totalCarbs ?? 0}g G:${food?.totalFat ?? 0}g`;
+    }).join("\n");
+
+    const todayFood = todayFoodDoc.exists ? todayFoodDoc.data() as FDoc : null;
+    const todaySteps = todayActivitySnap.empty ? 0 : (todayActivitySnap.docs[0].data() as ADoc).steps;
+    const latestWeight = [...weightByDate.values()].at(-1) ?? profile?.currentWeight ?? 80;
+
+    const prompt = `Ești un antrenor personal și nutriționist expert în pierdere în greutate. Vorbești în română, direct și motivant.
+
+PROFIL UTILIZATOR:
+- Greutate curentă: ${latestWeight}kg | Țintă: ${profile?.targetWeight ?? "?"}kg | De slăbit: ${Math.max(0, latestWeight - (profile?.targetWeight ?? latestWeight)).toFixed(1)}kg
+- Calorii zilnice recomandate: ${profile?.dailyCalories ?? 1600}kcal
+- Țintă pași/zi: ${profile?.stepTarget ?? 8000}
+
+ULTIMELE 10 ZILE:
+${recentRows || "Date insuficiente"}
+
+AZI (${today}) până acum:
+- Pași: ${todaySteps} / ${profile?.stepTarget ?? 8000}
+- Mâncare logată: ${todayFood ? `${todayFood.totalCalories}kcal (P:${todayFood.totalProtein}g C:${todayFood.totalCarbs}g G:${todayFood.totalFat}g)` : "nimic logat încă"}
+
+Generează un forecast/plan PERSONALIZAT pentru restul zilei de azi. Returnează DOAR JSON valid:
+{
+  "summary": "1-2 fraze despre situația de azi vs istoricul recent",
+  "stepsLeft": 0,
+  "caloriesLeft": 0,
+  "caloriesBurned": 0,
+  "movement": { "activity": "ce să faci", "duration": "cât timp", "why": "de ce asta azi" },
+  "meals": [
+    { "when": "Prânz/Cină/Gustare", "suggestion": "ce să mănânci", "calories": 0, "tip": "sfat specific" }
+  ],
+  "warning": "un risc specific de evitat azi (sau null)",
+  "motivation": "mesaj motivational personalizat bazat pe trend"
+}`;
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const rawText = message.content[0].type === "text" ? message.content[0].text : "";
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) { res.status(500).json({ error: "AI nu a returnat JSON valid." }); return; }
+    const forecast = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    res.json({ forecast, date: today });
+  } catch (error) {
+    console.error("[health] forecast error:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// ── HEALTH CHAT ───────────────────────────────────────────────────────────────
+
+interface ChatMessage { role: "user" | "assistant"; content: string; }
+
+router.post("/chat/:userId", requireFirebaseAuth, requireHealthAccess, async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { messages } = req.body as { messages?: ChatMessage[] };
+    if (!messages || messages.length === 0) { res.status(400).json({ error: "Mesaje lipsă" }); return; }
+
+    const db = firestore();
+    const today = TODAY();
+    const cutoff30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const [profileDoc, weightSnap, activitySnap, todayFoodDoc, patternsDoc] = await Promise.all([
+      db.collection(PROFILES_COL).doc(userId).get(),
+      db.collection(WEIGHT_COL).where("userId", "==", userId).where("date", ">=", cutoff30).orderBy("date", "desc").limit(7).get(),
+      db.collection(ACTIVITY_COL).where("userId", "==", userId).where("date", ">=", cutoff30).orderBy("date", "desc").limit(7).get(),
+      db.collection(FOOD_COL).doc(`${userId}_${today}`).get(),
+      db.collection(PATTERNS_COL).doc(userId).get(),
+    ]);
+
+    type ProfType = { name?: string; height?: number; targetWeight?: number; dailyCalories?: number; age?: number; sex?: string; stepTarget?: number; currentWeight?: number };
+    type WDoc = { date: string; weight: number };
+    type ADoc = { date: string; steps: number };
+    type FoodTodayDoc = { totalCalories: number; totalProtein: number; totalCarbs: number; totalFat: number };
+
+    const profile = profileDoc.data() as ProfType | undefined;
+    const recentWeights = weightSnap.docs.map((d) => { const w = d.data() as WDoc; return `${w.date}: ${w.weight}kg`; }).join(", ");
+    const recentSteps = activitySnap.docs.map((d) => { const a = d.data() as ADoc; return `${a.date}: ${a.steps} pași`; }).join(", ");
+    const todayFood = todayFoodDoc.exists ? todayFoodDoc.data() as FoodTodayDoc : null;
+    const patterns = patternsDoc.exists ? patternsDoc.data() as { keyInsight?: string; direction?: string } : null;
+
+    const systemPrompt = `Ești un antrenor personal și nutriționist specializat în pierdere în greutate. Vorbești EXCLUSIV despre: nutriție, sport, calorii, macronutrienți, exerciții fizice, recuperare, hidratare, somn și impactul lui asupra greutății. Refuzi politicos orice alt subiect.
+
+DATE UTILIZATOR (${profile?.name ?? userId}):
+- Greutate curentă estimată: ${weightSnap.docs[0]?.data()?.weight ?? profile?.currentWeight ?? "?"}kg
+- Greutate țintă: ${profile?.targetWeight ?? "?"}kg
+- Calorii zilnice: ${profile?.dailyCalories ?? 1600}kcal
+- Țintă pași/zi: ${profile?.stepTarget ?? 8000}
+- Vârstă: ${profile?.age ?? "?"} | Sex: ${profile?.sex ?? "?"}
+
+GREUTĂȚI RECENTE: ${recentWeights || "indisponibil"}
+PAȘI RECENȚI: ${recentSteps || "indisponibil"}
+AZI MÂNCAT: ${todayFood ? `${todayFood.totalCalories}kcal (P:${todayFood.totalProtein}g C:${todayFood.totalCarbs}g G:${todayFood.totalFat}g)` : "nimic logat"}
+PATTERN CHEIE: ${patterns?.keyInsight ?? "insuficiente date"}
+TREND: ${patterns?.direction ?? "necunoscut"}
+
+Răspunde concis, practic, bazat pe datele reale ale utilizatorului. Folosește cifrele din profilul lui când e relevant.`;
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 600,
+      system: systemPrompt,
+      messages: messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+    });
+
+    const reply = message.content[0].type === "text" ? message.content[0].text : "";
+    res.json({ reply });
+  } catch (error) {
+    console.error("[health] chat error:", error);
     res.status(500).json({ error: String(error) });
   }
 });
