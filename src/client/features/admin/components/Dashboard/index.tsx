@@ -17,31 +17,122 @@ import AlbumHealthWidget from "../AlbumHealthWidget";
 
 // ── Dashboard Search ──────────────────────────────────────────────────────────
 
-type SearchItem = { label: string; path: string; category: string; keywords?: string };
+type SearchItem = { label: string; path: string; category: string; icon: string; keywords?: string };
 
 const SEARCH_ITEMS: SearchItem[] = [
-  { label: "Calendar", path: "/admin/calendar", category: "Evenimente" },
-  { label: "Mementouri", path: "/admin/mementos", category: "Evenimente" },
-  { label: "Moderare albume", path: "/admin/moderare", category: "Evenimente" },
-  { label: "Foi de parcurs", path: "/admin/route-sheets", category: "Evenimente" },
-  { label: "Contracte", path: "/admin/contracts", category: "Contracte & Oferte" },
-  { label: "Oferte", path: "/admin/oferte", category: "Contracte & Oferte" },
-  { label: "Template Oferte", path: "/admin/template-oferte", category: "Contracte & Oferte" },
-  { label: "Propuneri Media", path: "/admin/instagram-proposals", category: "Media", keywords: "instagram propuneri poze" },
-  { label: "Media Assets", path: "/admin/media-assets", category: "Media", keywords: "assets imagini fisiere" },
-  { label: "QR Moments", path: "/admin/qr-moments", category: "Media" },
-  { label: "Activitate album", path: "/admin/media-activity", category: "Media" },
-  { label: "Optimizare poze", path: "/admin/image-optimizer", category: "Media", keywords: "optimizare imagini compresie" },
-  { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", keywords: "bani venituri cheltuieli" },
-  { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar" },
-  { label: "Detalii bancare", path: "/admin/bank-details", category: "Financiar", keywords: "iban cont" },
-  { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web" },
-  { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web" },
-  { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", keywords: "banner reclama footer poze showcase" },
-  { label: "Conturi", path: "/admin/accounts", category: "Sistem" },
-  { label: "Wedding Hub", path: "/admin/wedding-hub", category: "Sistem" },
-  { label: "Erori server", path: "/admin/errors", category: "Sistem", keywords: "logs erori bugs" },
+  // Evenimente
+  { label: "Calendar", path: "/admin/calendar", category: "Evenimente", icon: "📅" },
+  { label: "Mementouri", path: "/admin/mementos", category: "Evenimente", icon: "🔔", keywords: "remindere notificari" },
+  { label: "Moderare albume", path: "/admin/moderare", category: "Evenimente", icon: "🖼️", keywords: "album moderat aprobare" },
+  { label: "Foi de parcurs", path: "/admin/route-sheets", category: "Evenimente", icon: "🗺️", keywords: "ruta traseu zi eveniment" },
+  // Contracte & Oferte
+  { label: "Contracte", path: "/admin/contracts", category: "Contracte & Oferte", icon: "📝", keywords: "semnat client acord" },
+  { label: "Oferte", path: "/admin/oferte", category: "Contracte & Oferte", icon: "💼", keywords: "pret pachet propunere" },
+  { label: "Template Oferte", path: "/admin/template-oferte", category: "Contracte & Oferte", icon: "📋", keywords: "sablon model oferta" },
+  // Media
+  { label: "Propuneri Media", path: "/admin/instagram-proposals", category: "Media", icon: "📸", keywords: "instagram propuneri poze social" },
+  { label: "Media Assets", path: "/admin/media-assets", category: "Media", icon: "🗂️", keywords: "assets imagini fisiere resurse" },
+  { label: "QR Moments", path: "/admin/qr-moments", category: "Media", icon: "🔲", keywords: "qr cod scanare moment" },
+  { label: "Activitate album", path: "/admin/media-activity", category: "Media", icon: "📊", keywords: "vizualizari descarcare activitate" },
+  { label: "Optimizare poze", path: "/admin/image-optimizer", category: "Media", icon: "⚡", keywords: "compresie webp optimizare imagini" },
+  { label: "Sănătate albume", path: "/admin/album-health", category: "Media", icon: "💊", keywords: "zip webp status album health" },
+  // Financiar
+  { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", icon: "💰", keywords: "bani venituri cheltuieli profit" },
+  { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar", icon: "🏦", keywords: "extras cont tranzactii" },
+  { label: "Detalii bancare", path: "/admin/bank-details", category: "Financiar", icon: "💳", keywords: "iban cont bancar" },
+  { label: "Facturi", path: "/admin/invoices", category: "Financiar", icon: "🧾", keywords: "factura emitere fiscalizat" },
+  { label: "Cheltuieli", path: "/admin/expenses", category: "Financiar", icon: "🧮", keywords: "cheltuiala cost echipament" },
+  // Marketing & Web
+  { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web", icon: "✨", keywords: "moodboard idei stil" },
+  { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web", icon: "📈", keywords: "vizitatori trafic statistici seo" },
+  { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", icon: "🖥️", keywords: "banner reclama footer homepage" },
+  { label: "Landing Page", path: "/admin/landing", category: "Marketing & Web", icon: "🌐", keywords: "landing pagina principala cms" },
+  { label: "SEO Generator", path: "/admin/seo", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },
+  // Sistem & Conturi
+  { label: "Conturi", path: "/admin/accounts", category: "Sistem", icon: "👥", keywords: "utilizatori acces cont admin" },
+  { label: "Wedding Hub", path: "/admin/wedding-hub", category: "Sistem", icon: "💍", keywords: "nunta invitati rsvp plan mese" },
+  { label: "Erori server", path: "/admin/errors", category: "Sistem", icon: "🐛", keywords: "logs erori bugs debug" },
+  { label: "Health Tracker", path: "/admin/health", category: "Sistem", icon: "❤️", keywords: "sanatate greutate pasi mancare calorii" },
+  { label: "Propuneri Venue", path: "/admin/venue-outreach", category: "Marketing & Web", icon: "🏛️", keywords: "locatie salon partener" },
 ];
+
+const RECENTS_KEY = "dash_search_recents";
+const MAX_RESULTS = 8;
+const MAX_RECENTS = 5;
+
+function norm(str: string): string {
+  return str.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+function scoreItem(item: SearchItem, q: string): number {
+  const nq = norm(q);
+  const nl = norm(item.label);
+  const ncat = norm(item.category);
+  const nkw = norm(item.keywords ?? "");
+  const words = nl.split(/\s+/);
+
+  if (nl === nq) return 100;
+  if (nl.startsWith(nq)) return 90;
+  if (words.some((w) => w.startsWith(nq))) return 75;
+  if (nl.includes(nq)) return 60;
+  if (ncat.includes(nq)) return 40;
+  if (nkw.split(/\s+/).some((w) => w.startsWith(nq))) return 35;
+  if (nkw.includes(nq)) return 25;
+
+  // Fuzzy: allow 1 char off for queries >= 3 chars
+  if (nq.length >= 3) {
+    const allWords = [...nl.split(/\s+/), ...nkw.split(/\s+/)];
+    for (const word of allWords) {
+      if (Math.abs(word.length - nq.length) <= 1) {
+        let diffs = 0;
+        const shorter = nq.length <= word.length ? nq : word;
+        const longer = nq.length <= word.length ? word : nq;
+        for (let i = 0; i < shorter.length; i++) {
+          if (shorter[i] !== longer[i]) diffs++;
+          if (diffs > 1) break;
+        }
+        if (diffs <= 1) return 15;
+      }
+    }
+  }
+  return 0;
+}
+
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const nq = norm(query.trim());
+  const nt = norm(text);
+  const idx = nt.indexOf(nq);
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span style={{ color: "#fff", fontWeight: 700 }}>{text.slice(idx, idx + query.length)}</span>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
+function useSearchRecents() {
+  const load = (): SearchItem[] => {
+    try {
+      const raw = localStorage.getItem(RECENTS_KEY);
+      if (!raw) return [];
+      const paths: string[] = JSON.parse(raw);
+      return paths.map((p) => SEARCH_ITEMS.find((item) => item.path === p)).filter(Boolean) as SearchItem[];
+    } catch { return []; }
+  };
+
+  const save = (item: SearchItem) => {
+    try {
+      const existing: string[] = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? "[]");
+      const next = [item.path, ...existing.filter((p) => p !== item.path)].slice(0, MAX_RECENTS);
+      localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+    } catch { /* noop */ }
+  };
+
+  return { load, save };
+}
 
 function DashboardSearch() {
   const navigate = useNavigate();
@@ -49,52 +140,61 @@ function DashboardSearch() {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [recents, setRecents] = useState<SearchItem[]>([]);
+  const { load: loadRecents, save: saveRecent } = useSearchRecents();
 
-  const results = query.trim().length === 0 ? [] : SEARCH_ITEMS.filter((item) => {
-    const q = query.toLowerCase();
-    return (
-      item.label.toLowerCase().includes(q) ||
-      item.category.toLowerCase().includes(q) ||
-      (item.keywords ?? "").toLowerCase().includes(q)
-    );
-  });
+  const results: SearchItem[] = query.trim().length === 0 ? [] : SEARCH_ITEMS
+    .map((item) => ({ item, score: scoreItem(item, query.trim()) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_RESULTS)
+    .map(({ item }) => item);
+
+  const displayItems = query.trim().length === 0 ? recents : results;
+  const isShowingRecents = query.trim().length === 0;
 
   useEffect(() => { setActiveIndex(0); }, [query]);
 
-  const goTo = useCallback((path: string) => {
+  const goTo = useCallback((item: SearchItem) => {
+    saveRecent(item);
+    setRecents(loadRecents());
     setQuery("");
     setFocused(false);
-    navigate(path);
-  }, [navigate]);
+    navigate(item.path);
+  }, [navigate, saveRecent, loadRecents]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
+        setRecents(loadRecents());
         inputRef.current?.focus();
         setFocused(true);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [loadRecents]);
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") { setQuery(""); setFocused(false); }
-    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, results.length - 1)); }
-    if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); }
-    if (e.key === "Enter" && results[activeIndex]) goTo(results[activeIndex].path);
+  const onFocus = () => {
+    setRecents(loadRecents());
+    setFocused(true);
   };
 
-  const showDropdown = focused && results.length > 0;
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") { setQuery(""); setFocused(false); inputRef.current?.blur(); }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, displayItems.length - 1)); }
+    if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); }
+    if (e.key === "Enter" && displayItems[activeIndex]) goTo(displayItems[activeIndex]);
+  };
+
+  const showDropdown = focused && displayItems.length > 0;
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
       <div style={{ position: "relative" }}>
-        <svg
-          style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
-          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-        >
+        <svg style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={focused ? "#666" : "#444"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
         <input
@@ -102,56 +202,69 @@ function DashboardSearch() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setFocused(true)}
+          onFocus={onFocus}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
           onKeyDown={onKeyDown}
           placeholder="Caută rapid... (⌘K)"
           style={{
-            width: "100%",
-            padding: "10px 12px 10px 36px",
-            background: "#111",
-            border: `1px solid ${focused ? "#333" : "#1a1a1a"}`,
-            borderRadius: "10px",
-            color: "#ccc",
-            fontSize: "14px",
-            outline: "none",
-            boxSizing: "border-box",
-            transition: "border-color 0.15s",
+            width: "100%", padding: "10px 40px 10px 36px",
+            background: "#111", border: `1px solid ${focused ? "#333" : "#1a1a1a"}`,
+            borderRadius: "10px", color: "#ccc", fontSize: "14px",
+            outline: "none", boxSizing: "border-box", transition: "border-color 0.15s",
           }}
         />
-        {query && (
-          <button
-            onClick={() => { setQuery(""); inputRef.current?.focus(); }}
-            style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "16px", lineHeight: 1, padding: "2px" }}
-          >
+        {query ? (
+          <button onClick={() => { setQuery(""); inputRef.current?.focus(); }}
+            style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "16px", lineHeight: 1, padding: "4px" }}>
             ×
           </button>
+        ) : (
+          <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", color: "#333", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "5px", padding: "2px 6px", pointerEvents: "none", letterSpacing: "0.03em" }}>
+            ⌘K
+          </span>
         )}
       </div>
 
       {showDropdown && (
         <div style={{
           position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50,
-          background: "#111", border: "1px solid #222", borderRadius: "10px",
-          overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          background: "#111", border: "1px solid #222", borderRadius: "12px",
+          overflow: "hidden", boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
         }}>
-          {results.map((item, i) => (
+          {isShowingRecents && (
+            <div style={{ padding: "8px 14px 4px", fontSize: "10px", color: "#444", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Recente
+            </div>
+          )}
+          {displayItems.map((item, i) => (
             <button
               key={item.path}
-              onMouseDown={() => goTo(item.path)}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                width: "100%", padding: "10px 14px", background: i === activeIndex ? "#1a1a1a" : "transparent",
-                border: "none", borderBottom: i < results.length - 1 ? "1px solid #1a1a1a" : "none",
-                color: "#fff", fontSize: "14px", textAlign: "left", cursor: "pointer",
-                transition: "background 0.1s",
-              }}
+              onMouseDown={() => goTo(item)}
               onMouseEnter={() => setActiveIndex(i)}
+              style={{
+                display: "flex", alignItems: "center", gap: "10px",
+                width: "100%", padding: "9px 14px",
+                background: i === activeIndex ? "#1c1c1c" : "transparent",
+                border: "none", borderBottom: i < displayItems.length - 1 ? "1px solid #161616" : "none",
+                color: "#aaa", fontSize: "13px", textAlign: "left", cursor: "pointer",
+                transition: "background 0.08s",
+              }}
             >
-              <span>{item.label}</span>
-              <span style={{ fontSize: "11px", color: "#555", whiteSpace: "nowrap", marginLeft: "12px" }}>{item.category}</span>
+              <span style={{ fontSize: "15px", flexShrink: 0, width: 20, textAlign: "center" }}>{item.icon}</span>
+              <span style={{ flex: 1, color: i === activeIndex ? "#fff" : "#ccc" }}>
+                {isShowingRecents ? item.label : <HighlightMatch text={item.label} query={query} />}
+              </span>
+              <span style={{ fontSize: "10px", color: "#383838", whiteSpace: "nowrap", background: "#161616", borderRadius: "5px", padding: "2px 7px" }}>
+                {item.category}
+              </span>
             </button>
           ))}
+          <div style={{ padding: "6px 14px", borderTop: "1px solid #161616", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "10px", color: "#333" }}>↑↓ navighează · Enter deschide · Esc închide</span>
+            {!isShowingRecents && results.length > 0 && (
+              <span style={{ fontSize: "10px", color: "#383838" }}>{results.length} rezultat{results.length !== 1 ? "e" : ""}</span>
+            )}
+          </div>
         </div>
       )}
     </div>
