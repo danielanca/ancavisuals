@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import useAuth from "../auth/useAuth";
 
-type ActivityType = "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit";
+type ActivityType = "visitor" | "subscribe" | "lead" | "offer_viewed";
 
 interface Activity {
   id: string;
@@ -21,8 +21,7 @@ interface NotificationSettings {
     subscribe: boolean;
     lead: boolean;
     offerViewed: boolean;
-    seoOrganic: boolean;
-  };
+    };
 }
 
 const TYPE_ICON: Record<ActivityType, string> = {
@@ -30,7 +29,6 @@ const TYPE_ICON: Record<ActivityType, string> = {
   subscribe: "🔔",
   lead: "📝",
   offer_viewed: "👁",
-  seo_visit: "🔍",
 };
 
 const TYPE_COLOR: Record<ActivityType, string> = {
@@ -38,7 +36,6 @@ const TYPE_COLOR: Record<ActivityType, string> = {
   subscribe: "#f59e0b",
   lead: "#10b981",
   offer_viewed: "#8b5cf6",
-  seo_visit: "#059669",
 };
 
 const TYPE_LABEL: Record<ActivityType, string> = {
@@ -46,11 +43,10 @@ const TYPE_LABEL: Record<ActivityType, string> = {
   subscribe: "Abonat",
   lead: "Lead",
   offer_viewed: "Ofertă",
-  seo_visit: "SEO",
 };
 
 const SETTING_LABELS: (keyof NotificationSettings["email"])[] = [
-  "newVisitor", "returningVisitor", "subscribe", "lead", "offerViewed", "seoOrganic",
+  "newVisitor", "returningVisitor", "subscribe", "lead", "offerViewed",
 ];
 
 const SETTING_DISPLAY: Record<keyof NotificationSettings["email"], string> = {
@@ -59,7 +55,6 @@ const SETTING_DISPLAY: Record<keyof NotificationSettings["email"], string> = {
   subscribe: "Abonat album",
   lead: "Lead Rapid / Booking",
   offerViewed: "Ofertă vizualizată",
-  seoOrganic: "Vizitator organic SEO",
 };
 
 function timeAgo(seconds?: number): string {
@@ -213,7 +208,7 @@ export default function ActivityInbox() {
 
       {/* Filter tabs */}
       <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #1a1a1a", overflowX: "auto" }}>
-        {(["all", "visitor", "lead", "subscribe", "offer_viewed", "seo_visit"] as const).map((f) => (
+        {(["all", "visitor", "lead", "subscribe", "offer_viewed"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

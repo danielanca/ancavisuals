@@ -12,7 +12,7 @@ const SEO_PAGE_RE = /^\/(fotograf|videograf|foto-video|foto|video)-[a-z]/i;
 const ORGANIC_REFERRER_RE = /google\.|bing\.|yahoo\.|duckduckgo\.|yandex\.|baidu\.|ecosia\.|startpage\./i;
 
 function isOrganicReferrer(referrer: string): boolean {
-  if (!referrer || referrer.trim() === "") return true; // direct/none counts as organic
+  if (!referrer || referrer.trim() === "") return false; // direct traffic is not SEO organic
   return ORGANIC_REFERRER_RE.test(referrer);
 }
 
@@ -123,28 +123,6 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
     });
 
     res.json({ ok: true, id: docRef.id });
-
-    // Log SEO organic visit to activity feed (fire-and-forget)
-    const seoInfo = parseSeoPage(page);
-    if (seoInfo && isOrganicReferrer(referrer ?? "")) {
-      const cityLabel = ipInfo?.city || seoInfo.city || "necunoscut";
-      const pageSlug = page.replace(/^\//, "");
-      const serviceLabel = seoInfo.service ? ` (${seoInfo.service})` : "";
-      logActivity({
-        type: "seo_visit",
-        title: `Vizitator organic${serviceLabel} — ${cityLabel}`,
-        description: `/${pageSlug}${referrer ? ` · via ${new URL(referrer).hostname.replace(/^www\./, "")}` : " · direct"}`,
-        metadata: {
-          page,
-          city: ipInfo?.city ?? "",
-          region: ipInfo?.region ?? "",
-          country: ipInfo?.country ?? "",
-          referrer: referrer ?? "",
-          isNew: String(isNew ?? true),
-        },
-        emailSent: false,
-      }).catch(() => {});
-    }
   } catch (error) {
     console.error("[analytics] POST /pageview failed:", error);
     res.status(500).json({ error: "Failed to log pageview" });
