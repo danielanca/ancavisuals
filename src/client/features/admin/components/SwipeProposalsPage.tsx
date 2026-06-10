@@ -361,7 +361,7 @@ export default function SwipeProposalsPage() {
                   display: "block",
                   width: "100%",
                   height: "auto",
-                  maxHeight: "68vh",
+                  maxHeight: "calc(100dvh - 240px)",
                   objectFit: "contain",
                   pointerEvents: "none",
                 }}
