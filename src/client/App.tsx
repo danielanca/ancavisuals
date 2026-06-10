@@ -79,8 +79,9 @@ export const App = () => {
   const isMediaPage = location.pathname.startsWith("/media/");
   const baseChatAllowed = !HIDE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
   const showChat = isMediaPage ? mediaPromoVisible : baseChatAllowed;
+  const isErrorReportingEnabled = location.pathname.startsWith("/admin") || location.pathname.startsWith("/media");
   usePageTracking();
-  useClientErrorReporting();
+  useClientErrorReporting(isErrorReportingEnabled);
   useVisitorNotification();
 
   const suppressCookieBot = location.pathname.startsWith("/media") || location.pathname.startsWith("/admin");
@@ -135,6 +136,8 @@ export const App = () => {
           <ErrorMonitorPanel />
           <ClientDebugBadge />
           <ChunkErrorBoundary>
+          {isErrorReportingEnabled && <ErrorMonitorPanel />}
+          {isErrorReportingEnabled && <ClientDebugBadge />}
           <Suspense fallback={<AncaLoader />}>
             {showChat && <AncaChat />}
             <Routes>

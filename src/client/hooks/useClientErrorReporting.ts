@@ -11,8 +11,9 @@ function sendError(message: string, stack: string) {
   }).catch(() => {});
 }
 
-export function useClientErrorReporting() {
+export function useClientErrorReporting(enabled = true) {
   useEffect(() => {
+    if (!enabled) return;
     if (getCookie(ADMIN_COOKIE) === "1") return;
 
     const handleError = (event: ErrorEvent) => {
@@ -35,5 +36,5 @@ export function useClientErrorReporting() {
       window.removeEventListener("error", handleError);
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     };
-  }, []);
+  }, [enabled]);
 }

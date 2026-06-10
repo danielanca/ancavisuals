@@ -50,6 +50,17 @@ export default function SwipeProposalsPage() {
   useEffect(() => { maxIndexReachedRef.current = maxIndexReached; }, [maxIndexReached]);
 
   useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    };
+  }, []);
+
+  useEffect(() => {
     fetch("/api/instagram-proposals/admin/all", {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     })
@@ -266,7 +277,7 @@ export default function SwipeProposalsPage() {
 
   // ── Swipe UI ──────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-between py-6 px-4 select-none overflow-hidden">
+    <div className="h-dvh bg-neutral-950 flex flex-col items-center justify-between py-6 px-4 select-none overflow-hidden" style={{ touchAction: 'none' }}>
 
       {/* Header */}
       <div className="w-full max-w-sm flex items-center gap-3">
@@ -340,6 +351,7 @@ export default function SwipeProposalsPage() {
                   : "transform 0.42s cubic-bezier(0.45,0,0.55,1), opacity 0.42s cubic-bezier(0.45,0,0.55,1)",
                 cursor: isActive ? (isDragging ? "grabbing" : "grab") : "default",
                 userSelect: "none",
+                touchAction: isActive ? "none" : "auto",
               }}
             >
               <img
@@ -349,7 +361,7 @@ export default function SwipeProposalsPage() {
                   display: "block",
                   width: "100%",
                   height: "auto",
-                  maxHeight: "68vh",
+                  maxHeight: "calc(100dvh - 240px)",
                   objectFit: "contain",
                   pointerEvents: "none",
                 }}
