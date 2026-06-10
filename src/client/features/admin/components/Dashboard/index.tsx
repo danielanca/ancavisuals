@@ -24,7 +24,6 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Calendar", path: "/admin/calendar", category: "Evenimente", icon: "📅" },
   { label: "Mementouri", path: "/admin/mementos", category: "Evenimente", icon: "🔔", keywords: "remindere notificari" },
   { label: "Moderare albume", path: "/admin/moderare", category: "Evenimente", icon: "🖼️", keywords: "album moderat aprobare" },
-  { label: "Foi de parcurs", path: "/admin/route-sheets", category: "Evenimente", icon: "🗺️", keywords: "ruta traseu zi eveniment" },
   // Contracte & Oferte
   { label: "Contracte", path: "/admin/contracts", category: "Contracte & Oferte", icon: "📝", keywords: "semnat client acord" },
   { label: "Oferte", path: "/admin/oferte", category: "Contracte & Oferte", icon: "💼", keywords: "pret pachet propunere" },

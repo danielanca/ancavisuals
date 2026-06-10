@@ -26,7 +26,6 @@ const ImageOptimizerPage = loadable(() => import("../features/admin/components/I
 const GoalDetailPage = loadable(() => import("../features/admin/components/GoalDetailPage"), opts);
 const BankDetailsPage = loadable(() => import("../features/admin/components/BankDetailsPage"), opts);
 const ModerationReviewPage = loadable(() => import("../features/admin/components/Moderation/ModerationReviewPage"), opts);
-const RouteSheetsPage = loadable(() => import("../features/admin/components/RouteSheets/RouteSheetsPage"), opts);
 const ErrorsPage = loadable(() => import("../features/admin/components/ErrorsPage"), opts);
 const FinancialPage = loadable(() => import("../features/admin/components/Financial/FinancialPage"), opts);
 const BankStatementsPage = loadable(() => import("../features/admin/components/Financial/BankStatementsPage"), opts);
@@ -69,7 +68,6 @@ export const adminRoutes = [
       <Route path="/admin/bank-details" element={<BankDetailsPage />} />
       <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
       <Route path="/admin/moderare" element={<ModerationReviewPage />} />
-      <Route path="/admin/route-sheets" element={<RouteSheetsPage />} />
       <Route path="/admin/errors" element={<ErrorsPage />} />
       <Route path="/admin/financial" element={<FinancialPage />} />
       <Route path="/admin/bank-statements" element={<BankStatementsPage />} />

@@ -18,7 +18,6 @@ const LABELS: Record<string, string> = {
   "instagram-proposals": "Propuneri Media",
   "image-optimizer": "Optimizare Poze",
   moderare: "Moderare",
-  "route-sheets": "Foi de parcurs",
   financial: "Financiar",
   "bank-statements": "Extrase cont",
   landing: "Landing Page",

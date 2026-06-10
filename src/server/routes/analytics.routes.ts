@@ -5,6 +5,8 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { isLocalIp } from "../controllers/triggerEvent.controller";
 import { logActivity } from "../services/activity.service";
+import { sendEmail } from "../notifications/mailer";
+import { adminUser } from "../constants/credentials";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 
@@ -74,6 +76,72 @@ const BOT_UA = new RegExp(
 
 export const analyticsPublicRouter = Router();
 export const analyticsAdminRouter = Router();
+
+// ── Contact Click Tracking ────────────────────────────────────────────────────
+
+const CONTACT_CLICK_COOLDOWN_MS = 20 * 60 * 1000; // 20 min per IP, prevent double-fire
+const contactClickByIp = new Map<string, number>();
+
+const CONTACT_CLICK_LABELS: Record<string, string> = {
+  phone: "📞 Click număr de telefon",
+  whatsapp: "💬 Click WhatsApp",
+  instagram: "📸 Click Instagram",
+};
+
+// POST /api/analytics/contact-click
+analyticsPublicRouter.post("/contact-click", async (req: Request, res: Response) => {
+  try {
+    const { type, page } = req.body as { type?: string; page?: string };
+    if (!type || !CONTACT_CLICK_LABELS[type]) return res.json({ ok: true });
+
+    const ip = getClientIp(req) ?? "";
+    if (isLocalIp(ip)) return res.json({ ok: true });
+    if (isAdminRequest(req)) return res.json({ ok: true });
+
+    const ua = req.headers["user-agent"] ?? "";
+    if (BOT_UA.test(ua)) return res.json({ ok: true });
+
+    res.json({ ok: true });
+
+    const title = CONTACT_CLICK_LABELS[type];
+    const ipInfo = await fetchIpInfo(ip).catch(() => null);
+    const locationLabel = [ipInfo?.city, ipInfo?.country].filter(Boolean).join(", ") || "locație necunoscută";
+
+    // Always log to activity feed
+    logActivity({
+      type: "lead",
+      title,
+      description: `${locationLabel} · ${page || "/"}`,
+      metadata: { contactType: type, page: page || "/", city: ipInfo?.city ?? "", country: ipInfo?.country ?? "" },
+      emailSent: false,
+    }).catch(() => {});
+
+    // Send email with cooldown — phone clicks are high-intent, always notify
+    const lastClick = contactClickByIp.get(ip);
+    if (lastClick && Date.now() - lastClick < CONTACT_CLICK_COOLDOWN_MS) return;
+
+    contactClickByIp.set(ip, Date.now());
+    for (const [storedIp, timestamp] of contactClickByIp) {
+      if (Date.now() - timestamp >= CONTACT_CLICK_COOLDOWN_MS) contactClickByIp.delete(storedIp);
+    }
+
+    const subject = `${title} — ancavisuals.ro`;
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#e5e5e5;padding:24px;border-radius:12px">
+        <h2 style="margin:0 0 16px;font-size:20px;color:#fff">${title}</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <tr><td style="padding:6px 0;color:#888">Pagină</td><td style="padding:6px 0">${page || "/"}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">Locație</td><td style="padding:6px 0">${locationLabel}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">Provider</td><td style="padding:6px 0">${ipInfo?.org || "—"}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">Ora</td><td style="padding:6px 0">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
+        </table>
+      </div>`;
+
+    sendEmail({ to: adminUser.email, subject, html }).catch(() => {});
+  } catch {
+    res.json({ ok: true });
+  }
+});
 
 const ADMIN_COOKIE = "av_admin";
 

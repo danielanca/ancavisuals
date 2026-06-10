@@ -1,10 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
 
+function trackContactClick(type: "phone" | "whatsapp" | "instagram") {
+  fetch("/api/analytics/contact-click", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, page: window.location.pathname }),
+  }).catch(() => {});
+}
+
 export default function MediaPromoFooter() {
   const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
+
+  const handlePhoneClick = useCallback(() => trackContactClick("phone"), []);
+  const handleWhatsAppClick = useCallback(() => trackContactClick("whatsapp"), []);
+  const handleInstagramClick = useCallback(() => trackContactClick("instagram"), []);
 
   useEffect(() => {
     fetch("/api/showcase-zones/media_footer")
@@ -61,6 +73,7 @@ export default function MediaPromoFooter() {
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "300px", margin: "0 auto" }}>
           <a
             href={`tel:${PROMO_PHONE}`}
+            onClick={handlePhoneClick}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               padding: "15px 24px",
@@ -81,6 +94,7 @@ export default function MediaPromoFooter() {
               href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={handleWhatsAppClick}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 padding: "13px 16px",
@@ -100,6 +114,7 @@ export default function MediaPromoFooter() {
               href="https://instagram.com/ancavisuals"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={handleInstagramClick}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 padding: "13px 16px",
