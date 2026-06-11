@@ -52,10 +52,12 @@ export default function SwipeProposalsPage() {
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
+    document.body.style.top = '0';
     document.body.style.width = '100%';
     return () => {
       document.body.style.overflow = '';
       document.body.style.position = '';
+      document.body.style.top = '';
       document.body.style.width = '';
     };
   }, []);
@@ -277,7 +279,7 @@ export default function SwipeProposalsPage() {
 
   // ── Swipe UI ──────────────────────────────────────────────────────────────
   return (
-    <div className="h-dvh bg-neutral-950 flex flex-col items-center justify-between py-6 px-4 select-none overflow-hidden" style={{ touchAction: 'none' }}>
+    <div className="h-screen bg-neutral-950 flex flex-col items-center justify-between py-6 px-4 select-none overflow-hidden" style={{ touchAction: 'none', height: '100dvh' }}>
 
       {/* Header */}
       <div className="w-full max-w-sm flex items-center gap-3">
