@@ -85,11 +85,12 @@ export const adminRoutes = [
       <Route path="/admin/sanatate" element={<HealthTrackerPage />} />
       <Route path="/admin/colectii" element={<PhotoCollectionsPage />} />
       <Route path="/admin/album-health" element={<AlbumHealthPage />} />
-      <Route path="/admin/swipe-proposals" element={<SwipeProposalsPage />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>
     </Route>
+    {/* Full-screen routes — auth protected but NO AdminLayout sidebar */}
+    <Route path="/admin/swipe-proposals" element={<SwipeProposalsPage />} />
   </Route>,
   <Route key="login" element={<CheckAuth />}>
     <Route path="/login" element={<Login />} />
