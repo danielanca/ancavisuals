@@ -55,7 +55,7 @@ export default function AncaLoader({ variant = "full", subtitle }: Props) {
     return (
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "center",
-        minHeight: "100vh", background: "#111111",
+        minHeight: "100vh", width: "100%", background: "#111111",
       }}>
         {inner}
       </div>

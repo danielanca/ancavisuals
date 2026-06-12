@@ -44,7 +44,7 @@ router.get("/admin/list", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/album/:slug/report-error — trimite email admin când un client nu poate vedea pozele
+// POST /api/album/:slug/report-error — trimite email admin când un client nu poate vedea pozele sau albumul e lent
 router.post("/:slug/report-error", async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
@@ -60,26 +60,41 @@ router.post("/:slug/report-error", async (req: Request, res: Response) => {
     const ipInfo = await fetchIpInfo(ip).catch(() => null);
     const location = [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(Boolean).join(", ") || "—";
 
+    const isSlowLoad = errorMessage?.includes("8 secunde");
+    const subject = isSlowLoad
+      ? `🐢 Album lent (>8s) — /${slug}`
+      : `⚠️ Eroare album: clientă nu vede pozele — /${slug}`;
+    const headerColor = isSlowLoad ? "#d97706" : "#dc2626";
+    const headerText = isSlowLoad ? "🐢 Încărcare lentă album" : "⚠️ Eroare vizualizare album";
+    const subText = isSlowLoad
+      ? "Un vizitator a așteptat mai mult de 8 secunde să se încarce albumul."
+      : "Un vizitator nu a putut vedea pozele din album.";
+
     await sendEmail({
       to: ADMIN_EMAIL,
-      subject: `⚠️ Eroare album: clientă nu vede pozele — /${slug}`,
+      subject,
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-          <h2 style="color:#dc2626;margin:0 0 8px;">⚠️ Eroare vizualizare album</h2>
-          <p style="color:#666;font-size:13px;margin:0 0 20px;">Un vizitator nu a putut vedea pozele din album.</p>
+          <h2 style="color:${headerColor};margin:0 0 8px;">${headerText}</h2>
+          <p style="color:#666;font-size:13px;margin:0 0 20px;">${subText}</p>
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <tr><td style="padding:7px 0;color:#888;width:140px;">Album</td><td style="color:#111;font-weight:600;">/${slug}</td></tr>
-            <tr><td style="padding:7px 0;color:#888;">Poze pe server</td><td style="color:#111;">${photosCount ?? "necunoscut"}</td></tr>
-            <tr><td style="padding:7px 0;color:#888;">Eroare</td><td style="color:#dc2626;">${errorMessage ?? "Imagini inaccesibile"}</td></tr>
+            ${!isSlowLoad ? `<tr><td style="padding:7px 0;color:#888;">Poze pe server</td><td style="color:#111;">${photosCount ?? "necunoscut"}</td></tr>` : ""}
+            <tr><td style="padding:7px 0;color:#888;">Problemă</td><td style="color:${headerColor};">${errorMessage ?? "Imagini inaccesibile"}</td></tr>
             <tr><td style="padding:7px 0;color:#888;">URL</td><td style="color:#4f46e5;word-break:break-all;">${pageUrl ?? "—"}</td></tr>
             <tr><td style="padding:7px 0;color:#888;">Locație IP</td><td style="color:#111;">${location}</td></tr>
             <tr><td style="padding:7px 0;color:#888;">IP</td><td style="color:#999;font-size:11px;">${ip}</td></tr>
             <tr><td style="padding:7px 0;color:#888;">Device</td><td style="color:#555;font-size:11px;word-break:break-all;">${(userAgent ?? "—").slice(0, 120)}</td></tr>
             <tr><td style="padding:7px 0;color:#888;">Ora</td><td style="color:#111;">${timestamp ?? new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
           </table>
-          <div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
-            <p style="color:#991b1b;font-size:12px;margin:0;">Verifică folderul Bunny: <strong>${slug}/photos_preview/</strong> și <strong>${slug}/photos/</strong></p>
-          </div>
+          ${isSlowLoad
+            ? `<div style="margin-top:20px;padding:12px 16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;">
+                <p style="color:#92400e;font-size:12px;margin:0;">Verifică serverul / Bunny CDN. Albumul poate fi prea mare sau conexiunea clientei e slabă.</p>
+               </div>`
+            : `<div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+                <p style="color:#991b1b;font-size:12px;margin:0;">Verifică folderul Bunny: <strong>${slug}/photos_preview/</strong> și <strong>${slug}/photos/</strong></p>
+               </div>`
+          }
         </div>
       `,
     });

@@ -39,6 +39,18 @@ function originalPhotoUrl(previewUrl: string): string {
   }
 }
 
+function previewPhotoUrl(originalUrl: string): string {
+  try {
+    const url = new URL(originalUrl);
+    const preview = url.pathname
+      .replace("/photos/", "/photos_preview/")
+      .replace(/\.jpg$/i, ".webp");
+    return signBunnyUrl(preview);
+  } catch {
+    return originalUrl;
+  }
+}
+
 async function uploadToBunny(buffer: Buffer, bunnyPath: string, contentType: string): Promise<void> {
   const key = getBunnyStorageKey();
   const response = await fetch(buildBunnyStorageUrl(bunnyPath), {
@@ -208,6 +220,7 @@ router.get("/admin/all", requireFirebaseAuth, requireEsteraOrAdmin, async (_req:
         ...data,
         proposedAt: (data.proposedAt as Timestamp).toDate().toISOString(),
         originalPhotoUrl: originalPhotoUrl(data.photoUrl as string),
+        previewPhotoUrl: previewPhotoUrl(data.photoUrl as string),
       };
     });
 

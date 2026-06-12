@@ -92,6 +92,8 @@ export const adminRoutes = [
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>
     </Route>
+    {/* Full-screen routes — auth protected but NO AdminLayout sidebar */}
+    <Route path="/admin/swipe-proposals" element={<SwipeProposalsPage />} />
   </Route>,
   <Route key="login" element={<CheckAuth />}>
     <Route path="/login" element={<Login />} />
