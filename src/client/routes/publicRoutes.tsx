@@ -32,6 +32,7 @@ const BlogPost = loadable(() => import("../pages/Blog/BlogPost"), opts(true));
 const RevinPage = loadable(() => import("../pages/Revin/RevinPage"), opts(false));
 const GuestInvitationPage = loadable(() => import("../features/wedding-hub/pages/GuestInvitationPage"), opts(false));
 const OfertaPage = loadable(() => import("../pages/OfertaPage"), opts(false));
+const EventProgressPage = loadable(() => import("../pages/EventProgress/EventProgressPage"), opts(false));
 
 type LayoutType = React.ComponentType | null;
 type ComponentType = React.ComponentType;
@@ -203,6 +204,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/p/:slug",
     layout: null,
     component: OfertaPage,
+  },
+  {
+    path: "/album/:eventId",
+    layout: null,
+    component: EventProgressPage,
   },
 
   /** ============================================================

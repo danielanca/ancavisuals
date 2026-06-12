@@ -262,6 +262,25 @@ router.post("/events", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/admin/events/:id — fetch single event
+router.get("/events/:id", async (req: Request, res: Response) => {
+  try {
+    const snapshot = await firestore().collection("adminEvents").doc(req.params.id).get();
+    if (!snapshot.exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
+    const data = snapshot.data()!;
+    res.json({
+      ...data,
+      id: snapshot.id,
+      eventDate: data.eventDate?.toDate?.()?.toISOString() ?? null,
+      eventEndDate: data.eventEndDate?.toDate?.()?.toISOString() ?? null,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[adminEvents] GET /events/:id failed:", error);
+    res.status(500).json({ error: "Nu s-a putut încărca evenimentul." });
+  }
+});
+
 // PATCH /api/admin/events/:id — update fields
 router.patch("/events/:id", async (req: Request, res: Response) => {
   try {
@@ -758,7 +777,7 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
     });
     if (!rootRes.ok) return res.status(500).json({ error: "Nu pot lista root-ul Bunny." });
 
-    const EXCLUDED_DIRS = new Set(["expenses", "bank-statements", "offers", "offers-assets", "qr-moments"]);
+    const EXCLUDED_DIRS = new Set(["expenses", "bank-statements", "offers", "offers-assets", "qr-moments", "health-activity", "admin-events"]);
 
     const rootEntries = await rootRes.json() as { ObjectName: string; IsDirectory: boolean }[];
     const albumDirs = rootEntries.filter((e) => e.IsDirectory && !EXCLUDED_DIRS.has(e.ObjectName));

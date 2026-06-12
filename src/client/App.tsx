@@ -1,4 +1,59 @@
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState, Component } from "react";
+
+// ── Chunk Error Boundary ──────────────────────────────────────────────────────
+// After a new deployment, cached index.js tries to load old chunk hashes that
+// no longer exist on the server. Catch those errors and auto-reload once.
+
+const CHUNK_RELOAD_KEY = "__chunk_reload__";
+
+function isChunkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes("Failed to fetch dynamically imported module") ||
+    error.message.includes("Unable to preload CSS") ||
+    error.name === "ChunkLoadError"
+  );
+}
+
+class ChunkErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { crashed: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { crashed: false };
+  }
+
+  static getDerivedStateFromError(error: unknown) {
+    return { crashed: isChunkError(error) };
+  }
+
+  componentDidCatch(error: unknown) {
+    if (!isChunkError(error)) return;
+    // Reload once to pick up the new chunks; guard against reload loops
+    if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+      sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+      window.location.reload();
+    }
+  }
+
+  render() {
+    if (this.state.crashed) {
+      return (
+        <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+          <p style={{ color: "#555", fontSize: 14 }}>Se actualizează aplicația...</p>
+          <button
+            onClick={() => { sessionStorage.removeItem(CHUNK_RELOAD_KEY); window.location.reload(); }}
+            style={{ color: "#aaa", fontSize: 12, background: "none", border: "1px solid #333", borderRadius: 8, padding: "6px 16px", cursor: "pointer" }}
+          >
+            Reîncarcă
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { Route, Routes, useLocation } from "react-router-dom";
 import loadable from "@loadable/component";
 import { AuthProvider } from "./features/admin/providers/AuthProvider";
@@ -78,6 +133,9 @@ export const App = () => {
     <ErrorMonitorProvider>
       <AuthProvider>
           <AdminBar />
+          <ErrorMonitorPanel />
+          <ClientDebugBadge />
+          <ChunkErrorBoundary>
           {isErrorReportingEnabled && <ErrorMonitorPanel />}
           {isErrorReportingEnabled && <ClientDebugBadge />}
           <Suspense fallback={<AncaLoader />}>
@@ -90,6 +148,7 @@ export const App = () => {
               {weddingHubRoutes}
             </Routes>
           </Suspense>
+          </ChunkErrorBoundary>
       </AuthProvider>
     </ErrorMonitorProvider>
   );

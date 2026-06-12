@@ -817,11 +817,14 @@ function PenaltySection({
 
 const CONFIDENCE_ICON: Record<string, string> = { high: "✅", medium: "🟡", low: "⚠️" };
 
-type FoodFormStep = "compose" | "preview" | "saving";
+type FoodFormStep = "chat" | "confirm" | "saving";
+
+interface ChatMessage { role: "user" | "assistant"; content: string }
 
 interface FoodPreview {
   analysis: FoodEntry;
   currentCalories: number;
+  items?: { name: string; quantity: string; calories: number }[];
 }
 
 function calorieWarning(current: number, incoming: number, target: number): { text: string; color: string; bg: string; bdr: string } | null {
@@ -846,14 +849,18 @@ function FoodSection({
   const today = new Date().toISOString().slice(0, 10);
   const [todayLog, setTodayLog] = useState<FoodLog | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [formStep, setFormStep] = useState<FoodFormStep>("compose");
-  const [note, setNote] = useState("");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [formStep, setFormStep] = useState<FoodFormStep>("chat");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [pendingPhotoBase64, setPendingPhotoBase64] = useState<string | null>(null);
+  const [pendingPhotoUrl, setPendingPhotoUrl] = useState<string | null>(null);
   const [foodPreview, setFoodPreview] = useState<FoodPreview | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const INITIAL_MSG: ChatMessage = { role: "assistant", content: "Spune-mi ce ai mâncat! Descrie fiecare aliment și îți voi ajuta să estimăm caloriile cât mai precis." };
 
   const loadToday = useCallback(async () => {
     const res = await fetch(`/api/admin/health/food/${userId}`, { headers: authHeaders });
@@ -865,32 +872,71 @@ function FoodSection({
 
   useEffect(() => { loadToday(); }, [loadToday]);
 
-  const resetForm = () => {
-    setNote(""); setPhotoBase64(null); setPreviewUrl(null);
-    setFoodPreview(null); setFormStep("compose"); setError(null); setShowForm(false);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, chatLoading]);
+
+  const openForm = () => {
+    setChatMessages([INITIAL_MSG]);
+    setChatInput("");
+    setPendingPhotoBase64(null);
+    setPendingPhotoUrl(null);
+    setFoodPreview(null);
+    setFormStep("chat");
+    setError(null);
+    setShowForm(true);
   };
 
-  const analyze = async () => {
-    if (!photoBase64 && !note.trim()) return;
-    setAnalyzing(true); setError(null);
+  const resetForm = () => {
+    setChatMessages([]);
+    setChatInput("");
+    setPendingPhotoBase64(null);
+    setPendingPhotoUrl(null);
+    setFoodPreview(null);
+    setFormStep("chat");
+    setError(null);
+    setShowForm(false);
+  };
+
+  const sendMessage = async (overrideContent?: string, isFinalize?: boolean) => {
+    const content = overrideContent ?? chatInput.trim();
+    if (!content && !pendingPhotoBase64) return;
+    const photoToSend = pendingPhotoBase64;
+    const userMsg: ChatMessage = { role: "user", content: content || "📸 [poză atașată]" };
+    const newMessages = [...chatMessages, userMsg];
+    setChatMessages(newMessages);
+    setChatInput("");
+    setPendingPhotoBase64(null);
+    setPendingPhotoUrl(null);
+    setChatLoading(true);
+    setError(null);
     try {
-      const res = await fetch(`/api/admin/health/food/${userId}/preview`, {
+      const res = await fetch(`/api/admin/health/food/${userId}/chat`, {
         method: "POST",
         headers: { ...authHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({ photoBase64, note }),
+        body: JSON.stringify({
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          ...(photoToSend ? { photoBase64: photoToSend } : {}),
+        }),
       });
-      const data = await res.json() as { ok?: boolean; analysis?: FoodEntry; currentCalories?: number; error?: string };
-      if (!res.ok || !data.ok) {
-        setError(data.error ?? "Eroare la analiză.");
-      } else {
-        setFoodPreview({ analysis: data.analysis!, currentCalories: data.currentCalories ?? 0 });
-        setFormStep("preview");
+      const data = await res.json() as { reply?: string; analysis?: FoodEntry & { items?: { name: string; quantity: string; calories: number }[] }; currentCalories?: number; error?: string };
+      if (!res.ok) { setError(data.error ?? "Eroare."); return; }
+      const assistantMsg: ChatMessage = { role: "assistant", content: data.reply ?? "" };
+      setChatMessages([...newMessages, assistantMsg]);
+      if (data.analysis) {
+        setFoodPreview({ analysis: data.analysis, currentCalories: data.currentCalories ?? 0, items: data.analysis.items });
+        setFormStep("confirm");
+      } else if (isFinalize) {
+        setError("AI-ul nu a putut genera rezumatul. Încearcă din nou.");
       }
     } catch (err) {
       setError(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
+    } finally {
+      setChatLoading(false);
     }
-    setAnalyzing(false);
   };
+
+  const finalize = () => sendMessage("Gata, asta a fost tot. Fă rezumatul mesei.", true);
 
   const confirm = async () => {
     if (!foodPreview) return;
@@ -899,17 +945,17 @@ function FoodSection({
       const res = await fetch(`/api/admin/health/food/${userId}`, {
         method: "POST",
         headers: { ...authHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({ photoBase64, note, date: today, analysis: JSON.stringify(foodPreview.analysis) }),
+        body: JSON.stringify({ date: today, analysis: JSON.stringify(foodPreview.analysis) }),
       });
       if (res.ok) {
         resetForm();
         await loadToday();
       } else {
-        setFormStep("preview");
+        setFormStep("confirm");
         setError("Eroare la salvare.");
       }
     } catch (err) {
-      setFormStep("preview");
+      setFormStep("confirm");
       setError(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
     }
   };
@@ -942,10 +988,10 @@ function FoodSection({
       <div>
         {!readOnly && (
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
-            <button onClick={() => { setShowForm((v) => !v); if (showForm) resetForm(); }}
+            <button onClick={() => { if (showForm) resetForm(); else openForm(); }}
               style={{ fontSize: 11, padding: "4px 12px", background: showForm ? t.b1 : accentColor, border: "none", borderRadius: 6, color: showForm ? t.t4 : t.bg, fontWeight: 700, cursor: "pointer" }}
             >
-              {showForm ? "✕" : "+ Adaugă"}
+              {showForm ? "✕ Închide" : "💬 Loghează masa"}
             </button>
           </div>
         )}
@@ -973,63 +1019,102 @@ function FoodSection({
 
       {/* Form */}
       {showForm && (
-        <div style={{ background: t.s2, border: `1px solid ${t.b1}`, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ background: t.s2, border: `1px solid ${t.b1}`, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
-          {/* Step 1: compose */}
-          {formStep === "compose" && (<>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const input = e.target;
-                readAndCompressImage(file).then((base64) => {
-                  input.value = "";
-                  setPhotoBase64(base64);
-                  setPreviewUrl(`data:image/jpeg;base64,${base64}`);
-                }).catch((err: unknown) => {
-                  input.value = "";
-                  setError(err instanceof Error ? err.message : String(err));
-                });
-              }}
-            />
-            <button onClick={() => fileRef.current?.click()}
-              style={{ width: "100%", padding: previewUrl ? 0 : "10px 0", background: previewUrl ? "transparent" : t.s1, border: `1px dashed ${previewUrl ? "transparent" : t.b2}`, borderRadius: 8, color: t.t4, fontSize: 12, cursor: "pointer", overflow: "hidden" }}
-            >
-              {previewUrl
-                ? <img src={previewUrl} alt="preview" style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 8, display: "block" }} />
-                : "📸 Adaugă poză (opțional)"
-              }
-            </button>
-            {previewUrl && (
-              <button onClick={() => { setPreviewUrl(null); setPhotoBase64(null); }}
-                style={{ fontSize: 10, color: t.t4, background: "none", border: "none", cursor: "pointer", alignSelf: "flex-end", marginTop: -6 }}
-              >✕ Elimină poza</button>
+          {/* Step 1: chat */}
+          {formStep === "chat" && (<>
+            {/* Messages */}
+            <div style={{ maxHeight: 320, overflowY: "auto", padding: "12px 12px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+              {chatMessages.map((msg, idx) => (
+                <div key={idx} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                  <div style={{
+                    maxWidth: "82%",
+                    padding: "8px 12px",
+                    borderRadius: msg.role === "user" ? "12px 12px 4px 12px" : "12px 12px 12px 4px",
+                    background: msg.role === "user" ? accentColor : t.s1,
+                    color: msg.role === "user" ? t.bg : t.t2,
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                  }}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div style={{ padding: "8px 12px", borderRadius: "12px 12px 12px 4px", background: t.s1, color: t.t4, fontSize: 12 }}>
+                    <span style={{ animation: "pulse 1s infinite" }}>●</span> <span style={{ opacity: 0.5 }}>●</span> <span style={{ opacity: 0.3 }}>●</span>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Photo preview */}
+            {pendingPhotoUrl && (
+              <div style={{ margin: "8px 12px 0", position: "relative", display: "inline-block" }}>
+                <img src={pendingPhotoUrl} alt="pending" style={{ height: 60, borderRadius: 8, display: "block" }} />
+                <button onClick={() => { setPendingPhotoBase64(null); setPendingPhotoUrl(null); }}
+                  style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: "#ef4444", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              </div>
             )}
-            <textarea value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder={'Ex: "Am băut 50% din sticlă" sau "jumătate farfurie"'}
-              rows={2}
-              style={{ width: "100%", background: t.inp, border: `1px solid ${t.inpB}`, borderRadius: 8, padding: "8px 12px", color: t.t1, fontSize: 12, outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
-            />
-            {error && <p style={{ fontSize: 11, color: "#f87171", margin: 0 }}>{error}</p>}
-            <button onClick={analyze} disabled={analyzing || (!photoBase64 && !note.trim())}
-              style={{ padding: "10px 0", background: (!photoBase64 && !note.trim()) ? t.b1 : accentColor, border: "none", borderRadius: 8, color: (!photoBase64 && !note.trim()) ? t.t6 : t.bg, fontSize: 13, fontWeight: 700, cursor: (!photoBase64 && !note.trim()) ? "default" : "pointer", opacity: analyzing ? 0.7 : 1 }}
-            >
-              {analyzing ? "⏳ Claude analizează..." : "✨ Analizează"}
-            </button>
-            <p style={{ fontSize: 10, color: t.t6, margin: 0 }}>
-              Pune mâna lângă mâncare în poză pentru estimare mai precisă a porției
-            </p>
+
+            {/* Input row */}
+            <div style={{ padding: 10, display: "flex", gap: 6, alignItems: "flex-end" }}>
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const input = e.target;
+                  readAndCompressImage(file).then((base64) => {
+                    input.value = "";
+                    setPendingPhotoBase64(base64);
+                    setPendingPhotoUrl(`data:image/jpeg;base64,${base64}`);
+                  }).catch((err: unknown) => {
+                    input.value = "";
+                    setError(err instanceof Error ? err.message : String(err));
+                  });
+                }}
+              />
+              <button onClick={() => fileRef.current?.click()}
+                style={{ padding: "7px 8px", background: t.s1, border: `1px solid ${t.b2}`, borderRadius: 8, color: t.t4, fontSize: 14, cursor: "pointer", flexShrink: 0 }}>
+                📸
+              </button>
+              <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!chatLoading) sendMessage(); } }}
+                placeholder="Descrie ce ai mâncat..."
+                rows={1}
+                style={{ flex: 1, background: t.inp, border: `1px solid ${t.inpB}`, borderRadius: 8, padding: "8px 10px", color: t.t1, fontSize: 12, outline: "none", resize: "none", fontFamily: "inherit", lineHeight: 1.4 }}
+              />
+              <button onClick={() => sendMessage()} disabled={chatLoading || (!chatInput.trim() && !pendingPhotoBase64)}
+                style={{ padding: "7px 10px", background: (chatLoading || (!chatInput.trim() && !pendingPhotoBase64)) ? t.b1 : accentColor, border: "none", borderRadius: 8, color: (chatLoading || (!chatInput.trim() && !pendingPhotoBase64)) ? t.t6 : t.bg, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                →
+              </button>
+            </div>
+
+            {error && <p style={{ fontSize: 11, color: "#f87171", margin: "0 12px 8px" }}>{error}</p>}
+
+            {/* Finalize button */}
+            {chatMessages.length > 1 && (
+              <div style={{ padding: "0 10px 10px" }}>
+                <button onClick={finalize} disabled={chatLoading}
+                  style={{ width: "100%", padding: "9px 0", background: chatLoading ? t.b1 : "#7c3aed", border: "none", borderRadius: 8, color: chatLoading ? t.t6 : "#fff", fontSize: 12, fontWeight: 700, cursor: chatLoading ? "default" : "pointer" }}>
+                  {chatLoading ? "⏳ Analizează..." : "✅ Finalizează și calculează"}
+                </button>
+              </div>
+            )}
           </>)}
 
-          {/* Step 2: preview + warning */}
-          {(formStep === "preview" || formStep === "saving") && foodPreview && (<>
-            <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-              {previewUrl && <img src={previewUrl} alt="food" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />}
-              <div style={{ flex: 1 }}>
+          {/* Step 2: confirm */}
+          {(formStep === "confirm" || formStep === "saving") && foodPreview && (
+            <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
                 <p style={{ fontSize: 14, fontWeight: 800, color: t.t2, margin: "0 0 2px" }}>
                   {CONFIDENCE_ICON[foodPreview.analysis.confidence]} {foodPreview.analysis.food}
                 </p>
-                <p style={{ fontSize: 11, color: t.t4, margin: "0 0 4px" }}>{foodPreview.analysis.quantity}</p>
+                <p style={{ fontSize: 11, color: t.t4, margin: "0 0 6px" }}>{foodPreview.analysis.quantity}</p>
                 <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
                   <span style={{ color: accentColor, fontWeight: 700 }}>{foodPreview.analysis.calories} kcal</span>
                   <span style={{ color: t.t4 }}>P: {foodPreview.analysis.protein}g</span>
@@ -1040,37 +1125,49 @@ function FoodSection({
                   <p style={{ fontSize: 10, color: "#7c5fc0", margin: "4px 0 0" }}>💡 {foodPreview.analysis.aiNote}</p>
                 )}
               </div>
-            </div>
 
-            {/* Calorie impact warning */}
-            <div style={{ padding: "10px 12px", background: warningBg, border: `1px solid ${warningBdr}`, borderRadius: 8 }}>
-              {warning ? (
-                <>
-                  <p style={{ fontSize: 12, color: warning.color, fontWeight: 600, margin: 0 }}>{warning.text}</p>
-                  <p style={{ fontSize: 11, color: t.t4, margin: "4px 0 0" }}>
-                    {foodPreview.currentCalories} kcal acum + {foodPreview.analysis.calories} kcal = {foodPreview.currentCalories + foodPreview.analysis.calories} kcal din {dailyCalorieTarget} kcal target
-                  </p>
-                </>
-              ) : (
-                <p style={{ fontSize: 12, color: "#4ade80", fontWeight: 600, margin: 0 }}>
-                  ✅ În regulă — vei ajunge la {foodPreview.currentCalories + foodPreview.analysis.calories} / {dailyCalorieTarget} kcal
-                </p>
+              {/* Individual items breakdown */}
+              {foodPreview.items && foodPreview.items.length > 1 && (
+                <div style={{ background: t.s1, borderRadius: 8, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 4 }}>
+                  {foodPreview.items.map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
+                      <span style={{ color: t.t3 }}>{item.name} <span style={{ color: t.t5, fontSize: 10 }}>({item.quantity})</span></span>
+                      <span style={{ color: t.t4, fontWeight: 600 }}>{item.calories} kcal</span>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
 
-            {error && <p style={{ fontSize: 11, color: "#f87171", margin: 0 }}>{error}</p>}
+              {/* Calorie impact warning */}
+              <div style={{ padding: "10px 12px", background: warningBg, border: `1px solid ${warningBdr}`, borderRadius: 8 }}>
+                {warning ? (
+                  <>
+                    <p style={{ fontSize: 12, color: warning.color, fontWeight: 600, margin: 0 }}>{warning.text}</p>
+                    <p style={{ fontSize: 11, color: t.t4, margin: "4px 0 0" }}>
+                      {foodPreview.currentCalories} kcal acum + {foodPreview.analysis.calories} kcal = {foodPreview.currentCalories + foodPreview.analysis.calories} kcal din {dailyCalorieTarget} kcal target
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ fontSize: 12, color: "#4ade80", fontWeight: 600, margin: 0 }}>
+                    ✅ În regulă — vei ajunge la {foodPreview.currentCalories + foodPreview.analysis.calories} / {dailyCalorieTarget} kcal
+                  </p>
+                )}
+              </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { setFormStep("compose"); setFoodPreview(null); setError(null); }}
-                style={{ flex: 1, padding: "9px 0", background: "none", border: `1px solid ${t.b2}`, borderRadius: 8, color: t.t4, fontSize: 12, cursor: "pointer" }}
-              >← Înapoi</button>
-              <button onClick={confirm} disabled={formStep === "saving"}
-                style={{ flex: 2, padding: "9px 0", background: warning ? t.redBg : accentColor, border: warning ? `1px solid ${t.redBdr}` : "none", borderRadius: 8, color: warning ? "#ef4444" : t.bg, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: formStep === "saving" ? 0.7 : 1 }}
-              >
-                {formStep === "saving" ? "Se salvează..." : warning ? "Adaugă totuși" : "Confirmă și adaugă"}
-              </button>
+              {error && <p style={{ fontSize: 11, color: "#f87171", margin: 0 }}>{error}</p>}
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => { setFormStep("chat"); setFoodPreview(null); setError(null); }}
+                  style={{ flex: 1, padding: "9px 0", background: "none", border: `1px solid ${t.b2}`, borderRadius: 8, color: t.t4, fontSize: 12, cursor: "pointer" }}>
+                  ← Înapoi
+                </button>
+                <button onClick={confirm} disabled={formStep === "saving"}
+                  style={{ flex: 2, padding: "9px 0", background: warning ? t.redBg : accentColor, border: warning ? `1px solid ${t.redBdr}` : "none", borderRadius: 8, color: warning ? "#ef4444" : t.bg, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: formStep === "saving" ? 0.7 : 1 }}>
+                  {formStep === "saving" ? "Se salvează..." : warning ? "Adaugă totuși" : "Confirmă și adaugă"}
+                </button>
+              </div>
             </div>
-          </>)}
+          )}
         </div>
       )}
 
