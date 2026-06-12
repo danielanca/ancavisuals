@@ -244,7 +244,7 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
 
     const pageCount: Record<string, number> = {};
     const referrerCount: Record<string, number> = {};
-    const countryCount: Record<string, number> = {};
+    const countryVisitors: Record<string, Set<string>> = {};
 
     monthSnap.docs.filter((d) => includeLocal || !isLocalIp(d.data().ip ?? "")).forEach((d) => {
       const data = d.data();
@@ -261,7 +261,11 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       }
 
       const country = data.country as string;
-      if (country) countryCount[country] = (countryCount[country] ?? 0) + 1;
+      if (country) {
+        if (!countryVisitors[country]) countryVisitors[country] = new Set();
+        const visitorKey = (data.visitorId as string) || (data.sessionId as string) || (data.ip as string);
+        if (visitorKey) countryVisitors[country].add(visitorKey);
+      }
     });
 
     const topPages = Object.entries(pageCount)
@@ -274,10 +278,10 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       .slice(0, 5)
       .map(([referrer, count]) => ({ referrer, count }));
 
-    const topCountries = Object.entries(countryCount)
-      .sort(([, a], [, b]) => b - a)
+    const topCountries = Object.entries(countryVisitors)
+      .sort(([, a], [, b]) => b.size - a.size)
       .slice(0, 5)
-      .map(([country, count]) => ({ country, count }));
+      .map(([country, visitors]) => ({ country, count: visitors.size }));
 
     res.json({
       today: { visitors: uniqueVisitors(todaySnap) },

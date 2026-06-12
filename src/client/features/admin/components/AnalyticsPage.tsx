@@ -113,6 +113,21 @@ function formatDuration(first: string, last: string): string {
   return `${Math.floor(m / 60)}h ${m % 60}min`;
 }
 
+const COUNTRY_NAMES: Record<string, string> = {
+  RO: "România", DE: "Germania", GB: "Marea Britanie", US: "SUA", FR: "Franța",
+  IT: "Italia", ES: "Spania", AT: "Austria", CH: "Elveția", NL: "Olanda",
+  BE: "Belgia", HU: "Ungaria", MD: "Moldova", UA: "Ucraina", BG: "Bulgaria",
+  PL: "Polonia", CZ: "Cehia", SK: "Slovacia", HR: "Croația", RS: "Serbia",
+  AL: "Albania", GR: "Grecia", TR: "Turcia", SE: "Suedia", NO: "Norvegia",
+  DK: "Danemarca", FI: "Finlanda", PT: "Portugalia", IE: "Irlanda",
+  CA: "Canada", AU: "Australia", AE: "Emiratele Arabe Unite", IL: "Israel",
+  JP: "Japonia", KR: "Coreea de Sud", SG: "Singapore", NZ: "Noua Zeelandă",
+};
+
+function countryName(code: string): string {
+  return COUNTRY_NAMES[code?.toUpperCase()] ?? code ?? "Necunoscut";
+}
+
 function isSameDay(a: string, b: string): boolean {
   const da = new Date(a);
   const db = new Date(b);
@@ -187,6 +202,20 @@ function groupByVisitors(visits: Visit[]): Visitor[] {
   return Array.from(visitorMap.values()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
 }
 
+interface GscRow {
+  keys: string[];
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+interface GscData {
+  queries: GscRow[];
+  pages: GscRow[];
+  period: { startDate: string; endDate: string; days: number };
+}
+
 export default function AnalyticsPage() {
   const navigate = useNavigate();
   const { auth } = useAuth();
@@ -197,6 +226,9 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState<PeriodKey>("7d");
   const [includeLocal, setIncludeLocal] = useState(false);
   const [countryDrill, setCountryDrill] = useState<string | null>(null);
+  const [gscCache, setGscCache] = useState<Record<number, GscData>>({});
+  const [gscLoadingDays, setGscLoadingDays] = useState<Set<number>>(new Set());
+  const [gscError, setGscError] = useState<string | null>(null);
 
   const load = (token: string, localFlag: boolean) => {
     setLoading(true);
@@ -220,6 +252,33 @@ export default function AnalyticsPage() {
     load(auth.accessToken ?? "", includeLocal);
   }, [auth.loading, auth.accessToken, includeLocal]);
 
+  useEffect(() => {
+    if (!auth.accessToken) return;
+    const allDays = [1, 3, 7, 30, 90];
+    allDays.forEach((days) => {
+      setGscLoadingDays((prev) => new Set([...prev, days]));
+      fetch(`/api/admin/search-console/queries?days=${days}`, {
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      })
+        .then(async (r) => {
+          const data = await r.json();
+          if (!r.ok) throw new Error(data?.error ?? `HTTP ${r.status}`);
+          return data as GscData;
+        })
+        .then((data) => setGscCache((prev) => ({ ...prev, [days]: data })))
+        .catch((err: Error) => setGscError(err.message))
+        .finally(() => setGscLoadingDays((prev) => { const next = new Set(prev); next.delete(days); return next; }));
+    });
+  }, [auth.accessToken]);
+
+  const activeDays = useMemo(() => {
+    const days = PERIODS.find((p) => p.key === period)?.days ?? 7;
+    return days === 0 ? 1 : days;
+  }, [period]);
+
+  const gsc = gscCache[activeDays] ?? null;
+  const gscLoading = gscLoadingDays.has(activeDays);
+
   const cutoff = useMemo(() => periodCutoff(period), [period]);
 
   const filteredVisits = useMemo(
@@ -228,6 +287,34 @@ export default function AnalyticsPage() {
   );
 
   const visitors = useMemo(() => groupByVisitors(filteredVisits), [filteredVisits]);
+
+  const topPages = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredVisits.forEach((v) => { counts[v.page] = (counts[v.page] ?? 0) + 1; });
+    return Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 8).map(([page, count]) => ({ page, count }));
+  }, [filteredVisits]);
+
+  const topCountries = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    filteredVisits.forEach((v) => {
+      if (!v.country) return;
+      if (!map[v.country]) map[v.country] = new Set();
+      map[v.country].add(v.visitorId || v.sessionId || v.ip);
+    });
+    return Object.entries(map).sort(([, a], [, b]) => b.size - a.size).slice(0, 5).map(([country, s]) => ({ country, count: s.size }));
+  }, [filteredVisits]);
+
+  const topReferrers = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredVisits.forEach((v) => {
+      if (!v.referrer || v.referrer.includes("ancavisuals.ro")) return;
+      try {
+        const host = new URL(v.referrer).hostname.replace(/^www\./, "");
+        counts[host] = (counts[host] ?? 0) + 1;
+      } catch { /* invalid URL */ }
+    });
+    return Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 5).map(([referrer, count]) => ({ referrer, count }));
+  }, [filteredVisits]);
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
@@ -255,6 +342,12 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
+      <style>{`
+        .dark-scroll::-webkit-scrollbar { width: 4px; }
+        .dark-scroll::-webkit-scrollbar-track { background: #111; border-radius: 4px; }
+        .dark-scroll::-webkit-scrollbar-thumb { background: #7c3aed; border-radius: 4px; }
+        .dark-scroll::-webkit-scrollbar-thumb:hover { background: #a78bfa; }
+      `}</style>
       <div className="max-w-3xl mx-auto space-y-6">
 
         {/* Breadcrumb */}
@@ -274,17 +367,7 @@ export default function AnalyticsPage() {
               {activeCount} vizitatori unici · {activePeriod.label.toLowerCase()}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <div
-                onClick={() => setIncludeLocal((v) => !v)}
-                className={`relative w-9 h-5 rounded-full transition-colors ${includeLocal ? "bg-amber-500" : "bg-neutral-700"}`}
-              >
-                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${includeLocal ? "translate-x-4" : "translate-x-0"}`} />
-              </div>
-              <span className="text-neutral-500 text-xs">Afișează localhost</span>
-            </label>
-            <button
+          <button
             onClick={() => load(auth.accessToken ?? "", includeLocal)}
             className="p-2 rounded-lg border border-neutral-800 text-neutral-500 hover:text-white hover:border-neutral-600 transition-colors"
             title="Reîncarcă"
@@ -294,7 +377,6 @@ export default function AnalyticsPage() {
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
             </svg>
           </button>
-          </div>
         </div>
 
         {/* Period tabs — also stat cards */}
@@ -324,68 +406,136 @@ export default function AnalyticsPage() {
         )}
 
         {/* Top pages + countries + referrers */}
-        {stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-              <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Top pagini · 30 zile</p>
-              <div className="space-y-1.5">
-                {stats.topPages.slice(0, 8).map(({ page, count }) => (
-                  <div key={page} className="flex items-center gap-2">
-                    <a
-                      href={page}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-neutral-300 hover:text-violet-400 text-xs font-mono truncate flex-1 transition-colors"
-                      title={page}
-                    >
-                      {page}
-                    </a>
-                    <span className="text-violet-400 text-xs font-semibold flex-shrink-0">{count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-              <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Top țări · 30 zile</p>
-              <div className="space-y-1.5">
-                {stats.topCountries.map(({ country, count }) => (
-                  <button
-                    key={country}
-                    onClick={() => setCountryDrill(country)}
-                    className="w-full flex items-center gap-2 group text-left"
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+            <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Top pagini · {activePeriod.label}</p>
+            <div className="space-y-1.5">
+              {topPages.map(({ page, count }) => (
+                <div key={page} className="flex items-center gap-2">
+                  <a
+                    href={page}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neutral-300 hover:text-violet-400 text-xs font-mono truncate flex-1 transition-colors"
+                    title={page}
                   >
-                    <span className="text-neutral-300 group-hover:text-emerald-400 text-xs flex-1 transition-colors">
-                      {country || "Necunoscut"}
-                    </span>
-                    <span className="text-emerald-400 text-xs font-semibold flex-shrink-0">{count}</span>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-700 group-hover:text-emerald-600 flex-shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-              <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Surse trafic · 30 zile</p>
-              <div className="space-y-1.5">
-                {stats.topReferrers.length === 0 ? (
-                  <p className="text-neutral-600 text-xs">Fără trafic extern</p>
-                ) : stats.topReferrers.map(({ referrer, count }) => (
-                  <div key={referrer} className="flex items-center gap-2">
-                    <a
-                      href={`https://${referrer}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-neutral-300 hover:text-amber-400 text-xs truncate flex-1 transition-colors"
-                      title={referrer}
-                    >
-                      {referrer}
-                    </a>
-                    <span className="text-amber-400 text-xs font-semibold flex-shrink-0">{count}</span>
-                  </div>
-                ))}
-              </div>
+                    {page}
+                  </a>
+                  <span className="text-violet-400 text-xs font-semibold flex-shrink-0">{count}</span>
+                </div>
+              ))}
             </div>
           </div>
-        )}
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+            <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Top țări · vizitatori unici · {activePeriod.label}</p>
+            <div className="space-y-1.5">
+              {topCountries.map(({ country, count }) => (
+                <button
+                  key={country}
+                  onClick={() => setCountryDrill(country)}
+                  className="w-full flex items-center gap-2 group text-left"
+                >
+                  <span className="text-neutral-300 group-hover:text-emerald-400 text-xs flex-1 transition-colors">
+                    {countryName(country)}
+                  </span>
+                  <span className="text-emerald-400 text-xs font-semibold flex-shrink-0">{count}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-700 group-hover:text-emerald-600 flex-shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+            <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Surse trafic · {activePeriod.label}</p>
+            <div className="space-y-1.5">
+              {topReferrers.length === 0 ? (
+                <p className="text-neutral-600 text-xs">Fără trafic extern</p>
+              ) : topReferrers.map(({ referrer, count }) => (
+                <div key={referrer} className="flex items-center gap-2">
+                  <a
+                    href={`https://${referrer}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neutral-300 hover:text-amber-400 text-xs truncate flex-1 transition-colors"
+                    title={referrer}
+                  >
+                    {referrer}
+                  </a>
+                  <span className="text-amber-400 text-xs font-semibold flex-shrink-0">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Google Search Console — Keywords */}
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-white font-semibold text-base">Keywords Google</h2>
+            <p className="text-neutral-500 text-xs mt-0.5">Date reale din Google Search Console · {PERIODS.find((p) => p.key === period)?.label}</p>
+          </div>
+
+          {gscLoading ? (
+            <div className="text-neutral-600 text-sm text-center py-8">Se încarcă...</div>
+          ) : gscError ? (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+              <p className="text-red-400 text-xs font-mono">{gscError}</p>
+            </div>
+          ) : !gsc ? (
+            <div className="text-neutral-600 text-sm text-center py-8">Nicio dată disponibilă.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Queries */}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-neutral-800">
+                  <p className="text-white text-sm font-semibold">Top căutări</p>
+                  <p className="text-neutral-500 text-xs">{gsc.period.startDate} → {gsc.period.endDate}</p>
+                </div>
+                <div className="divide-y divide-neutral-800">
+                  {gsc.queries.length === 0 && (
+                    <p className="text-neutral-600 text-sm text-center py-6">Nicio dată disponibilă.</p>
+                  )}
+                  {gsc.queries.map((row) => (
+                    <div key={row.keys[0]} className="flex items-center gap-3 px-4 py-3">
+                      <span className="text-neutral-300 text-sm flex-1 break-words">{row.keys[0]}</span>
+                      <span className="text-emerald-400 text-xs font-semibold flex-shrink-0">{row.clicks} click{row.clicks !== 1 ? "s" : ""}</span>
+                      <span className="text-neutral-600 text-xs flex-shrink-0">{row.impressions} imp.</span>
+                      <span className="text-neutral-500 text-xs flex-shrink-0">#{Math.round(row.position)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pages */}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-neutral-800">
+                  <p className="text-white text-sm font-semibold">Top pagini organice</p>
+                  <p className="text-neutral-500 text-xs">{gsc.period.startDate} → {gsc.period.endDate}</p>
+                </div>
+                <div className="divide-y divide-neutral-800">
+                  {gsc.pages.length === 0 && (
+                    <p className="text-neutral-600 text-sm text-center py-6">Nicio dată disponibilă.</p>
+                  )}
+                  {gsc.pages.map((row) => {
+                    const slug = row.keys[0].replace(/^https?:\/\/[^/]+/, "") || "/";
+                    return (
+                      <div key={row.keys[0]} className="flex items-center gap-3 px-4 py-3">
+                        <a
+                          href={`https://ancavisuals.ro${slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={slug}
+                          className="text-neutral-400 hover:text-emerald-400 text-xs font-mono flex-1 truncate transition-colors"
+                        >{slug}</a>
+                        <span className="text-emerald-400 text-xs font-semibold flex-shrink-0">{row.clicks} click{row.clicks !== 1 ? "s" : ""}</span>
+                        <span className="text-neutral-600 text-xs flex-shrink-0">{row.impressions} imp.</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Visitor feed */}
         <div>
@@ -398,7 +548,7 @@ export default function AnalyticsPage() {
               <p className="text-neutral-500 text-sm">Niciun vizitator în perioada selectată.</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="dark-scroll space-y-2 max-h-[420px] overflow-y-auto pr-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#7c3aed #111" }}>
               {visitors.map((visitor) => {
                 const isOpen = expanded.has(visitor.visitorId);
                 const location = [visitor.city, visitor.country].filter(Boolean).join(", ");
@@ -519,6 +669,19 @@ export default function AnalyticsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Bottom controls */}
+      <div className="max-w-3xl mx-auto mt-8 flex justify-end">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div
+            onClick={() => setIncludeLocal((v) => !v)}
+            className={`relative w-9 h-5 rounded-full transition-colors ${includeLocal ? "bg-amber-500" : "bg-neutral-700"}`}
+          >
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${includeLocal ? "translate-x-4" : "translate-x-0"}`} />
+          </div>
+          <span className="text-neutral-500 text-xs">Afișează localhost</span>
+        </label>
       </div>
 
       {/* Country drill-down modal */}

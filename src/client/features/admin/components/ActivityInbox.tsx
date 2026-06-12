@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 
 type ActivityType = "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit";
@@ -86,6 +87,7 @@ function formatTime(seconds?: number): string {
 
 export default function ActivityInbox() {
   const { auth } = useAuth();
+  const navigate = useNavigate();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -312,9 +314,17 @@ export default function ActivityInbox() {
       {/* Footer */}
       <div style={{ padding: "8px 18px", borderTop: "1px solid #111", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 10, color: "#333" }}>Actualizare automată la 30s</span>
-        <button onClick={fetchActivities} style={{ fontSize: 10, color: "#555", background: "none", border: "none", cursor: "pointer" }}>
-          ↻ Reîncarcă
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => navigate("/admin/analytics")}
+            style={{ fontSize: 10, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+          >
+            🔍 Keywords GSC
+          </button>
+          <button onClick={fetchActivities} style={{ fontSize: 10, color: "#555", background: "none", border: "none", cursor: "pointer" }}>
+            ↻ Reîncarcă
+          </button>
+        </div>
       </div>
     </div>
   );

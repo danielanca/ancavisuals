@@ -49,6 +49,7 @@ import venueOutreachRouter from "./src/server/routes/venueOutreach.routes";
 import seoGeneratorRouter from "./src/server/routes/seoGenerator.routes";
 import campaignRouter from "./src/server/routes/campaign.routes";
 import activityRouter from "./src/server/routes/activity.routes";
+import searchConsoleRouter from "./src/server/routes/searchConsole.routes";
 import photoCollectionsRouter from "./src/server/routes/photoCollections.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
@@ -170,6 +171,7 @@ async function createServer() {
   app.use("/api/campaign", campaignRouter);
   app.use("/api/analytics", analyticsPublicRouter);
   app.use(API_ROUTE_PREFIXES.admin, analyticsAdminRouter);
+  app.use(API_ROUTE_PREFIXES.admin, searchConsoleRouter);
   app.use(API_ROUTE_PREFIXES.admin, activityRouter);
   app.use(API_ROUTE_PREFIXES.admin, photoCollectionsRouter);
   app.use("/api/moderare", moderationRouter);
