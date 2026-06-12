@@ -6,6 +6,7 @@ interface Proposal {
   id: string;
   albumSlug: string;
   photoUrl: string;
+  previewPhotoUrl?: string;
   fileName: string;
   status: string;
 }
@@ -61,6 +62,14 @@ export default function SwipeProposalsPage() {
       document.body.style.width = '';
     };
   }, []);
+
+  useEffect(() => {
+    if (loading || currentIndex < proposals.length) return;
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.width = '';
+  }, [loading, currentIndex, proposals.length]);
 
   useEffect(() => {
     fetch("/api/instagram-proposals/admin/all", {
@@ -239,7 +248,7 @@ export default function SwipeProposalsPage() {
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {list.map((proposal) => (
                   <div key={proposal.id} className="aspect-square rounded-lg overflow-hidden relative group">
-                    <img src={proposal.photoUrl} alt={proposal.fileName} className="w-full h-full object-cover" />
+                    <img src={proposal.previewPhotoUrl ?? proposal.photoUrl} alt={proposal.fileName} className="w-full h-full object-cover" />
                     <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 ${
                       resultTab === "accepted" ? "bg-gradient-to-t from-emerald-900/80 to-transparent" : "bg-gradient-to-t from-red-900/80 to-transparent"
                     }`}>
@@ -357,7 +366,7 @@ export default function SwipeProposalsPage() {
               }}
             >
               <img
-                src={proposal.photoUrl}
+                src={proposal.previewPhotoUrl ?? proposal.photoUrl}
                 alt={proposal.fileName}
                 style={{
                   display: "block",

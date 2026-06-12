@@ -71,6 +71,19 @@ function timeAgo(seconds?: number): string {
   return `${Math.floor(diff / 86400)}z`;
 }
 
+function formatTime(seconds?: number): string {
+  if (!seconds) return "";
+  const date = new Date(seconds * 1000);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  if (isToday) return `${hh}:${mm}`;
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month} ${hh}:${mm}`;
+}
+
 export default function ActivityInbox() {
   const { auth } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -284,7 +297,8 @@ export default function ActivityInbox() {
               </div>
 
               {/* Right side */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: "#ccc", fontVariantNumeric: "tabular-nums" }}>{formatTime(activity.createdAt?.seconds)}</span>
                 <span style={{ fontSize: 10, color: "#444" }}>{timeAgo(activity.createdAt?.seconds)}</span>
                 {activity.emailSent && (
                   <span style={{ fontSize: 9, color: "#374151", background: "#1f2937", borderRadius: 4, padding: "1px 5px" }}>email</span>

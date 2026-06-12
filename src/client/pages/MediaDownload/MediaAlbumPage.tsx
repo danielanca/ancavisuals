@@ -574,6 +574,21 @@ export default function MediaAlbumPage() {
     return () => window.clearTimeout(timer);
   }, [loading]);
 
+  // Trimite raport admin dacă albumul durează >8s să se încarce
+  useEffect(() => {
+    if (!loadingSlow || !slug) return;
+    fetch(`/api/album/${slug}/report-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        errorMessage: "Albumul durează mai mult de 8 secunde să se încarce",
+        pageUrl: typeof window !== "undefined" ? window.location.href : "",
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        timestamp: new Date().toLocaleString("ro-RO"),
+      }),
+    }).catch(() => {});
+  }, [loadingSlow, slug]);
+
   useEffect(() => {
     if (!slug) return;
     (async () => {
