@@ -27,7 +27,6 @@ import mementosRouter from "./src/server/routes/mementos.routes";
 import { analyticsPublicRouter, analyticsAdminRouter } from "./src/server/routes/analytics.routes";
 import moderationRouter from "./src/server/routes/moderation.routes";
 import inspirationProposalsRouter from "./src/server/routes/inspiration-proposals.routes";
-import routeSheetsRouter from "./src/server/routes/routeSheets.routes";
 import monitoringRouter from "./src/server/routes/monitoring.routes";
 import expensesRouter from "./src/server/routes/expenses.routes";
 import invoicesRouter from "./src/server/routes/invoices.routes";
@@ -174,7 +173,6 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.admin, photoCollectionsRouter);
   app.use("/api/moderare", moderationRouter);
   app.use("/api/inspiration-proposals", inspirationProposalsRouter);
-  app.use("/api/admin/route-sheets", routeSheetsRouter);
   app.use("/api/monitoring", monitoringRouter);
   app.use("/api/admin/monitoring", monitoringRouter);
   app.use("/api/admin/expenses", expensesRouter);

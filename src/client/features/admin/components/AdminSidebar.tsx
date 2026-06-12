@@ -103,7 +103,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Calendar", path: "/admin/calendar" },
         { label: "Mementouri", path: "/admin/mementos", badge: urgentMementos },
         { label: "Moderare albume", path: "/admin/moderare", badge: pendingModeration },
-        { label: "Foi de parcurs", path: "/admin/route-sheets" },
       ],
     },
     {

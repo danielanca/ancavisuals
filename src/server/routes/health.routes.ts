@@ -885,4 +885,102 @@ Răspunde concis, practic, bazat pe datele reale ale utilizatorului. Folosește 
   }
 });
 
+// ── FOOD CHAT ─────────────────────────────────────────────────────────────────
+
+router.post(
+  "/food/:userId/chat",
+  requireFirebaseAuth,
+  requireHealthAccess,
+  async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const { messages, photoBase64 } = req.body as {
+        messages: { role: "user" | "assistant"; content: string }[];
+        photoBase64?: string;
+      };
+
+      const today = TODAY();
+      const [profileDoc, foodDoc] = await Promise.all([
+        firestore().collection(PROFILES_COL).doc(userId).get(),
+        firestore().collection(FOOD_COL).doc(`${userId}_${today}`).get(),
+      ]);
+
+      type ProfType = { dailyCalories?: number; currentWeight?: number; targetWeight?: number };
+      const profile = profileDoc.data() as ProfType | undefined;
+      const currentCalories = foodDoc.exists ? ((foodDoc.data()?.totalCalories as number) ?? 0) : 0;
+      const remaining = (profile?.dailyCalories ?? 1600) - currentCalories;
+
+      const systemPrompt = `Ești un nutriționist român care ajută utilizatorul să logheze masa cu precizie maximă.
+
+CONTEXT AZI:
+- Calorii consumate: ${currentCalories} kcal din ${profile?.dailyCalories ?? 1600} kcal target
+- Rămase: ${remaining} kcal
+
+COMPORTAMENT:
+1. Pune întrebări scurte și clare despre fiecare aliment: ce anume, cantitate, mod de preparare
+2. Fii concis (1-2 propoziții per răspuns)
+3. Ține mental o listă cu TOATE alimentele menționate până acum
+4. Când utilizatorul spune că a terminat (ex: "gata", "asta e", "done") SAU când ai suficiente informații și ești rugat explicit să finalizezi, generează blocul <ANALYSIS>
+
+FORMAT ANALYSIS — folosit DOAR când utilizatorul finalizează:
+<ANALYSIS>
+{"food":"Descriere scurtă masă","quantity":"Descriere cantități totale","calories":0,"protein":0,"carbs":0,"fat":0,"confidence":"high","aiNote":"observație scurtă","items":[{"name":"Aliment 1","quantity":"200g","calories":150},{"name":"Aliment 2","quantity":"1 bucată","calories":80}]}
+</ANALYSIS>
+
+Răspunde MEREU în română. NU genera blocul ANALYSIS decât când ești rugat să finalizezi sau utilizatorul spune că a terminat.`;
+
+      const apiMessages: Anthropic.MessageParam[] = messages.slice(-20).map((m, idx) => {
+        if (m.role === "user" && idx === messages.length - 1 && photoBase64) {
+          return {
+            role: "user" as const,
+            content: [
+              { type: "image" as const, source: { type: "base64" as const, media_type: "image/jpeg" as const, data: photoBase64 } },
+              { type: "text" as const, text: m.content || "Ce alimente sunt în această imagine? Ajută-mă să estimez caloriile." },
+            ],
+          };
+        }
+        return { role: m.role, content: m.content };
+      });
+
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 500,
+        system: systemPrompt,
+        messages: apiMessages,
+      });
+
+      const reply = message.content[0].type === "text" ? message.content[0].text : "";
+
+      const analysisMatch = reply.match(/<ANALYSIS>([\s\S]*?)<\/ANALYSIS>/);
+      let analysis: FoodAnalysis & { items?: { name: string; quantity: string; calories: number }[] } | null = null;
+      let displayMessage = reply.replace(/<ANALYSIS>[\s\S]*?<\/ANALYSIS>/g, "").trim();
+      if (!displayMessage && analysisMatch) displayMessage = "Am pregătit rezumatul mesei tale. ✅";
+
+      if (analysisMatch) {
+        try {
+          const parsed = JSON.parse(analysisMatch[1].trim()) as Record<string, unknown>;
+          analysis = {
+            food: String(parsed.food ?? "Masă"),
+            quantity: String(parsed.quantity ?? "—"),
+            calories: Number(parsed.calories) || 0,
+            protein: Number(parsed.protein) || 0,
+            carbs: Number(parsed.carbs) || 0,
+            fat: Number(parsed.fat) || 0,
+            confidence: (["low", "medium", "high"].includes(String(parsed.confidence)) ? parsed.confidence : "medium") as FoodAnalysis["confidence"],
+            aiNote: String(parsed.aiNote ?? ""),
+            items: Array.isArray(parsed.items) ? (parsed.items as { name: string; quantity: string; calories: number }[]) : [],
+          };
+        } catch {
+          // parsing failed — return as plain text
+        }
+      }
+
+      res.json({ reply: displayMessage, analysis, currentCalories });
+    } catch (error) {
+      console.error("[health] food chat error:", error);
+      res.status(500).json({ error: String(error) });
+    }
+  }
+);
+
 export default router;
