@@ -11,7 +11,7 @@
     "dev:client": "vite --config vite.config.ts",
     "dev:dual": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
     "clean": "rimraf dist",
-    "build": "npm install && npm run clean && tsc -p tsconfig.json && npm run build:client && npm run build:server && npm run copy-files && node fix-extensions.js",
+    "build": "npm install && npm run clean && NODE_OPTIONS=--max-old-space-size=2048 tsc -p tsconfig.json && npm run build:client && npm run build:server && npm run copy-files && node fix-extensions.js",
     "build:client": "NODE_OPTIONS=--max-old-space-size=2048 vite build --outDir dist/client --ssrManifest",
     "build:server": "NODE_OPTIONS=--max-old-space-size=2048 vite build --ssr src/client/entry-server.tsx --outDir dist/server",
     "copy-files": "copyfiles \"public/**/*\" dist && copyfiles -u 2 \"data/blog/**/*.md\" dist && copyfiles -u 2 \"dist/client/**/*\" dist && copyfiles -u 2 \"dist/client/assets/**/*\" dist/public",
