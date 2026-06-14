@@ -144,6 +144,18 @@ const Navbar = () => {
                   </button>
                   <div style={{ height: "1px", background: "#1f1f1f", margin: "0 10px" }} />
                   <button
+                    onClick={() => { setAdminMenuOpen(false); window.location.reload(); }}
+                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#ddd", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                    </svg>
+                    Reîncarcă
+                  </button>
+                  <div style={{ height: "1px", background: "#1f1f1f", margin: "0 10px" }} />
+                  <button
                     onClick={() => { setAdminMenuOpen(false); void logOut(); }}
                     style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#f87171", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
