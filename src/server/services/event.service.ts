@@ -390,7 +390,8 @@ export async function bookDate(req: Request, res: Response) {
       desc?: string;
       dbStore: string;
       phone?: string;
-      price?:string;
+      price?: string;
+      advance?: string;
     };
 
     // Required fields validation
@@ -432,6 +433,7 @@ export async function bookDate(req: Request, res: Response) {
 
     // Mirror to adminEvents so the dashboard CRM can display it
     const priceNum = parseFloat(String(data.price).replace(/[^0-9.]/g, "")) || 0;
+    const advanceNum = data.advance ? parseFloat(String(data.advance).replace(/[^0-9.]/g, "")) || 0 : 0;
     const db = firestore();
     await db.collection("adminEvents").add({
       type: "Nuntă",
@@ -447,9 +449,9 @@ export async function bookDate(req: Request, res: Response) {
       services: [{ name: "Servicii foto/video", price: priceNum }],
       pricing: {
         total: priceNum,
-        advanceAmount: 0,
-        advancePaid: false,
-        remainingAmount: priceNum,
+        advanceAmount: advanceNum,
+        advancePaid: advanceNum > 0,
+        remainingAmount: Math.max(0, priceNum - advanceNum),
       },
       ...(data.desc ? { notes: data.desc } : {}),
     });
