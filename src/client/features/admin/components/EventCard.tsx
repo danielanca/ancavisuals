@@ -1024,7 +1024,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   onKeyDown={(e) => { if (e.key === "Enter") addExpense(); }}
                 />
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   className="w-24 bg-neutral-800 text-white text-xs placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-1.5 outline-none focus:border-neutral-500 transition-colors"
                   placeholder="RON"
                   value={newExpenseAmount}
@@ -1191,12 +1192,13 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Preț total (EUR)</label>
-                  <input type="number" className={inputClass} value={form.total} onChange={set("total")} />
+                  <input type="text" inputMode="numeric" className={inputClass} value={form.total} onChange={set("total")} />
                 </div>
                 <div>
                   <label className={labelClass}>Avans (EUR)</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     className={inputClass}
                     value={form.advanceAmount}
                     onChange={(e) => {

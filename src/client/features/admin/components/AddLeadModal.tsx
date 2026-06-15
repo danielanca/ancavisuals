@@ -324,14 +324,14 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
               <div>
                 <label className={labelClass}>Preț total (EUR)</label>
                 <input
-                  type="number" min="0" className={inputClass}
+                  type="text" inputMode="numeric" className={inputClass}
                   placeholder="ex: 1500" value={form.total} onChange={set("total")}
                 />
               </div>
               <div>
                 <label className={labelClass}>Avans (EUR)</label>
                 <input
-                  type="number" min="0" className={inputClass}
+                  type="text" inputMode="numeric" className={inputClass}
                   placeholder="ex: 500" value={form.advanceAmount} onChange={set("advanceAmount")}
                 />
               </div>
