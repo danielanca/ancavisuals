@@ -170,7 +170,9 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
         const date = formatExportDate(e.eventDate ? new Date(e.eventDate) : null);
         const phone = e.client?.phone || "—";
         const type = e.typeLabel || (e.type !== "Nuntă" ? e.type : null);
-        return type ? `${date} — ${phone} — ${type}` : `${date} — ${phone}`;
+        const fiscal = e.fiscalized ? "Fiscalizat" : "Nefiscalizat";
+        const base = type ? `${date} — ${phone} — ${type}` : `${date} — ${phone}`;
+        return `${base} — ${fiscal}`;
       })
       .join("\n");
   };
