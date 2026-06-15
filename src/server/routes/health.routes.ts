@@ -502,7 +502,7 @@ router.post(
       const date = String(rawDate ?? TODAY());
       const buffer = photoBase64 ? Buffer.from(photoBase64, "base64") : null;
 
-      if (!buffer && !note) {
+      if (!buffer && !note && !rawAnalysis) {
         res.status(400).json({ error: "Adaugă o poză sau o notă." }); return;
       }
 
