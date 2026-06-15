@@ -321,15 +321,11 @@ export default function ActivityInbox() {
                     {activity.title}
                   </span>
                 </div>
-                {activity.description && (() => {
-                  const parts = activity.description.split(" · ");
-                  return (
-                    <p style={{ fontSize: 11, color: "#555", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <span style={{ color: "#4ade80" }}>{parts[0]}</span>
-                      {parts.length > 1 && <span>{" · " + parts.slice(1).join(" · ")}</span>}
-                    </p>
-                  );
-                })()}
+                {activity.description && (
+                  <p style={{ fontSize: 11, color: "#4ade80", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {activity.description}
+                  </p>
+                )}
               </div>
 
               {/* Right side */}
