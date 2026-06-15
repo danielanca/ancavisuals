@@ -225,9 +225,16 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
   };
 
   function renderGroup(grouped: Map<string, ClientEvent[]>) {
-    return Array.from(grouped.entries()).map(([monthLabel, monthEvents]) => (
+    return Array.from(grouped.entries()).map(([monthLabel, monthEvents]) => {
+      const monthTotal = monthEvents.reduce((sum, e) => sum + (e.pricing?.total ?? 0), 0);
+      return (
       <div key={monthLabel}>
-        <p className="text-neutral-500 text-xs tracking-widest uppercase mb-3">{monthLabel}</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-neutral-500 text-xs tracking-widest uppercase">{monthLabel}</p>
+          {monthTotal > 0 && (
+            <span className="text-neutral-500 text-xs tabular-nums">{formatEUR(monthTotal)}</span>
+          )}
+        </div>
         <div className="space-y-2">
           {monthEvents.map((event) => (
             <div id={`event-card-${event.id}`} key={`${event.id}-${collapseKey}`}>
@@ -243,7 +250,8 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
           ))}
         </div>
       </div>
-    ));
+      );
+    });
   }
 
   function renderYearBlock(year: number, collapsible: boolean) {
