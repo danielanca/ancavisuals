@@ -8,7 +8,7 @@ interface Props {
   onAdded: (event: ClientEvent) => void;
 }
 
-const EVENT_TYPES: EventType[] = ["Nuntă", "Botez", "Logodnă", "Aniversare", "Altele"];
+const EVENT_TYPES: EventType[] = ["Nuntă", "Botez", "Logodnă", "Majorat", "Altele"];
 
 const inputClass =
   "w-full bg-neutral-800 text-white text-sm placeholder-neutral-600 border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors";
