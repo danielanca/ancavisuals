@@ -76,6 +76,7 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
   const [tab, setTab] = useState<Tab>("viitor");
   const [fiscalFilter, setFiscalFilter] = useState<FiscalFilter>("toate");
   const [collapsed, setCollapsed] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [collapseKey, setCollapseKey] = useState(0);
   const [cardStates, setCardStates] = useState<Record<string, boolean>>({});
@@ -149,6 +150,43 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
       const next = { ...prev, [eventId]: collapsed };
       persistCardStates(next);
       return next;
+    });
+  };
+
+  const formatExportDate = (date: Date | null | undefined) => {
+    if (!date) return "—";
+    const d = new Date(date);
+    return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+  };
+
+  const buildExportText = (list: ClientEvent[]) => {
+    const sorted = [...list].sort((a, b) => {
+      const aTime = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+      const bTime = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+      return aTime - bTime;
+    });
+    return sorted
+      .map((e) => {
+        const date = formatExportDate(e.eventDate ? new Date(e.eventDate) : null);
+        const phone = e.client?.phone || "—";
+        const type = e.typeLabel || e.type || "—";
+        return `${date} — ${phone} — ${type}`;
+      })
+      .join("\n");
+  };
+
+  const handleExport = () => {
+    let list: ClientEvent[] = [];
+    if (tab === "viitor") list = filteredUpcoming;
+    else if (tab === "trecut") list = filteredPast;
+    else if (tab === "leaduri") list = filteredLeads;
+    else if (tab === "arhiva") list = filteredArchived;
+
+    const text = buildExportText(list);
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     });
   };
 
@@ -417,6 +455,33 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
         <div className="flex items-center justify-between gap-2 mb-5">
           <h2 className="text-white font-medium whitespace-nowrap">Evenimente {currentYear}</h2>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExport}
+              title="Exportă lista curentă"
+              className={`flex h-8 items-center gap-1.5 px-2.5 rounded-lg border text-xs transition-colors ${
+                copied
+                  ? "border-emerald-600 bg-emerald-500/10 text-emerald-400"
+                  : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white"
+              }`}
+            >
+              {copied ? (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Copiat
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  Export
+                </>
+              )}
+            </button>
             <button
               onClick={() => navigate("/admin/calendar")}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
