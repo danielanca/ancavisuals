@@ -169,8 +169,8 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
       .map((e) => {
         const date = formatExportDate(e.eventDate ? new Date(e.eventDate) : null);
         const phone = e.client?.phone || "—";
-        const type = e.typeLabel || e.type || "—";
-        return `${date} — ${phone} — ${type}`;
+        const type = e.typeLabel || (e.type !== "Nuntă" ? e.type : null);
+        return type ? `${date} — ${phone} — ${type}` : `${date} — ${phone}`;
       })
       .join("\n");
   };
