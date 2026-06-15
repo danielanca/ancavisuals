@@ -496,7 +496,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
           <div className="flex sm:hidden items-center justify-between gap-2 min-w-0 w-full">
             <div className="flex flex-col min-w-0">
               <span className="text-white text-sm font-medium truncate"><Redacted>{event.client.fullName}</Redacted></span>
-              <span className={`text-xs mt-0.5 ${eventDate ? "text-neutral-400" : "text-neutral-600 italic"}`}>{formattedDate}</span>
+              <span className={`text-xs mt-0.5 ${
+                !eventDate ? "text-neutral-600 italic" :
+                event.status === "confirmat" || event.status === "finalizat" ? "text-emerald-400" :
+                event.status === "lead" || event.status === "tentativ" ? "text-amber-400" :
+                "text-neutral-400"
+              }`}>{formattedDate}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {!isLead && (
@@ -511,7 +516,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
 
           {/* Desktop header */}
           <div className="hidden sm:flex items-center gap-2 flex-wrap min-w-0">
-            <EventStatusBadge status={displayStatus} />
+            {event.status !== "confirmat" && <EventStatusBadge status={displayStatus} />}
             <span
               className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                 isFiscalized
@@ -537,7 +542,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
             <span className="text-neutral-500 text-xs">•</span>
             <span className={`text-xs ${event.type === "Nuntă" ? "text-emerald-400" : "text-neutral-500"}`}>{event.typeLabel || event.type}</span>
             <span className="text-neutral-500 text-xs">•</span>
-            <span className={`text-xs ${eventDate ? "text-neutral-400" : "text-neutral-600 italic"}`}>
+            <span className={`text-xs ${
+              !eventDate ? "text-neutral-600 italic" :
+              event.status === "confirmat" || event.status === "finalizat" ? "text-emerald-400" :
+              event.status === "lead" || event.status === "tentativ" ? "text-amber-400" :
+              "text-neutral-400"
+            }`}>
               {formattedDate}
             </span>
           </div>
