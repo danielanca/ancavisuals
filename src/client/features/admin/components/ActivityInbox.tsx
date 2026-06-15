@@ -157,6 +157,8 @@ export default function ActivityInbox() {
     setShowSettings(false);
   };
 
+  const [revealed, setRevealed] = useState(false);
+
   const filtered = filter === "all" ? activities : activities.filter((a) => a.type === filter);
 
   return (
@@ -244,7 +246,40 @@ export default function ActivityInbox() {
       </div>
 
       {/* Activity list */}
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
+      <div style={{ position: "relative" }}>
+      {!revealed && (
+        <div
+          style={{
+            position: "absolute", inset: 0, zIndex: 10,
+            backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+            background: "rgba(10,10,10,0.55)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            minHeight: 120,
+          }}
+        >
+          <button
+            onClick={() => setRevealed(true)}
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.15)",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+              padding: "9px 22px",
+              borderRadius: 999,
+              cursor: "pointer",
+              backdropFilter: "blur(4px)",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.14)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+          >
+            VEZI
+          </button>
+        </div>
+      )}
+      <div style={{ maxHeight: 420, overflowY: revealed ? "auto" : "hidden" }}>
         {loading ? (
           <div style={{ padding: "32px 0", textAlign: "center", color: "#333", fontSize: 13 }}>Se încarcă...</div>
         ) : filtered.length === 0 ? (
@@ -286,11 +321,15 @@ export default function ActivityInbox() {
                     {activity.title}
                   </span>
                 </div>
-                {activity.description && (
-                  <p style={{ fontSize: 11, color: "#555", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {activity.description}
-                  </p>
-                )}
+                {activity.description && (() => {
+                  const parts = activity.description.split(" · ");
+                  return (
+                    <p style={{ fontSize: 11, color: "#555", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ color: "#4ade80" }}>{parts[0]}</span>
+                      {parts.length > 1 && <span>{" · " + parts.slice(1).join(" · ")}</span>}
+                    </p>
+                  );
+                })()}
               </div>
 
               {/* Right side */}
@@ -304,6 +343,7 @@ export default function ActivityInbox() {
             </div>
           ))
         )}
+      </div>
       </div>
 
       {/* Footer */}
