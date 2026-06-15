@@ -169,7 +169,8 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
       .map((e) => {
         const date = formatExportDate(e.eventDate ? new Date(e.eventDate) : null);
         const rawPhone = e.client?.phone || "";
-        const phone = rawPhone.startsWith("0") ? "+40" + rawPhone.slice(1) : rawPhone || "—";
+        const isRomanian = /^0[67]\d{8}$/.test(rawPhone.replace(/\s/g, ""));
+        const phone = isRomanian ? "+40" + rawPhone.replace(/\s/g, "").slice(1) : rawPhone || "—";
         const type = e.typeLabel || (e.type !== "Nuntă" ? e.type : null);
         const base = type ? `${date} — ${phone} — ${type}` : `${date} — ${phone}`;
         return e.fiscalized ? `${base} — Fiscalizat` : base;
