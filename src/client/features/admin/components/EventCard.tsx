@@ -700,7 +700,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
             </div>
 
             {event.notes && (
-              <p className="text-neutral-500 text-xs leading-relaxed border-t border-neutral-800 pt-2">
+              <p className="text-amber-300/80 text-xs leading-relaxed border-t border-amber-500/20 pt-2 bg-amber-500/5 rounded-lg px-3 py-2">
                 {event.notes}
               </p>
             )}
