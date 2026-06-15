@@ -492,7 +492,25 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
           onClick={() => setCollapsed((c) => { const next = !c; onCollapseChange?.(next); return next; })}
           className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
         >
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
+          {/* Mobile header */}
+          <div className="flex sm:hidden items-center justify-between gap-2 min-w-0 w-full">
+            <div className="flex flex-col min-w-0">
+              <span className="text-white text-sm font-medium truncate"><Redacted>{event.client.fullName}</Redacted></span>
+              <span className={`text-xs mt-0.5 ${eventDate ? "text-neutral-400" : "text-neutral-600 italic"}`}>{formattedDate}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!isLead && (
+                <Redacted><span className="text-neutral-300 text-xs font-medium">{formatEUR(event.pricing?.total ?? 0)}</span></Redacted>
+              )}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className={`text-neutral-500 transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Desktop header */}
+          <div className="hidden sm:flex items-center gap-2 flex-wrap min-w-0">
             <EventStatusBadge status={displayStatus} />
             <span
               className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
@@ -501,7 +519,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   : "border-amber-500/30 bg-amber-500/10 text-amber-300"
               }`}
             >
-              <Redacted>{isFiscalized ? "Fiscalizat" : "Nefiscalizat"}</Redacted>
+              <Redacted>{isFiscalized ? "Fiscalizat" : "NEF"}</Redacted>
             </span>
             {!isLead && event.status !== "anulat" && isPast && (
               <span
@@ -523,7 +541,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               {formattedDate}
             </span>
           </div>
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="hidden sm:flex items-center gap-2.5 shrink-0">
             {!isLead && (
               <span className="text-right">
                 <Redacted><span className="text-neutral-300 text-xs font-medium">{formatEUR(event.pricing?.total ?? 0)}</span></Redacted>
@@ -584,7 +602,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 }`}
               >
                 <span>{isFiscalized ? "🧾" : "🏠"}</span>
-                <Redacted>{isFiscalized ? "Fiscalizat" : "Nefiscalizat"}</Redacted>
+                <Redacted>{isFiscalized ? "Fiscalizat" : "NEF"}</Redacted>
               </button>
               {event.client.phone && (
                 <span className="flex items-center gap-1.5">
