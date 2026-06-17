@@ -562,9 +562,9 @@ function readAndCompressImage(file: File, maxDim = 1200, quality = 0.82): Promis
 // ── Step Section ──────────────────────────────────────────────────────────────
 
 function StepSection({
-  userId, stepTarget, accentColor, authHeaders, t, readOnly = false,
+  userId, stepTarget, currentWeight, height, sex, age, accentColor, authHeaders, t, readOnly = false,
 }: {
-  userId: string; stepTarget: number; accentColor: string; authHeaders: Record<string, string>; t: HT; readOnly?: boolean;
+  userId: string; stepTarget: number; currentWeight: number; height: number; sex: "male" | "female"; age: number; accentColor: string; authHeaders: Record<string, string>; t: HT; readOnly?: boolean;
 }) {
   const [bank, setBank] = useState<StepBank | null>(null);
   const [todayLog, setTodayLog] = useState<ActivityLog | null>(null);
@@ -650,6 +650,10 @@ function StepSection({
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 15, fontWeight: 800, color: "#4ade80", margin: 0 }}>{todayLog.steps.toLocaleString()} pași</p>
               <p style={{ fontSize: 10, color: t.t4, margin: 0 }}>Total azi · {today}</p>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#fb923c", margin: 0 }}>{stepsToKcal(todayLog.steps, currentWeight, height, sex, age).toLocaleString()} kcal</p>
+              <p style={{ fontSize: 9, color: t.t5, margin: 0 }}>arși</p>
             </div>
             {todayLog.entries && todayLog.entries.length > 0 && todayLog.entries[todayLog.entries.length - 1].photoUrl && (
               <img src={todayLog.entries[todayLog.entries.length - 1].photoUrl} alt="pași"
@@ -1491,6 +1495,10 @@ function ProfilePanel({
           <StepSection
             userId={userId}
             stepTarget={profile.stepTarget ?? 8000}
+            currentWeight={profile.currentWeight ?? 70}
+            height={profile.height ?? 170}
+            sex={profile.sex ?? "male"}
+            age={profile.age ?? 30}
             accentColor={accentColor}
             authHeaders={authHeaders}
             t={t}
@@ -1552,6 +1560,9 @@ function ProfilePanel({
             authHeaders={authHeaders}
             t={t}
             currentWeight={history.length > 0 ? history[history.length - 1].weight : (profile?.currentWeight ?? 80)}
+            height={profile?.height ?? 170}
+            sex={profile?.sex ?? "male"}
+            age={profile?.age ?? 30}
           />
         </Section>
 
@@ -1877,15 +1888,26 @@ interface PatternInsights {
   dataPoints: number;
 }
 
-function stepsToKcal(steps: number, weightKg: number): number {
-  // ~0.04 kcal per step per kg body weight (average stride ~0.75m, MET ~3.5)
-  return Math.round(steps * 0.04 * (weightKg / 70));
+function stepsToKcal(steps: number, weightKg: number, heightCm: number, sex: "male" | "female", age: number): number {
+  // Step length: validated gender factors (Tudor-Locke & Bassett), shortened after 60
+  const genderFactor = sex === "male" ? 0.415 : 0.413;
+  const ageFactor = age > 60 ? Math.max(0.88, 1 - (age - 60) * 0.005) : 1.0;
+  const stepLengthM = (heightCm / 100) * genderFactor * ageFactor;
+
+  // Estimated speed: 100 steps/min cadence × step length
+  const speedKmH = stepLengthM * 100 * 0.06;
+
+  // MET from Ainsworth Compendium 2011 (walking, flat terrain)
+  const met = speedKmH < 4.0 ? 2.8 : speedKmH < 5.0 ? 3.5 : speedKmH < 6.0 ? 4.3 : 5.0;
+
+  // Gross kcal = MET × weight(kg) × time(h), assuming 100 steps/min
+  return Math.round(met * weightKg * (steps / 6000));
 }
 
 function PatternInsightsSection({
-  userId, accentColor, authHeaders, t, currentWeight,
+  userId, accentColor, authHeaders, t, currentWeight, height, sex, age,
 }: {
-  userId: string; accentColor: string; authHeaders: Record<string, string>; t: HT; currentWeight: number;
+  userId: string; accentColor: string; authHeaders: Record<string, string>; t: HT; currentWeight: number; height: number; sex: "male" | "female"; age: number;
 }) {
   const [patterns, setPatterns] = useState<PatternInsights | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1940,8 +1962,8 @@ function PatternInsightsSection({
   const directionLabel = patterns?.direction === "losing" ? "Scazi în greutate 🎯"
     : patterns?.direction === "gaining" ? "Câștigi în greutate ⚠️" : "Stagnare — ajustare necesară ⚡";
 
-  const kcalPer1000 = stepsToKcal(1000, currentWeight);
-  const kcalPer8000 = stepsToKcal(8000, currentWeight);
+  const kcalPer1000 = stepsToKcal(1000, currentWeight, height, sex, age);
+  const kcalPer8000 = stepsToKcal(8000, currentWeight, height, sex, age);
   const grPer8000 = (kcalPer8000 / 7700 * 1000).toFixed(0);
 
   return (
