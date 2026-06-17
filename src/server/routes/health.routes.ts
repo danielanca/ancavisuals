@@ -72,13 +72,16 @@ async function extractStepsAndDateFromPhoto(buffer: Buffer): Promise<{ steps: nu
     }],
   });
   const rawText = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+  console.log("[health] extractStepsAndDate rawText:", rawText);
   try {
     const cleaned = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
     const parsed = JSON.parse(cleaned) as { steps?: number; date?: string | null };
     const steps = typeof parsed.steps === "number" && !isNaN(parsed.steps) ? parsed.steps : 0;
     const date = typeof parsed.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : null;
+    console.log("[health] extracted steps:", steps, "date:", date);
     return { steps, date };
-  } catch {
+  } catch (e) {
+    console.log("[health] JSON parse failed:", e, "rawText was:", rawText);
     const steps = parseInt(rawText.replace(/[^0-9]/g, ""), 10);
     return { steps: isNaN(steps) ? 0 : steps, date: null };
   }
