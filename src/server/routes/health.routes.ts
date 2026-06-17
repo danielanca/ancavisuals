@@ -55,25 +55,33 @@ async function uploadHealthPhoto(buffer: Buffer, userId: string, date: string): 
   return `${cdnDomain}/${storagePath}`;
 }
 
-async function extractStepsFromPhoto(buffer: Buffer): Promise<number> {
+async function extractStepsAndDateFromPhoto(buffer: Buffer): Promise<{ steps: number; date: string | null }> {
   const jpegBuffer = await sharp(buffer).jpeg({ quality: 90 }).toBuffer();
   const message = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 50,
+    max_tokens: 100,
     messages: [{
       role: "user",
       content: [
         { type: "image", source: { type: "base64", media_type: "image/jpeg", data: jpegBuffer.toString("base64") } },
         {
           type: "text",
-          text: "Aceasta este o captură de ecran din aplicația Health (iPhone/Android/ceas Garmin/Samsung etc.). Extrage numărul TOTAL de pași înregistrați azi. Returnează DOAR cifra întreagă, fără text, spații sau unități. Exemplu: 8432. Dacă nu poți identifica pașii, returnează 0.",
+          text: "Aceasta este o captură de ecran din aplicația Health (iPhone/Android/ceas Garmin/Samsung etc.). Extrage numărul TOTAL de pași și data afișată în poză. Returnează DOAR un JSON cu formatul: {\"steps\":8432,\"date\":\"2025-06-15\"}. Data trebuie în format YYYY-MM-DD. Dacă nu poți identifica pașii, pune 0. Dacă nu poți identifica data, pune null.",
         },
       ],
     }],
   });
-  const rawText = message.content[0].type === "text" ? message.content[0].text.trim() : "0";
-  const steps = parseInt(rawText.replace(/[^0-9]/g, ""), 10);
-  return isNaN(steps) ? 0 : steps;
+  const rawText = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+  try {
+    const cleaned = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    const parsed = JSON.parse(cleaned) as { steps?: number; date?: string | null };
+    const steps = typeof parsed.steps === "number" && !isNaN(parsed.steps) ? parsed.steps : 0;
+    const date = typeof parsed.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : null;
+    return { steps, date };
+  } catch {
+    const steps = parseInt(rawText.replace(/[^0-9]/g, ""), 10);
+    return { steps: isNaN(steps) ? 0 : steps, date: null };
+  }
 }
 
 async function getStepBank(userId: string, stepTarget: number) {
@@ -208,13 +216,17 @@ router.post(
       if (!photoBase64) { res.status(400).json({ error: "Lipsește poza." }); return; }
 
       const buffer = Buffer.from(photoBase64, "base64");
-      const steps = await extractStepsFromPhoto(buffer);
+      const { steps, date: photoDate } = await extractStepsAndDateFromPhoto(buffer);
       if (steps === 0) {
         res.status(422).json({ error: "Nu am putut extrage pașii din poză. Asigură-te că ecranul e clar și numărul de pași e vizibil." });
         return;
       }
+      if (!photoDate) {
+        res.status(422).json({ error: "Nu am putut extrage data din poză. Asigură-te că data e vizibilă în captură." });
+        return;
+      }
 
-      const date = reqDate || TODAY();
+      const date = photoDate;
       const photoUrl = await uploadHealthPhoto(buffer, req.params.userId, `${date}-${Date.now()}`);
 
       const docRef = firestore().collection(ACTIVITY_COL).doc(`${req.params.userId}_${date}`);
