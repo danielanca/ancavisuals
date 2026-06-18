@@ -59,14 +59,14 @@ function useBadgeCounts(accessToken: string) {
       .catch(() => {});
   }, [accessToken]);
 
-  return { urgentMementos, pendingModeration, pendingProposals, unseenErrors };
+  return { urgentMementos, pendingModeration, pendingProposals, unseenErrors, setUnseenErrors };
 }
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { auth } = useAuth();
-  const { urgentMementos, pendingModeration, pendingProposals, unseenErrors } =
+  const { urgentMementos, pendingModeration, pendingProposals, unseenErrors, setUnseenErrors } =
     useBadgeCounts(auth.accessToken);
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => {
@@ -78,6 +78,31 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
     }
   });
 
+  const [categoryOrder, setCategoryOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("admin-sidebar-order");
+      return saved ? JSON.parse(saved) as string[] : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [customItems, setCustomItems] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem("admin-sidebar-items");
+      return saved ? JSON.parse(saved) as Record<string, string[]> : {};
+    } catch { return {}; }
+  });
+
+  // Category drag state
+  const [draggedKey, setDraggedKey] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
+  // Item drag state
+  const [draggedItem, setDraggedItem] = useState<{ path: string; fromCategory: string } | null>(null);
+  const [itemDragOverPath, setItemDragOverPath] = useState<string | null>(null);
+  const [itemDragOverCategory, setItemDragOverCategory] = useState<string | null>(null);
+
   const toggleCategory = (key: string) => {
     setExpandedCategories((prev) => {
       const next = new Set(prev);
@@ -87,6 +112,88 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       return next;
     });
   };
+
+  // ── Category drag ──────────────────────────────────────────────────────────
+  const handleCategoryDragStart = (key: string) => { if (draggedItem) return; setDraggedKey(key); };
+  const handleCategoryDragOver = (e: React.DragEvent, key: string) => {
+    if (draggedItem) return;
+    e.preventDefault();
+    if (key !== draggedKey) setDragOverKey(key);
+  };
+  const handleCategoryDrop = (targetKey: string) => {
+    if (draggedItem || !draggedKey || draggedKey === targetKey) { setDraggedKey(null); setDragOverKey(null); return; }
+    setCategoryOrder((prev) => {
+      const base = prev.length > 0 ? prev : allCategories.map((c) => c.key);
+      const next = [...base];
+      const fromIndex = next.indexOf(draggedKey);
+      const toIndex = next.indexOf(targetKey);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, draggedKey);
+      localStorage.setItem("admin-sidebar-order", JSON.stringify(next));
+      return next;
+    });
+    setDraggedKey(null);
+    setDragOverKey(null);
+  };
+  const handleCategoryDragEnd = () => { setDraggedKey(null); setDragOverKey(null); };
+
+  // ── Item drag ──────────────────────────────────────────────────────────────
+  const handleItemDragStart = (e: React.DragEvent, path: string, fromCategory: string) => {
+    e.stopPropagation();
+    setDraggedItem({ path, fromCategory });
+  };
+  const handleItemDragOver = (e: React.DragEvent, targetPath: string, targetCategoryKey: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setItemDragOverPath(targetPath);
+    setItemDragOverCategory(targetCategoryKey);
+  };
+  const handleItemDropOnItem = (targetPath: string, targetCategoryKey: string, allCats: NavCategory[]) => {
+    if (!draggedItem) return;
+    setCustomItems((prev) => {
+      const next = { ...prev };
+      const getEffective = (catKey: string): string[] => {
+        if (next[catKey]) return [...next[catKey]];
+        return (allCats.find((c) => c.key === catKey)?.items ?? []).map((i) => i.path);
+      };
+
+      // Remove from source
+      const srcItems = getEffective(draggedItem.fromCategory).filter((p) => p !== draggedItem.path);
+      next[draggedItem.fromCategory] = srcItems;
+
+      // Insert into target before targetPath
+      const tgtItems = getEffective(targetCategoryKey).filter((p) => p !== draggedItem.path);
+      const insertAt = tgtItems.indexOf(targetPath);
+      tgtItems.splice(insertAt === -1 ? tgtItems.length : insertAt, 0, draggedItem.path);
+      next[targetCategoryKey] = tgtItems;
+
+      localStorage.setItem("admin-sidebar-items", JSON.stringify(next));
+      return next;
+    });
+    setDraggedItem(null); setItemDragOverPath(null); setItemDragOverCategory(null);
+  };
+  const handleItemDropOnCategory = (targetCategoryKey: string, allCats: NavCategory[]) => {
+    if (!draggedItem || draggedItem.fromCategory === targetCategoryKey) {
+      setDraggedItem(null); setItemDragOverPath(null); setItemDragOverCategory(null);
+      return;
+    }
+    setCustomItems((prev) => {
+      const next = { ...prev };
+      const getEffective = (catKey: string): string[] => {
+        if (next[catKey]) return [...next[catKey]];
+        return (allCats.find((c) => c.key === catKey)?.items ?? []).map((i) => i.path);
+      };
+      next[draggedItem.fromCategory] = getEffective(draggedItem.fromCategory).filter((p) => p !== draggedItem.path);
+      const tgtItems = getEffective(targetCategoryKey).filter((p) => p !== draggedItem.path);
+      tgtItems.push(draggedItem.path);
+      next[targetCategoryKey] = tgtItems;
+      localStorage.setItem("admin-sidebar-items", JSON.stringify(next));
+      return next;
+    });
+    setDraggedItem(null); setItemDragOverPath(null); setItemDragOverCategory(null);
+  };
+  const handleItemDragEnd = () => { setDraggedItem(null); setItemDragOverPath(null); setItemDragOverCategory(null); };
 
   const isEstera = auth.role === "estera";
 
@@ -107,7 +214,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
     },
     {
       key: "contracte",
-      label: "Contracte & Oferte",
+      label: "Oferte",
       icon: (
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
@@ -186,12 +293,30 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
     },
   ];
 
+  const getEffectiveItems = (categoryKey: string, defaultItems: NavItem[]): NavItem[] => {
+    const customPaths = customItems[categoryKey];
+    if (!customPaths) return defaultItems;
+    const allItems = allCategories.flatMap((c) => c.items);
+    return customPaths.map((path) => allItems.find((item) => item.path === path)).filter((item): item is NavItem => item !== undefined);
+  };
+
   const ESTERA_PATHS = new Set(["/admin/instagram-proposals", "/admin/sanatate"]);
+
+  const sortedCategories = categoryOrder.length > 0
+    ? [...allCategories].sort((a, b) => {
+        const ai = categoryOrder.indexOf(a.key);
+        const bi = categoryOrder.indexOf(b.key);
+        const aIdx = ai === -1 ? allCategories.findIndex((c) => c.key === a.key) : ai;
+        const bIdx = bi === -1 ? allCategories.findIndex((c) => c.key === b.key) : bi;
+        return aIdx - bIdx;
+      })
+    : allCategories;
+
   const categories: NavCategory[] = isEstera
-    ? allCategories
+    ? sortedCategories
         .map((cat) => ({ ...cat, items: cat.items.filter((item) => ESTERA_PATHS.has(item.path)) }))
         .filter((cat) => cat.items.length > 0)
-    : allCategories;
+    : sortedCategories;
 
   const handleNavItem = (path: string) => {
     navigate(path);
@@ -236,9 +361,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
           </button>
         </div>
 
-        {/* Dashboard link */}
+        {/* Dashboard + Health Tracker links */}
         {!isEstera && (
-          <div className="px-3 pt-3">
+          <div className="px-3 pt-3 space-y-0.5">
             <button
               onClick={() => handleNavItem("/admin")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -252,6 +377,19 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
               </svg>
               <span>Dashboard</span>
             </button>
+            <button
+              onClick={() => handleNavItem("/admin/sanatate")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                isActive("/admin/sanatate")
+                  ? "bg-red-500/15 text-red-400"
+                  : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+              }`}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+              </svg>
+              <span>Health Tracker</span>
+            </button>
           </div>
         )}
 
@@ -261,21 +399,50 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         {/* Categories */}
         <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5 scrollbar-none">
           {categories.map((category) => {
+            const effectiveItems = getEffectiveItems(category.key, category.items);
             const isExpanded = expandedCategories.has(category.key);
-            const categoryBadge = totalBadge(category.items);
-            const hasActiveChild = category.items.some((item) => isActive(item.path));
+            const categoryBadge = totalBadge(effectiveItems);
+            const hasActiveChild = effectiveItems.some((item) => isActive(item.path));
+            const isCategoryDragging = draggedKey === category.key;
+            const isCategoryDragOver = dragOverKey === category.key && !draggedItem;
+            const isItemDragOverCategory = itemDragOverCategory === category.key && draggedItem && !itemDragOverPath;
 
             return (
-              <div key={category.key}>
+              <div
+                key={category.key}
+                draggable={!draggedItem}
+                onDragStart={() => handleCategoryDragStart(category.key)}
+                onDragOver={(e) => {
+                  if (draggedItem) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setItemDragOverCategory(category.key);
+                    setItemDragOverPath(null);
+                  } else {
+                    handleCategoryDragOver(e, category.key);
+                  }
+                }}
+                onDrop={() => {
+                  if (draggedItem) handleItemDropOnCategory(category.key, allCategories);
+                  else handleCategoryDrop(category.key);
+                }}
+                onDragEnd={() => { handleCategoryDragEnd(); handleItemDragEnd(); }}
+                className={`rounded-lg transition-all ${isCategoryDragging ? "opacity-30" : ""} ${isCategoryDragOver ? "ring-1 ring-neutral-600 bg-neutral-800/40" : ""} ${isItemDragOverCategory ? "ring-1 ring-violet-500/40 bg-violet-500/5" : ""}`}
+              >
                 <button
                   onClick={() => toggleCategory(category.key)}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-colors ${
-                    hasActiveChild
-                      ? "text-white"
-                      : "text-neutral-500 hover:text-neutral-300"
+                    hasActiveChild ? "text-white" : "text-neutral-500 hover:text-neutral-300"
                   }`}
                 >
                   <div className="flex items-center gap-2">
+                    <span className="text-neutral-700 hover:text-neutral-500 cursor-grab active:cursor-grabbing shrink-0">
+                      <svg width="10" height="10" viewBox="0 0 10 14" fill="currentColor">
+                        <circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/>
+                        <circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/>
+                        <circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/>
+                      </svg>
+                    </span>
                     {category.icon}
                     <span>{category.label}</span>
                   </div>
@@ -296,25 +463,63 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
 
                 {isExpanded && (
                   <div className="mt-0.5 mb-1 ml-2 pl-3 border-l border-neutral-800 space-y-0.5">
-                    {category.items.map((item) => {
+                    {effectiveItems.map((item) => {
                       const active = isActive(item.path);
+                      const isItemDragging = draggedItem?.path === item.path;
+                      const isItemOver = itemDragOverPath === item.path && draggedItem?.path !== item.path;
                       return (
-                        <button
-                          key={item.path}
-                          onClick={() => handleNavItem(item.path)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-sm transition-colors ${
-                            active
-                              ? "bg-violet-500/15 text-violet-400"
-                              : "text-neutral-400 hover:bg-neutral-800/80 hover:text-white"
-                          }`}
-                        >
-                          <span>{item.label}</span>
-                          {item.badge != null && item.badge > 0 && (
-                            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold">
-                              {item.badge}
-                            </span>
+                        <div key={item.path} className="relative">
+                          {isItemOver && (
+                            <div className="absolute top-0 left-0 right-0 h-0.5 bg-violet-500 rounded-full -translate-y-px z-10" />
                           )}
-                        </button>
+                          <div
+                            draggable
+                            onDragStart={(e) => handleItemDragStart(e, item.path, category.key)}
+                            onDragOver={(e) => handleItemDragOver(e, item.path, category.key)}
+                            onDrop={(e) => { e.stopPropagation(); handleItemDropOnItem(item.path, category.key, allCategories); }}
+                            onDragEnd={handleItemDragEnd}
+                            className={`group flex items-center gap-1.5 transition-all ${isItemDragging ? "opacity-30" : ""}`}
+                          >
+                            <span className="text-neutral-700 group-hover:text-neutral-500 cursor-grab active:cursor-grabbing shrink-0 pl-0.5">
+                              <svg width="8" height="10" viewBox="0 0 8 12" fill="currentColor">
+                                <circle cx="1.5" cy="1.5" r="1"/><circle cx="6.5" cy="1.5" r="1"/>
+                                <circle cx="1.5" cy="6" r="1"/><circle cx="6.5" cy="6" r="1"/>
+                                <circle cx="1.5" cy="10.5" r="1"/><circle cx="6.5" cy="10.5" r="1"/>
+                              </svg>
+                            </span>
+                            <button
+                              onClick={() => handleNavItem(item.path)}
+                              className={`flex-1 flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors ${
+                                active
+                                  ? "bg-violet-500/15 text-violet-400"
+                                  : "text-neutral-400 hover:bg-neutral-800/80 hover:text-white"
+                              }`}
+                            >
+                              <span>{item.label}</span>
+                              {item.badge != null && item.badge > 0 && (
+                                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </button>
+                            {item.path === "/admin/errors" && (
+                              <button
+                                title="Șterge toate erorile"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  fetch("/api/admin/monitoring/errors", { method: "DELETE" })
+                                    .then(() => setUnseenErrors(0))
+                                    .catch(() => {});
+                                }}
+                                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                              >
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>

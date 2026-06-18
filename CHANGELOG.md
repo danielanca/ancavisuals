@@ -4,6 +4,240 @@ Fiecare secțiune documentează ce s-a construit, fișierele implicate și cum f
 
 ---
 
+## [branch: ancavisuals] — Iunie 2026
+
+---
+
+### 🏋️ Health Tracker — modul complet de sănătate personală
+
+**Ce face:** Modul nou la `/admin/health` pentru urmărirea greutății, pașilor, caloriilor și nutrienților. Accesibil doar adminului autentificat, date stocate per userId în Firestore.
+
+**Funcționalități:**
+1. **Greutate** — logare zilnică, grafic evoluție, goal personalizat, onboarding cu profil (vârstă, înălțime, sex, obiectiv)
+2. **Pași** — upload foto din galerie/cameră → Claude Vision extrage numărul de pași și data din screenshot; calculează kcal arși personalizat (MET Ainsworth 2011, bazat pe greutate/înălțime/sex/vârstă)
+3. **Jurnal alimentar (AI chat)** — conversație cu Claude care întreabă detalii despre fiecare aliment, cantitate și preparare; la final generează breakdown per ingredient + totaluri macronutrienți; înlocuiește formularul clasic foto + notă
+4. **Pattern Analysis (AI)** — analizează ultimele 60 zile de date (greutate, pași, calorii, macros); identifică corelații pozitive/negative și generează recomandare personalizată; cache 12h în Firestore
+5. **Daily Forecast (AI)** — plan personalizat pentru ziua curentă: pași rămași, calorii rămase, sugestii mese, avertismente, motivație; bazat pe istoricul real al ultimelor 14 zile
+6. **Health Chat** — chat liber cu AI care are context cu datele reale ale utilizatorului (ultimele 7 zile, mâncare azi, pattern key); răspunde strict despre nutriție, sport, calorii; fereastră de 10 mesaje pentru cost controlat
+
+**Fix-uri iOS:**
+- Rewritten upload to use FileReader base64 + JSON (fix iOS Safari fetch SyntaxError)
+- Canvas compression + correct handler signature pentru foto analiza mâncare și pași
+
+**Fișiere:**
+- `src/client/features/admin/components/HealthTrackerPage.tsx`
+- `src/server/routes/health.routes.ts`
+- `src/server/middleware/requireFirebaseAuth.ts` (userId extragere)
+
+---
+
+### 📊 Event Progress Tracker
+
+**Ce face:** Urmărire progres producție per eveniment cu vizibilitate atât pentru admin cât și pentru client.
+
+**Cum funcționează:**
+1. Admin: `/admin/progress` — lista tuturor evenimentelor cu progress bar și filtru „blocate"
+2. Admin: `/admin/progress/:eventId` — detaliu per eveniment; ciclează 6 pași (fotografiere, editare foto, editare video, livrare foto, livrare video, album fizic) prin `not_started → in_progress → done → blocked` cu auto-save via PATCH
+3. Client: `/album/:eventId` — view read-only cu Firestore `onSnapshot` pentru update-uri în timp real; afișează doar pașii care au demarat
+
+**Fișiere:**
+- `src/client/features/admin/components/ProgressListPage.tsx`
+- `src/client/features/admin/components/ProgressDetailPage.tsx`
+- `src/client/pages/EventProgress/EventProgressPage.tsx`
+- `src/client/features/admin/types.ts` (EventProgress, EventProgressStep, EventProgressStatus)
+- `src/server/routes/adminEvents.routes.ts` (GET /api/admin/events/:id)
+
+---
+
+### 🖼️ Album Health Dashboard
+
+**Ce face:** Pagină `/admin/album-health` care scanează toate albumele Bunny și raportează starea preview-urilor WebP și a fișierelor `photos.zip`.
+
+**Cum funcționează:**
+1. Categorii albume (active / livrate / arhivate) persistate în localStorage
+2. Job system de procesare în fundal cu SSE live-log streaming pentru regenerarea preview-urilor WebP
+3. `AlbumHealthWidget` pe Dashboard: arată numărul de zip-uri cu probleme cu link spre pagină
+4. Cron job (`albumZipCheck.cron.ts`): rulează la 15 min, trimite email admin când un album non-arhivat are zip stale sau lipsă (cooldown 1h per album via Firestore)
+
+**Fișiere:**
+- `src/client/features/admin/components/AlbumHealthPage.tsx`
+- `src/client/features/admin/components/AlbumHealthWidget.tsx`
+- `src/server/cron/albumZipCheck.cron.ts`
+
+---
+
+### 🃏 Swipe Proposals (UI Tinder-style)
+
+**Ce face:** Pagină `/admin/swipe-proposals` pentru review rapid al propunerilor Instagram — swipe dreapta = acceptă, stânga = respinge.
+
+**Cum funcționează:**
+1. Undo stack până la 7 carduri
+2. Keyboard shortcuts (← →)
+3. Tab cu rezumat rezultate după ce termini
+4. Buton în `InstagramProposalsAdminPage` pentru a deschide modul swipe când există propuneri în așteptare
+5. Folosește `photos_preview` WebP URLs pentru imagini rapide în UI
+
+**Fișiere:**
+- `src/client/features/admin/components/SwipeProposalsPage.tsx`
+- `src/server/routes/instagramProposals.routes.ts`
+
+---
+
+### 🗂️ Evidență livrare în EventCard
+
+**Ce face:** Secțiune „Evidență livrare" în fiecare EventCard cu 8 pași de tracking al materialelor livrate.
+
+**Cum funcționează:**
+1. Toggle checkboxes per pas (fotografiere editată, toate pozele editate, video scurt, video lung, album livrat, album creat, album trimis la client, livrare fizică)
+2. Auto-save la click via PATCH
+3. Contor X/8 cu progress
+4. Link direct spre `/media/[slug]` generat automat din data evenimentului
+
+**Fișiere:**
+- `src/client/features/admin/components/EventCard.tsx`
+- `src/client/features/admin/types.ts` (EventDelivery interface)
+
+---
+
+### 📤 Photo Sharing — mod showAll
+
+**Ce face:** Clienta poate trimite fie pozele selectate, fie toate pozele din eveniment (cu cele selectate prioritare).
+
+**Cum funcționează:**
+1. Panoul „Trimite pozele" în album — radio: selected only / all with priority
+2. Backend: `share.store.ts` + `share.controller.ts` — acceptă `allItems[]`, merge priority-first, limită 2000 fișiere pentru albume complete, linkuri permanente (~100 ani expirare)
+3. Web Share API (sheet nativ iOS/Android: WhatsApp, SMS, Email, Messenger) cu fallback copy-link
+
+**Fișiere:**
+- `src/client/pages/MediaDownload/MediaAlbumPage.tsx`
+- `src/server/stores/share.store.ts`
+- `src/server/controllers/share.controller.ts`
+
+---
+
+### 🖼️ AncaVisualsPromo — componentă reutilizabilă
+
+**Ce face:** Banda foto + galerie masonry + butoane Sună/WhatsApp/Instagram extrasă ca componentă separată și adăugată pe mai multe pagini.
+
+**Folosită pe:** `/media/:slug`, `/share/:id`, homepage, `/portofoliu`, `/contact`
+
+**Fișiere:**
+- `src/client/components/Marketing/AncaVisualsPromo.tsx`
+
+---
+
+### 📋 EventList — îmbunătățiri multiple (Iunie 2026)
+
+**Modificări:**
+- **Export eveniment** — buton copiere text formatat per eveniment (nume, dată, tip, preț, avans, status)
+- **Total lunar** — cifra totalului apare lângă eticheta fiecărei luni în lista de evenimente
+- **Mobile card view** — collapsed: afișează doar nume, dată, preț
+- **Color-coding dată** — culoare dată variază după status eveniment (lead = gri, tentativ = galben, confirmat = verde, finalizat = albastru, anulat = roșu)
+- **Badge „Confirmat"** — eliminat când evenimentul e confirmat (redundant cu culoarea)
+- **Note eveniment** — evidențiate cu galben în EventCard
+- **Export telefon** — prefix `+40` adăugat doar pentru numerele românești
+- **Export fiscal** — câmpul „Fiscalizat" apare în export doar dacă evenimentul e fiscalizat
+- **Tip eveniment** — omis din export pentru tip Nuntă (implicit)
+- **Majorat** — înlocuiește „Aniversare" în lista de tipuri de evenimente
+- **Input numeric** — eliminați spinners din câmpurile preț și avans
+- **Fix avans** — suma avansului nu se salva la crearea evenimentului via AdminBook
+
+**Fișiere:**
+- `src/client/features/admin/components/EventCard.tsx`
+- `src/client/features/admin/components/EventList.tsx`
+
+---
+
+### 📊 Dashboard — rewrite și îmbunătățiri
+
+**Modificări:**
+1. **Drag & drop widget order** — ordinea widget-urilor pe dashboard se poate schimba prin drag; persistată în localStorage
+2. **Search rewrite** — scoring, fuzzy match cu diacritice, recents, highlight text — înlocuiește căutarea simplă anterioară
+3. **Bugfix arhivate** — albumele arhivate nu mai apar în overview widget
+4. **EventList** — inclus în lista de widget-uri drag-able
+
+**Fișiere:**
+- `src/client/features/admin/components/Dashboard/index.tsx`
+
+---
+
+### 📬 ActivityInbox — îmbunătățiri
+
+**Modificări:**
+- Timestamp exact (HH:MM) afișat alături de timpul relativ pentru fiecare activitate
+- Blur overlay cu buton „VEZI" peste preview-ul activității
+- Segmente de descriere evidențiate în verde
+
+**Fișiere:**
+- `src/client/features/admin/components/ActivityInbox.tsx`
+
+---
+
+### 🔧 Admin UI — diverse
+
+**Modificări:**
+- **Buton refresh** în navbar admin pentru reload rapid
+- **PWA manifest** (`site.webmanifest`) completat cu icoane și setări corecte
+- **Slow-load reporter** — albumul trimite email admin dacă încarcă >8s; subiect diferit față de emailul „poze lipsă"
+- **Usercentrics** — scriptul CMP nu mai e injectat pe `/admin` și `/media`; era pornit înainte ca React să știe ruta
+
+**Fișiere:**
+- `src/client/components/Navbar/Navbar.tsx`
+- `public/site.webmanifest`
+- `src/client/entry-client.tsx`
+- `src/client/pages/MediaDownload/MediaAlbumPage.tsx`
+
+---
+
+### 🔍 SEO Generator + Sitemap (Mai 2026)
+
+**Ce face:** Pagină `/admin/seo-generator` cu analiză gap SEO alimentată de Claude (SSE streaming, dialog terminal). Generează pagini noi de locații și actualizează sitemap-ul.
+
+**Cum funcționează:**
+1. Analizează locațiile existente vs. potențiale orașe noi
+2. Generează intrări în `locationData.ts` și actualizează `sitemapEntries` Firestore
+3. Sitemap regenerat din Firestore la fiecare pornire a serverului
+4. Sitemap extins la 542 URL-uri acoperind toate rutele canonice de locație
+5. Tracking vizitatori noi vs. returnați cu cookie de 6 luni (`av_visitor`); badge în emailuri notificare
+
+**Fișiere:**
+- `src/client/features/admin/components/SeoGeneratorPage.tsx`
+- `src/server/routes/seoGenerator.routes.ts`
+- `src/client/hooks/useVisitorNotification.ts`
+
+---
+
+### 💳 Conturi bancare în contracte
+
+**Ce face:** La editarea unui contract existent poți acum alege ce cont bancar să apară în document, la fel ca la creare. Pre-selectează automat profilul cu IBAN-ul deja salvat în contract.
+
+**Cum funcționează:**
+1. `EditContractPage` încarcă în paralel contractul și profilele bancare din setări
+2. Caută un profil cu IBAN-ul potrivit și îl pre-selectează; dacă nu există match, selectează primul profil
+3. La salvare, `bankBeneficiaryName` și `bankIban` sunt derivate din profilul selectat (nu mai sunt câmpuri text libere)
+4. Dacă nu există niciun profil configurat, apare un aviz cu link spre `/admin/bank-details`
+
+**Fișiere:**
+- `src/client/features/admin/components/Contracts/EditContractPage.tsx`
+
+---
+
+### 🔧 Constante pentru string-uri repetate în contracte
+
+**Ce face:** Elimină magic strings hardcodate în paginile de contracte și în backend, înlocuite cu constante cu nume explicit.
+
+**Constante adăugate:**
+- `BANK_TRANSFER`, `CASH`, `CARD`, `REVOLUT` — metodele de plată
+- `TRANSPORT_SERVICE_ID` — ID-ul serviciului de transport (`"transport"`)
+- `DEFAULT_CURRENCY` (`"RON"`), `DEFAULT_EUR_RATE` (`5`), `DEFAULT_TRANSPORT_FUEL_PRICE` (`"10"`)
+
+**Fișiere:**
+- `src/client/features/admin/components/Contracts/CreateContractPage.tsx`
+- `src/client/features/admin/components/Contracts/EditContractPage.tsx`
+- `src/server/routes/contracts.routes.ts`
+
+---
+
 ## [branch: updates-24may26] — Mai 2026
 
 ---

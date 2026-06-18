@@ -9,11 +9,34 @@ const TYPE_CONFIG: Record<ErrorEntry["type"], { label: string; color: string }> 
   server:  { label: "API",     color: "#ef4444" },
 };
 
+function formatErrorsForClipboard(errors: ErrorEntry[]): string {
+  return errors.map((error, index) => {
+    const cfg = TYPE_CONFIG[error.type];
+    const lines: string[] = [
+      `[${index + 1}] ${cfg.label.toUpperCase()} — ${error.timestamp.toLocaleTimeString("ro-RO")}`,
+      `Message: ${error.message}`,
+    ];
+    if (error.status) lines.push(`Status: ${error.status}`);
+    if (error.url) lines.push(`URL: ${error.url}`);
+    if (error.detail) lines.push(`Stack:\n${error.detail}`);
+    return lines.join("\n");
+  }).join("\n\n---\n\n");
+}
+
 export default function ErrorMonitorPanel() {
   const { auth } = useAuth();
   const { errors, debugging, clearErrors } = useErrorMonitor();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAll = () => {
+    if (errors.length === 0) return;
+    navigator.clipboard.writeText(formatErrorsForClipboard(errors)).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -58,20 +81,39 @@ export default function ErrorMonitorPanel() {
             <span style={{ color: "#d4d4d4", fontSize: 12, fontWeight: 600, letterSpacing: "0.04em" }}>
               Debug Monitor {count > 0 && <span style={{ color: "#ef4444" }}>({count})</span>}
             </span>
-            <button
-              onClick={clearErrors}
-              style={{
-                background: "none",
-                border: "1px solid #222",
-                borderRadius: 5,
-                color: "#555",
-                fontSize: 11,
-                cursor: "pointer",
-                padding: "2px 8px",
-              }}
-            >
-              Golește
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {errors.length > 0 && (
+                <button
+                  onClick={handleCopyAll}
+                  style={{
+                    background: copied ? "#14532d33" : "none",
+                    border: `1px solid ${copied ? "#16a34a" : "#222"}`,
+                    borderRadius: 5,
+                    color: copied ? "#4ade80" : "#555",
+                    fontSize: 11,
+                    cursor: "pointer",
+                    padding: "2px 8px",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {copied ? "Copiat ✓" : "Copiază tot"}
+                </button>
+              )}
+              <button
+                onClick={clearErrors}
+                style={{
+                  background: "none",
+                  border: "1px solid #222",
+                  borderRadius: 5,
+                  color: "#555",
+                  fontSize: 11,
+                  cursor: "pointer",
+                  padding: "2px 8px",
+                }}
+              >
+                Golește
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowY: "auto", flex: 1, fontFamily: "monospace" }}>

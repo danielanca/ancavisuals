@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import type { BankProfile } from "../../types";
 
 interface ServiceEntry {
   id: string;
@@ -15,6 +16,8 @@ interface SavedService {
   isTransport?: boolean;
 }
 
+const TRANSPORT_SERVICE_ID = "transport";
+
 const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "foto_video", label: "Foto + Video (1 fotograf + 1 videograf)", included: false, priceRaw: "800" },
   { id: "foto",       label: "1 persoană responsabilă de foto",          included: false, priceRaw: "500" },
@@ -26,7 +29,7 @@ const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "photobooth", label: "Fotocabină / Photo Booth",                 included: false, priceRaw: "250" },
   { id: "videobooth", label: "Video Cabină 360 / VideoBooth",            included: false, priceRaw: "250" },
   { id: "teaser",     label: "Teaser video (1–2 min)",                   included: false, priceRaw: "" },
-  { id: "transport",  label: "Taxă transport spre și de la eveniment",   included: false, priceRaw: "" },
+  { id: TRANSPORT_SERVICE_ID,  label: "Taxă transport spre și de la eveniment",   included: false, priceRaw: "" },
 ];
 
 const EVENT_TYPES = [
@@ -42,7 +45,14 @@ const EVENT_TYPES = [
   "Altul",
 ];
 const CURRENCIES = ["RON", "EUR"];
-const PAYMENT_METHODS = ["Transfer bancar", "Cash", "Card", "Revolut"];
+const DEFAULT_CURRENCY = "RON";
+const BANK_TRANSFER = "Transfer bancar";
+const CASH = "Cash";
+const CARD = "Card";
+const REVOLUT = "Revolut";
+const PAYMENT_METHODS = [BANK_TRANSFER, CASH, CARD, REVOLUT];
+const DEFAULT_EUR_RATE = 5;
+const DEFAULT_TRANSPORT_FUEL_PRICE = "10";
 
 function parseDecimal(raw: string): number {
   const num = parseFloat(raw.replace(/\s/g, "").replace(",", "."));
@@ -142,20 +152,20 @@ const EditContractPage: React.FC = () => {
 
   const [services, setServices] = useState<ServiceEntry[]>(DEFAULT_SERVICES);
   const [customServices, setCustomServices] = useState<{ label: string; priceRaw: string }[]>([]);
-  const [eurRate, setEurRate] = useState<number>(5);
+  const [eurRate, setEurRate] = useState<number>(DEFAULT_EUR_RATE);
 
-  const [currency, setCurrency] = useState("RON");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [manualTotal, setManualTotal] = useState(false);
   const [priceTotal, setPriceTotal] = useState(0);
   const [priceAdvance, setPriceAdvance] = useState(0);
   const [advancePaidAt, setAdvancePaidAt] = useState("");
   const [restPaidAt, setRestPaidAt] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Transfer bancar");
-  const [bankBeneficiaryName, setBankBeneficiaryName] = useState("");
-  const [bankIban, setBankIban] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState(BANK_TRANSFER);
+  const [bankProfiles, setBankProfiles] = useState<BankProfile[]>([]);
+  const [selectedBankProfileId, setSelectedBankProfileId] = useState("");
 
   const [transportKm, setTransportKm] = useState("");
-  const [transportFuelPrice, setTransportFuelPrice] = useState("10");
+  const [transportFuelPrice, setTransportFuelPrice] = useState(DEFAULT_TRANSPORT_FUEL_PRICE);
 
   const [clientEmail, setClientEmail] = useState("");
   const [clientName, setClientName] = useState("");
@@ -168,10 +178,24 @@ const EditContractPage: React.FC = () => {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/contracts/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
+
+    Promise.all([
+      fetch(`/api/contracts/${id}`).then((r) => r.json()),
+      fetch("/api/admin/settings").then((r) => r.json()),
+    ])
+      .then(([data, settings]) => {
         if (data.error) throw new Error(data.error);
+
+        let profiles: BankProfile[] = Array.isArray(settings.bankProfiles) ? settings.bankProfiles : [];
+        if (profiles.length === 0 && (settings.bankDetails?.beneficiaryName || settings.bankDetails?.iban)) {
+          profiles = [{
+            id: "legacy",
+            label: "Cont principal",
+            beneficiaryName: settings.bankDetails.beneficiaryName ?? "",
+            iban: settings.bankDetails.iban ?? "",
+          }];
+        }
+        setBankProfiles(profiles);
 
         setEventType(data.eventType ?? "");
         setEventDate(data.eventDate ?? "");
@@ -186,17 +210,20 @@ const EditContractPage: React.FC = () => {
         setServices(populated);
         setCustomServices(customSvcs);
 
-        setCurrency(data.currency ?? "RON");
-        setEurRate(data.eurRate ?? 5);
+        setCurrency(data.currency ?? DEFAULT_CURRENCY);
+        setEurRate(data.eurRate ?? DEFAULT_EUR_RATE);
         const total = Number(data.priceTotal) || 0;
         const advance = Number(data.priceAdvance) || 0;
         setPriceTotal(total);
         setPriceAdvance(advance);
         setAdvancePaidAt(data.advancePaidAt ?? "");
         setRestPaidAt(data.restPaidAt ?? "");
-        setPaymentMethod(data.paymentMethod ?? "Transfer bancar");
-        setBankBeneficiaryName(data.bankBeneficiaryName ?? "");
-        setBankIban(data.bankIban ?? "");
+        setPaymentMethod(data.paymentMethod ?? BANK_TRANSFER);
+
+        const savedIban = (data.bankIban ?? "").trim().toUpperCase();
+        const matchedProfile = profiles.find((p) => p.iban.trim().toUpperCase() === savedIban);
+        setSelectedBankProfileId(matchedProfile?.id ?? profiles[0]?.id ?? "");
+
         setTransportKm(data.transportKm ?? "");
         setTransportFuelPrice(data.transportFuelPrice ?? "10");
         setClientEmail(data.clientEmail ?? "");
@@ -208,7 +235,6 @@ const EditContractPage: React.FC = () => {
         setFiscalized(data.fiscalized === true);
         setLinkedEventId(data.eventId ?? null);
 
-        // Enable manual mode only if the saved total differs from the sum of services
         const computedAuto =
           populated.filter((s) => s.included).reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) +
           customSvcs.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0);
@@ -223,7 +249,7 @@ const EditContractPage: React.FC = () => {
     const fuel = parseFloat(transportFuelPrice);
     if (!isNaN(km) && km > 0 && !isNaN(fuel) && fuel > 0) {
       const estimated = Math.ceil(km * 6 / 100 * fuel).toString();
-      setServices((prev) => prev.map((s) => s.id === "transport" ? { ...s, priceRaw: estimated } : s));
+      setServices((prev) => prev.map((s) => s.id === TRANSPORT_SERVICE_ID ? { ...s, priceRaw: estimated } : s));
     }
   }, [transportKm, transportFuelPrice]);
 
@@ -272,7 +298,7 @@ const EditContractPage: React.FC = () => {
           label: s.label,
           price: priceToNumeric(s.priceRaw),
           gratuit: parsePrice(s.priceRaw) === "gratuit",
-          ...(s.id === "transport" ? { isTransport: true } : {}),
+          ...(s.id === TRANSPORT_SERVICE_ID ? { isTransport: true } : {}),
         })),
         ...customServices.filter((s) => s.label.trim()).map((s) => ({
           label: s.label,
@@ -281,6 +307,7 @@ const EditContractPage: React.FC = () => {
         })),
       ];
 
+      const selectedBankProfile = bankProfiles.find((p) => p.id === selectedBankProfileId);
       const payload = {
         eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
         services: allServices,
@@ -289,12 +316,12 @@ const EditContractPage: React.FC = () => {
         priceAdvance: priceAdvance || 0,
         priceRest,
         advancePaidAt, restPaidAt, paymentMethod,
-        bankBeneficiaryName: bankBeneficiaryName.trim(),
-        bankIban: bankIban.trim().toUpperCase(),
+        bankBeneficiaryName: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.beneficiaryName ?? "") : "",
+        bankIban: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.iban ?? "") : "",
         fiscalized,
         clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
         transportKm: transportKm || "",
-        transportFuelPrice: transportFuelPrice || "10",
+        transportFuelPrice: transportFuelPrice || DEFAULT_TRANSPORT_FUEL_PRICE,
       };
 
       const res = await fetch(`/api/contracts/${id}`, {
@@ -408,7 +435,7 @@ const EditContractPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-neutral-500">1 EUR =</span>
                 <input type="number" min="1" step="0.05" value={eurRate}
-                  onChange={(e) => setEurRate(parseFloat(e.target.value) || 5)}
+                  onChange={(e) => setEurRate(parseFloat(e.target.value) || DEFAULT_EUR_RATE)}
                   className="w-20 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-100 text-center focus:outline-none focus:border-emerald-500/50" />
                 <span className="text-xs text-neutral-500">RON</span>
               </div>
@@ -428,7 +455,7 @@ const EditContractPage: React.FC = () => {
                       <input type="checkbox" checked={s.included} onChange={() => toggleService(s.id)} className="accent-emerald-500 shrink-0" />
                       <span className={`text-xs leading-tight ${s.included ? "text-neutral-200" : "text-neutral-500"}`}>{s.label}</span>
                     </label>
-                    {s.included && s.id === "transport" ? (
+                    {s.included && s.id === TRANSPORT_SERVICE_ID ? (
                       <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                         <input type="number" min="0" value={transportKm} onChange={(e) => setTransportKm(e.target.value)}
                           placeholder="km" className="w-16 rounded px-2 py-1 text-xs text-right bg-neutral-700 border border-neutral-600 text-neutral-100 placeholder-neutral-500 focus:outline-none" />
@@ -541,28 +568,50 @@ const EditContractPage: React.FC = () => {
               </select>
             </div>
 
-            {paymentMethod === "Transfer bancar" && (
-              <div className="grid grid-cols-2 gap-4 pt-1">
-                <div>
-                  <Label>Beneficiar cont <span className="text-neutral-600 font-normal normal-case">(lasă gol = din setări)</span></Label>
-                  <input
-                    type="text"
-                    value={bankBeneficiaryName}
-                    onChange={(e) => setBankBeneficiaryName(e.target.value)}
-                    placeholder="ex. ANCA DANIEL PFA"
-                    className={inp}
-                  />
+            {paymentMethod === BANK_TRANSFER && bankProfiles.length > 0 && (
+              <div>
+                <Label>Cont bancar pentru transfer</Label>
+                <div className="space-y-2">
+                  {bankProfiles.map((profile) => (
+                    <label
+                      key={profile.id}
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                        selectedBankProfileId === profile.id
+                          ? "border-amber-500/40 bg-amber-500/5"
+                          : "border-neutral-700 hover:border-neutral-600"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="bankProfile"
+                        value={profile.id}
+                        checked={selectedBankProfileId === profile.id}
+                        onChange={() => setSelectedBankProfileId(profile.id)}
+                        className="accent-amber-500 mt-0.5 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm text-neutral-200 font-medium">{profile.label}</div>
+                        {profile.beneficiaryName && (
+                          <div className="text-xs text-neutral-500 mt-0.5">{profile.beneficiaryName}</div>
+                        )}
+                        {profile.iban && (
+                          <div className="text-xs text-neutral-400 font-mono mt-0.5 tracking-wide">{profile.iban}</div>
+                        )}
+                      </div>
+                    </label>
+                  ))}
                 </div>
-                <div>
-                  <Label>IBAN <span className="text-neutral-600 font-normal normal-case">(lasă gol = din setări)</span></Label>
-                  <input
-                    type="text"
-                    value={bankIban}
-                    onChange={(e) => setBankIban(e.target.value.toUpperCase())}
-                    placeholder="ex. RO49AAAA1B31007593840000"
-                    className={`${inp} font-mono`}
-                  />
-                </div>
+              </div>
+            )}
+
+            {paymentMethod === BANK_TRANSFER && bankProfiles.length === 0 && (
+              <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
+                <span className="text-amber-400 text-xs">
+                  Nu ai configurat niciun cont bancar.{" "}
+                  <a href="/admin/bank-details" className="underline hover:text-amber-300">
+                    Adaugă un profil →
+                  </a>
+                </span>
               </div>
             )}
           </Block>

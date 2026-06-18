@@ -152,7 +152,242 @@ function accuracyLabel(score: number): { label: string; color: string } {
   return { label: "Slab", color: "#f87171" };
 }
 
-// ── Weight Chart ──────────────────────────────────────────────────────────────
+// ── Evolution Charts ──────────────────────────────────────────────────────────
+
+type EvoRange = 7 | 30 | 90 | 365;
+
+function EvoChart({
+  data, target, accentColor, t, unit, gradientId,
+}: {
+  data: { date: string; value: number }[];
+  target?: number;
+  accentColor: string;
+  t: HT;
+  unit: string;
+  gradientId: string;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  if (data.length < 2) return (
+    <p style={{ textAlign: "center", color: t.t5, fontSize: 12, padding: "32px 0" }}>
+      Adaugă cel puțin 2 înregistrări pentru grafic
+    </p>
+  );
+
+  const W = 480; const H = 180;
+  const pad = { top: 20, bottom: 30, left: 46, right: 16 };
+  const iW = W - pad.left - pad.right;
+  const iH = H - pad.top - pad.bottom;
+
+  const values = data.map((d) => d.value);
+  const allVals = target !== undefined ? [...values, target] : values;
+  const minV = Math.min(...allVals);
+  const maxV = Math.max(...allVals);
+  const range = maxV - minV || 1;
+  const minY = minV - range * 0.12;
+  const maxY = maxV + range * 0.12;
+
+  const xOf = (i: number) => pad.left + (i / Math.max(data.length - 1, 1)) * iW;
+  const yOf = (v: number) => pad.top + iH - ((v - minY) / (maxY - minY)) * iH;
+
+  const linePts = data.map((d, i) => `${xOf(i)},${yOf(d.value)}`).join(" ");
+  const areaPath = `M${xOf(0)},${yOf(data[0].value)} ${data.map((d, i) => `L${xOf(i)},${yOf(d.value)}`).join(" ")} L${xOf(data.length - 1)},${pad.top + iH} L${xOf(0)},${pad.top + iH} Z`;
+
+  const yGridVals = [minY + (maxY - minY) * 0.1, minY + (maxY - minY) * 0.5, minY + (maxY - minY) * 0.9];
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const mx = (e.clientX - rect.left) * scaleX;
+    let nearest = 0;
+    let nearestDist = Infinity;
+    data.forEach((_, i) => {
+      const dist = Math.abs(xOf(i) - mx);
+      if (dist < nearestDist) { nearestDist = dist; nearest = i; }
+    });
+    setHoverIdx(nearest);
+  };
+
+  const hovered = hoverIdx !== null ? data[hoverIdx] : null;
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      style={{ width: "100%", overflow: "visible" }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoverIdx(null)}
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={accentColor} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={accentColor} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+
+      {/* Grid lines */}
+      {yGridVals.map((v, idx) => {
+        const y = yOf(v);
+        const label = unit === "kg" ? v.toFixed(1) : Math.round(v).toLocaleString();
+        return (
+          <g key={idx}>
+            <line x1={pad.left} y1={y} x2={W - pad.right} y2={y} stroke={t.b1} strokeWidth="1" strokeDasharray="4,3" />
+            <text x={pad.left - 5} y={y + 4} fill={t.t5} fontSize="9" textAnchor="end">{label}</text>
+          </g>
+        );
+      })}
+
+      {/* Target line */}
+      {target !== undefined && (
+        <g>
+          <line x1={pad.left} y1={yOf(target)} x2={W - pad.right} y2={yOf(target)} stroke="#7c3aed" strokeWidth="1.5" strokeDasharray="6,4" opacity="0.5" />
+          <text x={W - pad.right + 4} y={yOf(target) + 4} fill="#7c3aed" fontSize="9" opacity="0.7">țintă</text>
+        </g>
+      )}
+
+      {/* Area fill */}
+      <path d={areaPath} fill={`url(#${gradientId})`} />
+
+      {/* Line */}
+      <polyline fill="none" stroke={accentColor} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={linePts} />
+
+      {/* Dots */}
+      {data.map((d, i) => (
+        <circle key={d.date} cx={xOf(i)} cy={yOf(d.value)} r={hoverIdx === i ? 5 : 3} fill={accentColor} stroke={t.bg} strokeWidth="1.5" style={{ transition: "r 0.1s" }} />
+      ))}
+
+      {/* Hover tooltip */}
+      {hovered && hoverIdx !== null && (() => {
+        const cx = xOf(hoverIdx);
+        const cy = yOf(hovered.value);
+        const label = unit === "kg" ? `${hovered.value} kg` : `${hovered.value.toLocaleString()} pași`;
+        const tooltipW = 90;
+        const tx = Math.min(Math.max(cx - tooltipW / 2, pad.left), W - pad.right - tooltipW);
+        return (
+          <g>
+            <line x1={cx} y1={pad.top} x2={cx} y2={pad.top + iH} stroke={accentColor} strokeWidth="1" opacity="0.3" strokeDasharray="3,2" />
+            <rect x={tx} y={cy - 34} width={tooltipW} height={28} rx="6" fill={t.s1} stroke={t.b2} strokeWidth="1" />
+            <text x={tx + tooltipW / 2} y={cy - 22} fill={accentColor} fontSize="11" fontWeight="700" textAnchor="middle">{label}</text>
+            <text x={tx + tooltipW / 2} y={cy - 11} fill={t.t5} fontSize="9" textAnchor="middle">{hovered.date.slice(5)}</text>
+          </g>
+        );
+      })()}
+
+      {/* X labels */}
+      {[0, Math.floor(data.length / 2), data.length - 1].filter((v, i, a) => a.indexOf(v) === i).map((i) => (
+        <text key={i} x={xOf(i)} y={H - 4} fill={t.t5} fontSize="9" textAnchor="middle">{data[i].date.slice(5)}</text>
+      ))}
+    </svg>
+  );
+}
+
+function EvolutionSection({
+  weightHistory, activityHistory, targetWeight, stepTarget, accentColor, t,
+}: {
+  weightHistory: WeightEntry[];
+  activityHistory: ActivityLog[];
+  targetWeight: number;
+  stepTarget: number;
+  accentColor: string;
+  t: HT;
+}) {
+  const [tab, setTab] = useState<"weight" | "steps">("weight");
+  const [range, setRange] = useState<EvoRange>(30);
+
+  const filterByRange = <T extends { date: string }>(items: T[]): T[] => {
+    const sorted = [...items].sort((a, b) => a.date.localeCompare(b.date));
+    if (range === 365) return sorted;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - range);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    return sorted.filter((item) => item.date >= cutoffStr);
+  };
+
+  const weightData = filterByRange(weightHistory).map((e) => ({ date: e.date, value: e.weight }));
+  const stepsData = filterByRange(activityHistory).map((e) => ({ date: e.date, value: e.steps }));
+
+  const currentWeight = weightData.length > 0 ? weightData[weightData.length - 1].value : null;
+  const currentSteps = stepsData.length > 0 ? stepsData[stepsData.length - 1].value : null;
+
+  const weightChange = weightData.length >= 2 ? weightData[weightData.length - 1].value - weightData[0].value : null;
+  const avgSteps = stepsData.length > 0 ? Math.round(stepsData.reduce((sum, d) => sum + d.value, 0) / stepsData.length) : null;
+
+  const RANGES: { value: EvoRange; label: string }[] = [
+    { value: 7, label: "7Z" }, { value: 30, label: "30Z" }, { value: 90, label: "90Z" }, { value: 365, label: "Tot" },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Tabs + range */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ display: "flex", background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 8, padding: 2, gap: 2 }}>
+          {([
+            { key: "weight", label: "Greutate" },
+            { key: "steps", label: "Pași" },
+          ] as const).map(({ key, label }) => (
+            <button key={key} onClick={() => setTab(key)} style={{
+              padding: "5px 12px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer",
+              background: tab === key ? accentColor : "transparent",
+              color: tab === key ? t.bg : t.t4,
+              transition: "all 0.15s",
+            }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 2 }}>
+          {RANGES.map(({ value, label }) => (
+            <button key={value} onClick={() => setRange(value)} style={{
+              padding: "4px 9px", borderRadius: 6, border: `1px solid ${range === value ? accentColor : t.b1}`, fontSize: 10, fontWeight: 600, cursor: "pointer",
+              background: range === value ? `${accentColor}22` : "transparent",
+              color: range === value ? accentColor : t.t5,
+              transition: "all 0.15s",
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {tab === "weight" ? (
+          <>
+            <div style={{ background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 10, padding: "10px 14px" }}>
+              <p style={{ fontSize: 9, color: t.t5, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 3px" }}>Greutate curentă</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: accentColor, margin: 0 }}>{currentWeight ? `${currentWeight} kg` : "—"}</p>
+            </div>
+            <div style={{ background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 10, padding: "10px 14px" }}>
+              <p style={{ fontSize: 9, color: t.t5, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 3px" }}>Schimbare ({RANGES.find((r) => r.value === range)?.label})</p>
+              <p style={{ fontSize: 18, fontWeight: 800, margin: 0, color: weightChange === null ? t.t4 : weightChange < 0 ? "#4ade80" : weightChange > 0 ? "#f87171" : t.t4 }}>
+                {weightChange === null ? "—" : weightChange === 0 ? "±0 kg" : `${weightChange > 0 ? "+" : ""}${weightChange.toFixed(1)} kg`}
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 10, padding: "10px 14px" }}>
+              <p style={{ fontSize: 9, color: t.t5, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 3px" }}>Ultima zi</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: accentColor, margin: 0 }}>{currentSteps ? currentSteps.toLocaleString() : "—"}</p>
+            </div>
+            <div style={{ background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 10, padding: "10px 14px" }}>
+              <p style={{ fontSize: 9, color: t.t5, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 3px" }}>Medie ({RANGES.find((r) => r.value === range)?.label})</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: avgSteps && avgSteps >= stepTarget ? "#4ade80" : "#fb923c", margin: 0 }}>
+                {avgSteps ? avgSteps.toLocaleString() : "—"}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Chart */}
+      <div style={{ background: t.s1, border: `1px solid ${t.b1}`, borderRadius: 12, padding: "14px 10px 8px" }}>
+        {tab === "weight" ? (
+          <EvoChart data={weightData} target={targetWeight} accentColor={accentColor} t={t} unit="kg" gradientId="grad-weight" />
+        ) : (
+          <EvoChart data={stepsData} target={stepTarget} accentColor={accentColor} t={t} unit="pași" gradientId="grad-steps" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Weight Chart (legacy, kept for compatibility) ──────────────────────────────
 
 function WeightChart({ entries, targetWeight, accentColor, t }: { entries: WeightEntry[]; targetWeight: number; accentColor: string; t: HT }) {
   if (entries.length < 2) return (
@@ -1287,6 +1522,7 @@ function ProfilePanel({
   const jsonHeaders = { ...authHeaders, "Content-Type": "application/json" };
   const [profile, setProfile] = useState<HealthProfile | null | undefined>(undefined);
   const [history, setHistory] = useState<WeightEntry[]>([]);
+  const [activityHistory, setActivityHistory] = useState<ActivityLog[]>([]);
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [loading, setLoading] = useState(true);
   const [weightInput, setWeightInput] = useState("");
@@ -1297,16 +1533,19 @@ function ProfilePanel({
   const [weightSaved, setWeightSaved] = useState(false);
 
   const load = useCallback(async () => {
-    const [profRes, wRes, rRes] = await Promise.all([
+    const [profRes, wRes, rRes, actRes] = await Promise.all([
       fetch("/api/admin/health/profiles", { headers: authHeaders }),
       fetch(`/api/admin/health/weight/${userId}`, { headers: authHeaders }),
       fetch(`/api/admin/health/recommend/${userId}`, { headers: authHeaders }),
+      fetch(`/api/admin/health/activity/${userId}`, { headers: authHeaders }),
     ]);
     const profData = profRes.ok ? await profRes.json() as { profiles: Record<string, HealthProfile> } : { profiles: {} };
     const wData = wRes.ok ? await wRes.json() as { entries?: WeightEntry[] } : { entries: [] };
     const rData = rRes.ok ? await rRes.json() as { recommendation: Recommendation | null } : { recommendation: null };
+    const actData = actRes.ok ? await actRes.json() as { entries?: ActivityLog[] } : { entries: [] };
     setProfile(profData.profiles?.[userId] ?? null);
     setHistory(wData.entries ?? []);
+    setActivityHistory(actData.entries ?? []);
     setRec(rData.recommendation);
     setLoading(false);
   }, [userId, authHeaders]);
@@ -1391,12 +1630,18 @@ function ProfilePanel({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {(() => {
-            const score = calcAccuracy(profile, latestWeight, null);
-            const acc = accuracyLabel(score);
+            const delta = latestWeight && profile.startWeight ? latestWeight - profile.startWeight : null;
+            const remaining = latestWeight && profile.targetWeight ? latestWeight - profile.targetWeight : null;
             return (
               <div style={{ textAlign: "right" }}>
-                <p style={{ fontSize: 18, fontWeight: 800, color: acc.color, margin: 0 }}>{score}%</p>
-                <p style={{ fontSize: 9, color: t.t5, margin: 0, textTransform: "uppercase" }}>{acc.label}</p>
+                {delta !== null && (
+                  <p style={{ fontSize: 16, fontWeight: 800, color: delta <= 0 ? "#4ade80" : "#f87171", margin: 0 }}>
+                    {delta > 0 ? "+" : ""}{delta.toFixed(1)} kg
+                  </p>
+                )}
+                <p style={{ fontSize: 9, color: t.t5, margin: 0, textTransform: "uppercase" }}>
+                  {remaining !== null ? `${remaining.toFixed(1)} kg până la țintă` : "față de start"}
+                </p>
               </div>
             );
           })()}
@@ -1419,7 +1664,8 @@ function ProfilePanel({
                 { key: "name", label: "Nume", type: "text" },
                 { key: "age", label: "Vârstă", type: "number" },
                 { key: "height", label: "Înălțime (cm)", type: "number" },
-                { key: "currentWeight", label: "Greutate (kg)", type: "number" },
+                { key: "startWeight", label: "Greutate start (kg)", type: "number" },
+                { key: "currentWeight", label: "Greutate curentă (kg)", type: "number" },
                 { key: "targetWeight", label: "Țintă (kg)", type: "number" },
                 { key: "dailyCalories", label: "Calorii/zi", type: "number" },
                 { key: "stepTarget", label: "Pași target", type: "number" },
@@ -1521,10 +1767,17 @@ function ProfilePanel({
         {/* Penalties */}
         <PenaltySection userId={userId} accentColor={accentColor} authHeaders={authHeaders} t={t} />
 
-        {/* Weight chart */}
-        {history.length > 0 && (
-          <Section title="Evoluție greutate" t={t}>
-            <WeightChart entries={history} targetWeight={profile.targetWeight ?? 70} accentColor={accentColor} t={t} />
+        {/* Evolution charts */}
+        {(history.length > 0 || activityHistory.length > 0) && (
+          <Section title="Evoluție" t={t}>
+            <EvolutionSection
+              weightHistory={history}
+              activityHistory={activityHistory}
+              targetWeight={profile.targetWeight ?? 70}
+              stepTarget={profile.stepTarget ?? 8000}
+              accentColor={accentColor}
+              t={t}
+            />
           </Section>
         )}
 

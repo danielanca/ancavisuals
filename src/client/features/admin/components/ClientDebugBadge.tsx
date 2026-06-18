@@ -135,6 +135,25 @@ function AdminPanel({
   onClose: () => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAll = () => {
+    const text = errors.map((error, index) => {
+      const cfg = TYPE_CONFIG[error.type];
+      const lines = [
+        `[${index + 1}] ${cfg.label.toUpperCase()} — ${error.timestamp.toLocaleTimeString("ro-RO")}`,
+        `Message: ${error.message}`,
+      ];
+      if (error.status) lines.push(`Status: ${error.status}`);
+      if (error.url) lines.push(`URL: ${error.url}`);
+      if (error.detail) lines.push(`Stack:\n${error.detail}`);
+      return lines.join("\n");
+    }).join("\n\n---\n\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <>
@@ -151,6 +170,12 @@ function AdminPanel({
           Erori detectate <span style={{ color: "#ef4444" }}>({errors.length})</span>
         </span>
         <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={handleCopyAll}
+            style={{ ...adminBtnStyle, ...(copied ? { borderColor: "#16a34a", color: "#4ade80" } : {}) }}
+          >
+            {copied ? "Copiat ✓" : "Copiază tot"}
+          </button>
           <button onClick={onClear} style={adminBtnStyle}>Golește</button>
           <button onClick={onClose} style={adminBtnStyle}>✕</button>
         </div>

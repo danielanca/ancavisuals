@@ -174,4 +174,17 @@ router.patch("/errors/mark-seen", requireFirebaseAuth, requireSupremeAdmin, asyn
   }
 });
 
+router.delete("/errors", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const snapshot = await firestore().collection(ERRORS_COLLECTION).get();
+    if (snapshot.empty) { res.json({ deleted: 0 }); return; }
+    const batch = firestore().batch();
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    res.json({ deleted: snapshot.size });
+  } catch {
+    res.status(500).json({ error: "failed" });
+  }
+});
+
 export default router;

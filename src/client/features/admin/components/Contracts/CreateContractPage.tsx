@@ -19,6 +19,8 @@ interface ServiceEntry {
   priceRaw: string; // "500", "GRATUIT", or "" (not set)
 }
 
+const TRANSPORT_SERVICE_ID = "transport";
+
 // Pre-filled prices
 const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "foto_video", label: "Foto + Video (1 fotograf + 1 videograf)", included: false, priceRaw: "800"  },
@@ -31,7 +33,7 @@ const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "photobooth", label: "Fotocabină / Photo Booth",                 included: false, priceRaw: "250"  },
   { id: "videobooth", label: "Video Cabină 360 / VideoBooth",            included: false, priceRaw: "250"  },
   { id: "teaser",     label: "Teaser video (1–2 min)",                   included: false, priceRaw: ""     },
-  { id: "transport",  label: "Taxă transport spre și de la eveniment",   included: false, priceRaw: ""     },
+  { id: TRANSPORT_SERVICE_ID,  label: "Taxă transport spre și de la eveniment",   included: false, priceRaw: ""     },
 ];
 
 const EVENT_TYPES = [
@@ -49,19 +51,26 @@ const EVENT_TYPES = [
 
 // Which services are pre-selected when the admin picks an event type
 const SERVICE_TEMPLATES: Record<string, string[]> = {
-  "Nuntă":                ["foto_video", "album100", "transport"],
-  "Cununie civilă":       ["foto", "transport"],
-  "Botez":                ["foto_video", "transport"],
-  "Logodnă":              ["foto", "transport"],
-  "Majorat":              ["foto_video", "photobooth", "transport"],
-  "Corporate":            ["foto_video", "transport"],
+  "Nuntă":                ["foto_video", "album100", TRANSPORT_SERVICE_ID],
+  "Cununie civilă":       ["foto", TRANSPORT_SERVICE_ID],
+  "Botez":                ["foto_video", TRANSPORT_SERVICE_ID],
+  "Logodnă":              ["foto", TRANSPORT_SERVICE_ID],
+  "Majorat":              ["foto_video", "photobooth", TRANSPORT_SERVICE_ID],
+  "Corporate":            ["foto_video", TRANSPORT_SERVICE_ID],
   "Fotocabină / VideoBooth": ["photobooth", "videobooth"],
   "Ședință foto":         ["foto"],
-  "Înmormântare":         ["foto", "transport"],
+  "Înmormântare":         ["foto", TRANSPORT_SERVICE_ID],
   "Altul":                [],
 };
 const CURRENCIES = ["RON", "EUR"];
-const PAYMENT_METHODS = ["Transfer bancar", "Cash", "Card", "Revolut"];
+const DEFAULT_CURRENCY = "RON";
+const BANK_TRANSFER = "Transfer bancar";
+const CASH = "Cash";
+const CARD = "Card";
+const REVOLUT = "Revolut";
+const PAYMENT_METHODS = [BANK_TRANSFER, CASH, CARD, REVOLUT];
+const DEFAULT_EUR_RATE = 5;
+const DEFAULT_TRANSPORT_FUEL_PRICE = "10";
 const DRAFT_KEY = "contract-create-draft";
 
 function parseDecimal(raw: string): number {
@@ -180,18 +189,18 @@ const CreateContractPage: React.FC = () => {
   const [customServices, setCustomServices] = useState<{ label: string; priceRaw: string }[]>([]);
 
   // Exchange rate
-  const [eurRate, setEurRate] = useState<number>(5);
+  const [eurRate, setEurRate] = useState<number>(DEFAULT_EUR_RATE);
   const [eurRateDate, setEurRateDate] = useState<string | null>(null);
   const [eurRateLoading, setEurRateLoading] = useState(false);
 
   // Pricing
-  const [currency, setCurrency] = useState("RON");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [manualTotal, setManualTotal] = useState(false);
   const [priceTotal, setPriceTotal] = useState(0);
   const [priceAdvance, setPriceAdvance] = useState(0);
   const [advancePaidAt, setAdvancePaidAt] = useState("");
   const [restPaidAt, setRestPaidAt] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Transfer bancar");
+  const [paymentMethod, setPaymentMethod] = useState(BANK_TRANSFER);
 
   // Bank profiles
   const [bankProfiles, setBankProfiles] = useState<BankProfile[]>([]);
@@ -199,7 +208,7 @@ const CreateContractPage: React.FC = () => {
 
   // Transport
   const [transportKm, setTransportKm] = useState("");
-  const [transportFuelPrice, setTransportFuelPrice] = useState("10");
+  const [transportFuelPrice, setTransportFuelPrice] = useState(DEFAULT_TRANSPORT_FUEL_PRICE);
 
   // Client
   const [clientEmail, setClientEmail] = useState(fromEvent.clientEmail ?? "");
@@ -324,7 +333,7 @@ const CreateContractPage: React.FC = () => {
     const fuel = parseFloat(transportFuelPrice);
     if (!isNaN(km) && km > 0 && !isNaN(fuel) && fuel > 0) {
       const estimated = Math.ceil(km * 6 / 100 * fuel).toString();
-      setServices((prev) => prev.map((s) => s.id === "transport" ? { ...s, priceRaw: estimated } : s));
+      setServices((prev) => prev.map((s) => s.id === TRANSPORT_SERVICE_ID ? { ...s, priceRaw: estimated } : s));
     }
   }, [transportKm, transportFuelPrice]);
 
@@ -393,7 +402,7 @@ const CreateContractPage: React.FC = () => {
           label: s.label,
           price: priceToNumeric(s.priceRaw),
           gratuit: parsePrice(s.priceRaw) === "gratuit",
-          ...(s.id === "transport" ? { isTransport: true } : {}),
+          ...(s.id === TRANSPORT_SERVICE_ID ? { isTransport: true } : {}),
         })),
         ...customServices
           .filter((s) => s.label.trim())
@@ -416,8 +425,8 @@ const CreateContractPage: React.FC = () => {
         advancePaidAt,
         restPaidAt,
         paymentMethod,
-        bankBeneficiaryName: paymentMethod === "Transfer bancar" ? (selectedBankProfile?.beneficiaryName ?? "") : "",
-        bankIban: paymentMethod === "Transfer bancar" ? (selectedBankProfile?.iban ?? "") : "",
+        bankBeneficiaryName: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.beneficiaryName ?? "") : "",
+        bankIban: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.iban ?? "") : "",
         clientEmail,
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
@@ -425,7 +434,7 @@ const CreateContractPage: React.FC = () => {
         clientIdSeries: clientIdSeries.trim(),
         privateClient,
         transportKm: transportKm || "",
-        transportFuelPrice: transportFuelPrice || "10",
+        transportFuelPrice: transportFuelPrice || DEFAULT_TRANSPORT_FUEL_PRICE,
         ...(fromEvent.eventId ? { eventId: fromEvent.eventId } : {}),
       };
 
@@ -559,7 +568,7 @@ const CreateContractPage: React.FC = () => {
                   min="1"
                   step="0.05"
                   value={eurRate}
-                  onChange={(e) => { setEurRate(parseFloat(e.target.value) || 5); setEurRateDate(null); }}
+                  onChange={(e) => { setEurRate(parseFloat(e.target.value) || DEFAULT_EUR_RATE); setEurRateDate(null); }}
                   className="w-24 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-100 text-center focus:outline-none focus:border-emerald-500/50"
                 />
                 <span className="text-xs text-neutral-500">RON</span>
@@ -599,7 +608,7 @@ const CreateContractPage: React.FC = () => {
                       </span>
                     </label>
 
-                    {s.included && s.id === "transport" ? (
+                    {s.included && s.id === TRANSPORT_SERVICE_ID ? (
                       <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                         <input
                           type="number"
@@ -747,7 +756,7 @@ const CreateContractPage: React.FC = () => {
               </select>
             </div>
 
-            {paymentMethod === "Transfer bancar" && bankProfiles.length > 0 && (
+            {paymentMethod === BANK_TRANSFER && bankProfiles.length > 0 && (
               <div>
                 <Label>Cont bancar pentru transfer</Label>
                 <div className="space-y-2">
@@ -783,7 +792,7 @@ const CreateContractPage: React.FC = () => {
               </div>
             )}
 
-            {paymentMethod === "Transfer bancar" && bankProfiles.length === 0 && (
+            {paymentMethod === BANK_TRANSFER && bankProfiles.length === 0 && (
               <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
                 <span className="text-amber-400 text-xs">
                   Nu ai configurat niciun cont bancar.{" "}

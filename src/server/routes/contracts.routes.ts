@@ -15,6 +15,7 @@ import { expandEventDates } from "../utils/expandEventDates";
 import { APP_BASE_URL } from "../constants/domain";
 
 const router = Router();
+const BANK_TRANSFER = "Transfer bancar";
 const BOOKED_EVENT_STATUSES = new Set(["confirmat", "finalizat"]);
 
 function tsToISO(value: unknown): string | null {
@@ -81,7 +82,7 @@ router.post("/", async (req: Request, res: Response) => {
       advancePaidAt: body.advancePaidAt ?? "",
       priceRest: body.priceRest !== undefined ? Number(body.priceRest) : priceTotal - priceAdvance,
       restPaidAt: body.restPaidAt ?? "",
-      paymentMethod: body.paymentMethod ?? "Transfer bancar",
+      paymentMethod: body.paymentMethod ?? BANK_TRANSFER,
 
       clauses: Array.isArray(body.clauses) ? body.clauses : [],
       privateClient: body.privateClient === true,
@@ -388,7 +389,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       priceRest: body.priceRest !== undefined ? Number(body.priceRest) : priceTotal - priceAdvance,
       advancePaidAt: body.advancePaidAt ?? "",
       restPaidAt: body.restPaidAt ?? "",
-      paymentMethod: body.paymentMethod ?? "Transfer bancar",
+      paymentMethod: body.paymentMethod ?? BANK_TRANSFER,
       clientEmail: body.clientEmail,
       clientName: body.clientName?.trim() ?? "",
       clientPhone: body.clientPhone?.trim() ?? "",

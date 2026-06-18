@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import type { ClientEvent } from "../types";
 import EventCard from "./EventCard";
 import Redacted from "./Redacted";
@@ -69,10 +68,10 @@ export function partitionEvents(events: ClientEvent[], today: Date, currentYear:
 }
 
 type Tab = "leaduri" | "viitor" | "trecut" | "arhiva";
+type ViewMode = "list" | "calendar";
 type FiscalFilter = "toate" | "fiscalizate" | "nefiscalizate";
 
 const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent, onEventUpdated, onEventDeleted, exchangeRate }) => {
-  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("viitor");
   const [fiscalFilter, setFiscalFilter] = useState<FiscalFilter>("toate");
   const [collapsed, setCollapsed] = useState(false);
@@ -82,6 +81,10 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
   const [cardStates, setCardStates] = useState<Record<string, boolean>>({});
   const [futureYearSections, setFutureYearSections] = useState<Record<number, boolean>>({});
   const [statesLoaded, setStatesLoaded] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [selectedCalDate, setSelectedCalDate] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -350,6 +353,254 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
     );
   }
 
+  const DAYS_SHORT = ["Lu", "Ma", "Mi", "Jo", "Vi", "Sâ", "Du"];
+  const CAL_MIN_YEAR = 2024;
+  const CAL_MAX_YEAR = 2035;
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, { confirmed: ClientEvent[]; leads: ClientEvent[] }>();
+    for (const event of events) {
+      if (!event.eventDate || event.status === "anulat") continue;
+      const date = new Date(event.eventDate);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      if (!map.has(key)) map.set(key, { confirmed: [], leads: [] });
+      const entry = map.get(key)!;
+      if (event.status === "confirmat" || event.status === "finalizat") {
+        entry.confirmed.push(event);
+      } else if (event.status === "lead" || event.status === "tentativ") {
+        entry.leads.push(event);
+      }
+    }
+    return map;
+  }, [events]);
+
+  function renderCalendar() {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const firstDay = new Date(calYear, calMonth, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const cells: (number | null)[] = [
+      ...Array(startOffset).fill(null),
+      ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length < 42) cells.push(null);
+
+    const isCurrentMonthYear = calYear === new Date().getFullYear() && calMonth === new Date().getMonth();
+
+    const prevMonth = () => {
+      if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+      else setCalMonth(m => m - 1);
+      setSelectedCalDate(null);
+    };
+    const nextMonth = () => {
+      if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+      else setCalMonth(m => m + 1);
+      setSelectedCalDate(null);
+    };
+    const goToToday = () => {
+      const now = new Date();
+      setCalYear(now.getFullYear());
+      setCalMonth(now.getMonth());
+      setSelectedCalDate(null);
+    };
+
+    const monthConfirmed = cells.filter(Boolean).filter(day => {
+      const dateKey = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      return (eventsByDate.get(dateKey)?.confirmed.length ?? 0) > 0;
+    }).length;
+    const monthLeads = cells.filter(Boolean).filter(day => {
+      const dateKey = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const entry = eventsByDate.get(dateKey);
+      return (entry?.leads.length ?? 0) > 0 && (entry?.confirmed.length ?? 0) === 0;
+    }).length;
+
+    const selectedDayEvents = selectedCalDate ? (eventsByDate.get(selectedCalDate) ?? null) : null;
+
+    return (
+      <div className="space-y-5">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={prevMonth}
+              className="w-8 h-8 rounded-lg border border-neutral-800 text-neutral-500 hover:text-white hover:border-neutral-600 hover:bg-neutral-800 flex items-center justify-center transition-all">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div className="text-center min-w-[150px]">
+              <span className="text-white font-bold text-lg">{MONTHS_RO[calMonth]}</span>
+              <span className="text-neutral-500 text-sm ml-2">{calYear}</span>
+            </div>
+            <button type="button" onClick={nextMonth}
+              className="w-8 h-8 rounded-lg border border-neutral-800 text-neutral-500 hover:text-white hover:border-neutral-600 hover:bg-neutral-800 flex items-center justify-center transition-all">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {(monthConfirmed > 0 || monthLeads > 0) && (
+              <div className="flex items-center gap-1.5 text-xs">
+                {monthConfirmed > 0 && (
+                  <span className="flex items-center gap-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
+                    {monthConfirmed}
+                  </span>
+                )}
+                {monthLeads > 0 && (
+                  <span className="flex items-center gap-1 bg-amber-400/10 text-amber-400 border border-amber-400/20 px-2 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                    {monthLeads}
+                  </span>
+                )}
+              </div>
+            )}
+            {!isCurrentMonthYear && (
+              <button type="button" onClick={goToToday}
+                className="text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 px-2.5 py-1 rounded-lg transition-all">
+                Azi
+              </button>
+            )}
+            <select
+              value={calYear}
+              onChange={(e) => { setCalYear(Number(e.target.value)); setSelectedCalDate(null); }}
+              className="bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-1 text-xs text-neutral-400 focus:outline-none focus:border-neutral-600 cursor-pointer"
+            >
+              {Array.from({ length: CAL_MAX_YEAR - CAL_MIN_YEAR + 1 }, (_, i) => CAL_MIN_YEAR + i).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Grid */}
+        <div>
+          {/* Day headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {DAYS_SHORT.map((d, i) => (
+              <div key={d} className={`text-[11px] text-center font-semibold py-1.5 uppercase tracking-widest ${i >= 5 ? "text-neutral-600" : "text-neutral-700"}`}>{d}</div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div className="grid grid-cols-7 gap-0.5" style={{ gridAutoRows: "52px" }}>
+            {cells.map((day, i) => {
+              if (!day) return <div key={i} />;
+
+              const dateKey = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              const isToday = dateKey === todayKey;
+              const isPast = dateKey < todayKey;
+              const isWeekend = i % 7 >= 5;
+              const entry = eventsByDate.get(dateKey);
+              const hasConfirmed = (entry?.confirmed.length ?? 0) > 0;
+              const hasLeads = (entry?.leads.length ?? 0) > 0;
+              const hasEvents = hasConfirmed || hasLeads;
+              const isSelected = selectedCalDate === dateKey;
+              const confirmedCount = entry?.confirmed.length ?? 0;
+              const leadCount = entry?.leads.length ?? 0;
+
+              let numberColor = isWeekend ? "text-neutral-500" : "text-neutral-400";
+              if (isPast && !hasEvents) numberColor = "text-neutral-700";
+              if (hasEvents && !isToday) numberColor = "text-white font-semibold";
+
+              let cellBg = "";
+              let cellBorder = "";
+              if (isSelected && hasConfirmed) { cellBg = "bg-blue-500/30"; cellBorder = "ring-1 ring-blue-400/50"; }
+              else if (isSelected && hasLeads) { cellBg = "bg-amber-400/25"; cellBorder = "ring-1 ring-amber-400/50"; }
+              else if (isSelected) { cellBg = "bg-neutral-800"; cellBorder = "ring-1 ring-neutral-600"; }
+              else if (hasConfirmed && !isToday) cellBg = "bg-blue-500/20 hover:bg-blue-500/30";
+              else if (hasLeads && !isToday) cellBg = "bg-amber-400/15 hover:bg-amber-400/25";
+              else cellBg = "hover:bg-neutral-800/60";
+
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => hasEvents ? setSelectedCalDate(isSelected ? null : dateKey) : undefined}
+                  className={[
+                    "relative flex flex-col items-center justify-center rounded-xl transition-all select-none",
+                    cellBg, cellBorder,
+                    hasEvents ? "cursor-pointer" : "cursor-default",
+                  ].filter(Boolean).join(" ")}
+                >
+                  {isToday ? (
+                    <span className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/30">
+                      {day}
+                    </span>
+                  ) : (
+                    <span className={`text-sm leading-none ${numberColor}`}>{day}</span>
+                  )}
+
+                  {/* Dot indicators */}
+                  {(hasConfirmed || hasLeads) && !isToday && (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      {hasConfirmed && Array.from({ length: Math.min(confirmedCount, 3) }).map((_, di) => (
+                        <span key={`c${di}`} className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block shadow-sm shadow-blue-400/50" />
+                      ))}
+                      {hasLeads && Array.from({ length: Math.min(leadCount, 2) }).map((_, di) => (
+                        <span key={`l${di}`} className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shadow-sm shadow-amber-400/50" />
+                      ))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 text-[11px] text-neutral-600 pt-2 border-t border-neutral-800/60">
+          <span className="flex items-center gap-1.5">
+            <span className="w-5 h-5 rounded-full bg-emerald-500 inline-flex items-center justify-center text-white font-bold text-[9px]">1</span>
+            Azi
+          </span>
+          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" /> Confirmat</span>
+          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" /> Lead</span>
+        </div>
+
+        {/* Selected day panel */}
+        {selectedCalDate && (
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+              <p className="text-white text-sm font-semibold capitalize">
+                {new Date(selectedCalDate + "T12:00:00").toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long" })}
+              </p>
+              <button type="button" onClick={() => setSelectedCalDate(null)}
+                className="w-6 h-6 flex items-center justify-center rounded-lg text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {!selectedDayEvents || (selectedDayEvents.confirmed.length + selectedDayEvents.leads.length === 0) ? (
+              <p className="text-neutral-600 text-sm px-4 py-5 text-center">Niciun eveniment în această zi.</p>
+            ) : (
+              <div className="divide-y divide-neutral-800/60">
+                {[...selectedDayEvents.confirmed, ...selectedDayEvents.leads].map((event) => {
+                  const isLead = event.status === "lead" || event.status === "tentativ";
+                  return (
+                    <div key={event.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-1 h-8 rounded-full shrink-0 ${isLead ? "bg-amber-400" : "bg-blue-400"}`} />
+                        <div className="min-w-0">
+                          <p className="text-white text-sm font-medium truncate">{event.client.fullName || "—"}</p>
+                          <p className="text-neutral-500 text-xs mt-0.5">
+                            {event.type}{event.typeLabel ? ` · ${event.typeLabel}` : ""}
+                            {event.pricing?.total > 0 ? ` · ${event.pricing.total.toLocaleString("ro-RO")} EUR` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${
+                        isLead ? "bg-amber-400/15 text-amber-400" : "bg-blue-500/15 text-blue-400"
+                      }`}>
+                        {event.status}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderArchive(list: ClientEvent[]) {
     const sorted = [...list].sort((a, b) => {
       const aTime = a.eventDate ? new Date(a.eventDate).getTime() : 0;
@@ -380,6 +631,8 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
   ];
 
   function renderContent() {
+    if (viewMode === "calendar") return renderCalendar();
+
     if (tab === "leaduri") {
       if (filteredLeads.length === 0) {
         return (
@@ -493,18 +746,37 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
                 </>
               )}
             </button>
-            <button
-              onClick={() => navigate("/admin/calendar")}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
-              title="Calendar"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-            </button>
+            {/* View toggle */}
+            <div className="flex items-center bg-neutral-800 rounded-lg p-0.5 border border-neutral-700">
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                title="Listă"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === "list" ? "bg-neutral-700 text-white shadow-sm" : "text-neutral-500 hover:text-neutral-300"
+                }`}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+                Listă
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("calendar")}
+                title="Calendar"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === "calendar" ? "bg-neutral-700 text-white shadow-sm" : "text-neutral-500 hover:text-neutral-300"
+                }`}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                Calendar
+              </button>
+            </div>
             <button
               onClick={onAddEvent}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-medium hover:bg-amber-400 transition-colors"
@@ -528,7 +800,7 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
 
         {!collapsed && (
           <>
-            <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
+            {viewMode !== "calendar" && <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
               {([
                 { key: "toate", label: "Toate" },
                 { key: "fiscalizate", label: "Fiscalizate" },
@@ -547,7 +819,7 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
                   {option.label}
                 </button>
               ))}
-            </div>
+            </div>}
 
             {/* Tabs */}
             <div className="flex gap-1 bg-neutral-800/60 rounded-xl p-1 mb-6">
@@ -587,7 +859,7 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
             <span className="rounded-full border border-neutral-700 px-2 py-1">Arhivă {filteredArchived.length}</span>
           </div>
         ) : (
-          (tab !== "leaduri" && tab !== "arhiva") && (
+          (viewMode !== "calendar" && tab !== "leaduri" && tab !== "arhiva") && (
             <div className="mb-3 flex justify-end">
               <button
                 onClick={handleToggleAll}
