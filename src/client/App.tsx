@@ -138,7 +138,7 @@ export const App = () => {
           <ChunkErrorBoundary>
           {isErrorReportingEnabled && <ErrorMonitorPanel />}
           {isErrorReportingEnabled && <ClientDebugBadge />}
-          <Suspense fallback={<AncaLoader />}>
+          <Suspense fallback={<AncaLoader reportSlowLoad />}>
             {showChat && <AncaChat />}
             <Routes>
               {publicRoutes.map((route) => (

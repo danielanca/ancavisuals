@@ -1,8 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
+
+const SLOW_LOAD_THRESHOLD_MS = 8000;
 
 interface Props {
   variant?: "full" | "inline";
   subtitle?: string;
+  reportSlowLoad?: boolean;
 }
 
 const STYLES = `
@@ -22,7 +25,23 @@ const STYLES = `
   .anca-loader-dots span:nth-child(3) { animation-delay: 0.4s; }
 `;
 
-export default function AncaLoader({ variant = "full", subtitle }: Props) {
+export default function AncaLoader({ variant = "full", subtitle, reportSlowLoad = false }: Props) {
+  useEffect(() => {
+    if (!reportSlowLoad) return;
+    const timer = setTimeout(() => {
+      const page = typeof window !== "undefined" ? window.location.pathname : "/";
+      fetch("/api/monitoring/client-error", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `[SLOW LOAD] Loading spinner active for 8+ seconds on ${page}`,
+          stack: `navigator.userAgent: ${navigator.userAgent}`,
+          page,
+        }),
+      }).catch(() => {});
+    }, SLOW_LOAD_THRESHOLD_MS);
+    return () => clearTimeout(timer);
+  }, [reportSlowLoad]);
   const isFull = variant === "full";
 
   const titleSize  = isFull ? "clamp(1.6rem, 5vw, 2.4rem)" : "1rem";
