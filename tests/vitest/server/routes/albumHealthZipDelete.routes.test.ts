@@ -32,6 +32,7 @@ async function loadRouter(options?: {
     : vi.fn().mockResolvedValue({ ok: bunnyDeleteOk, status: bunnyDeleteStatus });
 
   vi.stubGlobal("fetch", fetchMock);
+  vi.doMock("node-fetch", () => ({ default: fetchMock }));
 
   vi.doMock("src/server/firestore", () => ({
     firestore: () => ({

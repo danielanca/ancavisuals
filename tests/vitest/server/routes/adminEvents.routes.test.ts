@@ -150,6 +150,9 @@ async function loadRouter() {
     })),
   }));
 
+  const nodeFetchMock = vi.fn();
+  vi.doMock("node-fetch", () => ({ default: nodeFetchMock }));
+
   const module = await import("src/server/routes/adminEvents.routes");
   const router = module.default as any;
 
@@ -197,6 +200,7 @@ async function loadRouter() {
     getAlbumHealthCategories: getHandler("get", "/album-health/categories"),
     putAlbumHealthCategories: getHandler("put", "/album-health/categories"),
     postAlbumHealthProcess: getHandler("post", "/album-health/:slug/process"),
+    nodeFetchMock,
   };
 }
 
@@ -782,37 +786,32 @@ describe("adminEvents routes", () => {
     });
 
     test("returns 409 when album already exists in Bunny", async () => {
-      const { postCreateAlbum } = await loadRouter();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: true }));
+      const { postCreateAlbum, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: true });
       const res = createMockResponse();
       await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
       expect(res.status).toHaveBeenCalledWith(409);
-      vi.unstubAllGlobals();
     });
 
     test("creates album folders and saves slug on event", async () => {
-      const { postCreateAlbum, updateMock } = await loadRouter();
-      const fetchMock = vi.fn()
+      const { postCreateAlbum, updateMock, nodeFetchMock } = await loadRouter();
+      nodeFetchMock
         .mockResolvedValueOnce({ ok: false }) // check — doesn't exist
         .mockResolvedValue({ ok: true });     // all PUT folder placeholders
-      vi.stubGlobal("fetch", fetchMock);
       const res = createMockResponse();
       await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
       expect(updateMock).toHaveBeenCalledWith("ev-1", expect.objectContaining({ albumSlug: "nunta-test-2026" }));
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true, slug: "nunta-test-2026" }));
-      vi.unstubAllGlobals();
     });
 
     test("returns 500 when a Bunny folder upload fails", async () => {
-      const { postCreateAlbum } = await loadRouter();
-      const fetchMock = vi.fn()
+      const { postCreateAlbum, nodeFetchMock } = await loadRouter();
+      nodeFetchMock
         .mockResolvedValueOnce({ ok: false })  // check — doesn't exist
         .mockResolvedValueOnce({ ok: false }); // first PUT fails
-      vi.stubGlobal("fetch", fetchMock);
       const res = createMockResponse();
       await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
       expect(res.status).toHaveBeenCalledWith(500);
-      vi.unstubAllGlobals();
     });
   });
 
@@ -826,22 +825,20 @@ describe("adminEvents routes", () => {
     });
 
     test("returns found:false when album not in Bunny", async () => {
-      const { postDetectAlbum } = await loadRouter();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: false }));
+      const { postDetectAlbum, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: false });
       const res = createMockResponse();
       await postDetectAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
       expect(res.json).toHaveBeenCalledWith({ found: false });
-      vi.unstubAllGlobals();
     });
 
     test("links album to event when found in Bunny", async () => {
-      const { postDetectAlbum, updateMock } = await loadRouter();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: true }));
+      const { postDetectAlbum, updateMock, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: true });
       const res = createMockResponse();
       await postDetectAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
       expect(updateMock).toHaveBeenCalledWith("ev-1", { albumSlug: "nunta-test-2026" });
       expect(res.json).toHaveBeenCalledWith({ found: true, slug: "nunta-test-2026" });
-      vi.unstubAllGlobals();
     });
   });
 

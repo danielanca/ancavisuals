@@ -58,6 +58,7 @@ async function loadInstagramProposalsRouter() {
       next();
     },
     requireSupremeAdmin: (_req: any, _res: any, next: any) => next(),
+    requireEsteraOrAdmin: (_req: any, _res: any, next: any) => next(),
   }));
 
   vi.doMock("firebase-admin/firestore", () => ({

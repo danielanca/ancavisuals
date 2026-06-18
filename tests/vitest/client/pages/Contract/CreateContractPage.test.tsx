@@ -139,6 +139,8 @@ describe("CreateContractPage", () => {
         advancePaidAt: "",
         restPaidAt: "",
         paymentMethod: "Transfer bancar",
+        bankBeneficiaryName: "",
+        bankIban: "",
         clientEmail: "client@example.com",
         clientName: "",
         clientPhone: "",
