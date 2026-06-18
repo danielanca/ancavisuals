@@ -18,6 +18,20 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
 const SUPPRESS_UC_PREFIXES = ["/admin", "/media"];
 
+const hideUcFloatingButton = () => {
+  // Inject a style rule to permanently hide the Usercentrics floating badge.
+  // The consent banner itself still appears (it uses #usercentrics-root > [role=dialog])
+  // so the initial consent flow is unaffected.
+  if (document.getElementById("uc-hide-badge-style")) return;
+  const style = document.createElement("style");
+  style.id = "uc-hide-badge-style";
+  // Target the small floating privacy button but not the consent dialog
+  style.textContent = `
+    #usercentrics-root > :not([role="dialog"]) { display: none !important; }
+  `;
+  document.head.appendChild(style);
+};
+
 const bootstrapUsercentrics = () => {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return;
@@ -35,6 +49,8 @@ const bootstrapUsercentrics = () => {
   if (document.getElementById(USERCENTRICS_SCRIPT_ID)) {
     return;
   }
+
+  hideUcFloatingButton();
 
   const script = document.createElement("script");
   script.id = USERCENTRICS_SCRIPT_ID;
