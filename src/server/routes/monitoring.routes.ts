@@ -26,6 +26,29 @@ function isQrDebugError(message: string, page: string): boolean {
   return message.startsWith("[QR DEBUG]") || page.startsWith("/qr-moments/");
 }
 
+function isSlowLoadError(message: string): boolean {
+  return message.startsWith("[SLOW LOAD]");
+}
+
+async function sendSlowLoadEmail(message: string, page: string, ip?: string) {
+  const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  await sendEmail({
+    to: adminUser.email,
+    subject: `⏳ Loading lent pe ancavisuals.ro — ${page || "/"}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5;border-radius:12px;">
+        <h2 style="color:#f59e0b;margin:0 0 16px;">⏳ Loading spinner > 8 secunde</h2>
+        <p style="color:#a3a3a3;margin:0 0 8px;"><strong>Pagină:</strong> ${safe(page || "/")}</p>
+        <p style="color:#a3a3a3;margin:0 0 8px;"><strong>IP:</strong> ${safe(ip || "-")}</p>
+        <div style="background:#171717;border:1px solid #262626;border-radius:8px;padding:14px 16px;margin-top:16px;">
+          <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:#f5f5f5;font-size:13px;">${safe(message)}</pre>
+        </div>
+        <p style="color:#444;font-size:11px;margin:20px 0 0;">Trimis automat de AncaVisuals monitoring</p>
+      </div>
+    `,
+  });
+}
+
 async function sendQrDebugEmail(message: string, stack: string, page: string, ip?: string, geo?: { city?: string; region?: string; country?: string }) {
   const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const location = geo ? [geo.city, geo.region, geo.country].filter(Boolean).join(", ") : "";
@@ -80,6 +103,9 @@ router.post("/client-error", async (req: Request, res: Response) => {
     captureClientError(message, stack, page, ip || undefined, geo);
     if (isQrDebugError(message, page)) {
       sendQrDebugEmail(message, stack, page, ip || undefined, geo).catch(() => {});
+    }
+    if (isSlowLoadError(message)) {
+      sendSlowLoadEmail(message, page, ip || undefined).catch(() => {});
     }
     res.json({ ok: true });
   } catch {
