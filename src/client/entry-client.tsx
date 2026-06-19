@@ -18,18 +18,38 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
 const SUPPRESS_UC_PREFIXES = ["/admin", "/media"];
 
-const hideUcFloatingButton = () => {
-  // Inject a style rule to permanently hide the Usercentrics floating badge.
-  // The consent banner itself still appears (it uses #usercentrics-root > [role=dialog])
-  // so the initial consent flow is unaffected.
-  if (document.getElementById("uc-hide-badge-style")) return;
-  const style = document.createElement("style");
-  style.id = "uc-hide-badge-style";
-  // Target the small floating privacy button but not the consent dialog
-  style.textContent = `
-    #usercentrics-root > :not([role="dialog"]) { display: none !important; }
-  `;
-  document.head.appendChild(style);
+const hidePrivacyButton = () => {
+  const el = document.getElementById("uc-main-dialog") as HTMLElement | null;
+  if (el) {
+    el.style.setProperty("opacity", "0", "important");
+    el.style.setProperty("pointer-events", "none", "important");
+    el.style.setProperty("z-index", "-1", "important");
+  }
+  // Also inject a persistent CSS rule in case the element mounts later
+  if (!document.getElementById("uc-hide-badge-style")) {
+    const style = document.createElement("style");
+    style.id = "uc-hide-badge-style";
+    style.textContent = `#uc-main-dialog.privacyButton { opacity: 0 !important; pointer-events: none !important; z-index: -1 !important; }`;
+    document.head.appendChild(style);
+  }
+};
+
+const setupUcConsentListener = () => {
+  // Hide after user accepts/saves/denies in current session
+  window.addEventListener("UC_UI_CMP_EVENT", (event: Event) => {
+    const detail = (event as CustomEvent<{ type: string }>).detail;
+    if (["ACCEPT_ALL", "DENY_ALL", "SAVE"].includes(detail?.type)) {
+      hidePrivacyButton();
+    }
+  });
+
+  // Hide if user already consented in a previous session
+  window.addEventListener("UC_UI_INITIALIZED", () => {
+    const ucUi = (window as unknown as Record<string, unknown>)["UC_UI"] as { areAllConsentsAccepted?: () => boolean } | undefined;
+    if (ucUi?.areAllConsentsAccepted?.()) {
+      hidePrivacyButton();
+    }
+  });
 };
 
 const bootstrapUsercentrics = () => {
@@ -50,7 +70,7 @@ const bootstrapUsercentrics = () => {
     return;
   }
 
-  hideUcFloatingButton();
+  setupUcConsentListener();
 
   const script = document.createElement("script");
   script.id = USERCENTRICS_SCRIPT_ID;
