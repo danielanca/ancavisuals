@@ -24,7 +24,7 @@ const backupProofUpload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-type LeadEventTypeGuess = "Nuntă" | "Botez" | "Logodnă" | "Aniversare" | "Altele" | null;
+type LeadEventTypeGuess = "Nuntă" | "Botez" | "Cununie civilă" | "Logodnă" | "Aniversare" | "Altele" | null;
 
 function sanitizePhone(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -48,7 +48,7 @@ function sanitizeDate(value: unknown): string | null {
 }
 
 function sanitizeEventTypeGuess(value: unknown): LeadEventTypeGuess {
-  const allowed: Exclude<LeadEventTypeGuess, null>[] = ["Nuntă", "Botez", "Logodnă", "Aniversare", "Altele"];
+  const allowed: Exclude<LeadEventTypeGuess, null>[] = ["Nuntă", "Botez", "Cununie civilă", "Logodnă", "Aniversare", "Altele"];
   return typeof value === "string" && allowed.includes(value as Exclude<LeadEventTypeGuess, null>)
     ? (value as Exclude<LeadEventTypeGuess, null>)
     : null;
@@ -165,7 +165,7 @@ Reguli stricte:
 2. Pentru telefon, extrage cel mai probabil număr principal al persoanei.
 3. Pentru nume, extrage doar numele persoanei, nu și text promoțional.
 4. Pentru dată, convertește în format YYYY-MM-DD dacă poți identifica rezonabil ziua, luna și anul; altfel null.
-5. Pentru tipul evenimentului, folosește doar una din: "Nuntă", "Botez", "Logodnă", "Aniversare", "Altele" sau null.
+5. Pentru tipul evenimentului, folosește doar una din: "Nuntă", "Botez", "Cununie civilă", "Logodnă", "Aniversare", "Altele" sau null.
 6. Dacă vezi doar indicii slabe pentru "nuntă", dar nu e destul de clar, returnează null.
 7. Răspunde DOAR cu JSON valid, fără explicații.
 
@@ -174,7 +174,7 @@ Format:
   "phone": "string sau null",
   "fullName": "string sau null",
   "eventDate": "YYYY-MM-DD sau null",
-  "eventTypeGuess": "Nuntă | Botez | Logodnă | Aniversare | Altele | null"
+  "eventTypeGuess": "Nuntă | Botez | Cununie civilă | Logodnă | Aniversare | Altele | null"
 }`,
             },
           ],
@@ -509,9 +509,9 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
     // Create folder structure via placeholder files
     const folders = [
       BUNNY_PHOTOS_FOLDER,
-      "photos_preview",
       "shortvideo",
       "longvideo",
+      "photobooth",
       `${BUNNY_QR_MOMENT_FOLDER}/photo`,
       `${BUNNY_QR_MOMENT_FOLDER}/video`,
       `${BUNNY_QR_MOMENT_FOLDER}/audio`,

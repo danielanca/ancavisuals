@@ -69,6 +69,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [showAlbumModal, setShowAlbumModal] = useState(false);
   const [albumCreating, setAlbumCreating] = useState(false);
   const [albumError, setAlbumError] = useState<string | null>(null);
+  const [folderCreating, setFolderCreating] = useState(false);
+  const [folderResult, setFolderResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [processing, setProcessing] = useState(false);
   const [processLog, setProcessLog] = useState<string[]>([]);
   const [expenses, setExpenses] = useState<EventExpense[]>(event.expenses ?? []);
@@ -127,7 +129,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   });
 
   const suggestedSlug = eventDate
-    ? `${String(eventDate.getDate()).padStart(2, "0")}${eventDate.toLocaleString("ro-RO", { month: "long" }).toLowerCase().replace(/\s+/g, "")}${eventDate.getFullYear()}`
+    ? `${eventDate.getDate()}${eventDate.toLocaleString("ro-RO", { month: "long" }).toLowerCase().replace(/\s+/g, "")}${eventDate.getFullYear()}`
     : "";
 
   // Fetch subscriber count when album section becomes visible
@@ -248,6 +250,37 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     setShowAlbumModal(false);
     setAlbumCreating(false);
     onUpdated?.({ albumSlug: slug, albumPin: pin });
+  };
+
+  const handleCreateFolders = async () => {
+    const targetSlug = albumSlug || suggestedSlug;
+    if (!targetSlug || folderCreating) return;
+    setFolderCreating(true);
+    setFolderResult(null);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/create-album`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: targetSlug, pin: albumPin }),
+      });
+      const data = await res.json();
+      if (res.status === 409) {
+        setFolderResult({ ok: true, msg: "Folderele există deja în Bunny." });
+      } else if (!res.ok) {
+        setFolderResult({ ok: false, msg: data.error ?? "Eroare la creare folder." });
+      } else {
+        if (!albumSlug) {
+          setAlbumSlug(targetSlug);
+          onUpdated?.({ albumSlug: targetSlug });
+        }
+        setFolderResult({ ok: true, msg: `Foldere create: ${targetSlug}` });
+      }
+    } catch {
+      setFolderResult({ ok: false, msg: "Eroare de rețea." });
+    } finally {
+      setFolderCreating(false);
+      setTimeout(() => setFolderResult(null), 5000);
+    }
   };
 
   const handleProcessAlbum = async () => {
@@ -853,6 +886,20 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           </>
                         ) : "⚙️ Procesează album"}
                       </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCreateFolders(); }}
+                        disabled={folderCreating}
+                        className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+                      >
+                        {folderCreating ? (
+                          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                          </svg>
+                        )}
+                        Creează folder Bunny
+                      </button>
                       {import.meta.env.VITE_BUNNY_STORAGE_ZONE_ID && (
                         <a
                           href={`https://dash.bunny.net/storage/${import.meta.env.VITE_BUNNY_STORAGE_ZONE_ID}/file-manager?path=${albumSlug}&page=1`}
@@ -866,6 +913,11 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           </svg>
                           Compress în Bunny
                         </a>
+                      )}
+                      {folderResult && (
+                        <span className={`text-xs ${folderResult.ok ? "text-emerald-400" : "text-red-400"}`}>
+                          {folderResult.msg}
+                        </span>
                       )}
                     </div>
 
@@ -912,15 +964,38 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                     )}
                   </div>
                 ) : (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setShowAlbumModal(true); }}
-                    className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
-                    </svg>
-                    Creează album media
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {suggestedSlug && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCreateFolders(); }}
+                        disabled={folderCreating}
+                        className="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-800 hover:border-emerald-600 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+                      >
+                        {folderCreating ? (
+                          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                          </svg>
+                        )}
+                        Creează folder {suggestedSlug}
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowAlbumModal(true); }}
+                      className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+                      </svg>
+                      Slug custom
+                    </button>
+                    {folderResult && (
+                      <span className={`text-xs ${folderResult.ok ? "text-emerald-400" : "text-red-400"}`}>
+                        {folderResult.msg}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             )}

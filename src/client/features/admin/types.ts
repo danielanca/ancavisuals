@@ -1,6 +1,6 @@
 export type EventStatus = "lead" | "tentativ" | "confirmat" | "finalizat" | "anulat";
 
-export type EventType = "Nuntă" | "Botez" | "Logodnă" | "Majorat" | "Altele";
+export type EventType = "Nuntă" | "Botez" | "Cununie civilă" | "Logodnă" | "Majorat" | "Altele";
 
 export interface EventService {
   name: string;
