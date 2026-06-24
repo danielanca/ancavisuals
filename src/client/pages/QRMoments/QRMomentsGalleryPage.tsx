@@ -9,10 +9,11 @@ interface Upload {
   mimeType: string;
   originalName: string;
   createdAt: string;
+  thankedAt: string | null;
 }
 
 interface GuestGroup {
-  guest: { id: string; name: string };
+  guest: { id: string; name: string; hasEmail: boolean };
   uploads: Upload[];
 }
 
@@ -38,6 +39,12 @@ const QUICK_REPLIES_FALLBACK = [
   'Îți mulțumim din suflet!',
   'Ce surpriză minunată, mulțumim!',
   'Mulțumim, înseamnă enorm pentru noi!',
+];
+
+const THANK_SUGGESTIONS = [
+  'Mulțumim frumos pentru această amintire!',
+  'Îți mulțumim din suflet, înseamnă enorm pentru noi!',
+  'Ce surpriză minunată, ne bucurăm că ai fost alături de noi!',
 ];
 
 function formatTime(isoString: string): string {
@@ -78,6 +85,121 @@ function MediaThumbnail({ upload, onClick }: { upload: Upload; onClick: () => vo
   );
 }
 
+function ThankModal({
+  upload,
+  eventSlug,
+  pin,
+  adminToken,
+  eventInfo,
+  onClose,
+  onThanked,
+}: {
+  upload: Upload;
+  eventSlug: string;
+  pin: string;
+  adminToken?: string;
+  eventInfo: GalleryEventInfo | null;
+  onClose: () => void;
+  onThanked: (uploadId: string, thankedAt: string) => void;
+}) {
+  const [message, setMessage] = useState('');
+  const [hostRole, setHostRole] = useState<'bride' | 'groom'>('bride');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const send = async (text: string) => {
+    if (!text.trim() || sending) return;
+    setSending(true);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+      const result = await fetch(`/api/qr-moments/thank/${upload.id}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ eventSlug, pin, message: text.trim(), hostRole }),
+      }).then((response) => response.json());
+      if (!result.error) {
+        setSent(true);
+        onThanked(upload.id, result.thankedAt ?? new Date().toISOString());
+        setTimeout(onClose, 1500);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center px-4" onClick={onClose}>
+      <div className="w-full max-w-sm bg-neutral-950 border border-neutral-800 rounded-2xl p-6 space-y-4" onClick={(event) => event.stopPropagation()}>
+        {sent ? (
+          <div className="text-center py-6">
+            <div className="text-4xl mb-3">✓</div>
+            <p className="text-amber-300 font-medium">Mulțumire trimisă!</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <p className="text-white text-sm font-medium">✉ Trimite mulțumire</p>
+              <button onClick={onClose} className="text-neutral-500 hover:text-white text-xl leading-none">×</button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-neutral-500">Din partea</span>
+              <div className="inline-flex rounded-full border border-neutral-800 bg-neutral-900 p-1">
+                {([
+                  { value: 'bride' as const, label: eventInfo?.bride?.trim() || 'Mireasa' },
+                  { value: 'groom' as const, label: eventInfo?.groom?.trim() || 'Mirele' },
+                ]).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setHostRole(option.value)}
+                    className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                      hostRole === option.value ? 'bg-amber-500 text-black' : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {THANK_SUGGESTIONS.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  onClick={() => send(suggestion)}
+                  disabled={sending}
+                  className="w-full text-left px-3 py-2.5 rounded-xl border border-neutral-700 text-neutral-300 text-sm hover:border-amber-500/40 hover:text-amber-200 disabled:opacity-50 transition-colors"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') send(message); }}
+                placeholder="Sau scrie un mesaj personalizat…"
+                className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+              />
+              <button
+                onClick={() => send(message)}
+                disabled={!message.trim() || sending}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black text-sm font-medium rounded-lg transition-colors"
+              >
+                Trimite
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AssetModal({
   upload,
   allUploads,
@@ -114,6 +236,18 @@ function AssetModal({
   const previousUpload = currentIndex > 0 ? allUploads[currentIndex - 1] : null;
   const nextUpload = currentIndex >= 0 && currentIndex < allUploads.length - 1 ? allUploads[currentIndex + 1] : null;
 
+  // Fire view notification once when photo is opened; video/audio use onPlay
+  useEffect(() => {
+    if (!DISPLAYABLE_IMAGE.includes(upload.mimeType)) return;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+    fetch(`/api/qr-moments/view-notify/${upload.id}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ eventSlug, pin }),
+    }).catch(() => {});
+  }, [upload.id, upload.mimeType, adminToken, eventSlug, pin]);
+
   useEffect(() => {
     const headers: Record<string, string> = {};
     const url = adminToken
@@ -139,10 +273,19 @@ function AssetModal({
       if (event.key === 'ArrowLeft' && previousUpload) onNavigate(previousUpload);
       if (event.key === 'ArrowRight' && nextUpload) onNavigate(nextUpload);
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextUpload, onNavigate, previousUpload]);
+
+  const firePlayNotification = () => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+    fetch(`/api/qr-moments/view-notify/${upload.id}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ eventSlug, pin }),
+    }).catch(() => {});
+  };
 
   const sendComment = async (text: string) => {
     if (!text.trim() || sendingComment) return;
@@ -205,11 +348,21 @@ function AssetModal({
               <img src={upload.bunnyUrl} alt="" className="w-full rounded-lg" />
             )}
             {DISPLAYABLE_VIDEO.includes(upload.mimeType) && (
-              <video src={upload.bunnyUrl} controls className="w-full rounded-lg" />
+              <video
+                src={upload.bunnyUrl}
+                controls
+                className="w-full rounded-lg"
+                onPlay={firePlayNotification}
+              />
             )}
             {DISPLAYABLE_AUDIO.includes(upload.mimeType) && (
               <div className="bg-neutral-900 rounded-lg p-4">
-                <audio src={upload.bunnyUrl} controls className="w-full" />
+                <audio
+                  src={upload.bunnyUrl}
+                  controls
+                  className="w-full"
+                  onPlay={firePlayNotification}
+                />
               </div>
             )}
             {!DISPLAYABLE_IMAGE.includes(upload.mimeType) && !DISPLAYABLE_VIDEO.includes(upload.mimeType) && !DISPLAYABLE_AUDIO.includes(upload.mimeType) && (
@@ -311,6 +464,72 @@ function AssetModal({
   );
 }
 
+function ReferralBanner({ eventSlug }: { eventSlug: string }) {
+  const [name, setName] = useState('');
+  const [contact, setContact] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+
+  const submit = async () => {
+    if (!name.trim() || !contact.trim() || state === 'sending') return;
+    setState('sending');
+    try {
+      const response = await fetch('/api/referral/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          referredName: name.trim(),
+          referredContact: contact.trim(),
+          fromAlbum: eventSlug,
+          source: 'qr-moments',
+        }),
+      });
+      setState(response.ok ? 'sent' : 'error');
+    } catch {
+      setState('error');
+    }
+  };
+
+  if (state === 'sent') {
+    return (
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-5 text-center space-y-1">
+        <p className="text-amber-300 font-medium text-sm">Mulțumim! Le vom scrie în curând.</p>
+        <p className="text-neutral-500 text-xs">O ședință foto te așteaptă ca mulțumire.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/50 px-5 py-5 space-y-4">
+      <div>
+        <p className="text-white text-sm font-medium">Cunoști un cuplu care se pregătește pentru nuntă?</p>
+        <p className="text-neutral-500 text-xs mt-1">Recomandă-ne și primești o ședință foto gratuită de familie sau cuplu.</p>
+      </div>
+      <div className="space-y-2">
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Numele lor"
+          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+        />
+        <input
+          value={contact}
+          onChange={(event) => setContact(event.target.value)}
+          placeholder="Email sau telefon"
+          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+        />
+      </div>
+      {state === 'error' && <p className="text-red-400 text-xs">A apărut o eroare. Încearcă din nou.</p>}
+      <button
+        onClick={submit}
+        disabled={!name.trim() || !contact.trim() || state === 'sending'}
+        className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black text-sm font-medium rounded-xl transition-colors"
+      >
+        {state === 'sending' ? 'Se trimite…' : 'Trimite recomandarea'}
+      </button>
+    </div>
+  );
+}
+
 export default function QRMomentsGalleryPage() {
   const { eventSlug } = useParams<{ eventSlug: string }>();
   const { auth } = useAuth();
@@ -326,6 +545,8 @@ export default function QRMomentsGalleryPage() {
   const [eventInfo, setEventInfo] = useState<GalleryEventInfo | null>(null);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [selectedUpload, setSelectedUpload] = useState<Upload | null>(null);
+  const [thankTarget, setThankTarget] = useState<Upload | null>(null);
+
   const allUploads = groups.flatMap((group) => group.uploads);
 
   const loadGallery = async (pinValue: string, adminToken?: string) => {
@@ -377,8 +598,18 @@ export default function QRMomentsGalleryPage() {
     setPinLoading(false);
   };
 
+  const handleThanked = (uploadId: string, thankedAt: string) => {
+    setGroups((prevGroups) =>
+      prevGroups.map((group) => ({
+        ...group,
+        uploads: group.uploads.map((upload) =>
+          upload.id === uploadId ? { ...upload, thankedAt } : upload
+        ),
+      }))
+    );
+  };
+
   if (!authenticated) {
-    // While auth is loading, or while the admin auto-login path is loading the gallery, show a spinner.
     if (auth.loading || (auth.authorise && galleryLoading)) {
       return (
         <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
@@ -440,6 +671,18 @@ export default function QRMomentsGalleryPage() {
         />
       )}
 
+      {thankTarget && (
+        <ThankModal
+          upload={thankTarget}
+          eventSlug={eventSlug ?? ''}
+          pin={pin}
+          adminToken={auth.authorise ? auth.accessToken : undefined}
+          eventInfo={eventInfo}
+          onClose={() => setThankTarget(null)}
+          onThanked={handleThanked}
+        />
+      )}
+
       <div className="min-h-screen bg-neutral-950 px-4 py-10">
         <div className="max-w-2xl mx-auto space-y-8">
           <div className="flex items-center justify-between">
@@ -483,11 +726,31 @@ export default function QRMomentsGalleryPage() {
                   </div>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {group.uploads.map((upload) => (
-                      <MediaThumbnail key={upload.id} upload={upload} onClick={() => setSelectedUpload(upload)} />
+                      <div key={upload.id} className="relative">
+                        <MediaThumbnail upload={upload} onClick={() => setSelectedUpload(upload)} />
+                        {group.guest.hasEmail && (
+                          <button
+                            onClick={() => setThankTarget(upload)}
+                            disabled={!!upload.thankedAt}
+                            title={upload.thankedAt ? 'Mulțumire trimisă' : 'Mulțumește invitatul'}
+                            className={`absolute bottom-1 right-1 w-6 h-6 rounded-full text-[11px] flex items-center justify-center transition-all shadow-sm ${
+                              upload.thankedAt
+                                ? 'bg-amber-500 text-black cursor-default'
+                                : 'bg-black/70 text-white hover:bg-amber-500 hover:text-black'
+                            }`}
+                          >
+                            {upload.thankedAt ? '✓' : '✉'}
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
               ))}
+
+              <div className="pt-4 border-t border-neutral-800">
+                <ReferralBanner eventSlug={eventSlug ?? ''} />
+              </div>
             </div>
           )}
         </div>

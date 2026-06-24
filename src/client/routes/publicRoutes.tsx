@@ -33,6 +33,8 @@ const RevinPage = loadable(() => import("../pages/Revin/RevinPage"), opts(false)
 const GuestInvitationPage = loadable(() => import("../features/wedding-hub/pages/GuestInvitationPage"), opts(false));
 const OfertaPage = loadable(() => import("../pages/OfertaPage"), opts(false));
 const EventProgressPage = loadable(() => import("../pages/EventProgress/EventProgressPage"), opts(false));
+const FotocabinaPage = loadable(() => import("../pages/Fotocabina/FotocabinaPage"), opts(false));
+const FotocabinaGalleryPage = loadable(() => import("../pages/Fotocabina/FotocabinaGalleryPage"), opts(false));
 
 type LayoutType = React.ComponentType | null;
 type ComponentType = React.ComponentType;
@@ -209,6 +211,16 @@ const publicRoutes: publicRoutesType[] = [
     path: "/album/:eventId",
     layout: null,
     component: EventProgressPage,
+  },
+  {
+    path: "/fotocabina/:slug",
+    layout: null,
+    component: FotocabinaPage,
+  },
+  {
+    path: "/fotocabina/:slug/galerie",
+    layout: null,
+    component: FotocabinaGalleryPage,
   },
 
   /** ============================================================

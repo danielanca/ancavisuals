@@ -130,6 +130,19 @@ function resolveTemplateAssets(
 
 // ─── Public ───────────────────────────────────────────────────────────────────
 
+// GET /api/oferte/portfolio-images — public, returns image URLs for the portfolio page
+router.get("/portfolio-images", async (_req: Request, res: Response) => {
+  try {
+    const assets = await listMediaAssets();
+    const urls = assets
+      .filter((asset) => (asset.kind === "image" || !asset.kind) && asset.url)
+      .map((asset) => asset.url as string);
+    res.json({ urls });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // GET /api/oferte/:slug
 router.get("/:slug", async (req: Request, res: Response) => {
   try {

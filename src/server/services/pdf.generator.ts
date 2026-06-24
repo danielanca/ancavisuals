@@ -91,8 +91,9 @@ function detectServiceFlags(services: ContractService[], contractType?: string) 
   const hasFoto = labels.some((l) => l.includes("foto") && !l.includes("fotocabin") && !l.includes("photo booth") && !l.includes("cabina")) || type.includes("foto");
   const hasVideo = labels.some((l) => (l.includes("video") && !l.includes("videobooth") && !l.includes("video cabin") && !l.includes("video cab")) || l.includes("teaser")) || type.includes("video");
   const hasPhotobooth = labels.some((l) => l.includes("fotocabin") || l.includes("photo booth") || l.includes("photobooth") || l.includes("videobooth") || l.includes("video cab")) || type.includes("photobooth");
+  const hasVideobooth = labels.some((l) => l.includes("videobooth") || l.includes("video cab") || l.includes("video 360") || l.includes("360°")) || type.includes("videobooth");
 
-  return { hasFoto, hasVideo, hasPhotobooth, hasPhotoVideo: hasFoto || hasVideo };
+  return { hasFoto, hasVideo, hasPhotobooth, hasVideobooth, hasPhotoVideo: hasFoto || hasVideo };
 }
 
 export function buildContractHTML(contract: Record<string, unknown>): string {
@@ -107,7 +108,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
   const cur = esc(contract.currency as string || "RON");
   const bankDetails = resolveBankDetails(contract);
 
-  const { hasFoto, hasVideo, hasPhotobooth, hasPhotoVideo } = detectServiceFlags(services, contract.contractType as string);
+  const { hasFoto, hasVideo, hasPhotobooth, hasVideobooth, hasPhotoVideo } = detectServiceFlags(services, contract.contractType as string);
 
   const contractTitle = hasPhotoVideo && hasPhotobooth
     ? "Foto-Video & Fotocabină"
@@ -202,13 +203,14 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
         </ul>
         <p>Fotografiile realizate prin intermediul fotocabinei sunt proprietatea BENEFICIARULUI și pot fi distribuite liber de către acesta și invitații săi.</p>
         <p>PRESTATORUL nu poate fi tras la răspundere pentru defecțiuni tehnice generate de factori externi (întreruperi de curent, defecțiuni ale instalației electrice din locație), situație în care va depune toate diligențele pentru remedierea rapidă.</p>
+        ${hasVideobooth ? `
         <div style="margin:10px 0;padding:10px 14px;background:#fff8f0;border-left:3px solid #d97706;font-size:9.5pt;color:#444;line-height:1.6;">
           <strong>Clauză VideoBooth 360° — Limitarea răspunderii privind siguranța participanților:</strong><br/><br/>
-          În cazul în care pachetul include serviciul de tip <span class="bold">VideoBooth 360°</span>, PRESTATORUL va delimita zona de operare a echipamentului rotativ cu <span class="bold">stâlpi și bandă de delimitare</span>, pentru a restricționa accesul neautorizat în aria de rotație a brațului aparatului.<br/><br/>
+          PRESTATORUL va delimita zona de operare a echipamentului rotativ cu <span class="bold">stâlpi și bandă de delimitare</span>, pentru a restricționa accesul neautorizat în aria de rotație a brațului aparatului.<br/><br/>
           BENEFICIARUL înțelege și acceptă că echipamentul VideoBooth 360° este un dispozitiv cu element rotativ care poate cauza accidente în cazul în care persoane — în special copii — pătrund în zona de protecție delimitată în timpul funcționării acestuia.<br/><br/>
           <span class="bold">PRESTATORUL nu își asumă nicio răspundere pentru accidentele, rănirile sau prejudiciile cauzate persoanelor care depășesc zona de delimitare în timpul funcționării echipamentului.</span> Supravegherea copiilor și a participanților în apropierea echipamentului rotativ este responsabilitatea exclusivă a BENEFICIARULUI și/sau a părinților/însoțitorilor acestora.<br/><br/>
           Prin semnarea prezentului contract, BENEFICIARUL confirmă că a luat la cunoștință această clauză și că va informa invitații cu privire la normele de siguranță în zona VideoBooth 360°.
-        </div>
+        </div>` : ""}
       `,
     } : null,
 
@@ -223,15 +225,21 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
     // ── 8. Price and payment ─────────────────────────────────────────────────
     {
       title: `Prețul contractului și modalitatea de plată`,
-      body: `
+      body: (() => {
+        const noAdvance = contract.noAdvance === true;
+        const paymentClause = noAdvance
+          ? `<p>Suma integrală de <span class="bold">${priceTotal} ${cur}</span>${contract.restPaidAt ? ", scadentă la data de " + esc(contract.restPaidAt as string) : ""}.</p>`
+          : `<p>Un avans de: <span class="bold">${priceAdvance} ${cur}</span>${contract.advancePaidAt ? ", scadent la data de " + esc(contract.advancePaidAt as string) : ""}, urmat de suma de <span class="bold">${priceRest} ${cur}</span>${contract.restPaidAt ? ", scadent la data de " + esc(contract.restPaidAt as string) : ""}.</p>
+        <p>Contractul intră în legalitate în momentul primirii avansului.</p>`;
+        return `
         <p>Prețul prezentului contract este de <span class="bold">${priceTotal} ${cur}</span> și se achită astfel:</p>
-        <p>Un avans de: <span class="bold">${priceAdvance} ${cur}</span>${contract.advancePaidAt ? ", scadent la data de " + esc(contract.advancePaidAt as string) : ""}, urmat de suma de <span class="bold">${priceRest} ${cur}</span>${contract.restPaidAt ? ", scadent la data de " + esc(contract.restPaidAt as string) : ""}.</p>
-        <p>Contractul intră în legalitate în momentul primirii avansului.</p>
+        ${paymentClause}
         <p>Metodă de plată: ${esc(contract.paymentMethod as string || "transfer bancar")}.</p>
         ${contract.paymentMethod === "Cash"
           ? `<p>Plata se realizează în numerar (cash), direct către PRESTATOR.</p>`
           : `<p>Plata se realizează în contul beneficiarului: <span class="bold">${esc(bankDetails.beneficiaryName || "________________________")}</span> — <span class="bold" style="letter-spacing:1px;">${esc(bankDetails.iban || "________________________")}</span></p>`}
-      `,
+        `;
+      })(),
     },
 
     // ── 9. Delivery deadlines ────────────────────────────────────────────────

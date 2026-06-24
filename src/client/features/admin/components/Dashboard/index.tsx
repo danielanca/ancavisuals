@@ -14,6 +14,7 @@ import NextEventCountdown from "../NextEventCountdown";
 import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
 import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeContext";
 import AlbumHealthWidget from "../AlbumHealthWidget";
+import DeliveryDeadlineOverview from "../DeliveryDeadlineOverview";
 
 // ── Dashboard Search ──────────────────────────────────────────────────────────
 
@@ -727,6 +728,7 @@ const DashboardInner: React.FC = () => {
           </DraggableWidget>
         ))}
 
+        <DeliveryDeadlineOverview events={events} />
 
       </div>
     </div>

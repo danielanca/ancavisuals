@@ -125,6 +125,76 @@ function buildUnsubscribeUrl(guestId: string): string {
   return `${base}/qr-moments/unsubscribe/${guestId}`;
 }
 
+async function sendThankYouEmail(
+  guestEmail: string,
+  guestName: string,
+  message: string,
+  hostDisplayName: string,
+  guestId: string,
+): Promise<void> {
+  const unsubscribeUrl = buildUnsubscribeUrl(guestId);
+  await sendEmail({
+    to: guestEmail,
+    subject: `💌 Mulțumim pentru amintire, ${guestName}!`,
+    html: `
+      <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
+        <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
+          <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
+          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${guestName}!</h2>
+          <p style="color:#6b5b4d;margin:0 0 18px;">${hostDisplayName} ți-a lăsat un mesaj special:</p>
+          <div style="background:#fbf6ee;border:1px solid #ecd9bd;padding:16px 18px;border-radius:12px;margin:0 0 20px;">
+            <p style="margin:0;font-size:16px;line-height:1.45;color:#241f1a;">"${message}"</p>
+          </div>
+          <p style="color:#6b5b4d;font-size:13px;line-height:1.6;margin:0 0 20px;">Ne bucurăm că ai fost alături de ei și că ai imortalizat aceste momente.</p>
+          <hr style="border:none;border-top:1px solid #eadfce;margin:0 0 18px;">
+          <p style="font-size:12px;color:#7b6a5a;margin:0 0 8px;">
+            Nu mai vrei să primești notificări?
+            <a href="${unsubscribeUrl}" style="color:#8c5a16;text-decoration:underline;">Dezabonează-te</a>.
+          </p>
+          <p style="font-size:12px;color:#7b6a5a;margin:0;">
+            Ești mireasă, mire sau cunoști un cuplu care se pregătește pentru nuntă?
+            <a href="https://ancavisuals.ro" style="color:#8c5a16;text-decoration:underline;">Recomandă-ne</a>
+            și primești o ședință foto gratuită.
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}
+
+async function sendViewNotificationEmail(
+  guestEmail: string,
+  guestName: string,
+  hostDisplayName: string,
+  guestId: string,
+  thumbnailUrl: string | null,
+): Promise<void> {
+  const unsubscribeUrl = buildUnsubscribeUrl(guestId);
+  const thumbnailHtml = thumbnailUrl
+    ? `<img src="${thumbnailUrl}" alt="Fișierul tău" style="display:block;max-width:280px;width:100%;border-radius:12px;border:1px solid #eadfce;margin:12px 0;">`
+    : '';
+
+  await sendEmail({
+    to: guestEmail,
+    subject: `👀 ${hostDisplayName} a văzut ce ai trimis!`,
+    html: `
+      <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
+        <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
+          <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
+          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${guestName}!</h2>
+          <p style="color:#6b5b4d;margin:0 0 12px;">${hostDisplayName} tocmai a văzut ce ai trimis la eveniment. Mulțumim că ai imortalizat aceste momente!</p>
+          ${thumbnailHtml}
+          <hr style="border:none;border-top:1px solid #eadfce;margin:16px 0;">
+          <p style="font-size:12px;color:#7b6a5a;margin:0 0 8px;">
+            Nu mai vrei să primești notificări?
+            <a href="${unsubscribeUrl}" style="color:#8c5a16;text-decoration:underline;">Dezabonează-te</a>.
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 async function sendCommentNotification(
   guestEmail: string,
   guestName: string,
@@ -483,15 +553,22 @@ router.get('/:eventSlug/gallery', async (request: Request, response: Response) =
     ]);
 
     const guestMap = new Map(
-      guestsSnapshot.docs.map((doc) => [doc.id, { id: doc.id, name: doc.data().name as string }]),
+      guestsSnapshot.docs.map((doc) => [
+        doc.id,
+        {
+          id: doc.id,
+          name: doc.data().name as string,
+          hasEmail: !!(doc.data().email && doc.data().emailConsent !== false),
+        },
+      ]),
     );
 
-    const uploadsByGuest = new Map<string, { guest: { id: string; name: string }; uploads: object[] }>();
+    const uploadsByGuest = new Map<string, { guest: { id: string; name: string; hasEmail: boolean }; uploads: object[] }>();
 
     for (const doc of uploadsSnapshot.docs) {
       const data = doc.data();
       const guestId = data.guestId as string;
-      const guest = guestMap.get(guestId) ?? { id: guestId, name: 'Anonim' };
+      const guest = guestMap.get(guestId) ?? { id: guestId, name: 'Anonim', hasEmail: false };
 
       if (!uploadsByGuest.has(guestId)) {
         uploadsByGuest.set(guestId, { guest, uploads: [] });
@@ -504,6 +581,7 @@ router.get('/:eventSlug/gallery', async (request: Request, response: Response) =
         mimeType: data.mimeType,
         originalName: data.originalName,
         createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+        thankedAt: data.thankedAt ? (data.thankedAt as Timestamp).toDate().toISOString() : null,
       });
     }
 
@@ -640,6 +718,132 @@ router.post('/comment', async (request: Request, response: Response) => {
         guestDoc.id,
         thumbnail,
         hostDisplayName,
+      ).catch(() => {});
+    }
+
+    response.json({ ok: true });
+  } catch {
+    response.status(500).json({ error: 'Eroare server.' });
+  }
+});
+
+// ─── Gallery: thank guest for upload ────────────────────────────────────────
+
+router.post('/thank/:uploadId', async (request: Request, response: Response) => {
+  const { uploadId } = request.params;
+  const { eventSlug, pin, message, hostRole } = request.body as {
+    eventSlug: string;
+    pin: string;
+    message: string;
+    hostRole?: 'bride' | 'groom';
+  };
+
+  const authHeader = request.headers.authorization;
+  const isAdmin = await isSupremeAdminRequest(authHeader);
+
+  if (!uploadId || !eventSlug || !message?.trim() || (!isAdmin && !pin)) {
+    response.status(400).json({ error: 'Câmpuri obligatorii lipsă.' });
+    return;
+  }
+
+  try {
+    const eventDoc = await firestore().collection(QR_EVENTS).doc(eventSlug).get();
+    if (!eventDoc.exists || (!isAdmin && eventDoc.data()!.pin !== pin)) {
+      response.status(403).json({ error: 'PIN incorect.' });
+      return;
+    }
+
+    const uploadRef = firestore().collection(QR_UPLOADS).doc(uploadId);
+    const uploadDoc = await uploadRef.get();
+    if (!uploadDoc.exists || uploadDoc.data()!.eventSlug !== eventSlug) {
+      response.status(404).json({ error: 'Upload negăsit.' });
+      return;
+    }
+
+    if (uploadDoc.data()!.thankedAt) {
+      response.json({ ok: true, alreadyThanked: true });
+      return;
+    }
+
+    const thankedAt = Timestamp.now();
+    await uploadRef.update({ thankedAt, thankMessage: message.trim() });
+
+    const guestDoc = await firestore().collection(QR_GUESTS).doc(uploadDoc.data()!.guestId as string).get();
+    if (guestDoc.exists && guestDoc.data()!.email && guestDoc.data()!.emailConsent !== false) {
+      const guestData = guestDoc.data()!;
+      const eventData = eventDoc.data()!;
+      const effectiveHostRole = hostRole === 'groom' ? 'groom' : 'bride';
+      const hostDisplayName = effectiveHostRole === 'groom'
+        ? ((eventData.groom as string | undefined)?.trim() || 'Mirele')
+        : ((eventData.bride as string | undefined)?.trim() || 'Mireasa');
+
+      sendThankYouEmail(
+        guestData.email as string,
+        guestData.name as string,
+        message.trim(),
+        hostDisplayName,
+        guestDoc.id,
+      ).catch(() => {});
+    }
+
+    response.json({ ok: true, thankedAt: thankedAt.toDate().toISOString() });
+  } catch {
+    response.status(500).json({ error: 'Eroare server.' });
+  }
+});
+
+// ─── Gallery: notify guest on first view/play ────────────────────────────────
+
+router.post('/view-notify/:uploadId', async (request: Request, response: Response) => {
+  const { uploadId } = request.params;
+  const { eventSlug, pin } = request.body as { eventSlug: string; pin: string };
+
+  const authHeader = request.headers.authorization;
+  const isAdmin = await isSupremeAdminRequest(authHeader);
+
+  if (!uploadId || !eventSlug || (!isAdmin && !pin)) {
+    response.status(400).json({ error: 'Câmpuri obligatorii lipsă.' });
+    return;
+  }
+
+  try {
+    const eventDoc = await firestore().collection(QR_EVENTS).doc(eventSlug).get();
+    if (!eventDoc.exists || (!isAdmin && eventDoc.data()!.pin !== pin)) {
+      response.status(403).json({ error: 'PIN incorect.' });
+      return;
+    }
+
+    const uploadRef = firestore().collection(QR_UPLOADS).doc(uploadId);
+    const uploadDoc = await uploadRef.get();
+    if (!uploadDoc.exists || uploadDoc.data()!.eventSlug !== eventSlug) {
+      response.status(404).json({ error: 'Upload negăsit.' });
+      return;
+    }
+
+    if (uploadDoc.data()!.notifiedAt) {
+      response.json({ ok: true, alreadyNotified: true });
+      return;
+    }
+
+    await uploadRef.update({ notifiedAt: Timestamp.now() });
+
+    const guestDoc = await firestore().collection(QR_GUESTS).doc(uploadDoc.data()!.guestId as string).get();
+    if (guestDoc.exists && guestDoc.data()!.email && guestDoc.data()!.emailConsent !== false) {
+      const guestData = guestDoc.data()!;
+      const eventData = eventDoc.data()!;
+      const hostDisplayName =
+        ((eventData.bride as string | undefined)?.trim() || '') ||
+        ((eventData.groom as string | undefined)?.trim() || '') ||
+        'Mirii';
+      const isPhoto = uploadDoc.data()!.type === 'photo';
+      const thumbnailUrl = isPhoto ? (uploadDoc.data()!.bunnyUrl as string) : null;
+
+      sendViewNotificationEmail(
+        guestData.email as string,
+        guestData.name as string,
+        hostDisplayName,
+        guestDoc.id,
+        thumbnailUrl,
       ).catch(() => {});
     }
 

@@ -150,7 +150,7 @@ describe("QRMomentsPage", () => {
         json: async () => ({
           groups: [
             {
-              guest: { id: "guest-1", name: "Maria" },
+              guest: { id: "guest-1", name: "Maria", hasEmail: false },
               uploads: [
                 {
                   id: "upload-1",
@@ -159,6 +159,7 @@ describe("QRMomentsPage", () => {
                   mimeType: "image/jpeg",
                   originalName: "photo.jpg",
                   createdAt: "2028-03-27T10:00:00.000Z",
+                  thankedAt: null,
                 },
               ],
             },
@@ -166,6 +167,8 @@ describe("QRMomentsPage", () => {
           quickReplies: [],
         }),
       })
+      // view-notify call fires when AssetModal mounts for a photo
+      .mockResolvedValueOnce({ json: async () => ({ ok: true }) })
       .mockResolvedValueOnce({
         json: async () => ({
           comments: [],

@@ -82,6 +82,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [notifying, setNotifying] = useState(false);
   const [notifyResult, setNotifyResult] = useState<string | null>(null);
   const [delivery, setDelivery] = useState<EventDelivery>(event.delivery ?? {});
+  const [albumNotFoundInBunny, setAlbumNotFoundInBunny] = useState(false);
+  const [photoboothGuests, setPhotoboothGuests] = useState<{ id: string; name: string; email: string | null; phone: string | null; notified: boolean }[]>([]);
+  const [photoboothGuestCount, setPhotoboothGuestCount] = useState<number | null>(null);
+  const [photoboothNotifying, setPhotoboothNotifying] = useState(false);
+  const [photoboothNotifyResult, setPhotoboothNotifyResult] = useState<string | null>(null);
+  const [photoboothQrDownloading, setPhotoboothQrDownloading] = useState(false);
 
   const eventDate = fallbackDate;
   const effectiveEventDate = event.eventEndDate ? new Date(event.eventEndDate) : eventDate;
@@ -164,6 +170,72 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     }
   };
 
+  // Fetch photobooth guest count when card is expanded and event is not a lead
+  useEffect(() => {
+    if (isLead || collapsed) return;
+    fetch(`/api/photobooth/${event.id}/guests`, {
+      headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
+    })
+      .then((response) => response.json())
+      .then((data: { guests?: { id: string; name: string; email: string | null; phone: string | null; notified: boolean }[] }) => {
+        if (Array.isArray(data.guests)) {
+          setPhotoboothGuests(data.guests);
+          setPhotoboothGuestCount(data.guests.length);
+        }
+      })
+      .catch(() => {});
+  }, [event.id, collapsed, isLead]);
+
+  const handlePhotoboothDownloadQr = async (clickEvent: React.MouseEvent) => {
+    clickEvent.stopPropagation();
+    setPhotoboothQrDownloading(true);
+    try {
+      const response = await fetch(`/api/photobooth/${event.id}/qr`, {
+        headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
+      });
+      if (!response.ok) throw new Error("Eroare la generarea QR.");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `photobooth-qr-${event.id}.png`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silent
+    } finally {
+      setPhotoboothQrDownloading(false);
+    }
+  };
+
+  const handlePhotoboothNotify = async (clickEvent: React.MouseEvent) => {
+    clickEvent.stopPropagation();
+    if (!albumSlug) return;
+    setPhotoboothNotifying(true);
+    setPhotoboothNotifyResult(null);
+    try {
+      const response = await fetch(`/api/photobooth/${event.id}/notify`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
+      });
+      const data = (await response.json()) as { sent?: number; emailsSent?: number; smsSent?: number; errors?: number; error?: string; message?: string };
+      if (data.error) {
+        setPhotoboothNotifyResult(`Eroare: ${data.error}`);
+      } else if (data.message) {
+        setPhotoboothNotifyResult(data.message);
+      } else {
+        setPhotoboothNotifyResult(`Trimis: ${data.sent ?? 0} (${data.emailsSent ?? 0} email, ${data.smsSent ?? 0} SMS)`);
+        setPhotoboothGuests((prev) => prev.map((guest) => ({ ...guest, notified: true })));
+      }
+      setTimeout(() => setPhotoboothNotifyResult(null), 5000);
+    } catch {
+      setPhotoboothNotifyResult("Eroare la notificare.");
+      setTimeout(() => setPhotoboothNotifyResult(null), 3000);
+    } finally {
+      setPhotoboothNotifying(false);
+    }
+  };
+
   const toggleDelivery = async (key: keyof EventDelivery) => {
     const updated = { ...delivery, [key]: !delivery[key] };
     setDelivery(updated);
@@ -186,9 +258,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled && data.found && data.slug) {
+        if (cancelled) return;
+        if (data.found && data.slug) {
           setAlbumSlug(data.slug);
           onUpdated?.({ albumSlug: data.slug });
+        } else {
+          setAlbumNotFoundInBunny(true);
         }
       })
       .catch(() => {});
@@ -962,9 +1037,78 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                         ))}
                       </div>
                     )}
+
+                    {/* Photobooth guests */}
+                    <div className="border-t border-neutral-800 pt-3 mt-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Fotocabină</p>
+                        <button
+                          onClick={handlePhotoboothDownloadQr}
+                          disabled={photoboothQrDownloading}
+                          className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
+                        >
+                          {photoboothQrDownloading ? (
+                            <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                          ) : (
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                              <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01M17 20h.01M14 20h.01"/>
+                            </svg>
+                          )}
+                          QR Code
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-neutral-400">
+                          <span className={photoboothGuestCount !== null && photoboothGuestCount > 0 ? "text-amber-400 font-medium" : ""}>
+                            {photoboothGuestCount ?? 0} guest{photoboothGuestCount !== 1 ? "i" : ""}
+                          </span>
+                          {photoboothGuestCount !== null && photoboothGuests.filter((guest) => !guest.notified).length > 0 && (
+                            <span className="ml-1 text-neutral-600">
+                              ({photoboothGuests.filter((guest) => !guest.notified).length} nenotificați)
+                            </span>
+                          )}
+                        </span>
+                        {photoboothGuestCount !== null && photoboothGuestCount > 0 && (
+                          <button
+                            onClick={handlePhotoboothNotify}
+                            disabled={photoboothNotifying || !albumSlug}
+                            className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
+                          >
+                            {photoboothNotifying ? (
+                              <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                            ) : (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.6 3.37 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.95-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16.92z"/>
+                              </svg>
+                            )}
+                            Notifică
+                          </button>
+                        )}
+                        {photoboothNotifyResult && (
+                          <span className="text-xs text-emerald-400">{photoboothNotifyResult}</span>
+                        )}
+                      </div>
+                      {photoboothGuests.length > 0 && (
+                        <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                          {photoboothGuests.map((guest) => (
+                            <div key={guest.id} className="flex items-center gap-2 text-xs">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${guest.notified ? "bg-emerald-500" : "bg-neutral-600"}`} />
+                              <span className="text-neutral-300 truncate">{guest.name}</span>
+                              <span className="text-neutral-600 truncate">{guest.email ?? guest.phone}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
+                    {albumNotFoundInBunny && suggestedSlug && !folderResult && (
+                      <span className="w-full text-xs text-amber-400/80 bg-amber-500/8 border border-amber-500/20 rounded-lg px-3 py-1.5">
+                        Folderul <span className="font-mono text-amber-300">{suggestedSlug}</span> nu există în Bunny — creează-l mai jos.
+                      </span>
+                    )}
                     {suggestedSlug && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleCreateFolders(); }}
@@ -999,6 +1143,85 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 )}
               </div>
             )}
+
+            {/* Deadline livrare */}
+            {isPast && !isLead && (() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const eventDateMs = eventDate ? new Date(new Date(eventDate).setHours(0, 0, 0, 0)).getTime() : null;
+              if (!eventDateMs) return null;
+              const daysElapsed = Math.floor((today.getTime() - eventDateMs) / 86400000);
+              const PHOTO_DAYS = 30;
+              const VIDEO_DAYS = 60;
+              const photoDone = delivery.allPhotosEdited === true;
+              const videoDone = delivery.longVideoEdited === true;
+
+              const photoRemaining = PHOTO_DAYS - daysElapsed;
+              const videoRemaining = VIDEO_DAYS - daysElapsed;
+              const photoProgress = Math.min(daysElapsed / PHOTO_DAYS, 1);
+              const videoProgress = Math.min(daysElapsed / VIDEO_DAYS, 1);
+
+              const barColor = (progress: number, done: boolean) => {
+                if (done) return "bg-emerald-500";
+                if (progress >= 1) return "bg-red-500";
+                if (progress >= 0.8) return "bg-orange-500";
+                if (progress >= 0.5) return "bg-amber-500";
+                return "bg-emerald-500";
+              };
+
+              const labelColor = (remaining: number, done: boolean) => {
+                if (done) return "text-emerald-400";
+                if (remaining < 0) return "text-red-400";
+                if (remaining <= 6) return "text-orange-400";
+                if (remaining <= 15) return "text-amber-400";
+                return "text-neutral-400";
+              };
+
+              const deadlineLabel = (remaining: number, done: boolean, label: string) => {
+                if (done) return <span className="text-emerald-400">✓ {label} livrat</span>;
+                if (remaining < 0) return <span className="text-red-400">Depășit cu {Math.abs(remaining)} zile</span>;
+                if (remaining === 0) return <span className="text-orange-400">Azi — ultima zi!</span>;
+                return <span className={labelColor(remaining, done)}>{remaining} zile rămase</span>;
+              };
+
+              if (photoDone && videoDone) return null;
+
+              return (
+                <div className="border-t border-neutral-800 pt-3 space-y-2.5">
+                  <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Deadline livrare</p>
+
+                  {!photoDone && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-400">📷 Foto <span className="text-neutral-600 font-mono">{PHOTO_DAYS}z</span></span>
+                        {deadlineLabel(photoRemaining, photoDone, "foto")}
+                      </div>
+                      <div className="h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${barColor(photoProgress, photoDone)}`}
+                          style={{ width: `${photoProgress * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {!videoDone && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-400">🎬 Video <span className="text-neutral-600 font-mono">{VIDEO_DAYS}z</span></span>
+                        {deadlineLabel(videoRemaining, videoDone, "video")}
+                      </div>
+                      <div className="h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${barColor(videoProgress, videoDone)}`}
+                          style={{ width: `${videoProgress * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Evidență livrare */}
             {!isLead && (
