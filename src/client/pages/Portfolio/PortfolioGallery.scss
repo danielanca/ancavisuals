@@ -14,7 +14,6 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   padding: 3rem 1rem;
 }
 
-// Masonry column layout without gaps
 .pg-masonry {
   column-count: 1;
   column-gap: $pg-gap;
@@ -49,14 +48,9 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
       transform: scale(1.03);
       filter: saturate(1.06);
     }
-
-    .pg-reaction {
-      opacity: 1;
-    }
   }
 }
 
-// Button that opens the lightbox
 .pg-img-trigger {
   display: block;
   width: 100%;
@@ -76,113 +70,11 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
     filter 0.24s ease;
 }
 
-// Row of badges for each reaction type
-.pg-reaction-bar {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 6px;
-  flex-wrap: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease;
-
-  // Desktop: appears on hover
-  @media (min-width: 769px) {
-    .pg-item:hover & {
-      opacity: 1;
-      pointer-events: auto;
-    }
-  }
-
-  // Mobile: appears after 2s in the center of the screen
-  .pg-item--reactions-visible & {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
-
-.pg-reaction-badge {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 36px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 999px;
-  font-size: 1.1rem;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
-  transition: transform 0.15s ease, background 0.15s ease;
-
-  &:hover { transform: scale(1.1); }
-  &:active { transform: scale(0.9); }
-
-  &--active {
-    outline: 2px solid rgba(255, 100, 120, 0.6);
-  }
-}
-
-.pg-reaction-count {
-  font-size: 0.85rem;
-  font-weight: 700;
-  line-height: 1;
-  color: #fff;
-}
-
-// Picker emoji — apare la long press / click pe cerc
-.pg-picker {
-  position: absolute;
-  bottom: 52px;
-  right: 8px;
-  display: flex;
-  gap: 6px;
-  padding: 8px 10px;
-  border-radius: 999px;
-  background: rgba(30, 30, 30, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-  animation: pg-picker-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 10;
-}
-
-@keyframes pg-picker-pop {
-  from { opacity: 0; transform: scale(0.6) translateY(8px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-.pg-picker-btn {
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  font-size: 1.4rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease;
-
-  &:hover {
-    transform: scale(1.35);
-    background: rgba(255, 255, 255, 0.1);
-  }
-  &:active { transform: scale(0.9); }
-
-  &--active {
-    background: rgba(255, 255, 255, 0.15);
-    transform: scale(1.15);
-  }
-}
-
 .pg-load-more {
   text-align: center;
   margin-top: 2.5rem;
 }
+
 .pg-load-more-btn {
   padding: 0.75rem 1.5rem;
   border-radius: 0;
@@ -190,11 +82,9 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   font-size: 0.9rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: #e5e7eb !important; // light gray
+  background: #e5e7eb;
   color: #000000;
   cursor: pointer;
-
-  // fast glow animation (gray -> white)
   animation: pg-glow-fast 0.6s ease-in-out infinite;
   transition:
     transform 0.15s ease,
@@ -209,7 +99,6 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   }
 }
 
-// Skeleton loader
 @keyframes pg-shimmer {
   0%   { background-position: -600px 0; }
   100% { background-position: 600px 0; }
@@ -236,21 +125,17 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
 
 @keyframes pg-glow-fast {
   0% {
-    background: #e5e7eb; // gri deschis
-    box-shadow:
-      0 0 0 rgba(255, 255, 255, 0),
-      0 0 0 rgba(255, 255, 255, 0);
+    background: #e5e7eb;
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
   }
   50% {
-    background: #ffffff; // alb
+    background: #ffffff;
     box-shadow:
       0 0 6px rgba(255, 255, 255, 0.9),
       0 0 14px rgba(255, 255, 255, 0.8);
   }
   100% {
     background: #e5e7eb;
-    box-shadow:
-      0 0 0 rgba(255, 255, 255, 0),
-      0 0 0 rgba(255, 255, 255, 0);
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
   }
 }

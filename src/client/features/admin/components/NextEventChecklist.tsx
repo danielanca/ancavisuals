@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { ClientEvent } from "../types";
+import useAuth from "../auth/useAuth";
 
 interface ChecklistItem {
   id: string;
@@ -10,13 +11,16 @@ interface ChecklistCategory {
   id: string;
   label: string;
   color: string;
+  serviceTag: string;
   items: ChecklistItem[];
 }
 
+// Always shown, not stored in DB — administrative items not equipment
 const CATEGORY_GENERAL: ChecklistCategory = {
   id: "general",
   label: "General",
   color: "#a78bfa",
+  serviceTag: "general",
   items: [
     { id: "contract_signed", label: "Contract semnat de client" },
     { id: "advance_paid", label: "Avans încasat" },
@@ -26,79 +30,19 @@ const CATEGORY_GENERAL: ChecklistCategory = {
   ],
 };
 
-const CATEGORY_FOTO: ChecklistCategory = {
-  id: "foto",
-  label: "Fotografie",
-  color: "#60a5fa",
-  items: [
-    { id: "foto_cameras", label: "Aparate foto (corp principal + rezervă)" },
-    { id: "foto_cards", label: "Carduri de memorie formatate" },
-    { id: "foto_batteries", label: "Acumulatori încărcați" },
-    { id: "foto_flash", label: "Blitz-uri + baterii blitz" },
-    { id: "foto_lenses", label: "Obiective" },
-    { id: "foto_tripod", label: "Trepied" },
-    { id: "foto_bag", label: "Geantă / rucsac echipament" },
-  ],
+const SERVICE_TAG_KEYWORDS: Record<string, string[]> = {
+  foto: ["foto", "fotograf", "photo", "portret", "sedinta"],
+  video: ["video", "film", "cinematic", "reels"],
+  fotocabina: ["fotocabin", "photo booth", "photobooth", "cabina foto"],
+  videobooth: ["videobooth", "video booth", "video-booth"],
+  transport: ["transport", "deplasare"],
 };
 
-const CATEGORY_VIDEO: ChecklistCategory = {
-  id: "video",
-  label: "Video",
-  color: "#34d399",
-  items: [
-    { id: "video_camera", label: "Cameră video" },
-    { id: "video_cards", label: "Carduri de memorie video" },
-    { id: "video_batteries", label: "Baterii cameră video" },
-    { id: "video_gimbal", label: "Stabilizator / gimbal" },
-    { id: "video_mic", label: "Microfoane / lavaliere" },
-    { id: "video_drone", label: "Dronă + baterii" },
-    { id: "video_tripod", label: "Trepied video" },
-  ],
-};
-
-const CATEGORY_PHOTOBOOTH: ChecklistCategory = {
-  id: "photobooth",
-  label: "Fotocabină",
-  color: "#f472b6",
-  items: [
-    { id: "pb_camera", label: "Cameră fotocabină" },
-    { id: "pb_printer", label: "Imprimantă" },
-    { id: "pb_laptop", label: "Laptop (cu software instalat)" },
-    { id: "pb_batteries", label: "Baterii / acumulatori cameră" },
-    { id: "pb_cable_printer", label: "Cablu laptop → imprimantă" },
-    { id: "pb_cable_printer_power", label: "Cablu alimentare imprimantă" },
-    { id: "pb_cable_laptop_power", label: "Cablu alimentare laptop" },
-    { id: "pb_backdrop", label: "Fundal / backdrop" },
-    { id: "pb_props", label: "Recuzită / props" },
-    { id: "pb_paper", label: "Hârtie foto + cerneală" },
-  ],
-};
-
-const CATEGORY_VIDEOBOOTH: ChecklistCategory = {
-  id: "videobooth",
-  label: "Videobooth",
-  color: "#fb923c",
-  items: [
-    { id: "vb_camera", label: "Cameră videobooth" },
-    { id: "vb_laptop", label: "Laptop (cu software)" },
-    { id: "vb_batteries", label: "Baterii / acumulatori cameră" },
-    { id: "vb_cable_laptop_power", label: "Cablu alimentare laptop" },
-    { id: "vb_screen", label: "Ecran / monitor touchscreen" },
-    { id: "vb_mic", label: "Microfon" },
-    { id: "vb_backdrop", label: "Fundal / backdrop" },
-    { id: "vb_props", label: "Recuzită / props" },
-    { id: "vb_tripod", label: "Trepied / suport cameră" },
-    { id: "vb_ring_light", label: "Ring light / iluminat" },
-  ],
-};
-
-// Maps a service name keyword to a category — order matters (more specific first)
-const SERVICE_CATEGORY_MAP: Array<{ keywords: string[]; category: ChecklistCategory }> = [
-  { keywords: ["videobooth", "video booth", "video-booth"], category: CATEGORY_VIDEOBOOTH },
-  { keywords: ["fotocabin", "fotocabin", "photo booth", "photobooth", "cabina foto"], category: CATEGORY_PHOTOBOOTH },
-  { keywords: ["video", "film", "cinematic", "reels"], category: CATEGORY_VIDEO },
-  { keywords: ["foto", "fotograf", "photo", "portret", "sedinta"], category: CATEGORY_FOTO },
-];
+function matchesServiceTag(serviceTag: string, serviceNames: string[]): boolean {
+  if (serviceTag === "general") return true;
+  const keywords = SERVICE_TAG_KEYWORDS[serviceTag] ?? [serviceTag.toLowerCase()];
+  return serviceNames.some((name) => keywords.some((keyword) => name.includes(keyword)));
+}
 
 function getNextEvent(events: ClientEvent[]): ClientEvent | null {
   const now = new Date();
@@ -114,27 +58,10 @@ function getNextEvent(events: ClientEvent[]): ClientEvent | null {
     .sort((a, b) => new Date(a.eventDate!).getTime() - new Date(b.eventDate!).getTime())[0] ?? null;
 }
 
-function detectCategories(event: ClientEvent): ChecklistCategory[] {
+function detectRelevantCategories(event: ClientEvent, dbCategories: ChecklistCategory[]): ChecklistCategory[] {
   const serviceNames = event.services.map((service) => service.name.toLowerCase());
-  const added = new Set<string>();
-  const categories: ChecklistCategory[] = [CATEGORY_GENERAL];
-
-  for (const serviceName of serviceNames) {
-    for (const { keywords, category } of SERVICE_CATEGORY_MAP) {
-      if (!added.has(category.id) && keywords.some((keyword) => serviceName.includes(keyword))) {
-        categories.push(category);
-        added.add(category.id);
-        break;
-      }
-    }
-  }
-
-  // fallback: no services matched → show foto + video by default
-  if (categories.length === 1) {
-    categories.push(CATEGORY_FOTO, CATEGORY_VIDEO);
-  }
-
-  return categories;
+  const matched = dbCategories.filter((cat) => matchesServiceTag(cat.serviceTag, serviceNames));
+  return [CATEGORY_GENERAL, ...matched];
 }
 
 function loadChecklist(eventId: string): Record<string, boolean> {
@@ -155,19 +82,36 @@ function saveChecklist(eventId: string, checked: Record<string, boolean>) {
 }
 
 export default function NextEventChecklist({ events }: { events: ClientEvent[] }) {
+  const { auth } = useAuth();
   const nextEvent = getNextEvent(events);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
+  const [dbCategories, setDbCategories] = useState<ChecklistCategory[]>([]);
+
+  useEffect(() => {
+    if (!auth.accessToken) return;
+    fetch("/api/admin/equipment", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
+      .then((response) => response.json())
+      .then((data: { categories: Array<{ id: string; name: string; color: string; serviceTag: string; items: Array<{ id: string; name: string }> }> }) => {
+        const mapped: ChecklistCategory[] = (data.categories ?? []).map((cat) => ({
+          id: cat.id,
+          label: cat.name,
+          color: cat.color,
+          serviceTag: cat.serviceTag,
+          items: cat.items.map((item) => ({ id: item.id, label: item.name })),
+        }));
+        setDbCategories(mapped);
+      })
+      .catch(() => {});
+  }, [auth.accessToken]);
 
   useEffect(() => {
     if (!nextEvent) return;
     const saved = loadChecklist(nextEvent.id);
     setChecked(saved);
-    // open categories that have unchecked items by default
-    const categories = detectCategories(nextEvent);
-    const initialOpen = new Set(categories.map((cat) => cat.id));
-    setOpenCategories(initialOpen);
-  }, [nextEvent?.id]);
+    const categories = detectRelevantCategories(nextEvent, dbCategories);
+    setOpenCategories(new Set(categories.map((cat) => cat.id)));
+  }, [nextEvent?.id, dbCategories]);
 
   const toggle = useCallback((itemId: string) => {
     if (!nextEvent) return;
@@ -199,14 +143,14 @@ export default function NextEventChecklist({ events }: { events: ClientEvent[] }
 
   if (!nextEvent) return null;
 
-  const categories = detectCategories(nextEvent);
+  const categories = detectRelevantCategories(nextEvent, dbCategories);
   const totalItems = categories.reduce((sum, cat) => sum + cat.items.length, 0);
   const totalChecked = categories.reduce(
     (sum, cat) => sum + cat.items.filter((item) => checked[item.id]).length,
     0
   );
   const overallProgress = totalItems > 0 ? Math.round((totalChecked / totalItems) * 100) : 0;
-  const allDone = totalChecked === totalItems;
+  const allDone = totalItems > 0 && totalChecked === totalItems;
 
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
@@ -240,7 +184,7 @@ export default function NextEventChecklist({ events }: { events: ClientEvent[] }
       <div className="divide-y divide-neutral-800/60">
         {categories.map((category) => {
           const categoryChecked = category.items.filter((item) => checked[item.id]).length;
-          const categoryDone = categoryChecked === category.items.length;
+          const categoryDone = category.items.length > 0 && categoryChecked === category.items.length;
           const isOpen = openCategories.has(category.id);
 
           return (
@@ -251,10 +195,7 @@ export default function NextEventChecklist({ events }: { events: ClientEvent[] }
                 onClick={() => toggleCategory(category.id)}
                 className="w-full flex items-center gap-3 px-5 py-3 hover:bg-neutral-800/40 transition-colors text-left"
               >
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ background: category.color }}
-                />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: category.color }} />
                 <span className="flex-1 text-sm font-medium text-neutral-200">{category.label}</span>
                 <span className={`text-xs tabular-nums ${categoryDone ? "text-emerald-400" : "text-neutral-500"}`}>
                   {categoryChecked}/{category.items.length}
@@ -262,7 +203,7 @@ export default function NextEventChecklist({ events }: { events: ClientEvent[] }
                 {categoryChecked > 0 && !categoryDone && (
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); resetCategory(category); }}
+                    onClick={(event) => { event.stopPropagation(); resetCategory(category); }}
                     className="text-neutral-600 hover:text-neutral-400 text-[10px] px-1.5 py-0.5 rounded border border-neutral-700 hover:border-neutral-600 transition-colors"
                   >
                     reset
@@ -285,7 +226,12 @@ export default function NextEventChecklist({ events }: { events: ClientEvent[] }
               {/* Items */}
               {isOpen && (
                 <div className="pb-2">
-                  {category.items.map((item) => {
+                  {category.items.length === 0 ? (
+                    <p className="px-5 py-2 text-xs text-neutral-600 italic">
+                      Niciun echipament — adaugă din{" "}
+                      <a href="/admin/echipamente" className="underline hover:text-neutral-400">Profil echipamente</a>
+                    </p>
+                  ) : category.items.map((item) => {
                     const isChecked = !!checked[item.id];
                     return (
                       <button
@@ -294,11 +240,8 @@ export default function NextEventChecklist({ events }: { events: ClientEvent[] }
                         onClick={() => toggle(item.id)}
                         className="w-full flex items-center gap-3 px-5 py-2 hover:bg-neutral-800/30 transition-colors text-left group"
                       >
-                        {/* Checkbox */}
                         <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-all ${
-                          isChecked
-                            ? "bg-emerald-500 border-emerald-500"
-                            : "border-neutral-700 group-hover:border-neutral-500"
+                          isChecked ? "bg-emerald-500 border-emerald-500" : "border-neutral-700 group-hover:border-neutral-500"
                         }`}>
                           {isChecked && (
                             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

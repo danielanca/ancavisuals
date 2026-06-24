@@ -47,6 +47,8 @@ const AlbumHealthPage = loadable(() => import("../features/admin/components/Albu
 const SwipeProposalsPage = loadable(() => import("../features/admin/components/SwipeProposalsPage"), opts);
 const ProgressListPage = loadable(() => import("../features/admin/components/ProgressListPage"), opts);
 const ProgressDetailPage = loadable(() => import("../features/admin/components/ProgressDetailPage"), opts);
+const ContactsAdminPage = loadable(() => import("../features/admin/components/ContactsAdminPage"), opts);
+const EquipmentAdminPage = loadable(() => import("../features/admin/components/EquipmentAdminPage"), opts);
 
 
 export const adminRoutes = [
@@ -88,6 +90,8 @@ export const adminRoutes = [
       <Route path="/admin/swipe-proposals" element={<SwipeProposalsPage />} />
       <Route path="/admin/progress" element={<ProgressListPage />} />
       <Route path="/admin/progress/:eventId" element={<ProgressDetailPage />} />
+      <Route path="/admin/contacte" element={<ContactsAdminPage />} />
+      <Route path="/admin/echipamente" element={<EquipmentAdminPage />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>

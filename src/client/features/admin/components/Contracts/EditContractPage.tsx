@@ -157,6 +157,7 @@ const EditContractPage: React.FC = () => {
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [manualTotal, setManualTotal] = useState(false);
   const [priceTotal, setPriceTotal] = useState(0);
+  const [noAdvance, setNoAdvance] = useState(false);
   const [priceAdvance, setPriceAdvance] = useState(0);
   const [advancePaidAt, setAdvancePaidAt] = useState("");
   const [restPaidAt, setRestPaidAt] = useState("");
@@ -231,6 +232,7 @@ const EditContractPage: React.FC = () => {
         setClientPhone(data.clientPhone ?? "");
         setClientAddress(data.clientAddress ?? "");
         setClientIdSeries(data.clientIdSeries ?? "");
+        setNoAdvance(data.noAdvance === true);
         setPrivateClient(data.privateClient === true);
         setFiscalized(data.fiscalized === true);
         setLinkedEventId(data.eventId ?? null);
@@ -257,7 +259,7 @@ const EditContractPage: React.FC = () => {
   const customTotal = customServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0);
   const autoTotal = selectedServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) + customTotal;
   const effectiveTotal = manualTotal ? priceTotal : autoTotal;
-  const priceRest = Math.max(0, effectiveTotal - (priceAdvance || 0));
+  const priceRest = noAdvance ? effectiveTotal : Math.max(0, effectiveTotal - (priceAdvance || 0));
 
   const toggleService = (sid: string) => {
     setServices((prev) => prev.map((s) => s.id === sid ? { ...s, included: !s.included } : s));
@@ -313,9 +315,11 @@ const EditContractPage: React.FC = () => {
         services: allServices,
         currency, eurRate,
         priceTotal: effectiveTotal,
-        priceAdvance: priceAdvance || 0,
+        noAdvance,
+        priceAdvance: noAdvance ? 0 : (priceAdvance || 0),
         priceRest,
-        advancePaidAt, restPaidAt, paymentMethod,
+        advancePaidAt: noAdvance ? "" : advancePaidAt,
+        restPaidAt, paymentMethod,
         bankBeneficiaryName: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.beneficiaryName ?? "") : "",
         bankIban: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.iban ?? "") : "",
         fiscalized,
@@ -539,24 +543,41 @@ const EditContractPage: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Avans ({currency})</Label>
-                <DecimalInput value={priceAdvance} onChange={setPriceAdvance} step={50} className={inp} placeholder="0" />
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={noAdvance}
+                onChange={(e) => { setNoAdvance(e.target.checked); if (e.target.checked) { setPriceAdvance(0); setAdvancePaidAt(""); } }}
+                className="accent-sky-500 w-4 h-4 shrink-0"
+              />
+              <span className="text-sm text-sky-400 group-hover:text-sky-300 transition-colors">
+                Fără avans obligatoriu
+                <span className="block text-xs text-neutral-500 font-normal mt-0.5">
+                  Plata integrală — contractul nu condiționează validitatea de un avans
+                </span>
+              </span>
+            </label>
+
+            {!noAdvance && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Avans ({currency})</Label>
+                  <DecimalInput value={priceAdvance} onChange={setPriceAdvance} step={50} className={inp} placeholder="0" />
+                </div>
+                <div>
+                  <Label>Scadență avans</Label>
+                  <input type="date" value={advancePaidAt} onChange={(e) => setAdvancePaidAt(e.target.value)} className={inp} />
+                </div>
               </div>
-              <div>
-                <Label>Scadență avans</Label>
-                <input type="date" value={advancePaidAt} onChange={(e) => setAdvancePaidAt(e.target.value)} className={inp} />
-              </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-neutral-800 rounded-lg px-4 py-3 text-sm text-neutral-300 flex items-center justify-between">
-                <span>Rest de plată</span>
+                <span>{noAdvance ? "Total de plătit" : "Rest de plată"}</span>
                 <span className="text-white font-semibold">{priceRest} {currency}</span>
               </div>
               <div>
-                <Label>Scadență rest</Label>
+                <Label>{noAdvance ? "Scadență plată" : "Scadență rest"}</Label>
                 <input type="date" value={restPaidAt} onChange={(e) => setRestPaidAt(e.target.value)} className={inp} />
               </div>
             </div>

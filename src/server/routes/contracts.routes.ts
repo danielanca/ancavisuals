@@ -85,6 +85,7 @@ router.post("/", async (req: Request, res: Response) => {
       paymentMethod: body.paymentMethod ?? BANK_TRANSFER,
 
       clauses: Array.isArray(body.clauses) ? body.clauses : [],
+      noAdvance: body.noAdvance === true,
       privateClient: body.privateClient === true,
       transportKm: body.transportKm ?? "",
       transportFuelPrice: body.transportFuelPrice ?? "10",
@@ -395,6 +396,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       clientPhone: body.clientPhone?.trim() ?? "",
       clientAddress: body.clientAddress?.trim() ?? "",
       clientIdSeries: body.clientIdSeries?.trim() ?? "",
+      noAdvance: body.noAdvance === true,
       privateClient: body.privateClient === true,
       fiscalized: body.fiscalized === true,
       transportKm: body.transportKm ?? "",

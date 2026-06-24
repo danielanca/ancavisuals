@@ -37,6 +37,9 @@ import instagramProposalsRouter from "./src/server/routes/instagramProposals.rou
 import showcaseZonesRouter from "./src/server/routes/showcase-zones.routes";
 import albumSubscriptionsRouter from "./src/server/routes/albumSubscriptions.routes";
 import qrMomentsRouter from "./src/server/routes/qrMoments.routes";
+import referralRouter from "./src/server/routes/referral.routes";
+import contactsRouter from "./src/server/routes/contacts.routes";
+import equipmentRouter from "./src/server/routes/equipment.routes";
 import accountsRouter from "./src/server/routes/accounts.routes";
 import weddingHubRouter from "./src/server/routes/weddingHub.routes";
 import weddingHubMockRouter from "./src/server/routes/weddingHubMock.routes";
@@ -50,6 +53,7 @@ import campaignRouter from "./src/server/routes/campaign.routes";
 import activityRouter from "./src/server/routes/activity.routes";
 import searchConsoleRouter from "./src/server/routes/searchConsole.routes";
 import photoCollectionsRouter from "./src/server/routes/photoCollections.routes";
+import photoboothRouter from "./src/server/routes/photobooth.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
@@ -59,6 +63,7 @@ import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startCollaboratorInviteReminderCron } from "./src/server/cron/collaboratorInviteReminder.cron";
 import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
 import { startHealthStepsReminderCron } from "./src/server/cron/healthStepsReminder.cron";
+import { startPhotoboothNotifyCron } from "./src/server/cron/photoboothNotify.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
 import healthRouter from "./src/server/routes/health.routes";
@@ -194,6 +199,10 @@ async function createServer() {
   app.use("/api/wedding-hub/checklist", weddingChecklistRouter);
   app.use("/api/wedding-hub/timeline", weddingTimelineRouter);
   app.use("/api/wedding-hub/reminders", weddingRemindersRouter);
+  app.use("/api/photobooth", photoboothRouter);
+  app.use("/api/referral", referralRouter);
+  app.use("/api/admin/contacts", contactsRouter);
+  app.use("/api/admin/equipment", equipmentRouter);
 
   if (showProgress) devLogger.step("Rute API", "29 rute înregistrate");
 
@@ -208,8 +217,9 @@ async function createServer() {
   startCollaboratorInviteReminderCron();
   startAlbumZipCheckCron();
   startHealthStepsReminderCron();
+  startPhotoboothNotifyCron();
 
-  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites");
+  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites · photobooth notify");
 
   let vite: ViteDevServer | undefined;
   let template: string;

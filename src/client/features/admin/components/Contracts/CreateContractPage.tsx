@@ -197,6 +197,7 @@ const CreateContractPage: React.FC = () => {
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [manualTotal, setManualTotal] = useState(false);
   const [priceTotal, setPriceTotal] = useState(0);
+  const [noAdvance, setNoAdvance] = useState(false);
   const [priceAdvance, setPriceAdvance] = useState(0);
   const [advancePaidAt, setAdvancePaidAt] = useState("");
   const [restPaidAt, setRestPaidAt] = useState("");
@@ -223,7 +224,7 @@ const CreateContractPage: React.FC = () => {
   const customTotal = customServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0);
   const autoTotal = selectedServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) + customTotal;
   const effectiveTotal = manualTotal ? priceTotal : autoTotal;
-  const priceRest = Math.max(0, effectiveTotal - (priceAdvance || 0));
+  const priceRest = noAdvance ? effectiveTotal : Math.max(0, effectiveTotal - (priceAdvance || 0));
 
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -244,6 +245,7 @@ const CreateContractPage: React.FC = () => {
       if (draft.currency !== undefined) setCurrency(draft.currency);
       if (draft.manualTotal !== undefined) setManualTotal(draft.manualTotal);
       if (draft.priceTotal !== undefined) setPriceTotal(draft.priceTotal);
+      if (draft.noAdvance !== undefined) setNoAdvance(draft.noAdvance);
       if (draft.priceAdvance !== undefined) setPriceAdvance(draft.priceAdvance);
       if (draft.advancePaidAt !== undefined) setAdvancePaidAt(draft.advancePaidAt);
       if (draft.restPaidAt !== undefined) setRestPaidAt(draft.restPaidAt);
@@ -269,7 +271,7 @@ const CreateContractPage: React.FC = () => {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({
           eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
           services, customServices,
-          currency, manualTotal, priceTotal, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
+          currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
           transportKm, transportFuelPrice,
           clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
           selectedBankProfileId,
@@ -280,7 +282,7 @@ const CreateContractPage: React.FC = () => {
   }, [
     eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
     services, customServices,
-    currency, manualTotal, priceTotal, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
+    currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
     transportKm, transportFuelPrice,
     clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
     selectedBankProfileId,
@@ -420,9 +422,10 @@ const CreateContractPage: React.FC = () => {
         currency,
         eurRate,
         priceTotal: effectiveTotal,
-        priceAdvance: priceAdvance || 0,
+        noAdvance,
+        priceAdvance: noAdvance ? 0 : (priceAdvance || 0),
         priceRest,
-        advancePaidAt,
+        advancePaidAt: noAdvance ? "" : advancePaidAt,
         restPaidAt,
         paymentMethod,
         bankBeneficiaryName: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.beneficiaryName ?? "") : "",
@@ -727,24 +730,41 @@ const CreateContractPage: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Avans ({currency})</Label>
-                <DecimalInput value={priceAdvance} onChange={setPriceAdvance} step={50} className={inp} placeholder="0" />
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={noAdvance}
+                onChange={(e) => { setNoAdvance(e.target.checked); if (e.target.checked) { setPriceAdvance(0); setAdvancePaidAt(""); } }}
+                className="accent-sky-500 w-4 h-4 shrink-0"
+              />
+              <span className="text-sm text-sky-400 group-hover:text-sky-300 transition-colors">
+                Fără avans obligatoriu
+                <span className="block text-xs text-neutral-500 font-normal mt-0.5">
+                  Plata integrală — contractul nu condiționează validitatea de un avans
+                </span>
+              </span>
+            </label>
+
+            {!noAdvance && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Avans ({currency})</Label>
+                  <DecimalInput value={priceAdvance} onChange={setPriceAdvance} step={50} className={inp} placeholder="0" />
+                </div>
+                <div>
+                  <Label>Scadență avans</Label>
+                  <input type="date" value={advancePaidAt} onChange={(e) => setAdvancePaidAt(e.target.value)} className={inp} />
+                </div>
               </div>
-              <div>
-                <Label>Scadență avans</Label>
-                <input type="date" value={advancePaidAt} onChange={(e) => setAdvancePaidAt(e.target.value)} className={inp} />
-              </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-neutral-800 rounded-lg px-4 py-3 text-sm text-neutral-300 flex items-center justify-between">
-                <span>Rest de plată</span>
+                <span>{noAdvance ? "Total de plătit" : "Rest de plată"}</span>
                 <span className="text-white font-semibold">{priceRest} {currency}</span>
               </div>
               <div>
-                <Label>Scadență rest</Label>
+                <Label>{noAdvance ? "Scadență plată" : "Scadență rest"}</Label>
                 <input type="date" value={restPaidAt} onChange={(e) => setRestPaidAt(e.target.value)} className={inp} />
               </div>
             </div>
@@ -816,20 +836,32 @@ const CreateContractPage: React.FC = () => {
                     </div>
                     <div className="text-white font-bold text-base">{effectiveTotal} {currency}</div>
                   </div>
-                  <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/5">
-                    <div>
-                      <div className="text-neutral-200">De plătit acum <span className="text-emerald-400 font-medium">(avans)</span></div>
-                      {advancePaidAt && <div className="text-xs text-neutral-500 mt-0.5">Scadent: {advancePaidAt}</div>}
+                  {noAdvance ? (
+                    <div className="flex items-center justify-between px-4 py-3 bg-sky-500/5">
+                      <div>
+                        <div className="text-neutral-200">Plată integrală <span className="text-sky-400 font-medium">(fără avans)</span></div>
+                        {restPaidAt && <div className="text-xs text-neutral-500 mt-0.5">Scadentă: {restPaidAt}</div>}
+                      </div>
+                      <div className="text-sky-400 font-semibold">{effectiveTotal} {currency}</div>
                     </div>
-                    <div className="text-emerald-400 font-semibold">{priceAdvance || 0} {currency}</div>
-                  </div>
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <div>
-                      <div className="text-neutral-200">Rest de plătit <span className="text-neutral-400">(la/după eveniment)</span></div>
-                      {restPaidAt && <div className="text-xs text-neutral-500 mt-0.5">Scadent: {restPaidAt}</div>}
-                    </div>
-                    <div className="text-neutral-100 font-semibold">{priceRest} {currency}</div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/5">
+                        <div>
+                          <div className="text-neutral-200">De plătit acum <span className="text-emerald-400 font-medium">(avans)</span></div>
+                          {advancePaidAt && <div className="text-xs text-neutral-500 mt-0.5">Scadent: {advancePaidAt}</div>}
+                        </div>
+                        <div className="text-emerald-400 font-semibold">{priceAdvance || 0} {currency}</div>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <div>
+                          <div className="text-neutral-200">Rest de plătit <span className="text-neutral-400">(la/după eveniment)</span></div>
+                          {restPaidAt && <div className="text-xs text-neutral-500 mt-0.5">Scadent: {restPaidAt}</div>}
+                        </div>
+                        <div className="text-neutral-100 font-semibold">{priceRest} {currency}</div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

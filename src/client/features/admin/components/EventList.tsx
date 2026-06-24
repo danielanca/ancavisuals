@@ -660,7 +660,18 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
     }
 
     if (tab === "trecut") {
-      const grouped = groupByMonth(filteredPast, false);
+      const todayMs = today.getTime();
+      const urgencyScore = (event: ClientEvent): number => {
+        if (!event.eventDate) return Infinity;
+        const daysElapsed = Math.floor((todayMs - new Date(new Date(event.eventDate).setHours(0, 0, 0, 0)).getTime()) / 86400000);
+        const photoDone = event.delivery?.allPhotosEdited === true;
+        const videoDone = event.delivery?.longVideoEdited === true;
+        const photoRemaining = photoDone ? Infinity : 30 - daysElapsed;
+        const videoRemaining = videoDone ? Infinity : 60 - daysElapsed;
+        return Math.min(photoRemaining, videoRemaining);
+      };
+      const sortedByUrgency = [...filteredPast].sort((a, b) => urgencyScore(a) - urgencyScore(b));
+      const grouped = groupByMonth(sortedByUrgency, false);
       if (grouped.size === 0) {
         return (
           <div className="text-center py-12">
