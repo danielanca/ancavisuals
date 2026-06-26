@@ -567,6 +567,7 @@ export default function QRMomentsPage() {
         method: 'POST',
         headers: uploadHeaders,
         body: formData,
+        signal: AbortSignal.timeout(90_000),
       }).then((r) => r.json());
 
       if (result.error) {

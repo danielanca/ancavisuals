@@ -452,7 +452,13 @@ router.post(
         return;
       }
 
-      const eventDate = (eventDoc.data()!.eventDate as Timestamp).toDate();
+      const eventDateRaw = eventDoc.data()!.eventDate as Timestamp | undefined;
+      if (!eventDateRaw) {
+        console.error(`[qr-moments] upload: eventDate lipsă pentru ${eventSlug}`);
+        response.status(500).json({ error: 'Configurare eveniment incompletă.' });
+        return;
+      }
+      const eventDate = eventDateRaw.toDate();
       if (!isAdmin && !isUploadWindowOpen(eventDate)) {
         response.status(403).json({ error: 'Perioada de upload s-a închis.' });
         return;
@@ -470,10 +476,12 @@ router.post(
               'Content-Type': 'application/octet-stream',
             },
             body: file.buffer,
+            signal: AbortSignal.timeout(60_000),
           });
 
           if (!uploadResponse.ok) {
-            throw new Error(`Bunny upload eșuat pentru ${file.originalname}: ${uploadResponse.status}`);
+            const bunnyBody = await uploadResponse.text().catch(() => '');
+            throw new Error(`Bunny upload eșuat pentru ${file.originalname}: ${uploadResponse.status} ${bunnyBody}`);
           }
 
           const mediaType = detectMediaType(file.mimetype, file.originalname);
@@ -509,7 +517,8 @@ router.post(
       }
 
       response.status(201).json({ uploadedCount: uploadResults.length, uploadIds: uploadResults });
-    } catch {
+    } catch (uploadError) {
+      console.error(`[qr-moments] upload failed for ${eventSlug}:`, uploadError);
       response.status(500).json({ error: 'Eroare la upload.' });
     }
   },
