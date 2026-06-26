@@ -27,8 +27,8 @@ interface PromoImage {
 
 type LegacyAudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
-const DISPLAYABLE_IMAGE = ['image/jpeg', 'image/png', 'image/webp'];
-const DISPLAYABLE_VIDEO = ['video/mp4'];
+const DISPLAYABLE_IMAGE = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+const DISPLAYABLE_VIDEO = ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/hevc'];
 const DISPLAYABLE_AUDIO = ['audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/x-m4a'];
 const PORTFOLIO_GALLERY_FOLDER = 'ancavisuals/PortfolioGallery';
 
@@ -443,15 +443,20 @@ export default function QRMomentsPage() {
     input.type = 'file';
     input.multiple = true;
     input.accept = accept;
-    input.onchange = (event) => {
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', (event) => {
       const target = event.target as HTMLInputElement;
+      document.body.removeChild(input);
       if (!target.files) return;
-      const newFiles: SelectedFile[] = Array.from(target.files).map((file) => ({
+      const validFiles = Array.from(target.files).filter((file) => file.size > 0);
+      if (validFiles.length === 0) return;
+      const newFiles: SelectedFile[] = validFiles.map((file) => ({
         file,
         previewUrl: URL.createObjectURL(file),
       }));
       setSelectedFiles((prev) => [...prev, ...newFiles]);
-    };
+    });
     input.click();
   };
 
@@ -563,11 +568,19 @@ export default function QRMomentsPage() {
     if (auth.authorise && auth.accessToken) uploadHeaders['Authorization'] = `Bearer ${auth.accessToken}`;
 
     try {
-      const result = await fetch(`/api/qr-moments/${eventSlug}/upload`, {
-        method: 'POST',
-        headers: uploadHeaders,
-        body: formData,
-      }).then((r) => r.json());
+      const abortController = new AbortController();
+      const uploadTimeout = setTimeout(() => abortController.abort(), 90_000);
+      let result: { error?: string; uploadedCount?: number };
+      try {
+        result = await fetch(`/api/qr-moments/${eventSlug}/upload`, {
+          method: 'POST',
+          headers: uploadHeaders,
+          body: formData,
+          signal: abortController.signal,
+        }).then((r) => r.json());
+      } finally {
+        clearTimeout(uploadTimeout);
+      }
 
       if (result.error) {
         reportQrDebug('Upload failed with API error', { apiError: result.error });
@@ -931,7 +944,10 @@ export default function QRMomentsPage() {
         {(mediaTab === 'photo' || mediaTab === 'video') && (
           <div className="space-y-4">
             <button
-              onClick={() => openFilePicker(mediaTab === 'photo' ? 'image/*' : 'video/*')}
+              onClick={() => openFilePicker(mediaTab === 'photo'
+                ? 'image/*,.heic,.heif,.jpg,.jpeg,.png,.webp'
+                : 'video/*,.mov,.hevc,.m4v,.mp4,.avi,.mkv'
+              )}
               className="w-full py-8 border border-dashed border-neutral-700 rounded-xl text-neutral-400 text-sm hover:border-neutral-500 hover:text-neutral-300 transition-colors"
             >
               {mediaTab === 'photo' ? '+ Alege poze' : '+ Alege clipuri'}

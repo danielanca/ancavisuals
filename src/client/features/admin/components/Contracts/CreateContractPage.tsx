@@ -24,6 +24,7 @@ const TRANSPORT_SERVICE_ID = "transport";
 // Pre-filled prices
 const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "foto_video", label: "Foto + Video (1 fotograf + 1 videograf)", included: false, priceRaw: "800"  },
+  { id: "foto_video_1", label: "Foto + Video (1 persoană)",             included: false, priceRaw: "600"  },
   { id: "foto",       label: "1 persoană responsabilă de foto",          included: false, priceRaw: "500"  },
   { id: "video",      label: "1 persoană responsabilă de video",         included: false, priceRaw: "300"  },
   { id: "foto2",      label: "2 persoane responsabile de foto",          included: false, priceRaw: "1000" },
