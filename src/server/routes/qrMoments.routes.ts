@@ -115,8 +115,10 @@ function buildBunnyUploadUrl(eventSlug: string, guestId: string, fileName: strin
 
 function detectMediaType(mimeType: string, originalName: string): 'photo' | 'video' | 'audio' {
   const ext = originalName.toLowerCase().split('.').pop() ?? '';
-  if (mimeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(ext)) return 'photo';
-  if (mimeType.startsWith('video/') || ['mp4', 'mov', 'avi', 'mkv', 'webm', 'hevc'].includes(ext)) return 'video';
+  const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff'];
+  const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'hevc', 'm4v', '3gp', 'ts'];
+  if (mimeType.startsWith('image/') || IMAGE_EXTS.includes(ext)) return 'photo';
+  if (mimeType.startsWith('video/') || mimeType === 'application/octet-stream' && VIDEO_EXTS.includes(ext) || VIDEO_EXTS.includes(ext)) return 'video';
   return 'audio';
 }
 
@@ -410,6 +412,8 @@ router.post(
     const { guestId, pass } = request.body as { guestId: string; pass?: string };
     const files = request.files as Express.Multer.File[];
 
+    console.log(`[qr-moments] upload request: slug=${eventSlug} guestId=${guestId} files=${files?.length ?? 0} ua=${request.headers['user-agent']?.slice(0, 60)}`);
+
     if (!guestId || !files?.length) {
       response.status(400).json({ error: 'guestId și fișiere sunt obligatorii.' });
       return;
@@ -475,7 +479,7 @@ router.post(
               [BUNNY_ACCESS_KEY_HEADER]: accessKey,
               'Content-Type': 'application/octet-stream',
             },
-            body: file.buffer,
+            body: new Uint8Array(file.buffer),
             signal: AbortSignal.timeout(60_000),
           });
 
