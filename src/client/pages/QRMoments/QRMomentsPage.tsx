@@ -564,23 +564,25 @@ export default function QRMomentsPage() {
       selectedFiles.forEach(({ file }) => formData.append('files', file));
     }
 
-    const uploadHeaders: Record<string, string> = {};
-    if (auth.authorise && auth.accessToken) uploadHeaders['Authorization'] = `Bearer ${auth.accessToken}`;
+    const authHeader = auth.authorise && auth.accessToken ? `Bearer ${auth.accessToken}` : null;
 
     try {
-      const abortController = new AbortController();
-      const uploadTimeout = setTimeout(() => abortController.abort(), 90_000);
-      let result: { error?: string; uploadedCount?: number };
-      try {
-        result = await fetch(`/api/qr-moments/${eventSlug}/upload`, {
-          method: 'POST',
-          headers: uploadHeaders,
-          body: formData,
-          signal: abortController.signal,
-        }).then((r) => r.json());
-      } finally {
-        clearTimeout(uploadTimeout);
-      }
+      const result = await new Promise<{ error?: string; uploadedCount?: number }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `/api/qr-moments/${eventSlug}/upload`);
+        if (authHeader) xhr.setRequestHeader('Authorization', authHeader);
+        xhr.timeout = 90_000;
+        xhr.ontimeout = () => reject(new Error('Timeout'));
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.onload = () => {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error('Invalid response'));
+          }
+        };
+        xhr.send(formData);
+      });
 
       if (result.error) {
         reportQrDebug('Upload failed with API error', { apiError: result.error });
