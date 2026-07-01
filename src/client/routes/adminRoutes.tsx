@@ -1,5 +1,5 @@
 import React from "react";
-import { Route } from "react-router-dom";
+import { Route, Navigate } from "react-router-dom";
 import loadable from "@loadable/component";
 import AncaLoader from "../components/UI/AncaLoader";
 import RequireAuth from "../features/admin/components/RequireAuth";
@@ -49,6 +49,7 @@ const ProgressListPage = loadable(() => import("../features/admin/components/Pro
 const ProgressDetailPage = loadable(() => import("../features/admin/components/ProgressDetailPage"), opts);
 const ContactsAdminPage = loadable(() => import("../features/admin/components/ContactsAdminPage"), opts);
 const EquipmentAdminPage = loadable(() => import("../features/admin/components/EquipmentAdminPage"), opts);
+const AdminSettingsPage = loadable(() => import("../features/admin/components/AdminSettingsPage"), opts);
 
 
 export const adminRoutes = [
@@ -92,6 +93,11 @@ export const adminRoutes = [
       <Route path="/admin/progress/:eventId" element={<ProgressDetailPage />} />
       <Route path="/admin/contacte" element={<ContactsAdminPage />} />
       <Route path="/admin/echipamente" element={<EquipmentAdminPage />} />
+      <Route path="/admin/settings" element={<AdminSettingsPage />} />
+      <Route path="/admin/invoices" element={<Navigate to="/admin/financial" replace />} />
+      <Route path="/admin/expenses" element={<Navigate to="/admin/financial" replace />} />
+      <Route path="/admin/health" element={<Navigate to="/admin/sanatate" replace />} />
+      <Route path="/admin/seo" element={<Navigate to="/admin/seo-generator" replace />} />
       <Route element={<WeddingHubAuthWrapper />}>
         <Route path="/admin/wedding-hub" element={<WeddingHubAdminPage />} />
       </Route>

@@ -13,10 +13,14 @@ interface ContractItem {
   eventDate: string;
   clientEmail: string;
   clientName?: string;
+  clientAddress?: string;
+  clientCity?: string;
+  clientCounty?: string;
   priceTotal: number;
   priceAdvance?: number;
   priceRest?: number;
   currency?: string;
+  eurRate?: number;
   createdAt: string;
   signedAt?: string;
   prestatorSignatureBase64?: string;
@@ -605,19 +609,23 @@ interface ContractForInvoice {
   eventType: string;
   eventDate: string;
   clientName?: string;
+  clientAddress?: string;
+  clientCity?: string;
+  clientCounty?: string;
   priceTotal: number;
   priceAdvance?: number;
   priceRest?: number;
   currency?: string;
+  eurRate?: number;
 }
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function dueDateISO() {
-  const d = new Date();
-  d.setDate(d.getDate() + 5);
+function dueDateISO(from?: string) {
+  const d = from ? new Date(from) : new Date();
+  d.setDate(d.getDate() + 30);
   return d.toISOString().slice(0, 10);
 }
 
@@ -647,9 +655,11 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
   const priceRest = contract.priceRest ?? (contract.priceTotal - priceAdvance);
 
   const [invoiceDate, setInvoiceDate] = React.useState(todayISO);
+  const [dueDate, setDueDate] = React.useState(() => dueDateISO(todayISO()));
   const [amountType, setAmountType] = React.useState<"total" | "advance" | "rest">("total");
   const [description, setDescription] = React.useState(() => defaultDescription(contract));
   const [buyerCIF, setBuyerCIF] = React.useState("");
+  const [exchangeRate, setExchangeRate] = React.useState(() => contract.eurRate ? String(contract.eurRate) : "");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [savedId, setSavedId] = React.useState<string | null>(null);
@@ -685,20 +695,26 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           date: invoiceDate,
+          dueDate,
           type: buyerCIF ? "B2B" : "B2C",
           clientName: contract.clientName ?? "",
+          clientAddress: contract.clientAddress || undefined,
+          clientCity: contract.clientCity || undefined,
+          clientCounty: contract.clientCounty || undefined,
           clientCIF: buyerCIF || undefined,
+          taxExchangeRate: exchangeRate ? parseFloat(exchangeRate) : undefined,
           items: [{ description, quantity: 1, unitPrice: displayAmount, total: displayAmount }],
           totalAmount: displayAmount,
           currency,
           notes: `Contract ${contract.eventType} — ${contract.eventDate?.slice(0, 10) ?? ""}`,
           eventId: contract.id,
+          eventDate: contract.eventDate?.slice(0, 10) || undefined,
         }),
       });
-      const data = await res.json() as { id?: string; invoiceNumber?: number; series?: string; error?: string };
+      const data = await res.json() as { id?: string; invoiceNumber?: number; series?: string; invoiceRef?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Eroare server.");
       setSavedId(data.id!);
-      setSavedRef(`${data.series}-${String(data.invoiceNumber).padStart(4, "0")}`);
+      setSavedRef(data.invoiceRef ?? `${data.series}-${String(data.invoiceNumber).padStart(4, "0")}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Eroare necunoscută.");
     } finally {
@@ -725,8 +741,14 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
             <div className="space-y-3">
               <div>
                 <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Data facturii</label>
-                <input type="date" className={inp} value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+                <input type="date" className={inp} value={invoiceDate} onChange={(e) => { setInvoiceDate(e.target.value); setDueDate(dueDateISO(e.target.value)); }} />
                 <p className="text-neutral-600 text-[10px] mt-1">Pune data când ai primit banii, nu neapărat azi.</p>
+              </div>
+
+              <div>
+                <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Scadență</label>
+                <input type="date" className={inp} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                <p className="text-neutral-600 text-[10px] mt-1">Implicit +30 zile față de data facturii.</p>
               </div>
 
               <div>
@@ -757,6 +779,14 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
                 <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">CIF cumpărător (opțional — doar B2B)</label>
                 <input className={inp} value={buyerCIF} onChange={(e) => setBuyerCIF(e.target.value)} placeholder="Lasă gol pentru B2C (persoană fizică)" />
               </div>
+
+              {currency !== "RON" && (
+                <div>
+                  <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Curs BNR {currency}/RON <span className="text-amber-500">*</span></label>
+                  <input className={inp} value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} placeholder="ex: 4.9700" type="number" step="0.0001" min="0" />
+                  <p className="text-neutral-600 text-[10px] mt-1">Necesar pentru e-Factura CIUS-RO când moneda nu e RON. Verifică cursul BNR de la data facturii.</p>
+                </div>
+              )}
             </div>
 
             {error && <p className="mt-3 text-red-400 text-xs">{error}</p>}

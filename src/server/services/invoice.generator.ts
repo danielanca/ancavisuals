@@ -34,6 +34,9 @@ export interface InvoiceData {
   // Cumpărător
   buyerName: string;
   buyerCIF?: string;
+  buyerAddress?: string;
+  buyerCity?: string;
+  buyerCounty?: string;
 
   // Factură
   invoiceNumber: string;
@@ -48,12 +51,53 @@ export interface InvoiceData {
   eventDate?: string;
 }
 
+// ── County name → ISO 3166-2:RO code ────────────────────────────────────────
+const COUNTY_ISO: Record<string, string> = {
+  "Alba": "RO-AB", "Arad": "RO-AR", "Argeș": "RO-AG", "Arges": "RO-AG",
+  "Bacău": "RO-BC", "Bacau": "RO-BC", "Bihor": "RO-BH",
+  "Bistrița-Năsăud": "RO-BN", "Bistrita-Nasaud": "RO-BN",
+  "Botoșani": "RO-BT", "Botosani": "RO-BT",
+  "Brașov": "RO-BV", "Brasov": "RO-BV", "Brăila": "RO-BR", "Braila": "RO-BR",
+  "București": "RO-B", "Bucuresti": "RO-B", "Buzău": "RO-BZ", "Buzau": "RO-BZ",
+  "Caraș-Severin": "RO-CS", "Caras-Severin": "RO-CS",
+  "Călărași": "RO-CL", "Calarasi": "RO-CL", "Cluj": "RO-CJ",
+  "Constanța": "RO-CT", "Constanta": "RO-CT", "Covasna": "RO-CV",
+  "Dâmbovița": "RO-DB", "Dambovita": "RO-DB", "Dolj": "RO-DJ",
+  "Galați": "RO-GL", "Galati": "RO-GL", "Giurgiu": "RO-GR", "Gorj": "RO-GJ",
+  "Harghita": "RO-HR", "Hunedoara": "RO-HD",
+  "Ialomița": "RO-IL", "Ialomita": "RO-IL", "Iași": "RO-IS", "Iasi": "RO-IS",
+  "Ilfov": "RO-IF", "Maramureș": "RO-MM", "Maramures": "RO-MM",
+  "Mehedinți": "RO-MH", "Mehedinti": "RO-MH", "Mureș": "RO-MS", "Mures": "RO-MS",
+  "Neamț": "RO-NT", "Neamt": "RO-NT", "Olt": "RO-OT", "Prahova": "RO-PH",
+  "Satu Mare": "RO-SM", "Sălaj": "RO-SJ", "Salaj": "RO-SJ",
+  "Sibiu": "RO-SB", "Suceava": "RO-SV", "Teleorman": "RO-TR",
+  "Timiș": "RO-TM", "Timis": "RO-TM", "Tulcea": "RO-TL",
+  "Vaslui": "RO-VS", "Vâlcea": "RO-VL", "Valcea": "RO-VL",
+  "Vrancea": "RO-VN",
+};
+
+function toCountyISO(county: string): string {
+  if (!county) return "";
+  if (/^RO-[A-Z]{1,2}$/.test(county)) return county;
+  return COUNTY_ISO[county] ?? county;
+}
+
 // ── XML e-Factura UBL 2.1 (CIUS-RO) ────────────────────────────────────────
 
 export function generateInvoiceXML(d: InvoiceData): string {
   const amt = d.amount.toFixed(2);
+  const cur = d.currency;
   const cifRO = d.issuerCIF;
-  const buyerCIF = d.buyerCIF ? (d.buyerCIF.startsWith("RO") ? d.buyerCIF : d.buyerCIF) : "";
+  const buyerCIF = d.buyerCIF ?? "";
+  const issuerCountyISO = toCountyISO(d.issuerCounty);
+
+  // DueDate: dacă lipsește sau e identic cu IssueDate, default +30 zile
+  let dueDate = d.dueDate;
+  if (!dueDate || dueDate === d.invoiceDate) {
+    const due = new Date(d.invoiceDate);
+    due.setDate(due.getDate() + 30);
+    dueDate = due.toISOString().slice(0, 10);
+  }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
@@ -65,10 +109,10 @@ export function generateInvoiceXML(d: InvoiceData): string {
   <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
   <cbc:ID>${escXML(d.invoiceNumber)}</cbc:ID>
   <cbc:IssueDate>${d.invoiceDate}</cbc:IssueDate>
-  <cbc:DueDate>${d.dueDate}</cbc:DueDate>
+  <cbc:DueDate>${dueDate}</cbc:DueDate>
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
-  <cbc:DocumentCurrencyCode>${d.currency}</cbc:DocumentCurrencyCode>
-  <cbc:TaxCurrencyCode>${d.currency}</cbc:TaxCurrencyCode>
+  <cbc:DocumentCurrencyCode>${cur}</cbc:DocumentCurrencyCode>
+  <cbc:TaxCurrencyCode>RON</cbc:TaxCurrencyCode>
 
   <cac:AccountingSupplierParty>
     <cac:Party>
@@ -76,19 +120,14 @@ export function generateInvoiceXML(d: InvoiceData): string {
       <cac:PostalAddress>
         <cbc:StreetName>${escXML(d.issuerAddress)}</cbc:StreetName>
         <cbc:CityName>${escXML(d.issuerCity)}</cbc:CityName>
-        <cbc:PostalZone>${escXML(d.issuerPostalCode)}</cbc:PostalZone>
-        <cbc:CountrySubentity>${escXML(d.issuerCounty)}</cbc:CountrySubentity>
+        ${d.issuerPostalCode ? `<cbc:PostalZone>${escXML(d.issuerPostalCode)}</cbc:PostalZone>` : ""}
+        ${issuerCountyISO ? `<cbc:CountrySubentity>${escXML(issuerCountyISO)}</cbc:CountrySubentity>` : ""}
         <cac:Country><cbc:IdentificationCode>RO</cbc:IdentificationCode></cac:Country>
       </cac:PostalAddress>
-      <cac:PartyTaxScheme>
-        <cbc:CompanyID>${escXML(cifRO)}</cbc:CompanyID>
-        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
-      </cac:PartyTaxScheme>
       <cac:PartyLegalEntity>
         <cbc:RegistrationName>${escXML(d.issuerName)}</cbc:RegistrationName>
         <cbc:CompanyID>${escXML(cifRO)}</cbc:CompanyID>
       </cac:PartyLegalEntity>
-      ${d.issuerIBAN ? `<cac:Contact><cbc:ID>${escXML(d.issuerIBAN)}</cbc:ID></cac:Contact>` : ""}
     </cac:Party>
   </cac:AccountingSupplierParty>
 
@@ -96,18 +135,15 @@ export function generateInvoiceXML(d: InvoiceData): string {
     <cac:Party>
       <cac:PartyName><cbc:Name>${escXML(d.buyerName)}</cbc:Name></cac:PartyName>
       <cac:PostalAddress>
+        ${d.buyerAddress ? `<cbc:StreetName>${escXML(d.buyerAddress)}</cbc:StreetName>` : ""}
+        ${d.buyerCity ? `<cbc:CityName>${escXML(d.buyerCity)}</cbc:CityName>` : ""}
+        ${d.buyerCounty ? `<cbc:CountrySubentity>${escXML(toCountyISO(d.buyerCounty))}</cbc:CountrySubentity>` : ""}
         <cac:Country><cbc:IdentificationCode>RO</cbc:IdentificationCode></cac:Country>
       </cac:PostalAddress>
-      ${buyerCIF ? `<cac:PartyTaxScheme>
-        <cbc:CompanyID>${escXML(buyerCIF)}</cbc:CompanyID>
-        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
-      </cac:PartyTaxScheme>
       <cac:PartyLegalEntity>
         <cbc:RegistrationName>${escXML(d.buyerName)}</cbc:RegistrationName>
-        <cbc:CompanyID>${escXML(buyerCIF)}</cbc:CompanyID>
-      </cac:PartyLegalEntity>` : `<cac:PartyLegalEntity>
-        <cbc:RegistrationName>${escXML(d.buyerName)}</cbc:RegistrationName>
-      </cac:PartyLegalEntity>`}
+        <cbc:CompanyID>${buyerCIF ? escXML(buyerCIF) : "0000000000000"}</cbc:CompanyID>
+      </cac:PartyLegalEntity>
     </cac:Party>
   </cac:AccountingCustomerParty>
 
@@ -117,10 +153,10 @@ export function generateInvoiceXML(d: InvoiceData): string {
   </cac:PaymentMeans>
 
   <cac:TaxTotal>
-    <cbc:TaxAmount currencyID="${d.currency}">0.00</cbc:TaxAmount>
+    <cbc:TaxAmount currencyID="${cur}">0.00</cbc:TaxAmount>
     <cac:TaxSubtotal>
-      <cbc:TaxableAmount currencyID="${d.currency}">${amt}</cbc:TaxableAmount>
-      <cbc:TaxAmount currencyID="${d.currency}">0.00</cbc:TaxAmount>
+      <cbc:TaxableAmount currencyID="${cur}">${amt}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="${cur}">0.00</cbc:TaxAmount>
       <cac:TaxCategory>
         <cbc:ID>O</cbc:ID>
         <cbc:TaxExemptionReasonCode>VATEX-EU-O</cbc:TaxExemptionReasonCode>
@@ -129,18 +165,21 @@ export function generateInvoiceXML(d: InvoiceData): string {
       </cac:TaxCategory>
     </cac:TaxSubtotal>
   </cac:TaxTotal>
+${cur !== "RON" ? `  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="RON">0.00</cbc:TaxAmount>
+  </cac:TaxTotal>` : ""}
 
   <cac:LegalMonetaryTotal>
-    <cbc:LineExtensionAmount currencyID="${d.currency}">${amt}</cbc:LineExtensionAmount>
-    <cbc:TaxExclusiveAmount currencyID="${d.currency}">${amt}</cbc:TaxExclusiveAmount>
-    <cbc:TaxInclusiveAmount currencyID="${d.currency}">${amt}</cbc:TaxInclusiveAmount>
-    <cbc:PayableAmount currencyID="${d.currency}">${amt}</cbc:PayableAmount>
+    <cbc:LineExtensionAmount currencyID="${cur}">${amt}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="${cur}">${amt}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="${cur}">${amt}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="${cur}">${amt}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
 
   <cac:InvoiceLine>
     <cbc:ID>1</cbc:ID>
     <cbc:InvoicedQuantity unitCode="C62">1</cbc:InvoicedQuantity>
-    <cbc:LineExtensionAmount currencyID="${d.currency}">${amt}</cbc:LineExtensionAmount>
+    <cbc:LineExtensionAmount currencyID="${cur}">${amt}</cbc:LineExtensionAmount>
     <cac:Item>
       <cbc:Name>${escXML(d.description)}</cbc:Name>
       <cac:ClassifiedTaxCategory>
@@ -149,7 +188,7 @@ export function generateInvoiceXML(d: InvoiceData): string {
       </cac:ClassifiedTaxCategory>
     </cac:Item>
     <cac:Price>
-      <cbc:PriceAmount currencyID="${d.currency}">${amt}</cbc:PriceAmount>
+      <cbc:PriceAmount currencyID="${cur}">${amt}</cbc:PriceAmount>
     </cac:Price>
   </cac:InvoiceLine>
 

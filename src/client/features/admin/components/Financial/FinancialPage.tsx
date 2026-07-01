@@ -50,17 +50,20 @@ interface Invoice {
   id: string;
   invoiceNumber: number;
   series: string;
+  invoiceRef?: string;
   year: number;
   date: string;
   type: "B2C" | "B2B";
   clientName: string;
   clientAddress: string | null;
+  clientCity: string | null;
   clientCIF: string | null;
   items: InvoiceItem[];
   totalAmount: number;
   currency: string;
   notes: string | null;
   eventId: string | null;
+  taxExchangeRate: number | null;
   paid: boolean;
   paidAt: string | null;
 }
@@ -118,6 +121,8 @@ interface State {
   showFiscalSettings: boolean;
   deletingId: string | null;
   pdfLoadingId: string | null;
+  xmlLoadingId: string | null;
+  editInvoice: Invoice | null;
 }
 
 type Action =
@@ -144,7 +149,10 @@ type Action =
   | { type: "SHOW_ADD_INVOICE"; value: boolean }
   | { type: "SHOW_FISCAL_SETTINGS"; value: boolean }
   | { type: "SET_DELETING"; id: string | null }
-  | { type: "SET_PDF_LOADING"; id: string | null };
+  | { type: "SET_PDF_LOADING"; id: string | null }
+  | { type: "SET_XML_LOADING"; id: string | null }
+  | { type: "SET_EDIT_INVOICE"; invoice: Invoice | null }
+  | { type: "UPDATE_INVOICE"; invoice: Invoice };
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -168,6 +176,8 @@ const initialState: State = {
   showFiscalSettings: false,
   deletingId: null,
   pdfLoadingId: null,
+  xmlLoadingId: null,
+  editInvoice: null,
 };
 
 function reducer(state: State, action: Action): State {
@@ -199,6 +209,9 @@ function reducer(state: State, action: Action): State {
     case "SHOW_FISCAL_SETTINGS": return { ...state, showFiscalSettings: action.value };
     case "SET_DELETING": return { ...state, deletingId: action.id };
     case "SET_PDF_LOADING": return { ...state, pdfLoadingId: action.id };
+    case "SET_XML_LOADING": return { ...state, xmlLoadingId: action.id };
+    case "SET_EDIT_INVOICE": return { ...state, editInvoice: action.invoice };
+    case "UPDATE_INVOICE": return { ...state, invoices: state.invoices.map(i => i.id === action.invoice.id ? action.invoice : i), editInvoice: null };
     case "SET_DUPLICATE_ALERT": return { ...state, duplicateAlert: action.payload };
     case "SET_HIGHLIGHTED_EXPENSE": return { ...state, highlightedExpenseId: action.id };
     default: return state;
@@ -1258,14 +1271,27 @@ const FinancialPage: React.FC = () => {
     try {
       const response = await fetch(`/api/admin/invoices/${invoiceId}/pdf`, { headers: authHeader });
       const blob = await response.blob();
+      const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } finally {
+      dispatch({ type: "SET_PDF_LOADING", id: null });
+    }
+  }
+
+  async function handleDownloadXml(invoiceId: string, ref: string) {
+    dispatch({ type: "SET_XML_LOADING", id: invoiceId });
+    try {
+      const response = await fetch(`/api/admin/invoices/${invoiceId}/xml`, { headers: authHeader });
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `factura-${ref}.pdf`;
+      anchor.download = `efactura-${ref}.xml`;
       anchor.click();
       URL.revokeObjectURL(url);
     } finally {
-      dispatch({ type: "SET_PDF_LOADING", id: null });
+      dispatch({ type: "SET_XML_LOADING", id: null });
     }
   }
 
@@ -1672,7 +1698,7 @@ const FinancialPage: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   {state.invoices.map((invoice) => {
-                    const invoiceRef = `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
+                    const invoiceRef = invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
                     return (
                       <div key={invoice.id} className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 flex items-center gap-4">
                         <div className="flex-1 min-w-0">
@@ -1699,6 +1725,15 @@ const FinancialPage: React.FC = () => {
                             className="text-xs flex items-center gap-1 px-2.5 py-1.5 border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                             {state.pdfLoadingId === invoice.id ? "..." : "PDF"}
+                          </button>
+                          <button onClick={() => handleDownloadXml(invoice.id, invoiceRef)} disabled={state.xmlLoadingId === invoice.id}
+                            className="text-xs flex items-center gap-1 px-2.5 py-1.5 border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                            {state.xmlLoadingId === invoice.id ? "..." : "XML"}
+                          </button>
+                          <button onClick={() => dispatch({ type: "SET_EDIT_INVOICE", invoice })}
+                            className="text-neutral-600 hover:text-amber-400 transition-colors" title="Editează">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                           </button>
                           <button onClick={() => handleDeleteInvoice(invoice.id)} disabled={state.deletingId === invoice.id}
                             className="text-neutral-600 hover:text-red-400 transition-colors disabled:opacity-50">
@@ -1749,8 +1784,91 @@ const FinancialPage: React.FC = () => {
           onClose={() => dispatch({ type: "SHOW_FISCAL_SETTINGS", value: false })}
           onSaved={(settings) => dispatch({ type: "SET_FISCAL", settings })} />
       )}
+      {state.editInvoice && (
+        <EditInvoiceModal
+          invoice={state.editInvoice}
+          accessToken={auth.accessToken ?? ""}
+          onClose={() => dispatch({ type: "SET_EDIT_INVOICE", invoice: null })}
+          onSaved={(updated) => dispatch({ type: "UPDATE_INVOICE", invoice: updated })}
+        />
+      )}
     </div>
   );
 };
+
+function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
+  invoice: Invoice;
+  accessToken: string;
+  onClose: () => void;
+  onSaved: (updated: Invoice) => void;
+}) {
+  const [clientAddress, setClientAddress] = React.useState(invoice.clientAddress ?? "");
+  const [clientCity, setClientCity] = React.useState(invoice.clientCity ?? "");
+  const [taxExchangeRate, setTaxExchangeRate] = React.useState(invoice.taxExchangeRate ? String(invoice.taxExchangeRate) : "");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const inp = "w-full bg-neutral-950 text-white text-sm placeholder-neutral-600 border border-neutral-800 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors";
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/invoices/${invoice.id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientAddress,
+          clientCity,
+          taxExchangeRate: taxExchangeRate ? parseFloat(taxExchangeRate) : null,
+        }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Eroare server.");
+      onSaved({ ...invoice, clientAddress: clientAddress || null, clientCity: clientCity || null, taxExchangeRate: taxExchangeRate ? parseFloat(taxExchangeRate) : null });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Eroare necunoscută.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4" onClick={onClose}>
+      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-white text-base font-semibold">✏️ Editează factură</h2>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-lg">✕</button>
+        </div>
+        <div className="text-xs text-neutral-500 mb-4 font-mono">{invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`} · {invoice.clientName}</div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Adresă (stradă)</label>
+            <input className={inp} value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Str. Exemplu nr. 1" />
+          </div>
+          <div>
+            <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Oraș</label>
+            <input className={inp} value={clientCity} onChange={(e) => setClientCity(e.target.value)} placeholder="Cluj-Napoca" />
+          </div>
+          {invoice.currency !== "RON" && (
+            <div>
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Curs BNR {invoice.currency}/RON <span className="text-amber-500">*</span></label>
+              <input className={inp} value={taxExchangeRate} onChange={(e) => setTaxExchangeRate(e.target.value)} placeholder="ex: 5.2000" type="number" step="0.0001" min="0" />
+              <p className="text-neutral-600 text-[10px] mt-1">Necesar pentru e-Factura CIUS-RO. Verifică cursul BNR de la data facturii.</p>
+            </div>
+          )}
+        </div>
+
+        {error && <p className="mt-3 text-red-400 text-xs">{error}</p>}
+
+        <button onClick={handleSave} disabled={saving}
+          className="mt-5 w-full py-2.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 text-sm font-medium hover:bg-amber-500/30 transition-colors disabled:opacity-50">
+          {saving ? "Se salvează..." : "Salvează modificările"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default FinancialPage;

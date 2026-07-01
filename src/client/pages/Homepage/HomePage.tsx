@@ -6,7 +6,7 @@ import SeoPageHead from "../../components/SEO/SeoPageHead";
 import Hero from "./Hero";
 import Philosophy from "./Philosophy";
 import Approach from "./Approach";
-import CTAPreview from "./CTAPreview/CTAPreview";
+// import CTAPreview from "./CTAPreview/CTAPreview";
 import FAQPage from "../Faq/FAQPage";
 import VideoPreview from "../Videos/VideoPreview";
 import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
@@ -57,7 +57,7 @@ const HomePage = () => {
       />
       <Navbar />
       <Hero />
-      <CTAPreview />
+      {/* <CTAPreview /> */}
       <AncaVisualsPromo />
       <VideoPreview
         src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FBucurestiNunta.mp4?alt=media&token=74d6a5b5-0906-45e1-950c-9632bba7889b"

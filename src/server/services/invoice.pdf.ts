@@ -37,6 +37,7 @@ export interface FiscalSettings {
 export interface InvoiceData {
   invoiceNumber: number;
   series: string;
+  invoiceRef?: string;
   date: string;
   type: "B2C" | "B2B";
   clientName: string;
@@ -82,7 +83,7 @@ export async function generateInvoicePDF({
   invoice: InvoiceData;
   fiscal: FiscalSettings;
 }): Promise<Buffer> {
-  const invoiceRef = `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
+  const invoiceRef = invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
 
   const itemRows = invoice.items
     .map(
