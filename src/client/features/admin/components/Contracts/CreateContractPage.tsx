@@ -217,7 +217,10 @@ const CreateContractPage: React.FC = () => {
   const [clientName, setClientName] = useState(fromEvent.clientFullName ?? "");
   const [clientPhone, setClientPhone] = useState(fromEvent.clientPhone ?? "");
   const [clientAddress, setClientAddress] = useState("");
+  const [clientCity, setClientCity] = useState("");
+  const [clientCounty, setClientCounty] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
+  const [clientCNP, setClientCNP] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
 
   // Calculated totals (GRATUIT = 0, missing = 0 but will be validated)
@@ -274,7 +277,7 @@ const CreateContractPage: React.FC = () => {
           services, customServices,
           currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
           transportKm, transportFuelPrice,
-          clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
+          clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, clientCNP, privateClient,
           selectedBankProfileId,
         }));
       } catch { /* quota exceeded, ignore */ }
@@ -285,7 +288,7 @@ const CreateContractPage: React.FC = () => {
     services, customServices,
     currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
     transportKm, transportFuelPrice,
-    clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
+    clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, clientCNP, privateClient,
     selectedBankProfileId,
   ]);
 
@@ -435,6 +438,8 @@ const CreateContractPage: React.FC = () => {
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
         clientAddress: clientAddress.trim(),
+        clientCity: clientCity.trim(),
+        clientCounty: clientCounty.trim(),
         clientIdSeries: clientIdSeries.trim(),
         privateClient,
         transportKm: transportKm || "",
@@ -896,7 +901,17 @@ const CreateContractPage: React.FC = () => {
               <div>
                 <Label>Adresă</Label>
                 <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
-                  placeholder="Str. Exemplu nr. 1, Cluj" className={inp} />
+                  placeholder="Str. Exemplu nr. 1" className={inp} />
+              </div>
+              <div>
+                <Label>Oraș</Label>
+                <input type="text" value={clientCity} onChange={(e) => setClientCity(e.target.value)}
+                  placeholder="Cluj-Napoca" className={inp} />
+              </div>
+              <div>
+                <Label>Județ</Label>
+                <input type="text" value={clientCounty} onChange={(e) => setClientCounty(e.target.value)}
+                  placeholder="Cluj" className={inp} />
               </div>
               <div>
                 <Label>Serie buletin</Label>

@@ -7,8 +7,9 @@ import { requireFirebaseAuth, requireSupremeAdmin } from '../middleware/requireF
 const SUPREME_ADMIN_EMAIL = 'ancadaniel1994@gmail.com';
 import {
   BUNNY_ACCESS_KEY_HEADER,
+  BUNNY_QR_MOMENT_FOLDER,
   buildBunnyStorageUrl,
-  getBunnyStoragePassword,
+  getBunnyStorageKey,
 } from '../constants/bunny';
 import { sendEmail } from '../notifications/mailer';
 import { APP_BASE_URL } from '../constants/domain';
@@ -104,13 +105,19 @@ function getUploadDeadline(eventDate: Date): Date {
   return deadline;
 }
 
-function buildBunnyCdnUrl(eventSlug: string, guestId: string, fileName: string): string {
+function buildBunnyCdnUrl(albumSlug: string, guestId: string, fileName: string): string {
   const cdnDomain = process.env.BUNNY_CDN_DOMAIN ?? '';
-  return `${cdnDomain}/qr-moments/${eventSlug}/${guestId}/${fileName}`;
+  return `${cdnDomain}/${albumSlug}/${BUNNY_QR_MOMENT_FOLDER}/${guestId}/${fileName}`;
 }
 
-function buildBunnyUploadUrl(eventSlug: string, guestId: string, fileName: string): string {
-  return buildBunnyStorageUrl('qr-moments', eventSlug, guestId, fileName);
+function buildBunnyUploadUrl(albumSlug: string, guestId: string, fileName: string): string {
+  return buildBunnyStorageUrl(albumSlug, BUNNY_QR_MOMENT_FOLDER, guestId, fileName);
+}
+
+async function fetchAlbumSlug(adminEventId: string | null | undefined): Promise<string | null> {
+  if (!adminEventId) return null;
+  const adminEventDoc = await firestore().collection('adminEvents').doc(adminEventId).get();
+  return (adminEventDoc.data()?.albumSlug as string | undefined) ?? null;
 }
 
 function detectMediaType(mimeType: string, originalName: string): 'photo' | 'video' | 'audio' {
@@ -419,7 +426,7 @@ router.post(
       return;
     }
 
-    const accessKey = getBunnyStoragePassword();
+    const accessKey = getBunnyStorageKey();
     if (!accessKey) {
       response.status(500).json({ error: 'Configurare server eronată.' });
       return;
@@ -468,10 +475,18 @@ router.post(
         return;
       }
 
+      const adminEventId = eventDoc.data()!.adminEventId as string | null | undefined;
+      const albumSlug = await fetchAlbumSlug(adminEventId);
+      if (!albumSlug) {
+        console.error(`[qr-moments] upload: albumSlug lipsă pentru evenimentul ${eventSlug} (adminEventId=${adminEventId})`);
+        response.status(500).json({ error: 'Evenimentul nu are un album Bunny asociat. Setează albumSlug în adminEvents.' });
+        return;
+      }
+
       const uploadResults = await Promise.all(
         files.map(async (file) => {
           const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          const storageUrl = buildBunnyUploadUrl(eventSlug, guestId, uniqueName);
+          const storageUrl = buildBunnyUploadUrl(albumSlug, guestId, uniqueName);
 
           const uploadResponse = await fetch(storageUrl, {
             method: 'PUT',
@@ -489,11 +504,12 @@ router.post(
           }
 
           const mediaType = detectMediaType(file.mimetype, file.originalname);
-          const cdnUrl = buildBunnyCdnUrl(eventSlug, guestId, uniqueName);
+          const cdnUrl = buildBunnyCdnUrl(albumSlug, guestId, uniqueName);
 
           const uploadDoc = await firestore().collection(QR_UPLOADS).add({
             eventSlug,
             guestId,
+            albumSlug,
             type: mediaType,
             bunnyUrl: cdnUrl,
             fileName: uniqueName,
@@ -1249,8 +1265,11 @@ router.delete('/admin/upload/:uploadId', requireFirebaseAuth, requireSupremeAdmi
     }
 
     const data = uploadDoc.data()!;
-    const accessKey = getBunnyStoragePassword();
-    const storageUrl = buildBunnyUploadUrl(data.eventSlug as string, data.guestId as string, data.fileName as string);
+    const accessKey = getBunnyStorageKey();
+    const storedAlbumSlug = data.albumSlug as string | undefined;
+    const storageUrl = storedAlbumSlug
+      ? buildBunnyUploadUrl(storedAlbumSlug, data.guestId as string, data.fileName as string)
+      : buildBunnyStorageUrl('qr-moments', data.eventSlug as string, data.guestId as string, data.fileName as string);
 
     await fetch(storageUrl, {
       method: 'DELETE',

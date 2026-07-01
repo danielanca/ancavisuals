@@ -43,6 +43,8 @@ const ContractSignPage: React.FC = () => {
   const [dataSaved, setDataSaved] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [gdprAccepted, setGdprAccepted] = useState(false);
+  const [backupAcknowledged, setBackupAcknowledged] = useState(false);
+  const [backupDetailsOpen, setBackupDetailsOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -154,6 +156,7 @@ const ContractSignPage: React.FC = () => {
     if (!hasSignature.current) errors.signature = "Semnătura este obligatorie.";
     if (!agreed) errors.agreed = "Trebuie să fiți de acord cu contractul.";
     if (!gdprAccepted) errors.gdpr = "Acordul GDPR este obligatoriu.";
+    if (!backupAcknowledged) errors.backup = "Trebuie să confirmați că ați luat la cunoștință obligația de back-up.";
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -465,6 +468,67 @@ const ContractSignPage: React.FC = () => {
             </label>
           </div>
           {fieldErrors.agreed && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.agreed}</p>}
+
+          {/* NOTA BACKUP */}
+          <div style={{ padding: "16px 28px 8px" }}>
+            <div style={{ background: "#fffbf0", border: "1.5px solid #e8c840", borderRadius: 8, padding: "16px 18px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>⚠️</span>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: "#1a1a1a", marginBottom: 5 }}>
+                    Important: salvați-vă materialele după primire!
+                  </p>
+                  <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>
+                    Vă predăm pozele și videoclipurile pe link online sau pe stick USB. <strong>După ce le primiți, trebuie să le copiați și pe un dispozitiv al vostru</strong> (calculator, hard disk extern, stick propriu etc.) — noi nu putem garanta că fișierele vor rămâne disponibile oricând în viitor.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setBackupDetailsOpen(!backupDetailsOpen)}
+                style={{ fontSize: 12, color: "#c9a96e", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", letterSpacing: 0.3 }}
+              >
+                {backupDetailsOpen ? "Ascunde detalii ▲" : "Detalii aici ▼"}
+              </button>
+
+              {backupDetailsOpen && (
+                <div style={{ marginTop: 12, padding: "14px 16px", background: "#fff", borderRadius: 6, border: "1px solid #f0e8c0", fontSize: 13, color: "#444", lineHeight: 1.7 }}>
+                  <p style={{ fontWeight: 700, marginBottom: 10, color: "#1a1a1a" }}>Pe înțelesul tuturor — ce trebuie să faceți:</p>
+
+                  <p style={{ marginBottom: 6 }}><strong>Unde primiți materialele de la noi:</strong><br />
+                  Pe un link online (trimis pe email sau WhatsApp) sau direct pe un stick USB. Linkul online poate expira după un timp — deci nu vă bazați că va fi acolo mereu.</p>
+
+                  <p style={{ marginBottom: 6 }}><strong>Ce înseamnă să faceți o copie de rezervă:</strong><br />
+                  Să descărcați pozele și videoclipurile și să le salvați undeva al vostru, separat de linkul de unde le-ați primit. De exemplu:</p>
+                  <ul style={{ margin: "4px 0 10px 20px" }}>
+                    <li>Pe <strong>calculatorul sau laptop-ul de acasă</strong></li>
+                    <li>Pe un <strong>hard disk extern</strong> (se găsesc în orice magazin de electronice, de la ~150–200 lei)</li>
+                    <li>Pe un <strong>stick USB propriu</strong> <span style={{ color: "#e57c00", fontWeight: 600 }}>— atenție:</span> stick-urile USB durează în medie <strong>5–10 ani</strong> și se pot defecta oricând, fără avertisment. Un stick vechi sau căzut poate să nu mai citească nimic de pe el. Nu vă bazați <em>doar</em> pe stick.</li>
+                    <li>Pe <strong>Google Photos</strong> sau <strong>iCloud</strong> — sunt servicii gratuite prin care vă puteți salva pozele și videoclipurile pe internet, accesibile oricând de pe telefon sau calculator (le găsiți deja instalate sau le descărcați gratuit)</li>
+                  </ul>
+
+                  <p style={{ color: "#c9a96e", fontWeight: 700, marginBottom: 4 }}>Recomandarea noastră:</p>
+                  <p style={{ marginBottom: 8 }}>Salvați în cel puțin <strong>2 locuri diferite</strong>. De exemplu, pe calculator ȘI pe Google Photos. Dacă un dispozitiv se strică, aveți copia în celălalt loc.</p>
+
+                  <p style={{ color: "#999", fontSize: 12, borderTop: "1px solid #f0e8c0", paddingTop: 10, marginTop: 4 }}>
+                    Pozele de la eveniment nu pot fi refăcute. Tratați-le ca pe niște amintiri de neînlocuit și asigurați-vă că le puneți în siguranță imediat după ce le primiți.
+                  </p>
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 14 }}>
+                <input type="checkbox" id="backup" checked={backupAcknowledged}
+                  onChange={(e) => setBackupAcknowledged(e.target.checked)}
+                  style={{ width: 16, height: 16, marginTop: 2, cursor: "pointer", accentColor: "#c9a96e", flexShrink: 0 }} />
+                <label htmlFor="backup" style={{ fontSize: 13, color: "#444", lineHeight: 1.5, cursor: "pointer" }}>
+                  Am înțeles că, după primirea materialelor (poze și/sau videoclipuri), este responsabilitatea mea să le copiez și pe un dispozitiv propriu. Anca Visuals nu răspunde pentru pierderea sau indisponibilitatea fișierelor după predarea lor.
+                </label>
+              </div>
+              {fieldErrors.backup && <p style={{ ...pg.errText, marginTop: 6 }}>{fieldErrors.backup}</p>}
+            </div>
+          </div>
+
           {fieldErrors.submit && <p style={{ ...pg.errText, textAlign: "center", padding: "0 28px 12px" }}>{fieldErrors.submit}</p>}
 
           <div style={{ padding: "8px 28px 32px" }}>

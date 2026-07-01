@@ -28,6 +28,7 @@ const LABELS: Record<string, string> = {
   oferte: "Oferte",
   "media-assets": "Media Assets",
   showcase: "Zone Showcase",
+  settings: "Setări firmă",
 };
 
 export default function Breadcrumb() {

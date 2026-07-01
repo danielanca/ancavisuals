@@ -73,17 +73,22 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, r
 
 // POST / — create invoice
 router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
-  const { date, type, clientName, clientAddress, clientCIF, items, totalAmount, currency, notes, eventId } = req.body as {
+  const { date, dueDate, type, clientName, clientAddress, clientCity, clientCounty, clientCIF, items, totalAmount, currency, notes, eventId, eventDate, taxExchangeRate } = req.body as {
     date: string;
+    dueDate?: string;
     type: "B2C" | "B2B";
     clientName: string;
     clientAddress?: string;
+    clientCity?: string;
+    clientCounty?: string;
     clientCIF?: string;
     items: InvoiceItem[];
     totalAmount: number;
     currency?: string;
     notes?: string;
     eventId?: string;
+    eventDate?: string;
+    taxExchangeRate?: number;
   };
 
   if (!date || !type || !clientName || !items?.length || totalAmount == null) {
@@ -108,27 +113,62 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       .count()
       .get();
     const invoiceNumber = (countSnapshot.data().count ?? 0) + 1;
+    const MONTHS_RO = ["ianuarie","februarie","martie","aprilie","mai","iunie","iulie","august","septembrie","octombrie","noiembrie","decembrie"];
+    const formattedEventDate = eventDate ? (() => {
+      const [year, month, day] = eventDate.split("-");
+      return `${parseInt(day)}${MONTHS_RO[parseInt(month) - 1]}${year}`;
+    })() : null;
+    const invoiceRef = formattedEventDate
+      ? `${series}-${String(invoiceNumber).padStart(4, "0")}-${formattedEventDate}`
+      : `${series}-${String(invoiceNumber).padStart(4, "0")}`;
 
     const docRef = await db.collection(COLLECTION).add({
       invoiceNumber,
       series,
+      invoiceRef,
       year: invoiceYear,
       date: Timestamp.fromDate(new Date(date)),
       type,
       clientName,
       clientAddress: clientAddress ?? null,
+      clientCity: clientCity ?? null,
+      clientCounty: clientCounty ?? null,
       clientCIF: clientCIF ?? null,
       items,
       totalAmount: Number(totalAmount),
       currency: currency ?? "RON",
       notes: notes ?? null,
       eventId: eventId ?? null,
+      eventDate: eventDate ?? null,
+      dueDate: dueDate ?? null,
+      taxExchangeRate: taxExchangeRate ?? null,
       createdAt: Timestamp.now(),
     });
 
-    res.status(201).json({ id: docRef.id, invoiceNumber, series });
+    res.status(201).json({ id: docRef.id, invoiceNumber, series, invoiceRef });
   } catch (error) {
     console.error("[invoices] POST / failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// PATCH /:id — actualizează câmpuri editabile pe o factură existentă
+router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const { clientAddress, clientCity, taxExchangeRate } = req.body as {
+      clientAddress?: string;
+      clientCity?: string;
+      taxExchangeRate?: number | null;
+    };
+    const update: Record<string, unknown> = {};
+    if (clientAddress !== undefined) update.clientAddress = clientAddress.trim();
+    if (clientCity !== undefined) update.clientCity = clientCity.trim();
+    if (taxExchangeRate !== undefined) update.taxExchangeRate = taxExchangeRate ?? null;
+    if (Object.keys(update).length === 0) { res.status(400).json({ error: "Nimic de actualizat." }); return; }
+    await db.collection(COLLECTION).doc(req.params.id).update(update);
+    res.json({ ok: true });
+  } catch (error) {
     res.status(500).json({ error: String(error) });
   }
 });
@@ -178,6 +218,7 @@ router.get("/:id/pdf", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
     const invoice: InvoiceData = {
       invoiceNumber: data.invoiceNumber as number,
       series: data.series as string,
+      invoiceRef: data.invoiceRef as string | undefined,
       date: (data.date as Timestamp).toDate().toISOString(),
       type: data.type as "B2C" | "B2B",
       clientName: data.clientName as string,
@@ -191,7 +232,7 @@ router.get("/:id/pdf", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
 
     const fiscal = fiscalDoc.exists ? fiscalDoc.data()! : {};
     const pdfBuffer = await generateInvoicePDF({ invoice, fiscal });
-    const invoiceRef = `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
+    const invoiceRef = invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
 
     res.set({
       "Content-Type": "application/pdf",
@@ -218,22 +259,26 @@ router.get("/:id/xml", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
     const fiscal = fiscalDoc.exists ? fiscalDoc.data()! : {};
     const invoiceDate = (data.date as Timestamp).toDate().toISOString().slice(0, 10);
     const dueDate = data.dueDate ? String(data.dueDate) : invoiceDate;
-    const invoiceRef = `${data.series}-${String(data.invoiceNumber).padStart(4, "0")}`;
+    const invoiceRef = (data.invoiceRef as string | undefined) ?? `${data.series}-${String(data.invoiceNumber).padStart(4, "0")}`;
 
     const efData: EFacturaData = {
       issuerName:       String(fiscal.ownerName ?? ""),
       issuerCIF:        String(fiscal.cif ?? ""),
       issuerAddress:    String(fiscal.address ?? ""),
-      issuerCity:       "",
-      issuerCounty:     "",
-      issuerPostalCode: "",
+      issuerCity:       String(fiscal.city ?? ""),
+      issuerCounty:     String(fiscal.county ?? ""),
+      issuerPostalCode: String(fiscal.postalCode ?? ""),
       issuerIBAN:       String(fiscal.iban ?? ""),
       buyerName:        String(data.clientName ?? ""),
       buyerCIF:         data.clientCIF ? String(data.clientCIF) : "",
+      buyerAddress:     data.clientAddress ? String(data.clientAddress) : undefined,
+      buyerCity:        data.clientCity ? String(data.clientCity) : undefined,
+      buyerCounty:      data.clientCounty ? String(data.clientCounty) : undefined,
       invoiceNumber:    invoiceRef,
       invoiceDate,
       dueDate,
       currency:         String(data.currency ?? "RON"),
+      taxExchangeRate:  data.taxExchangeRate ? Number(data.taxExchangeRate) : undefined,
       description:      (data.items as InvoiceItem[])?.[0]?.description ?? "Servicii",
       amount:           Number(data.totalAmount ?? 0),
     };

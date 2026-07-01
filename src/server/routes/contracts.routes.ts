@@ -94,6 +94,8 @@ router.post("/", async (req: Request, res: Response) => {
       clientName: body.clientName?.trim() ?? "",
       clientPhone: body.clientPhone?.trim() ?? "",
       clientAddress: body.clientAddress?.trim() ?? "",
+      clientCity: body.clientCity?.trim() ?? "",
+      clientCounty: body.clientCounty?.trim() ?? "",
       clientIdSeries: body.clientIdSeries?.trim() ?? "",
 
       bankBeneficiaryName: body.bankBeneficiaryName?.trim() ?? "",
@@ -395,6 +397,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
       clientName: body.clientName?.trim() ?? "",
       clientPhone: body.clientPhone?.trim() ?? "",
       clientAddress: body.clientAddress?.trim() ?? "",
+      clientCity: body.clientCity?.trim() ?? "",
+      clientCounty: body.clientCounty?.trim() ?? "",
       clientIdSeries: body.clientIdSeries?.trim() ?? "",
       noAdvance: body.noAdvance === true,
       privateClient: body.privateClient === true,

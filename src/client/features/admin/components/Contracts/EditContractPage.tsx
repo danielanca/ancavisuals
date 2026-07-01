@@ -173,6 +173,8 @@ const EditContractPage: React.FC = () => {
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientAddress, setClientAddress] = useState("");
+  const [clientCity, setClientCity] = useState("");
+  const [clientCounty, setClientCounty] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
   const [fiscalized, setFiscalized] = useState(false);
@@ -232,6 +234,8 @@ const EditContractPage: React.FC = () => {
         setClientName(data.clientName ?? "");
         setClientPhone(data.clientPhone ?? "");
         setClientAddress(data.clientAddress ?? "");
+        setClientCity(data.clientCity ?? "");
+        setClientCounty(data.clientCounty ?? "");
         setClientIdSeries(data.clientIdSeries ?? "");
         setNoAdvance(data.noAdvance === true);
         setPrivateClient(data.privateClient === true);
@@ -324,7 +328,7 @@ const EditContractPage: React.FC = () => {
         bankBeneficiaryName: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.beneficiaryName ?? "") : "",
         bankIban: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.iban ?? "") : "",
         fiscalized,
-        clientEmail, clientName, clientPhone, clientAddress, clientIdSeries, privateClient,
+        clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || DEFAULT_TRANSPORT_FUEL_PRICE,
       };
@@ -661,7 +665,17 @@ const EditContractPage: React.FC = () => {
               <div>
                 <Label>Adresă</Label>
                 <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
-                  placeholder="Str. Florilor nr. 1, Cluj" className={inp} />
+                  placeholder="Str. Florilor nr. 1" className={inp} />
+              </div>
+              <div>
+                <Label>Oraș</Label>
+                <input type="text" value={clientCity} onChange={(e) => setClientCity(e.target.value)}
+                  placeholder="Cluj-Napoca" className={inp} />
+              </div>
+              <div>
+                <Label>Județ</Label>
+                <input type="text" value={clientCounty} onChange={(e) => setClientCounty(e.target.value)}
+                  placeholder="Cluj" className={inp} />
               </div>
               <div>
                 <Label>Serie buletin</Label>

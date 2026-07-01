@@ -263,7 +263,16 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       })(),
     },
 
-    // ── 10. Force majeure ────────────────────────────────────────────────────
+    // ── 10. Client backup responsibility ────────────────────────────────────
+    {
+      title: "Responsabilitatea beneficiarului privind stocarea materialelor",
+      body: `
+        <p>BENEFICIARUL este responsabil de efectuarea unui <span class="bold">back-up</span> (copie de rezervă a fișierelor, stocată pe un dispozitiv propriu sau pe un serviciu de stocare în cloud) al tuturor materialelor — fotografii și/sau materiale video — primite de la PRESTATOR.</p>
+        <p>PRESTATORUL nu poate fi tras la răspundere pentru pierderea, deteriorarea sau indisponibilitatea materialelor după livrarea acestora, indiferent de cauza producerii acestora, inclusiv ca urmare a trecerii timpului, defecțiunilor tehnice sau expirării platformei de livrare.</p>
+      `,
+    },
+
+    // ── 11. Force majeure ────────────────────────────────────────────────────
     {
       title: "Forța majoră",
       body: `<p>Forța majoră apără de răspundere partea care o invocă în scris, în termen de 5 zile de la data producerii acesteia. Prin caz de forță majoră se înțeleg împrejurările neprevăzute și inevitabile pentru una dintre părți, incluzând dar nelimitându-se la: accident, rănire, boală, incendiu, furt, urgență familială (rudele de gradul întâi și doi) sau orice alt act sau situație dincolo de controlul părților, recunoscut de lege ca fiind un caz de forță majoră.</p>`,

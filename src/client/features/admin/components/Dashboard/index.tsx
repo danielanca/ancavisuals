@@ -39,23 +39,26 @@ const SEARCH_ITEMS: SearchItem[] = [
   // Evenimente
   { label: "Progres Evenimente", path: "/admin/progress", category: "Evenimente", icon: "📋", keywords: "progres editare livrare fotografiere etape status" },
   // Financiar
-  { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", icon: "💰", keywords: "bani venituri cheltuieli profit" },
+  { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", icon: "💰", keywords: "bani venituri cheltuieli profit facturi cheltuieli invoices expenses" },
   { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar", icon: "🏦", keywords: "extras cont tranzactii" },
   { label: "Detalii bancare", path: "/admin/bank-details", category: "Financiar", icon: "💳", keywords: "iban cont bancar" },
-  { label: "Facturi", path: "/admin/invoices", category: "Financiar", icon: "🧾", keywords: "factura emitere fiscalizat" },
-  { label: "Cheltuieli", path: "/admin/expenses", category: "Financiar", icon: "🧮", keywords: "cheltuiala cost echipament" },
   // Marketing & Web
   { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web", icon: "✨", keywords: "moodboard idei stil" },
   { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web", icon: "📈", keywords: "vizitatori trafic statistici seo" },
   { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", icon: "🖥️", keywords: "banner reclama footer homepage" },
-  { label: "Landing Page", path: "/admin/landing", category: "Marketing & Web", icon: "🌐", keywords: "landing pagina principala cms" },
-  { label: "SEO Generator", path: "/admin/seo", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },
+  { label: "SEO Generator", path: "/admin/seo-generator", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },
+  { label: "Campanii", path: "/admin/campanii", category: "Marketing & Web", icon: "📣", keywords: "campanie marketing email newsletter" },
+  { label: "Propuneri Venue", path: "/admin/venue-outreach", category: "Marketing & Web", icon: "🏛️", keywords: "locatie salon partener" },
+  { label: "Colecții foto", path: "/admin/colectii", category: "Media", icon: "🗃️", keywords: "colectie galerie foto organizare" },
+  { label: "Propuneri Swipe", path: "/admin/swipe-proposals", category: "Media", icon: "👆", keywords: "swipe propuneri selectie" },
   // Sistem & Conturi
+  { label: "Setări firmă", path: "/admin/settings", category: "Sistem", icon: "⚙️", keywords: "setari firma pfa cif iban adresa facturare serie fiscal date emitent" },
   { label: "Conturi", path: "/admin/accounts", category: "Sistem", icon: "👥", keywords: "utilizatori acces cont admin" },
+  { label: "Contacte", path: "/admin/contacte", category: "Sistem", icon: "📇", keywords: "contacte clienti leads crm" },
+  { label: "Echipamente", path: "/admin/echipamente", category: "Sistem", icon: "🎛️", keywords: "echipamente camera obiectiv gear" },
   { label: "Wedding Hub", path: "/admin/wedding-hub", category: "Sistem", icon: "💍", keywords: "nunta invitati rsvp plan mese" },
   { label: "Erori server", path: "/admin/errors", category: "Sistem", icon: "🐛", keywords: "logs erori bugs debug" },
-  { label: "Health Tracker", path: "/admin/health", category: "Sistem", icon: "❤️", keywords: "sanatate greutate pasi mancare calorii" },
-  { label: "Propuneri Venue", path: "/admin/venue-outreach", category: "Marketing & Web", icon: "🏛️", keywords: "locatie salon partener" },
+  { label: "Health Tracker", path: "/admin/sanatate", category: "Sistem", icon: "❤️", keywords: "sanatate greutate pasi mancare calorii health" },
 ];
 
 const RECENTS_KEY = "dash_search_recents";
@@ -66,38 +69,85 @@ function norm(str: string): string {
   return str.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-function scoreItem(item: SearchItem, q: string): number {
-  const nq = norm(q);
-  const nl = norm(item.label);
-  const ncat = norm(item.category);
-  const nkw = norm(item.keywords ?? "");
-  const words = nl.split(/\s+/);
-
-  if (nl === nq) return 100;
-  if (nl.startsWith(nq)) return 90;
-  if (words.some((w) => w.startsWith(nq))) return 75;
-  if (nl.includes(nq)) return 60;
-  if (ncat.includes(nq)) return 40;
-  if (nkw.split(/\s+/).some((w) => w.startsWith(nq))) return 35;
-  if (nkw.includes(nq)) return 25;
-
-  // Fuzzy: allow 1 char off for queries >= 3 chars
-  if (nq.length >= 3) {
-    const allWords = [...nl.split(/\s+/), ...nkw.split(/\s+/)];
-    for (const word of allWords) {
-      if (Math.abs(word.length - nq.length) <= 1) {
-        let diffs = 0;
-        const shorter = nq.length <= word.length ? nq : word;
-        const longer = nq.length <= word.length ? word : nq;
-        for (let i = 0; i < shorter.length; i++) {
-          if (shorter[i] !== longer[i]) diffs++;
-          if (diffs > 1) break;
-        }
-        if (diffs <= 1) return 15;
-      }
+function levenshtein(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      matrix[i][j] = b[i - 1] === a[j - 1]
+        ? matrix[i - 1][j - 1]
+        : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
     }
   }
+  return matrix[b.length][a.length];
+}
+
+function scoreToken(token: string, targetWords: string[], fullText: string): number {
+  if (!token) return 0;
+
+  // Exact word match
+  if (targetWords.includes(token)) return 100;
+  // Word starts with token
+  if (targetWords.some((w) => w.startsWith(token))) return 80;
+  // Full text contains token as substring
+  if (fullText.includes(token)) return 60;
+
+  // Fuzzy match on individual words (only for tokens >= 3 chars)
+  if (token.length >= 3) {
+    let best = 0;
+    for (const word of targetWords) {
+      if (Math.abs(word.length - token.length) > 2) continue;
+      const dist = levenshtein(token, word);
+      // Allow 1 typo for short tokens, 2 for longer ones
+      const maxDist = token.length <= 4 ? 1 : 2;
+      if (dist <= maxDist) {
+        best = Math.max(best, 40 - dist * 10);
+      }
+    }
+    return best;
+  }
+
   return 0;
+}
+
+function scoreItem(item: SearchItem, q: string): number {
+  const query = norm(q.trim());
+  if (!query) return 0;
+
+  const labelNorm  = norm(item.label);
+  const catNorm    = norm(item.category);
+  const kwNorm     = norm(item.keywords ?? "");
+
+  // Exact full label match
+  if (labelNorm === query) return 200;
+
+  // Build combined text and word lists per field
+  const labelWords = labelNorm.split(/\s+/);
+  const catWords   = catNorm.split(/\s+/);
+  const kwWords    = kwNorm.split(/\s+/);
+
+  // Split query into tokens and score each
+  const tokens = query.split(/\s+/).filter(Boolean);
+
+  let totalScore = 0;
+  let allMatched = true;
+
+  for (const token of tokens) {
+    const labelScore = scoreToken(token, labelWords, labelNorm);
+    const catScore   = scoreToken(token, catWords, catNorm) * 0.5;
+    const kwScore    = scoreToken(token, kwWords, kwNorm) * 0.4;
+    const tokenBest  = Math.max(labelScore, catScore, kwScore);
+
+    if (tokenBest === 0) allMatched = false;
+    totalScore += tokenBest;
+  }
+
+  if (!allMatched) totalScore = Math.floor(totalScore * 0.3);
+
+  return Math.round(totalScore / tokens.length);
 }
 
 function HighlightMatch({ text, query }: { text: string; query: string }) {
