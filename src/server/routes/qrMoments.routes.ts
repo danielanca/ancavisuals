@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
+import heicConvert from 'heic-convert';
+import sharp from 'sharp';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { firestore } from '../firestore';
@@ -120,13 +122,50 @@ async function fetchAlbumSlug(adminEventId: string | null | undefined): Promise<
   return (adminEventDoc.data()?.albumSlug as string | undefined) ?? null;
 }
 
-function detectMediaType(mimeType: string, originalName: string): 'photo' | 'video' | 'audio' {
+export function detectMediaType(mimeType: string, originalName: string): 'photo' | 'video' | 'audio' {
   const ext = originalName.toLowerCase().split('.').pop() ?? '';
   const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff'];
   const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'hevc', 'm4v', '3gp', 'ts'];
+  // Check the audio mimeType prefix first: some browsers (Firefox, some Android
+  // devices) record voice messages as audio/webm, and .webm is also a valid video
+  // extension — without this, those recordings were misclassified as video.
+  if (mimeType.startsWith('audio/')) return 'audio';
   if (mimeType.startsWith('image/') || IMAGE_EXTS.includes(ext)) return 'photo';
-  if (mimeType.startsWith('video/') || mimeType === 'application/octet-stream' && VIDEO_EXTS.includes(ext) || VIDEO_EXTS.includes(ext)) return 'video';
+  if (mimeType.startsWith('video/') || (mimeType === 'application/octet-stream' && VIDEO_EXTS.includes(ext)) || VIDEO_EXTS.includes(ext)) return 'video';
   return 'audio';
+}
+
+// HEIC/HEIF (default format on iPhone cameras, incl. Live Photos' still frame) isn't
+// renderable in most browsers/gallery viewers — convert to JPEG on the way in so
+// every guest upload displays correctly for the couple, regardless of source device.
+export async function convertHeicIfNeeded(
+  buffer: Buffer,
+  mimeType: string,
+  originalName: string,
+): Promise<{ buffer: Buffer; mimeType: string; originalName: string }> {
+  const ext = originalName.toLowerCase().split('.').pop() ?? '';
+  const isHeic = mimeType.toLowerCase() === 'image/heic' || mimeType.toLowerCase() === 'image/heif' || ext === 'heic' || ext === 'heif';
+  if (!isHeic) return { buffer, mimeType, originalName };
+
+  const jpegName = originalName.replace(/\.(heic|heif)$/i, '.jpg');
+  const inputArrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+
+  try {
+    const converted = Buffer.from(await heicConvert({ buffer: inputArrayBuffer, format: 'JPEG', quality: 0.9 }));
+    if (converted.length > 0) {
+      return { buffer: converted, mimeType: 'image/jpeg', originalName: jpegName };
+    }
+  } catch (error) {
+    console.warn('[qr-moments] HEIC convert via heic-convert failed, retrying with sharp:', error);
+  }
+
+  try {
+    const sharpConverted = await sharp(buffer).jpeg({ quality: 90 }).toBuffer();
+    return { buffer: sharpConverted, mimeType: 'image/jpeg', originalName: jpegName };
+  } catch (error) {
+    console.warn('[qr-moments] HEIC convert via sharp also failed, uploading original HEIC:', error);
+    return { buffer, mimeType, originalName };
+  }
 }
 
 function buildUnsubscribeUrl(guestId: string): string {
@@ -182,10 +221,16 @@ async function sendViewNotificationEmail(
   const thumbnailHtml = thumbnailUrl
     ? `<img src="${thumbnailUrl}" alt="Fișierul tău" style="display:block;max-width:280px;width:100%;border-radius:12px;border:1px solid #eadfce;margin:12px 0;">`
     : '';
+  const viewedAt = new Date().toLocaleTimeString('ro-RO', {
+    timeZone: 'Europe/Bucharest',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 
   await sendEmail({
     to: guestEmail,
-    subject: `👀 ${hostDisplayName} a văzut ce ai trimis!`,
+    subject: `👀 ${hostDisplayName} a văzut ce ai trimis! · ${viewedAt}`,
     html: `
       <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
         <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
@@ -256,13 +301,28 @@ async function sendCommentNotification(
   });
 }
 
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
+}
+
+function describeUploadCounts(typeCounts: { photo: number; video: number; audio: number }): string {
+  const parts: string[] = [];
+  if (typeCounts.photo > 0) parts.push(pluralize(typeCounts.photo, 'poză', 'poze'));
+  if (typeCounts.video > 0) parts.push(pluralize(typeCounts.video, 'videoclip', 'videoclipuri'));
+  if (typeCounts.audio > 0) parts.push(pluralize(typeCounts.audio, 'mesaj vocal', 'mesaje vocale'));
+
+  if (parts.length === 0) return 'un fișier nou';
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(', ')} și ${parts[parts.length - 1]}`;
+}
+
 async function sendUploadNotification(
   notificationEmail: string,
   eventSlug: string,
   guestName: string,
-  uploadedCount: number,
+  typeCounts: { photo: number; video: number; audio: number },
 ): Promise<void> {
-  const uploadLabel = uploadedCount === 1 ? 'un fișier nou' : `${uploadedCount} fișiere noi`;
+  const uploadLabel = describeUploadCounts(typeCounts);
   const galleryUrl = `${APP_BASE_URL}/qr-moments/${eventSlug}/gallery`;
 
   await sendEmail({
@@ -485,7 +545,8 @@ router.post(
 
       const uploadResults = await Promise.all(
         files.map(async (file) => {
-          const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const converted = await convertHeicIfNeeded(file.buffer, file.mimetype, file.originalname);
+          const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${converted.originalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
           const storageUrl = buildBunnyUploadUrl(albumSlug, guestId, uniqueName);
 
           const uploadResponse = await fetch(storageUrl, {
@@ -494,16 +555,16 @@ router.post(
               [BUNNY_ACCESS_KEY_HEADER]: accessKey,
               'Content-Type': 'application/octet-stream',
             },
-            body: new Uint8Array(file.buffer),
+            body: new Uint8Array(converted.buffer),
             signal: AbortSignal.timeout(60_000),
           });
 
           if (!uploadResponse.ok) {
             const bunnyBody = await uploadResponse.text().catch(() => '');
-            throw new Error(`Bunny upload eșuat pentru ${file.originalname}: ${uploadResponse.status} ${bunnyBody}`);
+            throw new Error(`Bunny upload eșuat pentru ${converted.originalName}: ${uploadResponse.status} ${bunnyBody}`);
           }
 
-          const mediaType = detectMediaType(file.mimetype, file.originalname);
+          const mediaType = detectMediaType(converted.mimeType, converted.originalName);
           const cdnUrl = buildBunnyCdnUrl(albumSlug, guestId, uniqueName);
 
           const uploadDoc = await firestore().collection(QR_UPLOADS).add({
@@ -513,30 +574,39 @@ router.post(
             type: mediaType,
             bunnyUrl: cdnUrl,
             fileName: uniqueName,
-            mimeType: file.mimetype,
-            originalName: file.originalname,
+            mimeType: converted.mimeType,
+            originalName: converted.originalName,
             visible: true,
             createdAt: Timestamp.now(),
           });
 
-          return uploadDoc.id;
+          return { id: uploadDoc.id, type: mediaType };
         }),
       );
+
+      const uploadIds = uploadResults.map((result) => result.id);
 
       await firestore()
         .collection(QR_GUESTS)
         .doc(guestId)
         .update({
-          uploadIds: (await firestore().collection(QR_GUESTS).doc(guestId).get()).data()?.uploadIds?.concat(uploadResults) ?? uploadResults,
+          uploadIds: (await firestore().collection(QR_GUESTS).doc(guestId).get()).data()?.uploadIds?.concat(uploadIds) ?? uploadIds,
         });
 
       const guestName = guestDoc.data()!.name as string;
       const notificationEmail = eventDoc.data()!.notificationEmail as string | undefined;
       if (notificationEmail) {
-        sendUploadNotification(notificationEmail, eventSlug, guestName, uploadResults.length).catch(() => {});
+        const typeCounts = uploadResults.reduce(
+          (counts, result) => {
+            counts[result.type] += 1;
+            return counts;
+          },
+          { photo: 0, video: 0, audio: 0 },
+        );
+        sendUploadNotification(notificationEmail, eventSlug, guestName, typeCounts).catch(() => {});
       }
 
-      response.status(201).json({ uploadedCount: uploadResults.length, uploadIds: uploadResults });
+      response.status(201).json({ uploadedCount: uploadResults.length, uploadIds });
     } catch (uploadError) {
       console.error(`[qr-moments] upload failed for ${eventSlug}:`, uploadError);
       response.status(500).json({ error: 'Eroare la upload.' });

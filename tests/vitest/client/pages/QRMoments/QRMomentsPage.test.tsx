@@ -67,13 +67,44 @@ describe("QRMomentsPage", () => {
         json: async () => ({
           guestId: "guest-1",
         }),
-      })
-      .mockResolvedValueOnce({
-        json: async () => ({
-          uploadedCount: 1,
-        }),
       });
     vi.stubGlobal("fetch", fetchMock);
+
+    // The upload flow uses a raw XMLHttpRequest (for upload progress events), not
+    // fetch — jsdom's real XHR implementation attempts an actual network connection,
+    // so it needs a fake implementation here instead of a fetch mock.
+    class FakeUploadXHR {
+      static instances: FakeUploadXHR[] = [];
+      method = "";
+      url = "";
+      status = 201;
+      responseText = JSON.stringify({ uploadedCount: 1, uploadIds: ["upload-1"] });
+      timeout = 0;
+      readyState = 4;
+      upload = { onprogress: null as ((event: ProgressEvent) => void) | null };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      ontimeout: (() => void) | null = null;
+      body: FormData | null = null;
+      private headers: Record<string, string> = {};
+
+      open(method: string, url: string) {
+        this.method = method;
+        this.url = url;
+      }
+
+      setRequestHeader(key: string, value: string) {
+        this.headers[key] = value;
+      }
+
+      send(body: FormData) {
+        this.body = body;
+        FakeUploadXHR.instances.push(this);
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", FakeUploadXHR as unknown as typeof XMLHttpRequest);
 
     renderUploadPage();
 
@@ -114,7 +145,7 @@ describe("QRMomentsPage", () => {
           },
         });
         queueMicrotask(() => {
-          input.onchange?.({ target: input } as unknown as Event);
+          input.dispatchEvent(new Event("change"));
         });
         return input;
       }
@@ -125,21 +156,118 @@ describe("QRMomentsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Trimite 1 fișier/i }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/qr-moments/27martie2028/upload",
-        expect.objectContaining({
-          method: "POST",
-          body: expect.any(FormData),
-        }),
-      );
+      expect(FakeUploadXHR.instances).toHaveLength(1);
     });
 
-    const uploadCall = fetchMock.mock.calls.find(([url]) => url === "/api/qr-moments/27martie2028/upload");
-    expect(uploadCall).toBeTruthy();
-    const uploadRequest = uploadCall?.[1] as { body: FormData };
-    expect(uploadRequest.body.get("guestId")).toBe("guest-1");
-    expect(uploadRequest.body.get("pass")).toBe("SECRET");
+    const uploadRequest = FakeUploadXHR.instances[0];
+    expect(uploadRequest.method).toBe("POST");
+    expect(uploadRequest.url).toBe("/api/qr-moments/27martie2028/upload");
+    expect(uploadRequest.body?.get("guestId")).toBe("guest-1");
+    expect(uploadRequest.body?.get("pass")).toBe("SECRET");
     expect(await screen.findByText(/Fișierele tale au ajuns la miri/i)).toBeInTheDocument();
+
+    createElementSpy.mockRestore();
+  });
+
+  test("keeps only the failed file selected for retry after a partial upload failure", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        json: async () => ({
+          bride: "Ana",
+          groom: "Dan",
+          isOpen: true,
+          deadline: "2028-03-28T01:00:00.000Z",
+        }),
+      })
+      .mockResolvedValueOnce({
+        json: async () => ({ guestId: "guest-1" }),
+      })
+      // Fallback for the client-error debug beacon fired on the failed upload.
+      .mockResolvedValue({ json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    // First file uploaded succeeds, second one fails — the app should upload each
+    // file as its own request (so one bad file never blocks the rest), keep only
+    // the failed file selected afterwards, and surface a partial-failure message.
+    class FakePartialFailureXHR {
+      static instances: FakePartialFailureXHR[] = [];
+      method = "";
+      url = "";
+      status = 201;
+      responseText = "";
+      timeout = 0;
+      readyState = 4;
+      upload = { onprogress: null as ((event: ProgressEvent) => void) | null };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      ontimeout: (() => void) | null = null;
+      body: FormData | null = null;
+
+      open(method: string, url: string) {
+        this.method = method;
+        this.url = url;
+      }
+
+      setRequestHeader() { /* no-op */ }
+
+      send(body: FormData) {
+        this.body = body;
+        const isFirstCall = FakePartialFailureXHR.instances.length === 0;
+        FakePartialFailureXHR.instances.push(this);
+        if (isFirstCall) {
+          this.responseText = JSON.stringify({ uploadedCount: 1, uploadIds: ["upload-1"] });
+          queueMicrotask(() => this.onload?.());
+        } else {
+          queueMicrotask(() => this.onerror?.());
+        }
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", FakePartialFailureXHR as unknown as typeof XMLHttpRequest);
+
+    renderUploadPage();
+
+    fireEvent.change(await screen.findByLabelText("Numele tău *"), { target: { value: "Maria Ionescu" } });
+    fireEvent.change(screen.getByLabelText("Email *"), { target: { value: "maria@example.com" } });
+    fireEvent.click(screen.getByLabelText("Accept prelucrarea datelor cu caracter personal *"));
+    fireEvent.click(screen.getByLabelText("Sunt de acord să primesc notificări prin email *"));
+    fireEvent.click(screen.getByRole("button", { name: /Continuă/i }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /\+ Alege poze/i })).toBeInTheDocument());
+
+    const fileA = new File(["a"], "reuseste.jpg", { type: "image/jpeg" });
+    const fileB = new File(["b"], "esueaza.jpg", { type: "image/jpeg" });
+    const uploadButton = screen.getByRole("button", { name: /\+ Alege poze/i });
+    const createElementSpy = vi.spyOn(document, "createElement").mockImplementation((tagName: string) => {
+      if (tagName.toLowerCase() === "input") {
+        const input = document.createElementNS("http://www.w3.org/1999/xhtml", "input") as HTMLInputElement;
+        Object.defineProperty(input, "files", {
+          configurable: true,
+          value: {
+            0: fileA,
+            1: fileB,
+            length: 2,
+            item: (index: number) => [fileA, fileB][index] ?? null,
+          },
+        });
+        queueMicrotask(() => input.dispatchEvent(new Event("change")));
+        return input;
+      }
+      return document.createElementNS("http://www.w3.org/1999/xhtml", tagName);
+    });
+
+    fireEvent.click(uploadButton);
+    fireEvent.click(await screen.findByRole("button", { name: /Trimite 2 fișier/i }));
+
+    await waitFor(() => {
+      expect(FakePartialFailureXHR.instances).toHaveLength(2);
+    });
+
+    expect(await screen.findByText(/1 din 2 fișiere nu s-au trimis/i)).toBeInTheDocument();
+    // The succeeded file is dropped from the selection; only the failed one
+    // remains, ready to retry with the same "Trimite" button.
+    expect(screen.getByText(/1 fișier\(e\) selectate/i)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Trimite 1 fișier/i })).toBeInTheDocument();
 
     createElementSpy.mockRestore();
   });

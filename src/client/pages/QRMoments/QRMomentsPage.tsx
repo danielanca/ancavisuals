@@ -15,8 +15,16 @@ interface EventInfo {
 }
 
 interface SelectedFile {
+  id: string;
   file: File;
   previewUrl: string;
+}
+
+type UploadItemStatus = 'uploading' | 'done' | 'error';
+interface UploadProgressEntry {
+  status: UploadItemStatus;
+  progress: number;
+  error?: string;
 }
 
 interface PromoImage {
@@ -88,6 +96,7 @@ export default function QRMomentsPage() {
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgressEntry>>({});
 
   const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [isRecording, setIsRecording] = useState(false);
@@ -160,6 +169,11 @@ export default function QRMomentsPage() {
     setSelectedFiles((prev) => {
       prev.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
       return [];
+    });
+    setUploadProgress((prev) => {
+      const next: typeof prev = {};
+      if (prev.audio) next.audio = prev.audio;
+      return next;
     });
   };
 
@@ -452,6 +466,7 @@ export default function QRMomentsPage() {
       const validFiles = Array.from(target.files).filter((file) => file.size > 0);
       if (validFiles.length === 0) return;
       const newFiles: SelectedFile[] = validFiles.map((file) => ({
+        id: crypto.randomUUID(),
         file,
         previewUrl: URL.createObjectURL(file),
       }));
@@ -460,10 +475,17 @@ export default function QRMomentsPage() {
     input.click();
   };
 
-  const removeFile = (index: number) => {
+  const removeFile = (id: string) => {
     setSelectedFiles((prev) => {
-      URL.revokeObjectURL(prev[index].previewUrl);
-      return prev.filter((_, i) => i !== index);
+      const target = prev.find((item) => item.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((item) => item.id !== id);
+    });
+    setUploadProgress((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
     });
   };
 
@@ -540,71 +562,117 @@ export default function QRMomentsPage() {
     setIsPlayingAudio(false);
     setAudioCurrentTime(0);
     setAudioDuration(0);
+    setUploadProgress((prev) => {
+      if (!('audio' in prev)) return prev;
+      const next = { ...prev };
+      delete next.audio;
+      return next;
+    });
+  };
+
+  const buildAudioFilename = (blob: Blob) => {
+    const blobType = blob.type || '';
+    const ext = blobType.includes('mp4') || blobType.includes('m4a') ? 'm4a'
+      : blobType.includes('ogg') ? 'ogg'
+      : blobType.includes('webm') ? 'webm'
+      : 'm4a';
+    return `voice-${Date.now()}.${ext}`;
+  };
+
+  const uploadSingleItem = (id: string, blob: Blob, filename: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('guestId', guestId as string);
+      formData.append('pass', pass);
+      formData.append('files', blob, filename);
+
+      const authHeader = auth.authorise && auth.accessToken ? `Bearer ${auth.accessToken}` : null;
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/qr-moments/${eventSlug}/upload`);
+      if (authHeader) xhr.setRequestHeader('Authorization', authHeader);
+      xhr.timeout = 90_000;
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        const pct = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress((prev) => ({ ...prev, [id]: { status: 'uploading', progress: pct } }));
+      };
+
+      const fail = (message: string) => {
+        setUploadProgress((prev) => ({ ...prev, [id]: { status: 'error', progress: 0, error: message } }));
+        reject(new Error(message));
+      };
+
+      xhr.ontimeout = () => fail(`Timeout după ${xhr.timeout / 1000}s`);
+      xhr.onerror = () => fail('Eroare de rețea');
+      xhr.onabort = () => fail('Cerere anulată');
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          let apiMessage = '';
+          try { apiMessage = (JSON.parse(xhr.responseText) as { error?: string }).error ?? ''; } catch { /* ignore */ }
+          fail(apiMessage ? mapQrApiError(apiMessage) : `Status ${xhr.status}`);
+          return;
+        }
+        try {
+          const data = JSON.parse(xhr.responseText) as { error?: string };
+          if (data.error) { fail(mapQrApiError(data.error)); return; }
+        } catch {
+          fail('Răspuns invalid de la server');
+          return;
+        }
+        setUploadProgress((prev) => ({ ...prev, [id]: { status: 'done', progress: 100 } }));
+        resolve();
+      };
+
+      xhr.send(formData);
+    });
   };
 
   const handleUpload = async () => {
     const hasFiles = selectedFiles.length > 0 || audioBlob !== null;
     if (!hasFiles || !guestId) return;
 
+    const isAudioTab = audioBlob !== null;
+    const queue: { id: string; blob: Blob; filename: string }[] = isAudioTab
+      ? (uploadProgress.audio?.status === 'done' ? [] : [{ id: 'audio', blob: audioBlob as Blob, filename: buildAudioFilename(audioBlob as Blob) }])
+      : selectedFiles
+          .filter(({ id }) => uploadProgress[id]?.status !== 'done')
+          .map(({ id, file }) => ({ id, blob: file, filename: file.name }));
+
+    if (queue.length === 0) return;
+
     setUploading(true);
     setUploadError(null);
 
-    try {
-      const formData = new FormData();
-      formData.append('guestId', guestId);
-      formData.append('pass', pass);
-
-      if (audioBlob) {
-        const blobType = audioBlob.type || '';
-        const ext = blobType.includes('mp4') || blobType.includes('m4a') ? 'm4a'
-          : blobType.includes('ogg') ? 'ogg'
-          : blobType.includes('webm') ? 'webm'
-          : 'm4a';
-        formData.append('files', audioBlob, `voice-${Date.now()}.${ext}`);
-      } else {
-        selectedFiles.forEach(({ file }) => formData.append('files', file));
+    const failedIds = new Set<string>();
+    for (const item of queue) {
+      try {
+        await uploadSingleItem(item.id, item.blob, item.filename);
+      } catch (error) {
+        failedIds.add(item.id);
+        reportQrDebug('Upload failed for one file', { itemId: item.id, filename: item.filename, error: serializeDebugValue(error) });
       }
+    }
 
-      const authHeader = auth.authorise && auth.accessToken ? `Bearer ${auth.accessToken}` : null;
+    setUploading(false);
 
-      const result = await new Promise<{ error?: string; uploadedCount?: number }>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `/api/qr-moments/${eventSlug}/upload`);
-        if (authHeader) xhr.setRequestHeader('Authorization', authHeader);
-        xhr.timeout = 90_000;
-        xhr.ontimeout = () => reject(new Error(`Timeout după ${xhr.timeout / 1000}s (readyState=${xhr.readyState})`));
-        xhr.onerror = () => reject(new Error(`Eroare de rețea (status=${xhr.status}, readyState=${xhr.readyState})`));
-        xhr.onabort = () => reject(new Error('Cerere anulată'));
-        xhr.onload = () => {
-          if (xhr.status < 200 || xhr.status >= 300) {
-            reject(new Error(`Server a răspuns cu status ${xhr.status}: ${xhr.responseText.slice(0, 200)}`));
-            return;
-          }
-          try {
-            resolve(JSON.parse(xhr.responseText));
-          } catch {
-            reject(new Error(`Răspuns invalid de la server (status=${xhr.status}): ${xhr.responseText.slice(0, 200)}`));
-          }
-        };
-        xhr.send(formData);
-      });
-
-      if (result.error) {
-        reportQrDebug('Upload failed with API error', { apiError: result.error });
-        setUploadError(mapQrApiError(result.error));
-        return;
-      }
-
+    if (failedIds.size === 0) {
       clearSelectedFiles();
       clearAudio();
       setStep('success');
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      reportQrDebug('Upload failed with network/runtime error', { error: serializeDebugValue(error) });
-      setUploadError(`Eroare la upload: ${detail}`);
-    } finally {
-      setUploading(false);
+      return;
     }
+
+    if (!isAudioTab) {
+      setSelectedFiles((prev) => prev.filter(({ id }) => failedIds.has(id)));
+    }
+
+    setUploadError(
+      failedIds.size === queue.length
+        ? 'Niciun fișier nu s-a trimis. Verifică conexiunea și încearcă din nou.'
+        : `${failedIds.size} din ${queue.length} fișiere nu s-au trimis. Restul au fost deja trimise — apasă din nou pentru a reîncerca ce a mai rămas.`,
+    );
   };
 
   const formatSeconds = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
@@ -965,24 +1033,54 @@ export default function QRMomentsPage() {
               <div className="space-y-2">
                 <p className="text-neutral-500 text-xs">{selectedFiles.length} fișier(e) selectate</p>
                 <div className="grid grid-cols-3 gap-2">
-                  {selectedFiles.map(({ file, previewUrl }, index) => (
-                    <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-neutral-800">
-                      {DISPLAYABLE_IMAGE.includes(file.type) ? (
-                        <img src={previewUrl} alt="" className="w-full h-full object-cover" />
-                      ) : DISPLAYABLE_VIDEO.includes(file.type) ? (
-                        <video src={previewUrl} className="w-full h-full object-cover" muted />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-neutral-500 text-xs text-center px-1">{file.name}</div>
-                      )}
-                      <button
-                        onClick={() => removeFile(index)}
-                        className="absolute top-1 right-1 w-5 h-5 bg-black/70 rounded-full text-white text-xs flex items-center justify-center"
-                        aria-label="Elimină"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                  {selectedFiles.map(({ id, file, previewUrl }) => {
+                    const progress = uploadProgress[id];
+                    return (
+                      <div key={id} className="relative aspect-square rounded-lg overflow-hidden bg-neutral-800">
+                        {DISPLAYABLE_IMAGE.includes(file.type) ? (
+                          <img src={previewUrl} alt="" className="w-full h-full object-cover" />
+                        ) : DISPLAYABLE_VIDEO.includes(file.type) ? (
+                          <video src={previewUrl} className="w-full h-full object-cover" muted />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-neutral-500 text-xs text-center px-1">{file.name}</div>
+                        )}
+
+                        {progress?.status === 'uploading' && (
+                          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1.5 px-2">
+                            <div className="w-4/5 h-1 rounded-full bg-white/20 overflow-hidden">
+                              <div
+                                className="h-full bg-amber-400 transition-all duration-150"
+                                style={{ width: `${progress.progress}%` }}
+                              />
+                            </div>
+                            <span className="text-white text-[10px] font-medium">{progress.progress}%</span>
+                          </div>
+                        )}
+
+                        {progress?.status === 'error' && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center px-2">
+                            <span className="text-red-400 text-[10px] font-medium text-center leading-tight">Eroare, reîncearcă</span>
+                          </div>
+                        )}
+
+                        {progress?.status === 'done' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <span className="w-6 h-6 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center">✓</span>
+                          </div>
+                        )}
+
+                        {!uploading && (
+                          <button
+                            onClick={() => removeFile(id)}
+                            className="absolute top-1 right-1 w-5 h-5 bg-black/70 rounded-full text-white text-xs flex items-center justify-center"
+                            aria-label="Elimină"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1065,10 +1163,30 @@ export default function QRMomentsPage() {
                     </button>
                     <span className="text-neutral-500 text-xs">{formatSeconds(audioCurrentTime)} / {formatSeconds(audioDuration)}</span>
                   </div>
+
+                  {uploadProgress.audio?.status === 'uploading' && (
+                    <div className="space-y-1">
+                      <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
+                        <div
+                          className="h-full bg-amber-400 transition-all duration-150"
+                          style={{ width: `${uploadProgress.audio.progress}%` }}
+                        />
+                      </div>
+                      <span className="text-neutral-500 text-[10px]">{uploadProgress.audio.progress}%</span>
+                    </div>
+                  )}
+                  {uploadProgress.audio?.status === 'error' && (
+                    <p className="text-red-400 text-[10px]">Eroare la trimitere, apasă din nou pe „Trimite”.</p>
+                  )}
+                  {uploadProgress.audio?.status === 'done' && (
+                    <p className="text-emerald-400 text-[10px]">✓ Trimis</p>
+                  )}
                 </div>
-                <button onClick={clearAudio} className="text-xs text-neutral-600 underline underline-offset-4 hover:text-neutral-400 transition-colors">
-                  Înregistrează din nou
-                </button>
+                {!uploading && (
+                  <button onClick={clearAudio} className="text-xs text-neutral-600 underline underline-offset-4 hover:text-neutral-400 transition-colors">
+                    Înregistrează din nou
+                  </button>
+                )}
               </div>
             )}
           </div>

@@ -30,9 +30,11 @@ interface GalleryEventInfo {
   groom: string | null;
 }
 
-const DISPLAYABLE_IMAGE = ['image/jpeg', 'image/png', 'image/webp'];
-const DISPLAYABLE_VIDEO = ['video/mp4'];
-const DISPLAYABLE_AUDIO = ['audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/x-m4a'];
+function isHeicUpload(upload: Upload): boolean {
+  const mime = upload.mimeType.toLowerCase();
+  const ext = upload.originalName.toLowerCase().split('.').pop() ?? '';
+  return mime.includes('heic') || mime.includes('heif') || ext === 'heic' || ext === 'heif';
+}
 
 const QUICK_REPLIES_FALLBACK = [
   'Mulțumim pentru mesaj! Vă iubim',
@@ -52,35 +54,35 @@ function formatTime(isoString: string): string {
 }
 
 function MediaThumbnail({ upload, onClick }: { upload: Upload; onClick: () => void }) {
-  if (DISPLAYABLE_IMAGE.includes(upload.mimeType)) {
+  if (upload.type === 'photo') {
+    if (isHeicUpload(upload)) {
+      return (
+        <button onClick={onClick} aria-label={`Deschide ${upload.originalName}`} className="aspect-square rounded-lg bg-neutral-800 flex flex-col items-center justify-center gap-2 hover:bg-neutral-700 transition-colors w-full">
+          <span className="text-2xl">🖼️</span>
+          <span className="text-neutral-500 text-xs">Poză HEIC</span>
+        </button>
+      );
+    }
     return (
       <button onClick={onClick} aria-label={`Deschide ${upload.originalName}`} className="aspect-square rounded-lg overflow-hidden bg-neutral-800 hover:opacity-80 transition-opacity w-full">
         <img src={upload.bunnyUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
       </button>
     );
   }
-  if (DISPLAYABLE_VIDEO.includes(upload.mimeType)) {
+  if (upload.type === 'video') {
     return (
       <button onClick={onClick} aria-label={`Deschide ${upload.originalName}`} className="aspect-square rounded-lg overflow-hidden bg-neutral-800 relative hover:opacity-80 transition-opacity w-full">
-        <video src={upload.bunnyUrl} className="w-full h-full object-cover" muted />
+        <video src={upload.bunnyUrl} className="w-full h-full object-cover" muted preload="metadata" />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white text-xs">▶</div>
         </div>
       </button>
     );
   }
-  if (DISPLAYABLE_AUDIO.includes(upload.mimeType)) {
-    return (
-      <button onClick={onClick} aria-label={`Deschide ${upload.originalName}`} className="aspect-square rounded-lg bg-neutral-800 flex flex-col items-center justify-center gap-2 hover:bg-neutral-700 transition-colors w-full">
-        <span className="text-2xl">🎙</span>
-        <span className="text-neutral-500 text-xs">Mesaj vocal</span>
-      </button>
-    );
-  }
   return (
     <button onClick={onClick} aria-label={`Deschide ${upload.originalName}`} className="aspect-square rounded-lg bg-neutral-800 flex flex-col items-center justify-center gap-2 hover:bg-neutral-700 transition-colors w-full">
-      <span className="text-2xl">📎</span>
-      <span className="text-neutral-500 text-xs truncate max-w-full px-2">{upload.originalName}</span>
+      <span className="text-2xl">🎙</span>
+      <span className="text-neutral-500 text-xs">Mesaj vocal</span>
     </button>
   );
 }
@@ -238,7 +240,7 @@ function AssetModal({
 
   // Fire view notification once when photo is opened; video/audio use onPlay
   useEffect(() => {
-    if (!DISPLAYABLE_IMAGE.includes(upload.mimeType)) return;
+    if (upload.type !== 'photo') return;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
     fetch(`/api/qr-moments/view-notify/${upload.id}`, {
@@ -344,18 +346,34 @@ function AssetModal({
 
         <div className="flex-1 overflow-auto">
           <div className="p-4">
-            {DISPLAYABLE_IMAGE.includes(upload.mimeType) && (
+            {upload.type === 'photo' && isHeicUpload(upload) && (
+              <div className="bg-neutral-900 rounded-lg p-6 text-center space-y-3">
+                <span className="text-3xl block">🖼️</span>
+                <p className="text-neutral-400 text-sm">
+                  Această poză e în format HEIC și nu poate fi previzualizată direct în browser.
+                </p>
+                <a
+                  href={upload.bunnyUrl}
+                  download={upload.originalName}
+                  className="inline-block px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black text-sm font-medium rounded-lg transition-colors"
+                >
+                  Descarcă poza
+                </a>
+              </div>
+            )}
+            {upload.type === 'photo' && !isHeicUpload(upload) && (
               <img src={upload.bunnyUrl} alt="" className="w-full rounded-lg" />
             )}
-            {DISPLAYABLE_VIDEO.includes(upload.mimeType) && (
+            {upload.type === 'video' && (
               <video
                 src={upload.bunnyUrl}
                 controls
+                playsInline
                 className="w-full rounded-lg"
                 onPlay={firePlayNotification}
               />
             )}
-            {DISPLAYABLE_AUDIO.includes(upload.mimeType) && (
+            {upload.type === 'audio' && (
               <div className="bg-neutral-900 rounded-lg p-4">
                 <audio
                   src={upload.bunnyUrl}
@@ -364,15 +382,6 @@ function AssetModal({
                   onPlay={firePlayNotification}
                 />
               </div>
-            )}
-            {!DISPLAYABLE_IMAGE.includes(upload.mimeType) && !DISPLAYABLE_VIDEO.includes(upload.mimeType) && !DISPLAYABLE_AUDIO.includes(upload.mimeType) && (
-              <a
-                href={upload.bunnyUrl}
-                download={upload.originalName}
-                className="block w-full py-3 bg-neutral-800 rounded-lg text-neutral-300 text-sm text-center hover:bg-neutral-700 transition-colors"
-              >
-                Descarcă fișierul
-              </a>
             )}
           </div>
 
