@@ -43,6 +43,7 @@ export interface InvoiceData {
   invoiceDate: string;   // YYYY-MM-DD
   dueDate: string;       // YYYY-MM-DD
   currency: string;
+  taxExchangeRate?: number;
   description: string;
   amount: number;
 
