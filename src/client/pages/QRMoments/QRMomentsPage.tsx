@@ -549,36 +549,41 @@ export default function QRMomentsPage() {
     setUploading(true);
     setUploadError(null);
 
-    const formData = new FormData();
-    formData.append('guestId', guestId);
-    formData.append('pass', pass);
-
-    if (audioBlob) {
-      const blobType = audioBlob.type || '';
-      const ext = blobType.includes('mp4') || blobType.includes('m4a') ? 'm4a'
-        : blobType.includes('ogg') ? 'ogg'
-        : blobType.includes('webm') ? 'webm'
-        : 'm4a';
-      formData.append('files', audioBlob, `voice-${Date.now()}.${ext}`);
-    } else {
-      selectedFiles.forEach(({ file }) => formData.append('files', file));
-    }
-
-    const authHeader = auth.authorise && auth.accessToken ? `Bearer ${auth.accessToken}` : null;
-
     try {
+      const formData = new FormData();
+      formData.append('guestId', guestId);
+      formData.append('pass', pass);
+
+      if (audioBlob) {
+        const blobType = audioBlob.type || '';
+        const ext = blobType.includes('mp4') || blobType.includes('m4a') ? 'm4a'
+          : blobType.includes('ogg') ? 'ogg'
+          : blobType.includes('webm') ? 'webm'
+          : 'm4a';
+        formData.append('files', audioBlob, `voice-${Date.now()}.${ext}`);
+      } else {
+        selectedFiles.forEach(({ file }) => formData.append('files', file));
+      }
+
+      const authHeader = auth.authorise && auth.accessToken ? `Bearer ${auth.accessToken}` : null;
+
       const result = await new Promise<{ error?: string; uploadedCount?: number }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `/api/qr-moments/${eventSlug}/upload`);
         if (authHeader) xhr.setRequestHeader('Authorization', authHeader);
         xhr.timeout = 90_000;
-        xhr.ontimeout = () => reject(new Error('Timeout'));
-        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.ontimeout = () => reject(new Error(`Timeout după ${xhr.timeout / 1000}s (readyState=${xhr.readyState})`));
+        xhr.onerror = () => reject(new Error(`Eroare de rețea (status=${xhr.status}, readyState=${xhr.readyState})`));
+        xhr.onabort = () => reject(new Error('Cerere anulată'));
         xhr.onload = () => {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            reject(new Error(`Server a răspuns cu status ${xhr.status}: ${xhr.responseText.slice(0, 200)}`));
+            return;
+          }
           try {
             resolve(JSON.parse(xhr.responseText));
           } catch {
-            reject(new Error('Invalid response'));
+            reject(new Error(`Răspuns invalid de la server (status=${xhr.status}): ${xhr.responseText.slice(0, 200)}`));
           }
         };
         xhr.send(formData);
@@ -594,8 +599,9 @@ export default function QRMomentsPage() {
       clearAudio();
       setStep('success');
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
       reportQrDebug('Upload failed with network/runtime error', { error: serializeDebugValue(error) });
-      setUploadError('Eroare la upload. Încearcă din nou.');
+      setUploadError(`Eroare la upload: ${detail}`);
     } finally {
       setUploading(false);
     }
