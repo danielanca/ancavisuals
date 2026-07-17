@@ -306,17 +306,21 @@ export default function QRMomentsPage() {
     // Once auth is loaded: non-admin without pass -> not found.
     if (!auth.authorise && !pass) { setStep('not-found'); return; }
 
-    const url = auth.authorise && auth.accessToken
+    const isAdminSession = auth.authorise && !!auth.accessToken;
+    const url = isAdminSession
       ? `/api/qr-moments/${eventSlug}`
       : `/api/qr-moments/${eventSlug}?pass=${encodeURIComponent(pass)}`;
     const headers: Record<string, string> = {};
-    if (auth.authorise && auth.accessToken) headers['Authorization'] = `Bearer ${auth.accessToken}`;
+    if (isAdminSession) headers['Authorization'] = `Bearer ${auth.accessToken}`;
 
     fetch(url, { headers })
       .then((r) => r.json())
       .then((data: EventInfo & { error?: string }) => {
         if (data.error) { setStep('not-found'); return; }
         setEventInfo(data);
+        // Admin session skips the guest form entirely (auto-registered below) —
+        // stay on the loading spinner instead of flashing the form for a frame.
+        if (isAdminSession) return;
         setStep(data.isOpen ? 'form' : 'closed');
       })
       .catch((error) => {
@@ -391,9 +395,11 @@ export default function QRMomentsPage() {
     if (galleryIndex >= galleryImages.length) setGalleryIndex(0);
   }, [galleryImages, galleryIndex]);
 
-  // Admin flow: auto-register and jump straight to the upload step.
+  // Admin flow: auto-register and jump straight to the upload step, skipping
+  // the guest form (relies on eventInfo, not step, so it fires exactly once and
+  // never re-triggers itself after a setStep('form') fallback on failure).
   useEffect(() => {
-    if (step !== 'form' || !auth.authorise || !auth.accessToken) return;
+    if (!auth.authorise || !auth.accessToken || !eventInfo) return;
     fetch('/api/qr-moments/guest/register', {
       method: 'POST',
       headers: {
@@ -416,13 +422,15 @@ export default function QRMomentsPage() {
         } else {
           reportQrDebug('Admin auto-register failed', { apiError: result.error });
           setFormError(result.error ?? 'Auto-înregistrare admin eșuată.');
+          setStep('form');
         }
       })
       .catch((error) => {
         reportQrDebug('Admin auto-register network failure', { error: serializeDebugValue(error) });
         setFormError('Eroare de rețea la auto-înregistrare admin.');
+        setStep('form');
       });
-  }, [step, auth.authorise, auth.accessToken]);
+  }, [eventInfo, auth.authorise, auth.accessToken]);
 
   const handleFormSubmit = async () => {
     setFormError(null);

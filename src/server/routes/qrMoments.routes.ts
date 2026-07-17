@@ -25,6 +25,7 @@ const QR_UPLOADS = 'qr_uploads';
 const QR_COMMENTS = 'qr_comments';
 
 const UPLOAD_CLOSE_HOUR = 4;
+const UPLOAD_WINDOW_DAYS = 30;
 const MAX_FILES_PER_REQUEST = 25;
 
 const QUICK_REPLIES = [
@@ -102,7 +103,7 @@ function isUploadWindowOpen(eventDate: Date): boolean {
 
 function getUploadDeadline(eventDate: Date): Date {
   const deadline = new Date(eventDate);
-  deadline.setDate(deadline.getDate() + 1);
+  deadline.setDate(deadline.getDate() + UPLOAD_WINDOW_DAYS);
   deadline.setHours(UPLOAD_CLOSE_HOUR, 0, 0, 0);
   return deadline;
 }
