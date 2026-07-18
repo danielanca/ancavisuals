@@ -5,6 +5,7 @@ import AncaLoader from "../../../components/UI/AncaLoader";
 import useAuth from "../auth/useAuth";
 import ConfirmModal from "./ConfirmModal";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
+import { QR_EVENT_TYPES, getHostRoleLabel, normalizeQrEventType, type QrEventType } from "../../../../shared/qrMoments/hostRoles";
 
 type QREventListItem = {
   id: string;
@@ -12,6 +13,7 @@ type QREventListItem = {
   adminEventId: string | null;
   bride: string | null;
   groom: string | null;
+  eventType: QrEventType;
   notificationEmail?: string | null;
   pin: string | null;
   eventDate: string;
@@ -75,16 +77,19 @@ type QREventFormValues = {
   adminEventId: string;
   bride: string;
   groom: string;
+  eventType: QrEventType;
   notificationEmail: string;
   eventDate: string;
   pin: string;
 };
 
-function QRLinkRow({ eventSlug, pin }: { eventSlug: string; pin: string }) {
+function QRLinkRow({ eventSlug, pin, eventType }: { eventSlug: string; pin: string; eventType: QrEventType }) {
   const [copiedTarget, setCopiedTarget] = useState<"guest" | "gallery" | null>(null);
   const guestUrl = `${destination}/qr-moments/${eventSlug}?pass=${pin}`;
   const galleryUrl = `${destination}/qr-moments/${eventSlug}/gallery?pin=${pin}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(guestUrl)}`;
+  const roleALabel = getHostRoleLabel(eventType, "bride");
+  const roleBLabel = getHostRoleLabel(eventType, "groom");
 
   const handleCopy = (target: "guest" | "gallery", value: string) => {
     navigator.clipboard.writeText(value).then(() => {
@@ -126,17 +131,17 @@ function QRLinkRow({ eventSlug, pin }: { eventSlug: string; pin: string }) {
           </div>
 
           <div className="space-y-2 border-t border-neutral-800 pt-4">
-            <p className="text-neutral-400 text-xs">Link miri pentru galerie + comentarii:</p>
+            <p className="text-neutral-400 text-xs">Link gazde pentru galerie + comentarii:</p>
             <p className="text-emerald-300 text-xs font-mono break-all">{galleryUrl}</p>
             <p className="text-neutral-500 text-[11px] leading-relaxed">
-              Acest link deschide galeria cu PIN-ul inclus, astfel încât mireasa și mirele pot vedea upload-urile și pot comenta direct la poze, video și mesaje.
+              Acest link deschide galeria cu PIN-ul inclus, astfel încât {roleALabel.toLowerCase()} și {roleBLabel.toLowerCase()} pot vedea upload-urile și pot comenta direct la poze, video și mesaje.
             </p>
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => handleCopy("gallery", galleryUrl)}
                 className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
               >
-                {copiedTarget === "gallery" ? "Copiat!" : "Copiază link miri"}
+                {copiedTarget === "gallery" ? "Copiat!" : "Copiază link gazde"}
               </button>
               <a
                 href={galleryUrl}
@@ -144,7 +149,7 @@ function QRLinkRow({ eventSlug, pin }: { eventSlug: string; pin: string }) {
                 rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
               >
-                Deschide ca mire/mireasă
+                Deschide ca {roleALabel.toLowerCase()}/{roleBLabel.toLowerCase()}
               </a>
             </div>
           </div>
@@ -282,7 +287,7 @@ function EventEditorModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>{mode === "create" ? "Data nunții" : "Data eveniment"}</label>
+              <label className={labelClass}>Data eveniment</label>
               <input
                 className={inputClass}
                 type={mode === "create" ? "text" : "date"}
@@ -294,17 +299,30 @@ function EventEditorModal({
             </div>
             <div>
               <label className={labelClass}>Nume QR Moment</label>
-              <input className={inputClass} value={buildSlugFromDate(form.eventDate)} disabled placeholder="Generat din data nunții" />
+              <input className={inputClass} value={buildSlugFromDate(form.eventDate)} disabled placeholder="Generat din data evenimentului" />
             </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Tip eveniment</label>
+            <select
+              className={inputClass}
+              value={form.eventType}
+              onChange={(event) => setForm((previous) => ({ ...previous, eventType: normalizeQrEventType(event.target.value) }))}
+            >
+              {QR_EVENT_TYPES.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>Mireasă</label>
+              <label className={labelClass}>{getHostRoleLabel(form.eventType, "bride")}</label>
               <input className={inputClass} value={form.bride} onChange={set("bride")} placeholder="Ana" />
             </div>
             <div>
-              <label className={labelClass}>Mire</label>
+              <label className={labelClass}>{getHostRoleLabel(form.eventType, "groom")}</label>
               <input className={inputClass} value={form.groom} onChange={set("groom")} placeholder="Dan" />
             </div>
           </div>
@@ -312,7 +330,7 @@ function EventEditorModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Email notificări</label>
-              <input className={inputClass} value={form.notificationEmail} onChange={set("notificationEmail")} placeholder="miri@exemplu.ro" />
+              <input className={inputClass} value={form.notificationEmail} onChange={set("notificationEmail")} placeholder="contact@exemplu.ro" />
             </div>
             <div>
               <label className={labelClass}>PIN galerie</label>
@@ -513,6 +531,7 @@ export default function QRMomentsAdminPage() {
           adminEventId: values.adminEventId,
           bride: values.bride,
           groom: values.groom,
+          eventType: values.eventType,
           notificationEmail: values.notificationEmail,
           eventDate: values.eventDate,
           pin: values.pin,
@@ -584,6 +603,7 @@ export default function QRMomentsAdminPage() {
         adminEventId: selectedEvent.adminEventId ?? "",
         bride: selectedEvent.bride ?? "",
         groom: selectedEvent.groom ?? "",
+        eventType: normalizeQrEventType(selectedEvent.eventType),
         notificationEmail: selectedEvent.notificationEmail ?? "",
         eventDate: selectedEvent.eventDate.slice(0, 10),
         pin: selectedEvent.pin ?? "",
@@ -592,6 +612,7 @@ export default function QRMomentsAdminPage() {
         adminEventId: "",
         bride: "",
         groom: "",
+        eventType: "nunta",
         notificationEmail: "",
         eventDate: "",
         pin: "",
@@ -782,6 +803,7 @@ export default function QRMomentsAdminPage() {
                     <QRLinkRow
                       eventSlug={selectedEvent.eventSlug}
                       pin={overview?.event.pin ?? selectedEvent.pin ?? ""}
+                      eventType={normalizeQrEventType(overview?.event.eventType ?? selectedEvent.eventType)}
                     />
                   )}
                 </div>
@@ -885,7 +907,7 @@ export default function QRMomentsAdminPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-white text-sm font-medium">{comment.guestName}</p>
                             <span className="rounded-full bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
-                              {comment.fromHost ? "de la miri" : "alt tip"}
+                              {comment.fromHost ? "de la gazde" : "alt tip"}
                             </span>
                           </div>
                           <p className="text-neutral-500 text-xs mt-1">{comment.uploadOriginalName ?? "upload necunoscut"} · {formatDate(comment.createdAt)}</p>

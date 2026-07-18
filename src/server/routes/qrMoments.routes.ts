@@ -15,6 +15,7 @@ import {
 } from '../constants/bunny';
 import { sendEmail } from '../notifications/mailer';
 import { APP_BASE_URL } from '../constants/domain';
+import { getHeadlineText, getHostRoleLabel, getHostsFallbackName, normalizeQrEventType, type QrEventType } from '../../shared/qrMoments/hostRoles';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -180,6 +181,7 @@ async function sendThankYouEmail(
   message: string,
   hostDisplayName: string,
   guestId: string,
+  eventType: QrEventType,
 ): Promise<void> {
   const unsubscribeUrl = buildUnsubscribeUrl(guestId);
   await sendEmail({
@@ -201,7 +203,7 @@ async function sendThankYouEmail(
             <a href="${unsubscribeUrl}" style="color:#8c5a16;text-decoration:underline;">Dezabonează-te</a>.
           </p>
           <p style="font-size:12px;color:#7b6a5a;margin:0;">
-            Ești mireasă, mire sau cunoști un cuplu care se pregătește pentru nuntă?
+            ${getHeadlineText(eventType)}
             <a href="https://ancavisuals.ro" style="color:#8c5a16;text-decoration:underline;">Recomandă-ne</a>
             și primești o ședință foto gratuită.
           </p>
@@ -258,6 +260,7 @@ async function sendCommentNotification(
   guestId: string,
   thumbnailUrl: string | null,
   hostDisplayName: string,
+  eventType: QrEventType,
 ): Promise<void> {
   const galleryUrl = `${APP_BASE_URL}/qr-moments/${eventSlug}/gallery`;
   const unsubscribeUrl = buildUnsubscribeUrl(guestId);
@@ -292,7 +295,7 @@ async function sendCommentNotification(
             <a href="${unsubscribeUrl}" style="color:#8c5a16;text-decoration:underline;">Dezabonează-te</a>.
           </p>
           <p style="font-size:12px;line-height:1.5;color:#7b6a5a;margin:0;">
-            Ești mireasă, mire sau cunoști pe cineva care își pregătește nunta?
+            ${getHeadlineText(eventType)}
             <a href="https://ancavisuals.ro" style="color:#8c5a16;text-decoration:underline;">Recomandă-ne cu drag</a>
             și primești o ședință foto gratuită.
           </p>
@@ -385,6 +388,7 @@ router.get('/:eventSlug', async (request: Request, response: Response) => {
       deadline: deadline.toISOString(),
       bride: eventData.bride ?? null,
       groom: eventData.groom ?? null,
+      eventType: normalizeQrEventType(eventData.eventType),
     });
   } catch (error) {
     console.error('[qr-moments] GET /:eventSlug failed:', error);
@@ -704,6 +708,7 @@ router.get('/:eventSlug/gallery', async (request: Request, response: Response) =
       event: {
         bride: eventDoc.data()!.bride ?? null,
         groom: eventDoc.data()!.groom ?? null,
+        eventType: normalizeQrEventType(eventDoc.data()!.eventType),
       },
     });
   } catch {
@@ -805,10 +810,11 @@ router.post('/comment', async (request: Request, response: Response) => {
       const isPhoto = (uploadData.type as string) === 'photo';
       const thumbnail = isPhoto ? (uploadData.bunnyUrl as string) : null;
       const eventData = eventDoc.data()!;
+      const eventType = normalizeQrEventType(eventData.eventType);
       const hostRole = request.body.hostRole === 'groom' ? 'groom' : 'bride';
       const hostDisplayName = hostRole === 'groom'
-        ? ((eventData.groom as string | undefined)?.trim() || 'Mirele')
-        : ((eventData.bride as string | undefined)?.trim() || 'Mireasa');
+        ? ((eventData.groom as string | undefined)?.trim() || getHostRoleLabel(eventType, 'groom'))
+        : ((eventData.bride as string | undefined)?.trim() || getHostRoleLabel(eventType, 'bride'));
 
       sendCommentNotification(
         guestData.email as string,
@@ -818,6 +824,7 @@ router.post('/comment', async (request: Request, response: Response) => {
         guestDoc.id,
         thumbnail,
         hostDisplayName,
+        eventType,
       ).catch(() => {});
     }
 
@@ -872,10 +879,11 @@ router.post('/thank/:uploadId', async (request: Request, response: Response) => 
     if (guestDoc.exists && guestDoc.data()!.email && guestDoc.data()!.emailConsent !== false) {
       const guestData = guestDoc.data()!;
       const eventData = eventDoc.data()!;
+      const eventType = normalizeQrEventType(eventData.eventType);
       const effectiveHostRole = hostRole === 'groom' ? 'groom' : 'bride';
       const hostDisplayName = effectiveHostRole === 'groom'
-        ? ((eventData.groom as string | undefined)?.trim() || 'Mirele')
-        : ((eventData.bride as string | undefined)?.trim() || 'Mireasa');
+        ? ((eventData.groom as string | undefined)?.trim() || getHostRoleLabel(eventType, 'groom'))
+        : ((eventData.bride as string | undefined)?.trim() || getHostRoleLabel(eventType, 'bride'));
 
       sendThankYouEmail(
         guestData.email as string,
@@ -883,6 +891,7 @@ router.post('/thank/:uploadId', async (request: Request, response: Response) => 
         message.trim(),
         hostDisplayName,
         guestDoc.id,
+        eventType,
       ).catch(() => {});
     }
 
@@ -934,7 +943,7 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
       const hostDisplayName =
         ((eventData.bride as string | undefined)?.trim() || '') ||
         ((eventData.groom as string | undefined)?.trim() || '') ||
-        'Mirii';
+        getHostsFallbackName(normalizeQrEventType(eventData.eventType));
       const isPhoto = uploadDoc.data()!.type === 'photo';
       const thumbnailUrl = isPhoto ? (uploadDoc.data()!.bunnyUrl as string) : null;
 
@@ -1005,6 +1014,7 @@ router.get('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (_re
         adminEventId: data.adminEventId ?? null,
         bride: data.bride ?? null,
         groom: data.groom ?? null,
+        eventType: normalizeQrEventType(data.eventType),
         notificationEmail: data.notificationEmail ?? null,
         pin: data.pin ?? null,
         eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
@@ -1019,13 +1029,15 @@ router.get('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (_re
 });
 
 router.post('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
-  const { bride, groom, pin, adminEventId, notificationEmail } = request.body as {
+  const { bride, groom, pin, adminEventId, notificationEmail, eventType } = request.body as {
     bride?: string;
     groom?: string;
     pin?: string;
     adminEventId?: string;
     notificationEmail?: string;
+    eventType?: string;
   };
+  const normalizedEventType = normalizeQrEventType(eventType);
 
   if (!adminEventId?.trim()) {
     response.status(400).json({ error: 'Trebuie să alegi un eveniment confirmat.' });
@@ -1074,6 +1086,7 @@ router.post('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (re
       adminEventId: adminEventId?.trim() || null,
       bride: bride?.trim() || null,
       groom: groom?.trim() || null,
+      eventType: normalizedEventType,
       notificationEmail: notificationEmail?.trim().toLowerCase() || null,
       eventDate: Timestamp.fromDate(parsedEventDate),
       pin: nextPin,
@@ -1088,6 +1101,7 @@ router.post('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (re
         adminEventId: adminEventId?.trim() || null,
         bride: bride?.trim() || null,
         groom: groom?.trim() || null,
+        eventType: normalizedEventType,
         notificationEmail: notificationEmail?.trim().toLowerCase() || null,
         pin: nextPin,
         eventDate: parsedEventDate.toISOString(),
@@ -1100,19 +1114,21 @@ router.post('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (re
 });
 
 router.patch('/admin/:eventSlug', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
-  const { bride, groom, eventDate, pin, adminEventId, notificationEmail } = request.body as {
+  const { bride, groom, eventDate, pin, adminEventId, notificationEmail, eventType } = request.body as {
     bride?: string;
     groom?: string;
     eventDate?: string;
     pin?: string;
     adminEventId?: string;
     notificationEmail?: string;
+    eventType?: string;
   };
 
   const updatePayload: Record<string, unknown> = {};
 
   if (typeof bride === 'string') updatePayload.bride = bride.trim() || null;
   if (typeof groom === 'string') updatePayload.groom = groom.trim() || null;
+  if (typeof eventType === 'string') updatePayload.eventType = normalizeQrEventType(eventType);
   if (typeof pin === 'string') updatePayload.pin = pin.trim().toUpperCase() || generatePin();
   if (typeof adminEventId === 'string') updatePayload.adminEventId = adminEventId.trim() || null;
   if (typeof notificationEmail === 'string') updatePayload.notificationEmail = notificationEmail.trim().toLowerCase() || null;
@@ -1150,6 +1166,7 @@ router.patch('/admin/:eventSlug', requireFirebaseAuth, requireSupremeAdmin, asyn
         adminEventId: refreshedData.adminEventId ?? null,
         bride: refreshedData.bride ?? null,
         groom: refreshedData.groom ?? null,
+        eventType: normalizeQrEventType(refreshedData.eventType),
         notificationEmail: refreshedData.notificationEmail ?? null,
         pin: refreshedData.pin ?? null,
         eventDate: (refreshedData.eventDate as Timestamp).toDate().toISOString(),
@@ -1311,6 +1328,7 @@ router.get('/admin/:eventSlug/overview', requireFirebaseAuth, requireSupremeAdmi
         adminEventId: eventData.adminEventId ?? null,
         bride: eventData.bride ?? null,
         groom: eventData.groom ?? null,
+        eventType: normalizeQrEventType(eventData.eventType),
         notificationEmail: eventData.notificationEmail ?? null,
         pin: eventData.pin ?? null,
         eventDate: (eventData.eventDate as Timestamp).toDate().toISOString(),

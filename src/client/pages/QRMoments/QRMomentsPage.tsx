@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { getDownloadURL, listAll, ref } from 'firebase/storage';
 import useAuth from '../../features/admin/auth/useAuth';
 import { storage } from '../../firebase';
+import { getHeadlineText, getHostsPairLabel, type QrEventType } from '../../../shared/qrMoments/hostRoles';
 
 type Step = 'loading' | 'closed' | 'not-found' | 'form' | 'upload' | 'success';
 type MediaTab = 'photo' | 'video' | 'audio';
@@ -12,6 +13,7 @@ interface EventInfo {
   groom: string | null;
   isOpen: boolean;
   deadline: string;
+  eventType: QrEventType;
 }
 
 interface SelectedFile {
@@ -54,7 +56,6 @@ const WhatsAppHelp = ({ message }: { message?: string }) => (
   </a>
 );
 
-const HEADLINE_TEXT = 'Ești mireasă, mire sau cunoști pe cineva care își pregătește nunta?';
 const SUBHEAD_TEXT = 'Creăm experiențe complete pentru evenimente: foto, video, fotocabină, video booth 360 și QR Moments.';
 const REFERRAL_TEXT = 'Recomandă-ne mai departe și primești o ședință foto cadou.';
 
@@ -765,7 +766,7 @@ export default function QRMomentsPage() {
         <div className="flex flex-col justify-center space-y-2 p-4 sm:p-5">
           <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300/75">AncaVisuals</p>
           <div className="space-y-1">
-            <h2 className="text-lg font-light leading-[0.9] text-white">{HEADLINE_TEXT}</h2>
+            <h2 className="text-lg font-light leading-[0.9] text-white">{getHeadlineText(eventInfo?.eventType)}</h2>
             <p className="text-sm leading-[1.05] text-neutral-300">{SUBHEAD_TEXT}</p>
             <p className="text-xs leading-[1.02] text-amber-100/80">
               {REFERRAL_TEXT}
@@ -959,7 +960,7 @@ export default function QRMomentsPage() {
         </div>
 
         <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-4 text-center space-y-1">
-          <p className="text-amber-200 text-sm font-medium">Lasă o amintire pentru mire și mireasă 💛</p>
+          <p className="text-amber-200 text-sm font-medium">Lasă o amintire pentru {getHostsPairLabel(eventInfo?.eventType)} 💛</p>
           <p className="text-neutral-400 text-xs leading-relaxed">
             Ei se vor bucura să vadă o urare video sau vocală pe care tu o faci din toată inima pentru ei.
           </p>

@@ -297,6 +297,11 @@ const ContractSignPage: React.FC = () => {
           {(contract.eventStartTime || contract.eventEndTime) && (
             <InfoRow label="Interval orar" value={`${contract.eventStartTime ?? ""} – ${contract.eventEndTime ?? ""}`} />
           )}
+          {contract.eventStartTime && contract.eventEndTime && contract.eventEndTime <= contract.eventStartTime && (
+            <p style={{ fontSize: 12, color: "#8a7458", marginTop: -4, marginBottom: 6 }}>
+              Evenimentul se prelungește după miezul nopții (00:00) — ora de sfârșit aparține zilei următoare.
+            </p>
+          )}
           {contract.eventLocation && <InfoRow label="Locație" value={contract.eventLocation} />}
           {contract.eventDetails && <InfoRow label="Detalii" value={contract.eventDetails} />}
         </Section>

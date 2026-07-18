@@ -84,6 +84,15 @@ function formatShortDate(value: unknown): string {
   return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+/** True when the end time is not strictly after the start time, meaning the event
+ * necessarily runs past midnight into the day after the event date. */
+function eventCrossesMidnight(startTime: unknown, endTime: unknown): boolean {
+  const start = String(startTime ?? "").trim();
+  const end = String(endTime ?? "").trim();
+  if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return false;
+  return end <= start;
+}
+
 function detectServiceFlags(services: ContractService[], contractType?: string) {
   const labels = services.map((s) => s.label.toLowerCase());
   const type = (contractType ?? "").toLowerCase();
@@ -135,6 +144,8 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       title: "Obiectul contractului",
       body: `
         <p>Obiectul acestui contract îl constituie evenimentul din data de <span class="bold">${eventDateFormatted}</span>, în intervalul orar aproximativ: <span class="bold">${esc(contract.eventStartTime as string || "____")} – ${esc(contract.eventEndTime as string || "____")}</span> <span style="font-size:9pt;color:#555;">(orar orientativ, cu titlu de aproximație)</span>.</p>
+        ${eventCrossesMidnight(contract.eventStartTime, contract.eventEndTime) ? `<p style="font-size:9pt;color:#555;"><span class="bold">Notă:</span> evenimentul se prelungește după miezul nopții (ora 00:00), ora de final indicată mai sus aparținând zilei următoare datei evenimentului de mai sus.</p>` : ""}
+        <p style="font-size:9pt;color:#555;">PRESTATORUL trebuie să cunoască cu exactitate, cât mai devreme posibil, intervalul orar al evenimentului, întrucât echipa PRESTATORULUI poate avea alte evenimente programate în dimineața următoare. Dacă evenimentul BENEFICIARULUI se prelungește până la ora 02:00–03:00 noaptea, iar echipa are un alt eveniment programat dimineața, la ora 08:00, nu pot fi asigurate condiții decente de odihnă (minimum 8 ore de somn) pentru echipa PRESTATORULUI.</p>
         ${contract.eventLocation ? `<p>Locația evenimentului: <span class="bold">${esc(contract.eventLocation as string)}</span></p>` : ""}
         ${contract.eventType ? `<p>Tipul evenimentului: <span class="bold">${esc(contract.eventType as string)}</span></p>` : ""}
       `,
@@ -313,6 +324,14 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
           <strong>Notă informativă — Cum se calculează itinerariul:</strong><br/>
           Luați în considerare: ora coafurii/machiajului → pregătire completă → deplasare la mire → cununie civilă → cununie religioasă → recepție. Adăugați minim 20–30 de minute tampon între locații. Fotograful/videograful trebuie să ajungă înaintea voastră la fiecare locație.
         </div>
+      `,
+    } : null,
+
+    // ── 14b. Provider's meal at the event (photo/video only) ─────────────────
+    hasPhotoVideo ? {
+      title: "Masa echipei prestatorului",
+      body: `
+        <p>BENEFICIARUL are obligația de a asigura membrilor echipei PRESTATORULUI prezenți la eveniment (fotograf/videograf) masă inclusă, similar invitaților, pe durata desfășurării evenimentului.</p>
       `,
     } : null,
 
