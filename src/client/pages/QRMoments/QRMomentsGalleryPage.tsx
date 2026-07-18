@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import useAuth from '../../features/admin/auth/useAuth';
+import { getHostRoleLabel, type QrEventType } from '../../../shared/qrMoments/hostRoles';
 
 interface Upload {
   id: string;
@@ -28,6 +29,7 @@ interface Comment {
 interface GalleryEventInfo {
   bride: string | null;
   groom: string | null;
+  eventType: QrEventType;
 }
 
 function isHeicUpload(upload: Upload): boolean {
@@ -149,8 +151,8 @@ function ThankModal({
               <span className="text-[11px] uppercase tracking-wide text-neutral-500">Din partea</span>
               <div className="inline-flex rounded-full border border-neutral-800 bg-neutral-900 p-1">
                 {([
-                  { value: 'bride' as const, label: eventInfo?.bride?.trim() || 'Mireasa' },
-                  { value: 'groom' as const, label: eventInfo?.groom?.trim() || 'Mirele' },
+                  { value: 'bride' as const, label: eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride') },
+                  { value: 'groom' as const, label: eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom') },
                 ]).map((option) => (
                   <button
                     key={option.value}
@@ -232,8 +234,8 @@ function AssetModal({
   const [commentsLoading, setCommentsLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const selectedHostName = hostRole === 'groom'
-    ? (eventInfo?.groom?.trim() || 'Mirele')
-    : (eventInfo?.bride?.trim() || 'Mireasa');
+    ? (eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom'))
+    : (eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride'));
   const currentIndex = allUploads.findIndex((item) => item.id === upload.id);
   const previousUpload = currentIndex > 0 ? allUploads[currentIndex - 1] : null;
   const nextUpload = currentIndex >= 0 && currentIndex < allUploads.length - 1 ? allUploads[currentIndex + 1] : null;
@@ -401,8 +403,8 @@ function AssetModal({
                       {comment.fromHost && (
                         <p className="mb-1 text-[11px] uppercase tracking-wide text-amber-300/80">
                           {comment.hostRole === 'groom'
-                            ? (eventInfo?.groom?.trim() || 'Mirele')
-                            : (eventInfo?.bride?.trim() || 'Mireasa')}
+                            ? (eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom'))
+                            : (eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride'))}
                         </p>
                       )}
                       <p>{comment.text}</p>
@@ -421,8 +423,8 @@ function AssetModal({
             <span className="text-[11px] uppercase tracking-wide text-neutral-500">Trimite ca</span>
             <div className="inline-flex rounded-full border border-neutral-800 bg-neutral-900 p-1">
               {([
-                { value: 'bride', label: eventInfo?.bride?.trim() || 'Mireasa' },
-                { value: 'groom', label: eventInfo?.groom?.trim() || 'Mirele' },
+                { value: 'bride', label: eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride') },
+                { value: 'groom', label: eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom') },
               ] as const).map((option) => (
                 <button
                   key={option.value}
@@ -473,68 +475,30 @@ function AssetModal({
   );
 }
 
-function ReferralBanner({ eventSlug }: { eventSlug: string }) {
-  const [name, setName] = useState('');
-  const [contact, setContact] = useState('');
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+const REFERRAL_WHATSAPP_MESSAGE =
+  'Salut! Vreau să-ți recomand AncaVisuals pentru foto/video la evenimente — au făcut treabă superbă și la evenimentul nostru. https://ancavisuals.ro';
 
-  const submit = async () => {
-    if (!name.trim() || !contact.trim() || state === 'sending') return;
-    setState('sending');
-    try {
-      const response = await fetch('/api/referral/lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          referredName: name.trim(),
-          referredContact: contact.trim(),
-          fromAlbum: eventSlug,
-          source: 'qr-moments',
-        }),
-      });
-      setState(response.ok ? 'sent' : 'error');
-    } catch {
-      setState('error');
-    }
-  };
-
-  if (state === 'sent') {
-    return (
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-5 text-center space-y-1">
-        <p className="text-amber-300 font-medium text-sm">Mulțumim! Le vom scrie în curând.</p>
-        <p className="text-neutral-500 text-xs">O ședință foto te așteaptă ca mulțumire.</p>
-      </div>
-    );
-  }
-
+function ReferralBanner() {
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900/50 px-5 py-5 space-y-4">
       <div>
-        <p className="text-white text-sm font-medium">Cunoști un cuplu care se pregătește pentru nuntă?</p>
-        <p className="text-neutral-500 text-xs mt-1">Recomandă-ne și primești o ședință foto gratuită de familie sau cuplu.</p>
+        <p className="text-white text-sm font-medium">Recomandă-ne mai departe</p>
+        <p className="text-neutral-500 text-xs mt-1">
+          Dacă vrei să recomanzi serviciile foto video, ne poți recomanda cuiva prin WhatsApp.
+        </p>
       </div>
-      <div className="space-y-2">
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Numele lor"
-          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
-        />
-        <input
-          value={contact}
-          onChange={(event) => setContact(event.target.value)}
-          placeholder="Email sau telefon"
-          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
-        />
-      </div>
-      {state === 'error' && <p className="text-red-400 text-xs">A apărut o eroare. Încearcă din nou.</p>}
-      <button
-        onClick={submit}
-        disabled={!name.trim() || !contact.trim() || state === 'sending'}
-        className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black text-sm font-medium rounded-xl transition-colors"
+      <a
+        href={`https://wa.me/?text=${encodeURIComponent(REFERRAL_WHATSAPP_MESSAGE)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="w-full inline-flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-xl transition-colors"
       >
-        {state === 'sending' ? 'Se trimite…' : 'Trimite recomandarea'}
-      </button>
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.136.561 4.14 1.535 5.874L.057 23.943l6.235-1.635A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.369l-.36-.214-3.7.97.988-3.608-.234-.372A9.818 9.818 0 0112 2.182c5.424 0 9.818 4.394 9.818 9.818 0 5.425-4.394 9.818-9.818 9.818z" />
+        </svg>
+        Recomandă pe WhatsApp
+      </a>
     </div>
   );
 }
@@ -758,7 +722,7 @@ export default function QRMomentsGalleryPage() {
               ))}
 
               <div className="pt-4 border-t border-neutral-800">
-                <ReferralBanner eventSlug={eventSlug ?? ''} />
+                <ReferralBanner />
               </div>
             </div>
           )}

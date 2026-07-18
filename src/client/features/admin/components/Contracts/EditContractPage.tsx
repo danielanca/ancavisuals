@@ -424,6 +424,13 @@ const EditContractPage: React.FC = () => {
                 <input type="time" value={eventEndTime} onChange={(e) => setEventEndTime(e.target.value)} className={inp} />
               </div>
             </div>
+            {eventStartTime && eventEndTime && eventEndTime <= eventStartTime && (
+              <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
+                <span className="text-amber-400 text-xs">
+                  Intervalul indică un eveniment ce se prelungește după miezul nopții (00:00). Contractul va menționa explicit acest lucru — ora de sfârșit aparține zilei următoare.
+                </span>
+              </div>
+            )}
             <div>
               <Label>Mențiuni suplimentare</Label>
               <textarea value={eventDetails} onChange={(e) => setEventDetails(e.target.value)}
