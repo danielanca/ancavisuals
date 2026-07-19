@@ -119,6 +119,7 @@ describe("ContractSignPage", () => {
       fireEvent.change(screen.getByPlaceholderText("Ex: AB123456"), { target: { value: "ab123456" } });
       fireEvent.click(screen.getByLabelText(/Sunt de acord cu prelucrarea datelor mele personale/));
       fireEvent.click(screen.getByLabelText("Am citit contractul în întregime și sunt de acord cu toate clauzele și condițiile prezentate."));
+      fireEvent.click(screen.getByLabelText(/Am înțeles că, după primirea materialelor/));
 
       const canvas = screen.getByText("Semnați mai jos folosind mouse-ul sau degetul.").parentElement?.querySelector("canvas");
       if (!canvas) {
@@ -236,6 +237,7 @@ describe("ContractSignPage", () => {
       fireEvent.change(screen.getByPlaceholderText("Ex: AB123456"), { target: { value: "AB123456" } });
       fireEvent.click(screen.getByLabelText(/Sunt de acord cu prelucrarea datelor mele personale/));
       fireEvent.click(screen.getByLabelText("Am citit contractul în întregime și sunt de acord cu toate clauzele și condițiile prezentate."));
+      fireEvent.click(screen.getByLabelText(/Am înțeles că, după primirea materialelor/));
 
       const canvas = screen.getByText("Semnați mai jos folosind mouse-ul sau degetul.").parentElement?.querySelector("canvas");
       if (!canvas) throw new Error("Signature canvas not found");

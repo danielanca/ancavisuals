@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { getDownloadURL, listAll, ref } from 'firebase/storage';
 import useAuth from '../../features/admin/auth/useAuth';
 import { storage } from '../../firebase';
-import { getHeadlineText, getHostsPairLabel, type QrEventType } from '../../../shared/qrMoments/hostRoles';
+import { getHeadlineText, getHostsPairLabel, normalizeQrEventType, type QrEventType } from '../../../shared/qrMoments/hostRoles';
 
 type Step = 'loading' | 'closed' | 'not-found' | 'form' | 'upload' | 'success';
 type MediaTab = 'photo' | 'video' | 'audio';
@@ -967,7 +967,7 @@ export default function QRMomentsPage() {
         </div>
 
         {(() => {
-          const suggestions = [
+          const weddingSuggestions = [
             { emoji: "🏡", title: "Urare de casă de piatră", desc: "Spune-le ce îți dorești pentru căminul lor nou." },
             { emoji: "📖", title: "O amintire cu ei", desc: "Povestește un moment pe care l-ai trăit alături de ei." },
             { emoji: "🥂", title: "Un toast din suflet", desc: "Ridică paharul și spune câteva cuvinte sincere." },
@@ -976,7 +976,17 @@ export default function QRMomentsPage() {
             { emoji: "🌟", title: "Sfatul tău de viață", desc: "Ce lecție despre dragoste ai vrea să le transmiți?" },
             { emoji: "😂", title: "O glumă sau amintire haioasă", desc: "Fă-i să râdă — cele mai bune momente sunt cele cu zâmbet." },
           ];
-          const current = suggestions[suggestionIndex];
+          const baptismSuggestions = [
+            { emoji: "👶", title: "Urare pentru cel mic", desc: "Spune-i ce îi dorești pentru viața care abia începe." },
+            { emoji: "🙏", title: "O binecuvântare", desc: "Lasă-le un gând bun sau o rugăciune pentru copil și părinți." },
+            { emoji: "📖", title: "O amintire cu părinții", desc: "Povestește un moment frumos trăit alături de ei." },
+            { emoji: "🥂", title: "Un toast din suflet", desc: "Ridică paharul și spune câteva cuvinte sincere pentru familie." },
+            { emoji: "💌", title: "Mesaj pentru viitor", desc: "Ce speri să trăiască el/ea peste 20 de ani?" },
+            { emoji: "🌟", title: "Sfatul tău de viață", desc: "Ce lecție ai vrea să-i transmiți celui mic când va crește?" },
+            { emoji: "😂", title: "O glumă sau amintire haioasă", desc: "Fă-i să râdă — cele mai bune momente sunt cele cu zâmbet." },
+          ];
+          const suggestions = normalizeQrEventType(eventInfo?.eventType) === 'botez' ? baptismSuggestions : weddingSuggestions;
+          const current = suggestions[suggestionIndex % suggestions.length];
           return (
             <div className="space-y-2">
               <p className="text-neutral-500 text-[10px] uppercase tracking-widest font-medium px-1">Sugestii de încărcat</p>
