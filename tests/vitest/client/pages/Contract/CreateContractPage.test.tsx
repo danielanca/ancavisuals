@@ -145,8 +145,11 @@ describe("CreateContractPage", () => {
         clientName: "",
         clientPhone: "",
         clientAddress: "",
+        clientCity: "",
+        clientCounty: "",
         clientIdSeries: "",
         privateClient: false,
+        noAdvance: false,
         transportKm: "",
         transportFuelPrice: "10",
       });
