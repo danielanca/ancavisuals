@@ -62,7 +62,7 @@ import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startCollaboratorInviteReminderCron } from "./src/server/cron/collaboratorInviteReminder.cron";
 import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
-import { startHealthStepsReminderCron } from "./src/server/cron/healthStepsReminder.cron";
+// import { startHealthStepsReminderCron } from "./src/server/cron/healthStepsReminder.cron"; // dezactivat — health tracker nu mai e folosit
 import { startPhotoboothNotifyCron } from "./src/server/cron/photoboothNotify.cron";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
@@ -216,7 +216,7 @@ async function createServer() {
   startRemindersCron();
   startCollaboratorInviteReminderCron();
   startAlbumZipCheckCron();
-  startHealthStepsReminderCron();
+  // startHealthStepsReminderCron(); // dezactivat — health tracker nu mai e folosit
   startPhotoboothNotifyCron();
 
   if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites · photobooth notify");
