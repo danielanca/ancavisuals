@@ -857,6 +857,13 @@ export default function QRMomentsAdminPage() {
                             >
                               Deschide fișier
                             </a>
+                            <a
+                              href={upload.bunnyUrl}
+                              download={upload.originalName}
+                              className="px-3 py-1.5 rounded-lg border border-neutral-800 text-neutral-400 text-xs hover:border-neutral-600 hover:text-white transition-colors"
+                            >
+                              Descarcă
+                            </a>
                             <button
                               onClick={() => setDeleteUploadConfirmation(upload)}
                               disabled={busyUploadId === upload.id}

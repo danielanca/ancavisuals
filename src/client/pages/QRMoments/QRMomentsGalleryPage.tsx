@@ -385,6 +385,15 @@ function AssetModal({
                 />
               </div>
             )}
+            {!(upload.type === 'photo' && isHeicUpload(upload)) && (
+              <a
+                href={upload.bunnyUrl}
+                download={upload.originalName}
+                className="mt-3 inline-block px-4 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                Descarcă {upload.type === 'photo' ? 'poza' : upload.type === 'video' ? 'video-ul' : 'mesajul vocal'}
+              </a>
+            )}
           </div>
 
           <div className="px-4 pb-4">
