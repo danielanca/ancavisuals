@@ -104,15 +104,15 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
     const series = (fiscal.invoiceSeries as string) ?? "ADE";
     const invoiceYear = new Date(date).getFullYear();
 
-    const startOfYear = new Date(invoiceYear, 0, 1);
-    const endOfYear = new Date(invoiceYear + 1, 0, 1);
-    const countSnapshot = await db
-      .collection(COLLECTION)
-      .where("date", ">=", Timestamp.fromDate(startOfYear))
-      .where("date", "<", Timestamp.fromDate(endOfYear))
-      .count()
-      .get();
-    const invoiceNumber = (countSnapshot.data().count ?? 0) + 1;
+    // Numărul crește continuu, fără resetare anuală — se resetează doar dacă seria se schimbă.
+    const invoiceNumber = await db.runTransaction(async (tx) => {
+      const counterRef = db.collection(SETTINGS_COLLECTION).doc("invoiceSeriesCounter");
+      const counterDoc = await tx.get(counterRef);
+      const counterData = counterDoc.data() ?? {};
+      const next = counterData.series === series ? (Number(counterData.next) || 1) : 1;
+      tx.set(counterRef, { series, next: next + 1 });
+      return next;
+    });
     const MONTHS_RO = ["ianuarie","februarie","martie","aprilie","mai","iunie","iulie","august","septembrie","octombrie","noiembrie","decembrie"];
     const formattedEventDate = eventDate ? (() => {
       const [year, month, day] = eventDate.split("-");
@@ -156,15 +156,41 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
 router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
-    const { clientAddress, clientCity, taxExchangeRate } = req.body as {
+    const {
+      clientName, clientAddress, clientCity, clientCounty, clientCIF,
+      type, date, dueDate, items, totalAmount, currency, notes,
+      taxExchangeRate, eFacturaId,
+    } = req.body as {
+      clientName?: string;
       clientAddress?: string;
       clientCity?: string;
+      clientCounty?: string;
+      clientCIF?: string | null;
+      type?: "B2C" | "B2B";
+      date?: string;
+      dueDate?: string | null;
+      items?: InvoiceItem[];
+      totalAmount?: number;
+      currency?: string;
+      notes?: string | null;
       taxExchangeRate?: number | null;
+      eFacturaId?: string | null;
     };
     const update: Record<string, unknown> = {};
+    if (clientName !== undefined) update.clientName = clientName.trim();
     if (clientAddress !== undefined) update.clientAddress = clientAddress.trim();
     if (clientCity !== undefined) update.clientCity = clientCity.trim();
+    if (clientCounty !== undefined) update.clientCounty = clientCounty.trim();
+    if (clientCIF !== undefined) update.clientCIF = clientCIF?.trim() || null;
+    if (type !== undefined) update.type = type;
+    if (date !== undefined) update.date = Timestamp.fromDate(new Date(date));
+    if (dueDate !== undefined) update.dueDate = dueDate || null;
+    if (items !== undefined) update.items = items;
+    if (totalAmount !== undefined) update.totalAmount = Number(totalAmount);
+    if (currency !== undefined) update.currency = currency;
+    if (notes !== undefined) update.notes = notes?.trim() || null;
     if (taxExchangeRate !== undefined) update.taxExchangeRate = taxExchangeRate ?? null;
+    if (eFacturaId !== undefined) update.eFacturaId = eFacturaId?.trim() || null;
     if (Object.keys(update).length === 0) { res.status(400).json({ error: "Nimic de actualizat." }); return; }
     await db.collection(COLLECTION).doc(req.params.id).update(update);
     res.json({ ok: true });
@@ -181,6 +207,21 @@ router.patch("/:id/paid", requireFirebaseAuth, requireSupremeAdmin, async (req: 
     await db.collection(COLLECTION).doc(req.params.id).update({
       paid: !!paid,
       paidAt: paid ? Timestamp.now() : null,
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// PATCH /:id/efactura — marchează factura ca trimisă sau netrimisă prin e-Factura
+router.patch("/:id/efactura", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const { eFactura } = req.body as { eFactura: boolean };
+    await db.collection(COLLECTION).doc(req.params.id).update({
+      eFactura: !!eFactura,
+      eFacturaSentAt: eFactura ? Timestamp.now() : null,
     });
     res.json({ ok: true });
   } catch (error) {

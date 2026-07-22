@@ -815,6 +815,38 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   <span>Creează contract</span>
                 </button>
               )}
+              {event.handoverId ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate("/admin/handover"); }}
+                  className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>→ Vezi Proces Verbal</span>
+                </button>
+              ) : !isLead && event.status !== "anulat" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/admin/handover/new", {
+                      state: {
+                        eventId: event.id,
+                        eventType: event.typeLabel ?? event.type,
+                        eventDate: eventDate ? eventDate.toISOString().slice(0, 10) : "",
+                        clientEmail: event.client.email ?? "",
+                        clientFullName: event.client.fullName ?? "",
+                      },
+                    });
+                  }}
+                  className="flex items-center gap-1 text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span>Creează Proces Verbal</span>
+                </button>
+              )}
             </div>
 
             {event.notes && (

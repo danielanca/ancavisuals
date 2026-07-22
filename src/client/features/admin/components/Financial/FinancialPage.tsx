@@ -57,15 +57,20 @@ interface Invoice {
   clientName: string;
   clientAddress: string | null;
   clientCity: string | null;
+  clientCounty: string | null;
   clientCIF: string | null;
   items: InvoiceItem[];
   totalAmount: number;
   currency: string;
   notes: string | null;
   eventId: string | null;
+  dueDate: string | null;
   taxExchangeRate: number | null;
   paid: boolean;
   paidAt: string | null;
+  eFactura: boolean;
+  eFacturaSentAt: string | null;
+  eFacturaId: string | null;
 }
 
 // ─── PFA Tax Calculator ───────────────────────────────────────────────────────
@@ -122,6 +127,7 @@ interface State {
   deletingId: string | null;
   pdfLoadingId: string | null;
   xmlLoadingId: string | null;
+  invoiceActionError: string | null;
   editInvoice: Invoice | null;
 }
 
@@ -145,12 +151,14 @@ type Action =
   | { type: "ADD_INVOICE"; invoice: Invoice }
   | { type: "REMOVE_INVOICE"; id: string }
   | { type: "SET_INVOICE_PAID"; id: string; paid: boolean; paidAt: string | null }
+  | { type: "SET_INVOICE_EFACTURA"; id: string; eFactura: boolean; eFacturaSentAt: string | null }
   | { type: "SHOW_ADD_EXPENSE"; value: boolean }
   | { type: "SHOW_ADD_INVOICE"; value: boolean }
   | { type: "SHOW_FISCAL_SETTINGS"; value: boolean }
   | { type: "SET_DELETING"; id: string | null }
   | { type: "SET_PDF_LOADING"; id: string | null }
   | { type: "SET_XML_LOADING"; id: string | null }
+  | { type: "SET_INVOICE_ACTION_ERROR"; error: string | null }
   | { type: "SET_EDIT_INVOICE"; invoice: Invoice | null }
   | { type: "UPDATE_INVOICE"; invoice: Invoice };
 
@@ -177,6 +185,7 @@ const initialState: State = {
   deletingId: null,
   pdfLoadingId: null,
   xmlLoadingId: null,
+  invoiceActionError: null,
   editInvoice: null,
 };
 
@@ -204,12 +213,19 @@ function reducer(state: State, action: Action): State {
         inv.id === action.id ? { ...inv, paid: action.paid, paidAt: action.paidAt } : inv
       ),
     };
+    case "SET_INVOICE_EFACTURA": return {
+      ...state,
+      invoices: state.invoices.map((inv) =>
+        inv.id === action.id ? { ...inv, eFactura: action.eFactura, eFacturaSentAt: action.eFacturaSentAt } : inv
+      ),
+    };
     case "SHOW_ADD_EXPENSE": return { ...state, showAddExpense: action.value };
     case "SHOW_ADD_INVOICE": return { ...state, showAddInvoice: action.value };
     case "SHOW_FISCAL_SETTINGS": return { ...state, showFiscalSettings: action.value };
     case "SET_DELETING": return { ...state, deletingId: action.id };
     case "SET_PDF_LOADING": return { ...state, pdfLoadingId: action.id };
     case "SET_XML_LOADING": return { ...state, xmlLoadingId: action.id };
+    case "SET_INVOICE_ACTION_ERROR": return { ...state, invoiceActionError: action.error };
     case "SET_EDIT_INVOICE": return { ...state, editInvoice: action.invoice };
     case "UPDATE_INVOICE": return { ...state, invoices: state.invoices.map(i => i.id === action.invoice.id ? action.invoice : i), editInvoice: null };
     case "SET_DUPLICATE_ALERT": return { ...state, duplicateAlert: action.payload };
@@ -936,14 +952,19 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
         clientAddress: clientAddress || null,
         clientCIF: invoiceType === "B2B" ? clientCIF || null : null,
         clientCity: null,
+        clientCounty: null,
         items,
         totalAmount,
         currency,
         taxExchangeRate: null,
         notes: notes || null,
         eventId: selectedEventId || null,
+        dueDate: null,
         paid: false,
         paidAt: null,
+        eFactura: false,
+        eFacturaSentAt: null,
+        eFacturaId: null,
       });
       onClose();
     } catch (err) {
@@ -1268,14 +1289,32 @@ const FinancialPage: React.FC = () => {
     });
   }
 
+  async function handleToggleEFactura(invoice: Invoice) {
+    const nextEFactura = !invoice.eFactura;
+    dispatch({ type: "SET_INVOICE_EFACTURA", id: invoice.id, eFactura: nextEFactura, eFacturaSentAt: nextEFactura ? new Date().toISOString() : null });
+    await fetch(`/api/admin/invoices/${invoice.id}/efactura`, {
+      method: "PATCH",
+      headers: { ...authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ eFactura: nextEFactura }),
+    });
+  }
+
   async function handleDownloadPdf(invoiceId: string, ref: string) {
     dispatch({ type: "SET_PDF_LOADING", id: invoiceId });
+    dispatch({ type: "SET_INVOICE_ACTION_ERROR", error: null });
     try {
       const response = await fetch(`/api/admin/invoices/${invoiceId}/pdf`, { headers: authHeader });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null) as { error?: string } | null;
+        dispatch({ type: "SET_INVOICE_ACTION_ERROR", error: data?.error ?? `Nu s-a putut genera PDF-ul pentru factura ${ref}.` });
+        return;
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
       window.open(url, "_blank");
       setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch {
+      dispatch({ type: "SET_INVOICE_ACTION_ERROR", error: `Eroare de rețea la generarea PDF-ului pentru factura ${ref}.` });
     } finally {
       dispatch({ type: "SET_PDF_LOADING", id: null });
     }
@@ -1283,8 +1322,14 @@ const FinancialPage: React.FC = () => {
 
   async function handleDownloadXml(invoiceId: string, ref: string) {
     dispatch({ type: "SET_XML_LOADING", id: invoiceId });
+    dispatch({ type: "SET_INVOICE_ACTION_ERROR", error: null });
     try {
       const response = await fetch(`/api/admin/invoices/${invoiceId}/xml`, { headers: authHeader });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null) as { error?: string } | null;
+        dispatch({ type: "SET_INVOICE_ACTION_ERROR", error: data?.error ?? `Nu s-a putut genera XML-ul pentru factura ${ref}.` });
+        return;
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -1292,6 +1337,8 @@ const FinancialPage: React.FC = () => {
       anchor.download = `efactura-${ref}.xml`;
       anchor.click();
       URL.revokeObjectURL(url);
+    } catch {
+      dispatch({ type: "SET_INVOICE_ACTION_ERROR", error: `Eroare de rețea la generarea XML-ului pentru factura ${ref}.` });
     } finally {
       dispatch({ type: "SET_XML_LOADING", id: null });
     }
@@ -1696,8 +1743,17 @@ const FinancialPage: React.FC = () => {
             ) : (
               <>
                 <div className="text-sm px-1 text-neutral-400">
-                  Total facturat: <span className="text-white font-medium">{fmtCurrency(state.invoices.reduce((s, inv) => s + inv.totalAmount, 0), "RON")}</span>
+                  Total facturat: <span className="text-white font-medium">
+                    {state.invoices.some((inv) => inv.currency !== "RON") ? "≈ " : ""}{fmtCurrency(overview.totalIncome, "RON")}
+                  </span>
                 </div>
+                {state.invoiceActionError && (
+                  <div className="flex items-center justify-between gap-3 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2.5 text-red-400 text-sm">
+                    <span>{state.invoiceActionError}</span>
+                    <button onClick={() => dispatch({ type: "SET_INVOICE_ACTION_ERROR", error: null })}
+                      className="text-red-400/60 hover:text-red-300 shrink-0">✕</button>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {state.invoices.map((invoice) => {
                     const invoiceRef = invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
@@ -1713,6 +1769,12 @@ const FinancialPage: React.FC = () => {
                             <span>{fmtDate(invoice.date)}</span>
                             <span>·</span>
                             <span>{invoice.clientName}</span>
+                            {invoice.eFacturaId && (
+                              <>
+                                <span>·</span>
+                                <span className="text-sky-500/80 font-mono">e-Factura ID: {invoice.eFacturaId}</span>
+                              </>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -1722,6 +1784,13 @@ const FinancialPage: React.FC = () => {
                             className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium ${invoice.paid ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-neutral-300"}`}
                           >
                             {invoice.paid ? "✓ Plătită" : "Neplătită"}
+                          </button>
+                          <button
+                            onClick={() => handleToggleEFactura(invoice)}
+                            title={invoice.eFactura ? "Marchează ca netrimisă prin e-Factura" : "Marchează ca trimisă prin e-Factura"}
+                            className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium ${invoice.eFactura ? "border-sky-500/50 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20" : "border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-neutral-300"}`}
+                          >
+                            {invoice.eFactura ? "✓ E-Factura" : "E-Factura"}
                           </button>
                           <button onClick={() => handleDownloadPdf(invoice.id, invoiceRef)} disabled={state.pdfLoadingId === invoice.id}
                             className="text-xs flex items-center gap-1 px-2.5 py-1.5 border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50">
@@ -1804,13 +1873,46 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
   onClose: () => void;
   onSaved: (updated: Invoice) => void;
 }) {
+  const [clientName, setClientName] = React.useState(invoice.clientName ?? "");
+  const [invoiceType, setInvoiceType] = React.useState<"B2C" | "B2B">(invoice.type);
+  const [clientCIF, setClientCIF] = React.useState(invoice.clientCIF ?? "");
   const [clientAddress, setClientAddress] = React.useState(invoice.clientAddress ?? "");
   const [clientCity, setClientCity] = React.useState(invoice.clientCity ?? "");
+  const [clientCounty, setClientCounty] = React.useState(invoice.clientCounty ?? "");
+  const [date, setDate] = React.useState(invoice.date.slice(0, 10));
+  const [dueDate, setDueDate] = React.useState(invoice.dueDate ?? "");
+  const [items, setItems] = React.useState<InvoiceItem[]>(invoice.items.length ? invoice.items : [{ description: "", quantity: 1, unitPrice: 0, total: 0 }]);
+  const [currency, setCurrency] = React.useState(invoice.currency);
+  const [notes, setNotes] = React.useState(invoice.notes ?? "");
   const [taxExchangeRate, setTaxExchangeRate] = React.useState(invoice.taxExchangeRate ? String(invoice.taxExchangeRate) : "");
+  const [eFacturaId, setEFacturaId] = React.useState(invoice.eFacturaId ?? "");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const inp = "w-full bg-neutral-950 text-white text-sm placeholder-neutral-600 border border-neutral-800 rounded-lg px-3 py-2 outline-none focus:border-neutral-500 transition-colors";
+
+  const totalAmount = useMemo(() => Math.round(items.reduce((sum, item) => sum + item.total, 0) * 100) / 100, [items]);
+
+  function updateItem(index: number, field: keyof InvoiceItem, value: string | number) {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const updated = { ...item, [field]: typeof value === "string" ? Number(value) || value : value };
+        if (field === "quantity" || field === "unitPrice") {
+          updated.total = Math.round(Number(updated.quantity) * Number(updated.unitPrice) * 100) / 100;
+        }
+        return updated as InvoiceItem;
+      })
+    );
+  }
+
+  function addItem() {
+    setItems((prev) => [...prev, { description: "", quantity: 1, unitPrice: 0, total: 0 }]);
+  }
+
+  function removeItem(index: number) {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  }
 
   const handleSave = async () => {
     setSaving(true);
@@ -1820,14 +1922,41 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
         method: "PATCH",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
+          clientName,
+          type: invoiceType,
+          clientCIF: invoiceType === "B2B" ? clientCIF : null,
           clientAddress,
           clientCity,
+          clientCounty,
+          date,
+          dueDate: dueDate || null,
+          items,
+          totalAmount,
+          currency,
+          notes,
           taxExchangeRate: taxExchangeRate ? parseFloat(taxExchangeRate) : null,
+          eFacturaId: eFacturaId.trim() || null,
         }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Eroare server.");
-      onSaved({ ...invoice, clientAddress: clientAddress || null, clientCity: clientCity || null, taxExchangeRate: taxExchangeRate ? parseFloat(taxExchangeRate) : null });
+      onSaved({
+        ...invoice,
+        clientName,
+        type: invoiceType,
+        clientCIF: invoiceType === "B2B" ? (clientCIF || null) : null,
+        clientAddress: clientAddress || null,
+        clientCity: clientCity || null,
+        clientCounty: clientCounty || null,
+        date: new Date(date).toISOString(),
+        dueDate: dueDate || null,
+        items,
+        totalAmount,
+        currency,
+        notes: notes || null,
+        taxExchangeRate: taxExchangeRate ? parseFloat(taxExchangeRate) : null,
+        eFacturaId: eFacturaId.trim() || null,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Eroare necunoscută.");
     } finally {
@@ -1837,29 +1966,100 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4" onClick={onClose}>
-      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-white text-base font-semibold">✏️ Editează factură</h2>
           <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-lg">✕</button>
         </div>
-        <div className="text-xs text-neutral-500 mb-4 font-mono">{invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`} · {invoice.clientName}</div>
+        <div className="text-xs text-neutral-500 mb-4 font-mono">{invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`}</div>
 
         <div className="space-y-3">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setInvoiceType("B2C")}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${invoiceType === "B2C" ? "bg-neutral-700 border-neutral-600 text-white" : "border-neutral-800 text-neutral-500 hover:border-neutral-700"}`}>
+              B2C (persoană fizică)
+            </button>
+            <button type="button" onClick={() => setInvoiceType("B2B")}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${invoiceType === "B2B" ? "bg-blue-500/20 border-blue-500/40 text-blue-400" : "border-neutral-800 text-neutral-500 hover:border-neutral-700"}`}>
+              B2B (firmă)
+            </button>
+          </div>
+          <div>
+            <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Nume client</label>
+            <input className={inp} value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nume client" />
+          </div>
+          {invoiceType === "B2B" && (
+            <div>
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">CIF firmă</label>
+              <input className={inp} value={clientCIF} onChange={(e) => setClientCIF(e.target.value)} placeholder="RO12345678" />
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Data facturii</label>
+              <input className={inp} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Scadență</label>
+              <input className={inp} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+          </div>
           <div>
             <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Adresă (stradă)</label>
             <input className={inp} value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Str. Exemplu nr. 1" />
           </div>
-          <div>
-            <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Oraș</label>
-            <input className={inp} value={clientCity} onChange={(e) => setClientCity(e.target.value)} placeholder="Cluj-Napoca" />
-          </div>
-          {invoice.currency !== "RON" && (
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Curs BNR {invoice.currency}/RON <span className="text-amber-500">*</span></label>
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Oraș</label>
+              <input className={inp} value={clientCity} onChange={(e) => setClientCity(e.target.value)} placeholder="Cluj-Napoca" />
+            </div>
+            <div>
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Județ</label>
+              <input className={inp} value={clientCounty} onChange={(e) => setClientCounty(e.target.value)} placeholder="Cluj" />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-neutral-400 text-xs font-medium uppercase tracking-wide">Servicii</label>
+              <div className="flex gap-1.5">
+                <button type="button" onClick={() => setCurrency("RON")}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border ${currency === "RON" ? "bg-neutral-700 border-neutral-600 text-white" : "border-neutral-800 text-neutral-500"}`}>RON</button>
+                <button type="button" onClick={() => setCurrency("EUR")}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border ${currency === "EUR" ? "bg-neutral-700 border-neutral-600 text-white" : "border-neutral-800 text-neutral-500"}`}>EUR</button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {items.map((item, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input className={`${inp} flex-1`} value={item.description} onChange={(e) => updateItem(i, "description", e.target.value)} placeholder="Descriere serviciu" />
+                  <input className={`${inp} w-16`} type="number" min={0} value={item.quantity} onChange={(e) => updateItem(i, "quantity", e.target.value)} />
+                  <input className={`${inp} w-24`} type="number" min={0} step="0.01" value={item.unitPrice} onChange={(e) => updateItem(i, "unitPrice", e.target.value)} />
+                  <button type="button" onClick={() => removeItem(i)} disabled={items.length === 1}
+                    className="text-neutral-600 hover:text-red-400 transition-colors disabled:opacity-30 shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addItem} className="mt-2 text-xs text-emerald-400 hover:text-emerald-300 transition-colors">+ Adaugă serviciu</button>
+            <div className="mt-2 text-right text-sm text-neutral-300">Total: <span className="font-medium text-white">{fmtCurrency(totalAmount, currency)}</span></div>
+          </div>
+
+          <div>
+            <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Note</label>
+            <textarea className={inp} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Mențiuni suplimentare" rows={2} />
+          </div>
+
+          {currency !== "RON" && (
+            <div>
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Curs BNR {currency}/RON <span className="text-amber-500">*</span></label>
               <input className={inp} value={taxExchangeRate} onChange={(e) => setTaxExchangeRate(e.target.value)} placeholder="ex: 5.2000" type="number" step="0.0001" min="0" />
               <p className="text-neutral-600 text-[10px] mt-1">Necesar pentru e-Factura CIUS-RO. Verifică cursul BNR de la data facturii.</p>
             </div>
           )}
+          <div>
+            <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">ID factură e-Factura (SPV)</label>
+            <input className={inp} value={eFacturaId} onChange={(e) => setEFacturaId(e.target.value)} placeholder="ex: 5006332157" />
+          </div>
         </div>
 
         {error && <p className="mt-3 text-red-400 text-xs">{error}</p>}

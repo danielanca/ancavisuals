@@ -22,6 +22,7 @@ import chatbotRouter from "./src/server/routes/chatbot.routes";
 import uploadRouter from "./src/server/routes/upload.routes";
 import blogRouter from "./src/server/routes/blog.routes";
 import contractsRouter from "./src/server/routes/contracts.routes";
+import handoverRouter from "./src/server/routes/handover.routes";
 import inspirationRouter from "./src/server/routes/inspiration.routes";
 import mementosRouter from "./src/server/routes/mementos.routes";
 import { analyticsPublicRouter, analyticsAdminRouter } from "./src/server/routes/analytics.routes";
@@ -84,6 +85,7 @@ const API_ROUTE_PREFIXES = {
   uploads: "/api",
   blog: "/api/blog",
   contracts: "/api/contracts",
+  handover: "/api/handover",
 } as const;
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD;
@@ -168,6 +170,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.uploads, uploadRouter);
   app.use(API_ROUTE_PREFIXES.blog, blogRouter);
   app.use(API_ROUTE_PREFIXES.contracts, contractsRouter);
+  app.use(API_ROUTE_PREFIXES.handover, handoverRouter);
   app.use(API_ROUTE_PREFIXES.admin, inspirationRouter);
   app.use(API_ROUTE_PREFIXES.admin, mementosRouter);
   app.use(API_ROUTE_PREFIXES.admin, accountsRouter);

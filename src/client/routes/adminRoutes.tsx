@@ -17,6 +17,8 @@ const CreateEventWedding = loadable(() => import("../features/admin/components/E
 const ContractListPage = loadable(() => import("../features/admin/components/Contracts/ContractListPage"), opts);
 const CreateContractPage = loadable(() => import("../features/admin/components/Contracts/CreateContractPage"), opts);
 const EditContractPage = loadable(() => import("../features/admin/components/Contracts/EditContractPage"), opts);
+const HandoverListPage = loadable(() => import("../features/admin/components/Handover/HandoverListPage"), opts);
+const CreateHandoverPage = loadable(() => import("../features/admin/components/Handover/CreateHandoverPage"), opts);
 const InspirationPage = loadable(() => import("../features/admin/components/InspirationPage"), opts);
 const MementosPage = loadable(() => import("../features/admin/components/MementosPage"), opts);
 const MediaActivityPage = loadable(() => import("../features/admin/components/MediaActivityPage"), opts);
@@ -62,6 +64,8 @@ export const adminRoutes = [
       <Route path="/admin/contracts" element={<ContractListPage />} />
       <Route path="/admin/contracts/create" element={<CreateContractPage />} />
       <Route path="/admin/contracts/:id/edit" element={<EditContractPage />} />
+      <Route path="/admin/handover" element={<HandoverListPage />} />
+      <Route path="/admin/handover/new" element={<CreateHandoverPage />} />
       <Route path="/admin/inspiration" element={<InspirationPage />} />
       <Route path="/admin/mementos" element={<MementosPage />} />
       <Route path="/admin/media-activity" element={<MediaActivityPage />} />
