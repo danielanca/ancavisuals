@@ -26,7 +26,7 @@ function resolveBankDetails(contract: Record<string, unknown>) {
   };
 }
 
-export async function generateContractPDF(contract: Record<string, unknown>): Promise<Buffer> {
+async function renderHtmlToPdf(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
     headless: true,
     ...(process.env.PUPPETEER_EXECUTABLE_PATH ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH } : {}),
@@ -36,7 +36,7 @@ export async function generateContractPDF(contract: Record<string, unknown>): Pr
   try {
     const page = await browser.newPage();
     await page.emulateMediaType("print");
-    await page.setContent(buildContractHTML(contract), { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "networkidle0" });
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -46,6 +46,14 @@ export async function generateContractPDF(contract: Record<string, unknown>): Pr
   } finally {
     await browser.close();
   }
+}
+
+export async function generateContractPDF(contract: Record<string, unknown>): Promise<Buffer> {
+  return renderHtmlToPdf(buildContractHTML(contract));
+}
+
+export async function generateHandoverPDF(handover: Record<string, unknown>): Promise<Buffer> {
+  return renderHtmlToPdf(buildHandoverHTML(handover));
 }
 
 function esc(val: unknown): string {
@@ -441,4 +449,83 @@ ${renderedArticles}
   return html.replace(/>([^<]+)</g, (_, text: string) =>
     ">" + text.replace(/\b(PRESTATOR(?:UL|ULUI)?|BENEFICIAR(?:UL|ULUI)?)\b/g, "<strong>$1</strong>") + "<"
   );
+}
+
+export function buildHandoverHTML(handover: Record<string, unknown>): string {
+  const signedDate = formatDate(handover.signedAt);
+  const eventDateFormatted = formatDate(handover.eventDate);
+  const documentDate = formatShortDate(handover.signedAt ?? handover.createdAt);
+
+  const courierDeliveryDays = Number(handover.courierDeliveryDays) || 7;
+  const materialsReportWindowDays = Number(handover.materialsReportWindowDays) || 7;
+  const digitalLinkExpiryDays = Number(handover.digitalLinkExpiryDays) || 30;
+
+  const html = `<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { background: #e8e8e8; }
+  body { font-family: Arial, sans-serif; font-size: 10.5pt; color: #111; line-height: 1.6; background: #e8e8e8; min-height: 100vh; padding: 32px 16px 48px; }
+  .page { background: #fff; max-width: 794px; margin: 0 auto; padding: 28mm 20mm; box-shadow: 0 2px 16px rgba(0,0,0,0.18); }
+  @media print {
+    html, body { background: transparent; padding: 0; }
+    .page { box-shadow: none; max-width: none; margin: 0; padding: 0; }
+  }
+  h1 { font-size: 14pt; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .center { text-align: center; }
+  .bold { font-weight: 700; }
+  .underline { text-decoration: underline; }
+  p { margin: 6px 0; }
+  ol { padding-left: 20px; margin: 10px 0; }
+  li { margin: 8px 0; }
+  .sig-row { display: flex; gap: 60px; margin-top: 40px; }
+  .sig-box { flex: 1; }
+  .sig-label { font-size: 9pt; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; font-weight: 700; }
+  .sig-name { font-size: 10pt; font-weight: 700; margin-top: 4px; }
+  .sig-date { font-size: 9pt; color: #666; }
+  .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ccc; font-size: 8pt; color: #999; text-align: center; }
+  hr { border: none; border-top: 1px solid #999; margin: 8px 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Proces Verbal de Predare-Primire a Materialelor Foto/Video</h1>
+<p class="center">Data: ${documentDate}</p>
+<hr />
+
+<p>Subsemnatul/Subsemnata, <span class="bold underline">${esc(handover.clientName as string || "________________________")}</span>, client pentru evenimentul <span class="bold">${esc(handover.eventType as string || "")}</span> din data <span class="bold">${eventDateFormatted}</span>, confirm prin prezentul document următoarele:</p>
+
+<ol>
+  <li>Am primit, la data semnării, linkul de acces digital către materialele foto/video rezultate în urma evenimentului. Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.</li>
+  <li>Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <span class="bold">${courierDeliveryDays} zile</span> calendaristice de la data prezentei semnături.</li>
+  <li>Înțeleg că, de la data recepționării efective a coletului cu materialele fizice, am la dispoziție un termen de <span class="bold">${materialsReportWindowDays} zile</span> calendaristice pentru a verifica integritatea acestora și a semnala în scris eventuale neconformități, deteriorări sau lipsuri constatate. În lipsa unei sesizări în acest interval, materialele fizice se consideră acceptate ca fiind conforme.</li>
+  <li>Am fost informat(ă) că suporturile de stocare portabile (stick USB, card de memorie, hard disk extern) se pot defecta sau pot pierde datele stocate, de regulă după aproximativ <span class="bold">3–4 ani</span> de utilizare, fără avertisment prealabil. Prin urmare, îmi asum obligația de a realiza copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <span class="bold">două locații diferite</span> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). PRESTATORUL nu poate fi tras la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.</li>
+</ol>
+
+<p>Am confirmat, prin bifarea căsuțelor de pe formularul de semnare electronică, primirea link-ului digital și înțelegerea termenelor de mai sus.</p>
+
+<div class="sig-row">
+  <div class="sig-box">
+    <div class="sig-label">Client</div>
+    ${handover.clientSignatureBase64
+      ? `<img src="${handover.clientSignatureBase64}" style="max-width:220px;max-height:50px;display:block;margin-bottom:6px;" alt="Semnatura" />`
+      : `<div style="height:50px;border-bottom:1px solid #333;margin-bottom:6px;"></div>`}
+    <div class="sig-name">${esc(handover.clientName as string || "")}</div>
+    <div class="sig-date">${signedDate}</div>
+  </div>
+</div>
+
+<div class="footer">
+  Document semnat electronic &nbsp;•&nbsp; ${new Date(toIsoString(handover.signedAt) ?? Date.now()).toLocaleString("ro-RO")} &nbsp;•&nbsp; IP: ${esc(handover.clientIp as string || "necunoscut")}
+</div>
+
+</div>
+</body>
+</html>`;
+
+  return html;
 }

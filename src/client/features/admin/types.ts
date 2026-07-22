@@ -46,6 +46,7 @@ export interface ClientEvent {
   eventEndDate?: Date | null;
   typeLabel?: string;
   contractId?: string;
+  handoverId?: string;
   notes?: string;
   contractUrl?: string;
   invoiceUrl?: string;

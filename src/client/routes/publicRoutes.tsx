@@ -26,6 +26,7 @@ const PrivacyPage = loadable(() => import("../pages/Privacy/Privacy"), opts(true
 const TermsPage = loadable(() => import("../pages/Terms/Terms"), opts(true));
 const DeliveryAddressPage = loadable(() => import("../pages/DeliveryAddress/DeliveryAddressPage"), opts(false));
 const ContractSignPage = loadable(() => import("../pages/Contract/ContractSignPage"), opts(false));
+const HandoverSignPage = loadable(() => import("../pages/Handover/HandoverSignPage"), opts(false));
 const PostEventBackupPage = loadable(() => import("../pages/PostEventBackup/PostEventBackupPage"), opts(false));
 const BlogList = loadable(() => import("../pages/Blog/BlogList"), opts(true));
 const BlogPost = loadable(() => import("../pages/Blog/BlogPost"), opts(true));
@@ -181,6 +182,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/contract/:token",
     layout: null,
     component: ContractSignPage,
+  },
+  {
+    path: "/proces-verbal/:token",
+    layout: null,
+    component: HandoverSignPage,
   },
   {
     path: "/backup/:eventId",

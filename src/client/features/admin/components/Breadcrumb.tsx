@@ -11,6 +11,8 @@ const LABELS: Record<string, string> = {
   contracts: "Contracte",
   create: "Contract nou",
   edit: "Editează contract",
+  handover: "Procese Verbale",
+  new: "Proces verbal nou",
   inspiration: "Inspirație",
   mementos: "Mementouri",
   "media-activity": "Activitate Media",

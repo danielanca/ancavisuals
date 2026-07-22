@@ -222,6 +222,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       ),
       items: [
         { label: "Contracte", path: "/admin/contracts" },
+        { label: "Procese Verbale", path: "/admin/handover" },
         { label: "Oferte", path: "/admin/oferte" },
         { label: "Template Oferte", path: "/admin/template-oferte" },
       ],
