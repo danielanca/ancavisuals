@@ -24,6 +24,13 @@ function tsToISO(value: unknown): string | null {
   return null;
 }
 
+function parseDateInput(value: unknown): Timestamp | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const parsed = new Date(value);
+  if (isNaN(parsed.getTime())) return undefined;
+  return Timestamp.fromDate(parsed);
+}
+
 type AdminEventType = "Nuntă" | "Botez" | "Logodnă" | "Aniversare" | "Altele";
 
 const DIRECT_ADMIN_EVENT_TYPES = new Set<AdminEventType>(["Nuntă", "Botez", "Logodnă", "Aniversare"]);
@@ -377,8 +384,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const body = req.body;
     const priceTotal = Number(body.priceTotal) || 0;
     const priceAdvance = Number(body.priceAdvance) || 0;
+    const createdAtTs = parseDateInput(body.createdAt);
+    const signedAtTs = parseDateInput(body.signedAt);
 
     const updates: Record<string, unknown> = {
+      ...(createdAtTs ? { createdAt: createdAtTs } : {}),
+      ...(signedAtTs ? { signedAt: signedAtTs } : {}),
       eventType: body.eventType,
       eventDate: body.eventDate,
       eventLocation: body.eventLocation ?? "",

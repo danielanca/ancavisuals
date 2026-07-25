@@ -64,6 +64,12 @@ function formatDecimal(value: number): string {
   return value === 0 ? "" : String(value).replace(".", ",");
 }
 
+function toDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+}
+
 function DecimalInput({
   value, onChange, step = 0.05, className, placeholder,
 }: { value: number; onChange: (v: number) => void; step?: number; className?: string; placeholder?: string }) {
@@ -179,6 +185,8 @@ const EditContractPage: React.FC = () => {
   const [privateClient, setPrivateClient] = useState(false);
   const [fiscalized, setFiscalized] = useState(false);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
+  const [createdAt, setCreatedAt] = useState("");
+  const [signedAt, setSignedAt] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -241,6 +249,8 @@ const EditContractPage: React.FC = () => {
         setPrivateClient(data.privateClient === true);
         setFiscalized(data.fiscalized === true);
         setLinkedEventId(data.eventId ?? null);
+        setCreatedAt(toDateInputValue(data.createdAt));
+        setSignedAt(toDateInputValue(data.signedAt));
 
         const computedAuto =
           populated.filter((s) => s.included).reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) +
@@ -331,6 +341,8 @@ const EditContractPage: React.FC = () => {
         clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || DEFAULT_TRANSPORT_FUEL_PRICE,
+        ...(createdAt ? { createdAt } : {}),
+        ...(signedAt ? { signedAt } : {}),
       };
 
       const res = await fetch(`/api/contracts/${id}`, {
@@ -393,6 +405,20 @@ const EditContractPage: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+
+          {/* DATE CONTRACT */}
+          <Block title="Date contract">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Data creării</Label>
+                <input type="date" value={createdAt} onChange={(e) => setCreatedAt(e.target.value)} className={inp} />
+              </div>
+              <div>
+                <Label>Data semnării</Label>
+                <input type="date" value={signedAt} onChange={(e) => setSignedAt(e.target.value)} className={inp} />
+              </div>
+            </div>
+          </Block>
 
           {/* EVENIMENT */}
           <Block title="Eveniment">
