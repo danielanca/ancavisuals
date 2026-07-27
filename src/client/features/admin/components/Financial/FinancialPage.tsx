@@ -836,6 +836,8 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
   const [invoiceType, setInvoiceType] = React.useState<"B2C" | "B2B">("B2C");
   const [clientName, setClientName] = React.useState("");
   const [clientAddress, setClientAddress] = React.useState("");
+  const [clientCity, setClientCity] = React.useState("");
+  const [clientCounty, setClientCounty] = React.useState("");
   const [clientCIF, setClientCIF] = React.useState("");
   const [items, setItems] = React.useState<InvoiceItem[]>([{ description: "Servicii fotografiere", quantity: 1, unitPrice: 0, total: 0 }]);
   const [currency, setCurrency] = React.useState("RON");
@@ -843,6 +845,50 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
   const [notes, setNotes] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [aiText, setAiText] = React.useState("");
+  const [aiLoading, setAiLoading] = React.useState(false);
+  const [aiError, setAiError] = React.useState<string | null>(null);
+
+  async function handleAiFill() {
+    if (!aiText.trim()) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const response = await fetch("/api/admin/invoices/parse-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ text: aiText }),
+      });
+      const data = await response.json() as { extracted?: Record<string, unknown>; error?: string };
+      if (data.error) throw new Error(data.error);
+      const extracted = data.extracted ?? {};
+
+      if (typeof extracted.clientName === "string" && extracted.clientName.trim()) setClientName(extracted.clientName.trim());
+      if (typeof extracted.clientCIF === "string" && extracted.clientCIF.trim()) {
+        setClientCIF(extracted.clientCIF.trim());
+        setInvoiceType("B2B");
+      }
+      if (typeof extracted.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(extracted.date)) setDate(extracted.date);
+      if (extracted.currency === "RON" || extracted.currency === "EUR") setCurrency(extracted.currency);
+      if (typeof extracted.notes === "string" && extracted.notes.trim()) setNotes(extracted.notes.trim());
+      if (Array.isArray(extracted.items) && extracted.items.length) {
+        const parsedItems = extracted.items
+          .map((item) => {
+            if (!item || typeof item !== "object") return null;
+            const description = String((item as Record<string, unknown>).description ?? "").trim();
+            const amount = Number((item as Record<string, unknown>).amount);
+            if (!description || !Number.isFinite(amount)) return null;
+            return { description, quantity: 1, unitPrice: amount, total: amount } as InvoiceItem;
+          })
+          .filter((item): item is InvoiceItem => item !== null);
+        if (parsedItems.length) setItems(parsedItems);
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Eroare AI.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   React.useEffect(() => {
     fetch("/api/admin/settings", {
@@ -918,7 +964,7 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!clientName || !items.length) return;
+    if (!clientName || !items.length || !clientAddress.trim() || !clientCity.trim() || !clientCounty.trim()) return;
     setSaving(true);
     setError(null);
     try {
@@ -929,7 +975,9 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
           date,
           type: invoiceType,
           clientName,
-          clientAddress: clientAddress || undefined,
+          clientAddress,
+          clientCity,
+          clientCounty,
           clientCIF: invoiceType === "B2B" ? clientCIF || undefined : undefined,
           items,
           totalAmount,
@@ -951,8 +999,8 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
         clientName,
         clientAddress: clientAddress || null,
         clientCIF: invoiceType === "B2B" ? clientCIF || null : null,
-        clientCity: null,
-        clientCounty: null,
+        clientCity: clientCity || null,
+        clientCounty: clientCounty || null,
         items,
         totalAmount,
         currency,
@@ -985,6 +1033,21 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* AI autocomplete */}
+          <div className="border border-dashed border-emerald-700/50 bg-emerald-500/5 rounded-lg p-3 space-y-2">
+            <label className="block text-xs text-emerald-400 font-medium">✨ Completare automată cu AI (opțional)</label>
+            <textarea value={aiText} onChange={(e) => setAiText(e.target.value)} rows={4}
+              placeholder="Lipește aici textul cu tranzacțiile/încasările (ex: extras de cont, listă rezumat)..."
+              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500" />
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={handleAiFill} disabled={aiLoading || !aiText.trim()}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500 text-emerald-400 hover:bg-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                {aiLoading ? "Se completează..." : "Completează câmpurile cu AI"}
+              </button>
+              {aiError && <span className="text-xs text-red-400">{aiError}</span>}
+            </div>
+          </div>
+
           {/* Event picker */}
           <div>
             <label className="block text-xs text-neutral-400 mb-1">Completează din eveniment (opțional)</label>
@@ -1027,20 +1090,32 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
               className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
           </div>
 
-          <div className={`grid gap-3 ${invoiceType === "B2B" ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div>
+            <label className="block text-xs text-neutral-400 mb-1">Adresă client (stradă) *</label>
+            <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} required placeholder="Str. Exemplu nr. 1"
+              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+          </div>
+
+          <div className={`grid gap-3 ${invoiceType === "B2B" ? "grid-cols-2" : "grid-cols-2"}`}>
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">Adresă client</label>
-              <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
+              <label className="block text-xs text-neutral-400 mb-1">Oraș *</label>
+              <input type="text" value={clientCity} onChange={(e) => setClientCity(e.target.value)} required placeholder="Cluj-Napoca"
                 className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
             </div>
-            {invoiceType === "B2B" && (
-              <div>
-                <label className="block text-xs text-neutral-400 mb-1">CIF / CUI client</label>
-                <input type="text" value={clientCIF} onChange={(e) => setClientCIF(e.target.value)} placeholder="RO..."
-                  className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
-              </div>
-            )}
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Județ *</label>
+              <input type="text" value={clientCounty} onChange={(e) => setClientCounty(e.target.value)} required placeholder="Cluj"
+                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+            </div>
           </div>
+
+          {invoiceType === "B2B" && (
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">CIF / CUI client</label>
+              <input type="text" value={clientCIF} onChange={(e) => setClientCIF(e.target.value)} placeholder="RO..."
+                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+            </div>
+          )}
 
           {/* Items */}
           <div>
