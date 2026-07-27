@@ -1886,6 +1886,7 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
   const [notes, setNotes] = React.useState(invoice.notes ?? "");
   const [taxExchangeRate, setTaxExchangeRate] = React.useState(invoice.taxExchangeRate ? String(invoice.taxExchangeRate) : "");
   const [eFacturaId, setEFacturaId] = React.useState(invoice.eFacturaId ?? "");
+  const [invoiceRef, setInvoiceRef] = React.useState(invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -1936,6 +1937,7 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
           notes,
           taxExchangeRate: taxExchangeRate ? parseFloat(taxExchangeRate) : null,
           eFacturaId: eFacturaId.trim() || null,
+          invoiceRef: invoiceRef.trim(),
         }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
@@ -1956,6 +1958,7 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
         notes: notes || null,
         taxExchangeRate: taxExchangeRate ? parseFloat(taxExchangeRate) : null,
         eFacturaId: eFacturaId.trim() || null,
+        invoiceRef: invoiceRef.trim(),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Eroare necunoscută.");
@@ -1971,7 +1974,10 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
           <h2 className="text-white text-base font-semibold">✏️ Editează factură</h2>
           <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors text-lg">✕</button>
         </div>
-        <div className="text-xs text-neutral-500 mb-4 font-mono">{invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`}</div>
+        <div className="mb-4">
+          <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Număr factură</label>
+          <input className={`${inp} font-mono`} value={invoiceRef} onChange={(e) => setInvoiceRef(e.target.value)} placeholder="ADE-0001" />
+        </div>
 
         <div className="space-y-3">
           <div className="flex gap-2">

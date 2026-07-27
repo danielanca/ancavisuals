@@ -159,7 +159,7 @@ router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
     const {
       clientName, clientAddress, clientCity, clientCounty, clientCIF,
       type, date, dueDate, items, totalAmount, currency, notes,
-      taxExchangeRate, eFacturaId,
+      taxExchangeRate, eFacturaId, invoiceRef,
     } = req.body as {
       clientName?: string;
       clientAddress?: string;
@@ -175,6 +175,7 @@ router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
       notes?: string | null;
       taxExchangeRate?: number | null;
       eFacturaId?: string | null;
+      invoiceRef?: string;
     };
     const update: Record<string, unknown> = {};
     if (clientName !== undefined) update.clientName = clientName.trim();
@@ -191,6 +192,11 @@ router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
     if (notes !== undefined) update.notes = notes?.trim() || null;
     if (taxExchangeRate !== undefined) update.taxExchangeRate = taxExchangeRate ?? null;
     if (eFacturaId !== undefined) update.eFacturaId = eFacturaId?.trim() || null;
+    if (invoiceRef !== undefined) {
+      const trimmedRef = invoiceRef.trim();
+      if (!trimmedRef) { res.status(400).json({ error: "Numărul facturii nu poate fi gol." }); return; }
+      update.invoiceRef = trimmedRef;
+    }
     if (Object.keys(update).length === 0) { res.status(400).json({ error: "Nimic de actualizat." }); return; }
     await db.collection(COLLECTION).doc(req.params.id).update(update);
     res.json({ ok: true });
