@@ -46,6 +46,7 @@ router.post("/", async (req: Request, res: Response) => {
       clientName: body.clientName?.trim() ?? "",
 
       digitalLinkUrl: body.digitalLinkUrl?.trim() ?? "",
+      awb: body.awb?.trim() ?? "",
       courierDeliveryDays: Number(body.courierDeliveryDays) || DEFAULT_COURIER_DELIVERY_DAYS,
       materialsReportWindowDays: Number(body.materialsReportWindowDays) || DEFAULT_MATERIALS_REPORT_WINDOW_DAYS,
       digitalLinkExpiryDays: Number(body.digitalLinkExpiryDays) || DEFAULT_DIGITAL_LINK_EXPIRY_DAYS,
@@ -100,7 +101,7 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
     if (snapshot.empty) return res.status(404).json({ error: "Proces verbal negăsit." });
     const data = snapshot.docs[0].data();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { clientSignatureBase64, clientIp, pdfUrl, ...publicData } = data;
+    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, ...publicData } = data;
     const pdfBuffer = await generateHandoverPDF({ ...publicData, createdAt: tsToISO(data.createdAt) });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="proces-verbal-preview.pdf"`);
@@ -120,7 +121,7 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
     if (snapshot.empty) return res.status(404).send("<p>Proces verbal negăsit.</p>");
     const data = snapshot.docs[0].data();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { clientSignatureBase64, clientIp, pdfUrl, ...publicData } = data;
+    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, ...publicData } = data;
     const html = buildHandoverHTML({ ...publicData, createdAt: tsToISO(data.createdAt) });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(html);
@@ -153,8 +154,9 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
       return res.status(410).json({ error: "Link-ul a expirat.", status: "expired" });
     }
 
+    // digitalLinkUrl is withheld until the client signs — it's delivered by email right after signing
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { clientSignatureBase64, clientIp, pdfUrl, ...publicData } = data;
+    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, ...publicData } = data;
 
     res.json({
       id: doc.id,
@@ -172,13 +174,13 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { token } = req.params;
-    const { clientName, digitalLinkReceived, termsAcknowledged, clientSignatureBase64 } = req.body;
+    const { clientName, digitalLinkAcknowledged, termsAcknowledged, clientSignatureBase64 } = req.body;
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Numele complet este obligatoriu." });
     }
-    if (digitalLinkReceived !== true) {
-      return res.status(400).json({ error: "Trebuie să confirmați că ați primit link-ul digital." });
+    if (digitalLinkAcknowledged !== true) {
+      return res.status(400).json({ error: "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare." });
     }
     if (termsAcknowledged !== true) {
       return res.status(400).json({ error: "Trebuie să confirmați că ați înțeles termenele de livrare." });
@@ -211,7 +213,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       status: "signed",
       signedAt,
       clientName: clientName.trim(),
-      digitalLinkReceived: true,
+      digitalLinkAcknowledged: true,
       termsAcknowledged: true,
       clientSignatureBase64,
       clientIp,
@@ -242,6 +244,29 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[handover] POST /sign/:token failed:", error);
     res.status(500).json({ error: "Eroare server la semnare." });
+  }
+});
+
+// PATCH /api/handover/:id — update AWB / digital link (admin)
+router.patch("/:id", async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const doc = await db.collection("materialsHandover").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Proces verbal negăsit." });
+
+    const updates: Record<string, string> = {};
+    if (typeof req.body.awb === "string") updates.awb = req.body.awb.trim();
+    if (typeof req.body.digitalLinkUrl === "string") updates.digitalLinkUrl = req.body.digitalLinkUrl.trim();
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "Niciun câmp de actualizat." });
+    }
+
+    await db.collection("materialsHandover").doc(req.params.id).update(updates);
+    res.json({ ok: true, ...updates });
+  } catch (error) {
+    console.error("[handover] PATCH /:id failed:", error);
+    res.status(500).json({ error: "Nu s-a putut actualiza procesul verbal." });
   }
 });
 
@@ -423,6 +448,9 @@ async function generateAndSendPDF(handover: Record<string, unknown>): Promise<vo
     clientName: handover.clientName as string,
     pdfUrl: pdfUrl ?? fallbackUrl,
     hasPdf: pdfUrl !== null,
+    digitalLinkUrl: (handover.digitalLinkUrl as string) || undefined,
+    digitalLinkExpiryDays: Number(handover.digitalLinkExpiryDays) || DEFAULT_DIGITAL_LINK_EXPIRY_DAYS,
+    awb: (handover.awb as string) || undefined,
   });
 }
 

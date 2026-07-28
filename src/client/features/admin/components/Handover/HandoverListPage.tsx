@@ -4,6 +4,7 @@ import ConfirmModal from "../ConfirmModal";
 import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 import HandoverActionMenu from "./HandoverActionMenu";
+import EditHandoverModal from "./EditHandoverModal";
 
 interface HandoverItem {
   id: string;
@@ -14,6 +15,7 @@ interface HandoverItem {
   clientEmail: string;
   clientName?: string;
   digitalLinkUrl?: string;
+  awb?: string;
   courierDeliveryDays?: number;
   materialsReportWindowDays?: number;
   digitalLinkExpiryDays?: number;
@@ -44,6 +46,7 @@ const HandoverListPage: React.FC = () => {
 
   type PendingAction = { type: "delete" | "send"; id: string; label: string } | null;
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [editingItem, setEditingItem] = useState<HandoverItem | null>(null);
 
   useEffect(() => {
     fetch("/api/handover")
@@ -128,6 +131,20 @@ const HandoverListPage: React.FC = () => {
     }
   };
 
+  const handleEditSave = async (updates: { awb: string; digitalLinkUrl: string }) => {
+    if (!editingItem) return;
+    const res = await fetch(`/api/handover/${editingItem.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Eroare la salvare");
+    setItems((prev) => prev.map((it) => (it.id === editingItem.id ? { ...it, ...updates } : it)));
+    setEditingItem(null);
+    showToast("Proces verbal actualizat.");
+  };
+
   const confirmAction = (type: "delete" | "send", id: string, label: string) => {
     setPendingAction({ type, id, label });
   };
@@ -210,6 +227,7 @@ const HandoverListPage: React.FC = () => {
                         {item.clientName && <span>Semnat de: {item.clientName}</span>}
                         <span>Creat: {formatDate(item.createdAt)}</span>
                         {item.signedAt && <span>Semnat: {formatDate(item.signedAt)}</span>}
+                        {item.awb && <span>AWB: {item.awb}</span>}
                       </div>
                     </div>
 
@@ -229,6 +247,7 @@ const HandoverListPage: React.FC = () => {
                       onDelete={() => confirmAction("delete", item.id, `${item.eventType} — ${item.clientEmail}`)}
                       onResend={() => handleResend(item.id)}
                       onReminder={() => handleReminder(item.id)}
+                      onEdit={() => setEditingItem(item)}
                     />
                   </div>
                 </div>
@@ -247,6 +266,15 @@ const HandoverListPage: React.FC = () => {
           <div className="fixed bottom-6 right-6 bg-neutral-900 border border-emerald-500/30 text-emerald-400 text-sm px-4 py-2.5 rounded-lg shadow-xl">
             {toast}
           </div>
+        )}
+
+        {editingItem && (
+          <EditHandoverModal
+            initialAwb={editingItem.awb}
+            initialDigitalLinkUrl={editingItem.digitalLinkUrl}
+            onSave={handleEditSave}
+            onCancel={() => setEditingItem(null)}
+          />
         )}
 
         {pendingAction && (

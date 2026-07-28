@@ -78,16 +78,37 @@ interface SignedHandoverEmailOptions {
   clientName: string;
   pdfUrl: string;
   hasPdf?: boolean;
+  digitalLinkUrl?: string;
+  digitalLinkExpiryDays?: number;
+  awb?: string;
 }
 
 export async function sendSignedHandoverEmail(options: SignedHandoverEmailOptions): Promise<void> {
-  const { to, eventType, eventDate, clientName, pdfUrl, hasPdf = true } = options;
+  const { to, eventType, eventDate, clientName, pdfUrl, hasPdf = true, digitalLinkUrl, digitalLinkExpiryDays, awb } = options;
   const formattedDate = formatRoDate(eventDate);
 
   const buttonLabel = hasPdf ? "Descarcă Procesul Verbal PDF" : "Vezi Procesul Verbal Semnat";
   const bodyText = hasPdf
     ? "Puteți descărca procesul verbal semnat accesând butonul de mai jos. Link-ul este permanent și poate fi accesat oricând."
     : "Procesul verbal a fost semnat. PDF-ul se generează — îl puteți accesa în curând accesând link-ul de mai jos.";
+
+  const digitalLinkBlock = digitalLinkUrl
+    ? `
+    <div style="text-align: center; margin-bottom: 28px;">
+      <a href="${digitalLinkUrl}" style="display:inline-block;background-color:#1a1a1a;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Descarcă materialele foto/video</a>
+      ${digitalLinkExpiryDays ? `<p style="color: #999; font-size: 12px; margin: 10px 0 0;">Link-ul este valabil ${digitalLinkExpiryDays} zile de la data semnării.</p>` : ""}
+    </div>`
+    : "";
+
+  const awbBlock = awb
+    ? `
+    <div style="background: #fffbf0; border: 1px solid #e8c840; border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;">
+      <p style="color: #333; font-size: 13px; margin: 0;">
+        Coletul fizic a fost expediat prin curier, cu numărul de tracking (AWB): <strong>${awb}</strong>.
+        Vă rugăm să urmăriți statusul livrării folosind acest cod pe site-ul curierului.
+      </p>
+    </div>`
+    : "";
 
   const html = emailWrap(`
     <p style="color: #333; margin-bottom: 12px;">
@@ -98,6 +119,8 @@ export async function sendSignedHandoverEmail(options: SignedHandoverEmailOption
     <div style="text-align: center; margin-bottom: 28px;">
       <a href="${pdfUrl}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">${buttonLabel}</a>
     </div>
+    ${digitalLinkBlock}
+    ${awbBlock}
   `);
 
   await mailer.sendMail({

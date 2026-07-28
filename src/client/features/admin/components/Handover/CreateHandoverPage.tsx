@@ -40,6 +40,7 @@ const CreateHandoverPage: React.FC = () => {
   const [clientEmail, setClientEmail] = useState(fromEvent.clientEmail ?? "");
 
   const [digitalLinkUrl, setDigitalLinkUrl] = useState("");
+  const [awb, setAwb] = useState("");
   const [courierDeliveryDays, setCourierDeliveryDays] = useState(DEFAULT_COURIER_DELIVERY_DAYS);
   const [materialsReportWindowDays, setMaterialsReportWindowDays] = useState(DEFAULT_MATERIALS_REPORT_WINDOW_DAYS);
   const [digitalLinkExpiryDays, setDigitalLinkExpiryDays] = useState(DEFAULT_DIGITAL_LINK_EXPIRY_DAYS);
@@ -104,6 +105,7 @@ const CreateHandoverPage: React.FC = () => {
           clientName: clientName.trim(),
           clientEmail: clientEmail.trim(),
           digitalLinkUrl: digitalLinkUrl.trim(),
+          awb: awb.trim(),
           courierDeliveryDays,
           materialsReportWindowDays,
           digitalLinkExpiryDays,
@@ -200,6 +202,12 @@ const CreateHandoverPage: React.FC = () => {
             <div>
               <Label>Link digital (galerie / QR Moments)</Label>
               <input className={inp} type="text" value={digitalLinkUrl} onChange={(e) => setDigitalLinkUrl(e.target.value)} placeholder="https://ancavisuals.ro/qr-moments/..." />
+              <p className="text-neutral-500 text-xs mt-1.5">Clientul NU vede acest link înainte de semnare — îi va fi trimis pe email imediat după ce semnează.</p>
+            </div>
+            <div>
+              <Label>AWB colet (opțional)</Label>
+              <input className={inp} type="text" value={awb} onChange={(e) => setAwb(e.target.value)} placeholder="Ex: 1234567890 — completează doar dacă ai deja numărul de tracking" />
+              <p className="text-neutral-500 text-xs mt-1.5">Dacă e completat, clientul e informat în PV să urmărească livrarea coletului cu acest AWB. Poți adăuga AWB-ul și mai târziu, din listă.</p>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>

@@ -11,6 +11,7 @@ interface HandoverData {
   courierDeliveryDays: number;
   materialsReportWindowDays: number;
   digitalLinkExpiryDays: number;
+  awb?: string;
 }
 
 type PageState = "loading" | "ready" | "signed" | "expired" | "not_found" | "error" | "success";
@@ -22,7 +23,7 @@ const HandoverSignPage: React.FC = () => {
   const [handover, setHandover] = useState<HandoverData | null>(null);
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
-  const [digitalLinkReceived, setDigitalLinkReceived] = useState(false);
+  const [digitalLinkAcknowledged, setDigitalLinkAcknowledged] = useState(false);
   const [termsAcknowledged, setTermsAcknowledged] = useState(false);
   const [backupDetailsOpen, setBackupDetailsOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -123,7 +124,7 @@ const HandoverSignPage: React.FC = () => {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!clientName.trim()) errors.clientName = "Numele complet este obligatoriu.";
-    if (!digitalLinkReceived) errors.digitalLinkReceived = "Trebuie să confirmați că ați primit link-ul digital.";
+    if (!digitalLinkAcknowledged) errors.digitalLinkAcknowledged = "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare.";
     if (!termsAcknowledged) errors.termsAcknowledged = "Trebuie să confirmați că ați înțeles termenele de mai jos.";
     if (!hasSignature.current) errors.signature = "Semnătura este obligatorie.";
     setFieldErrors(errors);
@@ -143,7 +144,7 @@ const HandoverSignPage: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientName: clientName.trim(),
-          digitalLinkReceived,
+          digitalLinkAcknowledged,
           termsAcknowledged,
           clientSignatureBase64: canvas.toDataURL("image/png"),
         }),
@@ -213,7 +214,7 @@ const HandoverSignPage: React.FC = () => {
       <div style={{ ...pg.iconBig, color: "#c9a96e" }}>✓</div>
       <h2 style={{ ...pg.stateH2, fontSize: 22 }}>Proces verbal semnat cu succes!</h2>
       <p style={{ ...pg.stateP, maxWidth: 400 }}>
-        Mulțumim! Veți primi în scurt timp o copie PDF pe email.
+        Mulțumim! Veți primi în scurt timp pe email link-ul de descărcare a materialelor, împreună cu o copie PDF a procesului verbal.
       </p>
       <p style={{ color: "#c9a96e", fontWeight: 600, marginTop: 20, fontSize: 15 }}>
         Anca Visuals — abia așteptăm ca materialele să ajungă la voi!
@@ -246,10 +247,13 @@ const HandoverSignPage: React.FC = () => {
         <Section title="Declarație">
           <ol style={pg.declList}>
             <li style={pg.declItem}>
-              Am primit, la data semnării, linkul de acces digital către materialele foto/video rezultate în urma evenimentului. Înțeleg că acest link este valabil timp de <strong>{digitalLinkExpiryDays} zile</strong> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.
+              Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <strong>imediat după semnarea prezentului document</strong>, nu înainte. Înțeleg că acest link este valabil timp de <strong>{digitalLinkExpiryDays} zile</strong> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.
             </li>
             <li style={pg.declItem}>
               Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <strong>{courierDeliveryDays} zile</strong> calendaristice de la data prezentei semnături.
+              {handover.awb && (
+                <> Coletul are numărul de tracking (AWB) <strong>{handover.awb}</strong>, pe baza căruia pot urmări statusul livrării pe site-ul curierului.</>
+              )}
             </li>
             <li style={pg.declItem}>
               Înțeleg că, de la data recepționării efective a coletului cu materialele fizice, am la dispoziție un termen de <strong>{materialsReportWindowDays} zile</strong> calendaristice pentru a verifica integritatea acestora și a semnala în scris eventuale neconformități, deteriorări sau lipsuri constatate. În lipsa unei sesizări în acest interval, materialele fizice se consideră acceptate ca fiind conforme.
@@ -307,14 +311,14 @@ const HandoverSignPage: React.FC = () => {
           </Section>
 
           <div style={pg.agreeRow}>
-            <input type="checkbox" id="digitalLinkReceived" checked={digitalLinkReceived}
-              onChange={(e) => setDigitalLinkReceived(e.target.checked)}
+            <input type="checkbox" id="digitalLinkAcknowledged" checked={digitalLinkAcknowledged}
+              onChange={(e) => setDigitalLinkAcknowledged(e.target.checked)}
               style={pg.checkbox} />
-            <label htmlFor="digitalLinkReceived" style={pg.agreeLabel}>
-              Am primit link-ul digital cu materialele de la eveniment.
+            <label htmlFor="digitalLinkAcknowledged" style={pg.agreeLabel}>
+              Am înțeles că voi primi link-ul digital cu materialele pe email, imediat după ce semnez acest document.
             </label>
           </div>
-          {fieldErrors.digitalLinkReceived && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.digitalLinkReceived}</p>}
+          {fieldErrors.digitalLinkAcknowledged && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.digitalLinkAcknowledged}</p>}
 
           <div style={{ ...pg.agreeRow, paddingTop: 10 }}>
             <input type="checkbox" id="termsAcknowledged" checked={termsAcknowledged}

@@ -17,11 +17,12 @@ interface Props {
   onDelete: () => void;
   onResend: () => void;
   onReminder: () => void;
+  onEdit: () => void;
 }
 
 const HandoverActionMenu: React.FC<Props> = ({
   handover, sending, deleting, resending, reminding,
-  onPreview, onSend, onCopyLink, onDelete, onResend, onReminder,
+  onPreview, onSend, onCopyLink, onDelete, onResend, onReminder, onEdit,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -68,6 +69,7 @@ const HandoverActionMenu: React.FC<Props> = ({
       {open && (
         <div className="absolute right-0 top-10 z-50 w-52 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl overflow-hidden">
           <Item label="👁  Preview PDF" onClick={onPreview} color="text-purple-400" />
+          <Item label="✏️  Editează AWB / link" onClick={onEdit} color="text-amber-400" />
           {canSend && (
             <Item
               label={handover.status === "sent" ? "📤  Retrimite link" : "📤  Trimite link"}

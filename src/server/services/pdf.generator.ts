@@ -459,6 +459,7 @@ export function buildHandoverHTML(handover: Record<string, unknown>): string {
   const courierDeliveryDays = Number(handover.courierDeliveryDays) || 7;
   const materialsReportWindowDays = Number(handover.materialsReportWindowDays) || 7;
   const digitalLinkExpiryDays = Number(handover.digitalLinkExpiryDays) || 30;
+  const awb = String(handover.awb ?? "").trim();
 
   const html = `<!DOCTYPE html>
 <html lang="ro">
@@ -500,13 +501,13 @@ export function buildHandoverHTML(handover: Record<string, unknown>): string {
 <p>Subsemnatul/Subsemnata, <span class="bold underline">${esc(handover.clientName as string || "________________________")}</span>, client pentru evenimentul <span class="bold">${esc(handover.eventType as string || "")}</span> din data <span class="bold">${eventDateFormatted}</span>, confirm prin prezentul document următoarele:</p>
 
 <ol>
-  <li>Am primit, la data semnării, linkul de acces digital către materialele foto/video rezultate în urma evenimentului. Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.</li>
-  <li>Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <span class="bold">${courierDeliveryDays} zile</span> calendaristice de la data prezentei semnături.</li>
+  <li>Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <span class="bold">imediat după semnarea prezentului document</span>, nu înainte. Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.</li>
+  <li>Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <span class="bold">${courierDeliveryDays} zile</span> calendaristice de la data prezentei semnături.${awb ? ` Coletul are numărul de tracking (AWB) <span class="bold">${esc(awb)}</span>, pe baza căruia poate fi urmărit statusul livrării pe site-ul curierului.` : ""}</li>
   <li>Înțeleg că, de la data recepționării efective a coletului cu materialele fizice, am la dispoziție un termen de <span class="bold">${materialsReportWindowDays} zile</span> calendaristice pentru a verifica integritatea acestora și a semnala în scris eventuale neconformități, deteriorări sau lipsuri constatate. În lipsa unei sesizări în acest interval, materialele fizice se consideră acceptate ca fiind conforme.</li>
   <li>Am fost informat(ă) că suporturile de stocare portabile (stick USB, card de memorie, hard disk extern) se pot defecta sau pot pierde datele stocate, de regulă după aproximativ <span class="bold">3–4 ani</span> de utilizare, fără avertisment prealabil. Prin urmare, îmi asum obligația de a realiza copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <span class="bold">două locații diferite</span> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). PRESTATORUL nu poate fi tras la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.</li>
 </ol>
 
-<p>Am confirmat, prin bifarea căsuțelor de pe formularul de semnare electronică, primirea link-ului digital și înțelegerea termenelor de mai sus.</p>
+<p>Am confirmat, prin bifarea căsuțelor de pe formularul de semnare electronică, înțelegerea condițiilor de primire a link-ului digital și a termenelor de mai sus.</p>
 
 <div class="sig-row">
   <div class="sig-box">
