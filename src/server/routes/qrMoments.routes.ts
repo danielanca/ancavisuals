@@ -1178,6 +1178,50 @@ router.patch('/admin/:eventSlug', requireFirebaseAuth, requireSupremeAdmin, asyn
   }
 });
 
+// ─── Admin: delete event (cascades uploads, guests, comments) ──────────────
+
+router.delete('/admin/:eventSlug', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
+  const { eventSlug } = request.params;
+
+  try {
+    const eventRef = firestore().collection(QR_EVENTS).doc(eventSlug);
+    const eventDoc = await eventRef.get();
+    if (!eventDoc.exists) {
+      response.status(404).json({ error: 'Evenimentul nu există.' });
+      return;
+    }
+
+    const [uploadsSnapshot, guestsSnapshot, commentsSnapshot] = await Promise.all([
+      firestore().collection(QR_UPLOADS).where('eventSlug', '==', eventSlug).get(),
+      firestore().collection(QR_GUESTS).where('eventSlug', '==', eventSlug).get(),
+      firestore().collection(QR_COMMENTS).where('eventSlug', '==', eventSlug).get(),
+    ]);
+
+    const accessKey = getBunnyStorageKey();
+    await Promise.all(uploadsSnapshot.docs.map(async (doc) => {
+      const data = doc.data();
+      const storedAlbumSlug = data.albumSlug as string | undefined;
+      const storageUrl = storedAlbumSlug
+        ? buildBunnyUploadUrl(storedAlbumSlug, data.guestId as string, data.fileName as string)
+        : buildBunnyStorageUrl('qr-moments', eventSlug, data.guestId as string, data.fileName as string);
+      await fetch(storageUrl, { method: 'DELETE', headers: { [BUNNY_ACCESS_KEY_HEADER]: accessKey } }).catch(() => {});
+    }));
+
+    const batchDeletes = [
+      ...uploadsSnapshot.docs.map((doc) => doc.ref.delete()),
+      ...guestsSnapshot.docs.map((doc) => doc.ref.delete()),
+      ...commentsSnapshot.docs.map((doc) => doc.ref.delete()),
+    ];
+    await Promise.all(batchDeletes);
+    await eventRef.delete();
+
+    response.json({ ok: true });
+  } catch (error) {
+    console.error('[qr-moments] delete event failed:', error);
+    response.status(500).json({ error: 'Nu s-a putut șterge evenimentul.' });
+  }
+});
+
 // ─── Admin: list guests for event ───────────────────────────────────────────
 
 router.get('/admin/:eventSlug/guests', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {

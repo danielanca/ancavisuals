@@ -384,6 +384,10 @@ router.get("/:id/xml", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
     if (!invoiceDoc.exists) { res.status(404).json({ error: "Factura nu a fost găsită." }); return; }
 
     const data = invoiceDoc.data()!;
+    if (!String(data.clientCounty ?? "").trim()) {
+      res.status(400).json({ error: "Județul clientului lipsește. Editați factura și completați județul înainte de a genera XML-ul e-Factura (obligatoriu conform BR-RO-110)." });
+      return;
+    }
     const fiscal = fiscalDoc.exists ? fiscalDoc.data()! : {};
     const invoiceDate = (data.date as Timestamp).toDate().toISOString().slice(0, 10);
     const dueDate = data.dueDate ? String(data.dueDate) : invoiceDate;

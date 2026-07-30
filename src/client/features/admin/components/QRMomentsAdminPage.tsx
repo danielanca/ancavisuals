@@ -447,6 +447,8 @@ export default function QRMomentsAdminPage() {
   const [deleteCommentConfirmation, setDeleteCommentConfirmation] = useState<QRComment | null>(null);
   const [deleteUploadConfirmation, setDeleteUploadConfirmation] = useState<QRUpload | null>(null);
   const [pinResetConfirmation, setPinResetConfirmation] = useState(false);
+  const [deleteEventConfirmation, setDeleteEventConfirmation] = useState<QREventListItem | null>(null);
+  const [deletingEvent, setDeletingEvent] = useState(false);
 
   const authHeader = useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
@@ -632,6 +634,31 @@ export default function QRMomentsAdminPage() {
     }
   };
 
+  const handleDeleteEvent = async (eventSlug: string) => {
+    setDeletingEvent(true);
+    try {
+      const result = await fetch(`/api/qr-moments/admin/${eventSlug}`, {
+        method: 'DELETE',
+        headers: authHeader,
+      }).then((response) => response.json());
+
+      if (result.ok) {
+        const remaining = events.filter((event) => event.eventSlug !== eventSlug);
+        setEvents(remaining);
+        if (selectedEventSlug === eventSlug) {
+          setSelectedEventSlug(remaining[0]?.eventSlug ?? '');
+          setOverview(null);
+        }
+      } else {
+        setError(result.error ?? 'Nu s-a putut șterge evenimentul.');
+      }
+    } catch {
+      setError('Nu s-a putut șterge evenimentul.');
+    } finally {
+      setDeletingEvent(false);
+    }
+  };
+
   const handleDeleteComment = async (commentId: string) => {
     setBusyCommentId(commentId);
     try {
@@ -712,6 +739,21 @@ export default function QRMomentsAdminPage() {
           onConfirm={() => {
             setPinResetConfirmation(false);
             handleResetPin().catch(() => {});
+          }}
+        />
+      )}
+
+      {deleteEventConfirmation && (
+        <ConfirmModal
+          title="Ștergi evenimentul QR?"
+          message={`Evenimentul "${getCoupleLabel(deleteEventConfirmation)}" (${deleteEventConfirmation.eventSlug}) va fi șters definitiv, împreună cu toate upload-urile, invitații și comentariile asociate. Această acțiune nu poate fi anulată.`}
+          confirmLabel="Șterge definitiv"
+          variant="danger"
+          onCancel={() => setDeleteEventConfirmation(null)}
+          onConfirm={() => {
+            const target = deleteEventConfirmation;
+            setDeleteEventConfirmation(null);
+            handleDeleteEvent(target.eventSlug).catch(() => {});
           }}
         />
       )}
@@ -830,6 +872,13 @@ export default function QRMomentsAdminPage() {
                         className="px-3 py-2 rounded-lg bg-amber-500 text-black text-xs font-medium hover:bg-amber-400 disabled:opacity-50 transition-colors"
                       >
                         {pinResetLoading ? "Se resetează..." : "Reset PIN"}
+                      </button>
+                      <button
+                        onClick={() => setDeleteEventConfirmation(selectedEvent)}
+                        disabled={deletingEvent}
+                        className="px-3 py-2 rounded-lg border border-red-500/20 text-red-400 text-xs hover:border-red-500/40 hover:text-red-300 disabled:opacity-50 transition-colors"
+                      >
+                        Șterge evenimentul
                       </button>
                     </div>
                   </div>

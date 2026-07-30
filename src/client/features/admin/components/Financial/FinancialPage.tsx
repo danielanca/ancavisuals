@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import useAuth from "../../auth/useAuth";
 import type { ClientEvent } from "../../types";
 import Breadcrumb from "../Breadcrumb";
+import { ROMANIAN_COUNTIES, getCitiesForCounty } from "../../../../data/romaniaLocations";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1098,14 +1099,20 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
 
           <div className={`grid gap-3 ${invoiceType === "B2B" ? "grid-cols-2" : "grid-cols-2"}`}>
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">Oraș *</label>
-              <input type="text" value={clientCity} onChange={(e) => setClientCity(e.target.value)} required placeholder="Cluj-Napoca"
-                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+              <label className="block text-xs text-neutral-400 mb-1">Județ *</label>
+              <select value={clientCounty} onChange={(e) => setClientCounty(e.target.value)} required
+                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500">
+                <option value="">Selectează județul</option>
+                {ROMANIAN_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">Județ *</label>
-              <input type="text" value={clientCounty} onChange={(e) => setClientCounty(e.target.value)} required placeholder="Cluj"
+              <label className="block text-xs text-neutral-400 mb-1">Oraș *</label>
+              <input type="text" list="client-cities" value={clientCity} onChange={(e) => setClientCity(e.target.value)} required placeholder="Cluj-Napoca"
                 className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+              <datalist id="client-cities">
+                {getCitiesForCounty(clientCounty).map((c) => <option key={c} value={c} />)}
+              </datalist>
             </div>
           </div>
 
@@ -2091,12 +2098,18 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Oraș</label>
-              <input className={inp} value={clientCity} onChange={(e) => setClientCity(e.target.value)} placeholder="Cluj-Napoca" />
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Județ *</label>
+              <select className={inp} value={clientCounty} onChange={(e) => setClientCounty(e.target.value)} required>
+                <option value="">Selectează județul</option>
+                {ROMANIAN_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div>
-              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Județ</label>
-              <input className={inp} value={clientCounty} onChange={(e) => setClientCounty(e.target.value)} placeholder="Cluj" />
+              <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Oraș</label>
+              <input className={inp} list="edit-client-cities" value={clientCity} onChange={(e) => setClientCity(e.target.value)} placeholder="Cluj-Napoca" />
+              <datalist id="edit-client-cities">
+                {getCitiesForCounty(clientCounty).map((c) => <option key={c} value={c} />)}
+              </datalist>
             </div>
           </div>
 
@@ -2145,7 +2158,7 @@ function EditInvoiceModal({ invoice, accessToken, onClose, onSaved }: {
 
         {error && <p className="mt-3 text-red-400 text-xs">{error}</p>}
 
-        <button onClick={handleSave} disabled={saving}
+        <button onClick={handleSave} disabled={saving || !clientCounty.trim()}
           className="mt-5 w-full py-2.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 text-sm font-medium hover:bg-amber-500/30 transition-colors disabled:opacity-50">
           {saving ? "Se salvează..." : "Salvează modificările"}
         </button>

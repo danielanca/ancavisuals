@@ -77,10 +77,25 @@ const COUNTY_ISO: Record<string, string> = {
   "Vrancea": "RO-VN",
 };
 
+function normalizeCountyKey(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+const COUNTY_ISO_NORMALIZED: Record<string, string> = Object.fromEntries(
+  Object.entries(COUNTY_ISO).map(([name, code]) => [normalizeCountyKey(name), code])
+);
+
 function toCountyISO(county: string): string {
-  if (!county) return "";
-  if (/^RO-[A-Z]{1,2}$/.test(county)) return county;
-  return COUNTY_ISO[county] ?? county;
+  const trimmed = county?.trim() ?? "";
+  if (!trimmed) return "";
+  if (/^RO-[A-Z]{1,2}$/.test(trimmed)) return trimmed;
+  const normalized = normalizeCountyKey(trimmed);
+  if (/^sector [1-6]$/.test(normalized)) return "RO-B";
+  return COUNTY_ISO_NORMALIZED[normalized] ?? trimmed;
 }
 
 // ── XML e-Factura UBL 2.1 (CIUS-RO) ────────────────────────────────────────
