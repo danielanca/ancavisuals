@@ -83,7 +83,6 @@ function calcPfaTax(taxableBase: number): {
   cassBase: number;
   cass: number;
   total: number;
-  trimestrial: number;
 } {
   const impozit = Math.round(Math.max(0, taxableBase) * 0.1 * 100) / 100;
 
@@ -94,17 +93,7 @@ function calcPfaTax(taxableBase: number): {
 
   const cass = Math.round(cassBase * 0.1 * 100) / 100;
   const total = impozit + cass;
-  const trimestrial = Math.round(total / 4 * 100) / 100;
-  return { impozit, cassBase, cass, total, trimestrial };
-}
-
-function getScadente(year: number): { label: string; date: Date; quarter: number }[] {
-  return [
-    { label: "T1", quarter: 1, date: new Date(year, 3, 25) },
-    { label: "T2", quarter: 2, date: new Date(year, 6, 25) },
-    { label: "T3", quarter: 3, date: new Date(year, 9, 25) },
-    { label: "T4", quarter: 4, date: new Date(year + 1, 0, 25) },
-  ];
+  return { impozit, cassBase, cass, total };
 }
 
 interface State {
@@ -1556,10 +1545,6 @@ const FinancialPage: React.FC = () => {
 
             {(() => {
               const tax = calcPfaTax(overview.taxableBase);
-              const scadente = getScadente(state.selectedYear);
-              const today = new Date();
-              const nextScadenta = scadente.find(s => s.date > today);
-              const daysToNext = nextScadenta ? Math.ceil((nextScadenta.date.getTime() - today.getTime()) / 86_400_000) : null;
 
               return (
                 <>
@@ -1587,57 +1572,15 @@ const FinancialPage: React.FC = () => {
                         <span className="text-amber-400 font-medium">{fmtCurrency(tax.cass, "RON")}</span>
                       </div>
                     </div>
-                    <div className="border-t border-neutral-800 pt-3 flex items-center justify-between">
-                      <div>
-                        <span className="text-xs text-neutral-500">Total estimat</span>
-                        <p className="text-lg font-semibold text-amber-300">{fmtCurrency(tax.total, "RON")}</p>
-                      </div>
-                      {tax.total > 0 && (
-                        <div className="text-right">
-                          <span className="text-xs text-neutral-500">Rată trimestrială</span>
-                          <p className="text-base font-semibold text-white">{fmtCurrency(tax.trimestrial, "RON")}</p>
-                        </div>
-                      )}
+                    <div className="border-t border-neutral-800 pt-3">
+                      <span className="text-xs text-neutral-500">Total estimat</span>
+                      <p className="text-lg font-semibold text-amber-300">{fmtCurrency(tax.total, "RON")}</p>
                     </div>
                     {overview.taxableBase <= 0 && (
                       <p className="text-xs text-neutral-600">Nicio taxă estimată — cheltuielile depășesc incasările.</p>
                     )}
-                    <p className="text-xs text-neutral-600">Estimare orientativă · SMIN 2026 = 3.700 RON · Curs EUR = {exchangeRate} RON</p>
+                    <p className="text-xs text-neutral-600">Estimare orientativă · SMIN 2026 = 3.700 RON · Curs EUR = {exchangeRate} RON · plată anuală unică (D212), nu în rate trimestriale</p>
                   </div>
-
-                  {/* Scadențe trimestriale */}
-                  {tax.total > 0 && (
-                    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-white">Scadențe plăți anticipate {state.selectedYear}</p>
-                        {daysToNext !== null && nextScadenta && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${daysToNext <= 14 ? "bg-red-500/20 text-red-400" : daysToNext <= 30 ? "bg-amber-500/20 text-amber-400" : "bg-neutral-800 text-neutral-400"}`}>
-                            {nextScadenta.label} în {daysToNext} zile
-                          </span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {scadente.map(s => {
-                          const isPast = s.date < today;
-                          const isNext = nextScadenta?.quarter === s.quarter;
-                          return (
-                            <div key={s.quarter} className={`rounded-lg p-3 border ${isNext ? "border-amber-500/40 bg-amber-500/10" : isPast ? "border-neutral-800 bg-neutral-800/50 opacity-50" : "border-neutral-800"}`}>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-medium text-neutral-300">{s.label}</span>
-                                {isPast && <span className="text-[10px] text-neutral-600">trecut</span>}
-                                {isNext && <span className="text-[10px] text-amber-400">urmează</span>}
-                              </div>
-                              <p className={`text-sm font-semibold ${isNext ? "text-amber-300" : "text-white"}`}>{fmtCurrency(tax.trimestrial, "RON")}</p>
-                              <p className="text-[10px] text-neutral-500 mt-0.5">
-                                {s.date.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: s.date.getFullYear() !== today.getFullYear() ? "numeric" : undefined })}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs text-neutral-600 mt-3">* Sumele sunt estimative. Baza reală se stabilește prin D212 depusă la ANAF.</p>
-                    </div>
-                  )}
                 </>
               );
             })()}

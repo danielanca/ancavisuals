@@ -190,9 +190,22 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       const counterRef = db.collection(SETTINGS_COLLECTION).doc("invoiceSeriesCounter");
       const counterDoc = await tx.get(counterRef);
       const counterData = counterDoc.data() ?? {};
-      const next = counterData.series === series ? (Number(counterData.next) || 1) : 1;
-      tx.set(counterRef, { series, next: next + 1 });
-      return next;
+      let candidate = counterData.series === series ? (Number(counterData.next) || 1) : 1;
+
+      // Contorul se poate desincroniza (facturi editate manual, serie schimbată din setări etc.) —
+      // verificăm explicit că seria-numărul candidat nu e deja folosit și, dacă e, incrementăm.
+      for (;;) {
+        const candidateRef = `${series}-${String(candidate).padStart(4, "0")}`;
+        const [byRef, byFields] = await Promise.all([
+          tx.get(db.collection(COLLECTION).where("invoiceRef", "==", candidateRef).limit(1)),
+          tx.get(db.collection(COLLECTION).where("series", "==", series).where("invoiceNumber", "==", candidate).limit(1)),
+        ]);
+        if (byRef.empty && byFields.empty) break;
+        candidate += 1;
+      }
+
+      tx.set(counterRef, { series, next: candidate + 1 });
+      return candidate;
     });
     const MONTHS_RO = ["ianuarie","februarie","martie","aprilie","mai","iunie","iulie","august","septembrie","octombrie","noiembrie","decembrie"];
     const formattedEventDate = eventDate ? (() => {
