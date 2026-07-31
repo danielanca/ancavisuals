@@ -187,6 +187,17 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       `,
     },
 
+    // ── 3b. Exhaustive list of included materials/services ───────────────────
+    {
+      title: "Materiale și servicii incluse — clauză de exhaustivitate",
+      body: `
+        <p>PRESTATORUL este obligat să ofere BENEFICIARULUI exclusiv materialele, accesoriile, albumele și celelalte servicii care sunt menționate expres în prezentul contract (inclusiv în tabelul de mai sus).</p>
+        <p>Orice discuții, promisiuni sau înțelegeri purtate verbal, telefonic sau prin mesaje, care nu sunt consemnate în scris în prezentul contract, nu constituie o obligație contractuală și nu pot fi invocate de BENEFICIAR ca temei pentru solicitarea lor.</p>
+        <p>Dacă BENEFICIARUL a convenit cu PRESTATORUL asupra unui material, accesoriu sau serviciu suplimentar care nu apare în prezentul contract, este obligația BENEFICIARULUI de a solicita PRESTATORULUI modificarea în scris a contractului, înainte de eveniment. În lipsa acestei modificări scrise, comunicarea verbală nu reprezintă o garanție a primirii respectivului material, accesoriu sau serviciu.</p>
+        <p>Prin semnarea prezentului contract, BENEFICIARUL confirmă că a citit și a înțeles pe deplin prezenta clauză și este de acord că nu poate ridica nicio pretenție față de PRESTATOR pentru materiale, accesorii sau servicii care nu sunt menționate expres în prezentul contract, indiferent de eventualele discuții purtate verbal, telefonic sau prin mesaje.</p>
+      `,
+    },
+
     // ── 4. Photo specifications (if photo service exists) ────────────────────
     hasFoto ? {
       title: "Produsul livrat — specificații fotografice",
@@ -310,6 +321,15 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
         <p>În cazul în care PRESTATORUL nu realizează din vina sa serviciile care fac obiectul acestui Contract, el este responsabil în fața BENEFICIARULUI numai pentru sumele plătite de către acesta, neintrând în discuție orice cheltuieli făcute între timp de PRESTATOR.</p>
         ${hasPhotoVideo ? `<p>PRESTATORUL nu poate fi tras la răspundere pentru: calitatea fotografiilor/filmărilor afectată de condiții de iluminat insuficient sau necontrolabil, spații aglomerate care limitează accesul, momente neacoperite ca urmare a restricțiilor impuse de oficianți sau a nepunctualității participanților.</p>` : ""}
         ${hasPhotobooth ? `<p>PRESTATORUL nu poate fi tras la răspundere pentru defecțiuni tehnice generate de factori externi (întreruperi de curent, defecțiuni ale rețelei electrice din locație). În astfel de situații, va depune toate diligențele pentru remedierea rapidă.</p>` : ""}
+      `,
+    },
+
+    // ── 12b. Refund for a non-functioning service ─────────────────────────────
+    {
+      title: "Returnarea sumei pentru un serviciu nefuncțional",
+      body: `
+        <p>În situația în care un anumit serviciu contractat (de exemplu: fotocabină / photo booth, VideoBooth 360°, QR Moments) nu poate funcționa la locul evenimentului, inclusiv din cauze care nu se datorează culpei PRESTATORULUI (de exemplu: lipsa curentului electric la locație, restricții impuse de locație sau alte cauze externe), PRESTATORUL va returna BENEFICIARULUI suma achitată aferentă serviciului respectiv, conform prețului acestuia menționat în tabelul de la secțiunea "Conținutul serviciului și prețul".</p>
+        <p>Această clauză privește exclusiv suma achitată pentru serviciul care nu a funcționat și nu afectează celelalte servicii contractate, care se derulează în continuare conform prezentului contract.</p>
       `,
     },
 
@@ -461,6 +481,30 @@ export function buildHandoverHTML(handover: Record<string, unknown>): string {
   const digitalLinkExpiryDays = Number(handover.digitalLinkExpiryDays) || 30;
   const awb = String(handover.awb ?? "").trim();
 
+  // Docurile vechi nu au aceste câmpuri — presupunem link digital + curier (comportamentul dinainte), fără predare personală.
+  const includeDigitalLink = handover.includeDigitalLink !== false;
+  const includeCourier = handover.includeCourier !== false;
+  const includePersonalHandover = Boolean(handover.includePersonalHandover);
+
+  const declClauses: string[] = [];
+  if (includeDigitalLink) {
+    declClauses.push(`Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <span class="bold">imediat după semnarea prezentului document</span>, nu înainte. Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.`);
+  }
+  if (includeCourier) {
+    declClauses.push(`Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <span class="bold">${courierDeliveryDays} zile</span> calendaristice de la data prezentei semnături.${awb ? ` Coletul are numărul de tracking (AWB) <span class="bold">${esc(awb)}</span>, pe baza căruia poate fi urmărit statusul livrării pe site-ul curierului.` : ""}`);
+  }
+  if (includePersonalHandover) {
+    declClauses.push(`Confirm că am primit personal, direct de la PRESTATOR, materialele fizice (albumul și/sau alte suporturi) aferente pachetului contractat, la data prezentei semnături.`);
+  }
+  if (includeCourier || includePersonalHandover) {
+    const startMoment = includeCourier
+      ? "recepționării efective a coletului cu materialele fizice"
+      : "predării materialelor fizice, conform prezentului document";
+    declClauses.push(`Înțeleg că, de la data ${startMoment}, am la dispoziție un termen de <span class="bold">${materialsReportWindowDays} zile</span> calendaristice pentru a verifica integritatea acestora și a semnala în scris eventuale neconformități, deteriorări sau lipsuri constatate. În lipsa unei sesizări în acest interval, materialele fizice se consideră acceptate ca fiind conforme.`);
+  }
+  declClauses.push(`Am fost informat(ă) că suporturile de stocare portabile (stick USB, card de memorie, hard disk extern) se pot defecta sau pot pierde datele stocate, de regulă după aproximativ <span class="bold">3–4 ani</span> de utilizare, fără avertisment prealabil. Prin urmare, îmi asum obligația de a realiza copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <span class="bold">două locații diferite</span> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). PRESTATORUL nu poate fi tras la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.`);
+  const declListHtml = declClauses.map((c) => `<li>${c}</li>`).join("\n");
+
   const html = `<!DOCTYPE html>
 <html lang="ro">
 <head>
@@ -501,13 +545,10 @@ export function buildHandoverHTML(handover: Record<string, unknown>): string {
 <p>Subsemnatul/Subsemnata, <span class="bold underline">${esc(handover.clientName as string || "________________________")}</span>, client pentru evenimentul <span class="bold">${esc(handover.eventType as string || "")}</span> din data <span class="bold">${eventDateFormatted}</span>, confirm prin prezentul document următoarele:</p>
 
 <ol>
-  <li>Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <span class="bold">imediat după semnarea prezentului document</span>, nu înainte. Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.</li>
-  <li>Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <span class="bold">${courierDeliveryDays} zile</span> calendaristice de la data prezentei semnături.${awb ? ` Coletul are numărul de tracking (AWB) <span class="bold">${esc(awb)}</span>, pe baza căruia poate fi urmărit statusul livrării pe site-ul curierului.` : ""}</li>
-  <li>Înțeleg că, de la data recepționării efective a coletului cu materialele fizice, am la dispoziție un termen de <span class="bold">${materialsReportWindowDays} zile</span> calendaristice pentru a verifica integritatea acestora și a semnala în scris eventuale neconformități, deteriorări sau lipsuri constatate. În lipsa unei sesizări în acest interval, materialele fizice se consideră acceptate ca fiind conforme.</li>
-  <li>Am fost informat(ă) că suporturile de stocare portabile (stick USB, card de memorie, hard disk extern) se pot defecta sau pot pierde datele stocate, de regulă după aproximativ <span class="bold">3–4 ani</span> de utilizare, fără avertisment prealabil. Prin urmare, îmi asum obligația de a realiza copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <span class="bold">două locații diferite</span> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). PRESTATORUL nu poate fi tras la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.</li>
+${declListHtml}
 </ol>
 
-<p>Am confirmat, prin bifarea căsuțelor de pe formularul de semnare electronică, înțelegerea condițiilor de primire a link-ului digital și a termenelor de mai sus.</p>
+<p>Am confirmat, prin bifarea căsuțelor de pe formularul de semnare electronică, înțelegerea termenelor de mai sus${includeDigitalLink ? " și a condițiilor de primire a link-ului digital" : ""}.</p>
 
 <div class="sig-row">
   <div class="sig-box">

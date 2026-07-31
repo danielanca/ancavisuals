@@ -39,6 +39,10 @@ const CreateHandoverPage: React.FC = () => {
   const [clientName, setClientName] = useState(fromEvent.clientFullName ?? "");
   const [clientEmail, setClientEmail] = useState(fromEvent.clientEmail ?? "");
 
+  const [includeDigitalLink, setIncludeDigitalLink] = useState(true);
+  const [includeCourier, setIncludeCourier] = useState(true);
+  const [includePersonalHandover, setIncludePersonalHandover] = useState(false);
+
   const [digitalLinkUrl, setDigitalLinkUrl] = useState("");
   const [awb, setAwb] = useState("");
   const [courierDeliveryDays, setCourierDeliveryDays] = useState(DEFAULT_COURIER_DELIVERY_DAYS);
@@ -92,6 +96,10 @@ const CreateHandoverPage: React.FC = () => {
       setSubmitError("Selectează un eveniment și completează emailul clientului.");
       return;
     }
+    if (!includeDigitalLink && !includeCourier && !includePersonalHandover) {
+      setSubmitError("Selectează cel puțin o metodă de predare a materialelor.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -104,6 +112,9 @@ const CreateHandoverPage: React.FC = () => {
           eventDate: eventDate.trim(),
           clientName: clientName.trim(),
           clientEmail: clientEmail.trim(),
+          includeDigitalLink,
+          includeCourier,
+          includePersonalHandover,
           digitalLinkUrl: digitalLinkUrl.trim(),
           awb: awb.trim(),
           courierDeliveryDays,
@@ -198,33 +209,54 @@ const CreateHandoverPage: React.FC = () => {
             </div>
           </Block>
 
-          <Block title="Livrare materiale">
-            <div>
-              <Label>Link digital (galerie / QR Moments)</Label>
-              <input className={inp} type="text" value={digitalLinkUrl} onChange={(e) => setDigitalLinkUrl(e.target.value)} placeholder="https://ancavisuals.ro/qr-moments/..." />
-              <p className="text-neutral-500 text-xs mt-1.5">Clientul NU vede acest link înainte de semnare — îi va fi trimis pe email imediat după ce semnează.</p>
+          <Block title="Metodă de predare">
+            <div className="space-y-2.5">
+              <CheckboxRow id="includeDigitalLink" checked={includeDigitalLink} onChange={setIncludeDigitalLink}
+                label="Trimitere link digital" hint="Link către galerie / QR Moments, trimis pe email după semnare." />
+              <CheckboxRow id="includeCourier" checked={includeCourier} onChange={setIncludeCourier}
+                label="Trimitere prin curier" hint="Materiale fizice (album etc.) expediate prin curier, cu AWB." />
+              <CheckboxRow id="includePersonalHandover" checked={includePersonalHandover} onChange={setIncludePersonalHandover}
+                label="Predare personală" hint="Materialele fizice sunt predate direct clientului, la data semnării." />
             </div>
-            <div>
-              <Label>AWB colet (opțional)</Label>
-              <input className={inp} type="text" value={awb} onChange={(e) => setAwb(e.target.value)} placeholder="Ex: 1234567890 — completează doar dacă ai deja numărul de tracking" />
-              <p className="text-neutral-500 text-xs mt-1.5">Dacă e completat, clientul e informat în PV să urmărească livrarea coletului cu acest AWB. Poți adăuga AWB-ul și mai târziu, din listă.</p>
-            </div>
+
+            {includeDigitalLink && (
+              <div>
+                <Label>Link digital (galerie / QR Moments)</Label>
+                <input className={inp} type="text" value={digitalLinkUrl} onChange={(e) => setDigitalLinkUrl(e.target.value)} placeholder="https://ancavisuals.ro/qr-moments/..." />
+                <p className="text-neutral-500 text-xs mt-1.5">Clientul NU vede acest link înainte de semnare — îi va fi trimis pe email imediat după ce semnează.</p>
+              </div>
+            )}
+
+            {includeCourier && (
+              <div>
+                <Label>AWB colet (opțional)</Label>
+                <input className={inp} type="text" value={awb} onChange={(e) => setAwb(e.target.value)} placeholder="Ex: 1234567890 — completează doar dacă ai deja numărul de tracking" />
+                <p className="text-neutral-500 text-xs mt-1.5">Dacă e completat, clientul e informat în PV să urmărească livrarea coletului cu acest AWB. Poți adăuga AWB-ul și mai târziu, din listă.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Livrare curier (zile)</Label>
-                <input className={inp} type="number" min={1} value={courierDeliveryDays}
-                  onChange={(e) => setCourierDeliveryDays(Number(e.target.value) || DEFAULT_COURIER_DELIVERY_DAYS)} />
-              </div>
-              <div>
-                <Label>Verificare integritate (zile)</Label>
-                <input className={inp} type="number" min={1} value={materialsReportWindowDays}
-                  onChange={(e) => setMaterialsReportWindowDays(Number(e.target.value) || DEFAULT_MATERIALS_REPORT_WINDOW_DAYS)} />
-              </div>
-              <div>
-                <Label>Valabilitate link digital (zile)</Label>
-                <input className={inp} type="number" min={1} value={digitalLinkExpiryDays}
-                  onChange={(e) => setDigitalLinkExpiryDays(Number(e.target.value) || DEFAULT_DIGITAL_LINK_EXPIRY_DAYS)} />
-              </div>
+              {includeCourier && (
+                <div>
+                  <Label>Livrare curier (zile)</Label>
+                  <input className={inp} type="number" min={1} value={courierDeliveryDays}
+                    onChange={(e) => setCourierDeliveryDays(Number(e.target.value) || DEFAULT_COURIER_DELIVERY_DAYS)} />
+                </div>
+              )}
+              {(includeCourier || includePersonalHandover) && (
+                <div>
+                  <Label>Verificare integritate (zile)</Label>
+                  <input className={inp} type="number" min={1} value={materialsReportWindowDays}
+                    onChange={(e) => setMaterialsReportWindowDays(Number(e.target.value) || DEFAULT_MATERIALS_REPORT_WINDOW_DAYS)} />
+                </div>
+              )}
+              {includeDigitalLink && (
+                <div>
+                  <Label>Valabilitate link digital (zile)</Label>
+                  <input className={inp} type="number" min={1} value={digitalLinkExpiryDays}
+                    onChange={(e) => setDigitalLinkExpiryDays(Number(e.target.value) || DEFAULT_DIGITAL_LINK_EXPIRY_DAYS)} />
+                </div>
+              )}
             </div>
           </Block>
 
@@ -251,6 +283,17 @@ const Block: React.FC<{ title: string; children: React.ReactNode }> = ({ title, 
     <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">{title}</h3>
     {children}
   </div>
+);
+
+const CheckboxRow: React.FC<{ id: string; checked: boolean; onChange: (v: boolean) => void; label: string; hint: string }> = ({ id, checked, onChange, label, hint }) => (
+  <label htmlFor={id} className="flex items-start gap-2.5 cursor-pointer">
+    <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
+      className="mt-0.5 w-4 h-4 accent-emerald-500 cursor-pointer flex-shrink-0" />
+    <span>
+      <span className="block text-sm text-neutral-200">{label}</span>
+      <span className="block text-xs text-neutral-500">{hint}</span>
+    </span>
+  </label>
 );
 
 const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (

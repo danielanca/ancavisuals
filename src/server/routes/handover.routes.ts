@@ -33,6 +33,13 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Câmpuri obligatorii: eventType, eventDate, clientEmail" });
     }
 
+    const includeDigitalLink = Boolean(body.includeDigitalLink);
+    const includeCourier = Boolean(body.includeCourier);
+    const includePersonalHandover = Boolean(body.includePersonalHandover);
+    if (!includeDigitalLink && !includeCourier && !includePersonalHandover) {
+      return res.status(400).json({ error: "Selectează cel puțin o metodă de predare a materialelor." });
+    }
+
     const handover = {
       token: uuidv4(),
       status: "draft" as const,
@@ -44,6 +51,10 @@ router.post("/", async (req: Request, res: Response) => {
 
       clientEmail: body.clientEmail,
       clientName: body.clientName?.trim() ?? "",
+
+      includeDigitalLink,
+      includeCourier,
+      includePersonalHandover,
 
       digitalLinkUrl: body.digitalLinkUrl?.trim() ?? "",
       awb: body.awb?.trim() ?? "",
@@ -179,9 +190,6 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Numele complet este obligatoriu." });
     }
-    if (digitalLinkAcknowledged !== true) {
-      return res.status(400).json({ error: "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare." });
-    }
     if (termsAcknowledged !== true) {
       return res.status(400).json({ error: "Trebuie să confirmați că ați înțeles termenele de livrare." });
     }
@@ -202,6 +210,13 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
     }
     if (handover.status === "expired") {
       return res.status(410).json({ error: "Link-ul a expirat.", status: "expired" });
+    }
+
+    // digitalLinkAcknowledged e obligatoriu doar dacă PV-ul include efectiv predare prin link digital
+    // (docurile vechi, fără câmpul includeDigitalLink, presupun implicit true).
+    const requiresDigitalLinkAck = handover.includeDigitalLink !== false;
+    if (requiresDigitalLinkAck && digitalLinkAcknowledged !== true) {
+      return res.status(400).json({ error: "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare." });
     }
 
     const clientIp = getClientIp(req) ?? "unknown";
@@ -290,6 +305,7 @@ router.post("/:id/send", async (req: Request, res: Response) => {
       eventType: handover.eventType,
       eventDate: handover.eventDate,
       baseUrl: APP_BASE_URL,
+      includeDigitalLink: handover.includeDigitalLink !== false,
     });
 
     res.json({ ok: true });

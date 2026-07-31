@@ -8,6 +8,9 @@ interface HandoverData {
   eventDate: string;
   clientEmail: string;
   clientName?: string;
+  includeDigitalLink?: boolean;
+  includeCourier?: boolean;
+  includePersonalHandover?: boolean;
   courierDeliveryDays: number;
   materialsReportWindowDays: number;
   digitalLinkExpiryDays: number;
@@ -121,10 +124,12 @@ const HandoverSignPage: React.FC = () => {
     hasSignature.current = false;
   };
 
+  const requiresDigitalLinkAck = handover?.includeDigitalLink !== false;
+
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!clientName.trim()) errors.clientName = "Numele complet este obligatoriu.";
-    if (!digitalLinkAcknowledged) errors.digitalLinkAcknowledged = "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare.";
+    if (requiresDigitalLinkAck && !digitalLinkAcknowledged) errors.digitalLinkAcknowledged = "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare.";
     if (!termsAcknowledged) errors.termsAcknowledged = "Trebuie să confirmați că ați înțeles termenele de mai jos.";
     if (!hasSignature.current) errors.signature = "Semnătura este obligatorie.";
     setFieldErrors(errors);
@@ -227,6 +232,9 @@ const HandoverSignPage: React.FC = () => {
   const courierDeliveryDays = handover.courierDeliveryDays || 7;
   const materialsReportWindowDays = handover.materialsReportWindowDays || 7;
   const digitalLinkExpiryDays = handover.digitalLinkExpiryDays || 30;
+  const includeDigitalLink = handover.includeDigitalLink !== false;
+  const includeCourier = handover.includeCourier !== false;
+  const includePersonalHandover = Boolean(handover.includePersonalHandover);
 
   return (
     <div style={pg.page}>
@@ -246,18 +254,29 @@ const HandoverSignPage: React.FC = () => {
 
         <Section title="Declarație">
           <ol style={pg.declList}>
-            <li style={pg.declItem}>
-              Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <strong>imediat după semnarea prezentului document</strong>, nu înainte. Înțeleg că acest link este valabil timp de <strong>{digitalLinkExpiryDays} zile</strong> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.
-            </li>
-            <li style={pg.declItem}>
-              Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <strong>{courierDeliveryDays} zile</strong> calendaristice de la data prezentei semnături.
-              {handover.awb && (
-                <> Coletul are numărul de tracking (AWB) <strong>{handover.awb}</strong>, pe baza căruia pot urmări statusul livrării pe site-ul curierului.</>
-              )}
-            </li>
-            <li style={pg.declItem}>
-              Înțeleg că, de la data recepționării efective a coletului cu materialele fizice, am la dispoziție un termen de <strong>{materialsReportWindowDays} zile</strong> calendaristice pentru a verifica integritatea acestora și a semnala în scris eventuale neconformități, deteriorări sau lipsuri constatate. În lipsa unei sesizări în acest interval, materialele fizice se consideră acceptate ca fiind conforme.
-            </li>
+            {includeDigitalLink && (
+              <li style={pg.declItem}>
+                Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <strong>imediat după semnarea prezentului document</strong>, nu înainte. Înțeleg că acest link este valabil timp de <strong>{digitalLinkExpiryDays} zile</strong> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.
+              </li>
+            )}
+            {includeCourier && (
+              <li style={pg.declItem}>
+                Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <strong>{courierDeliveryDays} zile</strong> calendaristice de la data prezentei semnături.
+                {handover.awb && (
+                  <> Coletul are numărul de tracking (AWB) <strong>{handover.awb}</strong>, pe baza căruia pot urmări statusul livrării pe site-ul curierului.</>
+                )}
+              </li>
+            )}
+            {includePersonalHandover && (
+              <li style={pg.declItem}>
+                Confirm că am primit personal, direct de la Anca Visuals, materialele fizice (albumul și/sau alte suporturi) aferente pachetului contractat, la data prezentei semnături.
+              </li>
+            )}
+            {(includeCourier || includePersonalHandover) && (
+              <li style={pg.declItem}>
+                Înțeleg că, de la data {includeCourier ? "recepționării efective a coletului cu materialele fizice" : "predării materialelor fizice, conform prezentului document"}, am la dispoziție un termen de <strong>{materialsReportWindowDays} zile</strong> calendaristice pentru a verifica integritatea acestora și a semnala în scris eventuale neconformități, deteriorări sau lipsuri constatate. În lipsa unei sesizări în acest interval, materialele fizice se consideră acceptate ca fiind conforme.
+              </li>
+            )}
             <li style={pg.declItem}>
               Am fost informat(ă) că suporturile de stocare portabile (stick USB, card de memorie, hard disk extern) se pot defecta sau pot pierde datele stocate, de regulă după aproximativ <strong>3–4 ani</strong> de utilizare, fără avertisment prealabil. Prin urmare, îmi asum obligația de a realiza copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <strong>două locații diferite</strong> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). Anca Visuals nu poate fi trasă la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.
             </li>
@@ -310,22 +329,26 @@ const HandoverSignPage: React.FC = () => {
             </Field>
           </Section>
 
-          <div style={pg.agreeRow}>
-            <input type="checkbox" id="digitalLinkAcknowledged" checked={digitalLinkAcknowledged}
-              onChange={(e) => setDigitalLinkAcknowledged(e.target.checked)}
-              style={pg.checkbox} />
-            <label htmlFor="digitalLinkAcknowledged" style={pg.agreeLabel}>
-              Am înțeles că voi primi link-ul digital cu materialele pe email, imediat după ce semnez acest document.
-            </label>
-          </div>
-          {fieldErrors.digitalLinkAcknowledged && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.digitalLinkAcknowledged}</p>}
+          {includeDigitalLink && (
+            <>
+              <div style={pg.agreeRow}>
+                <input type="checkbox" id="digitalLinkAcknowledged" checked={digitalLinkAcknowledged}
+                  onChange={(e) => setDigitalLinkAcknowledged(e.target.checked)}
+                  style={pg.checkbox} />
+                <label htmlFor="digitalLinkAcknowledged" style={pg.agreeLabel}>
+                  Am înțeles că voi primi link-ul digital cu materialele pe email, imediat după ce semnez acest document.
+                </label>
+              </div>
+              {fieldErrors.digitalLinkAcknowledged && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.digitalLinkAcknowledged}</p>}
+            </>
+          )}
 
           <div style={{ ...pg.agreeRow, paddingTop: 10 }}>
             <input type="checkbox" id="termsAcknowledged" checked={termsAcknowledged}
               onChange={(e) => setTermsAcknowledged(e.target.checked)}
               style={pg.checkbox} />
             <label htmlFor="termsAcknowledged" style={pg.agreeLabel}>
-              Am înțeles și sunt de acord cu termenele și responsabilitățile de mai sus (livrare fizică, verificare integritate, valabilitate link digital, obligația de backup).
+              Am înțeles și sunt de acord cu termenele și responsabilitățile de mai sus.
             </label>
           </div>
           {fieldErrors.termsAcknowledged && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.termsAcknowledged}</p>}

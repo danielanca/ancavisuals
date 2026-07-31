@@ -30,19 +30,23 @@ interface HandoverLinkEmailOptions {
   eventType: string;
   eventDate: string;
   baseUrl: string;
+  includeDigitalLink?: boolean;
 }
 
 export async function sendHandoverLinkEmail(options: HandoverLinkEmailOptions): Promise<void> {
-  const { to, token, eventType, eventDate, baseUrl } = options;
+  const { to, token, eventType, eventDate, baseUrl, includeDigitalLink = true } = options;
   const link = `${baseUrl}/proces-verbal/${token}`;
   const formattedDate = formatRoDate(eventDate);
+
+  const introLine = includeDigitalLink
+    ? "sunt gata! Vă rugăm să confirmați primirea link-ului digital semnând Procesul Verbal de predare-primire."
+    : "sunt gata! Vă rugăm să semnați Procesul Verbal de predare-primire.";
 
   const clientHtml = emailWrap(`
     <p style="color: #333; margin-bottom: 12px;">Bună ziua,</p>
     <p style="color: #333; margin-bottom: 12px;">
       Materialele foto/video pentru evenimentul <strong>${eventType}</strong> din data de
-      <strong>${formattedDate}</strong> sunt gata! Vă rugăm să confirmați primirea link-ului digital
-      semnând Procesul Verbal de predare-primire.
+      <strong>${formattedDate}</strong> ${introLine}
     </p>
     <p style="color: #555; margin-bottom: 28px;">
       Accesați link-ul de mai jos, citiți documentul și semnați electronic.

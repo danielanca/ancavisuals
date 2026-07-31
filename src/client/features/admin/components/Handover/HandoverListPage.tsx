@@ -14,6 +14,9 @@ interface HandoverItem {
   eventDate: string;
   clientEmail: string;
   clientName?: string;
+  includeDigitalLink?: boolean;
+  includeCourier?: boolean;
+  includePersonalHandover?: boolean;
   digitalLinkUrl?: string;
   awb?: string;
   courierDeliveryDays?: number;
@@ -22,6 +25,10 @@ interface HandoverItem {
   createdAt: string;
   signedAt?: string;
 }
+
+const DeliveryBadge: React.FC<{ label: string }> = ({ label }) => (
+  <span className="text-[10px] px-1.5 py-0.5 rounded border border-neutral-700 text-neutral-400">{label}</span>
+);
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: "Draft", color: "#888" },
@@ -220,6 +227,11 @@ const HandoverListPage: React.FC = () => {
                         >
                           {statusInfo.label}
                         </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {item.includeDigitalLink !== false && <DeliveryBadge label="Link digital" />}
+                        {item.includeCourier !== false && <DeliveryBadge label="Curier" />}
+                        {item.includePersonalHandover && <DeliveryBadge label="Predare personală" />}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-neutral-400 text-xs">
                         <span>Data: {formatDate(item.eventDate)}</span>
