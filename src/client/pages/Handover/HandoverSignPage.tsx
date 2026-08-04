@@ -11,6 +11,7 @@ interface HandoverData {
   includeDigitalLink?: boolean;
   includeCourier?: boolean;
   includePersonalHandover?: boolean;
+  digitalLinks?: { label: string }[];
   courierDeliveryDays: number;
   materialsReportWindowDays: number;
   digitalLinkExpiryDays: number;
@@ -27,6 +28,7 @@ const HandoverSignPage: React.FC = () => {
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
   const [digitalLinkAcknowledged, setDigitalLinkAcknowledged] = useState(false);
+  const [backupAcknowledged, setBackupAcknowledged] = useState(false);
   const [termsAcknowledged, setTermsAcknowledged] = useState(false);
   const [backupDetailsOpen, setBackupDetailsOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -130,6 +132,7 @@ const HandoverSignPage: React.FC = () => {
     const errors: Record<string, string> = {};
     if (!clientName.trim()) errors.clientName = "Numele complet este obligatoriu.";
     if (requiresDigitalLinkAck && !digitalLinkAcknowledged) errors.digitalLinkAcknowledged = "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare.";
+    if (!backupAcknowledged) errors.backupAcknowledged = "Trebuie să confirmați că veți salva materialele pe un mediu de stocare separat.";
     if (!termsAcknowledged) errors.termsAcknowledged = "Trebuie să confirmați că ați înțeles termenele de mai jos.";
     if (!hasSignature.current) errors.signature = "Semnătura este obligatorie.";
     setFieldErrors(errors);
@@ -150,6 +153,7 @@ const HandoverSignPage: React.FC = () => {
         body: JSON.stringify({
           clientName: clientName.trim(),
           digitalLinkAcknowledged,
+          backupAcknowledged,
           termsAcknowledged,
           clientSignatureBase64: canvas.toDataURL("image/png"),
         }),
@@ -256,7 +260,11 @@ const HandoverSignPage: React.FC = () => {
           <ol style={pg.declList}>
             {includeDigitalLink && (
               <li style={pg.declItem}>
-                Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <strong>imediat după semnarea prezentului document</strong>, nu înainte. Înțeleg că acest link este valabil timp de <strong>{digitalLinkExpiryDays} zile</strong> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.
+                Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <strong>imediat după semnarea prezentului document</strong>, nu înainte.
+                {handover.digitalLinks && handover.digitalLinks.length > 0 && (
+                  <> Materialele digitale predate includ: <strong>{handover.digitalLinks.map((l) => l.label).join(", ")}</strong>.</>
+                )}
+                {" "}Înțeleg că acest link este valabil timp de <strong>{digitalLinkExpiryDays} zile</strong> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.
               </li>
             )}
             {includeCourier && (
@@ -342,6 +350,16 @@ const HandoverSignPage: React.FC = () => {
               {fieldErrors.digitalLinkAcknowledged && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.digitalLinkAcknowledged}</p>}
             </>
           )}
+
+          <div style={{ ...pg.agreeRow, paddingTop: 10 }}>
+            <input type="checkbox" id="backupAcknowledged" checked={backupAcknowledged}
+              onChange={(e) => setBackupAcknowledged(e.target.checked)}
+              style={pg.checkbox} />
+            <label htmlFor="backupAcknowledged" style={pg.agreeLabel}>
+              Am luat la cunoștință să-mi salvez materialele primite pe un mediu de stocare diferit de cel pe care le-am primit (nu doar pe stick — ex: calculator, hard disk extern, cloud).
+            </label>
+          </div>
+          {fieldErrors.backupAcknowledged && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.backupAcknowledged}</p>}
 
           <div style={{ ...pg.agreeRow, paddingTop: 10 }}>
             <input type="checkbox" id="termsAcknowledged" checked={termsAcknowledged}

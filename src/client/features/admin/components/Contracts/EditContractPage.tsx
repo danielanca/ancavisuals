@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { BankProfile } from "../../types";
+import ClauseChecklistEditor, { type ClauseSnapshot } from "./ClauseChecklistEditor";
 
 interface ServiceEntry {
   id: string;
@@ -187,6 +188,8 @@ const EditContractPage: React.FC = () => {
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState("");
   const [signedAt, setSignedAt] = useState("");
+  const [status, setStatus] = useState("draft");
+  const [clauses, setClauses] = useState<ClauseSnapshot[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -251,6 +254,8 @@ const EditContractPage: React.FC = () => {
         setLinkedEventId(data.eventId ?? null);
         setCreatedAt(toDateInputValue(data.createdAt));
         setSignedAt(toDateInputValue(data.signedAt));
+        setStatus(data.status ?? "draft");
+        setClauses(Array.isArray(data.clauses) ? data.clauses : []);
 
         const computedAuto =
           populated.filter((s) => s.included).reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) +
@@ -275,6 +280,20 @@ const EditContractPage: React.FC = () => {
   const autoTotal = selectedServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0) + customTotal;
   const effectiveTotal = manualTotal ? priceTotal : autoTotal;
   const priceRest = noAdvance ? effectiveTotal : Math.max(0, effectiveTotal - (priceAdvance || 0));
+
+  const allServices = [
+    ...selectedServices.map((s) => ({
+      label: s.label,
+      price: priceToNumeric(s.priceRaw),
+      gratuit: parsePrice(s.priceRaw) === "gratuit",
+      ...(s.id === TRANSPORT_SERVICE_ID ? { isTransport: true } : {}),
+    })),
+    ...customServices.filter((s) => s.label.trim()).map((s) => ({
+      label: s.label,
+      price: priceToNumeric(s.priceRaw),
+      gratuit: parsePrice(s.priceRaw) === "gratuit",
+    })),
+  ];
 
   const toggleService = (sid: string) => {
     setServices((prev) => prev.map((s) => s.id === sid ? { ...s, included: !s.included } : s));
@@ -310,20 +329,6 @@ const EditContractPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const allServices = [
-        ...selectedServices.map((s) => ({
-          label: s.label,
-          price: priceToNumeric(s.priceRaw),
-          gratuit: parsePrice(s.priceRaw) === "gratuit",
-          ...(s.id === TRANSPORT_SERVICE_ID ? { isTransport: true } : {}),
-        })),
-        ...customServices.filter((s) => s.label.trim()).map((s) => ({
-          label: s.label,
-          price: priceToNumeric(s.priceRaw),
-          gratuit: parsePrice(s.priceRaw) === "gratuit",
-        })),
-      ];
-
       const selectedBankProfile = bankProfiles.find((p) => p.id === selectedBankProfileId);
       const payload = {
         eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
@@ -341,6 +346,7 @@ const EditContractPage: React.FC = () => {
         clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || DEFAULT_TRANSPORT_FUEL_PRICE,
+        clauses,
         ...(createdAt ? { createdAt } : {}),
         ...(signedAt ? { signedAt } : {}),
       };
@@ -727,6 +733,31 @@ const EditContractPage: React.FC = () => {
               </span>
             </label>
           </Block>
+
+          {status !== "signed" && (
+            <Block title="Clauze contract">
+              <ClauseChecklistEditor
+                eventType={eventType}
+                services={allServices}
+                privateClient={privateClient}
+                eventDate={eventDate}
+                eventStartTime={eventStartTime}
+                eventEndTime={eventEndTime}
+                eventLocation={eventLocation}
+                clientName={clientName}
+                priceTotal={effectiveTotal}
+                currency={currency}
+                priceAdvance={noAdvance ? 0 : priceAdvance}
+                priceRest={priceRest}
+                bankBeneficiaryName={paymentMethod === BANK_TRANSFER ? (bankProfiles.find(p => p.id === selectedBankProfileId)?.beneficiaryName ?? "") : ""}
+                bankIban={paymentMethod === BANK_TRANSFER ? (bankProfiles.find(p => p.id === selectedBankProfileId)?.iban ?? "") : ""}
+                transportKm={transportKm}
+                transportFuelPrice={transportFuelPrice}
+                value={clauses}
+                onChange={setClauses}
+              />
+            </Block>
+          )}
 
           {/* Fiscal status */}
           <Block title="Fiscal">

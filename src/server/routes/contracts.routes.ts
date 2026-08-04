@@ -176,6 +176,8 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="contract-preview.pdf"`);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.send(pdfBuffer);
   } catch (error) {
     console.error("[contracts] GET /sign/:token/pdf failed:", error);
@@ -205,6 +207,8 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
       ...(req.query.clientIdSeries !== undefined ? { clientIdSeries: String(req.query.clientIdSeries) } : {}),
     });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.send(html);
   } catch (error) {
     console.error("[contracts] GET /sign/:token/html failed:", error);
@@ -418,6 +422,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
       transportFuelPrice: body.transportFuelPrice ?? "10",
       bankBeneficiaryName: body.bankBeneficiaryName?.trim() ?? "",
       bankIban: body.bankIban?.trim().toUpperCase() ?? "",
+      // Clauzele unui contract deja semnat nu se mai pot schimba — documentul semnat rămâne fix.
+      ...(data.status !== "signed" ? { clauses: Array.isArray(body.clauses) ? body.clauses : (data.clauses ?? []) } : {}),
     };
 
     // Remove undefined values — Firestore throws on undefined fields
@@ -594,6 +600,10 @@ router.get("/:id/preview", async (req: Request, res: Response) => {
     const pdfBuffer = await generateContractPDF(contract as Record<string, unknown>);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="preview-contract.pdf"`);
+    // Fără asta, browserul poate servi un PDF vechi din cache la un nou preview al aceluiași
+    // contract (același URL de fiecare dată) — arătând date deja modificate ca fiind goale/vechi.
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.send(pdfBuffer);
   } catch (error) {
     console.error("[contracts] GET /:id/preview failed:", error);

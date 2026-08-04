@@ -82,13 +82,13 @@ interface SignedHandoverEmailOptions {
   clientName: string;
   pdfUrl: string;
   hasPdf?: boolean;
-  digitalLinkUrl?: string;
+  digitalLinks?: { label: string; url: string }[];
   digitalLinkExpiryDays?: number;
   awb?: string;
 }
 
 export async function sendSignedHandoverEmail(options: SignedHandoverEmailOptions): Promise<void> {
-  const { to, eventType, eventDate, clientName, pdfUrl, hasPdf = true, digitalLinkUrl, digitalLinkExpiryDays, awb } = options;
+  const { to, eventType, eventDate, clientName, pdfUrl, hasPdf = true, digitalLinks, digitalLinkExpiryDays, awb } = options;
   const formattedDate = formatRoDate(eventDate);
 
   const buttonLabel = hasPdf ? "Descarcă Procesul Verbal PDF" : "Vezi Procesul Verbal Semnat";
@@ -96,11 +96,11 @@ export async function sendSignedHandoverEmail(options: SignedHandoverEmailOption
     ? "Puteți descărca procesul verbal semnat accesând butonul de mai jos. Link-ul este permanent și poate fi accesat oricând."
     : "Procesul verbal a fost semnat. PDF-ul se generează — îl puteți accesa în curând accesând link-ul de mai jos.";
 
-  const digitalLinkBlock = digitalLinkUrl
+  const digitalLinkBlock = digitalLinks && digitalLinks.length > 0
     ? `
     <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${digitalLinkUrl}" style="display:inline-block;background-color:#1a1a1a;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Descarcă materialele foto/video</a>
-      ${digitalLinkExpiryDays ? `<p style="color: #999; font-size: 12px; margin: 10px 0 0;">Link-ul este valabil ${digitalLinkExpiryDays} zile de la data semnării.</p>` : ""}
+      ${digitalLinks.map((l) => `<a href="${l.url}" style="display:inline-block;background-color:#1a1a1a;color:#fff;padding:14px 24px;text-decoration:none;border-radius:4px;font-size:14px;font-weight:600;letter-spacing:0.5px;margin:4px;">${l.label}</a>`).join("")}
+      ${digitalLinkExpiryDays ? `<p style="color: #999; font-size: 12px; margin: 10px 0 0;">Link-urile sunt valabile ${digitalLinkExpiryDays} zile de la data semnării.</p>` : ""}
     </div>`
     : "";
 

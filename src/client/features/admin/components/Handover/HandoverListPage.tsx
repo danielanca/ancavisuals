@@ -18,6 +18,7 @@ interface HandoverItem {
   includeCourier?: boolean;
   includePersonalHandover?: boolean;
   digitalLinkUrl?: string;
+  digitalLinks?: { label: string; url: string }[];
   awb?: string;
   courierDeliveryDays?: number;
   materialsReportWindowDays?: number;
@@ -138,7 +139,7 @@ const HandoverListPage: React.FC = () => {
     }
   };
 
-  const handleEditSave = async (updates: { awb: string; digitalLinkUrl: string }) => {
+  const handleEditSave = async (updates: { awb: string; digitalLinks: { label: string; url: string }[] }) => {
     if (!editingItem) return;
     const res = await fetch(`/api/handover/${editingItem.id}`, {
       method: "PATCH",
@@ -283,7 +284,7 @@ const HandoverListPage: React.FC = () => {
         {editingItem && (
           <EditHandoverModal
             initialAwb={editingItem.awb}
-            initialDigitalLinkUrl={editingItem.digitalLinkUrl}
+            initialDigitalLinks={editingItem.digitalLinks}
             onSave={handleEditSave}
             onCancel={() => setEditingItem(null)}
           />

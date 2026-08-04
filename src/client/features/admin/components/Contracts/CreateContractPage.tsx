@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { BankProfile } from "../../types";
+import ClauseChecklistEditor, { type ClauseSnapshot } from "./ClauseChecklistEditor";
 
 interface CreateContractState {
   eventId?: string;
@@ -37,7 +38,7 @@ const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: TRANSPORT_SERVICE_ID,  label: "Taxă transport spre și de la eveniment",   included: false, priceRaw: ""     },
 ];
 
-const EVENT_TYPES = [
+export const EVENT_TYPES = [
   "Nuntă",
   "Cununie civilă",
   "Botez",
@@ -230,6 +231,24 @@ const CreateContractPage: React.FC = () => {
   const effectiveTotal = manualTotal ? priceTotal : autoTotal;
   const priceRest = noAdvance ? effectiveTotal : Math.max(0, effectiveTotal - (priceAdvance || 0));
 
+  const allServices = [
+    ...selectedServices.map((s) => ({
+      label: s.label,
+      price: priceToNumeric(s.priceRaw),
+      gratuit: parsePrice(s.priceRaw) === "gratuit",
+      ...(s.id === TRANSPORT_SERVICE_ID ? { isTransport: true } : {}),
+    })),
+    ...customServices
+      .filter((s) => s.label.trim())
+      .map((s) => ({
+        label: s.label,
+        price: priceToNumeric(s.priceRaw),
+        gratuit: parsePrice(s.priceRaw) === "gratuit",
+      })),
+  ];
+
+  const [clauses, setClauses] = useState<ClauseSnapshot[]>([]);
+
   const [draftRestored, setDraftRestored] = useState(false);
 
   // Restore draft from localStorage on mount
@@ -403,22 +422,6 @@ const CreateContractPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const allServices = [
-        ...selectedServices.map((s) => ({
-          label: s.label,
-          price: priceToNumeric(s.priceRaw),
-          gratuit: parsePrice(s.priceRaw) === "gratuit",
-          ...(s.id === TRANSPORT_SERVICE_ID ? { isTransport: true } : {}),
-        })),
-        ...customServices
-          .filter((s) => s.label.trim())
-          .map((s) => ({
-            label: s.label,
-            price: priceToNumeric(s.priceRaw),
-            gratuit: parsePrice(s.priceRaw) === "gratuit",
-          })),
-      ];
-
       const selectedBankProfile = bankProfiles.find(p => p.id === selectedBankProfileId);
       const payload = {
         eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
@@ -444,6 +447,7 @@ const CreateContractPage: React.FC = () => {
         privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || DEFAULT_TRANSPORT_FUEL_PRICE,
+        clauses,
         ...(fromEvent.eventId ? { eventId: fromEvent.eventId } : {}),
       };
 
@@ -945,6 +949,29 @@ const CreateContractPage: React.FC = () => {
                 </span>
               </span>
             </label>
+          </Block>
+
+          <Block title="Clauze contract">
+            <ClauseChecklistEditor
+              eventType={eventType}
+              services={allServices}
+              privateClient={privateClient}
+              eventDate={eventDate}
+              eventStartTime={eventStartTime}
+              eventEndTime={eventEndTime}
+              eventLocation={eventLocation}
+              clientName={clientName}
+              priceTotal={effectiveTotal}
+              currency={currency}
+              priceAdvance={noAdvance ? 0 : priceAdvance}
+              priceRest={priceRest}
+              bankBeneficiaryName={paymentMethod === BANK_TRANSFER ? (bankProfiles.find(p => p.id === selectedBankProfileId)?.beneficiaryName ?? "") : ""}
+              bankIban={paymentMethod === BANK_TRANSFER ? (bankProfiles.find(p => p.id === selectedBankProfileId)?.iban ?? "") : ""}
+              transportKm={transportKm}
+              transportFuelPrice={transportFuelPrice}
+              value={clauses}
+              onChange={setClauses}
+            />
           </Block>
 
           {submitError && <p className="text-red-400 text-sm text-center">{submitError}</p>}

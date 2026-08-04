@@ -43,7 +43,7 @@ const CreateHandoverPage: React.FC = () => {
   const [includeCourier, setIncludeCourier] = useState(true);
   const [includePersonalHandover, setIncludePersonalHandover] = useState(false);
 
-  const [digitalLinkUrl, setDigitalLinkUrl] = useState("");
+  const [digitalLinks, setDigitalLinks] = useState<{ label: string; url: string }[]>([{ label: "", url: "" }]);
   const [awb, setAwb] = useState("");
   const [courierDeliveryDays, setCourierDeliveryDays] = useState(DEFAULT_COURIER_DELIVERY_DAYS);
   const [materialsReportWindowDays, setMaterialsReportWindowDays] = useState(DEFAULT_MATERIALS_REPORT_WINDOW_DAYS);
@@ -76,11 +76,27 @@ const CreateHandoverPage: React.FC = () => {
     setClientName(event.client?.fullName ?? "");
     setClientEmail(event.client?.email ?? "");
     if (event.albumSlug) {
-      setDigitalLinkUrl(`${window.location.origin}/qr-moments/${event.albumSlug}`);
+      setDigitalLinks((prev) => {
+        const url = `${window.location.origin}/qr-moments/${event.albumSlug}`;
+        if (prev.length === 1 && !prev[0].label.trim() && !prev[0].url.trim()) {
+          return [{ label: "Galerie foto/video", url }];
+        }
+        return [...prev, { label: "Galerie foto/video", url }];
+      });
     }
     setEventQuery("");
     setEventPickerOpen(false);
   };
+
+  function addDigitalLink() {
+    setDigitalLinks((prev) => [...prev, { label: "", url: "" }]);
+  }
+  function removeDigitalLink(index: number) {
+    setDigitalLinks((prev) => prev.filter((_, i) => i !== index));
+  }
+  function updateDigitalLink(index: number, field: "label" | "url", value: string) {
+    setDigitalLinks((prev) => prev.map((l, i) => i === index ? { ...l, [field]: value } : l));
+  }
 
   const fmtDate = (s: string) => {
     if (!s) return "";
@@ -100,6 +116,13 @@ const CreateHandoverPage: React.FC = () => {
       setSubmitError("Selectează cel puțin o metodă de predare a materialelor.");
       return;
     }
+    const cleanDigitalLinks = digitalLinks
+      .map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
+      .filter((l) => l.label || l.url);
+    if (includeDigitalLink && cleanDigitalLinks.some((l) => !l.label || !l.url)) {
+      setSubmitError("Completează atât denumirea, cât și link-ul, pentru fiecare material digital adăugat.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -115,7 +138,7 @@ const CreateHandoverPage: React.FC = () => {
           includeDigitalLink,
           includeCourier,
           includePersonalHandover,
-          digitalLinkUrl: digitalLinkUrl.trim(),
+          digitalLinks: cleanDigitalLinks,
           awb: awb.trim(),
           courierDeliveryDays,
           materialsReportWindowDays,
@@ -221,9 +244,28 @@ const CreateHandoverPage: React.FC = () => {
 
             {includeDigitalLink && (
               <div>
-                <Label>Link digital (galerie / QR Moments)</Label>
-                <input className={inp} type="text" value={digitalLinkUrl} onChange={(e) => setDigitalLinkUrl(e.target.value)} placeholder="https://ancavisuals.ro/qr-moments/..." />
-                <p className="text-neutral-500 text-xs mt-1.5">Clientul NU vede acest link înainte de semnare — îi va fi trimis pe email imediat după ce semnează.</p>
+                <Label>Materiale digitale (denumire + link)</Label>
+                <div className="space-y-2">
+                  {digitalLinks.map((link, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input className={inp} type="text" value={link.label}
+                        onChange={(e) => updateDigitalLink(i, "label", e.target.value)}
+                        placeholder="Ex: Poze nuntă" style={{ flex: "0 0 40%" }} />
+                      <input className={inp} type="text" value={link.url}
+                        onChange={(e) => updateDigitalLink(i, "url", e.target.value)}
+                        placeholder="https://ancavisuals.ro/qr-moments/..." />
+                      {digitalLinks.length > 1 && (
+                        <button type="button" onClick={() => removeDigitalLink(i)}
+                          className="text-neutral-600 hover:text-red-400 text-xl px-1 shrink-0">×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={addDigitalLink}
+                  className="mt-2 text-xs text-emerald-400 border border-emerald-500/30 rounded-lg px-3 py-1.5 hover:bg-emerald-500/10 transition-colors">
+                  + Adaugă material (ex: video lungmetraj, video scurtmetraj)
+                </button>
+                <p className="text-neutral-500 text-xs mt-1.5">Clientul NU vede aceste link-uri înainte de semnare — îi vor fi trimise pe email, cu denumirile lor, imediat după ce semnează.</p>
               </div>
             )}
 

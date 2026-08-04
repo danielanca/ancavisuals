@@ -286,7 +286,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         </svg>
       ),
       items: [
-        { label: "Health Tracker", path: "/admin/sanatate" },
         { label: "Conturi", path: "/admin/accounts" },
         { label: "Wedding Hub", path: "/admin/wedding-hub" },
         { label: "Erori server", path: "/admin/errors", badge: unseenErrors },
@@ -377,19 +376,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
               </svg>
               <span>Dashboard</span>
-            </button>
-            <button
-              onClick={() => handleNavItem("/admin/sanatate")}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                isActive("/admin/sanatate")
-                  ? "bg-red-500/15 text-red-400"
-                  : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
-              }`}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-              </svg>
-              <span>Health Tracker</span>
             </button>
           </div>
         )}

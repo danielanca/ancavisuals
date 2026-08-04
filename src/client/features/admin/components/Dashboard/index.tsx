@@ -778,7 +778,7 @@ const DashboardInner: React.FC = () => {
           </DraggableWidget>
         ))}
 
-        <DeliveryDeadlineOverview events={events} />
+        <DeliveryDeadlineOverview events={events} onEventUpdated={handleEventUpdated} />
 
       </div>
     </div>

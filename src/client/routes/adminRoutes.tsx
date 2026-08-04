@@ -17,6 +17,7 @@ const CreateEventWedding = loadable(() => import("../features/admin/components/E
 const ContractListPage = loadable(() => import("../features/admin/components/Contracts/ContractListPage"), opts);
 const CreateContractPage = loadable(() => import("../features/admin/components/Contracts/CreateContractPage"), opts);
 const EditContractPage = loadable(() => import("../features/admin/components/Contracts/EditContractPage"), opts);
+const ContractClauseLibraryPage = loadable(() => import("../features/admin/components/Contracts/ContractClauseLibraryPage"), opts);
 const HandoverListPage = loadable(() => import("../features/admin/components/Handover/HandoverListPage"), opts);
 const CreateHandoverPage = loadable(() => import("../features/admin/components/Handover/CreateHandoverPage"), opts);
 const InspirationPage = loadable(() => import("../features/admin/components/InspirationPage"), opts);
@@ -63,6 +64,7 @@ export const adminRoutes = [
       <Route path="/admin/create-event-wedding" element={<CreateEventWedding />} />
       <Route path="/admin/contracts" element={<ContractListPage />} />
       <Route path="/admin/contracts/create" element={<CreateContractPage />} />
+      <Route path="/admin/contracts/templates" element={<ContractClauseLibraryPage />} />
       <Route path="/admin/contracts/:id/edit" element={<EditContractPage />} />
       <Route path="/admin/handover" element={<HandoverListPage />} />
       <Route path="/admin/handover/new" element={<CreateHandoverPage />} />

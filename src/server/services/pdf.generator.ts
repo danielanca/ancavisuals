@@ -19,7 +19,37 @@ export interface ContractService {
   isTransport?: boolean;
 }
 
-function resolveBankDetails(contract: Record<string, unknown>) {
+interface StoredClauseSnapshot {
+  templateId?: string;
+  key?: string;
+  title: string;
+  body: string;
+  order?: number;
+  groupKey?: string | null;
+}
+
+// Rows sharing the same groupKey (e.g. "Termene standard de predare" split into per-service lines)
+// get concatenated under a single numbered section, ordered by the lowest `order` in the group.
+function renderStoredClauseArticles(clauses: StoredClauseSnapshot[]): { title: string; body: string }[] {
+  const groups = new Map<string, { title: string; order: number; bodies: string[] }>();
+  const groupIds: string[] = [];
+  for (const c of clauses) {
+    const groupId = c.groupKey || c.key || c.title;
+    if (!groups.has(groupId)) {
+      groups.set(groupId, { title: c.title, order: c.order ?? 0, bodies: [] });
+      groupIds.push(groupId);
+    }
+    const g = groups.get(groupId)!;
+    g.bodies.push(c.body);
+    g.order = Math.min(g.order, c.order ?? g.order);
+  }
+  return groupIds
+    .map((id) => groups.get(id)!)
+    .sort((a, b) => a.order - b.order)
+    .map((g) => ({ title: g.title, body: g.bodies.join("\n") }));
+}
+
+export function resolveBankDetails(contract: Record<string, unknown>) {
   return {
     beneficiaryName: String(contract.bankBeneficiaryName ?? "").trim(),
     iban: String(contract.bankIban ?? "").trim(),
@@ -56,7 +86,7 @@ export async function generateHandoverPDF(handover: Record<string, unknown>): Pr
   return renderHtmlToPdf(buildHandoverHTML(handover));
 }
 
-function esc(val: unknown): string {
+export function esc(val: unknown): string {
   return String(val ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -76,7 +106,7 @@ function toIsoString(value: unknown): string | undefined {
   return String(value);
 }
 
-function formatDate(value: unknown): string {
+export function formatDate(value: unknown): string {
   const iso = toIsoString(value);
   if (!iso) return "___________";
   const d = new Date(iso);
@@ -84,7 +114,7 @@ function formatDate(value: unknown): string {
   return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "long", year: "numeric" });
 }
 
-function formatShortDate(value: unknown): string {
+export function formatShortDate(value: unknown): string {
   const iso = toIsoString(value);
   if (!iso) return "___________";
   const d = new Date(iso);
@@ -101,7 +131,15 @@ function eventCrossesMidnight(startTime: unknown, endTime: unknown): boolean {
   return end <= start;
 }
 
-function detectServiceFlags(services: ContractService[], contractType?: string) {
+export interface ServiceFlags {
+  hasFoto: boolean;
+  hasVideo: boolean;
+  hasPhotobooth: boolean;
+  hasVideobooth: boolean;
+  hasPhotoVideo: boolean;
+}
+
+export function detectServiceFlags(services: ContractService[], contractType?: string): ServiceFlags {
   const labels = services.map((s) => s.label.toLowerCase());
   const type = (contractType ?? "").toLowerCase();
 
@@ -111,6 +149,21 @@ function detectServiceFlags(services: ContractService[], contractType?: string) 
   const hasVideobooth = labels.some((l) => l.includes("videobooth") || l.includes("video cab") || l.includes("video 360") || l.includes("360°")) || type.includes("videobooth");
 
   return { hasFoto, hasVideo, hasPhotobooth, hasVideobooth, hasPhotoVideo: hasFoto || hasVideo };
+}
+
+export function computeContractTitle(flags: Pick<ServiceFlags, "hasFoto" | "hasVideo" | "hasPhotobooth" | "hasPhotoVideo">): string {
+  const { hasFoto, hasVideo, hasPhotobooth, hasPhotoVideo } = flags;
+  return hasPhotoVideo && hasPhotobooth
+    ? "Foto-Video & Fotocabină"
+    : hasPhotobooth && !hasPhotoVideo
+      ? "Fotocabină / Photo Booth"
+      : hasVideo && !hasFoto ? "Video"
+      : hasFoto && !hasVideo ? "Foto"
+      : "Foto-Video";
+}
+
+export function computeTransportEstimate(km: number, fuelPrice: number): number {
+  return Math.ceil(km * 6 / 100 * fuelPrice);
 }
 
 export function buildContractHTML(contract: Record<string, unknown>): string {
@@ -127,13 +180,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
 
   const { hasFoto, hasVideo, hasPhotobooth, hasVideobooth, hasPhotoVideo } = detectServiceFlags(services, contract.contractType as string);
 
-  const contractTitle = hasPhotoVideo && hasPhotobooth
-    ? "Foto-Video & Fotocabină"
-    : hasPhotobooth && !hasPhotoVideo
-      ? "Fotocabină / Photo Booth"
-      : hasVideo && !hasFoto ? "Video"
-      : hasFoto && !hasVideo ? "Foto"
-      : "Foto-Video";
+  const contractTitle = computeContractTitle({ hasFoto, hasVideo, hasPhotobooth, hasPhotoVideo });
 
   // Build the article list conditionally; null = omitted
   const articles: Array<{ title: string; body: string } | null> = [
@@ -170,7 +217,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
             if (s.isTransport && contract.transportKm) {
               const km = Number(contract.transportKm);
               const fuelPrice = Number(contract.transportFuelPrice) || 10;
-              const estimated = Math.ceil(km * 6 / 100 * fuelPrice);
+              const estimated = computeTransportEstimate(km, fuelPrice);
               return `<tr style="${bg}">
                 <td style="${cell}">${esc(s.label)}<br/><span style="font-size:8.5pt;color:#777;">${km} km × 6L/100km × ${fuelPrice} lei/L (preț carburant estimat la data semnării)</span></td>
                 <td style="${cell}text-align:right;vertical-align:top;">~${estimated} ${cur}<br/><span style="font-size:8pt;color:#999;font-style:italic;">estimat*</span></td>
@@ -250,6 +297,15 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       body: contract.privateClient
         ? `<p><span class="bold">Confidențialitate totală:</span> La solicitarea expresă a BENEFICIARULUI, toate materialele foto și video realizate în cadrul acestui Contract sunt strict confidențiale și destinate exclusiv uzului personal al acestuia. PRESTATORUL nu va publica, distribui sau utiliza în niciun scop public (portofoliu, social media, marketing, târguri, concursuri sau orice alt canal) niciuna dintre imaginile sau materialele video rezultate. Această clauză este obligatorie și are caracter permanent.</p>`
         : `<p>PRESTATORUL își rezervă dreptul de a utiliza imaginile foto și/sau video realizate în cadrul acestui Contract pentru promovarea activității sale, inclusiv pe rețelele de socializare, portofoliu online, marketing, târguri sau concursuri. Imaginile vor fi alese de PRESTATOR dintre cele mai reprezentative din perspectivă artistică. În cazul în care BENEFICIARUL dorește confidențialitate totală asupra materialelor, acesta trebuie să notifice PRESTATORUL în scris, anterior semnării contractului.</p>`,
+    } : null,
+
+    // ── 7b. Acceptance of artistic style ──────────────────────────────────────
+    hasPhotoVideo ? {
+      title: "Acceptarea stilului artistic",
+      body: `
+        <p>BENEFICIARUL declară că a vizualizat în prealabil portofoliul PRESTATORULUI și este pe deplin de acord cu stilul artistic în care acesta realizează fotografiile și/sau materialele video, astfel cum sunt descrise în prezentul contract (stil documentar, cinematic/artistic, editare, culori, montaj etc.).</p>
+        <p>BENEFICIARUL declară că nu va avea pretenții de restituire materială sau financiară motivate de nemulțumiri legate de stilul artistic/creativ al fotografiilor și/sau materialelor video livrate, acest stil fiind cunoscut și acceptat anterior semnării prezentului contract.</p>
+      `,
     } : null,
 
     // ── 8. Price and payment ─────────────────────────────────────────────────
@@ -385,8 +441,33 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
     } : null,
   ];
 
-  const renderedArticles = articles
-    .filter((a): a is { title: string; body: string } => a !== null)
+  // Contracte create prin biblioteca de clauze (Șabloane contract) au un snapshot stocat în
+  // contract.clauses — dacă există, îl folosim în locul listei legacy de mai sus. Contractele
+  // vechi (toate cele existente azi) au clauses gol, deci trec neschimbat pe calea legacy.
+  const storedClauses = Array.isArray(contract.clauses) ? (contract.clauses as StoredClauseSnapshot[]) : [];
+
+  let finalArticles: { title: string; body: string }[];
+  if (storedClauses.length > 0) {
+    // Indici ficși în array-ul de mai sus: 0=părți, 1=obiect, 2=tabel servicii, 9=preț&plată —
+    // sunt singurele 4 secțiuni mereu prezente (obiecte, nu ternare) înaintea clauzei de exhaustivitate.
+    const partiesArticle = articles[0] as { title: string; body: string };
+    const subjectArticle = articles[1] as { title: string; body: string };
+    const servicesTableArticle = articles[2] as { title: string; body: string };
+    const priceAndPaymentArticle = articles[9] as { title: string; body: string };
+    const additionalNotesArticle = contract.eventDetails
+      ? { title: "Mențiuni suplimentare", body: `<p>${esc(contract.eventDetails as string)}</p>` }
+      : null;
+
+    finalArticles = [
+      partiesArticle, subjectArticle, servicesTableArticle, priceAndPaymentArticle,
+      ...renderStoredClauseArticles(storedClauses),
+      ...(additionalNotesArticle ? [additionalNotesArticle] : []),
+    ];
+  } else {
+    finalArticles = articles.filter((a): a is { title: string; body: string } => a !== null);
+  }
+
+  const renderedArticles = finalArticles
     .map((a, i) => `
       <p class="section">${i + 1}. ${a.title.toUpperCase()}:</p>
       ${a.body}
@@ -485,10 +566,13 @@ export function buildHandoverHTML(handover: Record<string, unknown>): string {
   const includeDigitalLink = handover.includeDigitalLink !== false;
   const includeCourier = handover.includeCourier !== false;
   const includePersonalHandover = Boolean(handover.includePersonalHandover);
+  const digitalLinkLabels = (Array.isArray(handover.digitalLinks) ? handover.digitalLinks as { label?: unknown }[] : [])
+    .map((l) => String(l?.label ?? "").trim())
+    .filter(Boolean);
 
   const declClauses: string[] = [];
   if (includeDigitalLink) {
-    declClauses.push(`Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <span class="bold">imediat după semnarea prezentului document</span>, nu înainte. Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.`);
+    declClauses.push(`Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <span class="bold">imediat după semnarea prezentului document</span>, nu înainte.${digitalLinkLabels.length ? ` Materialele digitale predate includ: <span class="bold">${esc(digitalLinkLabels.join(", "))}</span>.` : ""} Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.`);
   }
   if (includeCourier) {
     declClauses.push(`Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <span class="bold">${courierDeliveryDays} zile</span> calendaristice de la data prezentei semnături.${awb ? ` Coletul are numărul de tracking (AWB) <span class="bold">${esc(awb)}</span>, pe baza căruia poate fi urmărit statusul livrării pe site-ul curierului.` : ""}`);

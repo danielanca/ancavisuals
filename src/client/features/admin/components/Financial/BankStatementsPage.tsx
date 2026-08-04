@@ -1,6 +1,7 @@
 import React from "react";
 import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
+import { ROMANIAN_COUNTIES, getCitiesForCounty } from "../../../../data/romaniaLocations";
 
 interface BankStatementEntry {
   date: string;
@@ -241,6 +242,261 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
   );
 }
 
+interface QuickAddInvoiceModalProps {
+  accessToken: string;
+  entry: BankStatementEntry;
+  onClose: () => void;
+  onAdded: () => void;
+}
+
+function QuickAddInvoiceModal({ accessToken, entry, onClose, onAdded }: QuickAddInvoiceModalProps) {
+  const [invoiceType, setInvoiceType] = React.useState<"B2C" | "B2B">("B2C");
+  const [clientName, setClientName] = React.useState(entry.counterparty ?? "");
+  const [clientCIF, setClientCIF] = React.useState("");
+  const [clientAddress, setClientAddress] = React.useState("");
+  const [clientCounty, setClientCounty] = React.useState("");
+  const [clientCity, setClientCity] = React.useState("");
+  const [description, setDescription] = React.useState(entry.description ?? "Servicii foto/video");
+  const [amount, setAmount] = React.useState(String(entry.amount));
+  const [date, setDate] = React.useState(entry.date.slice(0, 10));
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const numAmount = Number(amount);
+      const res = await fetch("/api/admin/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          date,
+          type: invoiceType,
+          clientName,
+          clientAddress,
+          clientCity,
+          clientCounty,
+          clientCIF: invoiceType === "B2B" ? clientCIF || undefined : undefined,
+          items: [{ description, quantity: 1, unitPrice: numAmount, total: numAmount }],
+          totalAmount: numAmount,
+          currency: entry.currency,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? "Eroare la salvare.");
+      onAdded();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eroare.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inp = "w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-500";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-lg rounded-xl border border-neutral-800 bg-neutral-900 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-neutral-800 p-5">
+          <h2 className="text-white font-semibold">Factură nouă din extras</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-white">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3 text-xs text-neutral-400">
+            Precompletat din tranzacția de {fmtCurrency(entry.amount, entry.currency)} din {fmtDate(entry.date)}
+            {entry.counterparty ? ` · ${entry.counterparty}` : ""}
+          </div>
+
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setInvoiceType("B2C")} className={`flex-1 rounded-lg border py-2 text-sm ${invoiceType === "B2C" ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" : "border-neutral-700 text-neutral-400"}`}>Persoană fizică</button>
+            <button type="button" onClick={() => setInvoiceType("B2B")} className={`flex-1 rounded-lg border py-2 text-sm ${invoiceType === "B2B" ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" : "border-neutral-700 text-neutral-400"}`}>Firmă</button>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Nume client *</label>
+            <input className={inp} value={clientName} onChange={(e) => setClientName(e.target.value)} required />
+          </div>
+
+          {invoiceType === "B2B" && (
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">CIF / CUI client</label>
+              <input className={inp} value={clientCIF} onChange={(e) => setClientCIF(e.target.value)} />
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Adresă (stradă) *</label>
+            <input className={inp} value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} required placeholder="Str. Exemplu nr. 1" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Județ *</label>
+              <select className={inp} value={clientCounty} onChange={(e) => setClientCounty(e.target.value)} required>
+                <option value="">Selectează județul</option>
+                {ROMANIAN_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Oraș *</label>
+              <input className={inp} list="quick-invoice-cities" value={clientCity} onChange={(e) => setClientCity(e.target.value)} required />
+              <datalist id="quick-invoice-cities">
+                {getCitiesForCounty(clientCounty).map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Descriere serviciu</label>
+            <input className={inp} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Sumă ({entry.currency})</label>
+              <input className={inp} type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Data</label>
+              <input className={inp} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-red-400">{error}</p>}
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-neutral-700 py-2 text-sm text-neutral-400 hover:border-neutral-500">Anulează</button>
+            <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-500 disabled:opacity-50">
+              {saving ? "Se salvează..." : "Salvează factura"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const EXPENSE_CATEGORIES = [
+  { value: "combustibil", label: "Combustibil" },
+  { value: "echipament", label: "Echipament" },
+  { value: "transport", label: "Transport" },
+  { value: "software", label: "Software" },
+  { value: "cazare", label: "Cazare" },
+  { value: "alimentatie", label: "Alimentație" },
+  { value: "marketing", label: "Marketing" },
+  { value: "altele", label: "Altele" },
+];
+
+interface QuickAddExpenseModalProps {
+  accessToken: string;
+  entry: BankStatementEntry;
+  onClose: () => void;
+  onAdded: () => void;
+}
+
+function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAddExpenseModalProps) {
+  const [category, setCategory] = React.useState("altele");
+  const [supplier, setSupplier] = React.useState(entry.counterparty ?? "");
+  const [description, setDescription] = React.useState(entry.description ?? "");
+  const [amount, setAmount] = React.useState(String(entry.amount));
+  const [date, setDate] = React.useState(entry.date.slice(0, 10));
+  const [deductibility, setDeductibility] = React.useState("100");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          date,
+          category,
+          description: description || undefined,
+          supplier: supplier || undefined,
+          amount: Number(amount),
+          currency: entry.currency,
+          deductibility: Number(deductibility),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.message ?? data.error ?? "Eroare la salvare.");
+      onAdded();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eroare.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inp = "w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-500";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md rounded-xl border border-neutral-800 bg-neutral-900 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-neutral-800 p-5">
+          <h2 className="text-white font-semibold">Cheltuială nouă din extras</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-white">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3 text-xs text-neutral-400">
+            Precompletat din tranzacția de {fmtCurrency(entry.amount, entry.currency)} din {fmtDate(entry.date)}
+            {entry.counterparty ? ` · ${entry.counterparty}` : ""}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Categorie *</label>
+            <select className={inp} value={category} onChange={(e) => setCategory(e.target.value)} required>
+              {EXPENSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Furnizor</label>
+            <input className={inp} value={supplier} onChange={(e) => setSupplier(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Descriere</label>
+            <input className={inp} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Sumă ({entry.currency})</label>
+              <input className={inp} type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Deductibil %</label>
+              <input className={inp} type="number" min="0" max="100" value={deductibility} onChange={(e) => setDeductibility(e.target.value)} required />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Data</label>
+              <input className={inp} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-red-400">{error}</p>}
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-neutral-700 py-2 text-sm text-neutral-400 hover:border-neutral-500">Anulează</button>
+            <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-500 disabled:opacity-50">
+              {saving ? "Se salvează..." : "Salvează cheltuiala"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 const BankStatementsPage: React.FC = () => {
   const { auth } = useAuth();
   const [selectedYear, setSelectedYear] = React.useState(CURRENT_YEAR);
@@ -248,6 +504,8 @@ const BankStatementsPage: React.FC = () => {
   const [loading, setLoading] = React.useState(false);
   const [showAddModal, setShowAddModal] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [rematchingId, setRematchingId] = React.useState<string | null>(null);
+  const [quickAdd, setQuickAdd] = React.useState<{ statementId: string; type: "invoice" | "expense"; entry: BankStatementEntry } | null>(null);
 
   const authHeader = React.useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
@@ -283,6 +541,19 @@ const BankStatementsPage: React.FC = () => {
       setBankStatements((current) => current.filter((statement) => statement.id !== id));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleRematch(id: string) {
+    setRematchingId(id);
+    try {
+      const response = await fetch(`/api/admin/bank-statements/${id}/rematch`, { method: "POST", headers: authHeader });
+      const data = await response.json() as { statement?: BankStatement };
+      if (data.statement) {
+        setBankStatements((current) => current.map((statement) => statement.id === id ? data.statement! : statement));
+      }
+    } finally {
+      setRematchingId(null);
     }
   }
 
@@ -375,13 +646,23 @@ const BankStatementsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteBankStatement(statement.id)}
-                      disabled={deletingId === statement.id}
-                      className="text-neutral-600 transition-colors hover:text-red-400 disabled:opacity-50"
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleRematch(statement.id)}
+                        disabled={rematchingId === statement.id}
+                        className="flex items-center gap-1.5 text-xs text-neutral-400 transition-colors hover:text-white disabled:opacity-50"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                        {rematchingId === statement.id ? "Se reverifică..." : "Re-verifică"}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBankStatement(statement.id)}
+                        disabled={deletingId === statement.id}
+                        className="text-neutral-600 transition-colors hover:text-red-400 disabled:opacity-50"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-4 overflow-x-auto">
@@ -411,7 +692,16 @@ const BankStatementsPage: React.FC = () => {
                               {entry.justificationStatus === "matched" ? (
                                 <span className="inline-flex rounded bg-emerald-500/15 px-2 py-1 text-xs text-emerald-400">{entry.matchedLabel}</span>
                               ) : (
-                                <span className="inline-flex rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-400">Nejustificată încă</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-400">Nejustificată încă</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuickAdd({ statementId: statement.id, type: entry.direction === "in" ? "invoice" : "expense", entry })}
+                                    className="rounded border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-emerald-500 hover:text-emerald-400"
+                                  >
+                                    + {entry.direction === "in" ? "Factură" : "Cheltuială"}
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -432,6 +722,24 @@ const BankStatementsPage: React.FC = () => {
           selectedYear={selectedYear}
           onClose={() => setShowAddModal(false)}
           onAdded={(statement) => setBankStatements((current) => [statement, ...current])}
+        />
+      )}
+
+      {quickAdd?.type === "invoice" && (
+        <QuickAddInvoiceModal
+          accessToken={auth.accessToken ?? ""}
+          entry={quickAdd.entry}
+          onClose={() => setQuickAdd(null)}
+          onAdded={() => handleRematch(quickAdd.statementId)}
+        />
+      )}
+
+      {quickAdd?.type === "expense" && (
+        <QuickAddExpenseModal
+          accessToken={auth.accessToken ?? ""}
+          entry={quickAdd.entry}
+          onClose={() => setQuickAdd(null)}
+          onAdded={() => handleRematch(quickAdd.statementId)}
         />
       )}
     </div>

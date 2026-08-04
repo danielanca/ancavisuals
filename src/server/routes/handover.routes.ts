@@ -17,6 +17,13 @@ const DEFAULT_COURIER_DELIVERY_DAYS = 7;
 const DEFAULT_MATERIALS_REPORT_WINDOW_DAYS = 7;
 const DEFAULT_DIGITAL_LINK_EXPIRY_DAYS = 30;
 
+// Labels are fine to show before signing ("what you'll receive"), but the actual URLs must stay
+// hidden until after signing — they're delivered by email right after.
+function withheldLabelsOnly(digitalLinks: unknown): { label: string }[] {
+  if (!Array.isArray(digitalLinks)) return [];
+  return digitalLinks.map((l: { label?: unknown }) => ({ label: String(l?.label ?? "") })).filter((l) => l.label);
+}
+
 function tsToISO(value: unknown): string | null {
   if (value instanceof Timestamp) return value.toDate().toISOString();
   if (typeof value === "string") return value;
@@ -40,6 +47,12 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Selectează cel puțin o metodă de predare a materialelor." });
     }
 
+    const digitalLinks: { label: string; url: string }[] = Array.isArray(body.digitalLinks)
+      ? body.digitalLinks
+          .map((l: { label?: unknown; url?: unknown }) => ({ label: String(l?.label ?? "").trim(), url: String(l?.url ?? "").trim() }))
+          .filter((l: { label: string; url: string }) => l.label && l.url)
+      : [];
+
     const handover = {
       token: uuidv4(),
       status: "draft" as const,
@@ -56,7 +69,9 @@ router.post("/", async (req: Request, res: Response) => {
       includeCourier,
       includePersonalHandover,
 
-      digitalLinkUrl: body.digitalLinkUrl?.trim() ?? "",
+      digitalLinks,
+      // câmp legacy, păstrat pentru PV-urile vechi/afișări care mai citesc un singur link
+      digitalLinkUrl: digitalLinks[0]?.url ?? body.digitalLinkUrl?.trim() ?? "",
       awb: body.awb?.trim() ?? "",
       courierDeliveryDays: Number(body.courierDeliveryDays) || DEFAULT_COURIER_DELIVERY_DAYS,
       materialsReportWindowDays: Number(body.materialsReportWindowDays) || DEFAULT_MATERIALS_REPORT_WINDOW_DAYS,
@@ -112,10 +127,12 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
     if (snapshot.empty) return res.status(404).json({ error: "Proces verbal negăsit." });
     const data = snapshot.docs[0].data();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, ...publicData } = data;
-    const pdfBuffer = await generateHandoverPDF({ ...publicData, createdAt: tsToISO(data.createdAt) });
+    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, digitalLinks, ...publicData } = data;
+    const pdfBuffer = await generateHandoverPDF({ ...publicData, digitalLinks: withheldLabelsOnly(digitalLinks), createdAt: tsToISO(data.createdAt) });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="proces-verbal-preview.pdf"`);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.send(pdfBuffer);
   } catch (error) {
     console.error("[handover] GET /sign/:token/pdf failed:", error);
@@ -132,9 +149,11 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
     if (snapshot.empty) return res.status(404).send("<p>Proces verbal negăsit.</p>");
     const data = snapshot.docs[0].data();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, ...publicData } = data;
-    const html = buildHandoverHTML({ ...publicData, createdAt: tsToISO(data.createdAt) });
+    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, digitalLinks, ...publicData } = data;
+    const html = buildHandoverHTML({ ...publicData, digitalLinks: withheldLabelsOnly(digitalLinks), createdAt: tsToISO(data.createdAt) });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.send(html);
   } catch (error) {
     console.error("[handover] GET /sign/:token/html failed:", error);
@@ -165,13 +184,14 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
       return res.status(410).json({ error: "Link-ul a expirat.", status: "expired" });
     }
 
-    // digitalLinkUrl is withheld until the client signs — it's delivered by email right after signing
+    // digitalLinkUrl/digitalLinks URLs are withheld until the client signs — delivered by email right after
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, ...publicData } = data;
+    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, digitalLinks, ...publicData } = data;
 
     res.json({
       id: doc.id,
       ...publicData,
+      digitalLinks: withheldLabelsOnly(digitalLinks),
       createdAt: tsToISO(data.createdAt),
     });
   } catch (error) {
@@ -185,10 +205,13 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { token } = req.params;
-    const { clientName, digitalLinkAcknowledged, termsAcknowledged, clientSignatureBase64 } = req.body;
+    const { clientName, digitalLinkAcknowledged, backupAcknowledged, termsAcknowledged, clientSignatureBase64 } = req.body;
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Numele complet este obligatoriu." });
+    }
+    if (backupAcknowledged !== true) {
+      return res.status(400).json({ error: "Trebuie să confirmați că veți salva materialele pe un mediu de stocare separat." });
     }
     if (termsAcknowledged !== true) {
       return res.status(400).json({ error: "Trebuie să confirmați că ați înțeles termenele de livrare." });
@@ -229,6 +252,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       signedAt,
       clientName: clientName.trim(),
       digitalLinkAcknowledged: true,
+      backupAcknowledged: true,
       termsAcknowledged: true,
       clientSignatureBase64,
       clientIp,
@@ -269,9 +293,17 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const doc = await db.collection("materialsHandover").doc(req.params.id).get();
     if (!doc.exists) return res.status(404).json({ error: "Proces verbal negăsit." });
 
-    const updates: Record<string, string> = {};
+    const updates: Record<string, unknown> = {};
     if (typeof req.body.awb === "string") updates.awb = req.body.awb.trim();
-    if (typeof req.body.digitalLinkUrl === "string") updates.digitalLinkUrl = req.body.digitalLinkUrl.trim();
+    if (Array.isArray(req.body.digitalLinks)) {
+      const cleanLinks = (req.body.digitalLinks as { label?: unknown; url?: unknown }[])
+        .map((l) => ({ label: String(l?.label ?? "").trim(), url: String(l?.url ?? "").trim() }))
+        .filter((l) => l.label && l.url);
+      updates.digitalLinks = cleanLinks;
+      updates.digitalLinkUrl = cleanLinks[0]?.url ?? "";
+    } else if (typeof req.body.digitalLinkUrl === "string") {
+      updates.digitalLinkUrl = req.body.digitalLinkUrl.trim();
+    }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "Niciun câmp de actualizat." });
@@ -397,6 +429,8 @@ router.get("/:id/preview", async (req: Request, res: Response) => {
     const pdfBuffer = await generateHandoverPDF({ ...data, id: doc.id, createdAt: tsToISO(data.createdAt) });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="preview-proces-verbal.pdf"`);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.send(pdfBuffer);
   } catch (error) {
     console.error("[handover] GET /:id/preview failed:", error);
@@ -464,7 +498,11 @@ async function generateAndSendPDF(handover: Record<string, unknown>): Promise<vo
     clientName: handover.clientName as string,
     pdfUrl: pdfUrl ?? fallbackUrl,
     hasPdf: pdfUrl !== null,
-    digitalLinkUrl: (handover.digitalLinkUrl as string) || undefined,
+    digitalLinks: Array.isArray(handover.digitalLinks) && (handover.digitalLinks as unknown[]).length > 0
+      ? handover.digitalLinks as { label: string; url: string }[]
+      : (handover.digitalLinkUrl as string)
+        ? [{ label: "Descarcă materialele foto/video", url: handover.digitalLinkUrl as string }]
+        : undefined,
     digitalLinkExpiryDays: Number(handover.digitalLinkExpiryDays) || DEFAULT_DIGITAL_LINK_EXPIRY_DAYS,
     awb: (handover.awb as string) || undefined,
   });

@@ -727,9 +727,9 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 mb-5">
+        <div className="flex items-center justify-between gap-2 mb-5 flex-wrap">
           <h2 className="text-white font-medium whitespace-nowrap">Evenimente {currentYear}</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={handleExport}

@@ -1685,39 +1685,44 @@ const FinancialPage: React.FC = () => {
                 <div className="space-y-2">
                   {state.expenses.map((expense) => (
                     <div key={expense.id} id={`expense-${expense.id}`}
-                      className={`rounded-xl px-4 py-3 flex items-center gap-4 border transition-colors duration-500 ${state.highlightedExpenseId === expense.id ? "bg-amber-500/10 border-amber-500/50" : "bg-neutral-900 border-neutral-800"}`}>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-white text-sm font-medium">{fmtCurrency(expense.amount, expense.currency)}</span>
-                          <CategoryBadge value={expense.category} />
-                          <span className="text-xs text-amber-500">{expense.deductibility}% ded.</span>
+                      className={`rounded-xl p-4 border transition-colors duration-500 ${state.highlightedExpenseId === expense.id ? "bg-amber-500/10 border-amber-500/50" : "bg-neutral-900 border-neutral-800"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-white text-sm font-medium">{fmtCurrency(expense.amount, expense.currency)}</span>
+                            <CategoryBadge value={expense.category} />
+                            <span className="text-xs text-amber-500">{expense.deductibility}% ded.</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
+                            <span>{fmtDate(expense.date)}</span>
+                            {expense.supplier && <span>· {expense.supplier}</span>}
+                            {expense.description && <span>· {expense.description}</span>}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
-                          <span>{fmtDate(expense.date)}</span>
-                          {expense.supplier && <span>· {expense.supplier}</span>}
-                          {expense.description && <span>· {expense.description}</span>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {expense.factura && (
-                          <a href={expense.factura.url} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 transition-colors">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-                            Factură
-                          </a>
-                        )}
-                        {expense.chitanta && (
-                          <a href={expense.chitanta.url} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 transition-colors">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-                            Chitanță
-                          </a>
-                        )}
                         <button onClick={() => handleDeleteExpense(expense.id)} disabled={state.deletingId === expense.id}
-                          className="text-neutral-600 hover:text-red-400 transition-colors disabled:opacity-50">
+                          className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-neutral-800 transition-colors disabled:opacity-50 shrink-0">
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
                         </button>
                       </div>
+
+                      {(expense.factura || expense.chitanta) && (
+                        <div className="flex items-center gap-3 flex-wrap mt-3 pt-3 border-t border-neutral-800/60">
+                          {expense.factura && (
+                            <a href={expense.factura.url} target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 transition-colors">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                              Factură
+                            </a>
+                          )}
+                          {expense.chitanta && (
+                            <a href={expense.chitanta.url} target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 transition-colors">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                              Chitanță
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1783,26 +1788,39 @@ const FinancialPage: React.FC = () => {
                   {state.invoices.map((invoice) => {
                     const invoiceRef = invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
                     return (
-                      <div key={invoice.id} className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 flex items-center gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-white text-sm font-medium font-mono">{invoiceRef}</span>
-                            <span className="text-white text-sm">{fmtCurrency(invoice.totalAmount, invoice.currency)}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${invoice.type === "B2B" ? "bg-blue-500/20 text-blue-400" : "bg-neutral-800 text-neutral-400"}`}>{invoice.type}</span>
+                      <div key={invoice.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-white text-sm font-medium font-mono">{invoiceRef}</span>
+                              <span className="text-white text-sm">{fmtCurrency(invoice.totalAmount, invoice.currency)}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${invoice.type === "B2B" ? "bg-blue-500/20 text-blue-400" : "bg-neutral-800 text-neutral-400"}`}>{invoice.type}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
+                              <span>{fmtDate(invoice.date)}</span>
+                              <span>·</span>
+                              <span>{invoice.clientName}</span>
+                              {invoice.eFacturaId && (
+                                <>
+                                  <span>·</span>
+                                  <span className="text-sky-500/80 font-mono">e-Factura ID: {invoice.eFacturaId}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500">
-                            <span>{fmtDate(invoice.date)}</span>
-                            <span>·</span>
-                            <span>{invoice.clientName}</span>
-                            {invoice.eFacturaId && (
-                              <>
-                                <span>·</span>
-                                <span className="text-sky-500/80 font-mono">e-Factura ID: {invoice.eFacturaId}</span>
-                              </>
-                            )}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={() => dispatch({ type: "SET_EDIT_INVOICE", invoice })}
+                              className="p-1.5 rounded-lg text-neutral-600 hover:text-amber-400 hover:bg-neutral-800 transition-colors" title="Editează">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                            </button>
+                            <button onClick={() => handleDeleteInvoice(invoice.id)} disabled={state.deletingId === invoice.id}
+                              className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-neutral-800 transition-colors disabled:opacity-50">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+
+                        <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-neutral-800/60">
                           <button
                             onClick={() => handleTogglePaid(invoice)}
                             title={invoice.paid ? "Marchează ca neplătită" : "Marchează ca plătită"}
@@ -1817,6 +1835,7 @@ const FinancialPage: React.FC = () => {
                           >
                             {invoice.eFactura ? "✓ E-Factura" : "E-Factura"}
                           </button>
+                          <span className="w-px h-4 bg-neutral-800 mx-0.5 hidden sm:block" />
                           <button onClick={() => handleDownloadPdf(invoice.id, invoiceRef)} disabled={state.pdfLoadingId === invoice.id}
                             className="text-xs flex items-center gap-1 px-2.5 py-1.5 border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
@@ -1826,14 +1845,6 @@ const FinancialPage: React.FC = () => {
                             className="text-xs flex items-center gap-1 px-2.5 py-1.5 border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                             {state.xmlLoadingId === invoice.id ? "..." : "XML"}
-                          </button>
-                          <button onClick={() => dispatch({ type: "SET_EDIT_INVOICE", invoice })}
-                            className="text-neutral-600 hover:text-amber-400 transition-colors" title="Editează">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                          </button>
-                          <button onClick={() => handleDeleteInvoice(invoice.id)} disabled={state.deletingId === invoice.id}
-                            className="text-neutral-600 hover:text-red-400 transition-colors disabled:opacity-50">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
                           </button>
                         </div>
                       </div>

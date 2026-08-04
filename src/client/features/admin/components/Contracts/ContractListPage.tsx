@@ -370,6 +370,12 @@ const ContractListPage: React.FC = () => {
               ← Dashboard
             </button>
             <button
+              onClick={() => navigate("/admin/contracts/templates")}
+              className="px-3 py-1.5 text-xs text-neutral-400 border border-neutral-800 rounded-lg hover:border-neutral-600 transition-colors"
+            >
+              Șabloane
+            </button>
+            <button
               onClick={() => navigate("/admin/contracts/create")}
               className="px-4 py-1.5 text-xs text-white bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 hover:text-emerald-300 transition-colors font-medium"
             >

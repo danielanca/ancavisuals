@@ -139,6 +139,47 @@ function pickBestExpense(entry: ExtractedEntry, expenses: Array<Record<string, u
   return best;
 }
 
+async function matchStatementEntries(entries: ExtractedEntry[], year: number): Promise<StoredEntry[]> {
+  const startDate = new Date(year, 0, 1);
+  const endDate = new Date(year + 1, 0, 1);
+  const db = firestore();
+  const [invoicesSnapshot, expensesSnapshot] = await Promise.all([
+    db.collection("invoices")
+      .where("date", ">=", Timestamp.fromDate(startDate))
+      .where("date", "<", Timestamp.fromDate(endDate))
+      .get(),
+    db.collection("expenses")
+      .where("date", ">=", Timestamp.fromDate(startDate))
+      .where("date", "<", Timestamp.fromDate(endDate))
+      .get(),
+  ]);
+
+  const invoices = invoicesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const expenses = expensesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+  return entries.map((entry) => {
+    if (entry.direction === "in") {
+      const match = pickBestInvoice(entry, invoices);
+      return {
+        ...entry,
+        justificationStatus: match ? "matched" : "unmatched",
+        matchedType: match ? "invoice" : null,
+        matchedId: match?.id ?? null,
+        matchedLabel: match?.label ?? null,
+      };
+    }
+
+    const match = pickBestExpense(entry, expenses);
+    return {
+      ...entry,
+      justificationStatus: match ? "matched" : "unmatched",
+      matchedType: match ? "expense" : null,
+      matchedId: match?.id ?? null,
+      matchedLabel: match?.label ?? null,
+    };
+  });
+}
+
 async function uploadStatementFile(file: Express.Multer.File, year: string | undefined) {
   const safeFileName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const folder = year ? `bank-statements/${year}` : "bank-statements";
@@ -289,44 +330,8 @@ Reguli:
     }
 
     const inferredYear = Number(year) || new Date().getFullYear();
-    const startDate = new Date(inferredYear, 0, 1);
-    const endDate = new Date(inferredYear + 1, 0, 1);
     const db = firestore();
-    const [invoicesSnapshot, expensesSnapshot] = await Promise.all([
-      db.collection("invoices")
-        .where("date", ">=", Timestamp.fromDate(startDate))
-        .where("date", "<", Timestamp.fromDate(endDate))
-        .get(),
-      db.collection("expenses")
-        .where("date", ">=", Timestamp.fromDate(startDate))
-        .where("date", "<", Timestamp.fromDate(endDate))
-        .get(),
-    ]);
-
-    const invoices = invoicesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    const expenses = expensesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-    const entries: StoredEntry[] = extractedEntries.map((entry) => {
-      if (entry.direction === "in") {
-        const match = pickBestInvoice(entry, invoices);
-        return {
-          ...entry,
-          justificationStatus: match ? "matched" : "unmatched",
-          matchedType: match ? "invoice" : null,
-          matchedId: match?.id ?? null,
-          matchedLabel: match?.label ?? null,
-        };
-      }
-
-      const match = pickBestExpense(entry, expenses);
-      return {
-        ...entry,
-        justificationStatus: match ? "matched" : "unmatched",
-        matchedType: match ? "expense" : null,
-        matchedId: match?.id ?? null,
-        matchedLabel: match?.label ?? null,
-      };
-    });
+    const entries: StoredEntry[] = await matchStatementEntries(extractedEntries, inferredYear);
 
     const statementDate = safeDate(parsed.statementDate) ?? `${inferredYear}-01-01`;
     const docRef = await db.collection(COLLECTION).add({
@@ -351,6 +356,38 @@ Reguli:
     });
   } catch (error) {
     console.error("[bank-statements] POST /upload-analyze failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /:id/rematch — re-run matching against current invoices/expenses, no AI re-analysis
+router.post("/:id/rematch", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const doc = await db.collection(COLLECTION).doc(req.params.id).get();
+    if (!doc.exists) { res.status(404).json({ error: "Extras negăsit." }); return; }
+
+    const data = doc.data()!;
+    const year = Number(data.year) || new Date().getFullYear();
+    const rawEntries = (data.entries as StoredEntry[]) ?? [];
+    const entries = await matchStatementEntries(rawEntries, year);
+    const unmatchedCount = entries.filter((entry) => entry.justificationStatus === "unmatched").length;
+
+    await db.collection(COLLECTION).doc(req.params.id).update({ entries, unmatchedCount });
+
+    res.json({
+      statement: {
+        id: doc.id,
+        statementDate: (data.statementDate as Timestamp).toDate().toISOString(),
+        year,
+        file: data.file,
+        entries,
+        unmatchedCount,
+        createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("[bank-statements] POST /:id/rematch failed:", error);
     res.status(500).json({ error: String(error) });
   }
 });
