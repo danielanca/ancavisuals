@@ -36,8 +36,8 @@ router.post("/", async (req: Request, res: Response) => {
     const db = firestore();
     const body = req.body;
 
-    if (!body.eventType || !body.eventDate || !body.clientEmail) {
-      return res.status(400).json({ error: "Câmpuri obligatorii: eventType, eventDate, clientEmail" });
+    if (!body.eventType || !body.eventDate) {
+      return res.status(400).json({ error: "Câmpuri obligatorii: eventType, eventDate" });
     }
 
     const includeDigitalLink = Boolean(body.includeDigitalLink);
@@ -62,7 +62,7 @@ router.post("/", async (req: Request, res: Response) => {
       eventType: body.eventType,
       eventDate: body.eventDate,
 
-      clientEmail: body.clientEmail,
+      clientEmail: body.clientEmail?.trim() ?? "",
       clientName: body.clientName?.trim() ?? "",
 
       includeDigitalLink,
@@ -205,10 +205,16 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { token } = req.params;
-    const { clientName, digitalLinkAcknowledged, backupAcknowledged, termsAcknowledged, clientSignatureBase64 } = req.body;
+    const { clientName, clientEmail, clientPhone, digitalLinkAcknowledged, backupAcknowledged, termsAcknowledged, clientSignatureBase64 } = req.body;
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Numele complet este obligatoriu." });
+    }
+    if (!clientPhone?.trim()) {
+      return res.status(400).json({ error: "Numărul de telefon este obligatoriu." });
+    }
+    if (!clientEmail?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
+      return res.status(400).json({ error: "Emailul este obligatoriu și trebuie să fie valid." });
     }
     if (backupAcknowledged !== true) {
       return res.status(400).json({ error: "Trebuie să confirmați că veți salva materialele pe un mediu de stocare separat." });
@@ -251,6 +257,8 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       status: "signed",
       signedAt,
       clientName: clientName.trim(),
+      clientEmail: clientEmail.trim(),
+      clientPhone: clientPhone.trim(),
       digitalLinkAcknowledged: true,
       backupAcknowledged: true,
       termsAcknowledged: true,
@@ -269,6 +277,8 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       ...handover,
       id: doc.id,
       clientName: clientName.trim(),
+      clientEmail: clientEmail.trim(),
+      clientPhone: clientPhone.trim(),
       clientSignatureBase64,
       clientIp,
       clientUserAgent,

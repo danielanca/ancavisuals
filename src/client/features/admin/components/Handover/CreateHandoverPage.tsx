@@ -108,8 +108,8 @@ const CreateHandoverPage: React.FC = () => {
     e.preventDefault();
     setSubmitError(null);
 
-    if (!eventType.trim() || !eventDate.trim() || !clientEmail.trim()) {
-      setSubmitError("Selectează un eveniment și completează emailul clientului.");
+    if (!eventType.trim() || !eventDate.trim()) {
+      setSubmitError("Selectează un eveniment.");
       return;
     }
     if (!includeDigitalLink && !includeCourier && !includePersonalHandover) {
@@ -227,8 +227,9 @@ const CreateHandoverPage: React.FC = () => {
               <input className={inp} type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ex: Popescu Ion" />
             </div>
             <div>
-              <Label>Email client *</Label>
+              <Label>Email client (opțional)</Label>
               <input className={inp} type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Ex: maria@email.com" />
+              <p className="text-neutral-500 text-xs mt-1.5">Necesar doar dacă vrei să trimiți link-ul de semnare automat pe email. Poți oricând să copiezi link-ul și să-l trimiți manual — clientul își va completa singur numele, telefonul și emailul când semnează.</p>
             </div>
           </Block>
 

@@ -641,6 +641,9 @@ ${declListHtml}
       ? `<img src="${handover.clientSignatureBase64}" style="max-width:220px;max-height:50px;display:block;margin-bottom:6px;" alt="Semnatura" />`
       : `<div style="height:50px;border-bottom:1px solid #333;margin-bottom:6px;"></div>`}
     <div class="sig-name">${esc(handover.clientName as string || "")}</div>
+    ${handover.clientPhone || handover.clientEmail
+      ? `<div class="sig-date">${esc([handover.clientPhone as string, handover.clientEmail as string].filter(Boolean).join(" • "))}</div>`
+      : ""}
     <div class="sig-date">${signedDate}</div>
   </div>
 </div>

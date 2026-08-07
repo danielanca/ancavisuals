@@ -236,7 +236,7 @@ const HandoverListPage: React.FC = () => {
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-neutral-400 text-xs">
                         <span>Data: {formatDate(item.eventDate)}</span>
-                        <span>Client: {item.clientEmail}</span>
+                        {item.clientEmail && <span>Client: {item.clientEmail}</span>}
                         {item.clientName && <span>Semnat de: {item.clientName}</span>}
                         <span>Creat: {formatDate(item.createdAt)}</span>
                         {item.signedAt && <span>Semnat: {formatDate(item.signedAt)}</span>}
@@ -251,13 +251,13 @@ const HandoverListPage: React.FC = () => {
                       resending={resending}
                       reminding={reminding}
                       onPreview={() => window.open(`/api/handover/${item.id}/preview`, "_blank")}
-                      onSend={() => confirmAction("send", item.id, `${item.eventType} — ${item.clientEmail}`)}
+                      onSend={() => confirmAction("send", item.id, `${item.eventType} — ${item.clientEmail || item.clientName || "client"}`)}
                       onCopyLink={() => {
                         const url = `${window.location.origin}/proces-verbal/${item.token}`;
                         navigator.clipboard.writeText(url);
                         showToast("Link copiat în clipboard!");
                       }}
-                      onDelete={() => confirmAction("delete", item.id, `${item.eventType} — ${item.clientEmail}`)}
+                      onDelete={() => confirmAction("delete", item.id, `${item.eventType} — ${item.clientEmail || item.clientName || "client"}`)}
                       onResend={() => handleResend(item.id)}
                       onReminder={() => handleReminder(item.id)}
                       onEdit={() => setEditingItem(item)}

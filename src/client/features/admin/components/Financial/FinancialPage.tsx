@@ -103,7 +103,9 @@ interface State {
   selectedMonthTo: number;
   expenseRevision: number;
   expenses: Expense[];
+  expenseSearch: string;
   invoices: Invoice[];
+  invoiceSearch: string;
   duplicateAlert: { expense: Expense; year: number } | null;
   highlightedExpenseId: string | null;
   events: ClientEvent[];
@@ -127,7 +129,9 @@ type Action =
   | { type: "SET_MONTH"; month: number }
   | { type: "SET_MONTH_TO"; month: number }
   | { type: "SET_EXPENSES"; expenses: Expense[] }
+  | { type: "SET_EXPENSE_SEARCH"; value: string }
   | { type: "SET_INVOICES"; invoices: Invoice[] }
+  | { type: "SET_INVOICE_SEARCH"; value: string }
   | { type: "SET_EVENTS"; events: ClientEvent[] }
   | { type: "SET_FISCAL"; settings: Partial<FiscalSettings> }
   | { type: "SET_LOADING_EXPENSES"; value: boolean }
@@ -161,9 +165,11 @@ const initialState: State = {
   selectedMonthTo: 0,
   expenseRevision: 0,
   expenses: [],
+  expenseSearch: "",
   duplicateAlert: null,
   highlightedExpenseId: null,
   invoices: [],
+  invoiceSearch: "",
   events: [],
   fiscalSettings: {},
   loadingExpenses: false,
@@ -186,7 +192,9 @@ function reducer(state: State, action: Action): State {
     case "SET_MONTH": return { ...state, selectedMonth: action.month, selectedMonthTo: 0 };
     case "SET_MONTH_TO": return { ...state, selectedMonthTo: action.month };
     case "SET_EXPENSES": return { ...state, expenses: action.expenses, loadingExpenses: false };
+    case "SET_EXPENSE_SEARCH": return { ...state, expenseSearch: action.value };
     case "SET_INVOICES": return { ...state, invoices: action.invoices, loadingInvoices: false };
+    case "SET_INVOICE_SEARCH": return { ...state, invoiceSearch: action.value };
     case "SET_EVENTS": return { ...state, events: action.events, loadingEvents: false };
     case "SET_FISCAL": return { ...state, fiscalSettings: action.settings };
     case "SET_LOADING_EXPENSES": return { ...state, loadingExpenses: action.value };
@@ -1303,6 +1311,27 @@ const FinancialPage: React.FC = () => {
     };
   }, [state.invoices, state.expenses, exchangeRate]);
 
+  const filteredExpenses = useMemo(() => {
+    const q = state.expenseSearch.trim().toLowerCase();
+    if (!q) return state.expenses;
+    return state.expenses.filter((exp) => {
+      const haystack = [exp.supplier, exp.description, fmtDate(exp.date), exp.date]
+        .filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [state.expenses, state.expenseSearch]);
+
+  const filteredInvoices = useMemo(() => {
+    const q = state.invoiceSearch.trim().toLowerCase();
+    if (!q) return state.invoices;
+    return state.invoices.filter((inv) => {
+      const ref = inv.invoiceRef ?? `${inv.series}-${String(inv.invoiceNumber).padStart(4, "0")}`;
+      const haystack = [inv.clientName, ref, fmtDate(inv.date), inv.date]
+        .filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [state.invoices, state.invoiceSearch]);
+
   const [exportingKey, setExportingKey] = React.useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = React.useState(false);
   const exportMenuRef = React.useRef<HTMLDivElement>(null);
@@ -1669,6 +1698,21 @@ const FinancialPage: React.FC = () => {
               </button>
             </div>
 
+            <div className="relative">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input type="text" value={state.expenseSearch}
+                onChange={(e) => dispatch({ type: "SET_EXPENSE_SEARCH", value: e.target.value })}
+                placeholder="Caută după furnizor, descriere sau dată..."
+                className="w-full pl-9 pr-8 py-2 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors" />
+              {state.expenseSearch && (
+                <button onClick={() => dispatch({ type: "SET_EXPENSE_SEARCH", value: "" })}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">✕</button>
+              )}
+            </div>
+
             {state.loadingExpenses ? (
               <p className="text-neutral-500 text-sm text-center py-10">Se încarcă...</p>
             ) : state.expenses.length === 0 ? (
@@ -1676,14 +1720,18 @@ const FinancialPage: React.FC = () => {
                 <p className="text-sm">Nicio cheltuială înregistrată.</p>
                 <p className="text-xs mt-1">Adaugă prima cheltuială cu butonul de mai sus.</p>
               </div>
+            ) : filteredExpenses.length === 0 ? (
+              <div className="text-center py-16 text-neutral-600">
+                <p className="text-sm">Nicio cheltuială găsită pentru "{state.expenseSearch}".</p>
+              </div>
             ) : (
               <>
                 <div className="flex gap-4 text-sm px-1">
-                  <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(state.expenses.reduce((s, e) => s + (e.currency === "EUR" ? e.amount * exchangeRate : e.amount), 0), "RON")}</span></span>
-                  <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(state.expenses.reduce((s, e) => s + (e.currency === "EUR" ? e.deductibleAmount * exchangeRate : e.deductibleAmount), 0), "RON")}</span></span>
+                  <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(filteredExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.amount * exchangeRate : e.amount), 0), "RON")}</span></span>
+                  <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(filteredExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.deductibleAmount * exchangeRate : e.deductibleAmount), 0), "RON")}</span></span>
                 </div>
                 <div className="space-y-2">
-                  {state.expenses.map((expense) => (
+                  {filteredExpenses.map((expense) => (
                     <div key={expense.id} id={`expense-${expense.id}`}
                       className={`rounded-xl p-4 border transition-colors duration-500 ${state.highlightedExpenseId === expense.id ? "bg-amber-500/10 border-amber-500/50" : "bg-neutral-900 border-neutral-800"}`}>
                       <div className="flex items-start justify-between gap-3">
@@ -1749,6 +1797,21 @@ const FinancialPage: React.FC = () => {
               </button>
             </div>
 
+            <div className="relative">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input type="text" value={state.invoiceSearch}
+                onChange={(e) => dispatch({ type: "SET_INVOICE_SEARCH", value: e.target.value })}
+                placeholder="Caută după client, nr. factură sau dată..."
+                className="w-full pl-9 pr-8 py-2 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors" />
+              {state.invoiceSearch && (
+                <button onClick={() => dispatch({ type: "SET_INVOICE_SEARCH", value: "" })}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">✕</button>
+              )}
+            </div>
+
             {!hasFiscalSettings && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4">
                 <div>
@@ -1770,11 +1833,16 @@ const FinancialPage: React.FC = () => {
                 <p className="text-sm">Nicio factură emisă.</p>
                 <p className="text-xs mt-1">Creează prima factură din evenimentele existente.</p>
               </div>
+            ) : filteredInvoices.length === 0 ? (
+              <div className="text-center py-16 text-neutral-600">
+                <p className="text-sm">Nicio factură găsită pentru "{state.invoiceSearch}".</p>
+              </div>
             ) : (
               <>
                 <div className="text-sm px-1 text-neutral-400">
                   Total facturat: <span className="text-white font-medium">
-                    {state.invoices.some((inv) => inv.currency !== "RON") ? "≈ " : ""}{fmtCurrency(overview.totalIncome, "RON")}
+                    {filteredInvoices.some((inv) => inv.currency !== "RON") ? "≈ " : ""}
+                    {fmtCurrency(filteredInvoices.reduce((s, inv) => s + (inv.currency === "EUR" ? inv.totalAmount * exchangeRate : inv.totalAmount), 0), "RON")}
                   </span>
                 </div>
                 {state.invoiceActionError && (
@@ -1785,7 +1853,7 @@ const FinancialPage: React.FC = () => {
                   </div>
                 )}
                 <div className="space-y-2">
-                  {state.invoices.map((invoice) => {
+                  {filteredInvoices.map((invoice) => {
                     const invoiceRef = invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
                     return (
                       <div key={invoice.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">

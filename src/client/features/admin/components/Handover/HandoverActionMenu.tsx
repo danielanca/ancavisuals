@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 interface HandoverItem {
   id: string;
   status: "draft" | "sent" | "signed" | "expired";
+  clientEmail?: string;
 }
 
 interface Props {
@@ -36,7 +37,8 @@ const HandoverActionMenu: React.FC<Props> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const canSend = handover.status === "draft" || handover.status === "sent";
+  const hasEmail = Boolean(handover.clientEmail?.trim());
+  const canSend = (handover.status === "draft" || handover.status === "sent") && hasEmail;
 
   const Item: React.FC<{
     label: string;
@@ -78,7 +80,7 @@ const HandoverActionMenu: React.FC<Props> = ({
               loading={sending === handover.id}
             />
           )}
-          {handover.status === "sent" && (
+          {handover.status === "sent" && hasEmail && (
             <Item
               label="📩  Email re-amintire"
               onClick={onReminder}

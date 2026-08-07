@@ -27,6 +27,8 @@ const HandoverSignPage: React.FC = () => {
   const [handover, setHandover] = useState<HandoverData | null>(null);
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [digitalLinkAcknowledged, setDigitalLinkAcknowledged] = useState(false);
   const [backupAcknowledged, setBackupAcknowledged] = useState(false);
   const [termsAcknowledged, setTermsAcknowledged] = useState(false);
@@ -54,6 +56,8 @@ const HandoverSignPage: React.FC = () => {
         if (!res.ok) { setPageState("error"); return; }
         setHandover(data);
         if (data.clientName) setClientName(data.clientName);
+        if (data.clientEmail) setClientEmail(data.clientEmail);
+        if (data.clientPhone) setClientPhone(data.clientPhone);
         setPageState("ready");
       })
       .catch(() => setPageState("error"));
@@ -131,6 +135,8 @@ const HandoverSignPage: React.FC = () => {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!clientName.trim()) errors.clientName = "Numele complet este obligatoriu.";
+    if (!clientPhone.trim()) errors.clientPhone = "Numărul de telefon este obligatoriu.";
+    if (!clientEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) errors.clientEmail = "Emailul este obligatoriu și trebuie să fie valid.";
     if (requiresDigitalLinkAck && !digitalLinkAcknowledged) errors.digitalLinkAcknowledged = "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare.";
     if (!backupAcknowledged) errors.backupAcknowledged = "Trebuie să confirmați că veți salva materialele pe un mediu de stocare separat.";
     if (!termsAcknowledged) errors.termsAcknowledged = "Trebuie să confirmați că ați înțeles termenele de mai jos.";
@@ -152,6 +158,8 @@ const HandoverSignPage: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientName: clientName.trim(),
+          clientPhone: clientPhone.trim(),
+          clientEmail: clientEmail.trim(),
           digitalLinkAcknowledged,
           backupAcknowledged,
           termsAcknowledged,
@@ -225,6 +233,9 @@ const HandoverSignPage: React.FC = () => {
       <p style={{ ...pg.stateP, maxWidth: 400 }}>
         Mulțumim! Veți primi în scurt timp pe email link-ul de descărcare a materialelor, împreună cu o copie PDF a procesului verbal.
       </p>
+      <p style={{ ...pg.stateP, maxWidth: 400, marginTop: 10, background: "#fffbf0", border: "1px solid #e8c840", borderRadius: 6, padding: "10px 14px" }}>
+        ⚠️ Verificați și folderul <strong>SPAM / Junk</strong> — emailul poate ajunge acolo.
+      </p>
       <p style={{ color: "#c9a96e", fontWeight: 600, marginTop: 20, fontSize: 15 }}>
         Anca Visuals — abia așteptăm ca materialele să ajungă la voi!
       </p>
@@ -253,7 +264,7 @@ const HandoverSignPage: React.FC = () => {
         <Section title="Eveniment">
           <InfoRow label="Tip" value={handover.eventType} />
           <InfoRow label="Data" value={fmtDate(handover.eventDate)} bold />
-          <InfoRow label="Client" value={handover.clientEmail} />
+          {handover.clientName && <InfoRow label="Client" value={handover.clientName} />}
         </Section>
 
         <Section title="Declarație">
@@ -334,6 +345,16 @@ const HandoverSignPage: React.FC = () => {
               <input style={{ ...pg.input, ...(fieldErrors.clientName ? pg.inputErr : {}) }}
                 type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
                 placeholder="Ex: Popescu Ion" autoComplete="name" />
+            </Field>
+            <Field label="Telefon *" error={fieldErrors.clientPhone}>
+              <input style={{ ...pg.input, ...(fieldErrors.clientPhone ? pg.inputErr : {}) }}
+                type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
+                placeholder="Ex: 07xx xxx xxx" autoComplete="tel" />
+            </Field>
+            <Field label="Email *" error={fieldErrors.clientEmail}>
+              <input style={{ ...pg.input, ...(fieldErrors.clientEmail ? pg.inputErr : {}) }}
+                type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
+                placeholder="Ex: maria@email.com" autoComplete="email" />
             </Field>
           </Section>
 
