@@ -18,6 +18,23 @@ interface HandoverData {
   awb?: string;
 }
 
+interface SignedHandoverInfo {
+  eventType: string;
+  eventDate: string;
+  clientName?: string;
+  pdfUrl?: string | null;
+  digitalLinks?: { label: string; url: string }[];
+  digitalLinkUrl?: string | null;
+  digitalLinkExpiryDays?: number | null;
+  includeDigitalLink?: boolean;
+  includeCourier?: boolean;
+  includePersonalHandover?: boolean;
+  awb?: string | null;
+  courierDeliveryDays?: number | null;
+  materialsReportWindowDays?: number | null;
+  signedAt?: string | null;
+}
+
 type PageState = "loading" | "ready" | "signed" | "expired" | "not_found" | "error" | "success";
 
 const HandoverSignPage: React.FC = () => {
@@ -26,6 +43,7 @@ const HandoverSignPage: React.FC = () => {
   const [pageState, setPageState] = useState<PageState>("loading");
   const [handover, setHandover] = useState<HandoverData | null>(null);
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
+  const [signedInfo, setSignedInfo] = useState<SignedHandoverInfo | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -48,8 +66,13 @@ const HandoverSignPage: React.FC = () => {
       .then(async (res) => {
         const data = await res.json();
         if (res.status === 410) {
-          if (data.status === "signed") { if (data.pdfUrl) setSignedPdfUrl(data.pdfUrl); setPageState("signed"); }
-          else { setPageState("expired"); }
+          if (data.status === "signed") {
+            if (data.pdfUrl) setSignedPdfUrl(data.pdfUrl);
+            setSignedInfo(data as SignedHandoverInfo);
+            setPageState("signed");
+          } else {
+            setPageState("expired");
+          }
           return;
         }
         if (res.status === 404) { setPageState("not_found"); return; }
@@ -196,15 +219,67 @@ const HandoverSignPage: React.FC = () => {
   }
 
   if (pageState === "signed") return (
-    <div style={pg.fullCenter}>
-      <div style={pg.iconBig}>✓</div>
-      <h2 style={pg.stateH2}>Proces verbal semnat</h2>
-      <p style={pg.stateP}>Acest document a fost deja semnat. Veți primi o copie PDF pe email.</p>
-      {signedPdfUrl && (
-        <a href={signedPdfUrl} target="_blank" rel="noopener noreferrer" style={pg.pdfLink}>
-          Descarcă PDF-ul
-        </a>
-      )}
+    <div style={pg.page}>
+      <div style={pg.container}>
+        <div style={pg.header}>
+          <div style={pg.logoText}>ANCA VISUALS</div>
+          <div style={pg.logoSub}>Fotografie & Videografie</div>
+          <h1 style={pg.pageTitle}>Materialele Dumneavoastră</h1>
+        </div>
+
+        <div style={{ padding: "24px 28px 8px", textAlign: "center" }}>
+          <div style={{ ...pg.iconBig, color: "#c9a96e", marginBottom: 6 }}>✓</div>
+          <h2 style={{ ...pg.stateH2, fontSize: 18 }}>Proces verbal semnat</h2>
+          {signedInfo && (
+            <p style={{ color: "#888", fontSize: 13, marginTop: 4 }}>
+              {signedInfo.eventType} — {fmtDate(signedInfo.eventDate)}
+              {signedInfo.clientName ? ` — ${signedInfo.clientName}` : ""}
+            </p>
+          )}
+        </div>
+
+        {signedInfo && signedInfo.digitalLinks && signedInfo.digitalLinks.length > 0 && (
+          <Section title="Materiale digitale">
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {signedInfo.digitalLinks.map((l, i) => (
+                <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" style={{ ...pg.pdfLink, marginTop: 0, background: "#1a1a1a" }}>
+                  {l.label}
+                </a>
+              ))}
+            </div>
+            {signedInfo.digitalLinkExpiryDays && (
+              <p style={{ color: "#999", fontSize: 12, marginTop: 10 }}>
+                Link-urile sunt valabile {signedInfo.digitalLinkExpiryDays} zile de la data semnării ({signedInfo.signedAt ? fmtDate(signedInfo.signedAt) : ""}).
+              </p>
+            )}
+          </Section>
+        )}
+
+        {signedInfo && signedInfo.awb && (
+          <Section title="Livrare curier">
+            <p style={{ color: "#333", fontSize: 13, margin: 0 }}>
+              Coletul fizic a fost expediat prin curier, cu numărul de tracking (AWB): <strong>{signedInfo.awb}</strong>.
+            </p>
+          </Section>
+        )}
+
+        <Section title="Document semnat">
+          <p style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>
+            Aceasta este pagina permanentă a procesului verbal — o puteți revizita oricând la acest link, inclusiv dacă emailul cu materialele nu v-a ajuns (verificați și SPAM/Junk).
+          </p>
+          {signedPdfUrl ? (
+            <a href={signedPdfUrl} target="_blank" rel="noopener noreferrer" style={pg.pdfLink}>
+              Descarcă PDF-ul
+            </a>
+          ) : (
+            <p style={{ color: "#999", fontSize: 12 }}>PDF-ul se generează — reveniți în câteva minute pe acest link.</p>
+          )}
+        </Section>
+
+        <div style={pg.footer}>
+          Anca Visuals &nbsp;•&nbsp; ancadaniel1994@gmail.com &nbsp;•&nbsp; ancavisuals.ro
+        </div>
+      </div>
     </div>
   );
 
@@ -236,6 +311,9 @@ const HandoverSignPage: React.FC = () => {
       <p style={{ ...pg.stateP, maxWidth: 400, marginTop: 10, background: "#fffbf0", border: "1px solid #e8c840", borderRadius: 6, padding: "10px 14px" }}>
         ⚠️ Verificați și folderul <strong>SPAM / Junk</strong> — emailul poate ajunge acolo.
       </p>
+      <a href={`/proces-verbal/${token}`} style={pg.pdfLink}>
+        Vezi materialele pe această pagină
+      </a>
       <p style={{ color: "#c9a96e", fontWeight: 600, marginTop: 20, fontSize: 15 }}>
         Anca Visuals — abia așteptăm ca materialele să ajungă la voi!
       </p>

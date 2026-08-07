@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 interface HandoverItem {
   id: string;
+  token: string;
   status: "draft" | "sent" | "signed" | "expired";
   clientEmail?: string;
 }
@@ -92,6 +93,11 @@ const HandoverActionMenu: React.FC<Props> = ({
           {handover.status === "signed" && (
             <>
               <div className="border-t border-neutral-800 my-1" />
+              <Item
+                label="📄  Pagina cu materiale"
+                onClick={() => window.open(`${window.location.origin}/proces-verbal/${handover.token}`, "_blank")}
+                color="text-sky-400"
+              />
               <Item
                 label="📧  Retrimite PV semnat"
                 onClick={onResend}

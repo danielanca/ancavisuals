@@ -178,7 +178,26 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
     if (data.status === "signed") {
-      return res.status(410).json({ error: "Procesul verbal a fost deja semnat.", status: "signed", pdfUrl: data.pdfUrl ?? null });
+      // Odată semnat, tokenul devine o pagină permanentă cu materialele — utilă dacă emailul
+      // cu link-urile nu a ajuns la client (nici în SPAM). Aici NU se mai ascund URL-urile.
+      return res.status(410).json({
+        error: "Procesul verbal a fost deja semnat.",
+        status: "signed",
+        eventType: data.eventType,
+        eventDate: data.eventDate,
+        clientName: data.clientName,
+        pdfUrl: data.pdfUrl ?? null,
+        digitalLinks: Array.isArray(data.digitalLinks) ? data.digitalLinks : [],
+        digitalLinkUrl: data.digitalLinkUrl ?? null,
+        digitalLinkExpiryDays: data.digitalLinkExpiryDays ?? null,
+        includeDigitalLink: data.includeDigitalLink !== false,
+        includeCourier: data.includeCourier !== false,
+        includePersonalHandover: Boolean(data.includePersonalHandover),
+        awb: data.awb ?? null,
+        courierDeliveryDays: data.courierDeliveryDays ?? null,
+        materialsReportWindowDays: data.materialsReportWindowDays ?? null,
+        signedAt: tsToISO(data.signedAt),
+      });
     }
     if (data.status === "expired") {
       return res.status(410).json({ error: "Link-ul a expirat.", status: "expired" });
