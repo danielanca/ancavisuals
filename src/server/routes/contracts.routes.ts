@@ -386,44 +386,55 @@ router.patch("/:id", async (req: Request, res: Response) => {
 
     const data = doc.data()!;
     const body = req.body;
-    const priceTotal = Number(body.priceTotal) || 0;
-    const priceAdvance = Number(body.priceAdvance) || 0;
+    const has = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
+
+    // Only fields actually present in the request body are written — a caller
+    // sending a partial payload (e.g. just toggling "fiscalized") must never
+    // wipe out fields it didn't intend to touch.
+    const priceTotal = has("priceTotal") ? Number(body.priceTotal) || 0 : Number(data.priceTotal) || 0;
+    const priceAdvance = has("priceAdvance") ? Number(body.priceAdvance) || 0 : Number(data.priceAdvance) || 0;
     const createdAtTs = parseDateInput(body.createdAt);
     const signedAtTs = parseDateInput(body.signedAt);
 
     const updates: Record<string, unknown> = {
       ...(createdAtTs ? { createdAt: createdAtTs } : {}),
       ...(signedAtTs ? { signedAt: signedAtTs } : {}),
-      eventType: body.eventType,
-      eventDate: body.eventDate,
-      eventLocation: body.eventLocation ?? "",
-      eventStartTime: body.eventStartTime ?? "",
-      eventEndTime: body.eventEndTime ?? "",
-      eventDetails: body.eventDetails ?? "",
-      services: Array.isArray(body.services) ? body.services : [],
-      currency: body.currency ?? "RON",
-      priceTotal,
-      priceAdvance,
-      priceRest: body.priceRest !== undefined ? Number(body.priceRest) : priceTotal - priceAdvance,
-      advancePaidAt: body.advancePaidAt ?? "",
-      restPaidAt: body.restPaidAt ?? "",
-      paymentMethod: body.paymentMethod ?? BANK_TRANSFER,
-      clientEmail: body.clientEmail,
-      clientName: body.clientName?.trim() ?? "",
-      clientPhone: body.clientPhone?.trim() ?? "",
-      clientAddress: body.clientAddress?.trim() ?? "",
-      clientCity: body.clientCity?.trim() ?? "",
-      clientCounty: body.clientCounty?.trim() ?? "",
-      clientIdSeries: body.clientIdSeries?.trim() ?? "",
-      noAdvance: body.noAdvance === true,
-      privateClient: body.privateClient === true,
-      fiscalized: body.fiscalized === true,
-      transportKm: body.transportKm ?? "",
-      transportFuelPrice: body.transportFuelPrice ?? "10",
-      bankBeneficiaryName: body.bankBeneficiaryName?.trim() ?? "",
-      bankIban: body.bankIban?.trim().toUpperCase() ?? "",
+      ...(has("eventType") ? { eventType: body.eventType } : {}),
+      ...(has("eventDate") ? { eventDate: body.eventDate } : {}),
+      ...(has("eventLocation") ? { eventLocation: body.eventLocation ?? "" } : {}),
+      ...(has("eventStartTime") ? { eventStartTime: body.eventStartTime ?? "" } : {}),
+      ...(has("eventEndTime") ? { eventEndTime: body.eventEndTime ?? "" } : {}),
+      ...(has("eventDetails") ? { eventDetails: body.eventDetails ?? "" } : {}),
+      ...(has("services") ? { services: Array.isArray(body.services) ? body.services : [] } : {}),
+      ...(has("currency") ? { currency: body.currency ?? "RON" } : {}),
+      ...(has("priceTotal") ? { priceTotal } : {}),
+      ...(has("priceAdvance") ? { priceAdvance } : {}),
+      ...(has("priceRest")
+        ? { priceRest: Number(body.priceRest) }
+        : has("priceTotal") || has("priceAdvance")
+          ? { priceRest: priceTotal - priceAdvance }
+          : {}),
+      ...(has("advancePaidAt") ? { advancePaidAt: body.advancePaidAt ?? "" } : {}),
+      ...(has("restPaidAt") ? { restPaidAt: body.restPaidAt ?? "" } : {}),
+      ...(has("paymentMethod") ? { paymentMethod: body.paymentMethod ?? BANK_TRANSFER } : {}),
+      ...(has("clientEmail") ? { clientEmail: body.clientEmail } : {}),
+      ...(has("clientName") ? { clientName: body.clientName?.trim() ?? "" } : {}),
+      ...(has("clientPhone") ? { clientPhone: body.clientPhone?.trim() ?? "" } : {}),
+      ...(has("clientAddress") ? { clientAddress: body.clientAddress?.trim() ?? "" } : {}),
+      ...(has("clientCity") ? { clientCity: body.clientCity?.trim() ?? "" } : {}),
+      ...(has("clientCounty") ? { clientCounty: body.clientCounty?.trim() ?? "" } : {}),
+      ...(has("clientIdSeries") ? { clientIdSeries: body.clientIdSeries?.trim() ?? "" } : {}),
+      ...(has("noAdvance") ? { noAdvance: body.noAdvance === true } : {}),
+      ...(has("privateClient") ? { privateClient: body.privateClient === true } : {}),
+      ...(has("fiscalized") ? { fiscalized: body.fiscalized === true } : {}),
+      ...(has("transportKm") ? { transportKm: body.transportKm ?? "" } : {}),
+      ...(has("transportFuelPrice") ? { transportFuelPrice: body.transportFuelPrice ?? "10" } : {}),
+      ...(has("bankBeneficiaryName") ? { bankBeneficiaryName: body.bankBeneficiaryName?.trim() ?? "" } : {}),
+      ...(has("bankIban") ? { bankIban: body.bankIban?.trim().toUpperCase() ?? "" } : {}),
       // Clauzele unui contract deja semnat nu se mai pot schimba — documentul semnat rămâne fix.
-      ...(data.status !== "signed" ? { clauses: Array.isArray(body.clauses) ? body.clauses : (data.clauses ?? []) } : {}),
+      ...(data.status !== "signed" && has("clauses")
+        ? { clauses: Array.isArray(body.clauses) ? body.clauses : (data.clauses ?? []) }
+        : {}),
     };
 
     // Remove undefined values — Firestore throws on undefined fields
