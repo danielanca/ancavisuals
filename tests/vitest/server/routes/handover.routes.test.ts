@@ -141,6 +141,7 @@ describe("handover.routes", () => {
           eventDate: "2026-09-12",
           clientEmail: "client@example.com",
           clientName: "Ion Popescu",
+          includeDigitalLink: true,
         },
       }, res);
 
@@ -167,6 +168,7 @@ describe("handover.routes", () => {
           eventType: "Botez",
           eventDate: "2026-10-01",
           clientEmail: "client@example.com",
+          includeCourier: true,
         },
       }, res);
 
@@ -261,7 +263,10 @@ describe("handover.routes", () => {
         socket: { remoteAddress: "10.0.0.2" },
         body: {
           clientName: "  Ion Popescu  ",
-          digitalLinkReceived: true,
+          clientPhone: "  0712345678  ",
+          clientEmail: "  client2@example.com  ",
+          digitalLinkAcknowledged: true,
+          backupAcknowledged: true,
           termsAcknowledged: true,
           clientSignatureBase64: "data:image/png;base64,abc",
         },
@@ -272,7 +277,10 @@ describe("handover.routes", () => {
       expect(updatePayload).toMatchObject({
         status: "signed",
         clientName: "Ion Popescu",
-        digitalLinkReceived: true,
+        clientPhone: "0712345678",
+        clientEmail: "client2@example.com",
+        digitalLinkAcknowledged: true,
+        backupAcknowledged: true,
         termsAcknowledged: true,
         clientSignatureBase64: "data:image/png;base64,abc",
         clientIp: "10.0.0.1",
@@ -284,12 +292,13 @@ describe("handover.routes", () => {
 
       expect(generateHandoverPDFMock).toHaveBeenCalledTimes(1);
       expect(sendSignedHandoverEmailMock).toHaveBeenCalledWith({
-        to: "client@example.com",
+        to: "client2@example.com",
         eventType: "Nuntă",
         eventDate: "2026-09-12",
         clientName: "Ion Popescu",
         pdfUrl: "https://storage.example.com/handover.pdf",
         hasPdf: true,
+        digitalLinkExpiryDays: 30,
       });
     });
 
@@ -322,6 +331,7 @@ describe("handover.routes", () => {
         eventType: "Cununie",
         eventDate: "2026-08-01",
         baseUrl: "https://staging.ancavisuals.ro",
+        includeDigitalLink: true,
       });
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
@@ -346,7 +356,7 @@ describe("handover.routes", () => {
       await postCreate({ body: { eventType: "Nuntă" } }, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: "Câmpuri obligatorii: eventType, eventDate, clientEmail" });
+      expect(res.json).toHaveBeenCalledWith({ error: "Câmpuri obligatorii: eventType, eventDate" });
       expect(addMock).not.toHaveBeenCalled();
     });
 
@@ -354,19 +364,33 @@ describe("handover.routes", () => {
       const { postPublicSign, whereGetMock } = await loadHandoverRouter();
       const res = createMockResponse();
 
+      whereGetMock.mockResolvedValue({
+        empty: false,
+        docs: [
+          {
+            id: "handover-1",
+            data: () => ({ status: "sent", eventType: "Nuntă", eventDate: "2026-09-12" }),
+          },
+        ],
+      });
+
       await postPublicSign({
         params: { token: "abc" },
+        headers: {},
         body: {
           clientName: "Ion Popescu",
-          digitalLinkReceived: false,
+          clientPhone: "0712345678",
+          clientEmail: "client@example.com",
+          digitalLinkAcknowledged: false,
+          backupAcknowledged: true,
           termsAcknowledged: true,
           clientSignatureBase64: "data:image/png;base64,abc",
         },
       }, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: "Trebuie să confirmați că ați primit link-ul digital." });
-      expect(whereGetMock).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ error: "Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare." });
+      expect(whereGetMock).toHaveBeenCalled();
     });
 
     test("POST /sign/:token requires the terms-acknowledged checkbox", async () => {
@@ -377,7 +401,9 @@ describe("handover.routes", () => {
         params: { token: "abc" },
         body: {
           clientName: "Ion Popescu",
-          digitalLinkReceived: true,
+          clientPhone: "0712345678",
+          clientEmail: "client@example.com",
+          backupAcknowledged: true,
           termsAcknowledged: false,
           clientSignatureBase64: "data:image/png;base64,abc",
         },
@@ -404,6 +430,16 @@ describe("handover.routes", () => {
         error: "Procesul verbal a fost deja semnat.",
         status: "signed",
         pdfUrl: "https://example.com/h.pdf",
+        digitalLinks: [],
+        digitalLinkUrl: null,
+        digitalLinkExpiryDays: null,
+        includeDigitalLink: true,
+        includeCourier: true,
+        includePersonalHandover: false,
+        awb: null,
+        courierDeliveryDays: null,
+        materialsReportWindowDays: null,
+        signedAt: null,
       });
     });
 

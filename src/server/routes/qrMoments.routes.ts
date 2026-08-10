@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import heicConvert from 'heic-convert';
 import sharp from 'sharp';
@@ -16,9 +16,26 @@ import {
 import { sendEmail } from '../notifications/mailer';
 import { APP_BASE_URL } from '../constants/domain';
 import { getHeadlineText, getHostRoleLabel, getHostsFallbackName, normalizeQrEventType, type QrEventType } from '../../shared/qrMoments/hostRoles';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../shared/qrMoments/uploadLimits';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_FILE_SIZE_BYTES } });
+
+// multer/busboy tears down the incoming request as soon as a file exceeds
+// limits.fileSize, which the client sees as a raw connection error rather than
+// a clean 4xx — wrapping the middleware lets us respond with a clear message
+// on the rare occasion the connection survives long enough to send one.
+function uploadFilesMiddleware(request: Request, response: Response, next: NextFunction) {
+  upload.array('files', MAX_FILES_PER_REQUEST)(request, response, (error: unknown) => {
+    if (!error) { next(); return; }
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      response.status(413).json({ error: `Fișierul depășește limita maximă de ${MAX_UPLOAD_FILE_SIZE_MB}MB.` });
+      return;
+    }
+    console.error('[qr-moments] upload middleware failed:', error);
+    response.status(400).json({ error: 'Eroare la procesarea fișierelor.' });
+  });
+}
 
 const QR_EVENTS = 'qr_events';
 const QR_GUESTS = 'qr_guests';
@@ -478,7 +495,7 @@ router.post('/guest/register', async (request: Request, response: Response) => {
 
 router.post(
   '/:eventSlug/upload',
-  upload.array('files', MAX_FILES_PER_REQUEST),
+  uploadFilesMiddleware,
   async (request: Request, response: Response) => {
     const { eventSlug } = request.params;
     const { guestId, pass } = request.body as { guestId: string; pass?: string };
@@ -561,7 +578,7 @@ router.post(
               'Content-Type': 'application/octet-stream',
             },
             body: new Uint8Array(converted.buffer),
-            signal: AbortSignal.timeout(60_000),
+            signal: AbortSignal.timeout(180_000),
           });
 
           if (!uploadResponse.ok) {

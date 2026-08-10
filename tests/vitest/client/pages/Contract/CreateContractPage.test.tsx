@@ -10,6 +10,10 @@ import CreateContractPage from "src/client/features/admin/components/Contracts/C
 
 const mockNavigate = vi.fn();
 
+vi.mock("src/client/features/admin/auth/useAuth", () => ({
+  default: () => ({ auth: { accessToken: "test-token" } }),
+}));
+
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return {
@@ -152,6 +156,7 @@ describe("CreateContractPage", () => {
         noAdvance: false,
         transportKm: "",
         transportFuelPrice: "10",
+        clauses: [],
       });
     });
 

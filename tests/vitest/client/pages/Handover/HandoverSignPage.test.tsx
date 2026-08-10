@@ -72,7 +72,7 @@ describe("HandoverSignPage", () => {
 
       expect(screen.getByText("Se încarcă procesul verbal...")).toBeInTheDocument();
       expect(await screen.findByText("Proces Verbal de Predare-Primire a Materialelor")).toBeInTheDocument();
-      expect(screen.getByText("client@example.com")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Ex: maria@email.com")).toHaveValue("client@example.com");
       expect(screen.getByText("30 zile")).toBeInTheDocument();
       expect(screen.getAllByText("7 zile").length).toBe(2);
     });
@@ -88,7 +88,9 @@ describe("HandoverSignPage", () => {
       await screen.findByText("Proces Verbal de Predare-Primire a Materialelor");
 
       fireEvent.change(screen.getByPlaceholderText("Ex: Popescu Ion"), { target: { value: "Ion Popescu" } });
-      fireEvent.click(screen.getByLabelText("Am primit link-ul digital cu materialele de la eveniment."));
+      fireEvent.change(screen.getByPlaceholderText("Ex: 07xx xxx xxx"), { target: { value: "0712345678" } });
+      fireEvent.click(screen.getByLabelText(/Am înțeles că voi primi link-ul digital/));
+      fireEvent.click(screen.getByLabelText(/Am luat la cunoștință să-mi salvez materialele/));
       fireEvent.click(screen.getByLabelText(/Am înțeles și sunt de acord cu termenele/));
 
       const canvas = screen.getByText("Semnați mai jos folosind mouse-ul sau degetul.").parentElement?.querySelector("canvas");
@@ -107,7 +109,10 @@ describe("HandoverSignPage", () => {
       const submitRequest = fetchMock.mock.calls[1][1];
       expect(JSON.parse(submitRequest.body)).toEqual({
         clientName: "Ion Popescu",
-        digitalLinkReceived: true,
+        clientPhone: "0712345678",
+        clientEmail: "client@example.com",
+        digitalLinkAcknowledged: true,
+        backupAcknowledged: true,
         termsAcknowledged: true,
         clientSignatureBase64: "data:image/png;base64,signature",
       });
@@ -155,7 +160,9 @@ describe("HandoverSignPage", () => {
       fireEvent.click(screen.getByRole("button", { name: "SEMNEZ PROCESUL VERBAL" }));
 
       expect(await screen.findByText("Numele complet este obligatoriu.")).toBeInTheDocument();
-      expect(screen.getByText("Trebuie să confirmați că ați primit link-ul digital.")).toBeInTheDocument();
+      expect(screen.getByText("Numărul de telefon este obligatoriu.")).toBeInTheDocument();
+      expect(screen.getByText("Trebuie să confirmați că ați înțeles că veți primi link-ul digital pe email după semnare.")).toBeInTheDocument();
+      expect(screen.getByText("Trebuie să confirmați că veți salva materialele pe un mediu de stocare separat.")).toBeInTheDocument();
       expect(screen.getByText("Trebuie să confirmați că ați înțeles termenele de mai jos.")).toBeInTheDocument();
       expect(screen.getByText("Semnătura este obligatorie.")).toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledTimes(1);

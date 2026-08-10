@@ -79,7 +79,11 @@ describe("CreateHandoverPage", () => {
         eventDate: "2026-09-12",
         clientName: "Ion Popescu",
         clientEmail: "client@example.com",
-        digitalLinkUrl: "",
+        includeDigitalLink: true,
+        includeCourier: true,
+        includePersonalHandover: false,
+        digitalLinks: [],
+        awb: "",
         courierDeliveryDays: 7,
         materialsReportWindowDays: 7,
         digitalLinkExpiryDays: 30,
@@ -120,7 +124,7 @@ describe("CreateHandoverPage", () => {
       await screen.findByText("Proces Verbal nou");
       fireEvent.click(screen.getByRole("button", { name: "Salvează procesul verbal" }));
 
-      expect(await screen.findByText("Selectează un eveniment și completează emailul clientului.")).toBeInTheDocument();
+      expect(await screen.findByText("Selectează un eveniment.")).toBeInTheDocument();
     });
 
     test("shows API errors returned during creation", async () => {

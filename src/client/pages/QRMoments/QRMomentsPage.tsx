@@ -4,6 +4,7 @@ import { getDownloadURL, listAll, ref } from 'firebase/storage';
 import useAuth from '../../features/admin/auth/useAuth';
 import { storage } from '../../firebase';
 import { getHeadlineText, getHostsPairLabel, normalizeQrEventType, type QrEventType } from '../../../shared/qrMoments/hostRoles';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../../shared/qrMoments/uploadLimits';
 
 type Step = 'loading' | 'closed' | 'not-found' | 'form' | 'upload' | 'success';
 type MediaTab = 'photo' | 'video' | 'audio';
@@ -472,7 +473,20 @@ export default function QRMomentsPage() {
       const target = event.target as HTMLInputElement;
       document.body.removeChild(input);
       if (!target.files) return;
-      const validFiles = Array.from(target.files).filter((file) => file.size > 0);
+      const candidateFiles = Array.from(target.files).filter((file) => file.size > 0);
+      if (candidateFiles.length === 0) return;
+
+      const oversizedFiles = candidateFiles.filter((file) => file.size > MAX_UPLOAD_FILE_SIZE_BYTES);
+      const validFiles = candidateFiles.filter((file) => file.size <= MAX_UPLOAD_FILE_SIZE_BYTES);
+
+      if (oversizedFiles.length > 0) {
+        setUploadError(
+          `${oversizedFiles.length > 1 ? `${oversizedFiles.length} fișiere depășesc` : `Fișierul "${oversizedFiles[0].name}" depășește`} limita maximă de ${MAX_UPLOAD_FILE_SIZE_MB}MB și nu ${oversizedFiles.length > 1 ? 'au fost adăugate' : 'a fost adăugat'}. Încearcă să comprimi videoclipul sau trimite-l în părți mai mici.`,
+        );
+      } else if (validFiles.length > 0) {
+        setUploadError(null);
+      }
+
       if (validFiles.length === 0) return;
       const newFiles: SelectedFile[] = validFiles.map((file) => ({
         id: crypto.randomUUID(),
@@ -588,6 +602,18 @@ export default function QRMomentsPage() {
     return `voice-${Date.now()}.${ext}`;
   };
 
+  // Fixed timeouts fail large phone videos on mobile data before they ever finish
+  // uploading — scale the budget with file size instead, assuming a conservative
+  // sustained mobile upload speed, capped so a genuinely stalled request doesn't
+  // hang forever.
+  const UPLOAD_MIN_TIMEOUT_MS = 90_000;
+  const UPLOAD_MAX_TIMEOUT_MS = 15 * 60_000;
+  const ASSUMED_MIN_UPLOAD_BYTES_PER_SEC = 250 * 1024; // ~2 Mbps floor
+  const computeUploadTimeoutMs = (fileSizeBytes: number): number => {
+    const estimated = (fileSizeBytes / ASSUMED_MIN_UPLOAD_BYTES_PER_SEC) * 1000 + 30_000;
+    return Math.min(UPLOAD_MAX_TIMEOUT_MS, Math.max(UPLOAD_MIN_TIMEOUT_MS, estimated));
+  };
+
   const uploadSingleItem = (id: string, blob: Blob, filename: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
@@ -600,7 +626,7 @@ export default function QRMomentsPage() {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `/api/qr-moments/${eventSlug}/upload`);
       if (authHeader) xhr.setRequestHeader('Authorization', authHeader);
-      xhr.timeout = 90_000;
+      xhr.timeout = computeUploadTimeoutMs(blob.size);
 
       xhr.upload.onprogress = (event) => {
         if (!event.lengthComputable) return;
