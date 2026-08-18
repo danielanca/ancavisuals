@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "npm run dev:server",
-    "dev:server": "NODE_OPTIONS=--no-deprecation tsx server.ts",
+    "dev:server": "NODE_OPTIONS='--no-deprecation --require ./scripts/polyfill-slowbuffer.cjs' tsx server.ts",
     "dev:client": "vite --config vite.config.ts",
     "dev:dual": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
     "clean": "rimraf dist",

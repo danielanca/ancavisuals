@@ -59,6 +59,32 @@ function PhoneIcon() {
   );
 }
 
+function ArrowIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-6-6 6 6-6 6" />
+    </svg>
+  );
+}
+
+const journeySteps = [
+  {
+    number: "01",
+    title: "Descoperă stilul nostru",
+    text: "Privește momente reale și vezi dacă felul în care spunem o poveste vă reprezintă.",
+  },
+  {
+    number: "02",
+    title: "Alege ce vi se potrivește",
+    text: "Compară simplu pachetele și păstrează doar serviciile care contează pentru evenimentul vostru.",
+  },
+  {
+    number: "03",
+    title: "Verificăm împreună data",
+    text: "Trimite-ne câteva detalii, iar noi revenim cu disponibilitatea și următorii pași.",
+  },
+];
+
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
   const [form, setForm] = useState({ name: "", phone: "", eventDate: "" });
@@ -83,8 +109,20 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
 
+      <header className="absolute top-0 inset-x-0 z-20">
+        <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
+          <a href="#acasa" className="text-xs tracking-[0.28em] uppercase font-medium text-white">Anca Visuals</a>
+          <a
+            href="#oferta"
+            className="hidden sm:inline-flex items-center gap-2 text-xs tracking-wide text-white/80 hover:text-white transition-colors"
+          >
+            Vezi oferta <ArrowIcon />
+          </a>
+        </div>
+      </header>
+
       {/* ── HERO ───────────────────────────────────────────────────── */}
-      <section className="relative min-h-[85vh] flex items-end overflow-hidden">
+      <section id="acasa" className="relative min-h-[85vh] flex items-end overflow-hidden">
         {page.heroVideoUrl ? (
           <video
             src={page.heroVideoUrl}
@@ -106,9 +144,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
 
-        <div className="relative w-full max-w-5xl mx-auto px-6 pb-16 pt-24">
-          <p className="text-amber-400 text-xs tracking-[0.3em] uppercase mb-4 font-medium">
-            Ancavisuals
+        <div className="relative w-full max-w-6xl mx-auto px-6 pb-16 pt-32">
+          <p className="text-amber-200 text-xs tracking-[0.3em] uppercase mb-4 font-medium">
+            Foto & video pentru povești reale
           </p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light leading-tight text-white mb-4 max-w-2xl">
             {page.title}
@@ -136,13 +174,43 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               {page.phoneNumber}
             </a>
           </div>
+          <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-xs text-white/65">
+            <span>✓ Răspuns personalizat</span>
+            <span>✓ Pachete transparente</span>
+            <span>✓ Amintiri livrate cu grijă</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── JOURNEY ────────────────────────────────────────────────── */}
+      <section className="py-20 px-6 border-b border-white/10">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-2xl mb-12">
+            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Simplu, de la primul mesaj</p>
+            <h2 className="text-3xl sm:text-4xl font-light leading-tight">Tot ce ai nevoie ca să alegi cu încredere.</h2>
+          </div>
+          <div className="grid md:grid-cols-3 border-y border-white/10">
+            {journeySteps.map((step, index) => (
+              <div key={step.number} className={`py-8 md:py-3 md:pr-8 ${index ? "md:pl-8 md:border-l md:border-white/10" : ""}`}>
+                <p className="text-amber-200 text-xs tracking-[0.2em] mb-8">{step.number}</p>
+                <h3 className="text-lg font-medium mb-3">{step.title}</h3>
+                <p className="text-sm leading-relaxed text-neutral-400">{step.text}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── GALLERY ────────────────────────────────────────────────── */}
       {page.gallery.length > 0 && (
-        <section className="py-20 px-6 max-w-5xl mx-auto">
-          <p className="text-neutral-500 text-xs tracking-[0.25em] uppercase mb-8">Portofoliu</p>
+        <section className="py-24 px-6 max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+            <div>
+              <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Portofoliu</p>
+              <h2 className="text-3xl font-light">Mai mult decât imagini frumoase.</h2>
+            </div>
+            <a href="#oferta" className="inline-flex items-center gap-2 text-sm text-white hover:text-amber-100 transition-colors">Vezi cum lucrăm <ArrowIcon /></a>
+          </div>
           <div className="columns-2 sm:columns-3 lg:columns-4 gap-2 sm:gap-3">
             {page.gallery.map((item, index) => (
               <div key={index} className="mb-2 sm:mb-3 break-inside-avoid overflow-hidden rounded-xl">
@@ -160,10 +228,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── PACKAGES ───────────────────────────────────────────────── */}
       {page.packages.length > 0 && (
-        <section className="py-20 px-6 bg-neutral-900/50">
-          <div className="max-w-5xl mx-auto">
-            <p className="text-neutral-500 text-xs tracking-[0.25em] uppercase mb-2">Pachete</p>
-            <h2 className="text-3xl font-light text-white mb-10">Ce oferim</h2>
+        <section id="pachete" className="py-24 px-6 bg-[#151515]">
+          <div className="max-w-6xl mx-auto">
+            <div className="max-w-2xl mb-10">
+              <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Pachete</p>
+              <h2 className="text-3xl sm:text-4xl font-light text-white mb-3">Alege experiența care vi se potrivește.</h2>
+              <p className="text-sm text-neutral-400 leading-relaxed">Fiecare pachet este un punct de plecare. Ne adaptăm poveștii, ritmului și oamenilor care fac ziua voastră unică.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {page.packages.map((pkg) => (
                 <div
@@ -207,8 +278,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── TESTIMONIALS ───────────────────────────────────────────── */}
       {page.testimonials.length > 0 && (
-        <section className="py-20 px-6 max-w-5xl mx-auto">
-          <p className="text-neutral-500 text-xs tracking-[0.25em] uppercase mb-2">Recenzii</p>
+        <section className="py-24 px-6 max-w-6xl mx-auto">
+          <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Recenzii</p>
           <h2 className="text-3xl font-light text-white mb-10">Ce spun clienții</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {page.testimonials.map((testimonial) => (
@@ -225,11 +296,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       )}
 
       {/* ── CONTACT FORM ───────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-neutral-900 border-t border-neutral-800">
+      <section id="oferta" className="py-24 px-6 bg-neutral-900 border-t border-neutral-800 scroll-mt-6">
         <div className="max-w-xl mx-auto">
-          <p className="text-neutral-500 text-xs tracking-[0.25em] uppercase mb-2 text-center">Contact</p>
-          <h2 className="text-3xl font-light text-white mb-2 text-center">Solicită o ofertă</h2>
-          <p className="text-neutral-400 text-sm mb-8 text-center">Completează formularul și te contactăm în cel mai scurt timp.</p>
+          <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3 text-center">Ultimul pas</p>
+          <h2 className="text-3xl sm:text-4xl font-light text-white mb-3 text-center">Spune-ne când are loc povestea voastră.</h2>
+          <p className="text-neutral-400 text-sm mb-8 text-center leading-relaxed">Lasă-ne datele de bază. Verificăm disponibilitatea, apoi discutăm relaxat despre ce vă doriți.</p>
 
           {formStatus === "sent" ? (
             <div className="bg-green-900/30 border border-green-700/40 rounded-2xl p-8 text-center">

@@ -17,6 +17,55 @@ interface ChatNode {
 }
 
 const DATE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+const MAX_BOT_MESSAGE_LENGTH = 280;
+
+const wait = (ms: number) => new Promise<void>(resolve => window.setTimeout(resolve, ms));
+
+function splitLongPart(part: string): string[] {
+  if (part.length <= MAX_BOT_MESSAGE_LENGTH) return [part];
+
+  const units = part.includes("\n")
+    ? part.split("\n")
+    : part.match(/[^.!?…]+[.!?…]+(?:\s+|$)|[^.!?…]+$/g)?.map(unit => unit.trim()) ?? [part];
+  const chunks: string[] = [];
+  let current = "";
+
+  const addUnit = (unit: string) => {
+    const separator = current ? (part.includes("\n") ? "\n" : " ") : "";
+    if (current && current.length + separator.length + unit.length > MAX_BOT_MESSAGE_LENGTH) {
+      chunks.push(current);
+      current = unit;
+    } else {
+      current += `${separator}${unit}`;
+    }
+  };
+
+  units.filter(Boolean).forEach(unit => {
+    if (unit.length <= MAX_BOT_MESSAGE_LENGTH) {
+      addUnit(unit);
+      return;
+    }
+
+    // Un rând foarte lung este împărțit doar la cuvinte, ca să rămână ușor de citit.
+    unit.split(/\s+/).forEach(word => addUnit(word));
+  });
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function splitBotMessage(message: string): string[] {
+  return message
+    .split(/\n\s*\n/)
+    .flatMap(part => splitLongPart(part.trim()))
+    .filter(Boolean);
+}
+
+function typingDelay(text: string, isFirstMessage: boolean) {
+  const baseDelay = isFirstMessage ? 500 : 380;
+  return Math.min(baseDelay + text.length * 4, 1450);
+}
+
 function saveEventDate(text: string) {
   const m = text.match(DATE_RE);
   if (!m) return;
@@ -38,6 +87,7 @@ export default function AncaChat() {
   const [awaitingDate, setAwaitingDate] = useState(false);
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const conversationIdRef = useRef(0);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,20 +102,28 @@ export default function AncaChat() {
 
   useEffect(() => {
     if (isOpen && !initialized) {
+      const conversationId = conversationIdRef.current;
       setLoading(true);
       fetch("/api/assistant/init")
         .then(r => r.json())
         .then((node: ChatNode) => {
-          setMessages([{ sender: "bot", text: node.botMessage }]);
-          setSuggestions(node.suggestions);
+          if (conversationId !== conversationIdRef.current) return;
           setInitialized(true);
+          void deliverBotResponse(node, conversationId);
         })
         .catch(() => {
+          if (conversationId !== conversationIdRef.current) return;
           setMessages([{ sender: "bot", text: "Ne pare rău, ceva nu a funcționat. Te rugăm să ne contactezi direct." }]);
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (conversationId === conversationIdRef.current) setLoading(false);
+        });
     }
   }, [isOpen, initialized]);
+
+  useEffect(() => () => {
+    conversationIdRef.current += 1;
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -86,6 +144,7 @@ export default function AncaChat() {
   if (!mounted) return null;
 
   const resetChat = () => {
+    conversationIdRef.current += 1;
     setMessages([]);
     setSuggestions([]);
     setInputText("");
@@ -96,17 +155,30 @@ export default function AncaChat() {
     setInitialized(false);
   };
 
-  const deliverBotResponse = (node: ChatNode) => {
+  const deliverBotResponse = async (node: ChatNode, conversationId = conversationIdRef.current) => {
+    if (conversationId !== conversationIdRef.current) return;
     setLoading(false);
-    setThinking(true);
-    setTimeout(() => {
+    setSuggestions([]);
+
+    const chunks = splitBotMessage(node.botMessage);
+    for (let index = 0; index < chunks.length; index += 1) {
+      const chunk = chunks[index];
+      setThinking(true);
+      await wait(typingDelay(chunk, index === 0));
+      if (conversationId !== conversationIdRef.current) return;
+
       setThinking(false);
-      setMessages(prev => [...prev, { sender: "bot", text: node.botMessage }]);
+      setMessages(prev => [...prev, { sender: "bot", text: chunk }]);
+    }
+
+    if (conversationId === conversationIdRef.current) {
       setSuggestions(node.suggestions);
-    }, 2000);
+    }
   };
 
   const sendIntent = async (intentId: string, label: string) => {
+    if (loading || thinking) return;
+
     if (intentId === "link_contact") {
       navigate("/contact");
       setIsOpen(false);
@@ -125,6 +197,7 @@ export default function AncaChat() {
     setMessages(prev => [...prev, { sender: "user", text: label }]);
     setSuggestions([]);
     setLoading(true);
+    const conversationId = conversationIdRef.current;
 
     try {
       const res = await fetch("/api/assistant/message", {
@@ -133,8 +206,9 @@ export default function AncaChat() {
         body: JSON.stringify({ intentId }),
       });
       const node: ChatNode = await res.json();
-      deliverBotResponse(node);
+      void deliverBotResponse(node, conversationId);
     } catch {
+      if (conversationId !== conversationIdRef.current) return;
       setLoading(false);
       setMessages(prev => [...prev, { sender: "bot", text: "Eroare de rețea. Încearcă din nou." }]);
     }
@@ -142,7 +216,7 @@ export default function AncaChat() {
 
   const sendText = async () => {
     const text = inputText.trim();
-    if (!text || loading) return;
+    if (!text || loading || thinking) return;
     setInputText("");
 
     if (awaitingDate) {
@@ -160,6 +234,7 @@ export default function AncaChat() {
       setSuggestions([]);
       setLoading(true);
       setAwaitingPhone(false);
+      const conversationId = conversationIdRef.current;
       try {
         const res = await fetch("/api/assistant/message", {
           method: "POST",
@@ -170,8 +245,9 @@ export default function AncaChat() {
           }),
         });
         const node: ChatNode = await res.json();
-        deliverBotResponse(node);
+        void deliverBotResponse(node, conversationId);
       } catch {
+        if (conversationId !== conversationIdRef.current) return;
         setLoading(false);
         setMessages(prev => [...prev, { sender: "bot", text: "Eroare de rețea. Încearcă din nou." }]);
       }
@@ -181,6 +257,7 @@ export default function AncaChat() {
     setMessages(prev => [...prev, { sender: "user", text }]);
     setSuggestions([]);
     setLoading(true);
+    const conversationId = conversationIdRef.current;
 
     try {
       const res = await fetch("/api/assistant/message", {
@@ -189,8 +266,9 @@ export default function AncaChat() {
         body: JSON.stringify({ text }),
       });
       const node: ChatNode = await res.json();
-      deliverBotResponse(node);
+      void deliverBotResponse(node, conversationId);
     } catch {
+      if (conversationId !== conversationIdRef.current) return;
       setLoading(false);
       setMessages(prev => [...prev, { sender: "bot", text: "Eroare de rețea. Încearcă din nou." }]);
     }
@@ -227,7 +305,7 @@ export default function AncaChat() {
           <div className="flex items-center justify-between px-4 py-3 bg-neutral-800 border-b border-neutral-700 flex-shrink-0">
             <div>
               <p className="text-white text-sm font-medium tracking-wide">Anca Visuals</p>
-              <p className="text-neutral-400 text-xs">Asistent online</p>
+              <p className="text-neutral-400 text-xs">{thinking ? "Scrie un mesaj..." : "Asistent online"}</p>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -269,10 +347,10 @@ export default function AncaChat() {
             ))}
             {(loading || thinking) && (
               <div className="flex justify-start items-end gap-2">
-                <div className="bg-neutral-800 px-4 py-3 rounded-xl flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                <div className="bg-neutral-800 px-4 py-3 rounded-xl flex items-center gap-1" aria-label="Anca scrie un mesaj">
+                  <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "0ms", animationDuration: "900ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "150ms", animationDuration: "900ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "300ms", animationDuration: "900ms" }} />
                 </div>
               </div>
             )}
@@ -322,7 +400,7 @@ export default function AncaChat() {
             />
             <button
               onClick={sendText}
-              disabled={!inputText.trim() || loading}
+              disabled={!inputText.trim() || loading || thinking}
               className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center disabled:opacity-30 hover:bg-neutral-200 transition-colors flex-shrink-0"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

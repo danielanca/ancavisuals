@@ -70,6 +70,7 @@ import { adminRoutes } from "./routes/adminRoutes";
 import { weddingHubRoutes } from "./routes/weddingHubRoutes";
 
 const AncaChat = loadable(() => import("./features/chat/components/AncaChat"), { fallback: <></> });
+const AlbumNotFound = loadable(() => import("./pages/MediaDownload/AlbumNotFound"), { fallback: <AncaLoader /> });
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup"];
 
@@ -146,6 +147,7 @@ export const App = () => {
               ))}
               {adminRoutes}
               {weddingHubRoutes}
+              <Route path="*" element={<AlbumNotFound />} />
             </Routes>
           </Suspense>
           </ChunkErrorBoundary>
