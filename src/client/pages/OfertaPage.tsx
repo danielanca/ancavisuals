@@ -183,9 +183,6 @@ export default function OfertaPage() {
   }
 
   const packages = Array.isArray(offer.packages) ? offer.packages : [];
-  const hasPriceList = packages.length > 0
-    ? packages.some(pkg => Boolean(pkg.price))
-    : Boolean(offer.packageName || offer.price);
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -219,42 +216,6 @@ export default function OfertaPage() {
             </div>
           )}
         </div>
-
-        {packages.length > 0 && (
-          <div className="mb-8 space-y-4">
-            {packages.map((pkg, index) => {
-              const includes = packageIncludeItems(pkg);
-              return (
-                <article key={pkg.id || `package-${index}`} className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 sm:p-7">
-                  <div className="grid gap-6">
-                    <div className="min-w-0">
-                      {pkg.name && (
-                        <p className="text-violet-400/80 text-[11px] uppercase tracking-[0.2em] mb-2">{pkg.name}</p>
-                      )}
-                      <h2 className="text-2xl sm:text-3xl font-light leading-tight text-white">
-                        {pkg.headline || pkg.name || `Pachet ${index + 1}`}
-                      </h2>
-                      {pkg.subheadline && (
-                        <p className="mt-2 text-sm leading-relaxed text-neutral-300">{pkg.subheadline}</p>
-                      )}
-                      {includes.length > 0 && (
-                        <div className="mt-5 space-y-2">
-                          <p className="text-neutral-500 text-xs uppercase tracking-[0.16em]">Include</p>
-                          {includes.map(item => (
-                            <p key={item} className="flex items-start gap-2 text-sm text-neutral-300">
-                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-violet-400/70 bg-violet-500/20 text-xs font-bold text-violet-200">✓</span>
-                              <span>{item}</span>
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
 
         {offer.serviceSections?.length > 0 && (
           <div className="mb-10">
@@ -360,39 +321,71 @@ export default function OfertaPage() {
           </div>
         )}
 
-        {/* Prices intentionally stay at the end, immediately before the CTAs. */}
-        {hasPriceList && (
-          <section className="mb-12">
+        {/* Full package list stays at the end, immediately before the CTAs. */}
+        {packages.length > 0 && (
+          <div className="mb-12 space-y-4">
             <div className="mb-5">
               <p className="text-violet-400/80 text-[11px] uppercase tracking-[0.2em] mb-2">Prețuri</p>
               <h2 className="text-2xl sm:text-3xl font-light text-white">Alege pachetul potrivit pentru voi</h2>
             </div>
 
-            {packages.length > 0 ? (
-              <div className="space-y-3">
-                {packages.filter(pkg => pkg.price).map((pkg, index) => (
-                  <div
-                    key={pkg.id || `price-${index}`}
-                    className="flex flex-col gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 px-6 py-5 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="text-neutral-500 text-xs uppercase tracking-[0.16em]">Pachet</p>
-                      <p className="mt-1 text-lg font-medium text-white">{pkg.name || pkg.headline || `Pachet ${index + 1}`}</p>
+            {packages.map((pkg, index) => {
+              const includes = packageIncludeItems(pkg);
+              return (
+                <article key={pkg.id || `package-${index}`} className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 sm:p-7">
+                  <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                    <div className="min-w-0">
+                      {pkg.name && (
+                        <p className="text-violet-400/80 text-[11px] uppercase tracking-[0.2em] mb-2">{pkg.name}</p>
+                      )}
+                      <h2 className="text-2xl sm:text-3xl font-light leading-tight text-white">
+                        {pkg.headline || pkg.name || `Pachet ${index + 1}`}
+                      </h2>
+                      {pkg.subheadline && (
+                        <p className="mt-2 text-sm leading-relaxed text-neutral-300">{pkg.subheadline}</p>
+                      )}
+                      {includes.length > 0 && (
+                        <div className="mt-5 space-y-2">
+                          <p className="text-neutral-500 text-xs uppercase tracking-[0.16em]">Include</p>
+                          {includes.map(item => (
+                            <p key={item} className="flex items-start gap-2 text-sm text-neutral-300">
+                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-violet-400/70 bg-violet-500/20 text-xs font-bold text-violet-200">✓</span>
+                              <span>{item}</span>
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-3xl font-light text-white sm:text-right">{pkg.price}</p>
+                    {pkg.price && (
+                      <div className="sm:min-w-[140px] sm:border-l sm:border-neutral-800 sm:pl-6 sm:text-right">
+                        <p className="text-neutral-500 text-xs uppercase tracking-wide mb-1">Preț</p>
+                        <p className="text-3xl font-light text-white">{pkg.price}</p>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  {offer.packageName && <p className="text-neutral-500 text-xs uppercase tracking-[0.16em]">Pachet</p>}
-                  {offer.packageName && <p className="mt-1 text-lg font-medium text-white">{offer.packageName}</p>}
-                </div>
-                {offer.price && <p className="text-3xl font-light text-white sm:text-right">{offer.price}</p>}
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {packages.length === 0 && (offer.packageName || offer.price) && (
+          <div className="mb-12 bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              {offer.packageName && (
+                <>
+                  <p className="text-neutral-500 text-xs uppercase tracking-wide mb-1">Pachet</p>
+                  <p className="text-white text-lg font-medium">{offer.packageName}</p>
+                </>
+              )}
+            </div>
+            {offer.price && (
+              <div className="text-right flex-shrink-0">
+                <p className="text-neutral-500 text-xs uppercase tracking-wide mb-1">Preț</p>
+                <p className="text-3xl font-light text-white">{offer.price}</p>
               </div>
             )}
-          </section>
+          </div>
         )}
 
         {/* Download CTA */}
