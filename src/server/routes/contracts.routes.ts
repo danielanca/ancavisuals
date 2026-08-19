@@ -652,7 +652,17 @@ router.post("/:id/prestator-sign", async (req: Request, res: Response) => {
     const doc = await db.collection("contracts").doc(req.params.id).get();
     if (!doc.exists) return res.status(404).json({ error: "Contract negăsit." });
 
+    const contract = { id: doc.id, ...doc.data() } as Record<string, unknown>;
     await db.collection("contracts").doc(req.params.id).update({ prestatorSignatureBase64 });
+
+    // If the client signed first, the PDF was already generated without the
+    // provider signature. Regenerate it so the stored/downloaded PDF is complete.
+    if (contract.status === "signed") {
+      generateAndUploadPDF({ ...contract, prestatorSignatureBase64 }).catch((error) => {
+        console.error("[contracts] PDF regeneration after provider signature failed:", error);
+      });
+    }
+
     res.json({ ok: true });
   } catch (error) {
     console.error("[contracts] POST /:id/prestator-sign failed:", error);
@@ -742,21 +752,25 @@ async function uploadPdfToStorage(pdfBuffer: Buffer, filename: string): Promise<
   return signedUrl;
 }
 
-async function generateAndSendPDF(contract: Record<string, unknown>): Promise<void> {
+async function generateAndUploadPDF(contract: Record<string, unknown>): Promise<string | null> {
   const db = firestore();
-  let pdfUrl: string | null = null;
-
   try {
     const settingsBankDetails = await getAdminBankDetails();
     const pdfBuffer = await generateContractPDF({ ...settingsBankDetails, ...contract });
     const filename = buildPdfFilename(contract);
-    pdfUrl = await uploadPdfToStorage(pdfBuffer, filename);
+    const pdfUrl = await uploadPdfToStorage(pdfBuffer, filename);
     if (contract.id) {
       await db.collection("contracts").doc(contract.id as string).update({ pdfUrl });
     }
+    return pdfUrl;
   } catch (pdfError) {
-    console.error("[contracts] PDF generation/upload failed, sending email without PDF link:", pdfError);
+    console.error("[contracts] PDF generation/upload failed:", pdfError);
+    return null;
   }
+}
+
+async function generateAndSendPDF(contract: Record<string, unknown>): Promise<void> {
+  const pdfUrl = await generateAndUploadPDF(contract);
 
   const fallbackUrl = `${APP_BASE_URL}/contract/${String(contract.token ?? "")}`;
 
