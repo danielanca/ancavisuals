@@ -84,6 +84,14 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
     boundedString(request.headers.referer ?? request.headers.referrer, "Acces direct"),
   );
   const time = new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" });
+  const subjectTime = new Date().toLocaleString("ro-RO", {
+    timeZone: "Europe/Bucharest",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).replace(",", "");
   const { device, browser, os } = parseDevice(userAgent);
   const mapUrl = mapsLink(ipInfo?.loc);
   const kindLabel = input.kind === "campaign" ? "Campanie vizualizată" : "Ofertă vizualizată";
@@ -94,7 +102,7 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
 
   await sendEmail({
     to: adminUser.email,
-    subject: `👁 ${kindLabel} — /${input.slug}`,
+    subject: `👁 ${kindLabel} — /${input.slug} — ${subjectTime}`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f5f5f5;padding:24px;color:#171717;">
         <div style="background:#111;color:#fff;border-radius:14px 14px 0 0;padding:24px;">
