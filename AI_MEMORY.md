@@ -294,6 +294,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-08-19: În `OfertaPage.tsx`, prețurile pachetelor nu mai apar în cardurile de sus; sunt afișate într-o secțiune finală „Prețuri”, după preview-ul serviciilor și imediat înainte de CTA-urile de descărcare/contact. #RECENT #CAMPAIGN
+#RECENT  2026-08-19: Vizualizarea publică a ofertelor și campaniilor (`POST /api/oferte/:slug/view`, `POST /api/campaign/:slug/view`) trimite acum notificare email cu IP, geolocație IP (dacă `IPINFO_TOKEN` este configurat), ISP, user-agent interpretat (browser/dispozitiv/OS), user-agent brut, referrer și URL-ul paginii cu parametri UTM. Clientul trimite `window.location.href` + `document.referrer`, iar template-ul nou este `src/server/notifications/offerViewNotification.ts`. #RECENT #NOTIFY #CAMPAIGN
 #RECENT  2026-08-18: Scriptul `dev:server` folosește acum `tsx watch server.ts`, astfel încât modificările în endpoint-urile backend (inclusiv salvarea pachetelor ofertelor) sunt încărcate automat fără restart manual al procesului local. #RECENT #CMD #ADMIN
 #RECENT  2026-08-18: Landing page-ul ofertelor afișează acum inițial până la 12 poze per categorie în masonry, în loc de 6; butonul `MAI MULTE POZE` rămâne disponibil pentru imaginile suplimentare. #RECENT #ADMIN #MEDIA
 #RECENT  2026-08-18: Câmpul `Ce conține` din editorul de pachete pentru oferte este acum o listă structurată de elemente cu checkbox și input text; se pot adăuga sau elimina rânduri, iar elementele debifate nu apar pe landing. Pachetele vechi cu text delimitat sunt normalizate automat în elemente bifate pentru compatibilitate. Validat cu `npm run typecheck`, `npm test`, `npm run build` și `git diff --check`. #RECENT #ADMIN #CAMPAIGN

@@ -4,6 +4,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { firestore } from "../firestore";
 import { getBunnyStorageKey, buildBunnyStorageUrl, BUNNY_ACCESS_KEY_HEADER } from "../constants/bunny";
+import { getNotificationSettings } from "../services/activity.service";
+import { sendOfferViewNotification } from "../notifications/offerViewNotification";
 
 const router = Router();
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -70,7 +72,24 @@ router.post("/:slug/view", async (req: Request, res: Response) => {
     const doc = await db.collection(COLLECTION).doc(slug).get();
     if (!doc.exists) { res.status(404).send(); return; }
 
-    await doc.ref.update({ viewCount: (doc.data()?.viewCount ?? 0) + 1 });
+    const campaign = doc.data() ?? {};
+    const newCount = (campaign.viewCount ?? 0) + 1;
+    await doc.ref.update({ viewCount: newCount });
+
+    const body = req.body as { pageUrl?: unknown; referrer?: unknown };
+    const settings = await getNotificationSettings().catch(() => null);
+    if (settings?.email.offerViewed ?? true) {
+      await sendOfferViewNotification({
+        kind: "campaign",
+        slug,
+        viewCount: newCount,
+        request: req,
+        title: campaign.title,
+        pageUrl: typeof body.pageUrl === "string" ? body.pageUrl : undefined,
+        referrer: typeof body.referrer === "string" ? body.referrer : undefined,
+      });
+    }
+
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: String(error) });
