@@ -47,7 +47,7 @@ const ContractActionMenu: React.FC<Props> = ({
 
   const canSend = contract.status === "draft" || contract.status === "sent";
   const canEdit = true; // allow editing all contracts, including signed ones
-  const canSign = contract.status === "draft" && !isSigned;
+  const canSign = (contract.status === "draft" || contract.status === "sent") && !isSigned;
 
   const Item: React.FC<{
     label: string;
