@@ -2,6 +2,9 @@ import React, { useEffect, useState, useRef } from "react";
 import { remoteAddress } from "../utils/address";
 import { useParams } from "react-router-dom";
 import CampaignLandingPage, { type CampaignPage } from "./CampaignLanding/CampaignLandingPage";
+import type { OfferPackage } from "../../shared/offers/offerServices";
+
+const INITIAL_PHOTO_COUNT = 12;
 
 type OfferServiceSection = {
   id: string;
@@ -13,6 +16,7 @@ type OfferServiceSection = {
     kind: "image" | "video";
     url: string;
     label: string;
+    displayUrl?: string;
   }>;
 };
 
@@ -25,6 +29,7 @@ type Offer = {
   pdfUrl: string;
   price: string;
   packageName: string;
+  packages?: OfferPackage[];
   validUntil: string;
   selectedServices: string[];
   serviceSections: OfferServiceSection[];
@@ -43,6 +48,22 @@ function viewSessionKey(slug: string) {
   return `oferta_viewed_${slug}`;
 }
 
+function packageIncludes(value: string): string[] {
+  return value
+    .split(/\r?\n|•|;/)
+    .map(item => item.trim().replace(/^[-*]\s*/, ""))
+    .filter(Boolean);
+}
+
+function packageIncludeItems(pkg: OfferPackage): string[] {
+  if (Array.isArray(pkg.includedItems)) {
+    return pkg.includedItems
+      .filter(item => item.included && item.label.trim())
+      .map(item => item.label.trim());
+  }
+  return packageIncludes(pkg.includes);
+}
+
 export default function OfertaPage() {
   const { slug = "" } = useParams<{ slug?: string }>();
   const [offer, setOffer] = useState<Offer | null>(null);
@@ -50,7 +71,17 @@ export default function OfertaPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [expandedPhotoServices, setExpandedPhotoServices] = useState<Set<string>>(() => new Set());
   const viewTracked = useRef(false);
+  const assetUrl = (asset: OfferServiceSection["assets"][number]) => asset.displayUrl ?? asset.url;
+
+  function showAllPhotos(serviceId: string) {
+    setExpandedPhotoServices(current => {
+      const next = new Set(current);
+      next.add(serviceId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!slug) {
@@ -143,6 +174,8 @@ export default function OfertaPage() {
     );
   }
 
+  const packages = Array.isArray(offer.packages) ? offer.packages : [];
+
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
       {/* Background accent */}
@@ -176,8 +209,8 @@ export default function OfertaPage() {
           )}
         </div>
 
-        {/* Package + Price card */}
-        {(offer.packageName || offer.price) && (
+        {/* Legacy single-package card */}
+        {packages.length === 0 && (offer.packageName || offer.price) && (
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               {offer.packageName && (
@@ -193,6 +226,48 @@ export default function OfertaPage() {
                 <p className="text-3xl font-light text-white">{offer.price}</p>
               </div>
             )}
+          </div>
+        )}
+
+        {packages.length > 0 && (
+          <div className="mb-8 space-y-4">
+            {packages.map((pkg, index) => {
+              const includes = packageIncludeItems(pkg);
+              return (
+                <article key={pkg.id || `package-${index}`} className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 sm:p-7">
+                  <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                    <div className="min-w-0">
+                      {pkg.name && (
+                        <p className="text-violet-400/80 text-[11px] uppercase tracking-[0.2em] mb-2">{pkg.name}</p>
+                      )}
+                      <h2 className="text-2xl sm:text-3xl font-light leading-tight text-white">
+                        {pkg.headline || pkg.name || `Pachet ${index + 1}`}
+                      </h2>
+                      {pkg.subheadline && (
+                        <p className="mt-2 text-sm leading-relaxed text-neutral-300">{pkg.subheadline}</p>
+                      )}
+                      {includes.length > 0 && (
+                        <div className="mt-5 space-y-2">
+                          <p className="text-neutral-500 text-xs uppercase tracking-[0.16em]">Include</p>
+                          {includes.map(item => (
+                            <p key={item} className="flex items-start gap-2 text-sm text-neutral-300">
+                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-violet-400/70 bg-violet-500/20 text-xs font-bold text-violet-200">✓</span>
+                              <span>{item}</span>
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {pkg.price && (
+                      <div className="sm:min-w-[140px] sm:border-l sm:border-neutral-800 sm:pl-6 sm:text-right">
+                        <p className="text-neutral-500 text-xs uppercase tracking-wide mb-1">Preț</p>
+                        <p className="text-3xl font-light text-white">{pkg.price}</p>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
 
@@ -233,40 +308,69 @@ export default function OfertaPage() {
             </div>
 
             <div className="space-y-8">
-              {offer.serviceSections.map(service => (
+              {offer.serviceSections.map(service => {
+                const imageAssets = service.assets.filter(asset => asset.kind !== "video");
+                const videoAssets = service.assets.filter(asset => asset.kind === "video");
+                const showAll = expandedPhotoServices.has(service.id);
+                const visibleImages = showAll ? imageAssets : imageAssets.slice(0, INITIAL_PHOTO_COUNT);
+
+                return (
                 <section key={service.id} className="rounded-[28px] border border-neutral-800 bg-neutral-900/70 p-5 sm:p-6">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <p className="text-neutral-500 text-xs uppercase tracking-[0.2em] mb-2">{service.label}</p>
-                      <h3 className="text-white text-2xl font-light">{service.basePrice}</h3>
+                      <h3 className="text-white text-2xl sm:text-3xl font-light tracking-tight">{service.label}</h3>
                       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-400">{service.description}</p>
                     </div>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {service.assets.map((asset, index) => (
-                      <div key={asset.id} className="group overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
-                        {asset.kind === "video" ? (
-                          <video
-                            src={asset.url}
-                            controls
-                            muted
-                            playsInline
-                            className="h-64 w-full object-cover"
-                          />
-                        ) : (
+                  {visibleImages.length > 0 && (
+                    <div className="mt-5 columns-2 gap-3 sm:columns-3 lg:columns-4">
+                      {visibleImages.map((asset, index) => (
+                        <div key={asset.id} className="group mb-3 break-inside-avoid overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
                           <img
-                            src={asset.url}
+                            src={assetUrl(asset)}
                             alt={`${service.label} Ancavisuals ${index + 1}`}
                             loading="lazy"
-                            className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                            className="block h-auto w-full transition-transform duration-500 group-hover:scale-[1.03]"
                           />
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!showAll && imageAssets.length > INITIAL_PHOTO_COUNT && (
+                    <div className="mt-5 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => showAllPhotos(service.id)}
+                        className="rounded-full border border-violet-700/70 bg-violet-900/20 px-5 py-2.5 text-xs font-semibold tracking-[0.16em] text-violet-200 transition-colors hover:border-violet-500 hover:bg-violet-900/40"
+                      >
+                        MAI MULTE POZE
+                      </button>
+                    </div>
+                  )}
+
+                  {videoAssets.length > 0 && (
+                    <div className={`${visibleImages.length > 0 || imageAssets.length > 0 ? "mt-6" : "mt-5"} space-y-4`}>
+                      {videoAssets.map(asset => (
+                        <div key={asset.id} className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
+                          <div className="aspect-video w-full bg-black">
+                            <video
+                              src={assetUrl(asset)}
+                              controls
+                              muted
+                              playsInline
+                              preload="metadata"
+                              className="h-full w-full object-contain"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

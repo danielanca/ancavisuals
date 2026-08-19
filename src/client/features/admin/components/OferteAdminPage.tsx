@@ -2,7 +2,7 @@ import { useEffect, useReducer } from "react";
 import { Link } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
-import { OFFER_SERVICES } from "../../../../shared/offers/offerServices";
+import { OFFER_SERVICES, normalizeOfferPackages, type OfferPackage, type OfferPackageItem } from "../../../../shared/offers/offerServices";
 
 type Offer = {
   id: string;
@@ -13,6 +13,7 @@ type Offer = {
   pdfUrl: string;
   price: string;
   packageName: string;
+  packages?: OfferPackage[];
   validUntil: string;
   selectedServices: string[];
   active: boolean;
@@ -29,11 +30,35 @@ type FormData = {
   pdfUrl: string;
   price: string;
   packageName: string;
+  packages: OfferPackage[];
   validUntil: string;
   selectedServices: string[];
 };
 
-const emptyForm: FormData = {
+type PackageField = Exclude<keyof OfferPackage, "id">;
+
+function newPackage(id = "package-1"): OfferPackage {
+  return {
+    id,
+    name: "",
+    headline: "",
+    subheadline: "",
+    includes: "",
+    includedItems: [{ id: `${id}-item-1`, label: "", included: true }],
+    price: "",
+  };
+}
+
+function newPackageItem(packageId: string): OfferPackageItem {
+  return { id: `${packageId}-item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, label: "", included: true };
+}
+
+function createPackageId(): string {
+  return `package-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function createEmptyForm(): FormData {
+  return {
   slug: "",
   clientName: "",
   title: "",
@@ -41,11 +66,26 @@ const emptyForm: FormData = {
   pdfUrl: "",
   price: "",
   packageName: "",
+  packages: [newPackage()],
   validUntil: "",
   selectedServices: [],
-};
+  };
+}
+
+const emptyForm = createEmptyForm();
 
 function offerToForm(offer: Offer): FormData {
+  const packages = Array.isArray(offer.packages) && offer.packages.length > 0
+    ? normalizeOfferPackages(offer.packages)
+    : [{
+        id: "package-1",
+        name: offer.packageName ?? "",
+        headline: "",
+        subheadline: "",
+        includes: "",
+        includedItems: [],
+        price: offer.price ?? "",
+      }];
   return {
     slug: offer.slug,
     clientName: offer.clientName,
@@ -54,6 +94,7 @@ function offerToForm(offer: Offer): FormData {
     pdfUrl: offer.pdfUrl,
     price: offer.price,
     packageName: offer.packageName,
+    packages,
     validUntil: offer.validUntil,
     selectedServices: Array.isArray(offer.selectedServices) ? offer.selectedServices : [],
   };
@@ -83,6 +124,12 @@ type Action =
   | { type: "CLOSE_FORM" }
   | { type: "SET_FIELD"; field: keyof FormData; value: string }
   | { type: "TOGGLE_SERVICE"; serviceId: string }
+  | { type: "ADD_PACKAGE"; target: "form" | "editForm" }
+  | { type: "REMOVE_PACKAGE"; target: "form" | "editForm"; packageId: string }
+  | { type: "SET_PACKAGE_FIELD"; target: "form" | "editForm"; packageId: string; field: PackageField; value: string }
+  | { type: "ADD_PACKAGE_ITEM"; target: "form" | "editForm"; packageId: string }
+  | { type: "REMOVE_PACKAGE_ITEM"; target: "form" | "editForm"; packageId: string; itemId: string }
+  | { type: "SET_PACKAGE_ITEM"; target: "form" | "editForm"; packageId: string; itemId: string; field: "label" | "included"; value: string | boolean }
   | { type: "SAVING" }
   | { type: "SAVE_OK"; offer: Offer }
   | { type: "SAVE_ERR"; error: string }
@@ -117,6 +164,102 @@ function reducer(state: State, action: Action): State {
             : [...state.form.selectedServices, action.serviceId],
         },
       };
+    case "ADD_PACKAGE": {
+      const packageToAdd = newPackage(createPackageId());
+      return action.target === "form"
+        ? { ...state, form: { ...state.form, packages: [...state.form.packages, packageToAdd] } }
+        : { ...state, editForm: { ...state.editForm, packages: [...state.editForm.packages, packageToAdd] } };
+    }
+    case "REMOVE_PACKAGE":
+      return action.target === "form"
+        ? { ...state, form: { ...state.form, packages: state.form.packages.filter(item => item.id !== action.packageId) } }
+        : { ...state, editForm: { ...state.editForm, packages: state.editForm.packages.filter(item => item.id !== action.packageId) } };
+    case "SET_PACKAGE_FIELD":
+      return action.target === "form"
+        ? {
+            ...state,
+            form: {
+              ...state.form,
+              packages: state.form.packages.map(item => item.id === action.packageId ? { ...item, [action.field]: action.value } : item),
+            },
+          }
+        : {
+            ...state,
+            editForm: {
+              ...state.editForm,
+              packages: state.editForm.packages.map(item => item.id === action.packageId ? { ...item, [action.field]: action.value } : item),
+            },
+          };
+    case "ADD_PACKAGE_ITEM":
+      return action.target === "form"
+        ? {
+            ...state,
+            form: {
+              ...state.form,
+              packages: state.form.packages.map(item => item.id === action.packageId
+                ? { ...item, includedItems: [...(item.includedItems ?? []), newPackageItem(item.id)] }
+                : item),
+            },
+          }
+        : {
+            ...state,
+            editForm: {
+              ...state.editForm,
+              packages: state.editForm.packages.map(item => item.id === action.packageId
+                ? { ...item, includedItems: [...(item.includedItems ?? []), newPackageItem(item.id)] }
+                : item),
+            },
+          };
+    case "REMOVE_PACKAGE_ITEM":
+      return action.target === "form"
+        ? {
+            ...state,
+            form: {
+              ...state.form,
+              packages: state.form.packages.map(item => item.id === action.packageId
+                ? { ...item, includedItems: (item.includedItems ?? []).filter(entry => entry.id !== action.itemId) }
+                : item),
+            },
+          }
+        : {
+            ...state,
+            editForm: {
+              ...state.editForm,
+              packages: state.editForm.packages.map(item => item.id === action.packageId
+                ? { ...item, includedItems: (item.includedItems ?? []).filter(entry => entry.id !== action.itemId) }
+                : item),
+            },
+          };
+    case "SET_PACKAGE_ITEM":
+      return action.target === "form"
+        ? {
+            ...state,
+            form: {
+              ...state.form,
+              packages: state.form.packages.map(item => item.id === action.packageId
+                ? {
+                    ...item,
+                    includedItems: (item.includedItems ?? []).map(entry => entry.id === action.itemId
+                      ? { ...entry, [action.field]: action.value }
+                      : entry),
+                  }
+                : item),
+            },
+          }
+        : {
+            ...state,
+            editForm: {
+              ...state.editForm,
+              packages: state.editForm.packages.map(item => item.id === action.packageId
+                ? {
+                    ...item,
+                    includedItems: (item.includedItems ?? []).map(entry => entry.id === action.itemId
+                      ? { ...entry, [action.field]: action.value }
+                      : entry),
+                  }
+                : item),
+            },
+          };
     case "SAVING": return { ...state, saving: true, saveError: null };
     case "SAVE_OK": return { ...state, saving: false, showForm: false, form: emptyForm, offers: [action.offer, ...state.offers] };
     case "SAVE_ERR": return { ...state, saving: false, saveError: action.error };
@@ -168,6 +311,141 @@ function reducer(state: State, action: Action): State {
 const BASE_URL = typeof window !== "undefined" ? window.location.origin : "https://ancavisuals.ro";
 
 const inputClass = "w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition-colors";
+
+function PackageEditor({
+  packages,
+  onFieldChange,
+  onItemChange,
+  onAddItem,
+  onRemoveItem,
+  onAdd,
+  onRemove,
+}: {
+  packages: OfferPackage[];
+  onFieldChange: (packageId: string, field: PackageField, value: string) => void;
+  onItemChange: (packageId: string, itemId: string, field: "label" | "included", value: string | boolean) => void;
+  onAddItem: (packageId: string) => void;
+  onRemoveItem: (packageId: string, itemId: string) => void;
+  onAdd: () => void;
+  onRemove: (packageId: string) => void;
+}) {
+  return (
+    <section className="space-y-3 sm:col-span-2">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <label className="text-neutral-400 text-xs uppercase tracking-wide">Pachete ofertă</label>
+          <p className="mt-1 text-xs text-neutral-600">Adaugă variante precum „Cu fotocabină” și „Fără fotocabină”.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="self-start rounded-lg border border-violet-700/70 px-3 py-2 text-xs font-medium text-violet-300 transition-colors hover:border-violet-500 hover:bg-violet-900/20"
+        >
+          + Adaugă pachet
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {packages.map((item, index) => (
+          <div key={item.id} className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4 sm:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-white">Pachet {index + 1}</p>
+              {packages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  className="text-xs text-neutral-600 transition-colors hover:text-red-400"
+                >
+                  Șterge pachetul
+                </button>
+              )}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_190px]">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {(["name", "headline", "subheadline"] as const).map(field => {
+                  const labels: Record<"name" | "headline" | "subheadline", string> = {
+                    name: "Denumire",
+                    headline: "Headline",
+                    subheadline: "Subheadline",
+                  };
+                  const placeholders: Record<"name" | "headline" | "subheadline", string> = {
+                    name: "Pachet cu fotocabină",
+                    headline: "Experiența completă pentru evenimentul tău",
+                    subheadline: "Foto, video și distracție pentru toți invitații",
+                  };
+                  return (
+                    <div key={field} className="space-y-1">
+                      <label className="text-neutral-400 text-xs uppercase tracking-wide">{labels[field]}</label>
+                      <input
+                        value={item[field]}
+                        onChange={event => onFieldChange(item.id, field, event.target.value)}
+                        placeholder={placeholders[field]}
+                        className={inputClass}
+                      />
+                    </div>
+                  );
+                })}
+                <div className="space-y-2 sm:col-span-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-neutral-400 text-xs uppercase tracking-wide">Ce conține</label>
+                    <button
+                      type="button"
+                      onClick={() => onAddItem(item.id)}
+                      className="text-xs text-violet-300 transition-colors hover:text-violet-200"
+                    >
+                      + Adaugă element
+                    </button>
+                  </div>
+                  <div className="space-y-2 rounded-xl border border-neutral-800 bg-neutral-900/60 p-3">
+                    {(item.includedItems ?? []).map(entry => (
+                      <div key={entry.id} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={entry.included}
+                          onChange={event => onItemChange(item.id, entry.id, "included", event.target.checked)}
+                          className="h-4 w-4 shrink-0 accent-violet-500"
+                          aria-label={`Include ${entry.label || "element"}`}
+                        />
+                        <input
+                          value={entry.label}
+                          onChange={event => onItemChange(item.id, entry.id, "label", event.target.value)}
+                          placeholder="Ex: Fotografie de nuntă"
+                          className={`${inputClass} py-2`}
+                        />
+                        {(item.includedItems ?? []).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => onRemoveItem(item.id, entry.id)}
+                            className="shrink-0 px-1 text-lg leading-none text-neutral-600 transition-colors hover:text-red-400"
+                            aria-label="Șterge elementul"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-violet-900/50 bg-violet-950/20 p-4 lg:flex lg:flex-col">
+                <label className="text-violet-300/80 text-xs uppercase tracking-wide">Preț</label>
+                <input
+                  value={item.price}
+                  onChange={event => onFieldChange(item.id, "price", event.target.value)}
+                  placeholder="2.500 EUR"
+                  className={`${inputClass} mt-2 border-violet-800/60 bg-neutral-900 text-lg font-medium lg:mt-3`}
+                />
+                <p className="mt-2 text-[11px] leading-relaxed text-neutral-600">Va apărea în partea dreaptă a cardului, pe pagina clientului.</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function OferteAdminPage() {
   const { auth } = useAuth();
@@ -373,25 +651,15 @@ export default function OferteAdminPage() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-neutral-400 text-xs uppercase tracking-wide">Pachet</label>
-                <input
-                  value={state.form.packageName}
-                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "packageName", value: e.target.value })}
-                  placeholder="Pachet Complet"
-                  className={inputClass}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-neutral-400 text-xs uppercase tracking-wide">Preț</label>
-                <input
-                  value={state.form.price}
-                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "price", value: e.target.value })}
-                  placeholder="2.500 EUR"
-                  className={inputClass}
-                />
-              </div>
+              <PackageEditor
+                packages={state.form.packages}
+                onFieldChange={(packageId, field, value) => dispatch({ type: "SET_PACKAGE_FIELD", target: "form", packageId, field, value })}
+                onItemChange={(packageId, itemId, field, value) => dispatch({ type: "SET_PACKAGE_ITEM", target: "form", packageId, itemId, field, value })}
+                onAddItem={(packageId) => dispatch({ type: "ADD_PACKAGE_ITEM", target: "form", packageId })}
+                onRemoveItem={(packageId, itemId) => dispatch({ type: "REMOVE_PACKAGE_ITEM", target: "form", packageId, itemId })}
+                onAdd={() => dispatch({ type: "ADD_PACKAGE", target: "form" })}
+                onRemove={(packageId) => dispatch({ type: "REMOVE_PACKAGE", target: "form", packageId })}
+              />
 
               <div className="space-y-1">
                 <label className="text-neutral-400 text-xs uppercase tracking-wide">Valabilă până la</label>
@@ -641,23 +909,15 @@ export default function OferteAdminPage() {
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Pachet</label>
-                        <input
-                          value={state.editForm.packageName}
-                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "packageName", value: e.target.value })}
-                          className={inputClass}
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Preț</label>
-                        <input
-                          value={state.editForm.price}
-                          onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "price", value: e.target.value })}
-                          className={inputClass}
-                        />
-                      </div>
+                      <PackageEditor
+                        packages={state.editForm.packages}
+                        onFieldChange={(packageId, field, value) => dispatch({ type: "SET_PACKAGE_FIELD", target: "editForm", packageId, field, value })}
+                        onItemChange={(packageId, itemId, field, value) => dispatch({ type: "SET_PACKAGE_ITEM", target: "editForm", packageId, itemId, field, value })}
+                        onAddItem={(packageId) => dispatch({ type: "ADD_PACKAGE_ITEM", target: "editForm", packageId })}
+                        onRemoveItem={(packageId, itemId) => dispatch({ type: "REMOVE_PACKAGE_ITEM", target: "editForm", packageId, itemId })}
+                        onAdd={() => dispatch({ type: "ADD_PACKAGE", target: "editForm" })}
+                        onRemove={(packageId) => dispatch({ type: "REMOVE_PACKAGE", target: "editForm", packageId })}
+                      />
 
                       <div className="space-y-1">
                         <label className="text-neutral-400 text-xs uppercase tracking-wide">Valabilă până la</label>

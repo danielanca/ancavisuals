@@ -10,6 +10,7 @@ type SelectedAsset = {
   kind: OfferAssetKind;
   url: string;
   label: string;
+  displayUrl?: string;
 };
 
 type ShowcaseService = {
@@ -89,6 +90,8 @@ export default function OfferTemplateAdminPage() {
   }
 
   if (loading) return <AncaLoader />;
+
+  const assetUrl = (asset: SelectedAsset) => asset.displayUrl ?? asset.url;
 
   return (
     <div>
@@ -178,9 +181,9 @@ export default function OfferTemplateAdminPage() {
                     >
                       <div className="relative">
                         {asset.kind === "video" ? (
-                          <video src={asset.url} className="h-40 w-full object-cover" muted draggable={false} />
+                          <video src={assetUrl(asset)} className="h-40 w-full object-cover" muted draggable={false} />
                         ) : (
-                          <img src={asset.url} alt={asset.label} className="h-40 w-full object-cover" loading="lazy" draggable={false} />
+                          <img src={assetUrl(asset)} alt={asset.label} className="h-40 w-full object-cover" loading="lazy" draggable={false} />
                         )}
                         <div className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[10px] text-white pointer-events-none">
                           #{index + 1}

@@ -11,6 +11,7 @@ type OfferMediaAsset = {
   kind: OfferAssetKind;
   url: string;
   label: string;
+  displayUrl?: string;
 };
 
 type ShowcaseService = {
@@ -49,6 +50,7 @@ export default function OfferTemplateOrganizerPage() {
 
   const selectedIds = new Set(service?.assets.map(asset => asset.id) ?? []);
   const availableAssets = library.filter(asset => !selectedIds.has(asset.id));
+  const assetUrl = (asset: OfferMediaAsset) => asset.displayUrl ?? asset.url;
 
   async function loadShowcase() {
     try {
@@ -183,14 +185,14 @@ export default function OfferTemplateOrganizerPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-white text-lg font-medium">Ordinea pentru client</h2>
-              <p className="mt-1 text-sm text-neutral-500">Trage cardurile una sub alta. Eliminarea de aici nu sterge asset-ul din biblioteca.</p>
+              <p className="mt-1 text-sm text-neutral-500">Trage cardurile pentru reordonare. Eliminarea de aici nu sterge asset-ul din biblioteca.</p>
               <p className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-600">Drag pentru reordonare</p>
             </div>
             <div className="text-xs text-neutral-500">{service.assets.length} selectate</div>
           </div>
 
           {service.assets.length > 0 ? (
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="mt-5 columns-2 gap-3 sm:columns-3 lg:columns-4 xl:columns-5">
               {service.assets.map((asset, index) => (
                 <article
                   key={asset.id}
@@ -207,17 +209,17 @@ export default function OfferTemplateOrganizerPage() {
                     setDragOverId(null);
                   }}
                   onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
-                  className={`group overflow-hidden rounded-2xl border bg-neutral-950 cursor-grab active:cursor-grabbing transition-opacity ${
+                  className={`group mb-3 break-inside-avoid overflow-hidden rounded-2xl border bg-neutral-950 cursor-grab active:cursor-grabbing transition-opacity ${
                     draggingId === asset.id ? "opacity-40 border-violet-700"
                     : dragOverId === asset.id ? "border-violet-500 ring-1 ring-violet-500"
                     : "border-neutral-800"
                   }`}
                 >
-                  <div className="relative h-36 bg-neutral-900">
+                  <div className="relative bg-neutral-900">
                     {asset.kind === "video" ? (
-                      <video src={asset.url} className="h-full w-full object-cover" muted draggable={false} />
+                      <video src={assetUrl(asset)} className="block aspect-video w-full object-cover" muted draggable={false} />
                     ) : (
-                      <img src={asset.url} alt={asset.label} className="h-full w-full object-cover" loading="lazy" draggable={false} />
+                      <img src={assetUrl(asset)} alt={asset.label} className="block h-auto w-full" loading="lazy" draggable={false} />
                     )}
                     <div className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-white pointer-events-none">
                       #{index + 1}
@@ -251,14 +253,14 @@ export default function OfferTemplateOrganizerPage() {
           </div>
 
           {availableAssets.length > 0 ? (
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="mt-5 columns-2 gap-3 sm:columns-3 lg:columns-4 xl:columns-5">
               {availableAssets.map(asset => (
-                <article key={asset.id} className="group overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
-                  <div className="relative h-36 bg-neutral-900">
+                <article key={asset.id} className="group mb-3 break-inside-avoid overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
+                  <div className="relative bg-neutral-900">
                     {asset.kind === "video" ? (
-                      <video src={asset.url} className="h-full w-full object-cover" muted />
+                      <video src={assetUrl(asset)} className="block aspect-video w-full object-cover" muted />
                     ) : (
-                      <img src={asset.url} alt={asset.label} className="h-full w-full object-cover" loading="lazy" />
+                      <img src={assetUrl(asset)} alt={asset.label} className="block h-auto w-full" loading="lazy" />
                     )}
                     <button
                       type="button"

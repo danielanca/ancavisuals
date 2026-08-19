@@ -18,12 +18,73 @@ export type OfferMediaAsset = {
   createdAt?: string;
   sourceAlbumSlug?: string;
   sourceProposalId?: string;
+  displayUrl?: string;
 };
 
 export type OfferTemplateAsset = {
   assetId: string;
   order: number;
 };
+
+export type OfferPackageItem = {
+  id: string;
+  label: string;
+  included: boolean;
+};
+
+export type OfferPackage = {
+  id: string;
+  name: string;
+  headline: string;
+  subheadline: string;
+  includes: string;
+  includedItems?: OfferPackageItem[];
+  price: string;
+};
+
+export function normalizeOfferPackages(input: unknown): OfferPackage[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((value, index): OfferPackage | null => {
+      if (!value || typeof value !== "object") return null;
+      const record = value as Record<string, unknown>;
+      const text = (key: keyof Omit<OfferPackage, "id">): string => (
+        typeof record[key] === "string" ? record[key].trim() : ""
+      );
+      const rawItems = Array.isArray(record.includedItems) ? record.includedItems : [];
+      const includedItems = rawItems
+        .map((item, itemIndex) => {
+          if (!item || typeof item !== "object") return null;
+          const itemRecord = item as Record<string, unknown>;
+          const label = typeof itemRecord.label === "string" ? itemRecord.label.trim() : "";
+          if (!label) return null;
+          return {
+            id: typeof itemRecord.id === "string" && itemRecord.id.trim() ? itemRecord.id.trim() : `item-${index + 1}-${itemIndex + 1}`,
+            label,
+            included: itemRecord.included !== false,
+          };
+        })
+        .filter((item): item is OfferPackageItem => item !== null);
+      const legacyIncludes = text("includes");
+      const normalizedItems = includedItems.length > 0
+        ? includedItems
+        : legacyIncludes
+          .split(/\r?\n|•|;/)
+          .map((label, itemIndex) => label.trim().replace(/^[-*]\s*/, ""))
+          .filter(Boolean)
+          .map((label, itemIndex) => ({ id: `item-${index + 1}-${itemIndex + 1}`, label, included: true }));
+      return {
+        id: typeof record.id === "string" && record.id.trim() ? record.id.trim() : `package-${index + 1}`,
+        name: text("name"),
+        headline: text("headline"),
+        subheadline: text("subheadline"),
+        includes: legacyIncludes,
+        includedItems: normalizedItems,
+        price: text("price"),
+      };
+    })
+    .filter((value): value is OfferPackage => value !== null);
+}
 
 function formatPrice(id: string): string {
   if (id === "qrmoments") return "Inclus gratuit";
@@ -102,6 +163,7 @@ export type OfferShowcaseService = OfferServiceDefinition & {
     kind: OfferAssetKind;
     url: string;
     label: string;
+    displayUrl?: string;
   }>;
 };
 
@@ -166,7 +228,7 @@ export function mergeOfferShowcase(
     return {
       ...service,
       assets: assets.length > 0
-        ? assets.map(asset => ({ id: asset.id, kind: asset.kind, url: asset.url, label: asset.label }))
+        ? assets.map(asset => ({ id: asset.id, kind: asset.kind, url: asset.url, label: asset.label, displayUrl: asset.displayUrl }))
         : fallbackImages,
     };
   });

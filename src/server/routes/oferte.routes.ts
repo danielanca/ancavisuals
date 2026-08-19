@@ -13,10 +13,12 @@ import {
   type OfferMediaAsset,
   type OfferAssetKind,
   normalizeOfferServiceIds,
+  normalizeOfferPackages,
   normalizeOfferTemplateAssets,
 } from "../../shared/offers/offerServices";
 import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
+import { loadAlbum } from "../services/album.service";
 
 const router = Router();
 const mediaAssetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
@@ -44,6 +46,11 @@ function bunnyPublicUrl(path: string): string {
   return `${domain}/${path}`;
 }
 
+type StoredOfferMediaAsset = OfferMediaAsset & {
+  sourceAlbumSlug?: string;
+  sourcePhotoUrl?: string;
+  displayUrl?: string;
+};
 
 async function uploadToBunny(buffer: Buffer, bunnyPath: string, contentType: string): Promise<void> {
   const key = getBunnyStorageKey();
@@ -63,6 +70,31 @@ async function deleteFromBunny(bunnyPath: string): Promise<void> {
     method: "DELETE",
     headers: { [BUNNY_ACCESS_KEY_HEADER]: key },
   });
+}
+
+async function downloadRemoteAsset(url: string): Promise<{ buffer: Buffer; contentType: string }> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Download esuat: ${response.status}`);
+  return {
+    buffer: Buffer.from(await response.arrayBuffer()),
+    contentType: response.headers.get("content-type") ?? "application/octet-stream",
+  };
+}
+
+function mediaKeyFromUrl(url: string): string {
+  try {
+    return new URL(url).pathname.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "";
+  } catch {
+    return url.split("/").pop()?.split("?")[0]?.replace(/\.[^.]+$/, "") ?? "";
+  }
+}
+
+function isPreviewUrl(url: string): boolean {
+  try {
+    return new URL(url).pathname.includes("/photos_preview/");
+  } catch {
+    return url.includes("/photos_preview/");
+  }
 }
 
 type StoredTemplateAsset = {
@@ -103,13 +135,37 @@ async function writeTemplateShowcase(services: Record<string, StoredTemplateAsse
 
 async function listMediaAssets(serviceId?: string): Promise<OfferMediaAsset[]> {
   const snapshot = await firestore().collection("offer_media_assets").get();
-  const assets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OfferMediaAsset[];
+  const assets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as StoredOfferMediaAsset[];
   const filtered = serviceId ? assets.filter(asset => asset.serviceId === serviceId) : assets;
   return filtered.sort((a, b) => {
     const left = a.createdAt ?? "";
     const right = b.createdAt ?? "";
     return left < right ? 1 : left > right ? -1 : 0;
   });
+}
+
+async function enrichMediaAssetDisplayUrls(assets: StoredOfferMediaAsset[]): Promise<StoredOfferMediaAsset[]> {
+  const albumsBySlug = new Map<string, ReturnType<typeof loadAlbum>>();
+  const getAlbum = (slug: string) => {
+    let album = albumsBySlug.get(slug);
+    if (!album) {
+      album = loadAlbum(slug);
+      albumsBySlug.set(slug, album);
+    }
+    return album;
+  };
+
+  return Promise.all(assets.map(async asset => {
+    if (asset.kind !== "image" || !asset.sourceAlbumSlug || !asset.sourcePhotoUrl) return asset;
+
+    const album = await getAlbum(asset.sourceAlbumSlug);
+    const previewUrl = album?.photos.find(photo => (
+      isPreviewUrl(photo) && mediaKeyFromUrl(photo) === mediaKeyFromUrl(asset.sourcePhotoUrl!)
+    ));
+
+    if (!previewUrl) return asset;
+    return { ...asset, displayUrl: previewUrl };
+  }));
 }
 
 function resolveTemplateAssets(
@@ -161,7 +217,10 @@ router.get("/:slug", async (req: Request, res: Response) => {
     const data = doc.data();
     const showcase = await readTemplateShowcase();
     const selectedServices = normalizeOfferServiceIds(data.selectedServices);
-    const allAssets = await listMediaAssets();
+    // Reuse the album preview URL for public offers as well. This keeps the
+    // category galleries on the landing page on the same optimized WebP path
+    // shown in the admin library, while retaining the Bunny URL as fallback.
+    const allAssets = await enrichMediaAssetDisplayUrls(await listMediaAssets());
     const resolvedAssets = resolveTemplateAssets(selectedServices, showcase, allAssets);
     const serviceSections = mergeOfferShowcase(
       {},
@@ -170,7 +229,13 @@ router.get("/:slug", async (req: Request, res: Response) => {
 
     // never expose internal counts to public
     const { viewCount, downloadCount, ...publicData } = data;
-    res.json({ id: doc.id, ...publicData, selectedServices, serviceSections });
+    res.json({
+      id: doc.id,
+      ...publicData,
+      packages: normalizeOfferPackages(data.packages),
+      selectedServices,
+      serviceSections,
+    });
   } catch (error) {
     console.error("[oferte] GET /:slug failed:", error);
     res.status(500).json({ error: "Eroare server." });
@@ -291,7 +356,7 @@ router.post("/:slug/download", async (req: Request, res: Response) => {
 router.get("/admin/template-showcase", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const showcase = await readTemplateShowcase();
-    const allAssets = await listMediaAssets();
+    const allAssets = await enrichMediaAssetDisplayUrls(await listMediaAssets());
     res.json({
       services: OFFER_SERVICES.map(service => ({
         ...service,
@@ -307,7 +372,7 @@ router.get("/admin/template-showcase", requireFirebaseAuth, requireSupremeAdmin,
 router.get("/admin/media-assets", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const serviceId = typeof req.query.serviceId === "string" ? req.query.serviceId : undefined;
-    const assets = await listMediaAssets(serviceId);
+    const assets = await enrichMediaAssetDisplayUrls(await listMediaAssets(serviceId));
     res.json({ assets });
   } catch (error) {
     console.error("[oferte] GET /admin/media-assets failed:", error);
@@ -367,7 +432,11 @@ router.post("/admin/media-assets/import-from-url", requireFirebaseAuth, requireS
 
   try {
     const imported = await Promise.all(items.map(async ({ url, fileName }) => {
-      const { buffer, contentType } = await downloadOriginal(url);
+      // Imaginile alese dintr-un album sunt deja `photos_preview` (WebP). Le
+      // descărcăm direct, fără utilitarul care le convertește intenționat la original.
+      const { buffer, contentType } = sourceAlbumSlug && isPreviewUrl(url)
+        ? await downloadRemoteAsset(url)
+        : await downloadOriginal(url);
       const kind: OfferAssetKind = contentType.startsWith("video/") ? "video" : "image";
 
       const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName.replace(/[^a-zA-Z0-9.]/g, "_")}`;
@@ -398,23 +467,47 @@ router.post("/admin/media-assets/import-from-url", requireFirebaseAuth, requireS
 router.post("/admin/media-assets/reprocess-originals", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const snapshot = await firestore().collection("offer_media_assets").get();
-    type RawAsset = { id: string; sourcePhotoUrl?: string; bunnyPath?: string };
+    type RawAsset = { id: string; sourcePhotoUrl?: string; sourceAlbumSlug?: string; bunnyPath?: string };
     const candidates = snapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as RawAsset))
-      .filter(asset => typeof asset.sourcePhotoUrl === "string" && asset.sourcePhotoUrl && typeof asset.bunnyPath === "string" && asset.bunnyPath);
+      .filter(asset => (
+        typeof asset.sourcePhotoUrl === "string" && asset.sourcePhotoUrl
+        && typeof asset.sourceAlbumSlug === "string" && asset.sourceAlbumSlug
+        && typeof asset.bunnyPath === "string" && asset.bunnyPath
+      ));
+
+    const albumsBySlug = new Map<string, ReturnType<typeof loadAlbum>>();
+    const getAlbum = (slug: string) => {
+      let album = albumsBySlug.get(slug);
+      if (!album) {
+        album = loadAlbum(slug);
+        albumsBySlug.set(slug, album);
+      }
+      return album;
+    };
 
     let fixed = 0;
     let skipped = 0;
 
     await Promise.all(candidates.map(async asset => {
       try {
-        const { buffer, contentType } = await downloadOriginal(asset.sourcePhotoUrl!);
-        await uploadToBunny(buffer, asset.bunnyPath!, contentType);
-        const kind: OfferAssetKind = contentType.startsWith("video/") ? "video" : "image";
+        const album = await getAlbum(asset.sourceAlbumSlug!);
+        const previewUrl = album?.photos.find(photo => (
+          isPreviewUrl(photo) && mediaKeyFromUrl(photo) === mediaKeyFromUrl(asset.sourcePhotoUrl!)
+        ));
+        if (!previewUrl) { skipped++; return; }
+
+        const { buffer, contentType } = await downloadRemoteAsset(previewUrl);
+        const previewBunnyPath = asset.bunnyPath!.replace(/\.[^.]+$/, ".webp");
+        await uploadToBunny(buffer, previewBunnyPath, contentType || "image/webp");
+        if (previewBunnyPath !== asset.bunnyPath) await deleteFromBunny(asset.bunnyPath!).catch(() => {});
         await firestore().collection("offer_media_assets").doc(asset.id).update({
-          kind,
-          url: bunnyPublicUrl(asset.bunnyPath!),
+          kind: "image" as OfferAssetKind,
+          url: bunnyPublicUrl(previewBunnyPath),
+          bunnyPath: previewBunnyPath,
+          sourcePhotoUrl: previewUrl,
           reprocessedAt: new Date().toISOString(),
+          previewOptimizedAt: new Date().toISOString(),
         });
         fixed++;
       } catch {
@@ -554,7 +647,7 @@ router.get("/admin/list", requireFirebaseAuth, requireSupremeAdmin, async (req: 
 // POST /api/oferte/admin
 router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
-    const { slug, clientName, title, description, pdfUrl, price, packageName, validUntil, selectedServices } = req.body;
+    const { slug, clientName, title, description, pdfUrl, price, packageName, packages: rawPackages, validUntil, selectedServices } = req.body;
 
     if (!slug?.trim()) return res.status(400).json({ error: "Slug-ul este obligatoriu." });
 
@@ -566,14 +659,19 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Requ
     if (!existing.empty) return res.status(409).json({ error: `Slug-ul „${cleanSlug}" există deja.` });
 
     const now = new Date().toISOString();
+    const packages = normalizeOfferPackages(rawPackages);
+    const firstPackage = packages[0];
+    const legacyPackageName = firstPackage?.name ?? String(packageName ?? "").trim();
+    const legacyPrice = firstPackage?.price ?? String(price ?? "").trim();
     const newOffer = {
       slug: cleanSlug,
       clientName: clientName?.trim() ?? "",
       title: title?.trim() ?? "",
       description: description?.trim() ?? "",
       pdfUrl: pdfUrl?.trim() ?? "",
-      price: price?.trim() ?? "",
-      packageName: packageName?.trim() ?? "",
+      price: legacyPrice,
+      packageName: legacyPackageName,
+      packages,
       validUntil: validUntil ?? "",
       selectedServices: normalizeOfferServiceIds(selectedServices),
       active: true,
@@ -617,6 +715,12 @@ router.patch("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, async (req:
     }
     if ("selectedServices" in req.body) {
       updates.selectedServices = normalizeOfferServiceIds(req.body.selectedServices);
+    }
+    if ("packages" in req.body) {
+      const packages = normalizeOfferPackages(req.body.packages);
+      updates.packages = packages;
+      updates.packageName = packages[0]?.name ?? "";
+      updates.price = packages[0]?.price ?? "";
     }
 
     await docRef.update(updates);

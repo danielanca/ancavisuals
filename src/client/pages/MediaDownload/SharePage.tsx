@@ -101,10 +101,7 @@ export default function SharePage() {
     if (!data || !auth.accessToken) return;
     setImportModal(prev => prev ? { ...prev, importing: true, error: null } : null);
     try {
-      const items = data.photos.map(url => {
-        const originalUrl = toOriginalUrl(url);
-        return { url: originalUrl, fileName: fileNameFromUrl(originalUrl) };
-      });
+      const items = data.photos.map(url => ({ url, fileName: fileNameFromUrl(url) }));
       const response = await fetch("/api/oferte/admin/media-assets/import-from-url", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },

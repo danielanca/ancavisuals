@@ -13,6 +13,7 @@ type OfferMediaAsset = {
   createdAt?: string;
   sourceAlbumSlug?: string;
   sourceProposalId?: string;
+  displayUrl?: string;
 };
 
 type ProposalItem = {
@@ -66,6 +67,10 @@ function groupBySource(assets: OfferMediaAsset[]): Map<string, OfferMediaAsset[]
   return groups;
 }
 
+function assetUrl(asset: OfferMediaAsset): string {
+  return asset.displayUrl ?? asset.url;
+}
+
 export default function MediaAssetsAdminPage() {
   const { auth } = useAuth();
   const [assets, setAssets] = useState<OfferMediaAsset[]>([]);
@@ -79,6 +84,8 @@ export default function MediaAssetsAdminPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reprocessing, setReprocessing] = useState(false);
+  const [reprocessSummary, setReprocessSummary] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -247,8 +254,9 @@ export default function MediaAssetsAdminPage() {
       const response = await fetch(`/api/album/${slug}`, {
         headers: { Authorization: `Bearer ${auth.accessToken}` },
       });
-      const data = await readJsonResponse<{ photos?: string[]; originalPhoto?: string[]; shortvideo?: string | null }>(response);
-      const source = data.originalPhoto?.length ? data.originalPhoto : (data.photos ?? []);
+      const data = await readJsonResponse<{ photos?: string[]; shortvideo?: string | null }>(response);
+      // `photos` este lista de `photos_preview` (WebP), cu fallback la originale doar pentru albumele vechi.
+      const source = data.photos ?? [];
       const albumPhotos: AlbumItem[] = [
         ...source.map(url => ({ url, fileName: fileNameFromUrl(url), kind: "image" as const })),
         ...(data.shortvideo ? [{ url: data.shortvideo, fileName: fileNameFromUrl(data.shortvideo), kind: "video" as const }] : []),
@@ -256,6 +264,26 @@ export default function MediaAssetsAdminPage() {
       setImportModal(current => current ? { ...current, albumPhotos, loadingAlbum: false } : null);
     } catch {
       setImportModal(current => current ? { ...current, loadingAlbum: false } : null);
+    }
+  }
+
+  async function reprocessAlbumImports() {
+    setReprocessing(true);
+    setError(null);
+    setReprocessSummary(null);
+    try {
+      const response = await fetch("/api/oferte/admin/media-assets/reprocess-originals", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      const data = await readJsonResponse<{ fixed?: number; skipped?: number; total?: number; error?: string }>(response);
+      if (!response.ok) throw new Error(data.error ?? "Nu am putut optimiza importurile.");
+      setReprocessSummary(`${data.fixed ?? 0} din ${data.total ?? 0} asset-uri importate au fost actualizate la preview WebP.${data.skipped ? ` ${data.skipped} au fost sarite.` : ""}`);
+      await loadAssets();
+    } catch (reprocessError) {
+      setError(reprocessError instanceof Error ? reprocessError.message : String(reprocessError));
+    } finally {
+      setReprocessing(false);
     }
   }
 
@@ -308,11 +336,25 @@ export default function MediaAssetsAdminPage() {
               Biblioteca globala pentru poze si video folosite in oferte. Fisierele sunt urcate in Bunny sub <code className="text-neutral-400">offers-assets/</code>, independent de galeriile de album.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => void reprocessAlbumImports()}
+            disabled={reprocessing}
+            className="shrink-0 rounded-lg border border-teal-800 px-4 py-2 text-sm text-teal-300 transition-colors hover:border-teal-600 hover:text-teal-200 disabled:border-neutral-800 disabled:text-neutral-600"
+          >
+            {reprocessing ? "Se optimizeaza..." : "Optimizeaza importurile din albume"}
+          </button>
         </div>
 
         {error && (
           <div className="rounded-xl border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300">
             {error}
+          </div>
+        )}
+
+        {reprocessSummary && (
+          <div className="rounded-xl border border-teal-900 bg-teal-950/30 px-4 py-3 text-sm text-teal-200">
+            {reprocessSummary}
           </div>
         )}
 
@@ -429,9 +471,9 @@ export default function MediaAssetsAdminPage() {
                                 <article key={asset.id} className="group mb-3 break-inside-avoid overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900">
                                   <div className="relative bg-neutral-900 cursor-zoom-in" onClick={() => setLightbox(asset)}>
                                     {asset.kind === "video" ? (
-                                      <video src={asset.url} className="w-full" muted draggable={false} />
+                                      <video src={assetUrl(asset)} className="w-full" muted draggable={false} />
                                     ) : (
-                                      <img src={asset.url} alt={asset.label} className="w-full" loading="lazy" draggable={false} />
+                                      <img src={assetUrl(asset)} alt={asset.label} className="w-full" loading="lazy" draggable={false} />
                                     )}
                                     <button
                                       type="button"
@@ -528,7 +570,7 @@ export default function MediaAssetsAdminPage() {
           </button>
           {lightbox.kind === "video" ? (
             <video
-              src={lightbox.url}
+              src={assetUrl(lightbox)}
               controls
               autoPlay
               className="max-h-[90vh] max-w-full rounded-2xl"
@@ -536,7 +578,7 @@ export default function MediaAssetsAdminPage() {
             />
           ) : (
             <img
-              src={lightbox.url}
+              src={assetUrl(lightbox)}
               alt={lightbox.label}
               className="max-h-[90vh] max-w-full rounded-2xl object-contain"
               onClick={(e) => e.stopPropagation()}

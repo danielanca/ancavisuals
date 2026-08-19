@@ -32,6 +32,9 @@ type Action =
   | { type: "SET_QUALITY"; value: number }
   | { type: "RESET" };
 
+const DEFAULT_PREVIEW_WIDTH = 1200;
+const DEFAULT_PREVIEW_QUALITY = 64;
+
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "ADD_FILES":
@@ -51,7 +54,7 @@ function reducer(state: State, action: Action): State {
     case "SET_DONE": return { ...state, done: action.value };
     case "SET_WIDTH": return { ...state, width: action.value };
     case "SET_QUALITY": return { ...state, quality: action.value };
-    case "RESET": return { files: [], processing: false, done: false, width: 1400, quality: 72 };
+    case "RESET": return { files: [], processing: false, done: false, width: DEFAULT_PREVIEW_WIDTH, quality: DEFAULT_PREVIEW_QUALITY };
     default: return state;
   }
 }
@@ -105,7 +108,7 @@ async function convertToWebP(file: File, maxWidth: number, quality: number): Pro
 
 export default function ImageOptimizerPage() {
   const [state, dispatch] = useReducer(reducer, {
-    files: [], processing: false, done: false, width: 1400, quality: 72,
+    files: [], processing: false, done: false, width: DEFAULT_PREVIEW_WIDTH, quality: DEFAULT_PREVIEW_QUALITY,
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
