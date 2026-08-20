@@ -177,6 +177,15 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
     return;
   }
 
+  if (currency !== undefined && currency !== "RON" && currency !== "EUR") {
+    res.status(400).json({ error: "Moneda trebuie să fie RON sau EUR." });
+    return;
+  }
+  if (!Number.isFinite(Number(totalAmount)) || Number(totalAmount) <= 0) {
+    res.status(400).json({ error: "Suma facturată trebuie să fie mai mare decât zero." });
+    return;
+  }
+
   try {
     const db = firestore();
 

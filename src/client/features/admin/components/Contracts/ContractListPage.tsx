@@ -656,13 +656,16 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
   onClose: () => void;
   onNavigateToFinancial: () => void;
 }) {
-  const currency = contract.currency ?? "RON";
+  const [currency, setCurrency] = React.useState<"RON" | "EUR">(
+    contract.currency === "EUR" ? "EUR" : "RON",
+  );
   const priceAdvance = contract.priceAdvance ?? 0;
   const priceRest = contract.priceRest ?? (contract.priceTotal - priceAdvance);
 
   const [invoiceDate, setInvoiceDate] = React.useState(todayISO);
   const [dueDate, setDueDate] = React.useState(() => dueDateISO(todayISO()));
   const [amountType, setAmountType] = React.useState<"total" | "advance" | "rest">("total");
+  const [invoiceAmount, setInvoiceAmount] = React.useState(String(contract.priceTotal));
   const [description, setDescription] = React.useState(() => defaultDescription(contract));
   const [buyerName, setBuyerName] = React.useState(contract.clientName ?? "");
   const [buyerAddress, setBuyerAddress] = React.useState(contract.clientAddress ?? "");
@@ -696,6 +699,10 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
     amountType === "rest" ? priceRest :
     contract.priceTotal;
 
+  React.useEffect(() => {
+    setInvoiceAmount(String(displayAmount));
+  }, [displayAmount]);
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -713,8 +720,8 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
           clientCounty: buyerCounty.trim(),
           clientCIF: buyerCIF || undefined,
           taxExchangeRate: exchangeRate ? parseFloat(exchangeRate) : undefined,
-          items: [{ description, quantity: 1, unitPrice: displayAmount, total: displayAmount }],
-          totalAmount: displayAmount,
+          items: [{ description, quantity: 1, unitPrice: Number(invoiceAmount), total: Number(invoiceAmount) }],
+          totalAmount: Number(invoiceAmount),
           currency,
           notes: `Contract ${contract.eventType} — ${contract.eventDate?.slice(0, 10) ?? ""}`,
           eventId: contract.id,
@@ -743,7 +750,7 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
         </div>
 
         <div className="text-xs text-neutral-500 mb-4">
-          {contract.eventType} · {contract.clientName ?? "—"} · {contract.priceTotal} {currency}
+          {contract.eventType} · {contract.clientName ?? "—"} · Contract: {contract.priceTotal} {contract.currency ?? "RON"}
         </div>
 
         {!savedId ? (
@@ -776,11 +783,20 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
 
               <div>
                 <label className="block text-neutral-400 text-xs font-medium mb-2 uppercase tracking-wide">Sumă facturată</label>
+                <label className="flex items-center gap-2 mb-2 text-sm text-neutral-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={currency === "RON"}
+                    onChange={(e) => setCurrency(e.target.checked ? "RON" : (contract.currency === "EUR" ? "EUR" : "RON"))}
+                    className="h-4 w-4 accent-amber-500"
+                  />
+                  Generează factura în RON
+                </label>
                 <div className="flex gap-2">
                   {([
-                    ["total", `Total — ${contract.priceTotal} ${currency}`],
-                    ["advance", `Avans — ${priceAdvance} ${currency}`],
-                    ["rest", `Rest — ${priceRest} ${currency}`],
+                    ["total", `Total — ${contract.priceTotal} ${contract.currency ?? "RON"}`],
+                    ["advance", `Avans — ${priceAdvance} ${contract.currency ?? "RON"}`],
+                    ["rest", `Rest — ${priceRest} ${contract.currency ?? "RON"}`],
                   ] as const).map(([val, label]) => (
                     <button key={val} onClick={() => setAmountType(val)}
                       className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
@@ -791,6 +807,12 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
                     >{label}</button>
                   ))}
                 </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input className={`${inp} flex-1`} type="number" min="0.01" step="0.01" value={invoiceAmount}
+                    onChange={(e) => setInvoiceAmount(e.target.value)} aria-label={`Sumă în ${currency}`} />
+                  <span className="text-sm text-neutral-400">{currency}</span>
+                </div>
+                <p className="text-neutral-600 text-[10px] mt-1">Introdu suma încasată efectiv, în moneda selectată. Suma nu se convertește automat.</p>
               </div>
 
               <div>
@@ -814,10 +836,10 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
 
             {error && <p className="mt-3 text-red-400 text-xs">{error}</p>}
 
-            <button onClick={handleSave} disabled={saving}
+            <button onClick={handleSave} disabled={saving || !Number.isFinite(Number(invoiceAmount)) || Number(invoiceAmount) <= 0}
               className="mt-5 w-full py-2.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 text-sm font-medium hover:bg-amber-500/30 transition-colors disabled:opacity-50"
             >
-              {saving ? "Se salvează..." : `Creează factura — ${displayAmount} ${currency}`}
+              {saving ? "Se salvează..." : `Creează factura — ${invoiceAmount || "0"} ${currency}`}
             </button>
           </>
         ) : (

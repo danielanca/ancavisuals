@@ -106,6 +106,14 @@ export function generateInvoiceXML(d: InvoiceData): string {
   const cifRO = d.issuerCIF;
   const buyerCIF = d.buyerCIF ?? "";
   const issuerCountyISO = toCountyISO(d.issuerCounty);
+  const exchangeRate = Number(d.taxExchangeRate);
+  const exchangeRateXml = cur !== "RON" && Number.isFinite(exchangeRate) && exchangeRate > 0
+    ? `  <cac:TaxExchangeRate>
+    <cbc:SourceCurrencyCode>${escXML(cur)}</cbc:SourceCurrencyCode>
+    <cbc:TargetCurrencyCode>RON</cbc:TargetCurrencyCode>
+    <cbc:CalculationRate>${exchangeRate.toFixed(4)}</cbc:CalculationRate>
+  </cac:TaxExchangeRate>`
+    : "";
 
   // DueDate: dacă lipsește sau e identic cu IssueDate, default +30 zile
   let dueDate = d.dueDate;
@@ -129,6 +137,7 @@ export function generateInvoiceXML(d: InvoiceData): string {
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>${cur}</cbc:DocumentCurrencyCode>
   <cbc:TaxCurrencyCode>RON</cbc:TaxCurrencyCode>
+${exchangeRateXml}
 
   <cac:AccountingSupplierParty>
     <cac:Party>
