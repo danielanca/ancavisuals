@@ -664,6 +664,10 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
   const [dueDate, setDueDate] = React.useState(() => dueDateISO(todayISO()));
   const [amountType, setAmountType] = React.useState<"total" | "advance" | "rest">("total");
   const [description, setDescription] = React.useState(() => defaultDescription(contract));
+  const [buyerName, setBuyerName] = React.useState(contract.clientName ?? "");
+  const [buyerAddress, setBuyerAddress] = React.useState(contract.clientAddress ?? "");
+  const [buyerCity, setBuyerCity] = React.useState(contract.clientCity ?? "");
+  const [buyerCounty, setBuyerCounty] = React.useState(contract.clientCounty ?? "");
   const [buyerCIF, setBuyerCIF] = React.useState("");
   const [exchangeRate, setExchangeRate] = React.useState(() => contract.eurRate ? String(contract.eurRate) : "");
   const [saving, setSaving] = React.useState(false);
@@ -703,10 +707,10 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
           date: invoiceDate,
           dueDate,
           type: buyerCIF ? "B2B" : "B2C",
-          clientName: contract.clientName ?? "",
-          clientAddress: contract.clientAddress || undefined,
-          clientCity: contract.clientCity || undefined,
-          clientCounty: contract.clientCounty || undefined,
+          clientName: buyerName.trim(),
+          clientAddress: buyerAddress.trim(),
+          clientCity: buyerCity.trim(),
+          clientCounty: buyerCounty.trim(),
           clientCIF: buyerCIF || undefined,
           taxExchangeRate: exchangeRate ? parseFloat(exchangeRate) : undefined,
           items: [{ description, quantity: 1, unitPrice: displayAmount, total: displayAmount }],
@@ -755,6 +759,19 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
                 <label className="block text-neutral-400 text-xs font-medium mb-1 uppercase tracking-wide">Scadență</label>
                 <input type="date" className={inp} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                 <p className="text-neutral-600 text-[10px] mt-1">Implicit +30 zile față de data facturii.</p>
+              </div>
+
+              <div className="pt-1">
+                <p className="text-neutral-300 text-xs font-medium uppercase tracking-wide mb-2">Date cumpărător</p>
+                <div className="space-y-2">
+                  <input className={inp} value={buyerName} onChange={(e) => setBuyerName(e.target.value)} placeholder="Nume complet / denumire firmă" />
+                  <input className={inp} value={buyerAddress} onChange={(e) => setBuyerAddress(e.target.value)} placeholder="Adresă (stradă, număr)" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input className={inp} value={buyerCity} onChange={(e) => setBuyerCity(e.target.value)} placeholder="Oraș" />
+                    <input className={inp} value={buyerCounty} onChange={(e) => setBuyerCounty(e.target.value)} placeholder="Județ" />
+                  </div>
+                </div>
+                <p className="text-neutral-600 text-[10px] mt-1">Adresa, orașul și județul sunt obligatorii pentru factură/e-Factura.</p>
               </div>
 
               <div>

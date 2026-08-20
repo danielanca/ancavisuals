@@ -3,8 +3,13 @@ import PhotoLightbox from "./PhotoLightbox";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
+const PROMO_EMAIL = "ancadaniel1994@gmail.com";
 
-export default function AncaVisualsPromo() {
+interface AncaVisualsPromoProps {
+  compact?: boolean;
+}
+
+export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoProps) {
   const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -18,13 +23,14 @@ export default function AncaVisualsPromo() {
   }, []);
 
   useEffect(() => {
+    if (compact) return;
     fetch("/api/showcase-zones/media_footer")
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { photos?: string[] } | null) => {
         if (data?.photos?.length) setShowcasePhotos(data.photos);
       })
       .catch(() => {});
-  }, []);
+  }, [compact]);
 
   const galleryColumns = useMemo(() => {
     const columns: Array<Array<{ url: string; index: number }>> = [[], []];
@@ -33,6 +39,35 @@ export default function AncaVisualsPromo() {
     });
     return columns;
   }, [showcasePhotos]);
+
+  if (compact) {
+    return (
+      <section style={{ background: "#0a0a0a", padding: "48px 24px 56px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", maxWidth: "680px", margin: "0 auto" }}>
+          <a
+            href={`mailto:${PROMO_EMAIL}`}
+            style={{ flex: "1 1 180px", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 16px", background: "transparent", border: "1px solid #c9a96e", color: "#e8c97a", borderRadius: "3px", textDecoration: "none", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase" }}
+          >
+            Contact
+          </a>
+          <a
+            href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ flex: "1 1 180px", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 16px", background: "#25D366", border: "1px solid #25D366", color: "#fff", borderRadius: "3px", textDecoration: "none", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", fontWeight: 700 }}
+          >
+            WhatsApp
+          </a>
+          <a
+            href={`tel:+40${PROMO_PHONE.slice(1)}`}
+            style={{ flex: "1 1 180px", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 16px", background: "#c9a96e", border: "1px solid #c9a96e", color: "#0a0a0a", borderRadius: "3px", textDecoration: "none", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", fontWeight: 700 }}
+          >
+            Call — {PROMO_PHONE_DISPLAY}
+          </a>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>

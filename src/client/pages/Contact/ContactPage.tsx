@@ -41,7 +41,7 @@ const ContactPage = () => {
       </div>
       <ContactHero />
       <BookingWizard />
-      <AncaVisualsPromo />
+      <AncaVisualsPromo compact />
       <Footer />
     </div>
   );
