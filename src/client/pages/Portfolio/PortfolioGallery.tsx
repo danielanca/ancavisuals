@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Lightbox from "yet-another-react-lightbox";
 import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
 import "yet-another-react-lightbox/styles.css";
-import { buildSeoImageAlt } from "../../utils/imageAlt";
+import { buildSeoImageAlt, getCatalogImageAlt } from "../../utils/imageAlt";
 import "./PortfolioGallery.scss";
 
 type PortfolioGalleryProps = { altBase?: string };
@@ -73,7 +73,7 @@ export default function PortfolioGallery({
                 >
                   <img
                     src={src}
-                    alt={buildSeoImageAlt(altBase, index)}
+                    alt={getCatalogImageAlt(src, buildSeoImageAlt(altBase, index))}
                     loading="lazy"
                     className="pg-img"
                   />

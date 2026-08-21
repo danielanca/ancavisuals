@@ -43,6 +43,8 @@
     "coverage:open": "open reports/coverage/index.html",
     "typecheck": "tsc --noEmit",
     "seed:wedding-seating": "tsx scripts/seedWeddingSeating.ts",
+    "seo:alts": "tsx scripts/generateImageAlts.ts",
+    "seo:image-sitemap": "tsx scripts/generateImageSitemap.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
     "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
     "env:check": "node -e \"console.log('PORT:', process.env.PORT || 'not set'); console.log('NODE_ENV:', process.env.NODE_ENV || 'not set'); console.log('B64 len:', (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64||'').length)\"",

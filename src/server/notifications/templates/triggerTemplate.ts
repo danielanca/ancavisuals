@@ -9,6 +9,9 @@ interface TriggerTemplateData {
   clientIp: string;
   timestamp: string;
   isNewVisitor?: boolean;
+  aiSource?: string | null;
+  utmMedium?: string;
+  utmCampaign?: string;
 }
 
 function detectSource(referrer: string): { label: string; color: string; emoji: string } {
@@ -67,8 +70,22 @@ function row(label: string, value: string, valueColor = "#111827"): string {
 }
 
 export function renderTriggerTemplate(data: TriggerTemplateData): string {
-  const { typeEvent, url, browserVersion, referrer = "direct", ipInfo, clientIp, timestamp, isNewVisitor = true } = data;
-  const source = detectSource(referrer);
+  const {
+    typeEvent,
+    url,
+    browserVersion,
+    referrer = "direct",
+    ipInfo,
+    clientIp,
+    timestamp,
+    isNewVisitor = true,
+    aiSource,
+    utmMedium,
+    utmCampaign,
+  } = data;
+  const source = aiSource
+    ? { label: aiSource, color: "#7c3aed", emoji: "🤖" }
+    : detectSource(referrer);
   const { device, browser, os } = parseDevice(browserVersion);
   const mapsLink = buildMapsLink(ipInfo?.loc);
   const visitorBadge = isNewVisitor
@@ -111,6 +128,7 @@ export function renderTriggerTemplate(data: TriggerTemplateData): string {
               <p style="margin:0;font-size:14px;color:${source.color};font-weight:600;">
                 ${source.emoji}&nbsp;&nbsp;Sursă: ${source.label}
               </p>
+              ${aiSource ? `<p style="margin:5px 0 0;font-size:12px;color:#374151;">UTM AI detectat: <strong>${aiSource}</strong>${utmMedium ? ` · medium: ${utmMedium}` : ""}${utmCampaign ? ` · campanie: ${utmCampaign}` : ""}</p>` : ""}
               ${referrer && referrer !== "direct"
                 ? `<p style="margin:4px 0 0;font-size:11px;color:#9ca3af;word-break:break-all;">${referrer}</p>`
                 : ""}

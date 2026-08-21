@@ -8,6 +8,8 @@ import SeoPageHead from "../../components/SEO/SeoPageHead";
 import {
   CITIES,
   GOOGLE_REVIEWS,
+  GOOGLE_REVIEW_COUNT,
+  GOOGLE_BUSINESS_URL,
   SERVICES,
   getCityBySlug,
   getServiceBySlug,
@@ -107,7 +109,7 @@ const LocationPage: React.FC<Props> = ({
       aggregateRating: {
         "@type": "AggregateRating",
         ratingValue: "5",
-        reviewCount: String(GOOGLE_REVIEWS.length),
+        reviewCount: String(GOOGLE_REVIEW_COUNT),
         bestRating: "5",
         worstRating: "1",
       },
@@ -169,7 +171,7 @@ const LocationPage: React.FC<Props> = ({
 
           <div className="mt-8 flex flex-wrap gap-3 text-sm text-gray-300">
             <span className="rounded-full border border-white/15 px-4 py-2">
-              25 review-uri de 5 stele pe Google
+              {GOOGLE_REVIEW_COUNT} review-uri de 5 stele pe Google
             </span>
             <span className="rounded-full border border-white/15 px-4 py-2">
               Pachete foto, video și foto-video
@@ -284,7 +286,14 @@ const LocationPage: React.FC<Props> = ({
             </p>
           </div>
           <div className="hidden text-right text-sm text-amber-200/80 md:block">
-            Rating Google: 5/5 din 25 review-uri
+            <a
+              href={GOOGLE_BUSINESS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-amber-200/40 underline-offset-4 transition-colors hover:text-amber-100"
+            >
+              Rating Google: 5/5 din {GOOGLE_REVIEW_COUNT} review-uri · Vezi pe Google Business
+            </a>
           </div>
         </div>
 

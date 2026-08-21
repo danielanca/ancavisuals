@@ -83,11 +83,21 @@ export function usePageTracking() {
 
     const sessionId = getSessionId();
     const { visitorId, isNew } = getVisitorId();
+    const params = new URLSearchParams(window.location.search);
 
     fetch("/api/analytics/pageview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ page, referrer, sessionId, visitorId, isNew }),
+      body: JSON.stringify({
+        page,
+        referrer,
+        sessionId,
+        visitorId,
+        isNew,
+        utmSource: params.get("utm_source") || undefined,
+        utmMedium: params.get("utm_medium") || undefined,
+        utmCampaign: params.get("utm_campaign") || undefined,
+      }),
     })
       .then((r) => r.ok ? r.json() : null)
       .then((data: { ok: boolean; id?: string } | null) => {

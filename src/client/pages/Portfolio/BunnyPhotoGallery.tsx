@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FixedSizeGrid as Grid } from "react-window";
 import styles from "./BunnyPhotoGallery.module.scss";
-import { buildSeoImageAlt } from "../../utils/imageAlt";
+import { buildSeoImageAlt, getCatalogImageAlt } from "../../utils/imageAlt";
 
 type Props = {
   orgPhoto: string[];
@@ -145,7 +145,7 @@ export default function BunnyPhotoGallery({
         sizes={sizes}
         loading="lazy"
         decoding="async"
-        alt={buildSeoImageAlt(altBase, index)}
+        alt={getCatalogImageAlt(src, buildSeoImageAlt(altBase, index))}
         {...(protectImages ? {
           draggable: false,
           onContextMenu: (e) => { e.preventDefault(); onProtectedContextMenu?.(); },

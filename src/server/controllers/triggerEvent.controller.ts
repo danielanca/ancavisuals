@@ -12,6 +12,9 @@ interface TypeEvent {
   browserVersion: string;
   referrer?: string;
   isNewVisitor?: boolean;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
   // Populated by BookingWizard for Lead Rapid / full booking submissions
   subject?: string;
   html?: string;
@@ -35,23 +38,32 @@ function isBot(userAgent: string): boolean {
   return BOT_UA_PATTERN.test(userAgent);
 }
 
-// IP → timestamp of last sent email. Cleaned up lazily on each request.
+// IP + source → timestamp of last sent email. Cleaned up lazily on each request.
 const lastSentByIp = new Map<string, number>();
 
-function isOnCooldown(ip: string): boolean {
-  const lastSent = lastSentByIp.get(ip);
+function isOnCooldown(ip: string, source = "generic"): boolean {
+  const lastSent = lastSentByIp.get(`${ip}:${source}`);
   if (!lastSent) return false;
   return Date.now() - lastSent < COOLDOWN_MS;
 }
 
-function recordSent(ip: string): void {
-  lastSentByIp.set(ip, Date.now());
+function recordSent(ip: string, source = "generic"): void {
+  lastSentByIp.set(`${ip}:${source}`, Date.now());
   // Evict entries older than cooldown to keep memory bounded
   for (const [storedIp, timestamp] of lastSentByIp) {
     if (Date.now() - timestamp >= COOLDOWN_MS) {
       lastSentByIp.delete(storedIp);
     }
   }
+}
+
+function detectAiSource(utmSource?: string): string | null {
+  const source = (utmSource ?? "").trim().toLowerCase();
+  if (source === "chatgpt.com" || source === "chatgpt") return "ChatGPT";
+  if (source === "claude.ai" || source === "claude") return "Claude";
+  if (source === "gemini.google.com" || source === "gemini") return "Gemini";
+  if (source === "grok.com" || source === "grok") return "Grok";
+  return null;
 }
 
 export const isLocalIp = (ip: string): boolean => {
@@ -68,13 +80,15 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const todayString = `${todayDate.getDate()}/${todayDate.getMonth() + 1}/${todayDate.getFullYear()} ${todayDate.getHours()}:${todayDate.getMinutes()}:${todayDate.getSeconds()}`;
 
     const clientIp = getClientIp(request);
+    const aiSource = detectAiSource(triggerData.utmSource);
+    const cooldownSource = aiSource ?? "generic";
 
     if (isLocalIp(clientIp)) {
       response.status(204).send();
       return;
     }
 
-    if (isOnCooldown(clientIp)) {
+    if (isOnCooldown(clientIp, cooldownSource)) {
       response.status(204).send();
       return;
     }
@@ -101,7 +115,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const uaLower = ua.toLowerCase();
     const device = /mobile|android|iphone|ipad/.test(uaLower) ? "Mobil" : "Desktop";
     const city = ipInfo?.city ?? "";
-    const source = (() => {
+    const source = aiSource ?? (() => {
       const r = referrer.toLowerCase();
       if (r.includes("instagram")) return "Instagram";
       if (r.includes("facebook") || r.includes("fb.com")) return "Facebook";
@@ -123,6 +137,8 @@ export const triggerEvent = async (request: Request, response: Response) => {
     let shouldEmail = false;
     if (isBookingSubmission) {
       shouldEmail = settings?.email.lead ?? true;
+    } else if (aiSource) {
+      shouldEmail = true;
     } else if (isNew) {
       shouldEmail = settings?.email.newVisitor ?? true;
     } else {
@@ -141,12 +157,15 @@ export const triggerEvent = async (request: Request, response: Response) => {
         device,
         source,
         isNew: String(isNew),
+        utmSource: triggerData.utmSource ?? "",
+        utmMedium: triggerData.utmMedium ?? "",
+        utmCampaign: triggerData.utmCampaign ?? "",
       },
       emailSent: shouldEmail,
     }).catch((err) => console.error("[activity] log failed:", err));
 
     if (!shouldEmail) {
-      recordSent(clientIp);
+      recordSent(clientIp, cooldownSource);
       response.status(204).send();
       return;
     }
@@ -162,15 +181,18 @@ export const triggerEvent = async (request: Request, response: Response) => {
           clientIp,
           timestamp: todayString,
           isNewVisitor: isNew,
+          aiSource,
+          utmMedium: triggerData.utmMedium,
+          utmCampaign: triggerData.utmCampaign,
         });
 
     const emailSubject = isBookingSubmission
       ? triggerData.subject!
-      : `${visitorLabel} — ${triggerData.url} — ${todayString}`;
+      : `${aiSource ? `🤖 ${aiSource}` : visitorLabel} — ${triggerData.url} — ${todayString}`;
 
     await sendEmail({ to: adminUser.email, subject: emailSubject, html: emailHtml });
 
-    recordSent(clientIp);
+    recordSent(clientIp, cooldownSource);
     console.log("Trigger email sent successfully.");
     response.status(200).send("Email sent successfully.");
   } catch (error) {

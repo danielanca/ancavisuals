@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getCatalogImageAlt } from "../../utils/imageAlt";
 
 const Hero = () => {
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
@@ -17,7 +18,10 @@ const Hero = () => {
           {!isVideoLoaded && (
             <img
               src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FVertical-225.jpg?alt=media&token=bc2c762a-569a-4858-bfd6-5c46a34428ed"
-              alt="Fallback"
+              alt={getCatalogImageAlt(
+                "https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FVertical-225.jpg?alt=media&token=bc2c762a-569a-4858-bfd6-5c46a34428ed",
+                "Fotografie de eveniment Anca Visuals",
+              )}
               className="absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-700"
             />
           )}

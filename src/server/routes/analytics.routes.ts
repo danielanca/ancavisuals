@@ -153,12 +153,15 @@ function isAdminRequest(req: Request): boolean {
 // POST /api/analytics/pageview — record a page visit
 analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
   try {
-    const { page, referrer, sessionId, visitorId, isNew } = req.body as {
+    const { page, referrer, sessionId, visitorId, isNew, utmSource, utmMedium, utmCampaign } = req.body as {
       page?: string;
       referrer?: string;
       sessionId?: string;
       visitorId?: string;
       isNew?: boolean;
+      utmSource?: string;
+      utmMedium?: string;
+      utmCampaign?: string;
     };
 
     if (!page || !sessionId) return res.status(400).json({ error: "Missing fields" });
@@ -179,6 +182,9 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
       isNew: isNew ?? true,
       page,
       referrer: referrer ?? "",
+      utmSource: utmSource ?? "",
+      utmMedium: utmMedium ?? "",
+      utmCampaign: utmCampaign ?? "",
       timestamp: Timestamp.now(),
       ip: ip ?? "",
       userAgent: ua,
@@ -247,6 +253,9 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
           ip: d.ip,
           userAgent: d.userAgent,
           city: d.city,
+          utmSource: d.utmSource ?? "",
+          utmMedium: d.utmMedium ?? "",
+          utmCampaign: d.utmCampaign ?? "",
           region: d.region,
           country: d.country,
           org: d.org,

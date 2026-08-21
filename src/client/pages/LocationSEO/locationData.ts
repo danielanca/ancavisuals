@@ -7,6 +7,10 @@ export interface ReviewData {
   text: string;
 }
 
+export const GOOGLE_REVIEW_COUNT = 26;
+export const GOOGLE_BUSINESS_URL =
+  "https://www.google.com/maps/search/?api=1&query=Anca%20Visuals%20Romania";
+
 export interface CityData {
   slug: string;
   name: string;
