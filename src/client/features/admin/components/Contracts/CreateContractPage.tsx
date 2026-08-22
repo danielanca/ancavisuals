@@ -221,6 +221,15 @@ const CreateContractPage: React.FC = () => {
   const [clientCity, setClientCity] = useState("");
   const [clientCounty, setClientCounty] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
+  const [clientType, setClientType] = useState<"PF" | "PJ">("PF");
+  const [clientEntityType, setClientEntityType] = useState("Firma");
+  const [clientCIF, setClientCIF] = useState("");
+  const [clientRegistrationNumber, setClientRegistrationNumber] = useState("");
+  const [clientBankName, setClientBankName] = useState("");
+  const [clientIBAN, setClientIBAN] = useState("");
+  const [clientRepresentativeName, setClientRepresentativeName] = useState("");
+  const [clientRepresentativeRole, setClientRepresentativeRole] = useState("delegat");
+  const [clientRepresentativeIdSeries, setClientRepresentativeIdSeries] = useState("");
   const [clientCNP, setClientCNP] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
 
@@ -280,6 +289,15 @@ const CreateContractPage: React.FC = () => {
       if (draft.clientPhone !== undefined) setClientPhone(draft.clientPhone);
       if (draft.clientAddress !== undefined) setClientAddress(draft.clientAddress);
       if (draft.clientIdSeries !== undefined) setClientIdSeries(draft.clientIdSeries);
+      if (draft.clientType !== undefined) setClientType(draft.clientType);
+      if (draft.clientEntityType !== undefined) setClientEntityType(draft.clientEntityType);
+      if (draft.clientCIF !== undefined) setClientCIF(draft.clientCIF);
+      if (draft.clientRegistrationNumber !== undefined) setClientRegistrationNumber(draft.clientRegistrationNumber);
+      if (draft.clientBankName !== undefined) setClientBankName(draft.clientBankName);
+      if (draft.clientIBAN !== undefined) setClientIBAN(draft.clientIBAN);
+      if (draft.clientRepresentativeName !== undefined) setClientRepresentativeName(draft.clientRepresentativeName);
+      if (draft.clientRepresentativeRole !== undefined) setClientRepresentativeRole(draft.clientRepresentativeRole);
+      if (draft.clientRepresentativeIdSeries !== undefined) setClientRepresentativeIdSeries(draft.clientRepresentativeIdSeries);
       if (draft.privateClient !== undefined) setPrivateClient(draft.privateClient);
       if (draft.selectedBankProfileId !== undefined) setSelectedBankProfileId(draft.selectedBankProfileId);
       setDraftRestored(true);
@@ -296,7 +314,8 @@ const CreateContractPage: React.FC = () => {
           services, customServices,
           currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
           transportKm, transportFuelPrice,
-          clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, clientCNP, privateClient,
+          clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, clientType, clientEntityType, clientCIF,
+          clientRegistrationNumber, clientBankName, clientIBAN, clientRepresentativeName, clientRepresentativeRole, clientRepresentativeIdSeries, clientCNP, privateClient,
           selectedBankProfileId,
         }));
       } catch { /* quota exceeded, ignore */ }
@@ -307,7 +326,8 @@ const CreateContractPage: React.FC = () => {
     services, customServices,
     currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
     transportKm, transportFuelPrice,
-    clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, clientCNP, privateClient,
+    clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, clientType, clientEntityType, clientCIF,
+    clientRegistrationNumber, clientBankName, clientIBAN, clientRepresentativeName, clientRepresentativeRole, clientRepresentativeIdSeries, clientCNP, privateClient,
     selectedBankProfileId,
   ]);
 
@@ -444,6 +464,17 @@ const CreateContractPage: React.FC = () => {
         clientCity: clientCity.trim(),
         clientCounty: clientCounty.trim(),
         clientIdSeries: clientIdSeries.trim(),
+        ...(clientType === "PJ" ? {
+          clientType,
+          clientEntityType: clientEntityType.trim(),
+          clientCIF: clientCIF.trim().toUpperCase(),
+          clientRegistrationNumber: clientRegistrationNumber.trim(),
+          clientBankName: clientBankName.trim(),
+          clientIBAN: clientIBAN.trim().toUpperCase(),
+          clientRepresentativeName: clientRepresentativeName.trim(),
+          clientRepresentativeRole: clientRepresentativeRole.trim(),
+          clientRepresentativeIdSeries: clientRepresentativeIdSeries.trim().toUpperCase(),
+        } : {}),
         privateClient,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || DEFAULT_TRANSPORT_FUEL_PRICE,
@@ -887,6 +918,13 @@ const CreateContractPage: React.FC = () => {
           {/* CLIENT */}
           <Block title="Date client">
             <div>
+              <Label>Tip beneficiar</Label>
+              <select value={clientType} onChange={(e) => setClientType(e.target.value as "PF" | "PJ")} className={sel}>
+                <option value="PF">Persoană fizică</option>
+                <option value="PJ">Firmă / Asociație / persoană juridică</option>
+              </select>
+            </div>
+            <div>
               <Label>Email client *</Label>
               <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="client@email.com" className={inp} />
@@ -897,9 +935,9 @@ const CreateContractPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Nume și prenume</Label>
+                <Label>{clientType === "PJ" ? "Denumire firmă / asociație" : "Nume și prenume"}</Label>
                 <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Ion Popescu" className={inp} />
+                  placeholder={clientType === "PJ" ? "Ex. ASOCIAȚIA PENTRU DEZVOLTARE ACTIVĂ (ADA)" : "Ion Popescu"} className={inp} />
               </div>
               <div>
                 <Label>Telefon</Label>
@@ -912,7 +950,7 @@ const CreateContractPage: React.FC = () => {
               <div>
                 <Label>Adresă</Label>
                 <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
-                  placeholder="Str. Exemplu nr. 1" className={inp} />
+                  placeholder={clientType === "PJ" ? "Sediul social: stradă, număr, bloc, scară, apartament" : "Str. Exemplu nr. 1"} className={inp} />
               </div>
               <div>
                 <Label>Oraș</Label>
@@ -924,12 +962,53 @@ const CreateContractPage: React.FC = () => {
                 <input type="text" value={clientCounty} onChange={(e) => setClientCounty(e.target.value)}
                   placeholder="Cluj" className={inp} />
               </div>
-              <div>
+              {clientType === "PF" && <div>
                 <Label>Serie buletin</Label>
                 <input type="text" value={clientIdSeries} onChange={(e) => setClientIdSeries(e.target.value.toUpperCase())}
                   placeholder="AB123456" className={inp} />
-              </div>
+              </div>}
             </div>
+
+            {clientType === "PJ" && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                <p className="text-amber-300 text-sm font-medium">Date persoană juridică</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Tip entitate</Label>
+                    <select value={clientEntityType} onChange={(e) => setClientEntityType(e.target.value)} className={sel}>
+                      <option>Firmă</option><option>Asociație</option><option>Altă persoană juridică</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>CIF / CUI</Label>
+                    <input type="text" value={clientCIF} onChange={(e) => setClientCIF(e.target.value.toUpperCase())} placeholder="30085947" className={inp} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Nr. registru / înregistrare (opțional)</Label>
+                  <input type="text" value={clientRegistrationNumber} onChange={(e) => setClientRegistrationNumber(e.target.value)} placeholder="Ex. J04/123/2020 sau nr. registru asociații" className={inp} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Nume delegat / reprezentant</Label>
+                    <input type="text" value={clientRepresentativeName} onChange={(e) => setClientRepresentativeName(e.target.value)} placeholder="Toma Victor-Cătălin" className={inp} />
+                  </div>
+                  <div>
+                    <Label>Calitate</Label>
+                    <input type="text" value={clientRepresentativeRole} onChange={(e) => setClientRepresentativeRole(e.target.value)} placeholder="delegat / președinte / administrator" className={inp} />
+                  </div>
+                </div>
+                <div>
+                  <Label>CI delegat / reprezentant</Label>
+                  <input type="text" value={clientRepresentativeIdSeries} onChange={(e) => setClientRepresentativeIdSeries(e.target.value.toUpperCase())} placeholder="AB123456" className={inp} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Banca (opțional)</Label><input type="text" value={clientBankName} onChange={(e) => setClientBankName(e.target.value)} placeholder="Raiffeisen Bank" className={inp} /></div>
+                  <div><Label>IBAN (opțional)</Label><input type="text" value={clientIBAN} onChange={(e) => setClientIBAN(e.target.value.toUpperCase())} placeholder="RO..." className={inp} /></div>
+                </div>
+                <p className="text-xs text-neutral-500">Contractul și factura vor fi emise pe entitate. Persoana de mai sus doar semnează în numele ei.</p>
+              </div>
+            )}
 
             <p className="text-neutral-600 text-xs">
               Câmpurile de mai sus sunt opționale — clientul le va vedea pre-completate și poate corecta înainte de a semna.

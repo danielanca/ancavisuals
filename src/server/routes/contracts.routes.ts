@@ -64,6 +64,9 @@ router.post("/", async (req: Request, res: Response) => {
     if (!body.eventType || !body.eventDate || !body.clientEmail) {
       return res.status(400).json({ error: "Câmpuri obligatorii: eventType, eventDate, clientEmail" });
     }
+    if (body.clientType === "PJ" && (!body.clientName?.trim() || !body.clientCIF?.trim() || !body.clientAddress?.trim())) {
+      return res.status(400).json({ error: "Pentru persoana juridică sunt obligatorii denumirea, CIF/CUI și sediul." });
+    }
 
     const priceTotal = Number(body.priceTotal) || 0;
     const priceAdvance = Number(body.priceAdvance) || 0;
@@ -94,6 +97,8 @@ router.post("/", async (req: Request, res: Response) => {
       clauses: Array.isArray(body.clauses) ? body.clauses : [],
       noAdvance: body.noAdvance === true,
       privateClient: body.privateClient === true,
+      clientType: body.clientType === "PJ" ? "PJ" : "PF",
+      clientEntityType: body.clientEntityType?.trim() ?? "",
       transportKm: body.transportKm ?? "",
       transportFuelPrice: body.transportFuelPrice ?? "10",
 
@@ -104,6 +109,13 @@ router.post("/", async (req: Request, res: Response) => {
       clientCity: body.clientCity?.trim() ?? "",
       clientCounty: body.clientCounty?.trim() ?? "",
       clientIdSeries: body.clientIdSeries?.trim() ?? "",
+      clientCIF: body.clientCIF?.trim().toUpperCase() ?? "",
+      clientRegistrationNumber: body.clientRegistrationNumber?.trim() ?? "",
+      clientBankName: body.clientBankName?.trim() ?? "",
+      clientIBAN: body.clientIBAN?.trim().toUpperCase() ?? "",
+      clientRepresentativeName: body.clientRepresentativeName?.trim() ?? "",
+      clientRepresentativeRole: body.clientRepresentativeRole?.trim() ?? "",
+      clientRepresentativeIdSeries: body.clientRepresentativeIdSeries?.trim().toUpperCase() ?? "",
 
       bankBeneficiaryName: body.bankBeneficiaryName?.trim() ?? "",
       bankIban: body.bankIban?.trim().toUpperCase() ?? "",
@@ -173,6 +185,9 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
       ...(req.query.clientPhone !== undefined ? { clientPhone: String(req.query.clientPhone) } : {}),
       ...(req.query.clientIdSeries !== undefined ? { clientIdSeries: String(req.query.clientIdSeries) } : {}),
+      ...(req.query.clientRepresentativeName !== undefined ? { clientRepresentativeName: String(req.query.clientRepresentativeName) } : {}),
+      ...(req.query.clientRepresentativeRole !== undefined ? { clientRepresentativeRole: String(req.query.clientRepresentativeRole) } : {}),
+      ...(req.query.clientRepresentativeIdSeries !== undefined ? { clientRepresentativeIdSeries: String(req.query.clientRepresentativeIdSeries) } : {}),
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="contract-preview.pdf"`);
@@ -205,6 +220,9 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
       ...(req.query.clientPhone !== undefined ? { clientPhone: String(req.query.clientPhone) } : {}),
       ...(req.query.clientIdSeries !== undefined ? { clientIdSeries: String(req.query.clientIdSeries) } : {}),
+      ...(req.query.clientRepresentativeName !== undefined ? { clientRepresentativeName: String(req.query.clientRepresentativeName) } : {}),
+      ...(req.query.clientRepresentativeRole !== undefined ? { clientRepresentativeRole: String(req.query.clientRepresentativeRole) } : {}),
+      ...(req.query.clientRepresentativeIdSeries !== undefined ? { clientRepresentativeIdSeries: String(req.query.clientRepresentativeIdSeries) } : {}),
     });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
@@ -263,7 +281,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { token } = req.params;
-    const { clientName, clientEmail, clientAddress, clientPhone, clientIdSeries, clientSignatureBase64 } = req.body;
+    const { clientName, clientEmail, clientAddress, clientPhone, clientIdSeries, clientSignatureBase64, clientRepresentativeName, clientRepresentativeRole, clientRepresentativeIdSeries } = req.body;
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Numele complet este obligatoriu." });
@@ -271,7 +289,8 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
     if (!clientEmail?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
       return res.status(400).json({ error: "Emailul este obligatoriu și trebuie să fie valid." });
     }
-    if (!clientIdSeries?.trim() || !/^[A-Z]{2}[0-9]{6,7}$/.test(clientIdSeries.trim())) {
+    // Keep the legacy PF validation order: malformed PF data is rejected before any database read.
+    if (!clientRepresentativeIdSeries && (!clientIdSeries?.trim() || !/^[A-Z]{2}[0-9]{6,7}$/.test(clientIdSeries.trim()))) {
       return res.status(400).json({ error: "Seria și numărul buletinului trebuie să fie în formatul AB123456." });
     }
     if (!clientSignatureBase64 || !clientSignatureBase64.startsWith("data:image/")) {
@@ -285,6 +304,16 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
 
     const doc = snapshot.docs[0];
     const contract = doc.data();
+    const isCompany = contract.clientType === "PJ";
+    const signerName = isCompany ? clientRepresentativeName : clientName;
+    const signerIdSeries = isCompany ? clientRepresentativeIdSeries : clientIdSeries;
+
+    if (!signerIdSeries?.trim() || !/^[A-Z]{2}[0-9]{6,7}$/.test(signerIdSeries.trim())) {
+      return res.status(400).json({ error: "Seria și numărul CI trebuie să fie în formatul AB123456." });
+    }
+    if (isCompany && !signerName?.trim()) {
+      return res.status(400).json({ error: "Numele delegatului/reprezentantului este obligatoriu." });
+    }
 
     if (contract.status === "signed") {
       return res.status(410).json({ error: "Contractul a fost deja semnat.", status: "signed" });
@@ -301,10 +330,14 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
     await db.collection("contracts").doc(doc.id).update({
       status: "signed",
       signedAt,
-      clientName: clientName.trim(),
+      ...(isCompany ? {
+        clientRepresentativeName: signerName.trim(),
+        clientRepresentativeRole: clientRepresentativeRole?.trim() || contract.clientRepresentativeRole || "delegat",
+        clientRepresentativeIdSeries: signerIdSeries.trim(),
+      } : { clientName: clientName.trim() }),
       clientEmail: clientEmail.trim(),
-      clientIdSeries: clientIdSeries.trim(),
-      clientAddress: clientAddress?.trim() ?? "",
+      ...(isCompany ? { clientRepresentativeIdSeries: signerIdSeries.trim() } : { clientIdSeries: signerIdSeries.trim() }),
+      clientAddress: isCompany ? String(contract.clientAddress ?? "") : (clientAddress?.trim() ?? ""),
       clientPhone: clientPhone?.trim() ?? "",
       clientSignatureBase64,
       clientIp,
@@ -321,10 +354,14 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
     const fullContract = {
       ...contract,
       id: doc.id,
-      clientName: clientName.trim(),
+      ...(isCompany ? {
+        clientRepresentativeName: signerName.trim(),
+        clientRepresentativeRole: clientRepresentativeRole?.trim() || contract.clientRepresentativeRole || "delegat",
+        clientRepresentativeIdSeries: signerIdSeries.trim(),
+      } : { clientName: clientName.trim() }),
       clientEmail: clientEmail.trim(),
-      clientIdSeries: clientIdSeries.trim(),
-      clientAddress: clientAddress?.trim() ?? "",
+      ...(isCompany ? { clientRepresentativeIdSeries: signerIdSeries.trim() } : { clientIdSeries: signerIdSeries.trim() }),
+      clientAddress: isCompany ? String(contract.clientAddress ?? "") : (clientAddress?.trim() ?? ""),
       clientPhone: clientPhone?.trim() ?? "",
       clientSignatureBase64,
       clientIp,
@@ -424,6 +461,15 @@ router.patch("/:id", async (req: Request, res: Response) => {
       ...(has("clientCity") ? { clientCity: body.clientCity?.trim() ?? "" } : {}),
       ...(has("clientCounty") ? { clientCounty: body.clientCounty?.trim() ?? "" } : {}),
       ...(has("clientIdSeries") ? { clientIdSeries: body.clientIdSeries?.trim() ?? "" } : {}),
+      ...(has("clientType") ? { clientType: body.clientType === "PJ" ? "PJ" : "PF" } : {}),
+      ...(has("clientEntityType") ? { clientEntityType: body.clientEntityType?.trim() ?? "" } : {}),
+      ...(has("clientCIF") ? { clientCIF: body.clientCIF?.trim().toUpperCase() ?? "" } : {}),
+      ...(has("clientRegistrationNumber") ? { clientRegistrationNumber: body.clientRegistrationNumber?.trim() ?? "" } : {}),
+      ...(has("clientBankName") ? { clientBankName: body.clientBankName?.trim() ?? "" } : {}),
+      ...(has("clientIBAN") ? { clientIBAN: body.clientIBAN?.trim().toUpperCase() ?? "" } : {}),
+      ...(has("clientRepresentativeName") ? { clientRepresentativeName: body.clientRepresentativeName?.trim() ?? "" } : {}),
+      ...(has("clientRepresentativeRole") ? { clientRepresentativeRole: body.clientRepresentativeRole?.trim() ?? "" } : {}),
+      ...(has("clientRepresentativeIdSeries") ? { clientRepresentativeIdSeries: body.clientRepresentativeIdSeries?.trim().toUpperCase() ?? "" } : {}),
       ...(has("noAdvance") ? { noAdvance: body.noAdvance === true } : {}),
       ...(has("privateClient") ? { privateClient: body.privateClient === true } : {}),
       ...(has("fiscalized") ? { fiscalized: body.fiscalized === true } : {}),
@@ -857,7 +903,10 @@ router.post("/:id/invoice", requireFirebaseAuth, requireSupremeAdmin, async (req
       issuerPostalCode: issuer.postalCode || "",
       issuerIBAN:       bankDetails.iban  || "",
       buyerName:        String(contract.clientName ?? ""),
-      buyerCIF:         buyerCIF || "",
+      buyerCIF:         String(contract.clientCIF ?? buyerCIF ?? ""),
+      buyerAddress:     String(contract.clientAddress ?? ""),
+      buyerCity:        String(contract.clientCity ?? ""),
+      buyerCounty:      String(contract.clientCounty ?? ""),
       invoiceNumber,
       invoiceDate,
       dueDate,
@@ -878,7 +927,7 @@ router.post("/:id/invoice", requireFirebaseAuth, requireSupremeAdmin, async (req
       invoiceNumber,
       contractId: req.params.id,
       clientName: invoiceData.buyerName,
-      clientCIF: buyerCIF || "",
+      clientCIF: invoiceData.buyerCIF || "",
       amount,
       currency,
       amountType,

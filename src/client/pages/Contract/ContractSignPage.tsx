@@ -25,6 +25,12 @@ interface ContractData {
   paymentMethod: string;
   bankBeneficiaryName?: string;
   bankIban?: string;
+  clientType?: "PF" | "PJ";
+  clientEntityType?: string;
+  clientCIF?: string;
+  clientRepresentativeName?: string;
+  clientRepresentativeRole?: string;
+  clientRepresentativeIdSeries?: string;
 }
 
 type PageState = "loading" | "ready" | "signed" | "expired" | "not_found" | "error" | "success";
@@ -40,6 +46,9 @@ const ContractSignPage: React.FC = () => {
   const [clientAddress, setClientAddress] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
+  const [clientRepresentativeName, setClientRepresentativeName] = useState("");
+  const [clientRepresentativeRole, setClientRepresentativeRole] = useState("");
+  const [clientRepresentativeIdSeries, setClientRepresentativeIdSeries] = useState("");
   const [dataSaved, setDataSaved] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [gdprAccepted, setGdprAccepted] = useState(false);
@@ -72,6 +81,9 @@ const ContractSignPage: React.FC = () => {
         if (data.clientPhone) setClientPhone(data.clientPhone);
         if (data.clientAddress) setClientAddress(data.clientAddress);
         if (data.clientIdSeries) setClientIdSeries(data.clientIdSeries);
+        if (data.clientRepresentativeName) setClientRepresentativeName(data.clientRepresentativeName);
+        if (data.clientRepresentativeRole) setClientRepresentativeRole(data.clientRepresentativeRole);
+        if (data.clientRepresentativeIdSeries) setClientRepresentativeIdSeries(data.clientRepresentativeIdSeries);
         setPageState("ready");
       })
       .catch(() => setPageState("error"));
@@ -146,13 +158,16 @@ const ContractSignPage: React.FC = () => {
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
-    if (!clientName.trim()) errors.clientName = "Numele complet este obligatoriu.";
+    const isCompany = contract?.clientType === "PJ";
+    if (!clientName.trim()) errors.clientName = isCompany ? "Denumirea entității este obligatorie." : "Numele complet este obligatoriu.";
     if (!clientEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) errors.clientEmail = "Emailul este obligatoriu și trebuie să fie valid.";
-    if (!clientIdSeries.trim()) {
-      errors.clientIdSeries = "Seria și numărul buletinului sunt obligatorii.";
-    } else if (!/^[A-Z]{2}[0-9]{6,7}$/.test(clientIdSeries.trim())) {
+    const signerId = isCompany ? clientRepresentativeIdSeries : clientIdSeries;
+    if (!signerId.trim()) {
+      errors.clientIdSeries = isCompany ? "Seria și numărul CI sunt obligatorii." : "Seria și numărul buletinului sunt obligatorii.";
+    } else if (!/^[A-Z]{2}[0-9]{6,7}$/.test(signerId.trim())) {
       errors.clientIdSeries = "Format incorect. Exemplu: AB123456";
     }
+    if (isCompany && !clientRepresentativeName.trim()) errors.clientRepresentativeName = "Numele delegatului este obligatoriu.";
     if (!hasSignature.current) errors.signature = "Semnătura este obligatorie.";
     if (!agreed) errors.agreed = "Trebuie să fiți de acord cu contractul.";
     if (!gdprAccepted) errors.gdpr = "Acordul GDPR este obligatoriu.";
@@ -178,6 +193,11 @@ const ContractSignPage: React.FC = () => {
           clientAddress: clientAddress.trim(),
           clientPhone: clientPhone.trim(),
           clientIdSeries: clientIdSeries.trim(),
+          ...(contract?.clientType === "PJ" ? {
+            clientRepresentativeName: clientRepresentativeName.trim(),
+            clientRepresentativeRole: clientRepresentativeRole.trim(),
+            clientRepresentativeIdSeries: clientRepresentativeIdSeries.trim(),
+          } : {}),
           clientSignatureBase64: canvas.toDataURL("image/png"),
         }),
       });
@@ -383,19 +403,28 @@ const ContractSignPage: React.FC = () => {
             <p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>
               Completați datele de mai jos, apoi apăsați <strong>Salvează datele</strong> pentru a le vedea incluse în contract.
             </p>
-            <Field label="Nume și prenume *" error={fieldErrors.clientName}>
+            <Field label={contract.clientType === "PJ" ? "Denumire entitate *" : "Nume și prenume *"} error={fieldErrors.clientName}>
               <input style={{ ...pg.input, ...(fieldErrors.clientName ? pg.inputErr : {}) }}
-                type="text" value={clientName} onChange={(e) => { setClientName(e.target.value); setDataSaved(false); }}
-                placeholder="Ex: Popescu Ion" autoComplete="name" />
+                type="text" value={clientName} readOnly={contract.clientType === "PJ"} onChange={(e) => { setClientName(e.target.value); setDataSaved(false); }}
+                placeholder={contract.clientType === "PJ" ? "Denumirea legală completă" : "Ex: Popescu Ion"} autoComplete="name" />
             </Field>
+            {contract.clientType === "PJ" && (
+              <>
+                <Field label="CIF / CUI" error={undefined}><input style={pg.input} type="text" value={contract.clientCIF ?? ""} readOnly /></Field>
+                <Field label="Nume delegat / reprezentant *" error={fieldErrors.clientRepresentativeName}>
+                  <input style={{ ...pg.input, ...(fieldErrors.clientRepresentativeName ? pg.inputErr : {}) }} type="text" value={clientRepresentativeName} onChange={(e) => { setClientRepresentativeName(e.target.value); setDataSaved(false); }} placeholder="Ex: Toma Victor-Cătălin" />
+                </Field>
+                <Field label="Calitate" error={undefined}><input style={pg.input} type="text" value={clientRepresentativeRole} onChange={(e) => { setClientRepresentativeRole(e.target.value); setDataSaved(false); }} placeholder="delegat / administrator / președinte" /></Field>
+              </>
+            )}
             <Field label="Email *" error={fieldErrors.clientEmail}>
               <input style={{ ...pg.input, ...(fieldErrors.clientEmail ? pg.inputErr : {}) }}
                 type="email" value={clientEmail} onChange={(e) => { setClientEmail(e.target.value); setDataSaved(false); }}
                 placeholder="Ex: maria@email.com" autoComplete="email" />
             </Field>
-            <Field label="Adresă domiciliu" error={undefined}>
+            <Field label={contract.clientType === "PJ" ? "Sediu social" : "Adresă domiciliu"} error={undefined}>
               <input style={pg.input} type="text" value={clientAddress}
-                onChange={(e) => { setClientAddress(e.target.value); setDataSaved(false); }}
+                readOnly={contract.clientType === "PJ"} onChange={(e) => { setClientAddress(e.target.value); setDataSaved(false); }}
                 placeholder="Str. Exemplu nr. 1, Oraș, Județ" autoComplete="street-address" />
             </Field>
             <Field label="Telefon" error={undefined}>
@@ -403,10 +432,10 @@ const ContractSignPage: React.FC = () => {
                 onChange={(e) => { setClientPhone(e.target.value); setDataSaved(false); }}
                 placeholder="07xxxxxxxx" autoComplete="tel" />
             </Field>
-            <Field label="Serie și nr. buletin *" error={fieldErrors.clientIdSeries}>
+            <Field label={contract.clientType === "PJ" ? "CI delegat / reprezentant *" : "Serie și nr. buletin *"} error={fieldErrors.clientIdSeries}>
               <input style={{ ...pg.input, ...(fieldErrors.clientIdSeries ? pg.inputErr : {}) }}
-                type="text" value={clientIdSeries}
-                onChange={(e) => { setClientIdSeries(e.target.value.toUpperCase()); setDataSaved(false); }}
+                type="text" value={contract.clientType === "PJ" ? clientRepresentativeIdSeries : clientIdSeries}
+                onChange={(e) => { (contract.clientType === "PJ" ? setClientRepresentativeIdSeries : setClientIdSeries)(e.target.value.toUpperCase()); setDataSaved(false); }}
                 placeholder="Ex: AB123456" maxLength={9} />
               <span style={pg.hint}>2 litere urmate de 6-7 cifre, fără spații (ex: AB123456)</span>
             </Field>
@@ -431,6 +460,9 @@ const ContractSignPage: React.FC = () => {
                   clientAddress: clientAddress.trim(),
                   clientPhone: clientPhone.trim(),
                   clientIdSeries: clientIdSeries.trim(),
+                  clientRepresentativeName: clientRepresentativeName.trim(),
+                  clientRepresentativeRole: clientRepresentativeRole.trim(),
+                  clientRepresentativeIdSeries: clientRepresentativeIdSeries.trim(),
                 });
                 window.open(`/api/contracts/sign/${token}/html?${params.toString()}`, "_blank");
               }}

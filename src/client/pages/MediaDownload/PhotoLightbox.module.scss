@@ -40,6 +40,7 @@ $transition: 0.2s ease;
   border-radius: 4px;
   animation: zoomIn 0.2s ease both;
   user-select: none;
+  -webkit-user-drag: none;
 }
 
 .closeBtn {

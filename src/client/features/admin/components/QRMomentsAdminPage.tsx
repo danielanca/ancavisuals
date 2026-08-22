@@ -73,6 +73,23 @@ type QREventOverview = {
   comments: QRComment[];
 };
 
+type QREmailGroup = {
+  eventSlug: string;
+  coupleLabel: string;
+  eventDate: string | null;
+  notificationEmail: string | null;
+  guests: Array<{
+    id: string;
+    name: string;
+    email: string;
+    emailConsent: boolean;
+    uploadCount: number;
+    createdAt: string | null;
+  }>;
+};
+
+type QRMaterialType = "all" | "photo" | "video" | "audio";
+
 type QREventFormValues = {
   adminEventId: string;
   bride: string;
@@ -133,6 +150,41 @@ function SendGalleryEmailBox({ eventSlug, authHeader }: { eventSlug: string; aut
       {feedback && (
         <p className={`text-xs mt-2 ${feedback.type === "ok" ? "text-emerald-400" : "text-red-400"}`}>{feedback.text}</p>
       )}
+    </div>
+  );
+}
+
+function QRMaterialDownloadButtons({
+  onDownload,
+  downloading,
+}: {
+  onDownload: (type: QRMaterialType) => void;
+  downloading: QRMaterialType | null;
+}) {
+  const buttons: Array<{ type: QRMaterialType; label: string }> = [
+    { type: "all", label: "Toate materialele" },
+    { type: "photo", label: "Foto" },
+    { type: "video", label: "Video" },
+    { type: "audio", label: "Audio voice" },
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {buttons.map((button) => (
+        <button
+          key={button.type}
+          type="button"
+          onClick={() => onDownload(button.type)}
+          disabled={downloading !== null}
+          className={`px-3 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-50 ${
+            button.type === "all"
+              ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+              : "border border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-white"
+          }`}
+        >
+          {downloading === button.type ? "Se pregătește..." : `⬇ ${button.label}`}
+        </button>
+      ))}
     </div>
   );
 }
@@ -449,6 +501,10 @@ export default function QRMomentsAdminPage() {
   const [pinResetConfirmation, setPinResetConfirmation] = useState(false);
   const [deleteEventConfirmation, setDeleteEventConfirmation] = useState<QREventListItem | null>(null);
   const [deletingEvent, setDeletingEvent] = useState(false);
+  const [showEmailDirectory, setShowEmailDirectory] = useState(false);
+  const [emailGroups, setEmailGroups] = useState<QREmailGroup[]>([]);
+  const [loadingEmailDirectory, setLoadingEmailDirectory] = useState(false);
+  const [downloadingMaterials, setDownloadingMaterials] = useState<{ eventSlug: string; type: QRMaterialType } | null>(null);
 
   const authHeader = useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
@@ -511,6 +567,47 @@ export default function QRMomentsAdminPage() {
       setOverview(null);
     } finally {
       setLoadingOverview(false);
+    }
+  };
+
+  const loadEmailDirectory = async () => {
+    if (!auth.accessToken) return;
+    setLoadingEmailDirectory(true);
+    try {
+      const result = await fetch("/api/qr-moments/admin/guests", { headers: authHeader }).then((response) => response.json());
+      if (result.error) throw new Error(result.error);
+      setEmailGroups(result.groups ?? []);
+      setShowEmailDirectory(true);
+    } catch {
+      setError("Nu am putut încărca directorul de emailuri QR Moments.");
+    } finally {
+      setLoadingEmailDirectory(false);
+    }
+  };
+
+  const downloadQrMaterials = async (eventSlug: string, type: QRMaterialType) => {
+    if (!auth.accessToken || downloadingMaterials) return;
+    setDownloadingMaterials({ eventSlug, type });
+    setError(null);
+    try {
+      const response = await fetch(`/api/qr-moments/admin/${encodeURIComponent(eventSlug)}/download?type=${type}`, { headers: authHeader });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(result.error ?? "Nu există materiale pentru această categorie.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${eventSlug}-qr-moments-${type}.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Nu s-au putut descărca materialele.");
+    } finally {
+      setDownloadingMaterials(null);
     }
   };
 
@@ -794,6 +891,13 @@ export default function QRMomentsAdminPage() {
               Reîncarcă lista
             </button>
             <button
+              onClick={() => loadEmailDirectory()}
+              disabled={loadingEmailDirectory}
+              className="px-3 py-2 rounded-lg border border-emerald-500/30 text-emerald-400 text-sm hover:border-emerald-400/50 hover:text-emerald-300 disabled:opacity-50 transition-colors"
+            >
+              {loadingEmailDirectory ? "Se încarcă emailurile..." : "Emailuri participanți"}
+            </button>
+            <button
               onClick={() => selectedEventSlug && loadOverview(selectedEventSlug)}
               disabled={!selectedEventSlug || loadingOverview}
               className="px-3 py-2 rounded-lg border border-neutral-800 text-neutral-400 text-sm hover:border-neutral-600 hover:text-white disabled:opacity-50 transition-colors"
@@ -804,6 +908,61 @@ export default function QRMomentsAdminPage() {
         </div>
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
+
+        {showEmailDirectory && (
+          <section className="rounded-2xl border border-emerald-500/20 bg-neutral-950 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-white text-lg font-light">Emailuri QR Moments</h2>
+                <p className="text-neutral-500 text-xs mt-1">Participanții sunt grupați pe eveniment. Sunt incluse și emailurile care s-au dezabonat, marcate separat.</p>
+              </div>
+              <button onClick={() => setShowEmailDirectory(false)} className="text-neutral-500 hover:text-white text-sm">Închide</button>
+            </div>
+
+            {emailGroups.length === 0 ? (
+              <p className="text-neutral-500 text-sm">Nu există încă emailuri colectate.</p>
+            ) : (
+              <div className="space-y-3">
+                {emailGroups.map((group) => (
+                  <details key={group.eventSlug} className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4" open>
+                    <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        <span className="text-white text-sm font-medium">{group.coupleLabel}</span>
+                        <span className="block text-neutral-600 text-[11px] font-mono mt-1">{group.eventSlug}</span>
+                      </span>
+                      <span className="text-emerald-400 text-xs">{group.guests.length} email{group.guests.length !== 1 ? "uri" : ""}</span>
+                    </summary>
+                    <div className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
+                      <div className="space-y-2 pb-2">
+                        <p className="text-neutral-500 text-xs">Descarcă materialele acestui eveniment:</p>
+                        <QRMaterialDownloadButtons
+                          onDownload={(type) => downloadQrMaterials(group.eventSlug, type)}
+                          downloading={downloadingMaterials?.eventSlug === group.eventSlug ? downloadingMaterials.type : null}
+                        />
+                      </div>
+                      {group.notificationEmail && (
+                        <p className="text-neutral-500 text-xs">Email notificări eveniment: <span className="text-neutral-300">{group.notificationEmail}</span></p>
+                      )}
+                      {group.guests.length === 0 ? (
+                        <p className="text-neutral-600 text-xs">Niciun participant cu email.</p>
+                      ) : group.guests.map((guest) => (
+                        <div key={guest.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2">
+                          <div>
+                            <p className="text-neutral-200 text-sm">{guest.email}</p>
+                            <p className="text-neutral-600 text-xs">{guest.name} · {guest.uploadCount} upload-uri</p>
+                          </div>
+                          <span className={`text-[11px] ${guest.emailConsent ? "text-emerald-400" : "text-neutral-500"}`}>
+                            {guest.emailConsent ? "consimțit" : "dezabonat"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {events.length === 0 ? (
           <div className="rounded-2xl border border-neutral-900 bg-neutral-950 py-20 text-center">
@@ -912,6 +1071,13 @@ export default function QRMomentsAdminPage() {
                       <SendGalleryEmailBox eventSlug={selectedEvent.eventSlug} authHeader={authHeader} />
                     </>
                   )}
+                  <div className="mt-4 rounded-xl bg-neutral-900 border border-neutral-800 p-4 space-y-2">
+                    <p className="text-neutral-500 text-xs uppercase tracking-wide">Descarcă materialele evenimentului</p>
+                    <QRMaterialDownloadButtons
+                      onDownload={(type) => downloadQrMaterials(selectedEvent.eventSlug, type)}
+                      downloading={downloadingMaterials?.eventSlug === selectedEvent.eventSlug ? downloadingMaterials.type : null}
+                    />
+                  </div>
                 </div>
               )}
 

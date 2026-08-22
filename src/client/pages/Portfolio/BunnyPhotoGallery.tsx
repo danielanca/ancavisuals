@@ -149,7 +149,15 @@ export default function BunnyPhotoGallery({
         {...(protectImages ? {
           draggable: false,
           onContextMenu: (e) => { e.preventDefault(); onProtectedContextMenu?.(); },
-          style: { WebkitTouchCallout: "none" as React.CSSProperties["WebkitTouchCallout"], userSelect: "none" },
+          onDragStart: (e) => e.preventDefault(),
+          // The image must not be the touch target: mobile Safari/Chrome can
+          // still offer "Save image" on a long press even when contextmenu is
+          // cancelled. The surrounding tile remains clickable.
+          style: {
+            WebkitTouchCallout: "none" as React.CSSProperties["WebkitTouchCallout"],
+            userSelect: "none",
+            pointerEvents: "none",
+          },
         } : {})}
       />
     );
@@ -180,6 +188,8 @@ export default function BunnyPhotoGallery({
           }
           onPhotoClick?.(src);
         }}
+        onContextMenu={protectImages ? (e) => { e.preventDefault(); onProtectedContextMenu?.(); } : undefined}
+        onDragStart={protectImages ? (e) => e.preventDefault() : undefined}
       >
         {selectable && <div className={styles["pg-check"]}>{isOn ? "✓" : ""}</div>}
         {!selectable && (

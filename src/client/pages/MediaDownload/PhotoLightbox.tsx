@@ -11,6 +11,8 @@ type PhotoLightboxProps = {
   selectedPrint?: Set<string>;
   onTogglePrint?: (fileName: string) => void;
   getFileName?: (src: string, index: number) => string;
+  protectImages?: boolean;
+  onProtectedContextMenu?: () => void;
 };
 
 const SWIPE_THRESHOLD = 50;
@@ -24,6 +26,8 @@ export default function PhotoLightbox({
   selectedPrint,
   onTogglePrint,
   getFileName,
+  protectImages = false,
+  onProtectedContextMenu,
 }: PhotoLightboxProps) {
   useBodyScrollLock(true);
   const touchStartXRef = useRef<number | null>(null);
@@ -127,7 +131,16 @@ export default function PhotoLightbox({
             src={currentSrc}
             alt={`Foto ${currentIndex + 1}`}
             className={styles.image}
-            draggable={false}
+            draggable={!protectImages}
+            onContextMenu={protectImages ? (event) => {
+              event.preventDefault();
+              onProtectedContextMenu?.();
+            } : undefined}
+            onDragStart={protectImages ? (event) => event.preventDefault() : undefined}
+            style={protectImages ? {
+              WebkitTouchCallout: 'none',
+              userSelect: 'none',
+            } : undefined}
             onClick={(event) => event.stopPropagation()}
           />
         </div>

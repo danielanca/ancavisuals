@@ -1229,10 +1229,11 @@ export default function MediaAlbumPage() {
         <p style={{ color: "#facc15", fontSize: "21px", fontWeight: 700, margin: "0 0 14px", lineHeight: 1.4, maxWidth: "480px", letterSpacing: "0.01em" }}>
           Pozele afișate sunt de <strong>calitate mai slabă</strong>
         </p>
-        <p style={{ color: "#bbb", fontSize: "15px", margin: "0 0 26px", maxWidth: "420px", lineHeight: 1.7 }}>
-          Acestea sunt <strong style={{ color: "#fff" }}>versiuni optimizate pentru browser</strong>, nu originalele.<br />
-          Dacă dorești să descarci pozele la <strong style={{ color: "#fff" }}>calitate completă</strong>, folosește{" "}
-          <strong style={{ color: "#facc15" }}>butonul de descărcare</strong> de mai sus.
+        <p style={{ color: "#bbb", fontSize: "15px", margin: "0 0 26px", maxWidth: "460px", lineHeight: 1.7 }}>
+          Descărcarea directă a imaginii este dezactivată pentru a nu salva varianta WebP optimizată pentru browser.<br />
+          Pentru pozele la <strong style={{ color: "#fff" }}>calitate completă</strong>, folosește{" "}
+          <strong style={{ color: "#facc15" }}>butonul de download de pe fiecare fotografie</strong> sau{" "}
+          <strong style={{ color: "#facc15" }}>„Descarcă toate pozele”</strong>.
         </p>
         <span style={{ color: "#555", fontSize: "12px", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Atinge oriunde pentru a închide</span>
       </div>
@@ -1286,6 +1287,8 @@ export default function MediaAlbumPage() {
             selectedPrint={selectedPrint}
             onTogglePrint={(fileName) => dispatch({ type: "TOGGLE_PHOTO", mode: "print", name: fileName })}
             getFileName={(src, index) => fileNameFromUrl(album.photos[index] ?? src)}
+            protectImages={!isAdmin && !auth.authorise}
+            onProtectedContextMenu={showImageSaveWarning}
           />
         )}
 

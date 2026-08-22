@@ -190,7 +190,10 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       title: "Părțile contractante",
       body: `
         <p><span class="bold">PRESTATOR:</span> ${esc(PRESTATOR.name)}, CUI: ${esc(PRESTATOR.cui)}, cu domiciliul în ${esc(PRESTATOR.address)}, telefon: ${esc(PRESTATOR.phone)}, email: ${esc(PRESTATOR.email)}, în calitate de <span class="bold">PRESTATOR</span></p>
-        <p style="margin-top:8px;"><span class="bold">BENEFICIAR:</span> Dl/Dna <span class="underline">${esc(contract.clientName as string || "________________________")}</span>, cu C.I. seria și numărul <span class="underline">${esc(contract.clientIdSeries as string || "________________")}</span>, domiciliul <span class="underline">${esc(contract.clientAddress as string || "________________________")}</span>, telefon <span class="underline">${esc(contract.clientPhone as string || "________________")}</span>, în calitate de <span class="bold">BENEFICIAR</span></p>
+        ${contract.clientType === "PJ"
+          ? `<p style="margin-top:8px;"><span class="bold">BENEFICIAR:</span> ${esc(contract.clientEntityType as string || "Persoană juridică")} <span class="underline">${esc(contract.clientName as string || "________________________")}</span>, CIF/CUI <span class="underline">${esc(contract.clientCIF as string || "________________")}</span>${contract.clientRegistrationNumber ? `, nr. înregistrare ${esc(contract.clientRegistrationNumber as string)}` : ""}, cu sediul în <span class="underline">${esc(contract.clientAddress as string || "________________________")}</span>${contract.clientCity || contract.clientCounty ? `, ${esc([contract.clientCity, contract.clientCounty].filter(Boolean).join(", "))}` : ""}, telefon ${esc(contract.clientPhone as string || "________________")}${contract.clientBankName || contract.clientIBAN ? `, cont ${esc(contract.clientIBAN as string || "________________")} deschis la ${esc(contract.clientBankName as string || "________________")}` : ""}, în calitate de <span class="bold">BENEFICIAR</span></p>
+             <p style="margin-top:8px;"><span class="bold">Reprezentant/delegat:</span> ${esc(contract.clientRepresentativeName as string || "________________________")}, CI seria și numărul <span class="underline">${esc(contract.clientRepresentativeIdSeries as string || "________________")}</span>, în calitate de ${esc(contract.clientRepresentativeRole as string || "delegat")}, care semnează în numele și pentru BENEFICIAR</p>`
+          : `<p style="margin-top:8px;"><span class="bold">BENEFICIAR:</span> Dl/Dna <span class="underline">${esc(contract.clientName as string || "________________________")}</span>, cu C.I. seria și numărul <span class="underline">${esc(contract.clientIdSeries as string || "________________")}</span>, domiciliul <span class="underline">${esc(contract.clientAddress as string || "________________________")}</span>, telefon <span class="underline">${esc(contract.clientPhone as string || "________________")}</span>, în calitate de <span class="bold">BENEFICIAR</span></p>`}
       `,
     },
 
@@ -534,7 +537,8 @@ ${renderedArticles}
     ${contract.clientSignatureBase64
       ? `<img src="${contract.clientSignatureBase64}" style="max-width:220px;max-height:50px;display:block;margin-bottom:6px;" alt="Semnatura" />`
       : `<div style="height:50px;border-bottom:1px solid #333;margin-bottom:6px;"></div>`}
-    <div class="sig-name">${esc(contract.clientName as string || "")}</div>
+    <div class="sig-name">${esc(contract.clientType === "PJ" ? (contract.clientRepresentativeName as string || contract.clientName as string || "") : (contract.clientName as string || ""))}</div>
+    ${contract.clientType === "PJ" ? `<div class="sig-date">în numele ${esc(contract.clientName as string || "")}</div>` : ""}
     <div class="sig-date">${signedDate}</div>
   </div>
 </div>

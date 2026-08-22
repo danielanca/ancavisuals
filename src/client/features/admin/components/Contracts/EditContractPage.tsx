@@ -183,6 +183,15 @@ const EditContractPage: React.FC = () => {
   const [clientCity, setClientCity] = useState("");
   const [clientCounty, setClientCounty] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
+  const [clientType, setClientType] = useState<"PF" | "PJ">("PF");
+  const [clientEntityType, setClientEntityType] = useState("Firma");
+  const [clientCIF, setClientCIF] = useState("");
+  const [clientRegistrationNumber, setClientRegistrationNumber] = useState("");
+  const [clientBankName, setClientBankName] = useState("");
+  const [clientIBAN, setClientIBAN] = useState("");
+  const [clientRepresentativeName, setClientRepresentativeName] = useState("");
+  const [clientRepresentativeRole, setClientRepresentativeRole] = useState("delegat");
+  const [clientRepresentativeIdSeries, setClientRepresentativeIdSeries] = useState("");
   const [privateClient, setPrivateClient] = useState(false);
   const [fiscalized, setFiscalized] = useState(false);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
@@ -248,6 +257,15 @@ const EditContractPage: React.FC = () => {
         setClientCity(data.clientCity ?? "");
         setClientCounty(data.clientCounty ?? "");
         setClientIdSeries(data.clientIdSeries ?? "");
+        setClientType(data.clientType === "PJ" ? "PJ" : "PF");
+        setClientEntityType(data.clientEntityType ?? "Firma");
+        setClientCIF(data.clientCIF ?? "");
+        setClientRegistrationNumber(data.clientRegistrationNumber ?? "");
+        setClientBankName(data.clientBankName ?? "");
+        setClientIBAN(data.clientIBAN ?? "");
+        setClientRepresentativeName(data.clientRepresentativeName ?? "");
+        setClientRepresentativeRole(data.clientRepresentativeRole ?? "delegat");
+        setClientRepresentativeIdSeries(data.clientRepresentativeIdSeries ?? "");
         setNoAdvance(data.noAdvance === true);
         setPrivateClient(data.privateClient === true);
         setFiscalized(data.fiscalized === true);
@@ -344,6 +362,8 @@ const EditContractPage: React.FC = () => {
         bankIban: paymentMethod === BANK_TRANSFER ? (selectedBankProfile?.iban ?? "") : "",
         fiscalized,
         clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, privateClient,
+        clientType, clientEntityType, clientCIF, clientRepresentativeName, clientRepresentativeRole, clientRepresentativeIdSeries,
+        clientRegistrationNumber, clientBankName, clientIBAN,
         transportKm: transportKm || "",
         transportFuelPrice: transportFuelPrice || DEFAULT_TRANSPORT_FUEL_PRICE,
         clauses,
@@ -684,15 +704,22 @@ const EditContractPage: React.FC = () => {
           {/* CLIENT */}
           <Block title="Date client">
             <div>
+              <Label>Tip beneficiar</Label>
+              <select value={clientType} onChange={(e) => setClientType(e.target.value as "PF" | "PJ")} className={sel}>
+                <option value="PF">Persoană fizică</option>
+                <option value="PJ">Firmă / Asociație / persoană juridică</option>
+              </select>
+            </div>
+            <div>
               <Label>Email client *</Label>
               <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="client@email.com" className={inp} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Nume complet</Label>
+                <Label>{clientType === "PJ" ? "Denumire firmă / asociație" : "Nume complet"}</Label>
                 <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
-                  placeholder="ex. Maria Ionescu" className={inp} />
+                  placeholder={clientType === "PJ" ? "Denumirea legală completă" : "ex. Maria Ionescu"} className={inp} />
               </div>
               <div>
                 <Label>Telefon</Label>
@@ -717,11 +744,30 @@ const EditContractPage: React.FC = () => {
                   placeholder="Cluj" className={inp} />
               </div>
               <div>
-                <Label>Serie buletin</Label>
+                <Label>{clientType === "PJ" ? "Serie buletin (nu se aplică)" : "Serie buletin"}</Label>
                 <input type="text" value={clientIdSeries} onChange={(e) => setClientIdSeries(e.target.value.toUpperCase())}
                   placeholder="AB123456" className={inp} />
               </div>
             </div>
+            {clientType === "PJ" && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                <p className="text-amber-300 text-sm font-medium">Date persoană juridică</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Tip entitate</Label><select value={clientEntityType} onChange={(e) => setClientEntityType(e.target.value)} className={sel}><option>Firmă</option><option>Asociație</option><option>Altă persoană juridică</option></select></div>
+                  <div><Label>CIF / CUI</Label><input type="text" value={clientCIF} onChange={(e) => setClientCIF(e.target.value.toUpperCase())} placeholder="30085947" className={inp} /></div>
+                </div>
+                <div><Label>Nr. registru / înregistrare (opțional)</Label><input type="text" value={clientRegistrationNumber} onChange={(e) => setClientRegistrationNumber(e.target.value)} placeholder="J04/123/2020 sau nr. registru asociații" className={inp} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Nume delegat / reprezentant</Label><input type="text" value={clientRepresentativeName} onChange={(e) => setClientRepresentativeName(e.target.value)} placeholder="Nume complet" className={inp} /></div>
+                  <div><Label>Calitate</Label><input type="text" value={clientRepresentativeRole} onChange={(e) => setClientRepresentativeRole(e.target.value)} placeholder="delegat / administrator" className={inp} /></div>
+                </div>
+                <div><Label>CI delegat / reprezentant</Label><input type="text" value={clientRepresentativeIdSeries} onChange={(e) => setClientRepresentativeIdSeries(e.target.value.toUpperCase())} placeholder="AB123456" className={inp} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Banca (opțional)</Label><input type="text" value={clientBankName} onChange={(e) => setClientBankName(e.target.value)} placeholder="Raiffeisen Bank" className={inp} /></div>
+                  <div><Label>IBAN (opțional)</Label><input type="text" value={clientIBAN} onChange={(e) => setClientIBAN(e.target.value.toUpperCase())} placeholder="RO..." className={inp} /></div>
+                </div>
+              </div>
+            )}
             <label className="flex items-center gap-3 mt-2 cursor-pointer group">
               <input type="checkbox" checked={privateClient} onChange={(e) => setPrivateClient(e.target.checked)}
                 className="accent-amber-500 w-4 h-4 shrink-0" />

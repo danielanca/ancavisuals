@@ -186,6 +186,7 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   width: 100%;
   height: auto;
   object-fit: initial;
+  -webkit-user-drag: none;
   transition:
     transform 0.32s ease,
     filter 0.24s ease;

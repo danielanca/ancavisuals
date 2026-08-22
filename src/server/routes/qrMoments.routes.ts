@@ -1,4 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
+import archiver from 'archiver';
+import { Readable } from 'node:stream';
 import multer from 'multer';
 import heicConvert from 'heic-convert';
 import sharp from 'sharp';
@@ -17,6 +19,7 @@ import { sendEmail } from '../notifications/mailer';
 import { APP_BASE_URL } from '../constants/domain';
 import { getHeadlineText, getHostRoleLabel, getHostsFallbackName, normalizeQrEventType, type QrEventType } from '../../shared/qrMoments/hostRoles';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../shared/qrMoments/uploadLimits';
+import { downloadBunnyOriginal } from '../utils/downloadBunnyOriginal';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_FILE_SIZE_BYTES } });
@@ -1019,6 +1022,97 @@ router.get('/admin/:eventSlug/uploads', requireFirebaseAuth, requireSupremeAdmin
   }
 });
 
+router.get('/admin/:eventSlug/download', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
+  const { eventSlug } = request.params;
+  const requestedType = String(request.query.type ?? 'all').toLowerCase();
+  const allowedTypes = new Set(['all', 'photo', 'video', 'audio']);
+
+  if (!allowedTypes.has(requestedType)) {
+    response.status(400).json({ error: 'Categoria invalidă. Folosește all, photo, video sau audio.' });
+    return;
+  }
+
+  try {
+    const [eventDoc, uploadsSnapshot] = await Promise.all([
+      firestore().collection(QR_EVENTS).doc(eventSlug).get(),
+      firestore().collection(QR_UPLOADS).where('eventSlug', '==', eventSlug).get(),
+    ]);
+
+    if (!eventDoc.exists) {
+      response.status(404).json({ error: 'Evenimentul nu există.' });
+      return;
+    }
+
+    type DownloadUpload = {
+      id: string;
+      type?: string;
+      createdAt?: unknown;
+      originalName?: string;
+      fileName?: string;
+      bunnyUrl?: string;
+    };
+    const uploads: DownloadUpload[] = uploadsSnapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }) as DownloadUpload)
+      .filter((upload) => requestedType === 'all' || upload.type === requestedType)
+      .sort((first, second) => {
+        const firstDate = first.createdAt instanceof Timestamp ? first.createdAt.toMillis() : 0;
+        const secondDate = second.createdAt instanceof Timestamp ? second.createdAt.toMillis() : 0;
+        return firstDate - secondDate;
+      });
+
+    if (uploads.length === 0) {
+      response.status(404).json({ error: 'Nu există materiale pentru această categorie.' });
+      return;
+    }
+
+    const archiveName = `${eventSlug}-qr-moments-${requestedType}.zip`;
+    response.setHeader('Content-Type', 'application/zip');
+    response.setHeader('Content-Disposition', `attachment; filename="${archiveName}"`);
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.on('error', (error) => response.destroy(error));
+    archive.pipe(response);
+
+    const usedNames = new Set<string>();
+    const categoryFolder = (type: string) => type === 'photo' ? 'foto' : type === 'video' ? 'video' : 'audio';
+    const safeName = (value: unknown, fallback: string) => {
+      const base = String(value ?? fallback).replace(/[\\/:*?"<>|\x00-\x1F]/g, '_').trim() || fallback;
+      let name = base;
+      let suffix = 2;
+      while (usedNames.has(name.toLowerCase())) {
+        const dot = base.lastIndexOf('.');
+        name = `${dot > 0 ? base.slice(0, dot) : base}-${suffix}${dot > 0 ? base.slice(dot) : ''}`;
+        suffix += 1;
+      }
+      usedNames.add(name.toLowerCase());
+      return name;
+    };
+
+    for (const upload of uploads) {
+      const type = String(upload.type ?? 'audio');
+      const originalName = safeName(upload.originalName ?? upload.fileName, `${upload.id}`);
+      const entryName = `${categoryFolder(type)}/${originalName}`;
+      try {
+        const fileResponse = await fetch(String(upload.bunnyUrl ?? ''));
+        if (!fileResponse.ok) throw new Error(`HTTP ${fileResponse.status}`);
+        if (fileResponse.body) {
+          archive.append(Readable.fromWeb(fileResponse.body as Parameters<typeof Readable.fromWeb>[0]), { name: entryName });
+        } else {
+          const file = await downloadBunnyOriginal(String(upload.bunnyUrl ?? ''));
+          archive.append(file.buffer, { name: entryName });
+        }
+      } catch (error) {
+        console.error(`[qr-moments] download skip ${eventSlug}/${upload.id}:`, error);
+        archive.append(`Fișier indisponibil: ${String(upload.originalName ?? upload.fileName ?? upload.id)}\n`, { name: `${categoryFolder(type)}/_erori.txt` });
+      }
+    }
+
+    await archive.finalize();
+  } catch (error) {
+    console.error('[qr-moments] admin materials download failed:', error);
+    if (!response.headersSent) response.status(500).json({ error: 'Nu s-au putut arhiva materialele.' });
+  }
+});
+
 router.get('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (_request: Request, response: Response) => {
   try {
     const snapshot = await firestore().collection(QR_EVENTS).orderBy('eventDate', 'desc').get();
@@ -1240,6 +1334,79 @@ router.delete('/admin/:eventSlug', requireFirebaseAuth, requireSupremeAdmin, asy
 });
 
 // ─── Admin: list guests for event ───────────────────────────────────────────
+
+router.get('/admin/guests', requireFirebaseAuth, requireSupremeAdmin, async (_request: Request, response: Response) => {
+  try {
+    const [eventsSnapshot, guestsSnapshot] = await Promise.all([
+      firestore().collection(QR_EVENTS).get(),
+      firestore().collection(QR_GUESTS).get(),
+    ]);
+
+    const eventMap = new Map(eventsSnapshot.docs.map((doc) => [doc.id, doc.data()]));
+    type EmailGroup = {
+      eventSlug: string;
+      coupleLabel: string;
+      eventDate: string | null;
+      notificationEmail: string | null;
+      guests: Array<{
+        id: string;
+        name: string;
+        email: string;
+        emailConsent: boolean;
+        uploadCount: number;
+        createdAt: string | null;
+      }>;
+    };
+    const groups = new Map<string, EmailGroup>();
+
+    for (const doc of guestsSnapshot.docs) {
+      const data = doc.data();
+      const eventSlug = String(data.eventSlug ?? '');
+      const email = String(data.email ?? '').trim().toLowerCase();
+      if (!eventSlug || !email) continue;
+
+      const eventData = eventMap.get(eventSlug) ?? {};
+      const existing: EmailGroup = groups.get(eventSlug) ?? {
+        eventSlug,
+        coupleLabel: eventData.bride && eventData.groom ? `${eventData.bride} & ${eventData.groom}` : eventSlug,
+        eventDate: eventData.eventDate instanceof Timestamp ? eventData.eventDate.toDate().toISOString() : null,
+        notificationEmail: eventData.notificationEmail ?? null,
+        guests: [],
+      };
+      existing.guests.push({
+        id: doc.id,
+        name: String(data.name ?? 'Anonim'),
+        email,
+        emailConsent: data.emailConsent !== false,
+        uploadCount: Array.isArray(data.uploadIds) ? data.uploadIds.length : 0,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : null,
+      });
+      groups.set(eventSlug, existing);
+    }
+
+    const eventSlugsWithoutGuests = eventsSnapshot.docs
+      .filter((doc) => !groups.has(doc.id))
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          eventSlug: data.eventSlug ?? doc.id,
+          coupleLabel: data.bride && data.groom ? `${data.bride} & ${data.groom}` : data.eventSlug ?? doc.id,
+          eventDate: data.eventDate instanceof Timestamp ? data.eventDate.toDate().toISOString() : null,
+          notificationEmail: data.notificationEmail ?? null,
+          guests: [],
+        };
+      });
+
+    response.json({
+      groups: [...groups.values(), ...eventSlugsWithoutGuests].sort((first, second) =>
+        (second.eventDate ?? '').localeCompare(first.eventDate ?? '')
+      ),
+    });
+  } catch (error) {
+    console.error('[qr-moments] admin guests directory failed:', error);
+    response.status(500).json({ error: 'Eroare server.' });
+  }
+});
 
 router.get('/admin/:eventSlug/guests', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
   try {

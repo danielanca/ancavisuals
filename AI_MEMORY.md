@@ -89,6 +89,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #CMD  referințe în cod:   rg -n "pattern" src server.ts
 #CMD  fișiere git:        git ls-files | rg 'pattern'
 #CMD  stare repo:         git status --short
+#PITFALL  `dev:server` folosește `tsx watch --exclude '**/*.timestamp-*.mjs' server.ts`; fără excludere, Vite generează `vite.config.ts.timestamp-*.mjs`, watcher-ul repornește serverul în loop și ajunge la `EADDRINUSE` pe portul 1994. #PITFALL
 
 ---
 
@@ -139,6 +140,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #MEDIA  Pagina:     src/client/pages/MediaDownload/MediaAlbumPage.tsx
 #MEDIA  Onboarding: src/client/pages/MediaDownload/Onboardingwizard.tsx  ← casing exact
 #MEDIA  Galerie album: grid-ul browse rămâne pe `photos_preview`/WebP pentru performanță, dar lightbox-ul cu navigare stânga/dreapta trebuie să folosească `originalPhoto`; mapează preview→original după basename, nu după extensie, fiindcă preview-ul poate fi `.webp` iar originalul `.jpg/.jpeg/.png` #MEDIA
+#MEDIA  În `BunnyPhotoGallery` și `PhotoLightbox`, albumele publice cu `protectImages` blochează long-press/context menu/drag pe thumbnail și fotografia mărită și afișează mesajul că download-ul se face prin butonul individual sau „Descarcă toate pozele”; originalele rămân folosite de butoanele de download. #MEDIA
 
 ---
 
@@ -154,6 +156,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #QR  Upload per-fișier: `QRMomentsPage.tsx` trimite fiecare fișier selectat ca request XHR separat (nu mai bundle-uiește toate fișierele într-un singur POST), cu `uploadProgress` state (id → status/progress/error) pentru progres vizual per poză/video și retry doar pe cele eșuate; fișierele reușite sunt scoase din `selectedFiles` după fiecare încercare. #QR
 #QR  HEIC: `qrMoments.routes.ts` are `convertHeicIfNeeded()` (export) care convertește HEIC/HEIF → JPEG la upload folosind `heic-convert` cu fallback la `sharp`, apoi fallback final la bytes originali dacă ambele eșuează (nu pierde niciodată fișierul). Același pattern ca în `weddingHub.routes.ts`. Uploadurile vechi (dinainte de acest fix) rămân HEIC în Bunny — galeria le arată cu buton de descărcare în loc de `<img>`, vezi `isHeicUpload()` în QRMomentsGalleryPage.tsx. #QR #PITFALL
 #QR  Gallery player: `QRMomentsGalleryPage.tsx` folosește `upload.type` ('photo'/'video'/'audio', calculat server-side de `detectMediaType`) pentru a decide playerul, NU o listă hardcodată de mimeType-uri — vechea listă rata `.mov` (video/quicktime) și orice codec audio cu parametri (`audio/mp4;codecs=...`). #QR #PITFALL
+#QR  Director emailuri admin: `GET /api/qr-moments/admin/guests` agregă `qr_guests` pe `eventSlug`; butonul „Emailuri participanți” din `QRMomentsAdminPage` afișează emailurile grupate pe eveniment, inclusiv statutul consimțământului și numărul de upload-uri. #QR
+#QR  Download admin QR Moments: `GET /api/qr-moments/admin/:eventSlug/download?type=all|photo|video|audio` creează ZIP autentificat, cu foldere `foto/`, `video/`, `audio/`; `QRMomentsAdminPage` expune butoane atât în directorul de emailuri, cât și în detaliile evenimentului. #QR
 #QR  detectMediaType PITFALL: verifică `mimeType.startsWith('audio/')` ÎNAINTE de orice check pe extensie video — `.webm` e extensie validă și pentru audio (Firefox/Android recorder) și pentru video; ordinea greșită clasifica mesaje vocale webm drept video. #QR #PITFALL
 
 ---
@@ -171,6 +175,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #ENV  Fișier: .env în root
 #ENV  Firebase/Admin: necesare în prod, pot lipsi în teste
 #ENV  IPINFO_TOKEN: opțional — fetchIpInfo returnează null dacă lipsește
+#ENV  Email SMTP: `SMTP_SENDER_EMAIL`, `SMTP_APP_PASSWORD` și opțional `ADMIN_NOTIFICATION_EMAIL` se configurează exclusiv în `.env`; nu există credentiale fallback în cod, iar app password-ul este normalizat prin eliminarea spațiilor. #ENV #PITFALL
 
 ---
 
@@ -197,6 +202,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## ADMIN DASHBOARD #ADMIN
+
+#ADMIN  Contractele suportă acum și beneficiari persoane juridice: `clientType` (`PF`/`PJ`), `clientEntityType`, `clientCIF`, `clientRegistrationNumber`, `clientBankName`, `clientIBAN` și date separate pentru `clientRepresentativeName`, `clientRepresentativeRole`, `clientRepresentativeIdSeries`. Pentru PJ, entitatea rămâne BENEFICIAR în PDF și factură, iar delegatul/reprezentantul semnează în numele ei. Factura din contract preia automat CIF/CUI și adresa entității; contractele PF vechi rămân compatibile. #ADMIN #CONTRACTS
 
 #ADMIN  Rută principală:      /admin → Dashboard (RequireAuth)
 #ADMIN  Colecție events:      Firestore `adminEvents` — statusuri: lead | tentativ | confirmat | finalizat | anulat

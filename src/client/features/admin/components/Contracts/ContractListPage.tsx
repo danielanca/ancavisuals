@@ -16,6 +16,7 @@ interface ContractItem {
   clientAddress?: string;
   clientCity?: string;
   clientCounty?: string;
+  clientCIF?: string;
   priceTotal: number;
   priceAdvance?: number;
   priceRest?: number;
@@ -618,6 +619,8 @@ interface ContractForInvoice {
   clientAddress?: string;
   clientCity?: string;
   clientCounty?: string;
+  clientCIF?: string;
+  clientType?: "PF" | "PJ";
   priceTotal: number;
   priceAdvance?: number;
   priceRest?: number;
@@ -671,7 +674,7 @@ function InvoiceModal({ contract, accessToken, onClose, onNavigateToFinancial }:
   const [buyerAddress, setBuyerAddress] = React.useState(contract.clientAddress ?? "");
   const [buyerCity, setBuyerCity] = React.useState(contract.clientCity ?? "");
   const [buyerCounty, setBuyerCounty] = React.useState(contract.clientCounty ?? "");
-  const [buyerCIF, setBuyerCIF] = React.useState("");
+  const [buyerCIF, setBuyerCIF] = React.useState(contract.clientCIF ?? "");
   const [exchangeRate, setExchangeRate] = React.useState(() => contract.eurRate ? String(contract.eurRate) : "");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
