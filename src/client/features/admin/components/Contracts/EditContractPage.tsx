@@ -153,6 +153,8 @@ const EditContractPage: React.FC = () => {
 
   const [eventType, setEventType] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [eventDates, setEventDates] = useState<string[]>([]);
+  const [dateToAdd, setDateToAdd] = useState("");
   const [eventLocation, setEventLocation] = useState("");
   const [eventStartTime, setEventStartTime] = useState("");
   const [eventEndTime, setEventEndTime] = useState("");
@@ -223,6 +225,7 @@ const EditContractPage: React.FC = () => {
 
         setEventType(data.eventType ?? "");
         setEventDate(data.eventDate ?? "");
+        setEventDates(Array.isArray(data.eventDates) && data.eventDates.length ? data.eventDates : (data.eventDate ? [data.eventDate] : []));
         setEventLocation(data.eventLocation ?? "");
         setEventStartTime(data.eventStartTime ?? "");
         setEventEndTime(data.eventEndTime ?? "");
@@ -331,7 +334,7 @@ const EditContractPage: React.FC = () => {
     setSubmitError(null);
 
     if (!eventType) { setSubmitError("Selectează tipul evenimentului."); return; }
-    if (!eventDate) { setSubmitError("Data evenimentului este obligatorie."); return; }
+    if (eventDates.length === 0) { setSubmitError("Selectează cel puțin o zi pentru eveniment."); return; }
     if (!clientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
       setSubmitError("Email-ul clientului este obligatoriu și trebuie să fie valid."); return;
     }
@@ -349,7 +352,7 @@ const EditContractPage: React.FC = () => {
     try {
       const selectedBankProfile = bankProfiles.find((p) => p.id === selectedBankProfileId);
       const payload = {
-        eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
+        eventType, eventDate: eventDates[0], eventDates, eventEndDate: eventDates[eventDates.length - 1], eventLocation, eventStartTime, eventEndTime, eventDetails,
         services: allServices,
         currency, eurRate,
         priceTotal: effectiveTotal,
@@ -457,8 +460,20 @@ const EditContractPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <Label>Data evenimentului *</Label>
-                <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className={inp} />
+                <Label>Zilele evenimentului *</Label>
+                <div className="flex gap-2">
+                  <input type="date" value={dateToAdd} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDateToAdd(e.target.value)} className={`${inp} flex-1`} />
+                  <button type="button" onClick={() => { if (dateToAdd && !eventDates.includes(dateToAdd)) { setEventDates([...eventDates, dateToAdd].sort()); setDateToAdd(""); } }} className="rounded-lg border border-amber-500/30 px-3 text-amber-300 hover:bg-amber-500/10">Adaugă</button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {eventDates.map((date) => (
+                    <span key={date} className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-200">
+                      {new Date(`${date}T12:00:00`).toLocaleDateString("ro-RO", { day: "2-digit", month: "long", year: "numeric" })}
+                      <button type="button" onClick={() => { const next = eventDates.filter((d) => d !== date); setEventDates(next); if (next.length === 0) setEventDate(""); }} className="text-amber-400 hover:text-white" aria-label={`Elimină ${date}`}>×</button>
+                    </span>
+                  ))}
+                </div>
+                <span className="text-neutral-500 text-xs mt-1 block">Poți selecta 1, 2 sau mai multe zile.</span>
               </div>
             </div>
             <div>

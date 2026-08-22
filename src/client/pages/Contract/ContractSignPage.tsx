@@ -11,6 +11,7 @@ interface ContractData {
   status: string;
   eventType: string;
   eventDate: string;
+  eventDates?: string[];
   eventLocation?: string;
   eventStartTime?: string;
   eventEndTime?: string;
@@ -220,6 +221,7 @@ const ContractSignPage: React.FC = () => {
     const d = new Date(s);
     return isNaN(d.getTime()) ? s : d.toLocaleDateString("ro-RO", { day: "2-digit", month: "long", year: "numeric" });
   };
+  const fmtEventDates = () => (contract?.eventDates?.length ? contract.eventDates.map(fmtDate).join(", ") : fmtDate(contract?.eventDate ?? ""));
 
   // --- State pages ---
   if (pageState === "loading") {
@@ -313,7 +315,7 @@ const ContractSignPage: React.FC = () => {
         {/* EVENIMENT */}
         <Section title="Eveniment">
           {contract.eventType && <InfoRow label="Tip" value={contract.eventType} />}
-          <InfoRow label="Data" value={fmtDate(contract.eventDate)} bold />
+          <InfoRow label={contract.eventDates && contract.eventDates.length > 1 ? "Perioada" : "Data"} value={fmtEventDates()} bold />
           {(contract.eventStartTime || contract.eventEndTime) && (
             <InfoRow label="Interval orar" value={`${contract.eventStartTime ?? ""} – ${contract.eventEndTime ?? ""}`} />
           )}

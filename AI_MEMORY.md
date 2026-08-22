@@ -204,6 +204,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ## ADMIN DASHBOARD #ADMIN
 
 #ADMIN  Contractele suportă acum și beneficiari persoane juridice: `clientType` (`PF`/`PJ`), `clientEntityType`, `clientCIF`, `clientRegistrationNumber`, `clientBankName`, `clientIBAN` și date separate pentru `clientRepresentativeName`, `clientRepresentativeRole`, `clientRepresentativeIdSeries`. Pentru PJ, entitatea rămâne BENEFICIAR în PDF și factură, iar delegatul/reprezentantul semnează în numele ei. Factura din contract preia automat CIF/CUI și adresa entității; contractele PF vechi rămân compatibile. #ADMIN #CONTRACTS
+#ADMIN  Contractele acceptă `eventDates` (listă exactă de zile ISO) și `eventEndDate`; UI-ul Create/Edit permite adăugarea/eliminarea mai multor zile, iar PDF-ul afișează perioada completă. `eventDate` rămâne prima zi pentru compatibilitate. `expandEventDates` prioritizează lista exactă pentru verificarea conflictelor din calendar. #ADMIN #CONTRACTS
 
 #ADMIN  Rută principală:      /admin → Dashboard (RequireAuth)
 #ADMIN  Colecție events:      Firestore `adminEvents` — statusuri: lead | tentativ | confirmat | finalizat | anulat

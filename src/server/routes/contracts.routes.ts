@@ -70,6 +70,10 @@ router.post("/", async (req: Request, res: Response) => {
 
     const priceTotal = Number(body.priceTotal) || 0;
     const priceAdvance = Number(body.priceAdvance) || 0;
+    const requestedEventDates = Array.isArray(body.eventDates)
+      ? Array.from(new Set(body.eventDates.filter((value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)))).sort()
+      : [];
+    const contractEventDates = requestedEventDates.length > 0 ? requestedEventDates : [String(body.eventDate)];
 
     const contract = {
       token: uuidv4(),
@@ -77,7 +81,9 @@ router.post("/", async (req: Request, res: Response) => {
       createdAt: Timestamp.now(),
 
       eventType: body.eventType,
-      eventDate: body.eventDate,
+      eventDate: contractEventDates[0],
+      eventDates: contractEventDates,
+      eventEndDate: contractEventDates[contractEventDates.length - 1],
       eventLocation: body.eventLocation ?? "",
       eventStartTime: body.eventStartTime ?? "",
       eventEndTime: body.eventEndTime ?? "",
@@ -438,6 +444,14 @@ router.patch("/:id", async (req: Request, res: Response) => {
       ...(signedAtTs ? { signedAt: signedAtTs } : {}),
       ...(has("eventType") ? { eventType: body.eventType } : {}),
       ...(has("eventDate") ? { eventDate: body.eventDate } : {}),
+      ...(has("eventDates")
+        ? (() => {
+            const dates = Array.isArray(body.eventDates)
+              ? Array.from(new Set(body.eventDates.filter((value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)))).sort()
+              : [];
+            return dates.length > 0 ? { eventDate: dates[0], eventDates: dates, eventEndDate: dates[dates.length - 1] } : {};
+          })()
+        : {}),
       ...(has("eventLocation") ? { eventLocation: body.eventLocation ?? "" } : {}),
       ...(has("eventStartTime") ? { eventStartTime: body.eventStartTime ?? "" } : {}),
       ...(has("eventEndTime") ? { eventEndTime: body.eventEndTime ?? "" } : {}),
@@ -544,12 +558,14 @@ router.post("/:id/create-event", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Data contractului este invalidă." });
     }
 
-    const contractDateIso = contractDate.toISOString().slice(0, 10);
+    const contractDateIsos = Array.isArray(contract.eventDates) && contract.eventDates.length > 0
+      ? contract.eventDates.map((date: unknown) => String(date)).filter((date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+      : [contractDate.toISOString().slice(0, 10)];
     const eventsSnapshot = await db.collection("adminEvents").get();
     const occupied = eventsSnapshot.docs.some((eventDoc) => {
       const eventData = eventDoc.data();
       if (!BOOKED_EVENT_STATUSES.has(String(eventData.status ?? ""))) return false;
-      return expandEventDates(eventData).includes(contractDateIso);
+      return contractDateIsos.some((date: string) => expandEventDates(eventData).includes(date));
     });
 
     if (occupied) {
@@ -566,6 +582,8 @@ router.post("/:id/create-event", async (req: Request, res: Response) => {
       fiscalized: false,
       createdAt: Timestamp.now(),
       eventDate: Timestamp.fromDate(contractDate),
+      eventDates: contractDateIsos,
+      eventEndDate: contractDateIsos[contractDateIsos.length - 1],
       client: {
         fullName: contract.clientName?.trim() || contract.clientEmail || "Client contract",
         phone: contract.clientPhone?.trim() ?? "",

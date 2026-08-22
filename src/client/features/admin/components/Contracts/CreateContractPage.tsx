@@ -7,6 +7,7 @@ interface CreateContractState {
   eventId?: string;
   eventType?: string;
   eventDate?: string;
+  eventDates?: string[];
   eventLocation?: string;
   clientEmail?: string;
   clientPhone?: string;
@@ -181,6 +182,8 @@ const CreateContractPage: React.FC = () => {
   // Event
   const [eventType, setEventType] = useState(fromEvent.eventType ?? "");
   const [eventDate, setEventDate] = useState(fromEvent.eventDate ?? "");
+  const [eventDates, setEventDates] = useState<string[]>(fromEvent.eventDates?.length ? fromEvent.eventDates : (fromEvent.eventDate ? [fromEvent.eventDate] : []));
+  const [dateToAdd, setDateToAdd] = useState("");
   const [eventLocation, setEventLocation] = useState(fromEvent.eventLocation ?? "");
   const [eventStartTime, setEventStartTime] = useState("");
   const [eventEndTime, setEventEndTime] = useState("");
@@ -268,6 +271,7 @@ const CreateContractPage: React.FC = () => {
       const draft = JSON.parse(raw);
       if (draft.eventType !== undefined) setEventType(draft.eventType);
       if (draft.eventDate !== undefined) setEventDate(draft.eventDate);
+      if (draft.eventDates !== undefined) setEventDates(draft.eventDates);
       if (draft.eventLocation !== undefined) setEventLocation(draft.eventLocation);
       if (draft.eventStartTime !== undefined) setEventStartTime(draft.eventStartTime);
       if (draft.eventEndTime !== undefined) setEventEndTime(draft.eventEndTime);
@@ -310,7 +314,7 @@ const CreateContractPage: React.FC = () => {
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({
-          eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
+          eventType, eventDate, eventDates, eventLocation, eventStartTime, eventEndTime, eventDetails,
           services, customServices,
           currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
           transportKm, transportFuelPrice,
@@ -322,7 +326,7 @@ const CreateContractPage: React.FC = () => {
     }, 600);
     return () => clearTimeout(timer);
   }, [
-    eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
+    eventType, eventDate, eventDates, eventLocation, eventStartTime, eventEndTime, eventDetails,
     services, customServices,
     currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
     transportKm, transportFuelPrice,
@@ -419,9 +423,11 @@ const CreateContractPage: React.FC = () => {
     setSubmitError(null);
 
     if (!eventType) { setSubmitError("Selectează tipul evenimentului."); return; }
-    if (!eventDate) { setSubmitError("Data evenimentului este obligatorie."); return; }
+    const selectedEventDates = eventDates.length > 0 ? eventDates : (eventDate ? [eventDate] : []);
+    if (selectedEventDates.length === 0) { setSubmitError("Selectează cel puțin o zi pentru eveniment."); return; }
+    setEventDate(selectedEventDates[0]);
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    if (new Date(eventDate) < today) { setSubmitError("Data evenimentului nu poate fi în trecut."); return; }
+    if (selectedEventDates.some((date) => new Date(`${date}T00:00:00`) < today)) { setSubmitError("Zilele evenimentului nu pot fi în trecut."); return; }
     if (!clientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
       setSubmitError("Email-ul clientului este obligatoriu și trebuie să fie valid."); return;
     }
@@ -444,7 +450,7 @@ const CreateContractPage: React.FC = () => {
     try {
       const selectedBankProfile = bankProfiles.find(p => p.id === selectedBankProfileId);
       const payload = {
-        eventType, eventDate, eventLocation, eventStartTime, eventEndTime, eventDetails,
+        eventType, eventDate: selectedEventDates[0], ...(selectedEventDates.length > 1 ? { eventDates: selectedEventDates, eventEndDate: selectedEventDates[selectedEventDates.length - 1] } : {}), eventLocation, eventStartTime, eventEndTime, eventDetails,
         services: allServices,
         currency,
         eurRate,
@@ -541,14 +547,20 @@ const CreateContractPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <Label>Data evenimentului *</Label>
-                <input
-                  type="date"
-                  value={eventDate}
-                  min={new Date().toISOString().split("T")[0]}
-                  onChange={(e) => setEventDate(e.target.value)}
-                  className={inp}
-                />
+                <Label>Zilele evenimentului *</Label>
+                <div className="flex gap-2">
+                  <input type="date" value={dateToAdd || eventDate} min={new Date().toISOString().split("T")[0]} onChange={(e) => { setDateToAdd(e.target.value); setEventDate(e.target.value); }} className={`${inp} flex-1`} />
+                  <button type="button" onClick={() => { if (dateToAdd && !eventDates.includes(dateToAdd)) { setEventDates([...eventDates, dateToAdd].sort()); setDateToAdd(""); } }} className="rounded-lg border border-amber-500/30 px-3 text-amber-300 hover:bg-amber-500/10">Adaugă</button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {eventDates.map((date) => (
+                    <span key={date} className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-200">
+                      {new Date(`${date}T12:00:00`).toLocaleDateString("ro-RO", { day: "2-digit", month: "long", year: "numeric" })}
+                      <button type="button" onClick={() => { const next = eventDates.filter((d) => d !== date); setEventDates(next); if (next.length === 0) setEventDate(""); }} className="text-amber-400 hover:text-white" aria-label={`Elimină ${date}`}>×</button>
+                    </span>
+                  ))}
+                </div>
+                <span className="text-neutral-500 text-xs mt-1 block">Poți adăuga una sau mai multe zile, de exemplu 27, 28 și 29 august.</span>
               </div>
             </div>
             <div>

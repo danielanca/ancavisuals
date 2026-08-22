@@ -12,6 +12,12 @@ function toDateString(value: unknown): string | null {
  *  Otherwise return a single day (eventDate).
  */
 export function expandEventDates(data: Record<string, unknown>): string[] {
+  if (Array.isArray(data.eventDates)) {
+    const exactDates = data.eventDates
+      .map((value) => toDateString(value))
+      .filter((value): value is string => Boolean(value));
+    if (exactDates.length > 0) return Array.from(new Set(exactDates)).sort();
+  }
   const start = toDateString(data.eventDate);
   if (!start) return [];
 

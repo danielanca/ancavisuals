@@ -122,6 +122,12 @@ export function formatShortDate(value: unknown): string {
   return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function formatContractEventDates(contract: Record<string, unknown>): string {
+  const dates = Array.isArray(contract.eventDates) ? contract.eventDates.filter(Boolean) : [];
+  if (dates.length === 0) return formatDate(contract.eventDate);
+  return dates.map((date) => formatDate(date)).join(", ");
+}
+
 /** True when the end time is not strictly after the start time, meaning the event
  * necessarily runs past midnight into the day after the event date. */
 function eventCrossesMidnight(startTime: unknown, endTime: unknown): boolean {
@@ -168,7 +174,7 @@ export function computeTransportEstimate(km: number, fuelPrice: number): number 
 
 export function buildContractHTML(contract: Record<string, unknown>): string {
   const signedDate = formatDate(contract.signedAt);
-  const eventDateFormatted = formatDate(contract.eventDate);
+  const eventDateFormatted = formatContractEventDates(contract);
   const contractDate = formatShortDate(contract.signedAt ?? contract.createdAt);
 
   const services = (contract.services as ContractService[]) ?? [];
@@ -201,7 +207,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
     {
       title: "Obiectul contractului",
       body: `
-        <p>Obiectul acestui contract îl constituie evenimentul din data de <span class="bold">${eventDateFormatted}</span>, în intervalul orar aproximativ: <span class="bold">${esc(contract.eventStartTime as string || "____")} – ${esc(contract.eventEndTime as string || "____")}</span> <span style="font-size:9pt;color:#555;">(orar orientativ, cu titlu de aproximație)</span>.</p>
+        <p>Obiectul acestui contract îl constituie evenimentul din data/perioada de <span class="bold">${eventDateFormatted}</span>, în intervalul orar aproximativ: <span class="bold">${esc(contract.eventStartTime as string || "____")} – ${esc(contract.eventEndTime as string || "____")}</span> <span style="font-size:9pt;color:#555;">(orar orientativ, cu titlu de aproximație)</span>.</p>
         ${eventCrossesMidnight(contract.eventStartTime, contract.eventEndTime) ? `<p style="font-size:9pt;color:#555;"><span class="bold">Notă:</span> evenimentul se prelungește după miezul nopții (ora 00:00), ora de final indicată mai sus aparținând zilei următoare datei evenimentului de mai sus.</p>` : ""}
         <p style="font-size:9pt;color:#555;">PRESTATORUL trebuie să cunoască cu exactitate, cât mai devreme posibil, intervalul orar al evenimentului, întrucât echipa PRESTATORULUI poate avea alte evenimente programate în dimineața următoare. Dacă evenimentul BENEFICIARULUI se prelungește până la ora 02:00–03:00 noaptea, iar echipa are un alt eveniment programat dimineața, la ora 08:00, nu pot fi asigurate condiții decente de odihnă (minimum 8 ore de somn) pentru echipa PRESTATORULUI.</p>
         ${contract.eventLocation ? `<p>Locația evenimentului: <span class="bold">${esc(contract.eventLocation as string)}</span></p>` : ""}

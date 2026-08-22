@@ -11,6 +11,7 @@ interface ContractItem {
   status: "draft" | "sent" | "signed" | "expired" | "anulat";
   eventType: string;
   eventDate: string;
+  eventDates?: string[];
   clientEmail: string;
   clientName?: string;
   clientAddress?: string;
@@ -297,7 +298,7 @@ const ContractListPage: React.FC = () => {
       if (contract?.eventDate) {
         setBookedDates((prev) => {
           const next = new Set(prev);
-          next.add(normalizeDate(contract.eventDate));
+          (contract.eventDates?.length ? contract.eventDates : [contract.eventDate]).forEach((date) => next.add(normalizeDate(date)));
           return next;
         });
       }
@@ -410,7 +411,8 @@ const ContractListPage: React.FC = () => {
             {contracts.map((contract) => {
               const statusInfo = STATUS_LABELS[contract.status] ?? STATUS_LABELS.draft;
               const isSigned = !!contract.prestatorSignatureBase64;
-              const isDateBooked = bookedDates.has(normalizeDate(contract.eventDate));
+              const contractDates = contract.eventDates?.length ? contract.eventDates : [contract.eventDate];
+              const isDateBooked = contractDates.some((date) => bookedDates.has(normalizeDate(date)));
               const canCreateEvent = !contract.eventId && !isDateBooked;
               return (
                 <div
@@ -449,7 +451,7 @@ const ContractListPage: React.FC = () => {
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-neutral-400 text-xs">
-                        <span>Data: {formatDate(contract.eventDate)}</span>
+                        <span>{contractDates.length > 1 ? "Perioadă" : "Data"}: {contractDates.map(formatDate).join(", ")}</span>
                         <span>Client: {contract.clientEmail}</span>
                         {contract.clientName && <span>Semnat de: {contract.clientName}</span>}
                         <span>Preț: {contract.priceTotal} {contract.currency ?? "RON"}</span>
