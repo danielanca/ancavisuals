@@ -134,7 +134,7 @@ async function writeTemplateShowcase(services: Record<string, StoredTemplateAsse
   );
 }
 
-async function listMediaAssets(serviceId?: string): Promise<OfferMediaAsset[]> {
+async function listMediaAssets(serviceId?: string): Promise<StoredOfferMediaAsset[]> {
   const snapshot = await firestore().collection("offer_media_assets").get();
   const assets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as StoredOfferMediaAsset[];
   const filtered = serviceId ? assets.filter(asset => asset.serviceId === serviceId) : assets;
@@ -191,8 +191,20 @@ function resolveTemplateAssets(
 router.get("/portfolio-images", async (_req: Request, res: Response) => {
   try {
     const assets = await listMediaAssets();
+    const seen = new Set<string>();
     const urls = assets
       .filter((asset) => (asset.kind === "image" || !asset.kind) && asset.url)
+      .filter((asset) => {
+        // Multiple offer assets can point to the same album photo, while their
+        // generated Bunny URLs are different. Use the source photo identity
+        // whenever available so the public gallery does not repeat it.
+        const sourceKey = asset.sourcePhotoUrl
+          ? `${asset.sourceAlbumSlug ?? ""}:${mediaKeyFromUrl(asset.sourcePhotoUrl)}`
+          : asset.url as string;
+        if (seen.has(sourceKey)) return false;
+        seen.add(sourceKey);
+        return true;
+      })
       .map((asset) => asset.url as string);
     res.json({ urls });
   } catch (error) {

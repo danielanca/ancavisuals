@@ -20,10 +20,10 @@ export default function PortfolioGallery({
   const [lightboxIndex, setLightboxIndex] = useState(-1);
 
   useEffect(() => {
-    fetch("/api/oferte/portfolio-images")
+    Promise.resolve(fetch("/api/oferte/portfolio-images"))
       .then((response) => response.json())
       .then((data: { urls?: string[] }) => {
-        if (Array.isArray(data.urls)) setImages(data.urls);
+        if (Array.isArray(data.urls)) setImages(Array.from(new Set(data.urls)));
       })
       .catch(() => {})
       .finally(() => setLoading(false));

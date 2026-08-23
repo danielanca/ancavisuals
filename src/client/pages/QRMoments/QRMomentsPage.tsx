@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { getDownloadURL, listAll, ref } from 'firebase/storage';
 import useAuth from '../../features/admin/auth/useAuth';
-import { storage } from '../../firebase';
 import { getHeadlineText, getHostsPairLabel, normalizeQrEventType, type QrEventType } from '../../../shared/qrMoments/hostRoles';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../../shared/qrMoments/uploadLimits';
+import PortfolioGallery from '../Portfolio/PortfolioGallery';
 
 type Step = 'loading' | 'closed' | 'not-found' | 'form' | 'upload' | 'success';
 type MediaTab = 'photo' | 'video' | 'audio';
@@ -30,19 +29,11 @@ interface UploadProgressEntry {
   error?: string;
 }
 
-interface PromoImage {
-  id: string;
-  url: string;
-  altText: string;
-}
-
 type LegacyAudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
 const DISPLAYABLE_IMAGE = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 const DISPLAYABLE_VIDEO = ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/hevc'];
 const DISPLAYABLE_AUDIO = ['audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/x-m4a'];
-const PORTFOLIO_GALLERY_FOLDER = 'ancavisuals/PortfolioGallery';
-
 const WHATSAPP_SUPPORT = 'https://wa.me/40745469907';
 
 const WhatsAppHelp = ({ message }: { message?: string }) => (
@@ -89,8 +80,6 @@ export default function QRMomentsPage() {
   const [emailConsent, setEmailConsent] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
-  const [galleryImages, setGalleryImages] = useState<PromoImage[]>([]);
-  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const [guestId, setGuestId] = useState<string | null>(null);
   const [mediaTab, setMediaTab] = useState<MediaTab>('photo');
@@ -118,7 +107,6 @@ export default function QRMomentsPage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const waveformFrameRef = useRef<number | null>(null);
-  const touchStartXRef = useRef<number | null>(null);
   const consoleBufferRef = useRef<string[]>([]);
   const debugSentRef = useRef<Set<string>>(new Set());
 
@@ -177,14 +165,6 @@ export default function QRMomentsPage() {
       if (prev.audio) next.audio = prev.audio;
       return next;
     });
-  };
-
-  const goToNextGalleryImage = () => {
-    setGalleryIndex((prev) => (galleryImages.length > 0 ? (prev + 1) % galleryImages.length : 0));
-  };
-
-  const goToPreviousGalleryImage = () => {
-    setGalleryIndex((prev) => (galleryImages.length > 0 ? (prev - 1 + galleryImages.length) % galleryImages.length : 0));
   };
 
   const stopWaveform = () => {
@@ -332,32 +312,6 @@ export default function QRMomentsPage() {
   }, [eventSlug, pass, auth.authorise, auth.accessToken, auth.loading]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadPromoImages = async () => {
-      try {
-        const folderRef = ref(storage, PORTFOLIO_GALLERY_FOLDER);
-        const result = await listAll(folderRef);
-        const urls = await Promise.all(result.items.slice(0, 8).map(async (item, index) => ({
-          id: `${item.name}-${index}`,
-          url: await getDownloadURL(item),
-          altText: 'AncaVisuals wedding moment',
-        })));
-
-        if (!cancelled) setGalleryImages(urls);
-      } catch {
-        if (!cancelled) setGalleryImages([]);
-      }
-    };
-
-    loadPromoImages();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     if (mediaTab !== 'audio') return;
     if (!navigator.permissions?.query) { setAudioPermission('unknown'); return; }
     let permStatus: PermissionStatus | null = null;
@@ -383,19 +337,6 @@ export default function QRMomentsPage() {
 
     startWaveform(stream).catch(() => {});
   }, [isRecording]);
-
-  useEffect(() => {
-    if (galleryImages.length <= 1) return;
-    const interval = window.setInterval(() => {
-      setGalleryIndex((prev) => (prev + 1) % galleryImages.length);
-    }, 3500);
-
-    return () => window.clearInterval(interval);
-  }, [galleryImages]);
-
-  useEffect(() => {
-    if (galleryIndex >= galleryImages.length) setGalleryIndex(0);
-  }, [galleryImages, galleryIndex]);
 
   // Admin flow: auto-register and jump straight to the upload step, skipping
   // the guest form (relies on eventInfo, not step, so it fires exactly once and
@@ -713,101 +654,20 @@ export default function QRMomentsPage() {
   const formatSeconds = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
   const renderPromoBanner = () => (
-    <div className="overflow-hidden rounded-[24px] border border-amber-200/10 bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
-      <div className="grid gap-0 sm:grid-cols-[0.95fr_1.05fr]">
-        <div className="relative min-h-[220px] bg-neutral-900">
-          {galleryImages.length > 0 ? (
-            <>
-              <div
-                className="h-full overflow-hidden"
-                onTouchStart={(event) => { touchStartXRef.current = event.touches[0]?.clientX ?? null; }}
-                onTouchEnd={(event) => {
-                  const startX = touchStartXRef.current;
-                  const endX = event.changedTouches[0]?.clientX ?? null;
-                  touchStartXRef.current = null;
-                  if (startX === null || endX === null) return;
-                  const delta = endX - startX;
-                  if (Math.abs(delta) < 50) return;
-                  if (delta < 0) goToNextGalleryImage();
-                  else goToPreviousGalleryImage();
-                }}
-              >
-                <div
-                  className="flex h-full transition-transform duration-700 ease-out"
-                  style={{ transform: `translateX(-${galleryIndex * 100}%)` }}
-                >
-                  {galleryImages.map((image) => (
-                    <div key={image.id} className="h-full w-full shrink-0">
-                      <img
-                        src={image.url}
-                        alt={image.altText || 'AncaVisuals wedding moment'}
-                        className="h-full min-h-[220px] w-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {galleryImages.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={goToPreviousGalleryImage}
-                    className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/55"
-                    aria-label="Poza anterioară"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goToNextGalleryImage}
-                    className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/55"
-                    aria-label="Poza următoare"
-                  >
-                    ›
-                  </button>
-                  <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full bg-black/25 px-2 py-1 backdrop-blur">
-                    {galleryImages.slice(0, 5).map((image, index) => (
-                      <button
-                        key={image.id}
-                        type="button"
-                        onClick={() => setGalleryIndex(index)}
-                        className={`h-1.5 rounded-full transition-all ${galleryIndex === index ? 'w-5 bg-white' : 'w-1.5 bg-white/45'}`}
-                        aria-label={`Mergi la poza ${index + 1}`}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            <div className="flex h-full min-h-[220px] items-end bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.3),_transparent_45%),linear-gradient(135deg,_#171717_0%,_#0a0a0a_100%)] p-4">
-              <p className="max-w-[180px] text-xs uppercase tracking-[0.25em] text-amber-200/80">
-                Foto. Video. Momente care rămân.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col justify-center space-y-2 p-4 sm:p-5">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300/75">AncaVisuals</p>
-          <div className="space-y-1">
-            <h2 className="text-lg font-light leading-[0.9] text-white">{getHeadlineText(eventInfo?.eventType)}</h2>
-            <p className="text-sm leading-[1.05] text-neutral-300">{SUBHEAD_TEXT}</p>
-            <p className="text-xs leading-[1.02] text-amber-100/80">
-              {REFERRAL_TEXT}
-            </p>
-          </div>
-          <div className="pt-1">
-            <a
-              href="/contact"
-              className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-medium text-black transition-colors hover:bg-amber-200"
-            >
-              Hai să povestim
-            </a>
-          </div>
-        </div>
+    <div className="relative left-1/2 mt-8 w-screen -translate-x-1/2">
+      <div className="mx-auto max-w-sm px-4 text-center">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300/75">AncaVisuals</p>
+        <h2 className="mt-2 text-lg font-light leading-tight text-white">{getHeadlineText(eventInfo?.eventType)}</h2>
+        <p className="mt-1 text-sm leading-relaxed text-neutral-300">{SUBHEAD_TEXT}</p>
+        <p className="mt-1 text-xs leading-relaxed text-amber-100/80">{REFERRAL_TEXT}</p>
+        <a
+          href="/contact"
+          className="mt-3 inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-medium text-black transition-colors hover:bg-amber-200"
+        >
+          Hai să povestim
+        </a>
       </div>
+      <PortfolioGallery altBase="fotografie și videografie Anca Visuals" />
     </div>
   );
 
