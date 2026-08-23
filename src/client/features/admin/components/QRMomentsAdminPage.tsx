@@ -100,60 +100,6 @@ type QREventFormValues = {
   pin: string;
 };
 
-function SendGalleryEmailBox({ eventSlug, authHeader }: { eventSlug: string; authHeader: Record<string, string> }) {
-  const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
-
-  const handleSend = async () => {
-    if (!email.trim()) return;
-    setSending(true);
-    setFeedback(null);
-    try {
-      const res = await fetch(`/api/qr-moments/admin/${eventSlug}/send-gallery-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Eroare la trimitere");
-      setFeedback({ type: "ok", text: `Trimis către ${email.trim()}.` });
-      setEmail("");
-    } catch (err: unknown) {
-      setFeedback({ type: "error", text: err instanceof Error ? err.message : "Eroare necunoscută" });
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div className="mt-4 rounded-xl bg-neutral-900 border border-neutral-800 p-4">
-      <p className="text-neutral-500 text-xs uppercase tracking-wide mb-1">Trimite acces galerie pe email</p>
-      <p className="text-neutral-600 text-[11px] mb-3">Trimite clientului (sau oricui altcuiva) linkul galeriei cu tot ce au încărcat invitații — link-ul include PIN-ul, deci se deschide direct.</p>
-      <div className="flex gap-2">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-          placeholder="client@exemplu.ro"
-          className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500/50 transition-colors placeholder-neutral-600"
-        />
-        <button
-          onClick={handleSend}
-          disabled={sending || !email.trim()}
-          className="px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 text-sm font-medium hover:bg-emerald-500/30 hover:text-emerald-300 disabled:opacity-50 transition-colors"
-        >
-          {sending ? "Se trimite..." : "Trimite"}
-        </button>
-      </div>
-      {feedback && (
-        <p className={`text-xs mt-2 ${feedback.type === "ok" ? "text-emerald-400" : "text-red-400"}`}>{feedback.text}</p>
-      )}
-    </div>
-  );
-}
-
 function QRMaterialDownloadButtons({
   onDownload,
   downloading,
@@ -237,17 +183,17 @@ function QRLinkRow({ eventSlug, pin, eventType }: { eventSlug: string; pin: stri
           </div>
 
           <div className="space-y-2 border-t border-neutral-800 pt-4">
-            <p className="text-neutral-400 text-xs">Link gazde pentru galerie + comentarii:</p>
+            <p className="text-neutral-400 text-xs">Link unic pentru client — galerie + gestionare:</p>
             <p className="text-emerald-300 text-xs font-mono break-all">{galleryUrl}</p>
             <p className="text-neutral-500 text-[11px] leading-relaxed">
-              Acest link deschide galeria cu PIN-ul inclus, astfel încât {roleALabel.toLowerCase()} și {roleBLabel.toLowerCase()} pot vedea upload-urile și pot comenta direct la poze, video și mesaje.
+              Trimite acest link clientului. Se deschide direct, cu PIN-ul inclus, iar {roleALabel.toLowerCase()} și {roleBLabel.toLowerCase()} pot vedea și gestiona upload-urile invitaților.
             </p>
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => handleCopy("gallery", galleryUrl)}
                 className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
               >
-                {copiedTarget === "gallery" ? "Copiat!" : "Copiază link gazde"}
+                {copiedTarget === "gallery" ? "Copiat!" : "Copiază link galerie"}
               </button>
               <a
                 href={galleryUrl}
@@ -255,7 +201,7 @@ function QRLinkRow({ eventSlug, pin, eventType }: { eventSlug: string; pin: stri
                 rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
               >
-                Deschide ca {roleALabel.toLowerCase()}/{roleBLabel.toLowerCase()}
+                        Deschide galeria
               </a>
             </div>
           </div>
@@ -1068,7 +1014,6 @@ export default function QRMomentsAdminPage() {
                         pin={overview?.event.pin ?? selectedEvent.pin ?? ""}
                         eventType={normalizeQrEventType(overview?.event.eventType ?? selectedEvent.eventType)}
                       />
-                      <SendGalleryEmailBox eventSlug={selectedEvent.eventSlug} authHeader={authHeader} />
                     </>
                   )}
                   <div className="mt-4 rounded-xl bg-neutral-900 border border-neutral-800 p-4 space-y-2">

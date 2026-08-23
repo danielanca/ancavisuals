@@ -16,6 +16,7 @@ import {
   getBunnyStorageKey,
 } from '../constants/bunny';
 import { sendEmail } from '../notifications/mailer';
+import { adminUser } from '../constants/credentials';
 import { APP_BASE_URL } from '../constants/domain';
 import { getHeadlineText, getHostRoleLabel, getHostsFallbackName, normalizeQrEventType, type QrEventType } from '../../shared/qrMoments/hostRoles';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../shared/qrMoments/uploadLimits';
@@ -44,6 +45,7 @@ const QR_EVENTS = 'qr_events';
 const QR_GUESTS = 'qr_guests';
 const QR_UPLOADS = 'qr_uploads';
 const QR_COMMENTS = 'qr_comments';
+const QR_GALLERY_SUBSCRIBERS = 'qr_gallery_subscribers';
 
 const UPLOAD_CLOSE_HOUR = 4;
 const UPLOAD_WINDOW_DAYS = 30;
@@ -239,6 +241,7 @@ async function sendViewNotificationEmail(
   hostDisplayName: string,
   guestId: string,
   thumbnailUrl: string | null,
+  mediaLabel: string,
 ): Promise<void> {
   const unsubscribeUrl = buildUnsubscribeUrl(guestId);
   const thumbnailHtml = thumbnailUrl
@@ -253,13 +256,13 @@ async function sendViewNotificationEmail(
 
   await sendEmail({
     to: guestEmail,
-    subject: `👀 ${hostDisplayName} a văzut ce ai trimis! · ${viewedAt}`,
+    subject: `👀 ${hostDisplayName} au vizualizat ${mediaLabel} de tine · ${viewedAt}`,
     html: `
       <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
         <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
           <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
           <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${guestName}!</h2>
-          <p style="color:#6b5b4d;margin:0 0 12px;">${hostDisplayName} tocmai a văzut ce ai trimis la eveniment. Mulțumim că ai imortalizat aceste momente!</p>
+          <p style="color:#6b5b4d;margin:0 0 12px;">${hostDisplayName} au vizualizat ${mediaLabel} la eveniment. Mulțumim că ai imortalizat aceste momente!</p>
           ${thumbnailHtml}
           <hr style="border:none;border-top:1px solid #eadfce;margin:16px 0;">
           <p style="font-size:12px;color:#7b6a5a;margin:0 0 8px;">
@@ -365,6 +368,21 @@ async function sendUploadNotification(
       </div>
     `,
   });
+}
+
+async function getGallerySubscriberEmails(eventSlug: string): Promise<string[]> {
+  const snapshot = await firestore()
+    .collection(QR_GALLERY_SUBSCRIBERS)
+    .where('eventSlug', '==', eventSlug)
+    .get();
+  return snapshot.docs
+    .map((doc) => String(doc.data().email ?? '').trim().toLowerCase())
+    .filter((email) => email.length > 0);
+}
+
+export function resolveUploadNotificationEmail(eventNotificationEmail: unknown): string | null {
+  const configuredEmail = typeof eventNotificationEmail === 'string' ? eventNotificationEmail.trim().toLowerCase() : '';
+  return configuredEmail || adminUser.email.trim().toLowerCase() || null;
 }
 
 // ─── Public: check event + pass + expiry ────────────────────────────────────
@@ -619,8 +637,16 @@ router.post(
         });
 
       const guestName = guestDoc.data()!.name as string;
-      const notificationEmail = eventDoc.data()!.notificationEmail as string | undefined;
-      if (notificationEmail) {
+      const notificationEmail = resolveUploadNotificationEmail(eventDoc.data()!.notificationEmail);
+      const subscriberEmails = await getGallerySubscriberEmails(eventSlug).catch((error) => {
+        console.error(`[qr-moments] could not load gallery subscribers for ${eventSlug}:`, error);
+        return [];
+      });
+      const notificationEmails = Array.from(new Set([
+        ...(notificationEmail ? [notificationEmail] : []),
+        ...subscriberEmails,
+      ]));
+      if (notificationEmails.length > 0) {
         const typeCounts = uploadResults.reduce(
           (counts, result) => {
             counts[result.type] += 1;
@@ -628,7 +654,11 @@ router.post(
           },
           { photo: 0, video: 0, audio: 0 },
         );
-        sendUploadNotification(notificationEmail, eventSlug, guestName, typeCounts).catch(() => {});
+        for (const recipient of notificationEmails) {
+          sendUploadNotification(recipient, eventSlug, guestName, typeCounts).catch((error) => {
+            console.error(`[qr-moments] upload notification email failed for ${eventSlug} -> ${recipient}:`, error);
+          });
+        }
       }
 
       response.status(201).json({ uploadedCount: uploadResults.length, uploadIds });
@@ -960,11 +990,13 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
     if (guestDoc.exists && guestDoc.data()!.email && guestDoc.data()!.emailConsent !== false) {
       const guestData = guestDoc.data()!;
       const eventData = eventDoc.data()!;
-      const hostDisplayName =
-        ((eventData.bride as string | undefined)?.trim() || '') ||
-        ((eventData.groom as string | undefined)?.trim() || '') ||
-        getHostsFallbackName(normalizeQrEventType(eventData.eventType));
-      const isPhoto = uploadDoc.data()!.type === 'photo';
+      const eventType = normalizeQrEventType(eventData.eventType);
+      const brideName = (eventData.bride as string | undefined)?.trim() || getHostRoleLabel(eventType, 'bride');
+      const groomName = (eventData.groom as string | undefined)?.trim() || getHostRoleLabel(eventType, 'groom');
+      const hostDisplayName = `${brideName} și ${groomName}`;
+      const mediaType = uploadDoc.data()!.type as 'photo' | 'video' | 'audio';
+      const mediaLabel = mediaType === 'photo' ? 'poza încărcată' : mediaType === 'video' ? 'videoclipul încărcat' : 'mesajul vocal încărcat';
+      const isPhoto = mediaType === 'photo';
       const thumbnailUrl = isPhoto ? (uploadDoc.data()!.bunnyUrl as string) : null;
 
       sendViewNotificationEmail(
@@ -973,7 +1005,10 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
         hostDisplayName,
         guestDoc.id,
         thumbnailUrl,
-      ).catch(() => {});
+        mediaLabel,
+      ).catch((error) => {
+        console.error(`[qr-moments] view notification email failed for ${eventSlug}/${uploadId}:`, error);
+      });
     }
 
     response.json({ ok: true });
@@ -998,6 +1033,51 @@ router.get('/unsubscribe/:guestId', async (request: Request, response: Response)
     response.json({ ok: true });
   } catch {
     response.status(500).json({ error: 'Eroare server.' });
+  }
+});
+
+// ─── Public: subscribe to gallery updates ───────────────────────────────────
+
+router.post('/:eventSlug/subscribe', async (request: Request, response: Response) => {
+  const { eventSlug } = request.params;
+  const email = String(request.body?.email ?? '').trim().toLowerCase();
+  const pin = String(request.body?.pin ?? '').trim().toUpperCase();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !pin || request.body?.consent !== true) {
+    response.status(400).json({ error: 'Adresă de email invalidă.' });
+    return;
+  }
+
+  try {
+    const eventDoc = await getEventBySlug(eventSlug);
+    if (!eventDoc.exists) {
+      response.status(404).json({ error: 'Evenimentul nu există.' });
+      return;
+    }
+    if (eventDoc.data()!.pin !== pin) {
+      response.status(403).json({ error: 'PIN incorect.' });
+      return;
+    }
+
+    const existing = await firestore()
+      .collection(QR_GALLERY_SUBSCRIBERS)
+      .where('eventSlug', '==', eventSlug)
+      .where('email', '==', email)
+      .limit(1)
+      .get();
+
+    if (existing.empty) {
+      await firestore().collection(QR_GALLERY_SUBSCRIBERS).add({
+        eventSlug,
+        email,
+        createdAt: Timestamp.now(),
+      });
+    }
+
+    response.json({ ok: true });
+  } catch (error) {
+    console.error(`[qr-moments] gallery subscription failed for ${eventSlug}:`, error);
+    response.status(500).json({ error: 'Nu am putut salva abonarea.' });
   }
 });
 

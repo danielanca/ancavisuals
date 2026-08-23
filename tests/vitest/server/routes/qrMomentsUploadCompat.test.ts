@@ -1,7 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { convertHeicIfNeeded, detectMediaType } from "src/server/routes/qrMoments.routes";
+import { convertHeicIfNeeded, detectMediaType, resolveUploadNotificationEmail } from "src/server/routes/qrMoments.routes";
 
 describe("qrMoments upload compatibility helpers", () => {
+  describe("resolveUploadNotificationEmail", () => {
+    test("prefers the event email and falls back to the configured admin email", () => {
+      expect(resolveUploadNotificationEmail(" Owner@Example.COM ")).toBe("owner@example.com");
+      expect(resolveUploadNotificationEmail(" ")).toBe("ancadaniel1994@gmail.com");
+    });
+  });
+
   describe("detectMediaType", () => {
     test("classifies common iPhone/Samsung photo formats as photo", () => {
       expect(detectMediaType("image/jpeg", "IMG_1234.jpg")).toBe("photo");

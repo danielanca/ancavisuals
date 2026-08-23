@@ -55,6 +55,62 @@ function formatTime(isoString: string): string {
   return new Date(isoString).toLocaleString('ro-RO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+function GalleryUpdatesSignup({ eventSlug, pin, hidden }: { eventSlug: string; pin: string; hidden: boolean }) {
+  const [email, setEmail] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+
+  if (hidden || status === 'success') {
+    return status === 'success' ? <p className="text-emerald-400 text-xs">Te-ai înscris. Vei primi update-uri când apar materiale noi.</p> : null;
+  }
+
+  const subscribe = async () => {
+    if (!email.trim() || !consent || status === 'sending') return;
+    setStatus('sending');
+    try {
+      const response = await fetch(`/api/qr-moments/${eventSlug}/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), pin, consent: true }),
+      });
+      setStatus(response.ok ? 'success' : 'error');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4 space-y-3">
+      <div>
+        <p className="text-white text-sm">Primește update-uri despre galerie</p>
+        <p className="text-neutral-500 text-xs mt-1">Înscrie-te dacă vrei să afli când apar materiale noi.</p>
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="email@exemplu.ro"
+          className="min-w-0 flex-1 bg-neutral-950 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-amber-500"
+        />
+        <button
+          type="button"
+          onClick={subscribe}
+          disabled={!email.trim() || !consent || status === 'sending'}
+          className="px-3 py-2 rounded-lg bg-amber-500 text-black text-xs font-medium disabled:opacity-40"
+        >
+          {status === 'sending' ? 'Se salvează…' : 'Înscrie-mă'}
+        </button>
+      </div>
+      <label className="flex items-start gap-2 text-[11px] text-neutral-500">
+        <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 accent-amber-400" />
+        Sunt de acord să primesc notificări despre această galerie. Mă pot dezabona ulterior.
+      </label>
+      {status === 'error' && <p className="text-red-400 text-xs">Nu am putut salva înscrierea. Încearcă din nou.</p>}
+    </div>
+  );
+}
+
 function MediaThumbnail({ upload, onClick }: { upload: Upload; onClick: () => void }) {
   if (upload.type === 'photo') {
     if (isHeicUpload(upload)) {
@@ -516,7 +572,11 @@ export default function QRMomentsGalleryPage() {
   const { eventSlug } = useParams<{ eventSlug: string }>();
   const { auth } = useAuth();
 
-  const [pin, setPin] = useState(() => sessionStorage.getItem(`qr-gallery-pin-${eventSlug}`) ?? '');
+  const [pin, setPin] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const linkPin = new URLSearchParams(window.location.search).get('pin');
+    return (linkPin || sessionStorage.getItem(`qr-gallery-pin-${eventSlug}`) || '').toUpperCase();
+  });
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
@@ -679,6 +739,8 @@ export default function QRMomentsGalleryPage() {
               Reîncarcă
             </button>
           </div>
+
+          <GalleryUpdatesSignup eventSlug={eventSlug ?? ''} pin={pin} hidden={auth.authorise} />
 
           {galleryLoading ? (
             <div className="flex justify-center py-12">
