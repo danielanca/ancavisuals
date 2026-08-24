@@ -1155,7 +1155,12 @@ router.get('/admin/:eventSlug/download', requireFirebaseAuth, requireSupremeAdmi
     const usedNames = new Set<string>();
     const categoryFolder = (type: string) => type === 'photo' ? 'foto' : type === 'video' ? 'video' : 'audio';
     const safeName = (value: unknown, fallback: string) => {
-      const base = String(value ?? fallback).replace(/[\\/:*?"<>|\x00-\x1F]/g, '_').trim() || fallback;
+      const base = String(value ?? fallback)
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .split('')
+        .filter((character) => character.charCodeAt(0) >= 32)
+        .join('')
+        .trim() || fallback;
       let name = base;
       let suffix = 2;
       while (usedNames.has(name.toLowerCase())) {
