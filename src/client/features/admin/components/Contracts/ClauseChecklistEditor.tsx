@@ -85,15 +85,25 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/contract-clause-templates/render", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-        body: JSON.stringify({
+      const body = JSON.stringify({
           eventType, services, privateClient, eventDate, eventStartTime, eventEndTime, eventLocation,
           clientName, priceTotal, currency, priceAdvance, priceRest, bankBeneficiaryName, bankIban,
           transportKm: transportKm ? Number(transportKm) : undefined, transportFuelPrice,
-        }),
       });
+      const request = (token: string) => fetch("/api/admin/contract-clause-templates/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body,
+      });
+      const initialToken = auth.user ? await auth.user.getIdToken(false) : auth.accessToken;
+      if (!initialToken) throw new Error("Sesiunea a expirat. Reîncarcă pagina și autentifică-te din nou.");
+
+      let res = await request(initialToken);
+      if (res.status === 401 && auth.user) {
+        const refreshedToken = await auth.user.getIdToken(true);
+        res = await request(refreshedToken);
+      }
+
       const data = await res.json() as { clauses?: RenderedClause[]; error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "Eroare la generarea clauzelor.");
       const clauses = data.clauses ?? [];

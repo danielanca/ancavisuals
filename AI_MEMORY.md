@@ -217,6 +217,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #ADMIN  EventList default:    Tab implicit = "Viitoare" (nu Lead-uri)
 #ADMIN  Contract routes:      src/server/routes/contracts.routes.ts
 #ADMIN  Contract PDF:         src/server/services/pdf.generator.ts (Puppeteer)
+#ADMIN  ClauseChecklistEditor reîmprospătează tokenul Firebase și reîncearcă automat requestul după 401, pentru a evita eroarea „Token invalid” la „Generează clauzele”. #ADMIN #PITFALL
 #ADMIN  Contract email:       src/server/notifications/templates/contractEmail.ts
 #ADMIN  Contract storage:     Firebase Storage `contracts/` folder, signed URL valid până 2099
 #ADMIN  Contract editare:     PATCH /api/contracts/:id — blocat dacă status === "signed"; EditContractPage la /admin/contracts/:id/edit
