@@ -289,6 +289,8 @@ function AssetModal({
   const [sendingComment, setSendingComment] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const selectedHostName = hostRole === 'groom'
     ? (eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom'))
     : (eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride'));
@@ -374,36 +376,46 @@ function AssetModal({
   return (
     <div className="fixed inset-0 z-[55] bg-black/90 flex flex-col" onClick={onClose}>
       <div
-        className={`flex-1 flex flex-col max-w-lg mx-auto w-full ${hasAdminBar ? 'pt-12' : ''}`}
+        className={`h-full min-h-0 flex flex-col max-w-lg mx-auto w-full overflow-hidden ${hasAdminBar ? 'pt-12' : ''}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-4 border-b border-neutral-800">
-          <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-neutral-950/95 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => previousUpload && onNavigate(previousUpload)}
               disabled={!previousUpload}
-              className="mt-2 flex h-8 w-8 items-center justify-center rounded-full border border-neutral-800 text-neutral-400 transition-colors hover:border-neutral-600 hover:text-white disabled:opacity-30"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-neutral-300 shadow-lg shadow-black/20 transition-all hover:border-amber-300/50 hover:bg-amber-300/10 hover:text-amber-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25"
               aria-label="Upload anterior"
             >
-              ‹
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
             </button>
             <button
               type="button"
               onClick={() => nextUpload && onNavigate(nextUpload)}
               disabled={!nextUpload}
-              className="mt-2 flex h-8 w-8 items-center justify-center rounded-full border border-neutral-800 text-neutral-400 transition-colors hover:border-neutral-600 hover:text-white disabled:opacity-30"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-neutral-300 shadow-lg shadow-black/20 transition-all hover:border-amber-300/50 hover:bg-amber-300/10 hover:text-amber-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25"
               aria-label="Upload următor"
             >
-              ›
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
             </button>
-            <p className="mt-2 text-neutral-400 text-xs">{formatTime(upload.createdAt)}</p>
+            <div className="ml-1">
+              <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-amber-200/70">QR Moments</p>
+              <p className="mt-0.5 text-xs text-neutral-400">{currentIndex + 1} din {allUploads.length} · {formatTime(upload.createdAt)}</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-white transition-colors text-xl leading-none">×</button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Închide materialul"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-2xl font-light leading-none text-neutral-400 transition-all hover:border-white/25 hover:bg-white/10 hover:text-white active:scale-95"
+          >
+            ×
+          </button>
         </div>
 
-        <div className="flex-1 overflow-auto">
-          <div className="p-4">
+        <div className="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="p-3 sm:p-4">
             {upload.type === 'photo' && isHeicUpload(upload) && (
               <div className="bg-neutral-900 rounded-lg p-6 text-center space-y-3">
                 <span className="text-3xl block">🖼️</span>
@@ -423,13 +435,28 @@ function AssetModal({
               <img src={upload.bunnyUrl} alt="" className="w-full rounded-lg" />
             )}
             {upload.type === 'video' && (
-              <video
-                src={upload.bunnyUrl}
-                controls
-                playsInline
-                className="w-full rounded-lg"
-                onPlay={firePlayNotification}
-              />
+              <div className="relative flex h-[38dvh] min-h-[220px] max-h-[420px] justify-center overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/30 sm:h-[min(65vh,520px)]">
+                <video
+                  ref={videoRef}
+                  src={upload.bunnyUrl}
+                  controls
+                  playsInline
+                  className="h-full w-full object-contain"
+                  onPlay={() => { setVideoPlaying(true); firePlayNotification(); }}
+                  onPause={() => setVideoPlaying(false)}
+                  onEnded={() => setVideoPlaying(false)}
+                />
+                {!videoPlaying && (
+                  <button
+                    type="button"
+                    aria-label="Redă videoclipul"
+                    onClick={() => { void videoRef.current?.play(); }}
+                    className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-amber-500 text-3xl text-black shadow-xl transition-transform hover:scale-105"
+                  >
+                    ▶
+                  </button>
+                )}
+              </div>
             )}
             {upload.type === 'audio' && (
               <div className="bg-neutral-900 rounded-lg p-4">
@@ -452,7 +479,7 @@ function AssetModal({
             )}
           </div>
 
-          <div className="px-4 pb-4">
+          <div className="px-3 pb-3 sm:px-4 sm:pb-4">
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/70">
               <div className="border-b border-neutral-800 px-4 py-3">
                 <p className="text-[11px] uppercase tracking-wide text-neutral-500">Comentarii</p>
@@ -483,7 +510,26 @@ function AssetModal({
           </div>
         </div>
 
-        <div className="border-t border-neutral-800 p-4 space-y-3">
+        <div className="shrink-0 max-h-[45dvh] overflow-y-auto border-t border-neutral-800 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-3 sm:max-h-none sm:overflow-visible sm:p-4">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => previousUpload && onNavigate(previousUpload)}
+              disabled={!previousUpload}
+              className="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300 disabled:opacity-30"
+            >
+              ‹ Anterior
+            </button>
+            <span className="text-[10px] text-neutral-600">Navighează între materiale</span>
+            <button
+              type="button"
+              onClick={() => nextUpload && onNavigate(nextUpload)}
+              disabled={!nextUpload}
+              className="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300 disabled:opacity-30"
+            >
+              Următor ›
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] uppercase tracking-wide text-neutral-500">Trimite ca</span>
             <div className="inline-flex rounded-full border border-neutral-800 bg-neutral-900 p-1">

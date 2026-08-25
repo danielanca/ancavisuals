@@ -979,44 +979,61 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
       return;
     }
 
-    if (uploadDoc.data()!.notifiedAt) {
+    const uploadData = uploadDoc.data()!;
+    const shouldNotifyGuest = !uploadData.notifiedAt;
+    // Keep this marker separate from the old guest `notifiedAt` flag. It is
+    // written only after the admin SMTP delivery succeeds, so a temporary
+    // mail failure can be retried on the next view.
+    const shouldNotifyAdmin = !uploadData.adminViewNotificationSentAt;
+    if (!shouldNotifyGuest && !shouldNotifyAdmin) {
       response.json({ ok: true, alreadyNotified: true });
       return;
     }
 
-    await uploadRef.update({ notifiedAt: Timestamp.now() });
+    const guestDoc = await firestore().collection(QR_GUESTS).doc(uploadData.guestId as string).get();
+    const guestData = guestDoc.exists ? guestDoc.data()! : {};
+    const eventData = eventDoc.data()!;
+    const eventType = normalizeQrEventType(eventData.eventType);
+    const brideName = (eventData.bride as string | undefined)?.trim() || getHostRoleLabel(eventType, 'bride');
+    const groomName = (eventData.groom as string | undefined)?.trim() || getHostRoleLabel(eventType, 'groom');
+    const hostDisplayName = `${brideName} și ${groomName}`;
+    const mediaType = uploadData.type as 'photo' | 'video' | 'audio';
+    const mediaLabel = mediaType === 'photo' ? 'poza încărcată' : mediaType === 'video' ? 'videoclipul încărcat' : 'mesajul vocal încărcat';
+    const thumbnailUrl = mediaType === 'photo' ? (uploadData.bunnyUrl as string) : null;
+    const guestEmail = String(guestData.email ?? '').trim().toLowerCase();
+    const guestName = String(guestData.name ?? 'un invitat');
+    const recipientKinds = new Map<string, { guest: boolean; admin: boolean }>();
+    if (shouldNotifyGuest && guestEmail && guestData.emailConsent !== false) {
+      recipientKinds.set(guestEmail, { guest: true, admin: false });
+    }
+    if (shouldNotifyAdmin && adminUser.email) {
+      const adminEmail = adminUser.email.trim().toLowerCase();
+      const existingKinds = recipientKinds.get(adminEmail);
+      recipientKinds.set(adminEmail, { guest: existingKinds?.guest ?? false, admin: true });
+    }
 
-    const guestDoc = await firestore().collection(QR_GUESTS).doc(uploadDoc.data()!.guestId as string).get();
-    if (guestDoc.exists && guestDoc.data()!.email && guestDoc.data()!.emailConsent !== false) {
-      const guestData = guestDoc.data()!;
-      const eventData = eventDoc.data()!;
-      const eventType = normalizeQrEventType(eventData.eventType);
-      const brideName = (eventData.bride as string | undefined)?.trim() || getHostRoleLabel(eventType, 'bride');
-      const groomName = (eventData.groom as string | undefined)?.trim() || getHostRoleLabel(eventType, 'groom');
-      const hostDisplayName = `${brideName} și ${groomName}`;
-      const mediaType = uploadDoc.data()!.type as 'photo' | 'video' | 'audio';
-      const mediaLabel = mediaType === 'photo' ? 'poza încărcată' : mediaType === 'video' ? 'videoclipul încărcat' : 'mesajul vocal încărcat';
-      const isPhoto = mediaType === 'photo';
-      const thumbnailUrl = isPhoto ? (uploadDoc.data()!.bunnyUrl as string) : null;
-
-      const viewNotificationRecipients = Array.from(new Set([
-        String(guestData.email).trim().toLowerCase(),
-        adminUser.email.trim().toLowerCase(),
-      ].filter(Boolean)));
-
-      for (const recipient of viewNotificationRecipients) {
-        sendViewNotificationEmail(
+    const deliveries = Array.from(recipientKinds.entries()).map(([recipient, kinds]) => {
+      return sendViewNotificationEmail(
           recipient,
-          guestData.name as string,
+          guestName,
           hostDisplayName,
-          guestDoc.id,
+          guestDoc.exists ? guestDoc.id : '',
           thumbnailUrl,
           mediaLabel,
-        ).catch((error) => {
+        ).then(() => ({ recipient, ...kinds, ok: true as const }))
+        .catch((error) => {
           console.error(`[qr-moments] view notification email failed for ${eventSlug}/${uploadId} -> ${recipient}:`, error);
+          return { recipient, ...kinds, ok: false as const };
         });
-      }
-    }
+    });
+    const deliveryResults = await Promise.all(deliveries);
+    const successfulGuestDelivery = deliveryResults.some((delivery) => delivery.ok && delivery.guest);
+    const successfulAdminDelivery = deliveryResults.some((delivery) => delivery.ok && delivery.admin);
+    const notificationTimestamp = Timestamp.now();
+    const successfulUpdates: Record<string, unknown> = {};
+    if (shouldNotifyGuest && successfulGuestDelivery) successfulUpdates.notifiedAt = notificationTimestamp;
+    if (shouldNotifyAdmin && successfulAdminDelivery) successfulUpdates.adminViewNotificationSentAt = notificationTimestamp;
+    if (Object.keys(successfulUpdates).length > 0) await uploadRef.update(successfulUpdates);
 
     response.json({ ok: true });
   } catch {
