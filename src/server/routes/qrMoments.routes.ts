@@ -1006,8 +1006,8 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
     if (shouldNotifyGuest && guestEmail && guestData.emailConsent !== false) {
       recipientKinds.set(guestEmail, { guest: true, admin: false });
     }
-    if (shouldNotifyAdmin && adminUser.email) {
-      const adminEmail = adminUser.email.trim().toLowerCase();
+    if (shouldNotifyAdmin) {
+      const adminEmail = SUPREME_ADMIN_EMAIL;
       const existingKinds = recipientKinds.get(adminEmail);
       recipientKinds.set(adminEmail, { guest: existingKinds?.guest ?? false, admin: true });
     }
