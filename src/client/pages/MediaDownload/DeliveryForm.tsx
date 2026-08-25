@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from "react";
 import styles from './DeliveryForm.module.scss';
+import { ROMANIAN_COUNTIES } from '../../data/romaniaLocations';
 
 type Props = {
     albumId: string;
@@ -12,6 +13,7 @@ const initialForm = {
   fullName: '',
   phone: '',
   street: '',
+  county: '',
   city: '',
   easybox: '',
 };
@@ -22,6 +24,7 @@ type DeliveryFormErrors = {
   fullName: string;
   phone: string;
   street: string;
+  county: string;
   city: string;
 };
 
@@ -30,6 +33,7 @@ export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
   const [errors, setErrors] = useState<DeliveryFormErrors>({  fullName :  "",
     phone: "",
     street : "",
+    county: "",
     city : ""});
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Add state
@@ -40,11 +44,13 @@ const [showSuccess, setShowSuccess] = useState(false);
         fullName :  "",
         phone: "",
         street : "",
+        county: "",
         city : ""
     };
     if (!form.fullName.trim()) newErrors.fullName = 'Numele și prenumele sunt obligatorii';
     if (!form.phone.trim()) newErrors.phone = 'Numărul de telefon este obligatoriu';
     if (!form.street.trim()) newErrors.street = 'Adresa stradală este obligatorie';
+    if (!form.county.trim()) newErrors.county = 'Județul este obligatoriu';
     if (!form.city.trim()) newErrors.city = 'Localitatea este obligatorie';
     return newErrors;
   };
@@ -56,6 +62,7 @@ const [showSuccess, setShowSuccess] = useState(false);
     if (
       validationErrors.fullName !== "" ||
       validationErrors.city !== ""
+      || validationErrors.county !== ""
       || validationErrors.phone !== "" 
       || validationErrors.street !== ""
       ) {
@@ -72,6 +79,7 @@ const [showSuccess, setShowSuccess] = useState(false);
           fullName: form.fullName,
           phone: form.phone,
           street: form.street,
+          county: form.county,
           city: form.city,
           easybox: form.easybox || null,
         }),
@@ -144,7 +152,20 @@ const [showSuccess, setShowSuccess] = useState(false);
             </div>
 
             <div className={styles.group}>
-              <label className={`${styles.label} ${styles.required}`}>Localitate</label>
+              <label className={`${styles.label} ${styles.required}`}>Județ</label>
+              <select
+                className={styles.input}
+                value={form.county}
+                onChange={e => setForm({ ...form, county: e.target.value, city: '' })}
+              >
+                <option value="">Selectează județul</option>
+                {ROMANIAN_COUNTIES.map(county => <option key={county} value={county}>{county}</option>)}
+              </select>
+              {errors.county && <div className={styles.error}>{errors.county}</div>}
+            </div>
+
+            <div className={styles.group}>
+              <label className={`${styles.label} ${styles.required}`}>Oraș / Localitate</label>
               <input
                 className={styles.input}
                 value={form.city}

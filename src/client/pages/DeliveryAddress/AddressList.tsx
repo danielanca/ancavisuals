@@ -14,6 +14,7 @@ type DeliveryAddress = {
   fullName: string;
   phone: string;
   street: string;
+  county?: string | null;
   city: string;
   easybox?: string | null;
   deliveryAddressUpdatedAt?: number;
@@ -96,7 +97,11 @@ export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
                   <span className={styles.fieldValue}>{data.street}</span>
                 </div>
                 <div className={styles.field}>
-                  <span className={styles.fieldLabel}>Localitate</span>
+                  <span className={styles.fieldLabel}>Județ</span>
+                  <span className={styles.fieldValue}>{data.county || '—'}</span>
+                </div>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>Oraș / Localitate</span>
                   <span className={styles.fieldValue}>{data.city}</span>
                 </div>
                 {data.easybox && (

@@ -304,6 +304,7 @@ export async function addDeliveryAddress(req: Request, res: Response) {
       fullName: data.fullName,
       phone: data.phone,
       street: data.street,
+      county: data.county,
       city: data.city,
       easybox: data.easybox,
     });

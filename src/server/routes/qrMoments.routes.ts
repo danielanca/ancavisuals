@@ -999,16 +999,23 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
       const isPhoto = mediaType === 'photo';
       const thumbnailUrl = isPhoto ? (uploadDoc.data()!.bunnyUrl as string) : null;
 
-      sendViewNotificationEmail(
-        guestData.email as string,
-        guestData.name as string,
-        hostDisplayName,
-        guestDoc.id,
-        thumbnailUrl,
-        mediaLabel,
-      ).catch((error) => {
-        console.error(`[qr-moments] view notification email failed for ${eventSlug}/${uploadId}:`, error);
-      });
+      const viewNotificationRecipients = Array.from(new Set([
+        String(guestData.email).trim().toLowerCase(),
+        adminUser.email.trim().toLowerCase(),
+      ].filter(Boolean)));
+
+      for (const recipient of viewNotificationRecipients) {
+        sendViewNotificationEmail(
+          recipient,
+          guestData.name as string,
+          hostDisplayName,
+          guestDoc.id,
+          thumbnailUrl,
+          mediaLabel,
+        ).catch((error) => {
+          console.error(`[qr-moments] view notification email failed for ${eventSlug}/${uploadId} -> ${recipient}:`, error);
+        });
+      }
     }
 
     response.json({ ok: true });

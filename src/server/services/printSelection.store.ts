@@ -10,6 +10,7 @@ type DeliveryAddress = {
   fullName: string;
   phone: string;
   street: string;
+  county?: string | null;
   city: string;
   easybox?: string | null;
 };
@@ -62,6 +63,7 @@ export async function saveDeliveryAddress(
           fullName: address.fullName.trim(),
           phone: address.phone.trim(),
           street: address.street.trim(),
+          ...(address.county?.trim() ? { county: address.county.trim() } : {}),
           city: address.city.trim(),
           easybox: address.easybox?.trim() || null,
         },

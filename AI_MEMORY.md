@@ -141,6 +141,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #MEDIA  Onboarding: src/client/pages/MediaDownload/Onboardingwizard.tsx  ← casing exact
 #MEDIA  Galerie album: grid-ul browse rămâne pe `photos_preview`/WebP pentru performanță, dar lightbox-ul cu navigare stânga/dreapta trebuie să folosească `originalPhoto`; mapează preview→original după basename, nu după extensie, fiindcă preview-ul poate fi `.webp` iar originalul `.jpg/.jpeg/.png` #MEDIA
 #MEDIA  În `BunnyPhotoGallery` și `PhotoLightbox`, albumele publice cu `protectImages` blochează long-press/context menu/drag pe thumbnail și fotografia mărită și afișează mesajul că download-ul se face prin butonul individual sau „Descarcă toate pozele”; originalele rămân folosite de butoanele de download. #MEDIA
+#MEDIA  Formularul de adresă de livrare din `/media/:slug` colectează acum județul obligatoriu, oraș/localitate și Easybox/Locker opțional; `county` este compatibil cu adresele vechi care nu îl aveau. #MEDIA
 
 ---
 
@@ -158,7 +159,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #QR  Gallery player: `QRMomentsGalleryPage.tsx` folosește `upload.type` ('photo'/'video'/'audio', calculat server-side de `detectMediaType`) pentru a decide playerul, NU o listă hardcodată de mimeType-uri — vechea listă rata `.mov` (video/quicktime) și orice codec audio cu parametri (`audio/mp4;codecs=...`). #QR #PITFALL
 #QR  Director emailuri admin: `GET /api/qr-moments/admin/guests` agregă `qr_guests` pe `eventSlug`; butonul „Emailuri participanți” din `QRMomentsAdminPage` afișează emailurile grupate pe eveniment, inclusiv statutul consimțământului și numărul de upload-uri. #QR
 #QR  Notificare upload: după upload, emailul merge la `qr_events.notificationEmail`; dacă acesta lipsește, fallback-ul este `ADMIN_NOTIFICATION_EMAIL`/`SMTP_SENDER_EMAIL` din `.env`. Erorile SMTP sunt logate explicit, fără să invalideze uploadul. #QR #ENV
-#QR  Galerie client: adminul copiază linkul unic `/qr-moments/:eventSlug/gallery?pin=...`; pagina îl deschide direct și permite înscrierea opțională la update-uri în `qr_gallery_subscribers`. Abonații primesc email la uploaduri noi, iar vizualizarea unui material notifică invitatul cu numele ambilor miri. #QR
+#QR  Galerie client: adminul copiază linkul unic `/qr-moments/:eventSlug/gallery?pin=...`; pagina îl deschide direct și permite înscrierea opțională la update-uri în `qr_gallery_subscribers`. Abonații primesc email la uploaduri noi, iar vizualizarea unui material notifică invitatul și adminul (`ADMIN_NOTIFICATION_EMAIL`) cu numele ambilor miri. #QR
 #CI  Lint: numele fișierelor din ZIP se curăță fără regex cu control characters; ESLint `no-control-regex` eșua pe `qrMoments.routes.ts` în GitHub Actions. #CI #QR
 #QR  Download admin QR Moments: `GET /api/qr-moments/admin/:eventSlug/download?type=all|photo|video|audio` creează ZIP autentificat, cu foldere `foto/`, `video/`, `audio/`; `QRMomentsAdminPage` expune butoane atât în directorul de emailuri, cât și în detaliile evenimentului. #QR
 #QR  detectMediaType PITFALL: verifică `mimeType.startsWith('audio/')` ÎNAINTE de orice check pe extensie video — `.webm` e extensie validă și pentru audio (Firefox/Android recorder) și pentru video; ordinea greșită clasifica mesaje vocale webm drept video. #QR #PITFALL
