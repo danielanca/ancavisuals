@@ -970,7 +970,49 @@ router.post('/thank/:uploadId', async (request: Request, response: Response) => 
   }
 });
 
-// ─── Gallery: notify guest on first view/play ────────────────────────────────
+// ─── Gallery: notify guest/admin once per guest and event ────────────────────
+
+type ViewNotificationClaims = {
+  guest: boolean;
+  admin: boolean;
+};
+
+/**
+ * Claim the two possible view-email deliveries atomically on the guest.
+ *
+ * The old implementation stored these flags on each upload, which meant that
+ * one guest with five uploads could trigger five emails. Keeping the claims on
+ * the event guest also makes concurrent view requests safe: only one request
+ * can claim a delivery for that guest.
+ */
+async function claimViewNotification(
+  guestId: string,
+  shouldNotifyGuest: boolean,
+  shouldNotifyAdmin: boolean,
+): Promise<ViewNotificationClaims> {
+  const guestRef = firestore().collection(QR_GUESTS).doc(guestId);
+  return firestore().runTransaction(async (transaction) => {
+    const guestDoc = await transaction.get(guestRef);
+    if (!guestDoc.exists) return { guest: false, admin: false };
+
+    const data = guestDoc.data() ?? {};
+    const guest = shouldNotifyGuest && !data.viewNotificationSentAt;
+    const admin = shouldNotifyAdmin && !data.adminViewNotificationSentAt;
+    const updates: Record<string, Timestamp> = {};
+    if (guest) updates.viewNotificationSentAt = Timestamp.now();
+    if (admin) updates.adminViewNotificationSentAt = Timestamp.now();
+    if (Object.keys(updates).length > 0) transaction.update(guestRef, updates);
+    return { guest, admin };
+  });
+}
+
+async function releaseViewNotificationClaim(guestId: string, claims: ViewNotificationClaims): Promise<void> {
+  const updates: Record<string, unknown> = {};
+  if (claims.guest) updates.viewNotificationSentAt = FieldValue.delete();
+  if (claims.admin) updates.adminViewNotificationSentAt = FieldValue.delete();
+  if (Object.keys(updates).length === 0) return;
+  await firestore().collection(QR_GUESTS).doc(guestId).update(updates);
+}
 
 router.post('/view-notify/:uploadId', async (request: Request, response: Response) => {
   const { uploadId } = request.params;
@@ -999,16 +1041,6 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
     }
 
     const uploadData = uploadDoc.data()!;
-    const shouldNotifyGuest = !uploadData.notifiedAt;
-    // Keep this marker separate from the old guest `notifiedAt` flag. It is
-    // written only after the admin SMTP delivery succeeds, so a temporary
-    // mail failure can be retried on the next view.
-    const shouldNotifyAdmin = !uploadData.adminViewNotificationSentAt;
-    if (!shouldNotifyGuest && !shouldNotifyAdmin) {
-      response.json({ ok: true, alreadyNotified: true });
-      return;
-    }
-
     const guestDoc = await firestore().collection(QR_GUESTS).doc(uploadData.guestId as string).get();
     const guestData = guestDoc.exists ? guestDoc.data()! : {};
     const eventData = eventDoc.data()!;
@@ -1023,11 +1055,22 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
     const thumbnailUrl = mediaType === 'photo' ? (uploadData.bunnyUrl as string) : null;
     const guestEmail = String(guestData.email ?? '').trim().toLowerCase();
     const guestName = String(guestData.name ?? 'un invitat');
+    const shouldNotifyGuest = Boolean(guestDoc.exists && guestEmail && guestData.emailConsent !== false);
+    const shouldNotifyAdmin = true;
+    const claims = guestDoc.exists
+      ? await claimViewNotification(guestDoc.id, shouldNotifyGuest, shouldNotifyAdmin)
+      : { guest: false, admin: !uploadData.adminViewNotificationSentAt };
+
+    if (!claims.guest && !claims.admin) {
+      response.json({ ok: true, alreadyNotified: true });
+      return;
+    }
+
     const recipientKinds = new Map<string, { guest: boolean; admin: boolean }>();
-    if (shouldNotifyGuest && guestEmail && guestData.emailConsent !== false) {
+    if (claims.guest) {
       recipientKinds.set(guestEmail, { guest: true, admin: false });
     }
-    if (shouldNotifyAdmin) {
+    if (claims.admin) {
       const adminEmail = SUPREME_ADMIN_EMAIL;
       const existingKinds = recipientKinds.get(adminEmail);
       recipientKinds.set(adminEmail, { guest: existingKinds?.guest ?? false, admin: true });
@@ -1051,11 +1094,12 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
     const deliveryResults = await Promise.all(deliveries);
     const successfulGuestDelivery = deliveryResults.some((delivery) => delivery.ok && delivery.guest);
     const successfulAdminDelivery = deliveryResults.some((delivery) => delivery.ok && delivery.admin);
-    const notificationTimestamp = Timestamp.now();
-    const successfulUpdates: Record<string, unknown> = {};
-    if (shouldNotifyGuest && successfulGuestDelivery) successfulUpdates.notifiedAt = notificationTimestamp;
-    if (shouldNotifyAdmin && successfulAdminDelivery) successfulUpdates.adminViewNotificationSentAt = notificationTimestamp;
-    if (Object.keys(successfulUpdates).length > 0) await uploadRef.update(successfulUpdates);
+    const failedClaims = {
+      guest: claims.guest && !successfulGuestDelivery,
+      admin: claims.admin && !successfulAdminDelivery,
+    };
+    if (guestDoc.exists) await releaseViewNotificationClaim(guestDoc.id, failedClaims);
+    else if (successfulAdminDelivery) await uploadRef.update({ adminViewNotificationSentAt: Timestamp.now() });
 
     response.json({ ok: true });
   } catch {
