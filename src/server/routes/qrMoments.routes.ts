@@ -197,6 +197,15 @@ function buildUnsubscribeUrl(guestId: string): string {
   return `${base}/qr-moments/unsubscribe/${guestId}`;
 }
 
+const EMAIL_PORTFOLIO_IMAGES = [
+  'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FPoze-125.jpg?alt=media&token=364b1285-b470-4251-8002-8ba6a7a1bb98',
+  'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FClaudiu-016.jpg?alt=media&token=151a9324-2424-476b-8163-9b6610611f12',
+  'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FVertical-218mm.jpg?alt=media&token=08420520-11dc-4d9e-86eb-8ee371d4bd98',
+  'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2FAndradaAnca%2FPoze-2315.jpg?alt=media&token=2966ffae-cd87-436a-ae24-b8b764185ae7',
+  'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Feggsparty%2Fmulaje-20.jpg?alt=media&token=5781c4d2-3d9e-440a-a197-fc00480ecf68',
+  'https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Feggsparty%2Fchristmas-162.jpg?alt=media&token=1c90c7ad-b718-499a-be91-03d888519b16',
+];
+
 async function sendThankYouEmail(
   guestEmail: string,
   guestName: string,
@@ -264,6 +273,13 @@ async function sendViewNotificationEmail(
           <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${guestName}!</h2>
           <p style="color:#6b5b4d;margin:0 0 12px;">${hostDisplayName} au vizualizat ${mediaLabel} la eveniment. Mulțumim că ai imortalizat aceste momente!</p>
           ${thumbnailHtml}
+          <div style="margin:22px 0 0;padding:18px 18px 16px;border-radius:14px;background:linear-gradient(135deg,#fbf3e5,#fffaf2);border:1px solid #ead9bd;">
+            <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#b7791f;">AncaVisuals</p>
+            <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#241f1a;">Păstrează emoția evenimentului tău</p>
+            ${EMAIL_PORTFOLIO_IMAGES.map((imageUrl) => `<img src="${imageUrl}" alt="AncaVisuals — fotografie de eveniment" style="display:block;width:100%;height:170px;margin:0 0 8px;border-radius:10px;object-fit:cover;">`).join('')}
+            <p style="margin:12px 0 0;color:#6b5b4d;font-size:13px;line-height:1.55;">Foto · Video · Fotocabină · Videocabină · QR Moments</p>
+            <a href="https://ancavisuals.ro" style="display:inline-block;margin-top:13px;padding:10px 18px;border-radius:999px;background:#e0a13b;color:#241f1a;text-decoration:none;font-size:13px;font-weight:700;">Descoperă AncaVisuals</a>
+          </div>
           <hr style="border:none;border-top:1px solid #eadfce;margin:16px 0;">
           <p style="font-size:12px;color:#7b6a5a;margin:0 0 8px;">
             Nu mai vrei să primești notificări?
