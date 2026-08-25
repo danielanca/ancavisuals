@@ -609,8 +609,8 @@ export default function QRMomentsAdminPage() {
   };
 
   const handleCreateEvent = async (values: QREventFormValues) => {
-    if (!values.adminEventId) {
-      setEditorError("Alege un eveniment confirmat din listă.");
+    if (!values.adminEventId && !values.eventDate) {
+      setEditorError("Alege un eveniment din listă sau completează data manual.");
       return;
     }
 
