@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import useAuth from '../../features/admin/auth/useAuth';
-import { getHostRoleLabel, type QrEventType } from '../../../shared/qrMoments/hostRoles';
+import { getHostRoleLabel, normalizeQrEventType, type QrEventType } from '../../../shared/qrMoments/hostRoles';
 
 interface Upload {
   id: string;
@@ -208,7 +208,9 @@ function ThankModal({
               <div className="inline-flex rounded-full border border-neutral-800 bg-neutral-900 p-1">
                 {([
                   { value: 'bride' as const, label: eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride') },
-                  { value: 'groom' as const, label: eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom') },
+                  ...(normalizeQrEventType(eventInfo?.eventType) === 'corporate' ? [] : [
+                    { value: 'groom' as const, label: eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom') },
+                  ]),
                 ]).map((option) => (
                   <button
                     key={option.value}
@@ -535,12 +537,14 @@ function AssetModal({
             <div className="inline-flex rounded-full border border-neutral-800 bg-neutral-900 p-1">
               {([
                 { value: 'bride', label: eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride') },
-                { value: 'groom', label: eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom') },
+                ...(normalizeQrEventType(eventInfo?.eventType) === 'corporate' ? [] : [
+                  { value: 'groom', label: eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom') },
+                ]),
               ] as const).map((option) => (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setHostRole(option.value)}
+                  onClick={() => setHostRole(option.value as 'bride' | 'groom')}
                   className={`rounded-full px-3 py-1 text-xs transition-colors ${
                     hostRole === option.value
                       ? 'bg-amber-500 text-black'

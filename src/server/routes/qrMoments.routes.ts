@@ -227,7 +227,7 @@ async function sendThankYouEmail(
           <div style="background:#fbf6ee;border:1px solid #ecd9bd;padding:16px 18px;border-radius:12px;margin:0 0 20px;">
             <p style="margin:0;font-size:16px;line-height:1.45;color:#241f1a;">"${message}"</p>
           </div>
-          <p style="color:#6b5b4d;font-size:13px;line-height:1.6;margin:0 0 20px;">Ne bucurăm că ai fost alături de ei și că ai imortalizat aceste momente.</p>
+          <p style="color:#6b5b4d;font-size:13px;line-height:1.6;margin:0 0 20px;">${eventType === 'corporate' ? 'Ne bucurăm că ai contribuit la amintirile echipei și ale evenimentului.' : 'Ne bucurăm că ai fost alături de ei și că ai imortalizat aceste momente.'}</p>
           <hr style="border:none;border-top:1px solid #eadfce;margin:0 0 18px;">
           <p style="font-size:12px;color:#7b6a5a;margin:0 0 8px;">
             Nu mai vrei să primești notificări?
@@ -251,6 +251,7 @@ async function sendViewNotificationEmail(
   guestId: string,
   thumbnailUrl: string | null,
   mediaLabel: string,
+  eventType: QrEventType,
 ): Promise<void> {
   const unsubscribeUrl = buildUnsubscribeUrl(guestId);
   const thumbnailHtml = thumbnailUrl
@@ -263,15 +264,17 @@ async function sendViewNotificationEmail(
     second: '2-digit',
   });
 
+  const viewVerb = eventType === 'corporate' ? 'a vizualizat' : 'au vizualizat';
+
   await sendEmail({
     to: guestEmail,
-    subject: `👀 ${hostDisplayName} au vizualizat ${mediaLabel} de tine · ${viewedAt}`,
+    subject: `👀 ${hostDisplayName} ${viewVerb} ${mediaLabel} de tine · ${viewedAt}`,
     html: `
       <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
         <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
           <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
           <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${guestName}!</h2>
-          <p style="color:#6b5b4d;margin:0 0 12px;">${hostDisplayName} au vizualizat ${mediaLabel} la eveniment. Mulțumim că ai imortalizat aceste momente!</p>
+          <p style="color:#6b5b4d;margin:0 0 12px;">${hostDisplayName} ${viewVerb} ${mediaLabel} la eveniment. ${eventType === 'corporate' ? 'Mulțumim că ai surprins energia echipei!' : 'Mulțumim că ai imortalizat aceste momente!'}</p>
           ${thumbnailHtml}
           <div style="margin:22px 0 0;padding:18px 18px 16px;border-radius:14px;background:linear-gradient(135deg,#fbf3e5,#fffaf2);border:1px solid #ead9bd;">
             <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#b7791f;">AncaVisuals</p>
@@ -1012,7 +1015,9 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
     const eventType = normalizeQrEventType(eventData.eventType);
     const brideName = (eventData.bride as string | undefined)?.trim() || getHostRoleLabel(eventType, 'bride');
     const groomName = (eventData.groom as string | undefined)?.trim() || getHostRoleLabel(eventType, 'groom');
-    const hostDisplayName = `${brideName} și ${groomName}`;
+    const hostDisplayName = eventType === 'corporate'
+      ? brideName || getHostsFallbackName(eventType)
+      : `${brideName} și ${groomName}`;
     const mediaType = uploadData.type as 'photo' | 'video' | 'audio';
     const mediaLabel = mediaType === 'photo' ? 'poza încărcată' : mediaType === 'video' ? 'videoclipul încărcat' : 'mesajul vocal încărcat';
     const thumbnailUrl = mediaType === 'photo' ? (uploadData.bunnyUrl as string) : null;
@@ -1036,6 +1041,7 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
           guestDoc.exists ? guestDoc.id : '',
           thumbnailUrl,
           mediaLabel,
+          eventType,
         ).then(() => ({ recipient, ...kinds, ok: true as const }))
         .catch((error) => {
           console.error(`[qr-moments] view notification email failed for ${eventSlug}/${uploadId} -> ${recipient}:`, error);
@@ -1265,35 +1271,36 @@ router.get('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (_re
 });
 
 router.post('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
-  const { bride, groom, pin, adminEventId, notificationEmail, eventType } = request.body as {
+  const { bride, groom, pin, adminEventId, notificationEmail, eventType, eventDate } = request.body as {
     bride?: string;
     groom?: string;
     pin?: string;
     adminEventId?: string;
     notificationEmail?: string;
     eventType?: string;
+    eventDate?: string;
   };
   const normalizedEventType = normalizeQrEventType(eventType);
-
-  if (!adminEventId?.trim()) {
-    response.status(400).json({ error: 'Trebuie să alegi un eveniment confirmat.' });
-    return;
-  }
+  const normalizedAdminEventId = adminEventId?.trim() || null;
 
   try {
-    const adminEventDoc = await firestore().collection('adminEvents').doc(adminEventId.trim()).get();
-    if (!adminEventDoc.exists) {
-      response.status(404).json({ error: 'Evenimentul selectat nu există.' });
-      return;
+    let adminEventDateRaw: Timestamp | string | null = eventDate?.trim() || null;
+    if (normalizedAdminEventId) {
+      const adminEventDoc = await firestore().collection('adminEvents').doc(normalizedAdminEventId).get();
+      if (!adminEventDoc.exists) {
+        response.status(404).json({ error: 'Evenimentul selectat nu există.' });
+        return;
+      }
+
+      const adminEventData = adminEventDoc.data()!;
+      if (adminEventData.status !== 'confirmat') {
+        response.status(400).json({ error: 'Poți crea QR Moments doar pentru evenimente confirmate.' });
+        return;
+      }
+
+      adminEventDateRaw = adminEventData.eventDate as Timestamp | string | null;
     }
 
-    const adminEventData = adminEventDoc.data()!;
-    if (adminEventData.status !== 'confirmat') {
-      response.status(400).json({ error: 'Poți crea QR Moments doar pentru evenimente confirmate.' });
-      return;
-    }
-
-    const adminEventDateRaw = adminEventData.eventDate as Timestamp | string | null;
     const parsedEventDate =
       adminEventDateRaw instanceof Timestamp
         ? adminEventDateRaw.toDate()
@@ -1316,12 +1323,16 @@ router.post('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (re
     }
 
     const nextPin = pin?.trim().toUpperCase() || generatePin();
+    const normalizedBride = normalizedEventType === 'corporate'
+      ? (bride?.trim() || 'ORGANIZATORUL')
+      : (bride?.trim() || null);
+    const normalizedGroom = normalizedEventType === 'corporate' ? null : (groom?.trim() || null);
 
     await eventRef.set({
       eventSlug: normalizedEventSlug,
-      adminEventId: adminEventId?.trim() || null,
-      bride: bride?.trim() || null,
-      groom: groom?.trim() || null,
+      adminEventId: normalizedAdminEventId,
+      bride: normalizedBride,
+      groom: normalizedGroom,
       eventType: normalizedEventType,
       notificationEmail: notificationEmail?.trim().toLowerCase() || null,
       eventDate: Timestamp.fromDate(parsedEventDate),
@@ -1334,9 +1345,9 @@ router.post('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (re
       event: {
         id: normalizedEventSlug,
         eventSlug: normalizedEventSlug,
-        adminEventId: adminEventId?.trim() || null,
-        bride: bride?.trim() || null,
-        groom: groom?.trim() || null,
+        adminEventId: normalizedAdminEventId,
+        bride: normalizedBride,
+        groom: normalizedGroom,
         eventType: normalizedEventType,
         notificationEmail: notificationEmail?.trim().toLowerCase() || null,
         pin: nextPin,
@@ -1388,6 +1399,13 @@ router.patch('/admin/:eventSlug', requireFirebaseAuth, requireSupremeAdmin, asyn
     if (!eventDoc.exists) {
       response.status(404).json({ error: 'Evenimentul nu există.' });
       return;
+    }
+
+    const effectiveEventType = normalizeQrEventType(eventType ?? eventDoc.data()?.eventType);
+    if (effectiveEventType === 'corporate') {
+      updatePayload.bride = typeof bride === 'string' ? (bride.trim() || 'ORGANIZATORUL') : (eventDoc.data()?.bride || 'ORGANIZATORUL');
+      updatePayload.groom = null;
+      updatePayload.eventType = effectiveEventType;
     }
 
     await eventRef.update(updatePayload);

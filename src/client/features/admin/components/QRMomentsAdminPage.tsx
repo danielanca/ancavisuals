@@ -325,9 +325,9 @@ function EventEditorModal({
         <div className="space-y-3">
           {mode === "create" && (
             <div>
-              <label className={labelClass}>Eveniment existent *</label>
+              <label className={labelClass}>Eveniment existent (opțional)</label>
               <select className={inputClass} value={form.adminEventId} onChange={handleAdminEventChange}>
-                <option value="">Alege un eveniment din listă</option>
+                <option value="">Fără eveniment existent — completează data manual</option>
                 {adminEvents.map((event) => (
                   <option key={event.id} value={event.id}>
                     {formatAdminEventLabel(event)}
@@ -342,11 +342,11 @@ function EventEditorModal({
               <label className={labelClass}>Data eveniment</label>
               <input
                 className={inputClass}
-                type={mode === "create" ? "text" : "date"}
-                value={mode === "create" ? (form.eventDate ? formatDate(form.eventDate) : "") : form.eventDate}
-                onChange={mode === "edit" ? set("eventDate") : undefined}
-                disabled={mode === "create"}
-                placeholder="Se completează din eveniment"
+                type={mode === "create" && !form.adminEventId ? "date" : mode === "create" ? "text" : "date"}
+                value={mode === "create" && form.adminEventId ? (form.eventDate ? formatDate(form.eventDate) : "") : form.eventDate}
+                onChange={mode === "edit" || !form.adminEventId ? set("eventDate") : undefined}
+                disabled={mode === "create" && Boolean(form.adminEventId)}
+                placeholder={mode === "create" && !form.adminEventId ? "Alege data evenimentului" : "Se completează din eveniment"}
               />
             </div>
             <div>
@@ -360,7 +360,22 @@ function EventEditorModal({
             <select
               className={inputClass}
               value={form.eventType}
-              onChange={(event) => setForm((previous) => ({ ...previous, eventType: normalizeQrEventType(event.target.value) }))}
+              onChange={(event) => setForm((previous) => {
+                const nextEventType = normalizeQrEventType(event.target.value);
+                if (nextEventType === 'corporate') {
+                  return {
+                    ...previous,
+                    eventType: nextEventType,
+                    bride: previous.bride.trim() || 'ORGANIZATORUL',
+                    groom: '',
+                  };
+                }
+                return {
+                  ...previous,
+                  eventType: nextEventType,
+                  bride: previous.eventType === 'corporate' && previous.bride === 'ORGANIZATORUL' ? '' : previous.bride,
+                };
+              })}
             >
               {QR_EVENT_TYPES.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -368,16 +383,24 @@ function EventEditorModal({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {form.eventType === 'corporate' ? (
             <div>
-              <label className={labelClass}>{getHostRoleLabel(form.eventType, "bride")}</label>
-              <input className={inputClass} value={form.bride} onChange={set("bride")} placeholder="Ana" />
+              <label className={labelClass}>Organizator</label>
+              <input className={inputClass} value={form.bride} onChange={set("bride")} placeholder="ORGANIZATORUL" />
+              <p className="text-neutral-600 text-[11px] mt-1">Dacă rămâne necompletat, va fi afișat „ORGANIZATORUL”.</p>
             </div>
-            <div>
-              <label className={labelClass}>{getHostRoleLabel(form.eventType, "groom")}</label>
-              <input className={inputClass} value={form.groom} onChange={set("groom")} placeholder="Dan" />
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>{getHostRoleLabel(form.eventType, "bride")}</label>
+                <input className={inputClass} value={form.bride} onChange={set("bride")} placeholder="Ana" />
+              </div>
+              <div>
+                <label className={labelClass}>{getHostRoleLabel(form.eventType, "groom")}</label>
+                <input className={inputClass} value={form.groom} onChange={set("groom")} placeholder="Dan" />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
