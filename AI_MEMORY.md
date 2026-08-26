@@ -165,6 +165,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #CI  Lint: numele fișierelor din ZIP se curăță fără regex cu control characters; ESLint `no-control-regex` eșua pe `qrMoments.routes.ts` în GitHub Actions. #CI #QR
 #QR  Download admin QR Moments: `GET /api/qr-moments/admin/:eventSlug/download?type=all|photo|video|audio` creează ZIP autentificat, cu foldere `foto/`, `video/`, `audio/`; `QRMomentsAdminPage` expune butoane atât în directorul de emailuri, cât și în detaliile evenimentului. #QR
 #QR  detectMediaType PITFALL: verifică `mimeType.startsWith('audio/')` ÎNAINTE de orice check pe extensie video — `.webm` e extensie validă și pentru audio (Firefox/Android recorder) și pentru video; ordinea greșită clasifica mesaje vocale webm drept video. #QR #PITFALL
+#QR  QR Moments independente: evenimentele create fără selecție `adminEvents` folosesc `eventSlug` ca `albumSlug` Bunny; evenimentele integrate continuă să citească `adminEvents.albumSlug`. #QR
 
 ---
 

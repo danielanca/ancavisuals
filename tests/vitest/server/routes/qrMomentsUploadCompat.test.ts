@@ -1,7 +1,17 @@
 import { describe, expect, test } from "vitest";
-import { convertHeicIfNeeded, detectMediaType, resolveUploadNotificationEmail } from "src/server/routes/qrMoments.routes";
+import { convertHeicIfNeeded, detectMediaType, resolveQrAlbumSlug, resolveUploadNotificationEmail } from "src/server/routes/qrMoments.routes";
 
 describe("qrMoments upload compatibility helpers", () => {
+  describe("resolveQrAlbumSlug", () => {
+    test("uses the QR slug for events created without an admin event", async () => {
+      await expect(resolveQrAlbumSlug({ adminEventId: null }, "26august2026")).resolves.toBe("26august2026");
+    });
+
+    test("prefers a stored standalone album slug", async () => {
+      await expect(resolveQrAlbumSlug({ adminEventId: null, albumSlug: "  qr-album " }, "26august2026")).resolves.toBe("qr-album");
+    });
+  });
+
   describe("resolveUploadNotificationEmail", () => {
     test("prefers the event email and falls back to the configured admin email", () => {
       expect(resolveUploadNotificationEmail(" Owner@Example.COM ")).toBe("owner@example.com");

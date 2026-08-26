@@ -143,7 +143,26 @@ function buildBunnyUploadUrl(albumSlug: string, guestId: string, fileName: strin
 async function fetchAlbumSlug(adminEventId: string | null | undefined): Promise<string | null> {
   if (!adminEventId) return null;
   const adminEventDoc = await firestore().collection('adminEvents').doc(adminEventId).get();
-  return (adminEventDoc.data()?.albumSlug as string | undefined) ?? null;
+  const albumSlug = adminEventDoc.data()?.albumSlug;
+  return typeof albumSlug === 'string' && albumSlug.trim() ? albumSlug.trim() : null;
+}
+
+/**
+ * QR Moments can be created without an adminEvents record. In that case the
+ * QR event slug is also the Bunny album slug. Integrated events continue to
+ * use the album configured on adminEvents.
+ */
+export async function resolveQrAlbumSlug(
+  eventData: { adminEventId?: string | null; albumSlug?: string | null },
+  eventSlug: string,
+): Promise<string | null> {
+  const storedAlbumSlug = typeof eventData.albumSlug === 'string' ? eventData.albumSlug.trim() : '';
+  if (storedAlbumSlug) return storedAlbumSlug;
+
+  const adminEventId = typeof eventData.adminEventId === 'string' ? eventData.adminEventId.trim() : '';
+  if (adminEventId) return fetchAlbumSlug(adminEventId);
+
+  return normalizeEventSlug(eventSlug) || null;
 }
 
 export function detectMediaType(mimeType: string, originalName: string): 'photo' | 'video' | 'audio' {
@@ -597,8 +616,9 @@ router.post(
         return;
       }
 
-      const adminEventId = eventDoc.data()!.adminEventId as string | null | undefined;
-      const albumSlug = await fetchAlbumSlug(adminEventId);
+      const eventData = eventDoc.data()!;
+      const adminEventId = eventData.adminEventId as string | null | undefined;
+      const albumSlug = await resolveQrAlbumSlug(eventData, eventSlug);
       if (!albumSlug) {
         console.error(`[qr-moments] upload: albumSlug lipsă pentru evenimentul ${eventSlug} (adminEventId=${adminEventId})`);
         response.status(500).json({ error: 'Evenimentul nu are un album Bunny asociat. Setează albumSlug în adminEvents.' });
@@ -1375,6 +1395,9 @@ router.post('/admin/events', requireFirebaseAuth, requireSupremeAdmin, async (re
     await eventRef.set({
       eventSlug: normalizedEventSlug,
       adminEventId: normalizedAdminEventId,
+      // Standalone QR Moments events use their own slug as the Bunny album.
+      // Integrated events resolve the album from adminEvents at upload time.
+      albumSlug: normalizedAdminEventId ? null : normalizedEventSlug,
       bride: normalizedBride,
       groom: normalizedGroom,
       eventType: normalizedEventType,
