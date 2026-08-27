@@ -43,6 +43,8 @@ const MediaAssetsAdminPage = loadable(() => import("../features/admin/components
 const VenueOutreachPage = loadable(() => import("../features/admin/components/VenueOutreachPage"), opts);
 const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/components/ShowcaseZoneEditorPage"), opts);
 const SeoGeneratorPage = loadable(() => import("../features/admin/components/SeoGeneratorPage"), opts);
+const SeoPagesAdminPage = loadable(() => import("../features/admin/components/SeoPagesAdminPage"), opts);
+const BlogAdminPage = loadable(() => import("../features/admin/components/BlogAdminPage"), opts);
 const CampaignAdminPage = loadable(() => import("../features/admin/components/CampaignAdminPage"), opts);
 const HealthTrackerPage = loadable(() => import("../features/admin/components/HealthTrackerPage"), opts);
 const PhotoCollectionsPage = loadable(() => import("../features/admin/components/PhotoCollectionsPage"), opts);
@@ -90,6 +92,8 @@ export const adminRoutes = [
       <Route path="/admin/template-oferte/:serviceId" element={<OfferTemplateOrganizerPage />} />
       <Route path="/admin/showcase" element={<ShowcaseZoneEditorPage />} />
       <Route path="/admin/seo-generator" element={<SeoGeneratorPage />} />
+      <Route path="/admin/seo-pages" element={<SeoPagesAdminPage />} />
+      <Route path="/admin/blog" element={<BlogAdminPage />} />
       <Route path="/admin/campanii" element={<CampaignAdminPage />} />
       <Route path="/admin/sanatate" element={<HealthTrackerPage />} />
       <Route path="/admin/colectii" element={<PhotoCollectionsPage />} />

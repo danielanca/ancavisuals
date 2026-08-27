@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { CITIES, SERVICES, type CityData } from "../../client/pages/LocationSEO/locationData";
-import { addSitemapEntries } from "../utils/sitemapGenerator";
+import { addSitemapEntries, getSitemapEntries } from "../utils/sitemapGenerator";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOCATION_DATA_PATH = join(__dirname, "../../client/pages/LocationSEO/locationData.ts");
@@ -18,6 +18,15 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const existingCitySlugs = new Set(CITIES.map(city => city.slug));
 const allServiceSlugs = SERVICES.map(service => service.slug);
+
+router.get("/pages", async (_req, res) => {
+  try {
+    res.json({ entries: await getSitemapEntries() });
+  } catch (error) {
+    console.error("[seo-generator] sitemap entries read error:", error);
+    res.status(500).json({ error: "Nu s-au putut încărca paginile SEO." });
+  }
+});
 
 router.post("/analyze", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");

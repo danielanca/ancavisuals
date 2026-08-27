@@ -32,7 +32,7 @@ const BlogPost: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  const meta = slug ? getPostMeta(slug) : undefined;
+  const staticMeta = slug ? getPostMeta(slug) : undefined;
 
   useEffect(() => {
     if (!slug) return;
@@ -52,6 +52,7 @@ const BlogPost: React.FC = () => {
       });
   }, [slug]);
 
+  const meta = post ?? staticMeta;
   if (!meta && !loading) return <Navigate to="/blog" replace />;
   if (notFound) return <Navigate to="/blog" replace />;
 

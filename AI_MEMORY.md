@@ -103,6 +103,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #BLOG  Pagina post:    src/client/pages/Blog/BlogPost.tsx  → /blog/:slug
 #BLOG  Accent color:   src/client/utils/theme.ts  → constanta ACCENT
 #BLOG  Adaugă articol: 1) data/blog/<slug>.md cu frontmatter  2) intrare în blogManifest.ts
+#BLOG  Editor admin: `/admin/blog` importă articolele `.md` în Firestore `blogPosts`, permite Markdown + draft/publicare; API-ul public preferă versiunile publicate din Firestore și păstrează `.md` ca fallback. #BLOG #ADMIN
+#BLOG  Filtrare oraș: editorul Admin și lista publică `/blog` au filtru după `city`; articolele pot fi organizate pe oraș fără a pierde categoriile de serviciu/intentie. #BLOG
 
 ---
 
@@ -311,6 +313,11 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-08-27: QR Moments copiază `input.files` în array înainte de eliminarea inputului temporar din DOM; unele browsere mobile pot goli/invalida `FileList` la detach și pierdeau selecția multiplă. Adăugat test de compatibilitate pentru 3 fișiere selectate. Limita efectivă configurată pentru nginx și client este 500 MB per fișier; uploadurile sunt trimise separat. Validat cu testele QRMomentsPage și `npm run typecheck`. #RECENT #QR #PITFALL
+#RECENT  2026-08-27: În formularul QR Moments, consimțământul pentru notificări email este opțional; obligatoriu rămâne doar consimțământul GDPR pentru funcționarea serviciului. Butonul de selecție foto/video folosește styling emerald consistent cu AncaVisuals. Validat cu testele QRMomentsPage, `npm run typecheck` și `npm run build:client`. #RECENT #QR
+#RECENT  2026-08-27: Ecranul de succes QR Moments face scroll smooth la începutul paginii, afișează titlul mare `MATERIALE ÎNCĂRCATE` și confetti animat; pentru evenimente corporate sunt ascunse sugestiile de urări specifice nunții/botezului. Validat cu testele QRMomentsPage și `npm run typecheck`. #RECENT #QR #UI
+#RECENT  2026-08-26: Zona `/admin/blog` are acum un UI dark aliniat cu restul adminului: statistici pentru articole/publicate/drafturi/orașe SEO, listă de articole cu status vizibil, formular organizat pe secțiuni și layout responsive. Listările publice/admin unesc cele 60 de articole Markdown cu toate documentele din colecția Firestore `blogPosts` (deduplicate după slug), astfel încât adminul poate afișa și administra toate cele aproximativ 508 înregistrări existente; importul și editarea marchează postările administrate. Editorul are butoane AI 🪄 pentru sugestii selectabile de titlu, descriere SEO și seturi de etichete, prin endpoint-urile protejate `POST /api/blog/admin/title-suggestions` și `POST /api/blog/admin/metadata-suggestions`. Adăugată și zona separată `/admin/seo-pages` pentru listarea, căutarea și filtrarea intrărilor `sitemapEntries` (cele 508 URL-uri SEO), cu endpoint protejat `GET /api/admin/seo/pages`. Funcționalitatea de import, editare și publicare a rămas neschimbată. Validat cu `npm run typecheck`, `npm run lint` și `npm run build`. #RECENT #BLOG #ADMIN #THEME #SEO
+#RECENT  2026-08-27: În editorul de blog, linkul `Previzualizare articol` deschide articolul într-un tab nou, iar butonul de salvare a fost mutat în header-ul editorului, lângă status și previzualizare. #RECENT #BLOG #ADMIN
 #RECENT  2026-08-25: QR Moments acceptă acum tipul de eveniment `corporate`, cu câmpul „Organizator” în loc de mire/mireasă; dacă nu este completat, serverul salvează și afișează `ORGANIZATORUL`. Galeria și notificările folosesc formularea specifică pentru organizator. Validat cu `npm run typecheck` și testele QR Moments relevante. #RECENT #QR
 #RECENT  2026-08-25: Crearea QR Moments nu mai necesită selectarea unui eveniment din `adminEvents`; formularul permite „Fără eveniment existent” și o dată introdusă manual, iar serverul generează slug/PIN și acceptă `adminEventId = null`. #RECENT #QR #ADMIN
 #RECENT  2026-08-23: Hotjar nu se mai încarcă pe `/admin`, `/admin/*`, `/media` sau `/media/*`, iar Google Ads/gtag nu se mai încarcă pe `/admin` și `/admin/*`; pe restul producției tracking-ul rămâne activ. #RECENT #ANALYTICS #PRIVACY

@@ -13,6 +13,14 @@ export interface SitemapEntry {
   priority: string;
 }
 
+export async function getSitemapEntries(): Promise<SitemapEntry[]> {
+  const snapshot = await firestore().collection(COLLECTION).get();
+  return snapshot.docs
+    .map(doc => doc.data() as SitemapEntry)
+    .filter(entry => typeof entry.loc === "string" && entry.loc.length > 0)
+    .sort((a, b) => a.loc.localeCompare(b.loc));
+}
+
 // Parsează sitemap.xml existent și extrage toate intrările
 function parseSitemapXml(xmlContent: string): SitemapEntry[] {
   const entries: SitemapEntry[] = [];

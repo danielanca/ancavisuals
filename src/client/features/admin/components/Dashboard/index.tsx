@@ -47,6 +47,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web", icon: "📈", keywords: "vizitatori trafic statistici seo" },
   { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", icon: "🖥️", keywords: "banner reclama footer homepage" },
   { label: "SEO Generator", path: "/admin/seo-generator", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },
+  { label: "Blog", path: "/admin/blog", category: "Marketing & Web", icon: "✍️", keywords: "articole markdown continut publicare draft" },
   { label: "Campanii", path: "/admin/campanii", category: "Marketing & Web", icon: "📣", keywords: "campanie marketing email newsletter" },
   { label: "Propuneri Venue", path: "/admin/venue-outreach", category: "Marketing & Web", icon: "🏛️", keywords: "locatie salon partener" },
   { label: "Colecții foto", path: "/admin/colectii", category: "Media", icon: "🗃️", keywords: "colectie galerie foto organizare" },

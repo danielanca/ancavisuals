@@ -110,6 +110,11 @@ export default function QRMomentsPage() {
   const consoleBufferRef = useRef<string[]>([]);
   const debugSentRef = useRef<Set<string>>(new Set());
 
+  useEffect(() => {
+    if (step !== 'success') return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step]);
+
   const serializeDebugValue = (value: unknown): string => {
     if (value instanceof Error) return `${value.message}\n${value.stack ?? ''}`;
     if (typeof value === 'object' && value !== null) {
@@ -378,7 +383,7 @@ export default function QRMomentsPage() {
   const handleFormSubmit = async () => {
     setFormError(null);
     if (!name.trim() || !email.trim()) { setFormError('Completează numele și emailul.'); return; }
-    if (!gdprConsent || !emailConsent) { setFormError('Acordă ambele consimțăminte pentru a continua.'); return; }
+    if (!gdprConsent) { setFormError('Acordă consimțământul pentru prelucrarea datelor pentru a continua.'); return; }
 
     setFormLoading(true);
     try {
@@ -412,9 +417,14 @@ export default function QRMomentsPage() {
     document.body.appendChild(input);
     input.addEventListener('change', (event) => {
       const target = event.target as HTMLInputElement;
+      // Copy the FileList before removing the temporary input. Some mobile
+      // browsers clear or invalidate `input.files` as soon as the element is
+      // detached from the DOM, which could silently reduce a multi-selection
+      // to one (or zero) files.
+      const candidateFiles = target.files
+        ? Array.from(target.files).filter((file) => file.size > 0)
+        : [];
       document.body.removeChild(input);
-      if (!target.files) return;
-      const candidateFiles = Array.from(target.files).filter((file) => file.size > 0);
       if (candidateFiles.length === 0) return;
 
       const oversizedFiles = candidateFiles.filter((file) => file.size > MAX_UPLOAD_FILE_SIZE_BYTES);
@@ -724,12 +734,28 @@ export default function QRMomentsPage() {
   }
 
   if (step === 'success') {
+    const confetti = [
+      ['8%', '#34d399', '0s'], ['18%', '#fbbf24', '0.18s'], ['29%', '#fb7185', '0.35s'],
+      ['41%', '#60a5fa', '0.1s'], ['53%', '#a78bfa', '0.42s'], ['65%', '#34d399', '0.25s'],
+      ['77%', '#fbbf24', '0.5s'], ['89%', '#fb7185', '0.12s'],
+    ];
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center px-4">
+      <div className="relative min-h-screen overflow-hidden bg-neutral-950 flex items-center justify-center px-4">
+        <style>{`@keyframes qr-confetti-fall { 0% { transform: translateY(-12vh) rotate(0deg); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(112vh) rotate(540deg); opacity: 0; } }`}</style>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-full overflow-hidden">
+          {confetti.map(([left, color, delay], index) => (
+            <span
+              key={index}
+              className="absolute top-0 h-3 w-1.5 rounded-sm"
+              style={{ left, backgroundColor: color, animation: `qr-confetti-fall 2.6s ease-out ${delay} forwards` }}
+            />
+          ))}
+        </div>
         <div className="max-w-sm text-center space-y-6">
           <div className="text-5xl">🎉</div>
           <div className="space-y-2">
-            <h1 className="text-white text-xl font-light">Mulțumim!</h1>
+            <h1 className="text-white text-3xl font-semibold tracking-wide">MATERIALE ÎNCĂRCATE</h1>
+            <p className="text-emerald-400 text-sm font-medium">Mulțumim!</p>
             <p className="text-neutral-400 text-sm leading-relaxed">
               Fișierele tale au ajuns la miri. Dacă lasă un comentariu, vei primi un email.
             </p>
@@ -747,6 +773,7 @@ export default function QRMomentsPage() {
   }
 
   const coupleLabel = eventInfo?.bride && eventInfo?.groom ? `${eventInfo.bride} & ${eventInfo.groom}` : eventSlug;
+  const normalizedEventType = normalizeQrEventType(eventInfo?.eventType);
 
   if (step === 'form') {
     return (
@@ -804,13 +831,13 @@ export default function QRMomentsPage() {
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                aria-label="Sunt de acord să primesc notificări prin email *"
+                aria-label="Sunt de acord să primesc notificări prin email (opțional)"
                 checked={emailConsent}
                 onChange={(event) => setEmailConsent(event.target.checked)}
                 className="mt-0.5 accent-amber-400"
               />
               <div>
-                <p className="text-neutral-300 text-xs">Sunt de acord să primesc notificări prin email *</p>
+                <p className="text-neutral-300 text-xs">Sunt de acord să primesc notificări prin email <span className="text-neutral-500">(opțional)</span></p>
                 <p className="text-neutral-600 text-xs mt-0.5">
                   Vei primi un email când mirii comentează la ce ai încărcat. Te poți dezabona oricând. (Directiva ePrivacy + GDPR Art. 7)
                 </p>
@@ -848,11 +875,13 @@ export default function QRMomentsPage() {
         <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-4 text-center space-y-1">
           <p className="text-amber-200 text-sm font-medium">Lasă o amintire pentru {getHostsPairLabel(eventInfo?.eventType)} 💛</p>
           <p className="text-neutral-400 text-xs leading-relaxed">
-            Ei se vor bucura să vadă o urare video sau vocală pe care tu o faci din toată inima pentru ei.
+            {normalizedEventType === 'corporate'
+              ? 'Încarcă fotografii, videoclipuri sau un mesaj despre eveniment.'
+              : 'Ei se vor bucura să vadă o urare video sau vocală pe care tu o faci din toată inima pentru ei.'}
           </p>
         </div>
 
-        {(() => {
+        {(normalizedEventType === 'nunta' || normalizedEventType === 'botez') && (() => {
           const weddingSuggestions = [
             { emoji: "🏡", title: "Urare de casă de piatră", desc: "Spune-le ce îți dorești pentru căminul lor nou." },
             { emoji: "📖", title: "O amintire cu ei", desc: "Povestește un moment pe care l-ai trăit alături de ei." },
@@ -871,7 +900,7 @@ export default function QRMomentsPage() {
             { emoji: "🌟", title: "Sfatul tău de viață", desc: "Ce lecție ai vrea să-i transmiți celui mic când va crește?" },
             { emoji: "😂", title: "O glumă sau amintire haioasă", desc: "Fă-i să râdă — cele mai bune momente sunt cele cu zâmbet." },
           ];
-          const suggestions = normalizeQrEventType(eventInfo?.eventType) === 'botez' ? baptismSuggestions : weddingSuggestions;
+          const suggestions = normalizedEventType === 'botez' ? baptismSuggestions : weddingSuggestions;
           const current = suggestions[suggestionIndex % suggestions.length];
           return (
             <div className="space-y-2">
@@ -929,10 +958,13 @@ export default function QRMomentsPage() {
                 ? 'image/*,.heic,.heif,.jpg,.jpeg,.png,.webp'
                 : 'video/*,.mov,.hevc,.m4v,.mp4,.avi,.mkv'
               )}
-              className="w-full py-8 border border-dashed border-neutral-700 rounded-xl text-neutral-400 text-sm hover:border-neutral-500 hover:text-neutral-300 transition-colors"
+              className="w-full py-8 border border-dashed border-emerald-500/50 bg-emerald-500/5 rounded-xl text-emerald-300 text-sm font-medium hover:border-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors"
             >
               {mediaTab === 'photo' ? '+ Alege poze' : '+ Alege clipuri'}
             </button>
+            <p className="text-center text-neutral-600 text-[11px]">
+              Limită: maximum {MAX_UPLOAD_FILE_SIZE_MB} MB pentru fiecare fișier. Nu există limită totală pentru selecție.
+            </p>
 
             {selectedFiles.length > 0 && (
               <div className="space-y-2">

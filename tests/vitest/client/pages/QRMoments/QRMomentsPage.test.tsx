@@ -41,6 +41,11 @@ describe("QRMomentsPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     sessionStorage.clear();
+    Object.defineProperty(window, "scrollTo", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
       writable: true,
@@ -111,7 +116,7 @@ describe("QRMomentsPage", () => {
     fireEvent.change(await screen.findByLabelText("Numele tău *"), { target: { value: "Maria Ionescu" } });
     fireEvent.change(screen.getByLabelText("Email *"), { target: { value: "maria@example.com" } });
     fireEvent.click(screen.getByLabelText("Accept prelucrarea datelor cu caracter personal *"));
-    fireEvent.click(screen.getByLabelText("Sunt de acord să primesc notificări prin email *"));
+    fireEvent.click(screen.getByLabelText("Sunt de acord să primesc notificări prin email (opțional)"));
     fireEvent.click(screen.getByRole("button", { name: /Continuă/i }));
 
     await waitFor(() => {
@@ -230,7 +235,6 @@ describe("QRMomentsPage", () => {
     fireEvent.change(await screen.findByLabelText("Numele tău *"), { target: { value: "Maria Ionescu" } });
     fireEvent.change(screen.getByLabelText("Email *"), { target: { value: "maria@example.com" } });
     fireEvent.click(screen.getByLabelText("Accept prelucrarea datelor cu caracter personal *"));
-    fireEvent.click(screen.getByLabelText("Sunt de acord să primesc notificări prin email *"));
     fireEvent.click(screen.getByRole("button", { name: /Continuă/i }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: /\+ Alege poze/i })).toBeInTheDocument());
@@ -270,6 +274,63 @@ describe("QRMomentsPage", () => {
     expect(await screen.findByRole("button", { name: /Trimite 1 fișier/i })).toBeInTheDocument();
 
     createElementSpy.mockRestore();
+  });
+
+  test("copies every selected file before the picker input is removed", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        json: async () => ({ bride: "Ana", groom: "Dan", isOpen: true, deadline: "2028-03-28T01:00:00.000Z" }),
+      })
+      .mockResolvedValueOnce({ json: async () => ({ guestId: "guest-1" }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderUploadPage();
+    fireEvent.change(await screen.findByLabelText("Numele tău *"), { target: { value: "Maria Ionescu" } });
+    fireEvent.change(screen.getByLabelText("Email *"), { target: { value: "maria@example.com" } });
+    fireEvent.click(screen.getByLabelText("Accept prelucrarea datelor cu caracter personal *"));
+    fireEvent.click(screen.getByLabelText("Sunt de acord să primesc notificări prin email (opțional)"));
+    fireEvent.click(screen.getByRole("button", { name: /Continuă/i }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /\+ Alege poze/i })).toBeInTheDocument());
+
+    const files = [
+      new File(["a"], "prima.jpg", { type: "image/jpeg" }),
+      new File(["b"], "a-doua.jpg", { type: "image/jpeg" }),
+      new File(["c"], "a-treia.jpg", { type: "image/jpeg" }),
+    ];
+    const createElementSpy = vi.spyOn(document, "createElement").mockImplementation((tagName: string) => {
+      if (tagName.toLowerCase() === "input") {
+        const input = document.createElementNS("http://www.w3.org/1999/xhtml", "input") as HTMLInputElement;
+        const fileList = {
+          0: files[0],
+          1: files[1],
+          2: files[2],
+          length: files.length,
+          item: (index: number) => files[index] ?? null,
+        };
+        Object.defineProperty(input, "files", { configurable: true, value: fileList });
+
+        // Model a browser that clears FileList when the input is detached.
+        const originalRemoveChild = document.body.removeChild.bind(document.body);
+        vi.spyOn(document.body, "removeChild").mockImplementation((node) => {
+          if (node === input) {
+            Object.defineProperty(input, "files", {
+              configurable: true,
+              value: { length: 0, item: () => null },
+            });
+          }
+          return originalRemoveChild(node);
+        });
+        queueMicrotask(() => input.dispatchEvent(new Event("change")));
+        return input;
+      }
+      return document.createElementNS("http://www.w3.org/1999/xhtml", tagName);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /\+ Alege poze/i }));
+    expect(await screen.findByText(/3 fișier\(e\) selectate/i)).toBeInTheDocument();
+    createElementSpy.mockRestore();
+    vi.restoreAllMocks();
   });
 
   test("loads comments only with eventSlug and pin in the gallery", async () => {

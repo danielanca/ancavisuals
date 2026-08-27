@@ -1,5 +1,5 @@
-// Phone videos routinely exceed a couple hundred MB (4K recordings especially) —
-// keep this generous, but capped, since the server buffers each upload fully in
-// memory (multer memoryStorage) before relaying it to Bunny.
+// Keep this aligned with nginx's production `client_max_body_size 500m`.
+// Uploads are sent one file per request, so this is a per-file limit, not a
+// combined limit for the whole selection.
 export const MAX_UPLOAD_FILE_SIZE_MB = 500;
 export const MAX_UPLOAD_FILE_SIZE_BYTES = MAX_UPLOAD_FILE_SIZE_MB * 1024 * 1024;

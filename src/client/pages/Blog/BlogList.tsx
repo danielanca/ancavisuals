@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
 import MediaPromoFooter from "../../components/Marketing/MediaPromoFooter";
@@ -15,7 +15,18 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const BlogList: React.FC = () => {
-  const posts = [...BLOG_POSTS].sort((a, b) => (a.date > b.date ? -1 : 1));
+  const [posts, setPosts] = useState(BLOG_POSTS);
+  const [cityFilter, setCityFilter] = useState("all");
+
+  useEffect(() => {
+    fetch("/api/blog")
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((data) => setPosts(data))
+      .catch(() => {});
+  }, []);
+
+  const cities = Array.from(new Set(posts.map(post => post.city).filter(Boolean))).sort() as string[];
+  const visiblePosts = cityFilter === "all" ? posts : posts.filter(post => post.city === cityFilter);
 
   const breadcrumbs = [
     { label: "Acasă", to: "/" },
@@ -42,8 +53,19 @@ const BlogList: React.FC = () => {
             </p>
           </header>
 
+          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-gray-500">{visiblePosts.length} {visiblePosts.length === 1 ? "articol" : "articole"}</p>
+            <label className="flex items-center gap-3 text-sm text-gray-400">
+              <span>Filtrează după oraș</span>
+              <select value={cityFilter} onChange={event => setCityFilter(event.target.value)} className="bg-[#111] border border-white/10 rounded-lg px-3 py-2 text-white">
+                <option value="all">Toate orașele</option>
+                {cities.map(city => <option key={city} value={city}>{city}</option>)}
+              </select>
+            </label>
+          </div>
+
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {posts.map(post => (
+            {visiblePosts.map(post => (
               <Link
                 key={post.slug}
                 to={`/blog/${post.slug}`}
