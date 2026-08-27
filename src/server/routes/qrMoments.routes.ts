@@ -499,8 +499,8 @@ router.post('/guest/register', async (request: Request, response: Response) => {
     return;
   }
 
-  if (!isAdmin && (!gdprConsent || !emailConsent)) {
-    response.status(400).json({ error: 'Consimțămintele sunt obligatorii.' });
+  if (!isAdmin && !gdprConsent) {
+    response.status(400).json({ error: 'Consimțământul GDPR este obligatoriu.' });
     return;
   }
 
@@ -539,7 +539,7 @@ router.post('/guest/register', async (request: Request, response: Response) => {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       gdprConsent: true,
-      emailConsent: true,
+      emailConsent: emailConsent === true,
       uploadIds: [],
       createdAt: Timestamp.now(),
     });
@@ -965,7 +965,7 @@ router.post('/thank/:uploadId', async (request: Request, response: Response) => 
     await uploadRef.update({ thankedAt, thankMessage: message.trim() });
 
     const guestDoc = await firestore().collection(QR_GUESTS).doc(uploadDoc.data()!.guestId as string).get();
-    if (guestDoc.exists && guestDoc.data()!.email && guestDoc.data()!.emailConsent !== false) {
+    if (guestDoc.exists && guestDoc.data()!.email && guestDoc.data()!.emailConsent === true) {
       const guestData = guestDoc.data()!;
       const eventData = eventDoc.data()!;
       const eventType = normalizeQrEventType(eventData.eventType);
@@ -1075,7 +1075,7 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
     const thumbnailUrl = mediaType === 'photo' ? (uploadData.bunnyUrl as string) : null;
     const guestEmail = String(guestData.email ?? '').trim().toLowerCase();
     const guestName = String(guestData.name ?? 'un invitat');
-    const shouldNotifyGuest = Boolean(guestDoc.exists && guestEmail && guestData.emailConsent !== false);
+    const shouldNotifyGuest = Boolean(guestDoc.exists && guestEmail && guestData.emailConsent === true);
     const shouldNotifyAdmin = true;
     const claims = guestDoc.exists
       ? await claimViewNotification(guestDoc.id, shouldNotifyGuest, shouldNotifyAdmin)
