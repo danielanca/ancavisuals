@@ -565,11 +565,12 @@ export default function QRMomentsPage() {
     return Math.min(UPLOAD_MAX_TIMEOUT_MS, Math.max(UPLOAD_MIN_TIMEOUT_MS, estimated));
   };
 
-  const uploadSingleItem = (id: string, blob: Blob, filename: string): Promise<void> => {
+  const uploadSingleItem = (id: string, blob: Blob, filename: string, batchId: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append('guestId', guestId as string);
       formData.append('pass', pass);
+      formData.append('batchId', batchId);
       formData.append('files', blob, filename);
 
       const authHeader = auth.authorise && auth.accessToken ? `Bearer ${auth.accessToken}` : null;
@@ -632,9 +633,10 @@ export default function QRMomentsPage() {
     setUploadError(null);
 
     const failedIds = new Set<string>();
+    const batchId = crypto.randomUUID();
     for (const item of queue) {
       try {
-        await uploadSingleItem(item.id, item.blob, item.filename);
+        await uploadSingleItem(item.id, item.blob, item.filename, batchId);
       } catch (error) {
         failedIds.add(item.id);
         reportQrDebug('Upload failed for one file', { itemId: item.id, filename: item.filename, error: serializeDebugValue(error) });

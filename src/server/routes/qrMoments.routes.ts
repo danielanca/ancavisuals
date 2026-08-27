@@ -408,6 +408,64 @@ async function sendUploadNotification(
   });
 }
 
+type UploadCounts = { photo: number; video: number; audio: number };
+type PendingUploadNotification = {
+  eventSlug: string;
+  guestName: string;
+  counts: UploadCounts;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+const pendingUploadNotifications = new Map<string, PendingUploadNotification>();
+
+function queueUploadNotification(
+  batchId: string | undefined,
+  notificationEmails: string[],
+  eventSlug: string,
+  guestName: string,
+  counts: UploadCounts,
+): void {
+  if (notificationEmails.length === 0) return;
+  // The client sends one request per file for resilient retries. Group the
+  // requests belonging to one selection into a single notification email.
+  if (!batchId) {
+    for (const recipient of notificationEmails) {
+      sendUploadNotification(recipient, eventSlug, guestName, counts).catch((error) => {
+        console.error(`[qr-moments] upload notification email failed for ${eventSlug} -> ${recipient}:`, error);
+      });
+    }
+    return;
+  }
+
+  const existing = pendingUploadNotifications.get(batchId);
+  if (existing) {
+    existing.counts.photo += counts.photo;
+    existing.counts.video += counts.video;
+    existing.counts.audio += counts.audio;
+    clearTimeout(existing.timer);
+    existing.timer = setTimeout(() => flushUploadNotification(batchId, notificationEmails), 15_000);
+    return;
+  }
+
+  pendingUploadNotifications.set(batchId, {
+    eventSlug,
+    guestName,
+    counts: { ...counts },
+    timer: setTimeout(() => flushUploadNotification(batchId, notificationEmails), 15_000),
+  });
+}
+
+function flushUploadNotification(batchId: string, notificationEmails: string[]): void {
+  const pending = pendingUploadNotifications.get(batchId);
+  if (!pending) return;
+  pendingUploadNotifications.delete(batchId);
+  for (const recipient of notificationEmails) {
+    sendUploadNotification(recipient, pending.eventSlug, pending.guestName, pending.counts).catch((error) => {
+      console.error(`[qr-moments] upload notification email failed for ${pending.eventSlug} -> ${recipient}:`, error);
+    });
+  }
+}
+
 async function getGallerySubscriberEmails(eventSlug: string): Promise<string[]> {
   const snapshot = await firestore()
     .collection(QR_GALLERY_SUBSCRIBERS)
@@ -557,7 +615,7 @@ router.post(
   uploadFilesMiddleware,
   async (request: Request, response: Response) => {
     const { eventSlug } = request.params;
-    const { guestId, pass } = request.body as { guestId: string; pass?: string };
+    const { guestId, pass, batchId } = request.body as { guestId: string; pass?: string; batchId?: string };
     const files = request.files as Express.Multer.File[];
 
     console.log(`[qr-moments] upload request: slug=${eventSlug} guestId=${guestId} files=${files?.length ?? 0} ua=${request.headers['user-agent']?.slice(0, 60)}`);
@@ -693,11 +751,7 @@ router.post(
           },
           { photo: 0, video: 0, audio: 0 },
         );
-        for (const recipient of notificationEmails) {
-          sendUploadNotification(recipient, eventSlug, guestName, typeCounts).catch((error) => {
-            console.error(`[qr-moments] upload notification email failed for ${eventSlug} -> ${recipient}:`, error);
-          });
-        }
+        queueUploadNotification(batchId, notificationEmails, eventSlug, guestName, typeCounts);
       }
 
       response.status(201).json({ uploadedCount: uploadResults.length, uploadIds });
