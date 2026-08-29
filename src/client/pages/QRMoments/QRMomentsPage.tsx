@@ -592,7 +592,7 @@ export default function QRMomentsPage() {
       };
 
       xhr.ontimeout = () => fail(`Timeout după ${xhr.timeout / 1000}s`);
-      xhr.onerror = () => fail('Eroare de rețea');
+      xhr.onerror = () => fail('Conexiunea la internet pare instabilă. Încearcă dintr-un loc cu internet mai stabil, apoi reîncearcă uploadul.');
       xhr.onabort = () => fail('Cerere anulată');
       xhr.onload = () => {
         if (xhr.status < 200 || xhr.status >= 300) {
@@ -616,6 +616,29 @@ export default function QRMomentsPage() {
     });
   };
 
+  const retryFile = async (id: string) => {
+    const item = selectedFiles.find(({ id: fileId }) => fileId === id);
+    if (!item || !guestId || uploading) return;
+
+    setUploading(true);
+    setUploadError(null);
+    try {
+      await uploadSingleItem(id, item.file, item.file.name, crypto.randomUUID());
+      const remainingFiles = selectedFiles.filter(({ id: fileId }) => fileId !== id);
+      if (remainingFiles.length === 0) {
+        clearSelectedFiles();
+        setStep('success');
+      } else {
+        setSelectedFiles(remainingFiles);
+      }
+    } catch (error) {
+      reportQrDebug('Retry failed for one file', { itemId: id, filename: item.file.name, error: serializeDebugValue(error) });
+      setUploadError('Conexiunea pare prea slabă; mergi într-un loc cu internet mai stabil și apasă din nou „REÎNCEARCĂ”.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleUpload = async () => {
     const hasFiles = selectedFiles.length > 0 || audioBlob !== null;
     if (!hasFiles || !guestId) return;
@@ -634,11 +657,15 @@ export default function QRMomentsPage() {
 
     const failedIds = new Set<string>();
     const batchId = crypto.randomUUID();
+    let hadConnectionFailure = false;
     for (const item of queue) {
       try {
         await uploadSingleItem(item.id, item.blob, item.filename, batchId);
       } catch (error) {
         failedIds.add(item.id);
+        if (error instanceof Error && (error.message.includes('internet') || error.message.includes('Timeout'))) {
+          hadConnectionFailure = true;
+        }
         reportQrDebug('Upload failed for one file', { itemId: item.id, filename: item.filename, error: serializeDebugValue(error) });
       }
     }
@@ -656,11 +683,12 @@ export default function QRMomentsPage() {
       setSelectedFiles((prev) => prev.filter(({ id }) => failedIds.has(id)));
     }
 
-    setUploadError(
-      failedIds.size === queue.length
-        ? 'Niciun fișier nu s-a trimis. Verifică conexiunea și încearcă din nou.'
-        : `${failedIds.size} din ${queue.length} fișiere nu s-au trimis. Restul au fost deja trimise — apasă din nou pentru a reîncerca ce a mai rămas.`,
-    );
+    const retryMessage = failedIds.size === queue.length
+      ? 'Niciun fișier nu s-a trimis. Verifică conexiunea și încearcă din nou.'
+      : `${failedIds.size} din ${queue.length} fișiere nu s-au trimis. Restul au fost deja trimise — apasă din nou pentru a reîncerca ce a mai rămas.`;
+    setUploadError(hadConnectionFailure
+      ? `${retryMessage} Conexiunea pare prea slabă; mergi într-un loc cu internet mai stabil și reîncearcă.`
+      : retryMessage);
   };
 
   const formatSeconds = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
@@ -997,8 +1025,16 @@ export default function QRMomentsPage() {
                         )}
 
                         {progress?.status === 'error' && (
-                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center px-2">
-                            <span className="text-red-400 text-[10px] font-medium text-center leading-tight">Eroare, reîncearcă</span>
+                          <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 px-2">
+                            <span className="text-red-300 text-[10px] font-medium text-center leading-tight">Eroare la upload</span>
+                            <button
+                              type="button"
+                              onClick={() => retryFile(id)}
+                              disabled={uploading}
+                              className="rounded-md bg-emerald-500 px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-950 transition-colors hover:bg-emerald-400 disabled:opacity-50"
+                            >
+                              REÎNCEARCĂ
+                            </button>
                           </div>
                         )}
 
