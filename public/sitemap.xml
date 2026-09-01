@@ -1211,6 +1211,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.ancavisuals.ro/blog/fotograf-turda</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.ancavisuals.ro/blog/ghid-mireasa-prima-nunta</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>

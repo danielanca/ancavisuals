@@ -176,7 +176,12 @@ const SeoRadarPage: React.FC = () => {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Generarea variantei a eșuat.");
-      setPostVariants(current => current.map((item, itemIndex) => itemIndex === index ? data.variants[0] : item));
+      const generatedVariant = data.variants[0] as PostVariant;
+      const normalizedVariant = {
+        ...generatedVariant,
+        canonicalUrl: generatedVariant.slug ? `https://ancavisuals.ro/blog/${generatedVariant.slug}` : generatedVariant.canonicalUrl,
+      };
+      setPostVariants(current => current.map((item, itemIndex) => itemIndex === index ? normalizedVariant : item));
     } catch (err) {
       setAnalysisError(err instanceof Error ? err.message : "Generarea variantei a eșuat.");
     } finally {

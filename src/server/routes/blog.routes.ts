@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { getAllPosts, getEditablePosts, getPostBySlug, importMarkdownPosts, saveBlogPost } from "../utils/blogUtils";
+import { addSitemapEntry, generateSitemapFromDb } from "../utils/sitemapGenerator";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -142,7 +143,16 @@ blogRouter.put("/admin/posts/:slug", requireFirebaseAuth, requireSupremeAdmin, a
     return;
   }
   try {
-    res.json({ post: await saveBlogPost(post) });
+    const savedPost = await saveBlogPost(post);
+    if (post.status === "published") {
+      await addSitemapEntry({
+        loc: `https://www.ancavisuals.ro/blog/${post.slug}`,
+        changefreq: "monthly",
+        priority: "0.7",
+      });
+      await generateSitemapFromDb();
+    }
+    res.json({ post: savedPost });
   } catch (error) {
     console.error("[blog] Save failed:", error);
     res.status(500).json({ error: "Articolul nu a putut fi salvat." });

@@ -105,6 +105,17 @@ export async function generateSitemapFromDb(): Promise<void> {
   console.log(`[sitemap] Citit ${snapshot.size} intrări din Firestore`);
 
   const entries = snapshot.docs.map(doc => doc.data() as SitemapEntry);
+  const blogSnapshot = await db.collection("blogPosts").get();
+  const sitemapLocations = new Set(entries.map(entry => entry.loc));
+  for (const doc of blogSnapshot.docs) {
+    const blog = doc.data();
+    if (blog.status !== "published" || typeof blog.slug !== "string" || !blog.slug.trim()) continue;
+    const loc = `https://www.ancavisuals.ro/blog/${blog.slug.trim()}`;
+    if (sitemapLocations.has(loc)) continue;
+    entries.push({ loc, changefreq: "monthly", priority: "0.7" });
+    sitemapLocations.add(loc);
+  }
+  console.log(`[sitemap] Adăugate ${entries.length - snapshot.size} articole de blog publicate`);
 
   entries.sort((entryA, entryB) => {
     const priorityDiff = parseFloat(entryB.priority) - parseFloat(entryA.priority);
