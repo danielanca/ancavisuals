@@ -313,6 +313,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-09-01: Pixelul OpenAI `oaiq` cu pixelId `EfkfFdccMQc1Dj6pmG7pva` este încărcat din `index.html` doar pe producție și pagini publice (nu `/admin`/`/media`), pentru măsurarea traficului provenit din ChatGPT. Validat cu `npm run build` și `git diff --check`. #RECENT #ATTRIBUTION #ANALYTICS
+#RECENT  2026-09-01: Analytics atribuie vizitele venite din ChatGPT, Claude, Gemini, Perplexity și Grok prin `utm_source` sau referrer; atribuirea se păstrează în sesiune, iar `/admin/analytics` afișează „Recomandări AI” cu vizitatori unici pe perioadă. #RECENT #ATTRIBUTION #ANALYTICS #ADMIN
 #RECENT  2026-09-01: Formularul de cheltuială acceptă USD și curs Revolut USD→RON; suma fiscală se salvează ca echivalent RON, iar suma/moneda originală și cursul se păstrează în câmpurile `originalAmount`, `originalCurrency`, `exchangeRate`. Conversia este validată și server-side. #RECENT #ADMIN #FINANCE
 #RECENT  2026-09-01: Formularul de cheltuială din `FinancialPage` validează monedele scanate AI ca `RON`/`EUR`/`USD`; preview-ul deductibilului are fallback explicit pe `RON`, prevenind afișarea unei monede neacceptate. Validat cu `npm run typecheck`. #RECENT #ADMIN #PITFALL
 #RECENT  2026-09-01: Modalul „Modifică” din `EventCard` nu se mai închide la click pe overlay și nu mai are buton separat „Anulează”; închiderea se face prin `X`, iar salvarea păstrează dialogul deschis pentru editări succesive. Validat cu `npm run typecheck`. #RECENT #ADMIN #UX

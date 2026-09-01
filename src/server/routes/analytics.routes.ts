@@ -12,6 +12,21 @@ const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 
 const SEO_PAGE_RE = /^\/(fotograf|videograf|foto-video|foto|video)-[a-z]/i;
 const ORGANIC_REFERRER_RE = /google\.|bing\.|yahoo\.|duckduckgo\.|yandex\.|baidu\.|ecosia\.|startpage\./i;
+const AI_SOURCE_ALIASES: Record<string, string> = {
+  chatgpt: "ChatGPT", "chatgpt.com": "ChatGPT", "chat.openai.com": "ChatGPT",
+  claude: "Claude", "claude.ai": "Claude", gemini: "Gemini", "gemini.google.com": "Gemini",
+  perplexity: "Perplexity", "perplexity.ai": "Perplexity", grok: "Grok", "grok.com": "Grok",
+};
+
+function getAiSource(data: FirebaseFirestore.DocumentData): string | null {
+  const source = String(data.utmSource ?? "").trim().toLowerCase();
+  if (source && AI_SOURCE_ALIASES[source]) return AI_SOURCE_ALIASES[source];
+  const referrer = String(data.referrer ?? "");
+  try {
+    const host = new URL(referrer).hostname.replace(/^www\./, "").toLowerCase();
+    return AI_SOURCE_ALIASES[host] ?? null;
+  } catch { return null; }
+}
 
 function isOrganicReferrer(referrer: string): boolean {
   if (!referrer || referrer.trim() === "") return false; // direct traffic is not SEO organic
@@ -299,10 +314,17 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
 
     const pageCount: Record<string, number> = {};
     const referrerCount: Record<string, number> = {};
+    const aiSourceVisitors: Record<string, Set<string>> = {};
     const countryVisitors: Record<string, Set<string>> = {};
 
     monthSnap.docs.filter((d) => includeLocal || !isLocalIp(d.data().ip ?? "")).forEach((d) => {
       const data = d.data();
+      const aiSource = getAiSource(data);
+      if (aiSource) {
+        const visitorKey = String(data.visitorId || data.sessionId || data.ip || d.id);
+        if (!aiSourceVisitors[aiSource]) aiSourceVisitors[aiSource] = new Set();
+        aiSourceVisitors[aiSource].add(visitorKey);
+      }
       const page = data.page as string;
       pageCount[page] = (pageCount[page] ?? 0) + 1;
 
@@ -338,6 +360,10 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       .slice(0, 5)
       .map(([country, visitors]) => ({ country, count: visitors.size }));
 
+    const aiSources = Object.entries(aiSourceVisitors)
+      .sort(([, a], [, b]) => b.size - a.size)
+      .map(([source, visitors]) => ({ source, count: visitors.size }));
+
     res.json({
       today: { visitors: uniqueVisitors(todaySnap) },
       threeDays: { visitors: uniqueVisitors(threeDaysSnap) },
@@ -347,6 +373,7 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
       topPages,
       topReferrers,
       topCountries,
+      aiSources,
     });
   } catch (error) {
     console.error("[analytics] GET /stats failed:", error);

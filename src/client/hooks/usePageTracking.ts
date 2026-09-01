@@ -8,6 +8,38 @@ const VISITOR_COOKIE = "av_vid";
 
 const HEARTBEAT_MS = 5_000;   // check every 5s
 const IDLE_TIMEOUT_MS = 30_000; // no interaction for 30s = idle
+const ATTRIBUTION_KEY = "av_utm_attribution";
+
+const AI_SOURCE_HOSTS: Record<string, string> = {
+  "chatgpt.com": "ChatGPT",
+  "chat.openai.com": "ChatGPT",
+  "claude.ai": "Claude",
+  "gemini.google.com": "Gemini",
+  "perplexity.ai": "Perplexity",
+  "grok.com": "Grok",
+};
+
+function getAttribution(): { source?: string; medium?: string; campaign?: string } {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const rawSource = params.get("utm_source")?.trim();
+    const source = rawSource
+      ? (AI_SOURCE_HOSTS[rawSource.toLowerCase()] ?? rawSource)
+      : (() => {
+          try {
+            const host = new URL(document.referrer).hostname.replace(/^www\./, "").toLowerCase();
+            return AI_SOURCE_HOSTS[host];
+          } catch { return undefined; }
+        })();
+    const existing = sessionStorage.getItem(ATTRIBUTION_KEY);
+    if (source) {
+      const attribution = { source, medium: params.get("utm_medium") || "referral", campaign: params.get("utm_campaign") || undefined };
+      sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(attribution));
+      return attribution;
+    }
+    return existing ? JSON.parse(existing) as { source?: string; medium?: string; campaign?: string } : {};
+  } catch { return {}; }
+}
 
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"] as const;
 
@@ -84,6 +116,7 @@ export function usePageTracking() {
     const sessionId = getSessionId();
     const { visitorId, isNew } = getVisitorId();
     const params = new URLSearchParams(window.location.search);
+    const attribution = getAttribution();
 
     fetch("/api/analytics/pageview", {
       method: "POST",
@@ -94,9 +127,9 @@ export function usePageTracking() {
         sessionId,
         visitorId,
         isNew,
-        utmSource: params.get("utm_source") || undefined,
-        utmMedium: params.get("utm_medium") || undefined,
-        utmCampaign: params.get("utm_campaign") || undefined,
+        utmSource: attribution.source || params.get("utm_source") || undefined,
+        utmMedium: attribution.medium || params.get("utm_medium") || undefined,
+        utmCampaign: attribution.campaign || params.get("utm_campaign") || undefined,
       }),
     })
       .then((r) => r.ok ? r.json() : null)

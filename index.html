@@ -59,6 +59,19 @@
           function gtag(){dataLayer.push(arguments);}
           gtag('js',new Date());
           gtag('config','AW-10941123412');
+
+          // OpenAI Pixel — măsoară vizitele provenite din recomandări ChatGPT.
+          // Se încarcă doar pe producție și pe pagini publice.
+          (function(w,d,s,u){
+            if(w.oaiq)return;
+            var q=function(){q.q.push(arguments)};
+            q.q=[];
+            w.oaiq=q;
+            var j=d.createElement(s);j.async=1;j.src=u;
+            var f=d.getElementsByTagName(s)[0];
+            f.parentNode.insertBefore(j,f)
+          })(window,document,'script','https://bzrcdn.openai.com/sdk/oaiq.min.js');
+          oaiq('init',{pixelId:'EfkfFdccMQc1Dj6pmG7pva',debug:true});
         }
       }
     </script>

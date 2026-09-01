@@ -30,6 +30,7 @@ interface Stats {
   topPages: { page: string; count: number }[];
   topReferrers: { referrer: string; count: number }[];
   topCountries: { country: string; count: number }[];
+  aiSources: { source: string; count: number }[];
 }
 
 interface PageEntry {
@@ -406,7 +407,7 @@ export default function AnalyticsPage() {
         )}
 
         {/* Top pages + countries + referrers */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
             <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-3">Top pagini · {activePeriod.label}</p>
             <div className="space-y-1.5">
@@ -461,6 +462,19 @@ export default function AnalyticsPage() {
                     {referrer}
                   </a>
                   <span className="text-amber-400 text-xs font-semibold flex-shrink-0">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-neutral-900 border border-violet-500/20 rounded-xl p-4">
+            <p className="text-violet-300 text-[10px] uppercase tracking-wider mb-3">Recomandări AI · vizitatori unici · {activePeriod.label}</p>
+            <div className="space-y-1.5">
+              {(stats?.aiSources ?? []).length === 0 ? (
+                <p className="text-neutral-600 text-xs">Nicio recomandare AI identificată</p>
+              ) : (stats?.aiSources ?? []).map(({ source, count }) => (
+                <div key={source} className="flex items-center gap-2">
+                  <span className="text-neutral-300 text-xs flex-1">{source}</span>
+                  <span className="text-violet-400 text-xs font-semibold">{count}</span>
                 </div>
               ))}
             </div>
