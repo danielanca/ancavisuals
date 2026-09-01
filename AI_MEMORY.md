@@ -313,6 +313,8 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-09-01: Formularul de cheltuială acceptă USD și curs Revolut USD→RON; suma fiscală se salvează ca echivalent RON, iar suma/moneda originală și cursul se păstrează în câmpurile `originalAmount`, `originalCurrency`, `exchangeRate`. Conversia este validată și server-side. #RECENT #ADMIN #FINANCE
+#RECENT  2026-09-01: Formularul de cheltuială din `FinancialPage` validează monedele scanate AI ca `RON`/`EUR`/`USD`; preview-ul deductibilului are fallback explicit pe `RON`, prevenind afișarea unei monede neacceptate. Validat cu `npm run typecheck`. #RECENT #ADMIN #PITFALL
 #RECENT  2026-09-01: Modalul „Modifică” din `EventCard` nu se mai închide la click pe overlay și nu mai are buton separat „Anulează”; închiderea se face prin `X`, iar salvarea păstrează dialogul deschis pentru editări succesive. Validat cu `npm run typecheck`. #RECENT #ADMIN #UX
 #RECENT  2026-09-01: Registrul fiscal blochează server-side dublurile de facturi din cheltuieli folosind număr normalizat (acceptă formate precum `123`, `Factura nr. 123`, spații și slash-uri) + furnizor normalizat; protecția hash pentru fișiere identice rămâne activă. Validat cu testele `expenses.routes.test.ts` (9/9) și typecheck. #RECENT #ADMIN #PITFALL
 #RECENT  2026-08-27: QR Moments copiază `input.files` în array înainte de eliminarea inputului temporar din DOM; unele browsere mobile pot goli/invalida `FileList` la detach și pierdeau selecția multiplă. Adăugat test de compatibilitate pentru 3 fișiere selectate. Limita efectivă configurată pentru nginx și client este 500 MB per fișier; uploadurile sunt trimise separat. Validat cu testele QRMomentsPage și `npm run typecheck`. #RECENT #QR #PITFALL

@@ -209,13 +209,16 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, r
 
 // POST / — create expense
 router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
-  const { date, category, description, supplier, amount, currency, deductibility, invoiceNumber, factura, chitanta } = req.body as {
+  const { date, category, description, supplier, amount, currency, exchangeRate, originalAmount, originalCurrency, deductibility, invoiceNumber, factura, chitanta } = req.body as {
     date: string;
     category: string;
     description?: string;
     supplier?: string;
     amount: number;
-    currency?: string;
+    currency?: "RON" | "EUR" | "USD";
+    exchangeRate?: number;
+    originalAmount?: number;
+    originalCurrency?: "USD";
     deductibility: number;
     invoiceNumber?: string;
     factura?: { url: string; name: string; hash?: string } | null;
@@ -224,6 +227,15 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
 
   if (!date || !category || amount == null || deductibility == null) {
     res.status(400).json({ error: "Câmpuri obligatorii lipsă." });
+    return;
+  }
+
+  if (currency !== undefined && !["RON", "EUR", "USD"].includes(currency)) {
+    res.status(400).json({ error: "Moneda trebuie să fie RON, EUR sau USD." });
+    return;
+  }
+  if (currency === "USD" && (!Number.isFinite(Number(exchangeRate)) || Number(exchangeRate) <= 0)) {
+    res.status(400).json({ error: "Pentru USD, cursul valutar este obligatoriu și trebuie să fie mai mare decât zero." });
     return;
   }
 
@@ -269,7 +281,8 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       }
     }
 
-    const numAmount = Number(amount);
+    const sourceCurrency = currency ?? "RON";
+    const numAmount = sourceCurrency === "USD" ? Number(amount) * Number(exchangeRate) : Number(amount);
     const numDeductibility = Number(deductibility);
     const deductibleAmount = Math.round((numAmount * numDeductibility) / 100 * 100) / 100;
 
@@ -279,10 +292,13 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       description: description ?? null,
       supplier: supplier ?? null,
       amount: numAmount,
-      currency: currency ?? "RON",
+      currency: sourceCurrency === "USD" ? "RON" : sourceCurrency,
       deductibility: numDeductibility,
       deductibleAmount,
       invoiceNumber: invoiceNumber?.trim() ?? null,
+      originalAmount: sourceCurrency === "USD" ? Number(originalAmount ?? amount) : null,
+      originalCurrency: sourceCurrency === "USD" ? "USD" : null,
+      exchangeRate: sourceCurrency === "USD" ? Number(exchangeRate) : null,
       factura: factura ? { url: factura.url, name: factura.name, hash: factura.hash ?? null } : null,
       chitanta: chitanta ? { url: chitanta.url, name: chitanta.name, hash: chitanta.hash ?? null } : null,
       createdAt: Timestamp.now(),

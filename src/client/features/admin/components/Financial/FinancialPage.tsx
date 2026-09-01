@@ -33,6 +33,9 @@ interface Expense {
   supplier: string | null;
   amount: number;
   currency: string;
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
+  exchangeRate?: number | null;
   deductibility: number;
   deductibleAmount: number;
   invoiceNumber?: string | null;
@@ -414,6 +417,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
   const [supplier, setSupplier] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const [currency, setCurrency] = React.useState("RON");
+  const [exchangeRate, setExchangeRate] = React.useState("");
   const [deductibility, setDeductibility] = React.useState(50);
   const [invoiceNumber, setInvoiceNumber] = React.useState("");
   const [facturaSlot, setFacturaSlot] = React.useState<DocSlot>({ file: null, scanning: false });
@@ -452,7 +456,9 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
         if (extracted.date) setDate(String(extracted.date));
         if (extracted.supplier) setSupplier(String(extracted.supplier));
         if (extracted.amount != null) setAmount(String(extracted.amount));
-        if (extracted.currency) setCurrency(String(extracted.currency));
+        if (extracted.currency === "RON" || extracted.currency === "EUR" || extracted.currency === "USD") {
+          setCurrency(extracted.currency);
+        }
         if (extracted.description) setDescription(String(extracted.description));
         if (extracted.category) {
           const cat = EXPENSE_CATEGORIES.find((c) => c.value === String(extracted.category));
@@ -486,14 +492,21 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     setError(null);
     setDuplicateWarning(null);
 
+    const effectiveAmount = currency === "USD" ? Number(amount) * Number(exchangeRate) : Number(amount);
+    const effectiveCurrency = currency === "USD" ? "RON" : currency;
+    if (!Number.isFinite(effectiveAmount) || effectiveAmount <= 0 || (currency === "USD" && (!Number.isFinite(Number(exchangeRate)) || Number(exchangeRate) <= 0))) {
+      setError("Pentru USD, introdu o sumă și un curs valutar mai mari decât zero.");
+      return;
+    }
+
     // Check 1: supplier + amount + currency (client-side)
     if (supplier.trim()) {
       const normalizedSupplier = supplier.trim().toLowerCase();
       const duplicate = existingExpenses.find(
         (exp) =>
           exp.supplier?.toLowerCase() === normalizedSupplier &&
-          exp.amount === Number(amount) &&
-          exp.currency === currency,
+          exp.amount === effectiveAmount &&
+          exp.currency === effectiveCurrency,
       );
       if (duplicate) { onDuplicateFound(duplicate); return; }
     }
@@ -547,7 +560,10 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
           date, category,
           description: description || undefined,
           supplier: supplier || undefined,
-          amount: Number(amount), currency, deductibility,
+          amount: currency === "USD" ? Number(amount) * Number(exchangeRate) : Number(amount),
+          currency: currency === "USD" ? "RON" : currency,
+          ...(currency === "USD" ? { originalAmount: Number(amount), originalCurrency: "USD", exchangeRate: Number(exchangeRate) } : {}),
+          deductibility,
           invoiceNumber: invoiceNumber.trim() || undefined,
           factura, chitanta,
         }),
@@ -567,15 +583,18 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
 
       if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
 
-      const deductibleAmount = Math.round((Number(amount) * deductibility) / 100 * 100) / 100;
+      const deductibleAmount = Math.round((effectiveAmount * deductibility) / 100 * 100) / 100;
       onAdded({
         id: data.id!,
         date: new Date(date).toISOString(),
         category,
         description: description || null,
         supplier: supplier || null,
-        amount: Number(amount),
-        currency,
+        amount: effectiveAmount,
+        currency: effectiveCurrency,
+        originalAmount: currency === "USD" ? Number(amount) : null,
+        originalCurrency: currency === "USD" ? "USD" : null,
+        exchangeRate: currency === "USD" ? Number(exchangeRate) : null,
         deductibility,
         deductibleAmount,
         invoiceNumber: invoiceNumber.trim() || null,
@@ -662,9 +681,20 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
                 className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500">
                 <option value="RON">RON</option>
                 <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
               </select>
             </div>
           </div>
+
+          {currency === "USD" && (
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Curs USD → RON *</label>
+              <input type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} min="0.0001" step="0.0001" required
+                placeholder="ex: 4.58"
+                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+              <p className="text-[11px] text-neutral-500 mt-1">Introdu cursul efectiv din Revolut pentru data conversiei.</p>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs text-neutral-400 mb-2">Deductibilitate *</label>
@@ -684,7 +714,8 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
             </div>
             {amount && (
               <p className="text-xs text-neutral-500 mt-1">
-                Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(Math.round(Number(amount) * deductibility / 100 * 100) / 100, currency)}</span>
+                Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(Math.round((Number(amount) * (currency === "USD" ? (Number(exchangeRate) || 0) : 1) * deductibility / 100) * 100) / 100, currency === "USD" ? "RON" : currency)}</span>
+                {currency === "USD" && Number(exchangeRate) > 0 && <span className="block text-[11px] text-neutral-600">Factură: {fmtCurrency(Math.round(Number(amount) * deductibility / 100 * 100) / 100, "USD")}</span>}
               </p>
             )}
           </div>
