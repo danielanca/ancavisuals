@@ -582,7 +582,6 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         notes: form.notes,
         pricing: { total, advanceAmount, advancePaid: form.advancePaid, remainingAmount: total - advanceAmount },
       });
-      setEditing(false);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : "Eroare necunoscută.");
     } finally {
@@ -1480,7 +1479,6 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       {editing && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4"
-          onClick={() => setEditing(false)}
         >
           <div
             className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto"
@@ -1626,17 +1624,11 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               </p>
             )}
 
-            <div className="flex gap-3 pt-1">
-              <button
-                onClick={() => setEditing(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-700 text-neutral-300 text-sm hover:border-neutral-500 transition-colors"
-              >
-                Anulează
-              </button>
+            <div className="pt-1">
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-white text-black text-sm font-semibold hover:bg-neutral-200 disabled:opacity-40 transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-white text-black text-sm font-semibold hover:bg-neutral-200 disabled:opacity-40 transition-colors"
               >
                 {saving ? "Se salvează..." : "Salvează"}
               </button>

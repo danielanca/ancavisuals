@@ -14,6 +14,23 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+function normalizeInvoiceValue(value: unknown): string {
+  const normalized = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  return normalized.replace(/^FACTURA/, "").replace(/^(NR|NO)/, "");
+}
+
+function normalizeSupplier(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
 // POST /upload-doc — upload a receipt/invoice file to Bunny CDN
 router.post("/upload-doc", requireFirebaseAuth, requireSupremeAdmin, upload.single("file"), async (req: Request, res: Response) => {
   const file = req.file;
@@ -227,11 +244,27 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       }
     }
 
-    // Dedup check 2: invoice number
-    if (invoiceNumber?.trim()) {
-      const invoiceSnap = await db.collection(COLLECTION).where("invoiceNumber", "==", invoiceNumber.trim()).limit(1).get();
-      if (!invoiceSnap.empty) {
-        res.status(409).json({ error: "DUPLICATE_INVOICE_NUMBER", existingId: invoiceSnap.docs[0].id, message: `Numărul de factură "${invoiceNumber}" există deja.` });
+    // Dedup check 2: invoice identity.  The invoice number is often entered as
+    // "123", "Factura nr. 123" or with different spaces/dashes, so an exact
+    // Firestore equality query is not enough. Read the (small) expense register
+    // and compare normalized number + supplier; this also catches older records
+    // created before normalized fields existed.
+    const normalizedInvoiceNumber = normalizeInvoiceValue(invoiceNumber);
+    if (normalizedInvoiceNumber) {
+      const expensesSnapshot = await db.collection(COLLECTION).get();
+      const normalizedSupplierName = normalizeSupplier(supplier);
+      const duplicateInvoice = expensesSnapshot.docs.find((doc) => {
+        const existing = doc.data();
+        if (normalizeInvoiceValue(existing.invoiceNumber) !== normalizedInvoiceNumber) return false;
+        const existingSupplier = normalizeSupplier(existing.supplier);
+        return !normalizedSupplierName || !existingSupplier || existingSupplier === normalizedSupplierName;
+      });
+      if (duplicateInvoice) {
+        res.status(409).json({
+          error: "DUPLICATE_INVOICE_NUMBER",
+          existingId: duplicateInvoice.id,
+          message: `Factura "${invoiceNumber}" este deja înregistrată în registru.`,
+        });
         return;
       }
     }

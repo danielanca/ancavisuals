@@ -28,6 +28,7 @@ async function loadExpensesRouter() {
 
   // Per-query mocks — start with "no duplicates"
   const whereSnapMock = vi.fn().mockResolvedValue(makeEmptySnap());
+  const getCollectionMock = vi.fn().mockResolvedValue({ docs: [] });
 
   const limitMock = vi.fn(() => ({ get: whereSnapMock }));
   const whereMock = vi.fn(() => ({ limit: limitMock, get: whereSnapMock }));
@@ -40,6 +41,7 @@ async function loadExpensesRouter() {
   const collectionMock = vi.fn(() => ({
     add: addMock,
     where: whereMock,
+    get: getCollectionMock,
     orderBy: orderByMock,
     doc: docMock,
   }));
@@ -90,6 +92,7 @@ async function loadExpensesRouter() {
     addMock,
     deleteMock,
     whereSnapMock,
+    getCollectionMock,
     whereMock,
     collectionMock,
     postCreate: getHandler("post", "/"),
@@ -158,9 +161,10 @@ describe("expenses routes", () => {
     });
 
     test("returns 409 DUPLICATE_INVOICE_NUMBER when invoice number exists", async () => {
-      const { postCreate, whereSnapMock } = await loadExpensesRouter();
-      // No factura/chitanta in body → no hash checks → first call is invoice number check
-      whereSnapMock.mockResolvedValueOnce(makeDocSnap("existing-inv"));
+      const { postCreate, getCollectionMock } = await loadExpensesRouter();
+      getCollectionMock.mockResolvedValueOnce({
+        docs: [{ id: "existing-inv", data: () => ({ invoiceNumber: "Factura FA 2026/001", supplier: "Identia SRL" }) }],
+      });
 
       const res = createMockResponse();
       await postCreate(
@@ -171,6 +175,7 @@ describe("expenses routes", () => {
             amount: 100,
             deductibility: 50,
             invoiceNumber: "FA-2026-001",
+            supplier: "IDENTIA S.R.L.",
           },
         },
         res,
