@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import useAuth from "../auth/useAuth";
 import { CITIES } from "../../../pages/LocationSEO/locationData";
 
@@ -56,6 +56,33 @@ interface PostVariant {
   priority: string;
 }
 
+const SEO_RADAR_DRAFT_KEY = "ancavisuals:seo-radar:draft";
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string; isFinal: boolean }>> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+};
+
+const emptyPostVariant = (): PostVariant => ({
+  title: "",
+  slug: "",
+  canonicalUrl: "",
+  metaDescription: "",
+  seoTitle: "",
+  tags: [],
+  category: "",
+  angle: "",
+  bodyHtml: "",
+  faq: [],
+  internalLinks: [],
+  priority: "medium",
+});
+
 const SeoRadarPage: React.FC = () => {
   const { auth } = useAuth();
   const [keyword, setKeyword] = useState("fotocabina Gilău");
@@ -67,9 +94,32 @@ const SeoRadarPage: React.FC = () => {
   const [stats, setStats] = useState<ProviderStats | null>(null);
   const [statsError, setStatsError] = useState("");
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState("Pregătesc analiza SEO…");
+  const [publishing, setPublishing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [postVariants, setPostVariants] = useState<PostVariant[]>([]);
   const [selectedVariant, setSelectedVariant] = useState(0);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SEO_RADAR_DRAFT_KEY) || "null") as {
+        result?: SearchResult | null;
+        postVariants?: PostVariant[];
+        selectedVariant?: number;
+      } | null;
+      if (saved?.result) setResult(saved.result);
+      if (Array.isArray(saved?.postVariants) && saved.postVariants.length === 3) setPostVariants(saved.postVariants);
+      if (typeof saved?.selectedVariant === "number") setSelectedVariant(Math.max(0, Math.min(2, saved.selectedVariant)));
+    } catch {
+      localStorage.removeItem(SEO_RADAR_DRAFT_KEY);
+    } finally {
+      setDraftLoaded(true);
+    }
+  }, []);
+  useEffect(() => {
+    if (!draftLoaded || !postVariants.length) return;
+    localStorage.setItem(SEO_RADAR_DRAFT_KEY, JSON.stringify({ result, postVariants, selectedVariant }));
+  }, [draftLoaded, postVariants, result, selectedVariant]);
   useEffect(() => {
     setStats(null);
     setStatsError("");
@@ -97,6 +147,7 @@ const SeoRadarPage: React.FC = () => {
       if (!response.ok) throw new Error(data.error || "Căutarea a eșuat.");
       setResult(data);
       setPostVariants([]);
+      localStorage.removeItem(SEO_RADAR_DRAFT_KEY);
       setAnalysisError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Căutarea a eșuat.");
@@ -107,32 +158,82 @@ const SeoRadarPage: React.FC = () => {
 
   const analyze = async () => {
     if (!result) return;
+    setAnalysisError("");
+    setPostVariants(current => current.length === 3 ? current : [emptyPostVariant(), emptyPostVariant(), emptyPostVariant()]);
+    setSelectedVariant(0);
+  };
+
+  const generateVariant = async (index: number) => {
+    if (!result) return;
     setAnalysisLoading(true);
+    setAnalysisProgress(`Claude generează varianta ${index + 1}…`);
     setAnalysisError("");
     try {
       const response = await fetch("/api/admin/seo-radar/generate-post", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-        body: JSON.stringify({
-          keyword: result.keyword,
-          city: result.city,
-          source: result.source,
-          organicResults: result.organicResults,
-        }),
+        body: JSON.stringify({ keyword: result.keyword, city: result.city, source: result.source, organicResults: result.organicResults, variantIndex: index }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Analiza AI a eșuat.");
-      setPostVariants(data.variants);
-      setSelectedVariant(0);
+      if (!response.ok) throw new Error(data.error || "Generarea variantei a eșuat.");
+      setPostVariants(current => current.map((item, itemIndex) => itemIndex === index ? data.variants[0] : item));
     } catch (err) {
-      setAnalysisError(err instanceof Error ? err.message : "Analiza AI a eșuat.");
+      setAnalysisError(err instanceof Error ? err.message : "Generarea variantei a eșuat.");
     } finally {
       setAnalysisLoading(false);
     }
   };
 
+  const publishVariant = async (variant: PostVariant) => {
+    if (!variant.title.trim() || !variant.slug.trim() || !variant.bodyHtml.trim()) {
+      setAnalysisError("Completează titlul, slug-ul și body-ul înainte de publicare.");
+      return;
+    }
+    setPublishing(true);
+    setAnalysisError("");
+    try {
+      const response = await fetch(`/api/blog/admin/posts/${encodeURIComponent(variant.slug)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({
+          slug: variant.slug,
+          title: variant.title,
+          description: variant.metaDescription,
+          category: variant.category || "general",
+          tags: variant.tags,
+          city,
+          content: variant.bodyHtml,
+          status: "published",
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Publicarea a eșuat.");
+      setAnalysisError("Articolul a fost publicat cu succes.");
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : "Publicarea a eșuat.");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black px-6 py-10 text-white md:px-10">
+      {analysisLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl border border-amber-200/30 bg-neutral-950 p-7 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <span className="h-3 w-3 animate-pulse rounded-full bg-amber-200" />
+              <p className="text-xs uppercase tracking-[0.25em] text-amber-200/80">Claude · creare postare SEO</p>
+            </div>
+            <h2 className="mt-5 text-2xl font-light">Lucrez la cele 3 variante</h2>
+            <p className="mt-4 min-h-12 text-sm leading-6 text-gray-300">{analysisProgress}</p>
+            <div className="mt-5 h-1 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-amber-200" />
+            </div>
+            <p className="mt-4 text-xs text-gray-500">Generarea unui articol complet poate dura câteva zeci de secunde.</p>
+          </div>
+        </div>
+      )}
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-6 border-b border-white/10 pb-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -289,38 +390,45 @@ const SeoRadarPage: React.FC = () => {
                   <p className="text-xs uppercase tracking-[0.25em] text-amber-200/70">Creator postare SEO · Claude</p>
                   <h2 className="mt-2 text-2xl font-light">Creează postare SEO</h2>
                   <p className="mt-2 max-w-3xl text-sm text-gray-400">
-                    Generează 3 variante complete, apoi alege, editează și rafinează varianta potrivită.
+                    Lucrează pe rând la cele 3 variante. Generează cu Claude doar când alegi tu.
                   </p>
                 </div>
                 <button
-                  onClick={analyze}
+                  onClick={() => {
+                    if (postVariants.length) {
+                      setPostVariants([]);
+                      setSelectedVariant(0);
+                      localStorage.removeItem(SEO_RADAR_DRAFT_KEY);
+                    } else {
+                      analyze();
+                    }
+                  }}
                   disabled={analysisLoading}
                   className="shrink-0 rounded-xl bg-amber-200 px-5 py-3 font-medium text-black disabled:opacity-50"
                 >
-                  {analysisLoading
-                    ? "Generez…"
-                    : postVariants.length
-                      ? "Regenerează 3 variante"
-                      : "Creează postare SEO"}
+                  {postVariants.length ? "Resetează cele 3 schelete" : "Creează postare SEO"}
                 </button>
               </div>
               {analysisError && <p className="mt-5 text-red-300">{analysisError}</p>}
               {postVariants.length > 0 && (
                 <div className="mt-7">
-                  <div className="flex flex-wrap gap-2">
-                    {postVariants.map((variant, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setSelectedVariant(index)}
-                        className={`rounded-xl px-4 py-2 text-sm ${selectedVariant === index ? "bg-amber-200 text-black" : "border border-white/10 text-gray-300"}`}
-                      >
-                        Varianta {index + 1}: {variant.title}
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
+                    <button type="button" aria-label="Varianta anterioară" onClick={() => setSelectedVariant(index => (index + 2) % 3)} className="rounded-xl border border-white/10 px-4 py-2 text-xl text-gray-200">←</button>
+                    <span className="text-sm text-gray-300">Varianta {selectedVariant + 1} din 3</span>
+                    <button type="button" aria-label="Varianta următoare" onClick={() => setSelectedVariant(index => (index + 1) % 3)} className="rounded-xl border border-white/10 px-4 py-2 text-xl text-gray-200">→</button>
                   </div>
                   <PostVariantEditor
                     variant={postVariants[selectedVariant]}
                     token={auth.accessToken}
+                    generating={analysisLoading}
+                    publishing={publishing}
+                    onGenerate={() => {
+                      const selected = postVariants[selectedVariant];
+                      const nextEmpty = postVariants.findIndex(item => !item.title.trim() && !item.bodyHtml.trim());
+                      const target = selected && (selected.title.trim() || selected.bodyHtml.trim()) ? selectedVariant : nextEmpty;
+                      if (target >= 0) void generateVariant(target);
+                    }}
+                    onPublish={() => void publishVariant(postVariants[selectedVariant])}
                     onChange={updated =>
                       setPostVariants(current =>
                         current.map((item, index) => (index === selectedVariant ? updated : item)),
@@ -670,18 +778,173 @@ const PostVariantEditor = ({
   variant,
   token,
   onChange,
+  generating: postGenerating,
+  onGenerate,
+  publishing,
+  onPublish,
 }: {
   variant: PostVariant;
   token: string;
   onChange: (variant: PostVariant) => void;
+  generating: boolean;
+  onGenerate: () => void;
+  publishing: boolean;
+  onPublish: () => void;
 }) => {
   const [instruction, setInstruction] = useState("");
   const [bodyOptions, setBodyOptions] = useState<{ title: string; html: string }[]>([]);
   const [generating, setGenerating] = useState(false);
   const [bodyError, setBodyError] = useState("");
+  const [voiceRecording, setVoiceRecording] = useState(false);
+  const [voicePreview, setVoicePreview] = useState("");
+  const voiceBaseTextRef = useRef("");
+  const voiceSessionTextRef = useRef("");
+  const voiceActiveRef = useRef(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceAudioContextRef = useRef<AudioContext | null>(null);
+  const voiceAnalyserRef = useRef<AnalyserNode | null>(null);
+  const voiceFrameRef = useRef<number | null>(null);
+  const voiceCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [canonicalCheck, setCanonicalCheck] = useState<{ exists: boolean; status: number | null; message?: string } | null>(null);
+  const [checkingCanonical, setCheckingCanonical] = useState(false);
   const inputClass = "mt-1 w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white";
   const update = <K extends keyof PostVariant>(key: K, value: PostVariant[K]) => onChange({ ...variant, [key]: value });
   const format = (command: string) => document.execCommand(command, false);
+  const stopVoiceWaveform = () => {
+    if (voiceFrameRef.current !== null) window.cancelAnimationFrame(voiceFrameRef.current);
+    voiceFrameRef.current = null;
+    voiceAnalyserRef.current = null;
+    voiceStreamRef.current?.getTracks().forEach(track => track.stop());
+    voiceStreamRef.current = null;
+    voiceAudioContextRef.current?.close().catch(() => {});
+    voiceAudioContextRef.current = null;
+  };
+  const commitVoicePreview = () => {
+    setVoicePreview(preview => {
+      const text = preview.trim();
+      if (text) setInstruction(current => `${current}${current.trim() ? " " : ""}${text}`);
+      return "";
+    });
+  };
+  const startVoiceWaveform = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const canvas = voiceCanvasRef.current;
+    if (!canvas) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    voiceStreamRef.current = stream;
+    const context = new AudioContext();
+    voiceAudioContextRef.current = context;
+    if (context.state === "suspended") await context.resume().catch(() => {});
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.82;
+    context.createMediaStreamSource(stream).connect(analyser);
+    voiceAnalyserRef.current = analyser;
+    const data = new Uint8Array(analyser.fftSize);
+    const draw = () => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.floor(canvas.clientWidth * dpr);
+      const height = Math.floor(canvas.clientHeight * dpr);
+      if (!width || !height) { voiceFrameRef.current = requestAnimationFrame(draw); return; }
+      canvas.width = width;
+      canvas.height = height;
+      analyser.getByteTimeDomainData(data);
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "rgba(38, 38, 38, 0.92)";
+      ctx.fillRect(0, 0, width, height);
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(253, 230, 138, 0.95)";
+      ctx.lineWidth = 2 * dpr;
+      data.forEach((value, index) => {
+        const x = (index / (data.length - 1)) * width;
+        const y = ((value / 255) * height);
+        index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      voiceFrameRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+  };
+  const toggleVoiceInput = async () => {
+    if (voiceRecording) {
+      voiceActiveRef.current = false;
+      recognitionRef.current?.stop();
+      stopVoiceWaveform();
+      setVoiceRecording(false);
+      commitVoicePreview();
+      return;
+    }
+    const speechWindow = window as typeof window & { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
+    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setBodyError("Dictarea vocală nu este disponibilă în acest browser. Încearcă Google Chrome.");
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "ro-RO";
+    recognition.onresult = event => {
+      const results = Array.from({ length: event.results.length }, (_, index) => event.results[index]);
+      const sessionText = results.map(result => result?.[0]?.transcript || "").join(" ").trim();
+      voiceSessionTextRef.current = sessionText;
+      setInstruction(`${voiceBaseTextRef.current}${voiceBaseTextRef.current && sessionText ? " " : ""}${sessionText}`);
+      setVoicePreview(results.filter(result => !result?.[0]?.isFinal).map(result => result?.[0]?.transcript || "").join(" ").trim());
+    };
+    recognition.onend = () => {
+      if (voiceActiveRef.current) {
+        voiceBaseTextRef.current = `${voiceBaseTextRef.current}${voiceBaseTextRef.current && voiceSessionTextRef.current ? " " : ""}${voiceSessionTextRef.current}`.trim();
+        voiceSessionTextRef.current = "";
+        try { recognition.start(); } catch { /* browserul poate fi încă în tranziție */ }
+      }
+      else { setVoiceRecording(false); commitVoicePreview(); }
+    };
+    recognition.onerror = () => { if (!voiceActiveRef.current) { setVoiceRecording(false); commitVoicePreview(); } setBodyError("Nu am putut prelua vocea. Verifică permisiunea microfonului."); };
+    recognitionRef.current = recognition;
+    setBodyError("");
+    voiceActiveRef.current = true;
+    voiceBaseTextRef.current = instruction.trim();
+    voiceSessionTextRef.current = "";
+    setVoiceRecording(true);
+    try {
+      await startVoiceWaveform();
+      recognition.start();
+    } catch {
+      voiceActiveRef.current = false;
+      setVoiceRecording(false);
+      stopVoiceWaveform();
+      setBodyError("Nu am putut accesa microfonul. Verifică permisiunea browserului.");
+    }
+  };
+  const checkCanonical = async () => {
+    setCheckingCanonical(true);
+    setCanonicalCheck(null);
+    try {
+      const response = await fetch("/api/admin/seo-radar/check-canonical", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url: variant.canonicalUrl }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "URL invalid.");
+      setCanonicalCheck({ exists: data.exists === true, status: typeof data.status === "number" ? data.status : null, message: data.error });
+    } catch (error) {
+      setCanonicalCheck({ exists: false, status: null, message: error instanceof Error ? error.message : "Verificarea a eșuat." });
+    } finally {
+      setCheckingCanonical(false);
+    }
+  };
+  useEffect(() => () => {
+    voiceActiveRef.current = false;
+    recognitionRef.current?.stop();
+    stopVoiceWaveform();
+  }, []);
   const generateBody = async () => {
     setGenerating(true);
     setBodyError("");
@@ -702,6 +965,20 @@ const PostVariantEditor = ({
   };
   return (
     <div className="mt-6 space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/20 bg-amber-200/5 p-4">
+        <div>
+          <p className="text-sm text-amber-100">Varianta aceasta este independentă</p>
+          <p className="mt-1 text-xs text-gray-500">Poți edita manual sau poți cere lui Claude să o completeze.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={onGenerate} disabled={postGenerating} className="rounded-xl bg-amber-200 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">
+            {postGenerating ? "Claude generează…" : variant.title ? "Regenerează cu Claude" : "Generează cu Claude"}
+          </button>
+          <button type="button" onClick={onPublish} disabled={publishing || !variant.title.trim() || !variant.slug.trim() || !variant.bodyHtml.trim()} className="rounded-xl border border-emerald-300/50 px-4 py-2 text-sm font-medium text-emerald-200 disabled:opacity-40">
+            {publishing ? "Se publică…" : "Publică articolul"}
+          </button>
+        </div>
+      </div>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="text-xs uppercase tracking-wider text-gray-500">
           Titlu SEO
@@ -717,11 +994,15 @@ const PostVariantEditor = ({
         </label>
         <label className="text-xs uppercase tracking-wider text-gray-500">
           URL canonic
-          <input
-            className={inputClass}
-            value={variant.canonicalUrl}
-            onChange={e => update("canonicalUrl", e.target.value)}
-          />
+          <div className="mt-1 flex gap-2">
+            <input className={inputClass.replace("mt-1 ", "")} value={variant.canonicalUrl} onChange={e => { update("canonicalUrl", e.target.value); setCanonicalCheck(null); }} />
+            <button type="button" onClick={checkCanonical} disabled={checkingCanonical || !variant.canonicalUrl.trim()} className="shrink-0 rounded-xl border border-amber-200/40 px-3 text-xs text-amber-200 disabled:opacity-50">
+              {checkingCanonical ? "Verific…" : "Verifică"}
+            </button>
+          </div>
+          {canonicalCheck && <p className={`mt-1 text-xs ${canonicalCheck.exists ? "text-emerald-300" : "text-red-300"}`}>
+            {canonicalCheck.exists ? `Link accesibil (HTTP ${canonicalCheck.status})` : canonicalCheck.message || `Link inaccesibil${canonicalCheck.status ? ` (HTTP ${canonicalCheck.status})` : ""}`}
+          </p>}
         </label>
         <label className="text-xs uppercase tracking-wider text-gray-500 md:col-span-2">
           Meta description
@@ -754,6 +1035,33 @@ const PostVariantEditor = ({
         </label>
       </div>
       <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+        <div className="mb-5 border-b border-white/10 pb-4">
+          <p className="text-xs uppercase tracking-wider text-amber-200/70">Context pentru body</p>
+          <p className="mt-1 text-xs text-gray-500">Body-ul se generează numai după ce introduci contextul și apeși butonul.</p>
+          <div className="mt-2 flex flex-col gap-2 md:flex-row">
+            <textarea
+              value={instruction}
+              onChange={e => setInstruction(e.target.value)}
+              rows={2}
+              placeholder="Ex.: Vorbește despre fotocabina în Gilău, prețul este X, oferim magneți…"
+              className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white"
+            />
+            <button type="button" onClick={toggleVoiceInput} className={`rounded-xl border px-4 py-2 text-sm ${voiceRecording ? "border-red-400 bg-red-400/10 text-red-300" : "border-white/10 text-gray-200"}`} title="Dictare vocală">
+              {voiceRecording ? "⏹ Oprește" : "🎙 Microfon"}
+            </button>
+            <canvas ref={voiceCanvasRef} className={`${voiceRecording ? "block" : "hidden"} h-12 w-full rounded-xl border border-amber-200/20 bg-neutral-900 md:w-64`} aria-label="Waveform live microfon" />
+            <button
+              type="button"
+              onClick={generateBody}
+              disabled={generating || !instruction.trim()}
+              className="rounded-xl bg-violet-300 px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+            >
+              {generating ? "Generez…" : "Generează conținut"}
+            </button>
+          </div>
+          {voiceRecording && <p className="mt-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs italic text-amber-100/80">{voicePreview || "Ascult… vorbește în microfon."}</p>}
+          {bodyError && <p className="mt-2 text-sm text-red-300">{bodyError}</p>}
+        </div>
         <div className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
           <button
             type="button"
@@ -786,25 +1094,6 @@ const PostVariantEditor = ({
           className="blog-article mt-4 min-h-[360px] rounded-xl border border-white/10 bg-black p-4 text-sm leading-7 text-gray-200 outline-none focus:border-amber-200/50"
         />
         <div className="mt-5 border-t border-white/10 pt-4">
-          <p className="text-xs uppercase tracking-wider text-amber-200/70">Generează text cu AI</p>
-          <div className="mt-2 flex flex-col gap-2 md:flex-row">
-            <textarea
-              value={instruction}
-              onChange={e => setInstruction(e.target.value)}
-              rows={2}
-              placeholder="Ex.: Vorbește despre serviciile de fotocabină în Gilău, prețul este X, oferim magneți…"
-              className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white"
-            />
-            <button
-              type="button"
-              onClick={generateBody}
-              disabled={generating || !instruction.trim()}
-              className="rounded-xl bg-violet-300 px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
-            >
-              {generating ? "Generez…" : "Generează 3 variante"}
-            </button>
-          </div>
-          {bodyError && <p className="mt-2 text-sm text-red-300">{bodyError}</p>}
           {bodyOptions.length > 0 && (
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {bodyOptions.map((option, index) => (
