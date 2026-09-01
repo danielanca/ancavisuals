@@ -311,6 +311,39 @@ router.post("/generate-body", async (req, res) => {
   }
 });
 
+router.post("/keyword-suggestions", async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: "Lipsește ANTHROPIC_API_KEY din .env." });
+  const parts = [req.body?.serviceOne, req.body?.serviceTwo, req.body?.event, req.body?.custom]
+    .filter((part): part is string => typeof part === "string" && part.trim().length > 0).map(part => part.trim());
+  const similar = req.body?.similar === true;
+  try {
+    const message = await anthropic.messages.create({ model: "claude-haiku-4-5-20251001", max_tokens: 500, messages: [{ role: "user", content: `${similar ? "Generează un set nou de 6 keyword-uri SEO asemănătoare, dar nu identice, pornind de la" : "Generează 6 keyword-uri SEO naturale pornind de la"} componentele alese de administrator: ${parts.join(", ") || "niciuna"}. Scrie în limba română pentru servicii foto-video locale. Păstrează orașul sau intenția locală dacă există, variază ordinea și sinonimele naturale, folosește maximum 5 cuvinte și evită keyword stuffing. Răspunde STRICT cu JSON array de 6 stringuri, fără explicații.` }] });
+    const text = message.content.filter((block): block is Anthropic.TextBlock => block.type === "text").map(block => block.text).join("").trim();
+    const suggestions = JSON.parse(text.replace(/^```json\s*/i, "").replace(/\s*```$/i, ""));
+    if (!Array.isArray(suggestions)) throw new Error("Invalid keyword suggestions");
+    res.json({ suggestions: suggestions.filter((suggestion): suggestion is string => typeof suggestion === "string").slice(0, 6) });
+  } catch (error) {
+    console.error("[seo-radar] keyword suggestions error:", error);
+    res.status(502).json({ error: "Nu am putut genera sugestiile de keyword cu Claude." });
+  }
+});
+
+router.post("/diacritics", async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: "Lipsește ANTHROPIC_API_KEY din .env." });
+  const input = typeof req.body?.input === "string" ? req.body.input.trim().slice(0, 500) : "";
+  if (!input) return res.status(400).json({ error: "Introdu cuvântul sau textul pentru corectare." });
+  try {
+    const message = await anthropic.messages.create({ model: "claude-haiku-4-5-20251001", max_tokens: 700, messages: [{ role: "user", content: `Pentru textul românesc de mai jos, generează toate variantele plauzibile de scriere cu și fără diacritice, modificând doar diacriticele (ă â î ș ț) și păstrând exact restul textului. Elimină duplicatele și sortează varianta corectă cu diacritice prima. Text: "${input}". Răspunde STRICT cu JSON array de stringuri, fără explicații.` }] });
+    const text = message.content.filter((block): block is Anthropic.TextBlock => block.type === "text").map(block => block.text).join("").trim();
+    const variants = JSON.parse(text.replace(/^```json\s*/i, "").replace(/\s*```$/i, ""));
+    if (!Array.isArray(variants)) throw new Error("Invalid diacritics response");
+    res.json({ variants: variants.filter((variant): variant is string => typeof variant === "string").slice(0, 100) });
+  } catch (error) {
+    console.error("[seo-radar] diacritics error:", error);
+    res.status(502).json({ error: "Nu am putut genera variantele cu diacritice." });
+  }
+});
+
 async function searchSerpApi(keyword: string, city: string, apiKey: string): Promise<{ payload: JsonRecord; metadata: JsonRecord }> {
   const params = new URLSearchParams({ engine: "google", q: keyword, hl: "ro", gl: "ro", google_domain: "google.ro", api_key: apiKey });
   const resolvedLocation = city ? await resolveLocation(city, apiKey) : null;

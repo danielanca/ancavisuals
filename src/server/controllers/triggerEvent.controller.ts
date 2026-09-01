@@ -188,7 +188,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     const emailSubject = isBookingSubmission
       ? triggerData.subject!
-      : `${aiSource ? `🤖 ${aiSource}` : visitorLabel} — ${triggerData.url} — ${todayString}`;
+      : `${aiSource ? `🤖 ${aiSource}` : visitorLabel} — ${triggerData.url} — ${todayString} - ${source}`;
 
     await sendEmail({ to: adminUser.email, subject: emailSubject, html: emailHtml });
 
