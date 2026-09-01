@@ -126,10 +126,11 @@ const nodes: ChatNode[] = [
   {
     id: "coverage",
     botMessage:
-      "Suntem bazați în Turda și acoperim:\n\n📍 Turda – fără taxă de deplasare\n🚗 Județele Cluj, Alba, Sibiu, Arad, Bistrița și București – cu taxă de deplasare (se decontează strict motorina)\n✈️ Internațional – la cerere\n\nNu refuzăm nicio destinație frumoasă 😊",
+      "Suntem bazați în Turda și acoperim:\n\n📍 Turda – fără taxă de deplasare\n🚗 Județele Cluj, Alba, Sibiu, Arad, Bistrița și București – cu taxă de deplasare (se decontează strict motorina)\n✈️ Internațional – la cerere\n\nNu refuzăm nicio destinație frumoasă 😊\n\nDacă dorești să vorbești direct cu noi, personal, apasă butonul de WhatsApp și te redirecționăm către noi.",
     suggestions: [
       { label: "Prețuri", intentId: "pricing" },
       { label: "Vreau să rezerv", intentId: "booking" },
+      { label: "Vorbește direct cu noi pe WhatsApp", intentId: "whatsapp" },
       { label: "Înapoi", intentId: "welcome" },
     ],
   },

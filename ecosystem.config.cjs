@@ -11,7 +11,7 @@ module.exports = {
     {
       name: "ancavisuals",
       script: "dist/server.js",
-      node_args: "--no-deprecation",
+      node_args: "--no-deprecation --require ./scripts/polyfill-slowbuffer.cjs",
       exec_mode: "fork",
       cwd,
       env: {

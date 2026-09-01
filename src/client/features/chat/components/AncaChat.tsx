@@ -88,6 +88,8 @@ export default function AncaChat() {
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const conversationIdRef = useRef(0);
+  const transcriptSentRef = useRef(false);
+  const inactivityTimerRef = useRef<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -129,6 +131,23 @@ export default function AncaChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (!messages.some(message => message.sender === "user") || transcriptSentRef.current) return;
+    if (inactivityTimerRef.current !== null) window.clearTimeout(inactivityTimerRef.current);
+    inactivityTimerRef.current = window.setTimeout(() => {
+      void fetch("/api/assistant/transcript", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages }),
+      }).then(response => {
+        if (response.ok) transcriptSentRef.current = true;
+      }).catch(() => undefined);
+    }, 5 * 60 * 1000);
+    return () => {
+      if (inactivityTimerRef.current !== null) window.clearTimeout(inactivityTimerRef.current);
+    };
+  }, [messages]);
+
   const handleToggle = () => {
     if (!hasInteracted) {
       setHasInteracted(true);
@@ -153,6 +172,8 @@ export default function AncaChat() {
     setAwaitingDate(false);
     setAwaitingPhone(false);
     setInitialized(false);
+    transcriptSentRef.current = false;
+    if (inactivityTimerRef.current !== null) window.clearTimeout(inactivityTimerRef.current);
   };
 
   const deliverBotResponse = async (node: ChatNode, conversationId = conversationIdRef.current) => {
@@ -178,6 +199,12 @@ export default function AncaChat() {
 
   const sendIntent = async (intentId: string, label: string) => {
     if (loading || thinking) return;
+
+    if (intentId === "whatsapp") {
+      setMessages(prev => [...prev, { sender: "user", text: label }]);
+      window.open("https://wa.me/40745469907", "_blank", "noopener,noreferrer");
+      return;
+    }
 
     if (intentId === "link_contact") {
       navigate("/contact");
@@ -370,6 +397,7 @@ export default function AncaChat() {
                       : "text-xs px-3 py-1.5 rounded-full border border-neutral-600 text-neutral-200 hover:bg-neutral-700 transition-colors"
                   }
                 >
+                  {s.intentId === "whatsapp" && <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a9.9 9.9 0 0 0-8.55 14.9L2 22l5.28-1.38A9.9 9.9 0 1 0 12 2Zm0 18a8.1 8.1 0 0 1-4.12-1.13l-.3-.18-3.13.82.84-3.04-.2-.31A8.1 8.1 0 1 1 12 20Zm4.45-6.07c-.24-.12-1.41-.7-1.63-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1-.37-1.9-1.18-.7-.62-1.18-1.39-1.32-1.63-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.46-.39-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.58.18 1.11.15 1.53.09.47-.07 1.41-.58 1.61-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z" /></svg>}
                   {s.label}
                 </button>
               ))}

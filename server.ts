@@ -51,6 +51,7 @@ import weddingRemindersRouter from "./src/server/routes/weddingReminders.routes"
 import oferteRouter from "./src/server/routes/oferte.routes";
 import venueOutreachRouter from "./src/server/routes/venueOutreach.routes";
 import seoGeneratorRouter from "./src/server/routes/seoGenerator.routes";
+import seoRadarRouter from "./src/server/routes/seoRadar.routes";
 import campaignRouter from "./src/server/routes/campaign.routes";
 import activityRouter from "./src/server/routes/activity.routes";
 import searchConsoleRouter from "./src/server/routes/searchConsole.routes";
@@ -177,6 +178,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.admin, accountsRouter);
   app.use(API_ROUTE_PREFIXES.admin, venueOutreachRouter);
   app.use("/api/admin/seo", seoGeneratorRouter);
+  app.use("/api/admin/seo-radar", seoRadarRouter);
   app.use("/api/campaign", campaignRouter);
   app.use("/api/analytics", analyticsPublicRouter);
   app.use(API_ROUTE_PREFIXES.admin, analyticsAdminRouter);
