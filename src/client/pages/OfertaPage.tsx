@@ -3,6 +3,7 @@ import { remoteAddress } from "../utils/address";
 import { useParams } from "react-router-dom";
 import CampaignLandingPage, { type CampaignPage } from "./CampaignLanding/CampaignLandingPage";
 import type { OfferPackage } from "../../shared/offers/offerServices";
+import { measureOaiq } from "../utils/oaiq";
 
 const INITIAL_PHOTO_COUNT = 12;
 
@@ -421,6 +422,7 @@ export default function OfertaPage() {
           <div className="flex flex-col sm:flex-row gap-3">
             <a
               href="tel:+40745469907"
+              onClick={() => measureOaiq("lead_created", { type: "customer_action" })}
               className="flex items-center gap-2.5 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-300 hover:text-white px-5 py-3 rounded-xl text-sm transition-colors"
             >
               <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -430,6 +432,7 @@ export default function OfertaPage() {
             </a>
             <a
               href="https://www.instagram.com/ancavisuals"
+              onClick={() => measureOaiq("lead_created", { type: "customer_action" })}
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-2.5 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-300 hover:text-white px-5 py-3 rounded-xl text-sm transition-colors"

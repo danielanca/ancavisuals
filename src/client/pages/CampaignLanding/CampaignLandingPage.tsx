@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { measureOaiq } from "../../utils/oaiq";
 
 export interface CampaignPackage {
   id: string;
@@ -89,6 +90,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
   const [form, setForm] = useState({ name: "", phone: "", eventDate: "" });
   const [formStatus, setFormStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const trackLead = () => measureOaiq("lead_created", { type: "customer_action" });
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +103,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         body: JSON.stringify(form),
       });
       setFormStatus(res.ok ? "sent" : "error");
+      if (res.ok) trackLead();
     } catch {
       setFormStatus("error");
     }
@@ -159,6 +162,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           <div className="flex flex-col sm:flex-row gap-3">
             <a
               href={whatsappLink}
+              onClick={trackLead}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-7 py-4 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-green-900/40"
@@ -262,6 +266,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   </ul>
                   <a
                     href={whatsappLink}
+                    onClick={trackLead}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-6 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-medium py-3 px-4 rounded-xl transition-colors"
@@ -332,13 +337,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
-            <a href={whatsappLink} target="_blank" rel="noreferrer"
+            <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={trackLead}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
               <WhatsAppIcon />
               {page.ctaText || "Scrie pe WhatsApp"}
             </a>
-            <a href={`tel:${page.phoneNumber}`}
+            <a href={`tel:${page.phoneNumber}`} onClick={trackLead}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 py-3.5 rounded-xl text-sm border border-neutral-700 transition-all"
             >
               <PhoneIcon />

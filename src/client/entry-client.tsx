@@ -3,6 +3,7 @@ import React from "react";
 declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void;
+    oaiq?: (...args: unknown[]) => void;
   }
 }
 import { createRoot, hydrateRoot } from "react-dom/client";

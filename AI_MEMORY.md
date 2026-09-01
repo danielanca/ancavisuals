@@ -313,6 +313,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-09-01: Evenimentele OpenAI Pixel `lead_created` (`type: customer_action`) sunt trimise la click pe telefon/WhatsApp/Instagram în footer, în `/oferta/:slug` și în campanii; formularul de contact din campanie trimite evenimentul doar după răspuns API reușit. Helper comun: `src/client/utils/oaiq.ts`. Validat cu `npm run typecheck` și `git diff --check`. #RECENT #ATTRIBUTION #ANALYTICS #CAMPAIGN
 #RECENT  2026-09-01: Pixelul OpenAI `oaiq` cu pixelId `EfkfFdccMQc1Dj6pmG7pva` este încărcat din `index.html` doar pe producție și pagini publice (nu `/admin`/`/media`), pentru măsurarea traficului provenit din ChatGPT. Validat cu `npm run build` și `git diff --check`. #RECENT #ATTRIBUTION #ANALYTICS
 #RECENT  2026-09-01: Analytics atribuie vizitele venite din ChatGPT, Claude, Gemini, Perplexity și Grok prin `utm_source` sau referrer; atribuirea se păstrează în sesiune, iar `/admin/analytics` afișează „Recomandări AI” cu vizitatori unici pe perioadă. #RECENT #ATTRIBUTION #ANALYTICS #ADMIN
 #RECENT  2026-09-01: Formularul de cheltuială acceptă USD și curs Revolut USD→RON; suma fiscală se salvează ca echivalent RON, iar suma/moneda originală și cursul se păstrează în câmpurile `originalAmount`, `originalCurrency`, `exchangeRate`. Conversia este validată și server-side. #RECENT #ADMIN #FINANCE

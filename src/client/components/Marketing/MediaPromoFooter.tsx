@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
+import { measureOaiq } from "../../utils/oaiq";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
 
 function trackContactClick(type: "phone" | "whatsapp" | "instagram") {
+  measureOaiq("lead_created", { type: "customer_action" });
   fetch("/api/analytics/contact-click", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
