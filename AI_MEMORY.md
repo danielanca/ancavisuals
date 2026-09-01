@@ -134,6 +134,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #NOTIFY  Controller:      src/server/controllers/triggerEvent.controller.ts
 #NOTIFY  Funcții:         src/server/functions/eventFuncs.ts
 #NOTIFY  IP util:         src/server/utils/ipinfo.ts  ← casing exact, nu ipInfo
+#NOTIFY  `/oferta/olx` are deja notificare dedicată prin `POST /api/oferte/:slug/view`; `useVisitorNotification` trebuie să ignore ruta pentru a nu trimite suplimentar emailul generic „Vizitator NOU”. #NOTIFY
 
 ---
 

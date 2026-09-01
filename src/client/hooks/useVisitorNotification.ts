@@ -10,6 +10,7 @@ const VISITOR_COOKIE_DAYS = 180; // 6 luni
 const SESSION_KEY = "av_notified";
 const AI_ATTRIBUTION_KEY = "av_ai_attribution";
 const AI_NOTIFICATION_KEY = "av_ai_source_notified";
+const OFFER_PATH = "/oferta/olx";
 
 const AI_SOURCES: Record<string, string> = {
   "chatgpt.com": "ChatGPT",
@@ -79,6 +80,10 @@ export function useVisitorNotification() {
     if (!isBrowser()) return;
     if (getCookie(ADMIN_COOKIE) === "1") return;
     if (SKIP_PREFIXES.some((prefix) => location.pathname.startsWith(prefix))) return;
+
+    const isOfferVisit = location.pathname === OFFER_PATH;
+    // Oferta are deja notificarea proprie din /api/oferte/:slug/view.
+    if (isOfferVisit) return;
 
     const aiAttribution = getAiAttribution();
     const aiNotificationSent = sessionStorage.getItem(AI_NOTIFICATION_KEY) === "1";

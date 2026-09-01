@@ -43,6 +43,12 @@ describe("useVisitorNotification", () => {
     expect(sendTriggerEmail).toHaveBeenCalledWith({ typeEvent: "Vizitator", url: "/portofoliu", isNewVisitor: true });
   });
 
+  test("does not send the generic visitor email for the offer route", () => {
+    renderHook(() => useVisitorNotification(), { wrapper: wrapper("/oferta/olx") });
+
+    expect(sendTriggerEmail).not.toHaveBeenCalled();
+  });
+
   test("does not send email for the same URL a second time in the same session", () => {
     const wrap = wrapper("/portofoliu");
     renderHook(() => useVisitorNotification(), { wrapper: wrap });
