@@ -315,6 +315,9 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+#RECENT  2026-09-02: Landing-ul persistă imediat recunoașterea adminului: la inițializare, dacă există cookie `av_admin=1`, salvează `av_admin_device` în localStorage și folosește starea persistentă după refresh; popup-ul de admin apare doar când adminul interacționează, iar refresh-ul nu reactivează notificările email. #RECENT #CAMPAIGN #ADMIN #NOTIFY
+#RECENT  2026-09-02: Excluderea adminului pentru notificările campaign nu mai depinde exclusiv de cookie-ul `av_admin`, care poate fi resetat temporar la refresh de Firebase; login-ul salvează markerul persistent `localStorage.av_admin_device`, landing-ul îl verifică împreună cu cookie-ul, iar logout-ul îl șterge. #RECENT #CAMPAIGN #ADMIN #NOTIFY #PITFALL
+#RECENT  2026-09-02: Subiectul emailurilor de interacțiune campaign include acum ora exactă în fusul `Europe/Bucharest`, de forma `👀 Interacțiune landing — Spinner — ora 14:32:05`, atât pentru spinner cât și pentru formular. #RECENT #CAMPAIGN #NOTIFY
 #RECENT  2026-09-02: Etichetele spinnerului sunt acum în trei containere SVG separate, rotunjite și spațiate clar în feliile lor: `VIDEOBOOTH` sus-dreapta, `NIMIC` jos, `FOTOCABINĂ` sus-stânga; nu se mai suprapun la rotire. #RECENT #CAMPAIGN #UX
 #RECENT  2026-09-02: Textele `VIDEOBOOTH`, `NIMIC`, `FOTOCABINĂ` din spinner sunt acum randate pe arce SVG, în formă curbată/U întors, centrate în cele trei felii și rotite împreună cu roata. #RECENT #CAMPAIGN #UX
 #RECENT  2026-09-02: Etichetele din roata spinner (`VIDEOBOOTH`, `NIMIC`, `FOTOCABINĂ`) sunt afișate în badge-uri rotunjite, cu fundal translucid și poziționare centrată în cele 3 felii pentru lizibilitate mai bună. #RECENT #CAMPAIGN #UX

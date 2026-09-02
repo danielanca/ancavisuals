@@ -61,6 +61,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       const token = await user.getIdToken(false);
       await setJWT(JWT_COOKIE, token, JWT_TTL_HOURS);
       await setJWT(ADMIN_COOKIE, "1", ADMIN_COOKIE_DAYS * 24);
+      try { localStorage.setItem("av_admin_device", "1"); } catch { /* storage indisponibil */ }
       const role: UserRole = user.email === SUPREME_ADMIN_EMAIL ? "admin" : user.email === ESTERA_EMAIL ? "estera" : "moderator";
       setState({ user, accessToken: token, authorise: true, loading: false, role });
     });
@@ -76,6 +77,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     await signOut(auth);
     await setJWT(JWT_COOKIE, "", -1);
     await setJWT(ADMIN_COOKIE, "", -1);
+    try { localStorage.removeItem("av_admin_device"); } catch { /* storage indisponibil */ }
     setState({ user: null, accessToken: "", authorise: false, loading: false, role: null });
   }, []);
 

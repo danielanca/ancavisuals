@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { measureOaiq } from "../../utils/oaiq";
+import { getCookie } from "../../utils/functions";
 
 export interface CampaignPackage {
   id: string;
@@ -96,9 +97,27 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const [wheelRotation, setWheelRotation] = useState(0);
   const [promoSeconds, setPromoSeconds] = useState(15 * 60 * 60);
   const promoOpen = true;
+  const [isAdmin, setIsAdmin] = useState(() => {
+    const hasAdminCookie = getCookie("av_admin") === "1";
+    try {
+      if (hasAdminCookie) localStorage.setItem("av_admin_device", "1");
+      return hasAdminCookie || localStorage.getItem("av_admin_device") === "1";
+    } catch { return hasAdminCookie; }
+  });
+  const [adminNotice, setAdminNotice] = useState(false);
+  useEffect(() => {
+    if (getCookie("av_admin") !== "1") return;
+    try { localStorage.setItem("av_admin_device", "1"); } catch { /* storage indisponibil */ }
+    setIsAdmin(true);
+  }, []);
   const formStarted = useRef(false);
   const interactionKeys = useRef(new Set<string>());
   const notifyInteraction = (interaction: "spinner" | "form" | "form_action") => {
+    if (isAdmin) {
+      setAdminNotice(true);
+      window.setTimeout(() => setAdminNotice(false), 2800);
+      return;
+    }
     const key = `${page.slug}:${interaction}`;
     if (interaction !== "spinner") {
       if (interactionKeys.current.has(key)) return;
@@ -163,6 +182,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
       <style>{`@keyframes promoRainbow { 0%, 24.99% { color: #ef4444; } 25%, 49.99% { color: #facc15; } 50%, 74.99% { color: #22c55e; } 75%, 99.99% { color: #3b82f6; } } .promo-rainbow-text { animation: promoRainbow 2.8s steps(1, end) infinite; }`}</style>
+      {adminNotice && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full border border-amber-300/40 bg-neutral-900/95 px-4 py-2 text-xs font-semibold text-amber-200 shadow-xl shadow-black/30">Ești admin — notificările sunt dezactivate.</div>}
 
       <header className="absolute top-0 inset-x-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">

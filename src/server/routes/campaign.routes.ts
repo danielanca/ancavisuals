@@ -99,6 +99,10 @@ router.post("/:slug/view", async (req: Request, res: Response) => {
 // POST /api/campaign/:slug/interaction — notify admin about high-intent interactions
 router.post("/:slug/interaction", async (req: Request, res: Response) => {
   try {
+    if (String(req.headers.cookie ?? "").split(";").some((cookie) => cookie.trim() === "av_admin=1")) {
+      res.json({ ok: true, ignored: true });
+      return;
+    }
     const interaction = req.body?.interaction === "spinner" ? "spinner" : req.body?.interaction === "form" ? "form" : req.body?.interaction === "form_action" ? "form_action" : "";
     if (!interaction) { res.status(400).json({ error: "Invalid interaction" }); return; }
     const doc = await firestore().collection(COLLECTION).doc(req.params.slug).get();
@@ -110,11 +114,12 @@ router.post("/:slug/interaction", async (req: Request, res: Response) => {
     }
     if (!pageTitle) { res.status(404).json({ error: "Not found" }); return; }
     const label = interaction === "spinner" ? "a interacționat cu spinnerul promoțional" : interaction === "form_action" ? "a făcut o acțiune în formularul de disponibilitate" : "a început interacțiunea cu formularul";
+    const interactionTime = new Date().toLocaleTimeString("ro-RO", { timeZone: "Europe/Bucharest", hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const { sendEmail } = await import("../notifications/mailer.js");
     const { adminUser } = await import("../constants/credentials.js");
     await sendEmail({
       to: adminUser.email,
-      subject: `👀 Interacțiune landing — ${interaction === "spinner" ? "Spinner" : interaction === "form_action" ? "Acțiune formular" : "Formular"}`,
+      subject: `👀 Interacțiune landing — ${interaction === "spinner" ? "Spinner" : interaction === "form_action" ? "Acțiune formular" : "Formular"} — ora ${interactionTime}`,
       html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;"><h2 style="color:#111;margin:0 0 16px;">Interacțiune cu landing-ul</h2><p style="color:#333;">Un vizitator ${label}.</p><p style="color:#333;"><strong>Campanie:</strong> ${pageTitle}<br><strong>Landing:</strong> /oferta/${req.params.slug}</p></div>`,
     });
     res.json({ ok: true });
