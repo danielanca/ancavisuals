@@ -3,6 +3,7 @@ import { Router } from "express";
 import { getAllPosts, getEditablePosts, getPostBySlug, importMarkdownPosts, saveBlogPost } from "../utils/blogUtils";
 import { addSitemapEntry, generateSitemapFromDb } from "../utils/sitemapGenerator";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
+import { firestore } from "../firestore";
 import Anthropic from "@anthropic-ai/sdk";
 
 const blogRouter = Router();
@@ -37,6 +38,22 @@ function parsePostBody(body: Record<string, unknown>, fallbackSlug?: string) {
 
 blogRouter.get("/admin/posts", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   res.json({ posts: await getEditablePosts() });
+});
+
+blogRouter.get("/admin/views", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const snapshot = await firestore().collection("siteVisits").get();
+    const views: Record<string, number> = {};
+    snapshot.docs.forEach((doc) => {
+      const page = typeof doc.data().page === "string" ? doc.data().page.replace(/\/$/, "") : "";
+      const slug = page.startsWith("/blog/") ? page.slice("/blog/".length).split("/")[0] : "";
+      if (slug) views[slug] = (views[slug] ?? 0) + 1;
+    });
+    res.json({ views });
+  } catch (error) {
+    console.error("[blog] View counts failed:", error);
+    res.status(500).json({ error: "Vizualizările nu au putut fi încărcate." });
+  }
 });
 
 blogRouter.post("/admin/import", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {

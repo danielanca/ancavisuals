@@ -30,6 +30,7 @@ const emptyPost: BlogPost = {
 export default function BlogAdminPage() {
   const { auth } = useAuth();
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<BlogPost>(emptyPost);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,16 +42,24 @@ export default function BlogAdminPage() {
   const [descriptionSuggestions, setDescriptionSuggestions] = useState<string[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<string[][]>([]);
   const [generatingMetadata, setGeneratingMetadata] = useState<"description" | "tags" | null>(null);
+  const [contentMode, setContentMode] = useState<"plain" | "preview">("preview");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const headers = useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
   const load = async () => {
     if (!auth.accessToken) return;
     setLoading(true);
     try {
-      const response = await fetch("/api/blog/admin/posts", { headers });
+      const [response, viewsResponse] = await Promise.all([
+        fetch("/api/blog/admin/posts", { headers }),
+        fetch("/api/blog/admin/views", { headers }),
+      ]);
       const data = await response.json() as { posts?: BlogPost[]; error?: string };
+      const viewsData = await viewsResponse.json() as { views?: Record<string, number> };
       if (!response.ok) throw new Error(data.error ?? "Nu s-au putut încărca articolele.");
       setPosts(data.posts ?? []);
+      if (viewsResponse.ok) setViewCounts(viewsData.views ?? {});
       if (data.posts?.length && !selected.slug) setSelected(data.posts[0]);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Eroare la încărcare.");
@@ -150,6 +159,33 @@ export default function BlogAdminPage() {
 
   const cities = Array.from(new Set(posts.map((post) => post.city).filter(Boolean))).sort() as string[];
   const visiblePosts = cityFilter === "all" ? posts : posts.filter((post) => post.city === cityFilter);
+  const categoryGroups = useMemo(() => {
+    const groups = new Map<string, BlogPost[]>();
+    posts.forEach((post) => {
+      const category = post.category?.trim() || "Fără categorie";
+      groups.set(category, [...(groups.get(category) ?? []), post].sort((first, second) => (viewCounts[second.slug] ?? 0) - (viewCounts[first.slug] ?? 0)));
+    });
+    return Array.from(groups.entries()).sort(([first], [second]) => first.localeCompare(second, "ro"));
+  }, [posts, viewCounts]);
+  const categoryColors = ["#fbbf24", "#a78bfa", "#34d399", "#60a5fa", "#fb7185", "#f472b6", "#2dd4bf", "#c084fc"];
+  const categoryChart = categoryGroups.reduce<{ name: string; count: number; color: string; start: number; end: number }[]>((chart, [name, categoryPosts], index) => {
+    const start = chart.at(-1)?.end ?? 0;
+    chart.push({ name, count: categoryPosts.length, color: categoryColors[index % categoryColors.length], start, end: start + (categoryPosts.length / Math.max(posts.length, 1)) * 360 });
+    return chart;
+  }, []);
+  const activeCategory = selectedCategory && categoryGroups.some(([category]) => category === selectedCategory) ? selectedCategory : categoryGroups[0]?.[0] ?? null;
+  const activeCategoryPosts = categoryGroups.find(([category]) => category === activeCategory)?.[1] ?? [];
+  const activeCategoryCities = Array.from(new Set(activeCategoryPosts.map((post) => post.city).filter(Boolean))).sort() as string[];
+  const maxViewCount = Math.max(...posts.map((post) => viewCounts[post.slug] ?? 0), 0);
+  const viewTint = (post: BlogPost) => {
+    const intensity = maxViewCount > 0 ? (viewCounts[post.slug] ?? 0) / maxViewCount : 0;
+    const red = Math.round(239 - intensity * 205);
+    const green = Math.round(68 + intensity * 129);
+    return {
+      backgroundColor: `rgba(${red}, ${green}, 68, ${0.12 + intensity * 0.14})`,
+      borderColor: `rgba(${red}, ${green}, 68, ${0.35 + intensity * 0.35})`,
+    };
+  };
   const publishedCount = posts.filter((post) => post.status === "published").length;
   const draftCount = posts.filter((post) => post.status === "draft").length;
   const isNewPost = !posts.some((post) => post.slug === selected.slug);
@@ -193,6 +229,32 @@ export default function BlogAdminPage() {
         </div>
       </div>
 
+      {categoryChart.length > 0 && <section className="mx-auto mt-5 max-w-[1500px] rounded-2xl border border-neutral-800 bg-neutral-900/70 p-5 sm:p-6">
+        <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div><h2 className="text-base font-semibold text-white">Structura blogului</h2><p className="mt-1 text-xs text-neutral-500">Apasă pe o categorie pentru a vedea orașele și articolele asociate.</p></div>
+          <span className="text-xs text-neutral-600">{categoryGroups.length} categorii · {posts.length} articole</span>
+        </div>
+        <div className="grid gap-6 md:grid-cols-[190px_minmax(0,1fr)] md:items-center">
+          <div className="mx-auto h-44 w-44 rounded-full p-3" style={{ background: `conic-gradient(${categoryChart.map((item) => `${item.color} ${item.start}deg ${item.end}deg`).join(", ")})` }}>
+            <div className="flex h-full w-full items-center justify-center rounded-full bg-neutral-900 text-center"><div><p className="text-2xl font-semibold text-white">{posts.length}</p><p className="text-[10px] uppercase tracking-wider text-neutral-500">articole</p></div></div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {categoryChart.map((item) => <button key={item.name} type="button" onClick={() => setSelectedCategory(item.name)} className={`rounded-xl border p-3 text-left transition-colors ${activeCategory === item.name ? "border-amber-300/40 bg-amber-300/10" : "border-neutral-800 bg-neutral-950/30 hover:border-neutral-600"}`}>
+              <span className="flex items-center justify-between gap-3"><span className="flex min-w-0 items-center gap-2 text-sm text-neutral-300"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} /><span className="truncate">{item.name}</span></span><span className="text-sm font-semibold text-white">{item.count}</span></span>
+              <span className="mt-1 block text-[11px] text-neutral-600">{Math.round((item.count / posts.length) * 100)}% din blog</span>
+            </button>)}
+          </div>
+        </div>
+        {activeCategory && <div className="mt-5 rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-medium uppercase tracking-wider text-neutral-600">Categorie selectată</p><h3 className="mt-1 text-lg font-semibold text-white">{activeCategory}</h3></div><div className="flex flex-wrap gap-2">{activeCategoryCities.length > 0 ? activeCategoryCities.map((city) => <span key={city} className="rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-300">{city}</span>) : <span className="text-xs text-neutral-600">Fără oraș setat</span>}</div></div>
+          <div className="mt-4 columns-1 gap-2 sm:columns-2 lg:columns-3">{activeCategoryPosts.map((post) => <button key={post.slug} type="button" onClick={() => setSelected(post)} style={viewTint(post)} className={`mb-2 block w-full break-inside-avoid rounded-xl border p-3 text-left transition-colors ${selected.slug === post.slug ? "ring-1 ring-amber-300/70" : "hover:brightness-110"}`}>
+            <span className="block truncate text-sm font-medium text-neutral-200">{post.title || "Fără titlu"}</span>
+            <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600"><span className={`h-1.5 w-1.5 rounded-full ${post.status === "draft" ? "bg-amber-300" : "bg-emerald-400"}`} />{post.city || "Fără oraș"}<span>·</span>{post.status === "draft" ? "Draft" : "Publicat"}<span>·</span><span>{viewCounts[post.slug] ?? 0} vizualizări</span></span>
+          </button>)}</div>
+          <p className="mt-3 text-xs text-neutral-600">{activeCategoryPosts.length} {activeCategoryPosts.length === 1 ? "articol" : "articole"} în această categorie</p>
+        </div>}
+      </section>}
+
       {(error || message) && <div className={`rounded-xl border px-4 py-3 text-sm ${error ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"}`}>{error || message}</div>}
 
       <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -207,12 +269,20 @@ export default function BlogAdminPage() {
             </select>
           </div>
           <div className="max-h-[55vh] overflow-y-auto p-2 lg:max-h-[calc(100vh-365px)]">
-            {loading ? <p className="p-3 text-sm text-neutral-500">Se încarcă…</p> : visiblePosts.length === 0 ? <p className="p-5 text-center text-sm text-neutral-600">Nu există articole pentru acest filtru.</p> : visiblePosts.map((post) => (
-              <button key={post.slug} onClick={() => setSelected(post)} className={`mb-1 w-full rounded-xl border p-3 text-left transition-colors ${selected.slug === post.slug ? "border-amber-300/30 bg-amber-300/10" : "border-transparent hover:border-neutral-700 hover:bg-neutral-800/80"}`}>
-                <span className="block truncate text-sm font-medium text-neutral-200">{post.title || "Fără titlu"}</span>
-                <span className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-600"><span className={`h-1.5 w-1.5 rounded-full ${post.status === "draft" ? "bg-amber-300" : "bg-emerald-400"}`} />{post.city || "Fără oraș"}<span>·</span>{post.status === "draft" ? "Draft" : "Publicat"}</span>
-              </button>
-            ))}
+            {loading ? <p className="p-3 text-sm text-neutral-500">Se încarcă…</p> : visiblePosts.length === 0 ? <p className="p-5 text-center text-sm text-neutral-600">Nu există articole pentru acest filtru.</p> : Array.from(new Set(visiblePosts.map((post) => post.category?.trim() || "Fără categorie"))).sort((first, second) => first.localeCompare(second, "ro")).map((category) => {
+              const categoryPosts = visiblePosts.filter((post) => (post.category?.trim() || "Fără categorie") === category).sort((first, second) => (viewCounts[second.slug] ?? 0) - (viewCounts[first.slug] ?? 0));
+              const isCollapsed = collapsedCategories[category] === true;
+              return <div key={category} className="mb-2 overflow-hidden rounded-xl border border-neutral-800">
+                <button type="button" onClick={() => setCollapsedCategories((current) => ({ ...current, [category]: !current[category] }))} className="flex w-full items-center justify-between gap-2 bg-neutral-950/50 px-3 py-2.5 text-left transition-colors hover:bg-neutral-800/80">
+                  <span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-neutral-300"><span className={`text-base leading-none transition-transform ${isCollapsed ? "" : "rotate-90"}`}>›</span><span className="truncate">{category}</span></span>
+                  <span className="rounded-md bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-500">{categoryPosts.length}</span>
+                </button>
+                {!isCollapsed && <div className="border-t border-neutral-800/80 p-1">{categoryPosts.map((post) => <button key={post.slug} onClick={() => setSelected(post)} style={viewTint(post)} className={`mb-1 w-full rounded-xl border p-3 text-left transition-colors last:mb-0 ${selected.slug === post.slug ? "ring-1 ring-amber-300/70" : "hover:brightness-110"}`}>
+                  <span className="block truncate text-sm font-medium text-neutral-200">{post.title || "Fără titlu"}</span>
+                  <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600"><span className={`h-1.5 w-1.5 rounded-full ${post.status === "draft" ? "bg-amber-300" : "bg-emerald-400"}`} />{post.city || "Fără oraș"}<span>·</span>{post.status === "draft" ? "Draft" : "Publicat"}<span>·</span><span>{viewCounts[post.slug] ?? 0} vizualizări</span></span>
+                </button>)}</div>}
+              </div>;
+            })}
           </div>
         </aside>
 
@@ -253,7 +323,20 @@ export default function BlogAdminPage() {
               <div className="mt-1.5 flex items-start gap-2"><textarea value={selected.description} onChange={(e) => { update("description", e.target.value); setDescriptionSuggestions([]); }} rows={3} className={`${inputClass} mt-0 resize-y`} placeholder="Un rezumat scurt pentru motoarele de căutare…" /><button type="button" onClick={() => generateMetadataSuggestions("description")} disabled={generatingMetadata !== null || !selected.title.trim()} title="Generează descriere SEO cu AI" aria-label="Generează descriere SEO cu AI" className="flex h-[42px] w-[46px] shrink-0 items-center justify-center rounded-xl border border-violet-400/30 bg-violet-400/10 text-xl transition-colors hover:border-violet-300/60 hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40">{generatingMetadata === "description" ? <span className="animate-spin text-base">✦</span> : "🪄"}</button></div>
               {descriptionSuggestions.length > 0 && <div className="mt-2 space-y-1.5 rounded-xl border border-violet-400/20 bg-violet-400/5 p-2.5"><p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-violet-300/70">Descrieri AI · alege una</p>{descriptionSuggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { update("description", suggestion); setDescriptionSuggestions([]); }} className="block w-full rounded-lg px-2.5 py-2 text-left text-sm normal-case tracking-normal text-neutral-300 transition-colors hover:bg-violet-400/15 hover:text-white">{suggestion}</button>)}</div>}
             </label>
-            <div className="border-t border-neutral-800 pt-5"><label className={labelClass}>Conținut Markdown<textarea value={selected.content} onChange={(e) => update("content", e.target.value)} rows={20} className={`${inputClass} resize-y font-mono text-[13px] leading-relaxed`} placeholder="# Titlu\n\nScrie articolul aici…" /></label></div>
+            <div className="border-t border-neutral-800 pt-5">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label className={labelClass}>Conținut HTML / Markdown</label>
+                <div className="flex rounded-lg border border-neutral-700 p-0.5">
+                  <button type="button" onClick={() => setContentMode("plain")} className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${contentMode === "plain" ? "bg-amber-300 text-neutral-950" : "text-neutral-500"}`}>PLAIN</button>
+                  <button type="button" onClick={() => setContentMode("preview")} className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${contentMode === "preview" ? "bg-amber-300 text-neutral-950" : "text-neutral-500"}`}>PREVIEW</button>
+                </div>
+              </div>
+              {contentMode === "plain" ? (
+                <textarea value={selected.content} onChange={(e) => update("content", e.target.value)} rows={20} className={`${inputClass} mt-0 resize-y font-mono text-[13px] leading-relaxed`} placeholder="# Titlu\n\nScrie articolul aici…" />
+              ) : (
+                <div className="blog-article min-h-[480px] overflow-auto rounded-xl border border-neutral-700 bg-neutral-950/70 p-5" dangerouslySetInnerHTML={{ __html: selected.content }} />
+              )}
+            </div>
             <div className="flex flex-col-reverse gap-3 border-t border-neutral-800 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Status<select value={selected.status} onChange={(e) => update("status", e.target.value)} className="rounded-lg border border-neutral-700 bg-neutral-950 px-2.5 py-2 text-sm normal-case tracking-normal text-neutral-200 outline-none focus:border-amber-400/70"><option value="draft">Draft</option><option value="published">Publicat</option></select></label>
               <p className="text-xs text-neutral-600">Modificările nu sunt salvate automat.</p>

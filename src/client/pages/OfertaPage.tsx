@@ -36,6 +36,32 @@ type Offer = {
   serviceSections: OfferServiceSection[];
 };
 
+function offerToCampaign(offer: Offer): CampaignPage {
+  const assets = offer.serviceSections.flatMap((section) => section.assets);
+  const images = assets.filter((asset) => asset.kind === "image");
+  const videos = assets.filter((asset) => asset.kind === "video");
+  return {
+    slug: offer.slug,
+    title: "Pachet foto-video pentru nunta ta",
+    subtitle: "Echipă foto-video pentru nunți în Transilvania, cu peste 50 de evenimente fotografiate și filmate.",
+    ctaText: "Scrie-ne pe WhatsApp",
+    whatsappNumber: "+40745469907",
+    phoneNumber: "+40745469907",
+    heroImageUrl: images[0]?.displayUrl ?? images[0]?.url ?? "",
+    heroVideoUrl: videos[0]?.displayUrl ?? videos[0]?.url ?? "",
+    gallery: images.map((asset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id })),
+    packages: (offer.packages ?? []).map((pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      price: pkg.price,
+      features: pkg.includedItems?.filter((item) => item.included).map((item) => item.label) ?? packageIncludes(pkg.includes),
+      highlighted: pkg.name.toLowerCase().includes("standard"),
+    })),
+    testimonials: [],
+    active: true,
+  };
+}
+
 function formatDate(dateString: string): string {
   if (!dateString) return "";
   try {
@@ -91,18 +117,20 @@ export default function OfertaPage() {
       return;
     }
 
-    fetch(`/api/oferte/${slug}`)
-      .then(async (response) => {
-        if (!response.ok) {
-          // Not a client offer — check if it's a campaign landing page
-          return fetch(`/api/campaign/public/${slug}`).then(async (campaignResponse) => {
-            if (!campaignResponse.ok) { setNotFound(true); return; }
-            const data = await campaignResponse.json() as CampaignPage;
-            setCampaign(data);
-          });
+    fetch(`/api/campaign/public/${slug}`)
+      .then(async (campaignResponse) => {
+        if (campaignResponse.ok) {
+          const data = await campaignResponse.json() as CampaignPage;
+          setCampaign(data);
+          return;
         }
-        const data = await response.json() as Offer;
-        setOffer(data);
+
+        // Fallback pentru ofertele individuale care nu sunt campanii.
+        const offerResponse = await fetch(`/api/oferte/${slug}`);
+        if (!offerResponse.ok) { setNotFound(true); return; }
+        const data = await offerResponse.json() as Offer;
+        if (slug === "olx") setCampaign(offerToCampaign(data));
+        else setOffer(data);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));

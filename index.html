@@ -33,13 +33,16 @@
     <script>
       if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         // Hotjar — nu porni recording-uri pe paginile media sau admin.
+        // Pentru excluderea permanentă a acestui browser: localStorage.setItem('av_ignore_hotjar', '1').
+        var isHotjarIgnored = false;
+        try { isHotjarIgnored = localStorage.getItem('av_ignore_hotjar') === '1'; } catch (_) {}
         var isPrivateHotjarPath = location.pathname === '/admin'
           || location.pathname.startsWith('/admin/')
           || location.pathname === '/media'
           || location.pathname.startsWith('/media/');
         var isAdminPath = location.pathname === '/admin'
           || location.pathname.startsWith('/admin/');
-        if (!isPrivateHotjarPath) {
+        if (!isPrivateHotjarPath && !isHotjarIgnored) {
           (function(h,o,t,j,a,r){
             h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
             h._hjSettings={hjid:6491925,hjsv:6};

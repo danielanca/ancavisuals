@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { measureOaiq } from "../../utils/oaiq";
 
 export interface CampaignPackage {
@@ -88,9 +88,60 @@ const journeySteps = [
 
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
-  const [form, setForm] = useState({ name: "", phone: "", eventDate: "" });
+  const [form, setForm] = useState({ name: "", phone: "", eventDate: "", eventType: "", location: "" });
   const [formStatus, setFormStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const trackLead = () => measureOaiq("lead_created", { type: "customer_action" });
+  const [galleryExpanded, setGalleryExpanded] = useState(false);
+  const [spinCount, setSpinCount] = useState(0);
+  const [spinResult, setSpinResult] = useState<"idle" | "spinning" | "lost" | "won">("idle");
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [promoSeconds, setPromoSeconds] = useState(15 * 60 * 60);
+  const promoOpen = true;
+  const formStarted = useRef(false);
+  const interactionKeys = useRef(new Set<string>());
+  const notifyInteraction = (interaction: "spinner" | "form" | "form_action") => {
+    const key = `${page.slug}:${interaction}`;
+    if (interaction !== "spinner") {
+      if (interactionKeys.current.has(key)) return;
+      try {
+        if (sessionStorage.getItem(`av_campaign_interaction_${key}`)) return;
+        sessionStorage.setItem(`av_campaign_interaction_${key}`, "1");
+      } catch { /* sessionStorage poate fi indisponibil în mod privat */ }
+      interactionKeys.current.add(key);
+    }
+    fetch(`/api/campaign/${page.slug}/interaction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interaction }),
+    }).catch(() => {});
+  };
+  const trackFormAction = () => notifyInteraction("form_action");
+  const trackFormStart = () => {
+    if (formStarted.current) return;
+    formStarted.current = true;
+    notifyInteraction("form");
+    measureOaiq("form_started", { page_path: `/oferta/${page.slug}` });
+  };
+  const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
+
+  useEffect(() => {
+    if (promoSeconds <= 0) return;
+    const timer = window.setInterval(() => setPromoSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [promoSeconds]);
+
+  const spinPromo = () => {
+    if (spinCount >= 3 || promoSeconds <= 0 || spinResult === "won" || spinResult === "spinning") return;
+    notifyInteraction("spinner");
+    const nextSpin = spinCount + 1;
+    const targetAngle = nextSpin === 1 ? 180 : 60;
+    const currentAngle = ((wheelRotation % 360) + 360) % 360;
+    const correction = (targetAngle - currentAngle + 360) % 360;
+    setSpinCount(nextSpin);
+    setSpinResult("spinning");
+    setWheelRotation((rotation) => rotation + 1440 + correction);
+    window.setTimeout(() => setSpinResult(nextSpin === 1 ? "lost" : "won"), 2300);
+  };
+  const timerLabel = `${String(Math.floor(promoSeconds / 3600)).padStart(2, "0")}:${String(Math.floor((promoSeconds % 3600) / 60)).padStart(2, "0")}:${String(promoSeconds % 60).padStart(2, "0")}`;
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +154,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         body: JSON.stringify(form),
       });
       setFormStatus(res.ok ? "sent" : "error");
-      if (res.ok) trackLead();
+      if (res.ok) measureOaiq("lead_created", { type: "customer_action", page_path: `/oferta/${page.slug}` });
     } catch {
       setFormStatus("error");
     }
@@ -111,6 +162,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
+      <style>{`@keyframes promoRainbow { 0%, 24.99% { color: #ef4444; } 25%, 49.99% { color: #facc15; } 50%, 74.99% { color: #22c55e; } 75%, 99.99% { color: #3b82f6; } } .promo-rainbow-text { animation: promoRainbow 2.8s steps(1, end) infinite; }`}</style>
 
       <header className="absolute top-0 inset-x-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
@@ -161,17 +213,14 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           )}
           <div className="flex flex-col sm:flex-row gap-3">
             <a
-              href={whatsappLink}
-              onClick={trackLead}
-              target="_blank"
-              rel="noreferrer"
+              href="#verifica-data"
               className="inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-7 py-4 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-green-900/40"
             >
-              <WhatsAppIcon />
-              {page.ctaText || "Scrie pe WhatsApp"}
+              Verifică dacă data ta este disponibilă <ArrowIcon />
             </a>
             <a
               href={`tel:${page.phoneNumber}`}
+              onClick={() => trackClick("click_phone", "hero")}
               className="inline-flex items-center justify-center gap-2.5 bg-white/10 hover:bg-white/20 backdrop-blur text-white font-medium px-7 py-4 rounded-xl text-sm border border-white/20 transition-all active:scale-[0.98]"
             >
               <PhoneIcon />
@@ -179,11 +228,57 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             </a>
           </div>
           <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-xs text-white/65">
+            <span>✓ Peste 50 de evenimente fotografiate și filmate</span>
+            <span>✓ Echipă foto-video pentru nunți în Transilvania</span>
             <span>✓ Răspuns personalizat</span>
-            <span>✓ Pachete transparente</span>
-            <span>✓ Amintiri livrate cu grijă</span>
           </div>
         </div>
+      </section>
+
+      {/* ── LIMITED PROMO ──────────────────────────────────────────── */}
+      <section className="border-b border-amber-500/20 bg-gradient-to-br from-amber-950/40 via-neutral-900 to-neutral-950 px-6 py-14 sm:py-18">
+        <div className="mx-auto max-w-4xl text-center">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-amber-300">Ofertă pentru nunta ta</p>
+          <h2 className="promo-rainbow-text text-4xl font-semibold leading-tight sm:text-6xl">Ai șansa să câștigi fotocabina gratuit</h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-neutral-400">Ai 3 șanse să participi. Învârte spinnerul și vezi dacă fotocabina gratuită poate fi a ta.</p>
+          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-200"><span>⏱</span> Oferta expiră în {timerLabel}</div>
+          {promoOpen && <div className="mx-auto mt-7 max-w-md rounded-2xl border border-amber-400/20 bg-neutral-950/60 p-6">
+            <div className="relative mx-auto h-64 w-56 pt-4">
+              <span className="absolute left-1/2 top-0 z-10 -translate-x-1/2 text-3xl text-white drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]" aria-hidden="true">▼</span>
+              <div aria-label="Roată promoțională" style={{ background: "conic-gradient(#8b5cf6 0deg 120deg, #374151 120deg 240deg, #22c55e 240deg 360deg)", ...(spinResult === "idle" ? {} : { transform: `rotate(${wheelRotation}deg)`, transition: spinResult === "spinning" ? "transform 2300ms cubic-bezier(0.12, 0.8, 0.18, 1)" : undefined }) }} className="relative mx-auto flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border-[10px] border-white/70 shadow-2xl shadow-black/40">
+                <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 224 224" aria-hidden="true">
+                  <g textAnchor="middle" fontSize="11" fontWeight="900" letterSpacing="1" style={{ paintOrder: "stroke", stroke: "rgba(0,0,0,0.55)", strokeWidth: 3 }}>
+                    <rect x="139" y="57" width="70" height="28" rx="14" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+                    <text x="174" y="75" fill="white">VIDEOBOOTH</text>
+                    <rect x="84" y="160" width="56" height="28" rx="14" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+                    <text x="112" y="178" fill="white">NIMIC</text>
+                    <rect x="15" y="57" width="86" height="28" rx="14" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+                    <text x="58" y="75" fill="white">FOTOCABINĂ</text>
+                  </g>
+                </svg>
+                <span className="rounded-full border-4 border-white/80 bg-neutral-950/80 px-3 py-2 text-3xl">{spinResult === "won" ? "🎉" : spinResult === "lost" ? "😬" : "🎁"}</span>
+              </div>
+            </div>
+            {spinResult === "won" ? <div className="mt-5 text-center"><div className="mb-3 text-2xl" aria-hidden="true">🎊 ✨ 🎉 ✨ 🎊</div><p className="text-xl font-semibold leading-relaxed text-green-300">Ai câștigat fotocabina gratuită!</p><p className="mt-2 text-sm leading-relaxed text-neutral-400">Menționează acest câștig când ne trimiți cererea de disponibilitate.</p></div> : <><p className="mt-5 text-sm text-neutral-300">{spinResult === "spinning" ? "Spinnerul se oprește…" : `Șanse rămase: ${3 - spinCount}`}</p><button type="button" onClick={spinPromo} disabled={spinCount >= 3 || promoSeconds <= 0 || spinResult === "spinning"} className="mt-4 rounded-xl bg-amber-400 px-7 py-3.5 text-sm font-bold text-neutral-950 transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-500">{spinResult === "spinning" ? "Se învârte…" : spinCount === 0 ? "Învârte spinnerul" : "Mai încearcă o dată"}</button><p className="mt-3 text-[11px] text-neutral-600">Oferta este valabilă în limita disponibilității și se confirmă împreună cu data evenimentului.</p></>}
+          </div>}
+        </div>
+      </section>
+
+      {/* ── EARLY CONTACT ──────────────────────────────────────────── */}
+      <section id="verifica-data" className="scroll-mt-6 border-b border-white/10 bg-neutral-900 px-6 py-16 sm:py-20">
+        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,480px)] lg:items-center">
+          <div><p className="mb-3 text-xs uppercase tracking-[0.25em] text-amber-200">Verifică disponibilitatea</p><h2 className="max-w-xl text-3xl font-light leading-tight sm:text-4xl">Spune-ne data și localitatea evenimentului.</h2><p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-400">Îți confirmăm disponibilitatea și discutăm pachetul potrivit pentru voi.</p></div>
+          {formStatus === "sent" ? <div className="rounded-2xl border border-green-700/40 bg-green-900/30 p-8 text-center"><p className="mb-2 text-3xl">✓</p><p className="font-medium text-green-300">Cererea a fost trimisă!</p><p className="mt-1 text-sm text-neutral-400">Te vom contacta în curând.</p></div> : <form onSubmit={handleFormSubmit} onFocus={trackFormStart} onChange={trackFormAction} className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/70 p-5 sm:p-6">
+            <select required value={form.eventType} onChange={(e) => setForm((current) => ({ ...current, eventType: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white outline-none focus:border-amber-500"><option value="">Tipul evenimentului *</option><option>Nuntă</option><option>Botez</option><option>Majorat</option><option>Alt eveniment</option></select>
+            <input type="date" required value={form.eventDate} onChange={(e) => setForm((current) => ({ ...current, eventDate: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white outline-none focus:border-amber-500" />
+            <input type="text" required placeholder="Localitatea evenimentului *" value={form.location} onChange={(e) => setForm((current) => ({ ...current, location: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500" />
+            <input type="text" required placeholder="Numele tău *" value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500" />
+            <input type="tel" required placeholder="Telefon sau WhatsApp *" value={form.phone} onChange={(e) => setForm((current) => ({ ...current, phone: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500" />
+            {formStatus === "error" && <p className="text-sm text-red-400">A apărut o eroare. Încearcă din nou.</p>}
+            <button type="submit" disabled={formStatus === "sending"} className="w-full rounded-xl bg-amber-600 py-4 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700">{formStatus === "sending" ? "Se verifică…" : "Verifică disponibilitatea"}</button>
+          </form>}
+        </div>
+        <div className="mx-auto mt-6 flex max-w-6xl flex-col items-center justify-center gap-3 sm:flex-row"><span className="text-xs text-neutral-500">Preferi să vorbești direct?</span><a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "early_form")} className="inline-flex items-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"><WhatsAppIcon /> Scrie-ne pe WhatsApp</a></div>
       </section>
 
       {/* ── JOURNEY ────────────────────────────────────────────────── */}
@@ -216,7 +311,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <a href="#oferta" className="inline-flex items-center gap-2 text-sm text-white hover:text-amber-100 transition-colors">Vezi cum lucrăm <ArrowIcon /></a>
           </div>
           <div className="columns-2 sm:columns-3 lg:columns-4 gap-2 sm:gap-3">
-            {page.gallery.map((item, index) => (
+            {(galleryExpanded ? page.gallery : page.gallery.slice(0, 8)).map((item, index) => (
               <div key={index} className="mb-2 sm:mb-3 break-inside-avoid overflow-hidden rounded-xl">
                 <img
                   src={item.url}
@@ -227,6 +322,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               </div>
             ))}
           </div>
+          {page.gallery.length > 8 && <button type="button" onClick={() => setGalleryExpanded((expanded) => !expanded)} className="mx-auto mt-7 block rounded-full border border-white/20 px-5 py-2.5 text-xs font-semibold tracking-[0.14em] text-white transition-colors hover:border-amber-200 hover:text-amber-100">{galleryExpanded ? "Ascunde galeria" : "Vezi galeria completă"}</button>}
         </section>
       )}
 
@@ -266,7 +362,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   </ul>
                   <a
                     href={whatsappLink}
-                    onClick={trackLead}
+                    onClick={() => trackClick("click_whatsapp", "package")}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-6 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-medium py-3 px-4 rounded-xl transition-colors"
@@ -314,7 +410,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               <p className="text-neutral-400 text-sm">Te vom contacta în curând.</p>
             </div>
           ) : (
-            <form onSubmit={handleFormSubmit} className="space-y-4">
+            <form onSubmit={handleFormSubmit} onFocus={trackFormStart} onChange={trackFormAction} className="space-y-4">
               <input type="text" placeholder="Numele tău *" required value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3.5 text-white placeholder-neutral-500 text-sm outline-none focus:border-amber-500 transition-colors"
@@ -337,13 +433,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
-            <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={trackLead}
+            <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "final_form")}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
               <WhatsAppIcon />
               {page.ctaText || "Scrie pe WhatsApp"}
             </a>
-            <a href={`tel:${page.phoneNumber}`} onClick={trackLead}
+            <a href={`tel:${page.phoneNumber}`} onClick={() => trackClick("click_phone", "final_form")}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 py-3.5 rounded-xl text-sm border border-neutral-700 transition-all"
             >
               <PhoneIcon />
@@ -355,6 +451,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       <div className="py-6 text-center">
         <p className="text-neutral-700 text-xs">© Ancavisuals · ancavisuals.ro</p>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-neutral-950/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:hidden">
+        <div className="mx-auto flex max-w-lg gap-2">
+          <a href="#verifica-data" className="flex-1 rounded-xl bg-amber-500 px-3 py-3 text-center text-xs font-bold text-neutral-950">Verifică data</a>
+          <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "sticky_mobile")} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-green-500 px-3 py-3 text-xs font-bold text-white"><WhatsAppIcon /> WhatsApp</a>
+        </div>
       </div>
     </div>
   );
