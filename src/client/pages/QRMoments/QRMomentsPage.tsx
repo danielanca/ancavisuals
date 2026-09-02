@@ -988,7 +988,7 @@ export default function QRMomentsPage() {
                 ? 'image/*,.heic,.heif,.jpg,.jpeg,.png,.webp'
                 : 'video/*,.mov,.hevc,.m4v,.mp4,.avi,.mkv'
               )}
-              className="w-full py-8 border border-dashed border-emerald-500/50 bg-emerald-500/5 rounded-xl text-emerald-300 text-sm font-medium hover:border-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors"
+              className="qr-file-picker-button w-full py-8 border border-dashed border-emerald-500/50 bg-emerald-500/5 rounded-xl text-emerald-300 text-sm font-medium hover:border-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors"
             >
               {mediaTab === 'photo' ? '+ Alege poze' : '+ Alege clipuri'}
             </button>
