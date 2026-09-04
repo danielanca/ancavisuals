@@ -1,8 +1,26 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import { measureOaiq } from "../../utils/oaiq";
+import PhoneNumberReveal from "../PhoneReveal/PhoneNumberReveal";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
+
+const phoneBtnStyle: CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: "100%",
+  padding: "15px 24px",
+  background: "#c9a96e",
+  color: "#0a0a0a",
+  border: "none",
+  borderRadius: "3px",
+  textDecoration: "none",
+  fontSize: "12px",
+  fontWeight: 700,
+  letterSpacing: "2.5px",
+  textTransform: "uppercase" as const,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
 
 function trackContactClick(type: "phone" | "whatsapp" | "instagram") {
   measureOaiq("lead_created", { type: "customer_action" });
@@ -73,24 +91,14 @@ export default function MediaPromoFooter() {
         <div style={{ width: "36px", height: "1px", background: "#c9a96e", margin: "0 auto 40px", opacity: 0.25 }} />
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "300px", margin: "0 auto" }}>
-          <a
-            href={`tel:${PROMO_PHONE}`}
-            onClick={handlePhoneClick}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              padding: "15px 24px",
-              background: "#c9a96e",
-              color: "#0a0a0a",
-              borderRadius: "3px",
-              textDecoration: "none",
-              fontSize: "12px",
-              fontWeight: 700,
-              letterSpacing: "2.5px",
-              textTransform: "uppercase",
-            }}
-          >
-            Sună — {PROMO_PHONE_DISPLAY}
-          </a>
+          <PhoneNumberReveal
+            phone={PROMO_PHONE}
+            display={PROMO_PHONE_DISPLAY}
+            revealedPrefix="Sună — "
+            context="footer promo"
+            onRevealed={handlePhoneClick}
+            style={phoneBtnStyle}
+          />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <a
               href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}

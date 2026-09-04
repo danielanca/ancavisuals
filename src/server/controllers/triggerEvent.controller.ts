@@ -15,6 +15,10 @@ interface TypeEvent {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  // Populated by the phone-reveal widget: first page of the session + any
+  // search keyword captured from the landing URL.
+  landingPath?: string;
+  keyword?: string;
   // Populated by BookingWizard for Lead Rapid / full booking submissions
   subject?: string;
   html?: string;
@@ -22,6 +26,7 @@ interface TypeEvent {
 }
 
 const COOLDOWN_MS = 18 * 60 * 60 * 1000; // 18 hours
+const PHONE_REVEAL_COOLDOWN_MS = 60 * 1000; // debounce accidental double-clicks only
 
 // Europa (inclusiv țări asociate/candidate)
 const ALLOWED_COUNTRIES = new Set([
@@ -41,15 +46,15 @@ function isBot(userAgent: string): boolean {
 // IP + source → timestamp of last sent email. Cleaned up lazily on each request.
 const lastSentByIp = new Map<string, number>();
 
-function isOnCooldown(ip: string, source = "generic"): boolean {
+function isOnCooldown(ip: string, source = "generic", cooldownMs = COOLDOWN_MS): boolean {
   const lastSent = lastSentByIp.get(`${ip}:${source}`);
   if (!lastSent) return false;
-  return Date.now() - lastSent < COOLDOWN_MS;
+  return Date.now() - lastSent < cooldownMs;
 }
 
 function recordSent(ip: string, source = "generic"): void {
   lastSentByIp.set(`${ip}:${source}`, Date.now());
-  // Evict entries older than cooldown to keep memory bounded
+  // Evict entries older than the longest cooldown to keep memory bounded
   for (const [storedIp, timestamp] of lastSentByIp) {
     if (Date.now() - timestamp >= COOLDOWN_MS) {
       lastSentByIp.delete(storedIp);
@@ -57,12 +62,33 @@ function recordSent(ip: string, source = "generic"): void {
   }
 }
 
-function detectAiSource(utmSource?: string): string | null {
+function detectAiSource(utmSource?: string, referrer?: string): string | null {
   const source = (utmSource ?? "").trim().toLowerCase();
   if (source === "chatgpt.com" || source === "chatgpt") return "ChatGPT";
   if (source === "claude.ai" || source === "claude") return "Claude";
   if (source === "gemini.google.com" || source === "gemini") return "Gemini";
   if (source === "grok.com" || source === "grok") return "Grok";
+  if (source === "perplexity.ai" || source === "perplexity") return "Perplexity";
+  if (source === "copilot.microsoft.com" || source === "copilot") return "Copilot";
+
+  // Fallback: many AI assistants link out with a plain referrer and no UTM tags.
+  const r = (referrer ?? "").toLowerCase();
+  if (r.includes("chatgpt.com") || r.includes("chat.openai.com")) return "ChatGPT";
+  if (r.includes("claude.ai")) return "Claude";
+  if (r.includes("gemini.google.com")) return "Gemini";
+  if (r.includes("grok.com")) return "Grok";
+  if (r.includes("perplexity.ai")) return "Perplexity";
+  if (r.includes("copilot.microsoft.com")) return "Copilot";
+  return null;
+}
+
+function detectSearchEngine(referrer?: string): string | null {
+  const r = (referrer ?? "").toLowerCase();
+  if (!r || r === "direct") return null;
+  if (r.includes("google.")) return "Google";
+  if (r.includes("bing.com")) return "Bing";
+  if (r.includes("yahoo.")) return "Yahoo";
+  if (r.includes("duckduckgo.com")) return "DuckDuckGo";
   return null;
 }
 
@@ -80,15 +106,16 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const todayString = `${todayDate.getDate()}/${todayDate.getMonth() + 1}/${todayDate.getFullYear()} ${todayDate.getHours()}:${todayDate.getMinutes()}:${todayDate.getSeconds()}`;
 
     const clientIp = getClientIp(request);
-    const aiSource = detectAiSource(triggerData.utmSource);
-    const cooldownSource = aiSource ?? "generic";
+    const isPhoneReveal = triggerData.typeEvent?.startsWith("📞") ?? false;
+    const aiSource = detectAiSource(triggerData.utmSource, triggerData.referrer);
+    const cooldownSource = isPhoneReveal ? "phone_reveal" : (aiSource ?? "generic");
 
     if (isLocalIp(clientIp)) {
       response.status(204).send();
       return;
     }
 
-    if (isOnCooldown(clientIp, cooldownSource)) {
+    if (isOnCooldown(clientIp, cooldownSource, isPhoneReveal ? PHONE_REVEAL_COOLDOWN_MS : COOLDOWN_MS)) {
       response.status(204).send();
       return;
     }
@@ -115,11 +142,10 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const uaLower = ua.toLowerCase();
     const device = /mobile|android|iphone|ipad/.test(uaLower) ? "Mobil" : "Desktop";
     const city = ipInfo?.city ?? "";
-    const source = aiSource ?? (() => {
+    const source = aiSource ?? detectSearchEngine(referrer) ?? (() => {
       const r = referrer.toLowerCase();
       if (r.includes("instagram")) return "Instagram";
       if (r.includes("facebook") || r.includes("fb.com")) return "Facebook";
-      if (r.includes("google")) return "Google";
       if (r.includes("tiktok")) return "TikTok";
       if (r === "direct") return "Direct";
       return referrer;
@@ -137,7 +163,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
     let shouldEmail = false;
     if (isBookingSubmission) {
       shouldEmail = settings?.email.lead ?? true;
-    } else if (aiSource) {
+    } else if (isPhoneReveal || aiSource) {
       shouldEmail = true;
     } else if (isNew) {
       shouldEmail = settings?.email.newVisitor ?? true;
@@ -160,6 +186,8 @@ export const triggerEvent = async (request: Request, response: Response) => {
         utmSource: triggerData.utmSource ?? "",
         utmMedium: triggerData.utmMedium ?? "",
         utmCampaign: triggerData.utmCampaign ?? "",
+        landingPath: triggerData.landingPath ?? "",
+        keyword: triggerData.keyword ?? "",
       },
       emailSent: shouldEmail,
     }).catch((err) => console.error("[activity] log failed:", err));
@@ -184,6 +212,8 @@ export const triggerEvent = async (request: Request, response: Response) => {
           aiSource,
           utmMedium: triggerData.utmMedium,
           utmCampaign: triggerData.utmCampaign,
+          landingPath: triggerData.landingPath,
+          keyword: triggerData.keyword,
         });
 
     const emailSubject = isBookingSubmission

@@ -488,6 +488,108 @@ router.put("/article-plan", async (req, res) => {
   }
 });
 
+router.post("/ads-insight", async (req, res) => {
+  const login = process.env.API_LOGIN_DATAFORSEO;
+  const password = process.env.API_DATAFORSEO_PASSWORD;
+  if (!login || !password) return res.status(500).json({ error: "Lipsesc API_LOGIN_DATAFORSEO și API_DATAFORSEO_PASSWORD din .env." });
+
+  const keyword = typeof req.body?.keyword === "string" ? req.body.keyword.trim() : "";
+  if (!keyword) return res.status(400).json({ error: "Keyword-ul este obligatoriu." });
+
+  const credentials = Buffer.from(`${login}:${password}`).toString("base64");
+  const headers = { "Content-Type": "application/json", Authorization: `Basic ${credentials}` };
+
+  const results = await Promise.allSettled([
+    fetch("https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live", {
+      method: "POST", headers,
+      body: JSON.stringify([{ keywords: [keyword], location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro" }]),
+    }).then(r => r.json()),
+    fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/search_intent/live", {
+      method: "POST", headers,
+      body: JSON.stringify([{ keywords: [keyword], language_code: "ro" }]),
+    }).then(r => r.json()),
+  ]);
+  const [volumeResult, intentResult] = results;
+
+  const insight: JsonRecord = {
+    keyword,
+    volume: null, cpc: null, competition: null, competitionIndex: null, lowBid: null, highBid: null,
+    intent: null, intentProbability: null,
+  };
+  let succeeded = 0;
+
+  if (volumeResult.status === "fulfilled") {
+    try {
+      const tasks = (volumeResult.value as JsonRecord).tasks;
+      const row = asRecord(Array.isArray(tasks) ? (Array.isArray(asRecord(tasks[0]).result) ? (asRecord(tasks[0]).result as unknown[])[0] : null) : null);
+      if (Object.keys(row).length) {
+        insight.volume = typeof row.search_volume === "number" ? row.search_volume : null;
+        insight.cpc = typeof row.cpc === "number" ? row.cpc : null;
+        insight.competition = typeof row.competition === "string" ? row.competition : null;
+        insight.competitionIndex = typeof row.competition_index === "number" ? row.competition_index : null;
+        insight.lowBid = typeof row.low_top_of_page_bid === "number" ? row.low_top_of_page_bid : null;
+        insight.highBid = typeof row.high_top_of_page_bid === "number" ? row.high_top_of_page_bid : null;
+      }
+      succeeded++;
+    } catch (error) {
+      console.error("[seo-radar] ads-insight search_volume parse error:", error);
+    }
+  }
+
+  if (intentResult.status === "fulfilled") {
+    try {
+      const tasks = (intentResult.value as JsonRecord).tasks;
+      const list = Array.isArray(tasks) ? asRecord(asRecord(tasks[0]).result && (asRecord(tasks[0]).result as unknown[])[0]) : {};
+      const item = asRecord((Array.isArray(list.items) ? list.items : [])[0]);
+      const keywordIntent = asRecord(item.keyword_intent);
+      if (typeof keywordIntent.label === "string") insight.intent = keywordIntent.label;
+      if (typeof keywordIntent.probability === "number") insight.intentProbability = keywordIntent.probability;
+      succeeded++;
+    } catch (error) {
+      console.error("[seo-radar] ads-insight search_intent parse error:", error);
+    }
+  }
+
+  if (succeeded === 0) return res.status(502).json({ error: "Nu am putut încărca datele de Ads." });
+  res.json({ insight });
+});
+
+router.post("/ads-budget", async (req, res) => {
+  const login = process.env.API_LOGIN_DATAFORSEO;
+  const password = process.env.API_DATAFORSEO_PASSWORD;
+  if (!login || !password) return res.status(500).json({ error: "Lipsesc API_LOGIN_DATAFORSEO și API_DATAFORSEO_PASSWORD din .env." });
+
+  const keyword = typeof req.body?.keyword === "string" ? req.body.keyword.trim() : "";
+  const bidRaw = Number(req.body?.bid);
+  const bid = Number.isFinite(bidRaw) && bidRaw > 0 ? bidRaw : 3;
+  if (!keyword) return res.status(400).json({ error: "Keyword-ul este obligatoriu." });
+
+  try {
+    const credentials = Buffer.from(`${login}:${password}`).toString("base64");
+    const response = await fetch("https://api.dataforseo.com/v3/keywords_data/google_ads/ad_traffic_by_keywords/live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Basic ${credentials}` },
+      body: JSON.stringify([{ keywords: [keyword], location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro", bid, match: "exact" }]),
+    });
+    const payload = await response.json() as JsonRecord;
+    const tasks = payload.tasks;
+    const row = asRecord(Array.isArray(tasks) ? (Array.isArray(asRecord(tasks[0]).result) ? (asRecord(tasks[0]).result as unknown[])[0] : null) : null);
+    if (!Object.keys(row).length) throw new Error("Fără estimare de la DataForSEO.");
+    res.json({
+      estimate: {
+        bid,
+        clicks: typeof row.clicks === "number" ? row.clicks : null,
+        cost: typeof row.cost === "number" ? row.cost : null,
+        avgCpc: typeof row.average_cpc === "number" ? row.average_cpc : null,
+        impressions: typeof row.impressions === "number" ? row.impressions : null,
+      },
+    });
+  } catch (error) {
+    console.error("[seo-radar] ads-budget error:", error);
+    res.status(502).json({ error: "Nu am putut estima bugetul de Ads." });
+  }
+});
+
 router.post("/search", async (req, res) => {
   const provider: SearchProvider = req.body?.provider === "dataforseo" ? "dataforseo" : "serpapi";
   const keyword = String(req.body?.keyword || "").trim();

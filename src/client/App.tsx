@@ -65,6 +65,7 @@ import ClientDebugBadge from "./features/admin/components/ClientDebugBadge";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
 import { useVisitorNotification } from "./hooks/useVisitorNotification";
+import { captureLandingMeta } from "./utils/sessionAttribution";
 import publicRoutes from "./routes/publicRoutes";
 import { adminRoutes } from "./routes/adminRoutes";
 import { weddingHubRoutes } from "./routes/weddingHubRoutes";
@@ -84,6 +85,10 @@ export const App = () => {
   usePageTracking();
   useClientErrorReporting(isErrorReportingEnabled);
   useVisitorNotification();
+
+  useEffect(() => {
+    captureLandingMeta();
+  }, []);
 
   const suppressCookieBot = location.pathname.startsWith("/media") || location.pathname.startsWith("/admin");
 

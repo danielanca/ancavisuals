@@ -1,12 +1,24 @@
 import "./styles.css";
 import "./segmented.scss";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { PACKAGES } from "./packages";
 import VisualOptionCard from "./VisualOptionCard";
 import type { PlaceLite } from "./LocationField";
 import LocationField from "./LocationField";
 import PackageTiles from "./../Contact/booking/components/PackageTiles";
 import { PACKAGES_NEW } from "./packages";
+import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
+
+const inlinePhoneBtnStyle: CSSProperties = {
+  display: "inline",
+  padding: 0,
+  border: "none",
+  background: "none",
+  font: "inherit",
+  color: "inherit",
+  textDecoration: "underline",
+  cursor: "pointer",
+};
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
 // ---------- Vite env ----------
@@ -489,7 +501,17 @@ export default function BookingWizard() {
             ) : (
               <>
                 <h3>❌ Cererea nu a fost trimisă</h3>
-                <p>Ne poți suna direct la 0745469907 pentru rezervare în {selectedFormattedDate}.</p>
+                <p>
+                  Ne poți suna direct la{" "}
+                  <PhoneNumberReveal
+                    phone="0745469907"
+                    display="0745 469 907"
+                    buttonLabel="AFIȘEAZĂ NUMĂRUL"
+                    context="contact form — rezervare eșuată"
+                    style={inlinePhoneBtnStyle}
+                  />{" "}
+                  pentru rezervare în {selectedFormattedDate}.
+                </p>
               </>
             )}
           </div>

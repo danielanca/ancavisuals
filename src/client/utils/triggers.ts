@@ -7,6 +7,8 @@ interface EventsTrigger {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  landingPath?: string;
+  keyword?: string;
 }
 
 const sanitizeInput = (input: string): string =>
@@ -19,6 +21,8 @@ export const sendTriggerEmail = async ({
   utmSource,
   utmMedium,
   utmCampaign,
+  landingPath,
+  keyword,
 }: EventsTrigger) => {
   if (!typeEvent || !url) {
     throw new Error("Invalid input: typeEvent and url are required.");
@@ -37,6 +41,8 @@ export const sendTriggerEmail = async ({
       utmSource: utmSource ? sanitizeInput(utmSource) : undefined,
       utmMedium: utmMedium ? sanitizeInput(utmMedium) : undefined,
       utmCampaign: utmCampaign ? sanitizeInput(utmCampaign) : undefined,
+      landingPath: landingPath ? sanitizeInput(landingPath) : undefined,
+      keyword: keyword ? sanitizeInput(keyword) : undefined,
     }),
   });
 

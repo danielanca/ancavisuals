@@ -12,6 +12,8 @@ interface TriggerTemplateData {
   aiSource?: string | null;
   utmMedium?: string;
   utmCampaign?: string;
+  landingPath?: string;
+  keyword?: string;
 }
 
 function detectSource(referrer: string): { label: string; color: string; emoji: string } {
@@ -82,6 +84,8 @@ export function renderTriggerTemplate(data: TriggerTemplateData): string {
     aiSource,
     utmMedium,
     utmCampaign,
+    landingPath,
+    keyword,
   } = data;
   const source = aiSource
     ? { label: aiSource, color: "#7c3aed", emoji: "🤖" }
@@ -142,6 +146,20 @@ export function renderTriggerTemplate(data: TriggerTemplateData): string {
               <p style="margin:0;font-size:14px;color:#4f46e5;word-break:break-all;font-weight:500;">${url}</p>
             </td>
           </tr>
+
+          ${landingPath || keyword ? `
+          <!-- SECTIUNE: PRIMA PAGINA & CAUTARE -->
+          <tr>
+            <td style="background:#ffffff;padding:16px 32px 4px;">
+              <p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f3f4f6;padding-bottom:8px;">
+                🔎 Intrare pe site
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${landingPath && landingPath !== url ? row("Prima pagină vizitată", landingPath) : ""}
+                ${keyword ? row("Termen de căutare", keyword) : ""}
+              </table>
+            </td>
+          </tr>` : ""}
 
           <!-- SECTIUNE: VIZITATOR -->
           <tr>

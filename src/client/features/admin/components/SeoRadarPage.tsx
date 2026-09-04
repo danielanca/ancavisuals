@@ -63,6 +63,24 @@ interface KeywordSuggestion {
   trendScore: number | null;
   rising: boolean;
 }
+interface AdsInsight {
+  keyword: string;
+  volume: number | null;
+  cpc: number | null;
+  competition: "LOW" | "MEDIUM" | "HIGH" | null;
+  competitionIndex: number | null;
+  lowBid: number | null;
+  highBid: number | null;
+  intent: string | null;
+  intentProbability: number | null;
+}
+interface AdsBudgetEstimate {
+  bid: number;
+  clicks: number | null;
+  cost: number | null;
+  avgCpc: number | null;
+  impressions: number | null;
+}
 interface PositionPoint {
   capturedAt: string;
   position: number | null;
@@ -411,6 +429,28 @@ const SeoRadarPage: React.FC = () => {
 
   const requestConfirm = (title: string, message: string, onConfirm: () => void, confirmLabel?: string) => {
     setConfirmDialog({ title, message, confirmLabel, onConfirm });
+  };
+
+  const fetchAdsInsight = async (keywordValue: string): Promise<AdsInsight> => {
+    const response = await fetch("/api/admin/seo-radar/ads-insight", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+      body: JSON.stringify({ keyword: keywordValue }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Nu am putut încărca datele de Ads.");
+    return data.insight as AdsInsight;
+  };
+
+  const fetchAdsBudget = async (keywordValue: string, bid: number): Promise<AdsBudgetEstimate> => {
+    const response = await fetch("/api/admin/seo-radar/ads-budget", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+      body: JSON.stringify({ keyword: keywordValue, bid }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Nu am putut estima bugetul.");
+    return data.estimate as AdsBudgetEstimate;
   };
 
   // Încarcă planul de articol (keyword țintă + secundare) al combinației curente.
@@ -898,6 +938,8 @@ const SeoRadarPage: React.FC = () => {
           onCreateArticle={createArticleFor}
           onDeleteAnalyses={askDeleteAnalyses}
           onDiscoverKeywords={discoverKeywords}
+          onDiscoverAdsInsight={fetchAdsInsight}
+          onDiscoverAdsBudget={fetchAdsBudget}
           requestConfirm={requestConfirm}
           defaultProvider={provider}
           activeScanKey={activeScanKey}
@@ -2200,6 +2242,140 @@ const ArticlePlanEditor = ({
   );
 };
 
+const competitionTone = (competition: string | null): string => {
+  if (competition === "LOW") return "border-emerald-300/40 bg-emerald-300/10 text-emerald-300";
+  if (competition === "MEDIUM") return "border-amber-200/40 bg-amber-200/10 text-amber-200";
+  if (competition === "HIGH") return "border-red-400/40 bg-red-400/10 text-red-300";
+  return "border-white/10 text-gray-400";
+};
+const competitionLabel = (competition: string | null): string =>
+  competition === "LOW" ? "Concurență scăzută" : competition === "MEDIUM" ? "Concurență medie" : competition === "HIGH" ? "Concurență ridicată" : "Concurență necunoscută";
+const intentTone = (intent: string | null): string =>
+  intent === "transactional" || intent === "commercial" ? "border-emerald-300/40 bg-emerald-300/10 text-emerald-300" : "border-white/10 text-gray-400";
+const intentLabel = (intent: string | null, probability: number | null): string => {
+  const pct = probability !== null ? ` (${Math.round(probability * 100)}%)` : "";
+  if (intent === "transactional" || intent === "commercial") return `Gata să cumpere${pct}`;
+  if (intent === "informational") return `Se documentează${pct} — mai potrivit pentru articol`;
+  if (intent === "navigational") return `Caută un brand anume${pct}`;
+  return "Intenție necunoscută";
+};
+
+const AdsInsightPanel = ({
+  keyword,
+  onDiscoverInsight,
+  onDiscoverBudget,
+  requestConfirm,
+}: {
+  keyword: string;
+  onDiscoverInsight: (keyword: string) => Promise<AdsInsight>;
+  onDiscoverBudget: (keyword: string, bid: number) => Promise<AdsBudgetEstimate>;
+  requestConfirm: (title: string, message: string, onConfirm: () => void, confirmLabel?: string) => void;
+}) => {
+  const [insight, setInsight] = useState<AdsInsight | null>(null);
+  const [loadingInsight, setLoadingInsight] = useState(false);
+  const [insightError, setInsightError] = useState("");
+  const [bid, setBid] = useState("3");
+  const [budget, setBudget] = useState<AdsBudgetEstimate | null>(null);
+  const [loadingBudget, setLoadingBudget] = useState(false);
+  const [budgetError, setBudgetError] = useState("");
+
+  const runInsight = () => {
+    requestConfirm(
+      "Analiză Ads",
+      `CPC, concurență și intenție de căutare pentru „${keyword}" (Google Ads + DataForSEO, ~$0,10). Continui?`,
+      () => {
+        setLoadingInsight(true);
+        setInsightError("");
+        onDiscoverInsight(keyword)
+          .then(data => { setInsight(data); if (data.highBid !== null) setBid(String(data.highBid.toFixed(2))); })
+          .catch(err => setInsightError(err instanceof Error ? err.message : "Nu am putut încărca datele de Ads."))
+          .finally(() => setLoadingInsight(false));
+      },
+      "Analizează",
+    );
+  };
+
+  const runBudget = () => {
+    const bidValue = Number(bid.replace(",", "."));
+    if (!Number.isFinite(bidValue) || bidValue <= 0) { setBudgetError("Introdu o licitație validă."); return; }
+    requestConfirm(
+      "Simulare buget Ads",
+      `Estimez click-uri și cost pentru „${keyword}" la o licitație de ${bidValue} RON (~$0,09). Continui?`,
+      () => {
+        setLoadingBudget(true);
+        setBudgetError("");
+        onDiscoverBudget(keyword, bidValue)
+          .then(setBudget)
+          .catch(err => setBudgetError(err instanceof Error ? err.message : "Nu am putut estima bugetul."))
+          .finally(() => setLoadingBudget(false));
+      },
+      "Simulează",
+    );
+  };
+
+  return (
+    <div className="rounded-xl border border-sky-300/20 bg-sky-300/5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs uppercase tracking-[0.2em] text-sky-200/80">Pregătire Ads</p>
+        {!insight && (
+          <button type="button" onClick={runInsight} disabled={loadingInsight} className="rounded-lg border border-sky-300/40 px-3 py-1.5 text-xs font-medium text-sky-200 disabled:opacity-50">
+            {loadingInsight ? "Analizez…" : "Analiză Ads"}
+          </button>
+        )}
+      </div>
+      {insightError && <p className="mt-2 text-xs text-red-300">{insightError}</p>}
+      {insight && (
+        <>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-gray-200">
+              CPC: {insight.cpc !== null ? `${insight.cpc.toFixed(2)} RON` : "—"}
+            </span>
+            <span className={`rounded-full border px-2.5 py-1 text-xs ${competitionTone(insight.competition)}`}>
+              {competitionLabel(insight.competition)}{insight.competitionIndex !== null ? ` (${insight.competitionIndex}/100)` : ""}
+            </span>
+            <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-gray-200">
+              Licitație: {insight.lowBid !== null && insight.highBid !== null ? `${insight.lowBid.toFixed(2)}–${insight.highBid.toFixed(2)} RON` : "—"}
+            </span>
+            <span className={`rounded-full border px-2.5 py-1 text-xs ${intentTone(insight.intent)}`}>
+              {intentLabel(insight.intent, insight.intentProbability)}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <label className="text-xs text-gray-400">
+              Licitație (RON/zi)
+              <input
+                value={bid}
+                onChange={event => setBid(event.target.value)}
+                className="mt-1 block w-24 rounded-lg border border-white/10 bg-black px-2 py-1.5 text-sm text-white"
+              />
+            </label>
+            <button type="button" onClick={runBudget} disabled={loadingBudget} className="rounded-lg border border-sky-300/40 px-3 py-1.5 text-xs font-medium text-sky-200 disabled:opacity-50">
+              {loadingBudget ? "Simulez…" : "Simulează"}
+            </button>
+            {budget && (
+              <span className="text-xs text-gray-300">
+                ~{budget.clicks !== null ? budget.clicks.toFixed(1) : "—"} click-uri · cost estimat ~{budget.cost !== null ? budget.cost.toFixed(2) : "—"} RON
+                {budget.avgCpc !== null ? ` · CPC mediu ${budget.avgCpc.toFixed(2)} RON` : ""} (luna următoare)
+              </span>
+            )}
+          </div>
+          {budgetError && <p className="mt-2 text-xs text-red-300">{budgetError}</p>}
+        </>
+      )}
+      <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+        <button
+          type="button"
+          onClick={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(keyword)}`, "_blank", "noopener,noreferrer")}
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-gray-300"
+        >
+          Verifică manual →
+        </button>
+        <span className="text-[11px] text-gray-500">Reclamele live nu sunt fiabile prin API — verifică din browser, aproape de oraș.</span>
+      </div>
+    </div>
+  );
+};
+
 const CoverageDetailPanel = ({
   cell,
   disabled,
@@ -2211,6 +2387,8 @@ const CoverageDetailPanel = ({
   onDiscoverKeywords,
   onAddColumn,
   existingQueries,
+  onDiscoverAdsInsight,
+  onDiscoverAdsBudget,
   requestConfirm,
 }: {
   cell: CoverageCell;
@@ -2223,6 +2401,8 @@ const CoverageDetailPanel = ({
   onDiscoverKeywords: (baseKeyword: string, city?: string) => Promise<KeywordSuggestion[]>;
   onAddColumn: (keyword: string) => void;
   existingQueries: Set<string>;
+  onDiscoverAdsInsight: (keyword: string) => Promise<AdsInsight>;
+  onDiscoverAdsBudget: (keyword: string, bid: number) => Promise<AdsBudgetEstimate>;
   requestConfirm: (title: string, message: string, onConfirm: () => void, confirmLabel?: string) => void;
 }) => {
   const analysis = cell.analysis;
@@ -2254,6 +2434,14 @@ const CoverageDetailPanel = ({
           existingQueries={existingQueries}
           onDiscover={onDiscoverKeywords}
           onAdd={onAddColumn}
+          requestConfirm={requestConfirm}
+        />
+      </div>
+      <div className="mt-3">
+        <AdsInsightPanel
+          keyword={analysis.keyword}
+          onDiscoverInsight={onDiscoverAdsInsight}
+          onDiscoverBudget={onDiscoverAdsBudget}
           requestConfirm={requestConfirm}
         />
       </div>
@@ -2290,6 +2478,8 @@ const CoverageReport = ({
   onCreateArticle,
   onDeleteAnalyses,
   onDiscoverKeywords,
+  onDiscoverAdsInsight,
+  onDiscoverAdsBudget,
   requestConfirm,
   defaultProvider,
   activeScanKey,
@@ -2323,6 +2513,8 @@ const CoverageReport = ({
   onCreateArticle: (analysis: Analysis) => void;
   onDeleteAnalyses: (groups: { keyword: string; provider: "serpapi" | "dataforseo" }[], message: string, onDone?: () => void) => void;
   onDiscoverKeywords: (baseKeyword: string, city?: string) => Promise<KeywordSuggestion[]>;
+  onDiscoverAdsInsight: (keyword: string) => Promise<AdsInsight>;
+  onDiscoverAdsBudget: (keyword: string, bid: number) => Promise<AdsBudgetEstimate>;
   requestConfirm: (title: string, message: string, onConfirm: () => void, confirmLabel?: string) => void;
   defaultProvider: "serpapi" | "dataforseo";
   activeScanKey: string | null;
@@ -2344,6 +2536,8 @@ const CoverageReport = ({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkProvider, setBulkProvider] = useState<"serpapi" | "dataforseo">(defaultProvider);
   const [expandedCombo, setExpandedCombo] = useState<string | null>(null);
+  const [exploreState, setExploreState] = useState<{ done: number; total: number; current: string } | null>(null);
+  const [exploreResults, setExploreResults] = useState<(KeywordSuggestion & { sources: string[] })[] | null>(null);
   const existingQueries = React.useMemo(() => new Set(columns.map(col => normalizeText(col.query))), [columns]);
   const comboKey = (serviceId: string, city: string) => `${serviceId}|${city}`;
   const toggleCombo = (serviceId: string, city: string) => {
@@ -2441,6 +2635,58 @@ const CoverageReport = ({
     if (!raw) setNewColumn("");
   };
   const removeColumn = (id: string) => setCustomColumns(current => current.filter(col => col.id !== id));
+
+  // Rulează „Sugerează alternative" pe toate coloanele, una după alta, și combină rezultatele
+  // într-un singur tabel dedup+sortat. Secvențial (nu Promise.all) ca să nu lovim rate-limit-ul
+  // DataForSEO cu 3×N apeluri simultane.
+  const runFullExplore = () => {
+    if (exploreState) return;
+    const targets = columns;
+    if (!targets.length) return;
+    requestConfirm(
+      "Explorare completă",
+      `Caut alternative pentru toate cele ${targets.length} coloane (${targets.map(col => col.label).join(", ")}) — Trends + DataForSEO Labs, ~$${(targets.length * 0.03).toFixed(2)}. Continui?`,
+      async () => {
+        setExploreResults(null);
+        setExploreState({ done: 0, total: targets.length, current: targets[0].label });
+        const merged = new Map<string, KeywordSuggestion & { sources: Set<string> }>();
+        for (let index = 0; index < targets.length; index++) {
+          const col = targets[index];
+          setExploreState({ done: index, total: targets.length, current: col.label });
+          try {
+            const items = await onDiscoverKeywords(col.query);
+            for (const item of items) {
+              const norm = normalizeText(item.keyword);
+              const existing = merged.get(norm);
+              if (existing) {
+                if (item.volume !== null) existing.volume = existing.volume === null ? item.volume : Math.max(existing.volume, item.volume);
+                if (item.trendScore !== null) existing.trendScore = existing.trendScore === null ? item.trendScore : Math.max(existing.trendScore, item.trendScore);
+                if (item.rising) existing.rising = true;
+                existing.sources.add(col.label);
+              } else {
+                merged.set(norm, { ...item, sources: new Set([col.label]) });
+              }
+            }
+          } catch {
+            // o coloană eșuată nu oprește restul explorării
+          }
+          setExploreState({ done: index + 1, total: targets.length, current: col.label });
+        }
+        const sorted = Array.from(merged.values())
+          .sort((a, b) => {
+            if (a.volume !== null && b.volume !== null) return b.volume - a.volume;
+            if (a.volume !== null) return -1;
+            if (b.volume !== null) return 1;
+            return (b.trendScore ?? 0) - (a.trendScore ?? 0);
+          })
+          .slice(0, 40)
+          .map(item => ({ ...item, sources: Array.from(item.sources) }));
+        setExploreResults(sorted);
+        setExploreState(null);
+      },
+      "Explorează",
+    );
+  };
 
   // Toate analizele care aparțin unui oraș (toate serviciile) — pentru „șterge orașul".
   const analysesForCity = (cityName: string) => {
@@ -2678,6 +2924,59 @@ const CoverageReport = ({
             adaugă ca și coloană nouă. Sau adaugă manual mai jos, ex. „fotograf nunta" → scanează
             „fotograf nunta {"{oraș}"}".
           </p>
+
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-300/30 bg-violet-300/5 p-3">
+            <div>
+              <p className="text-sm text-violet-100">Explorare completă</p>
+              <p className="text-xs text-gray-500">
+                Rulează „Sugerează alternative" pe toate coloanele deodată și combină rezultatele
+                într-un singur tabel.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={runFullExplore}
+              disabled={exploreState !== null}
+              className="shrink-0 rounded-xl border border-violet-300/50 px-4 py-2 text-xs font-medium text-violet-200 disabled:opacity-60"
+            >
+              {exploreState ? `Explorez „${exploreState.current}"… (${exploreState.done}/${exploreState.total})` : "Explorează tot"}
+            </button>
+          </div>
+
+          {exploreResults && (
+            <div className="mb-4 rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-wider text-gray-500">{exploreResults.length} sugestii combinate</p>
+                <button type="button" onClick={() => setExploreResults(null)} className="text-xs text-gray-500 hover:text-white">Ascunde</button>
+              </div>
+              {exploreResults.length === 0 ? (
+                <p className="text-xs text-gray-400">Fără sugestii — încearcă din nou mai târziu.</p>
+              ) : (
+                <ul className="max-h-96 space-y-1.5 overflow-y-auto">
+                  {exploreResults.map(item => {
+                    const norm = normalizeText(item.keyword);
+                    const added = existingQueries.has(norm);
+                    return (
+                      <li key={item.keyword} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="min-w-0 flex-1 truncate text-gray-200" title={`din: ${item.sources.join(", ")}`}>{item.keyword}</span>
+                        <span className="hidden shrink-0 truncate text-[10px] text-gray-600 sm:block sm:max-w-[140px]" title={item.sources.join(", ")}>{item.sources.join(", ")}</span>
+                        <span className="shrink-0 text-gray-500">{suggestionMetric(item)}</span>
+                        <button
+                          type="button"
+                          disabled={added}
+                          onClick={() => addColumn(item.keyword)}
+                          className="shrink-0 rounded-lg border border-amber-200/40 px-2 py-0.5 text-amber-200 disabled:border-white/10 disabled:text-gray-600"
+                        >
+                          {added ? "adăugat" : "+ coloană"}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             {SEO_RADAR_SERVICES.map(service => (
               <div key={service.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5">
@@ -2860,6 +3159,8 @@ const CoverageReport = ({
                             onDiscoverKeywords={onDiscoverKeywords}
                             onAddColumn={addColumn}
                             existingQueries={existingQueries}
+                            onDiscoverAdsInsight={onDiscoverAdsInsight}
+                            onDiscoverAdsBudget={onDiscoverAdsBudget}
                             requestConfirm={requestConfirm}
                           />
                         </td>

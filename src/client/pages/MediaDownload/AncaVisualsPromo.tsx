@@ -1,9 +1,44 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import PhotoLightbox from "./PhotoLightbox";
+import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
 const PROMO_EMAIL = "ancadaniel1994@gmail.com";
+
+const compactPhoneBtnStyle: CSSProperties = {
+  flex: "1 1 180px",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  padding: "14px 16px",
+  background: "#c9a96e",
+  border: "1px solid #c9a96e",
+  color: "#0a0a0a",
+  borderRadius: "3px",
+  textDecoration: "none",
+  fontSize: "11px",
+  letterSpacing: "1.5px",
+  textTransform: "uppercase" as const,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const fullPhoneBtnStyle: CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: "100%",
+  padding: "15px 24px",
+  background: "#c9a96e",
+  color: "#0a0a0a",
+  border: "none",
+  borderRadius: "3px",
+  textDecoration: "none",
+  fontSize: "12px",
+  fontWeight: 700,
+  letterSpacing: "2.5px",
+  textTransform: "uppercase" as const,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
 
 interface AncaVisualsPromoProps {
   compact?: boolean;
@@ -58,12 +93,14 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
           >
             WhatsApp
           </a>
-          <a
-            href={`tel:+40${PROMO_PHONE.slice(1)}`}
-            style={{ flex: "1 1 180px", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 16px", background: "#c9a96e", border: "1px solid #c9a96e", color: "#0a0a0a", borderRadius: "3px", textDecoration: "none", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", fontWeight: 700 }}
-          >
-            Call — {PROMO_PHONE_DISPLAY}
-          </a>
+          <PhoneNumberReveal
+            phone={PROMO_PHONE}
+            display={PROMO_PHONE_DISPLAY}
+            revealedPrefix="Call — "
+            buttonLabel="AFIȘEAZĂ NUMĂRUL"
+            context="media promo compact"
+            style={compactPhoneBtnStyle}
+          />
         </div>
       </section>
     );
@@ -146,23 +183,13 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "300px", margin: "0 auto" }}>
-            <a
-              href={`tel:${PROMO_PHONE}`}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                padding: "15px 24px",
-                background: "#c9a96e",
-                color: "#0a0a0a",
-                borderRadius: "3px",
-                textDecoration: "none",
-                fontSize: "12px",
-                fontWeight: 700,
-                letterSpacing: "2.5px",
-                textTransform: "uppercase",
-              }}
-            >
-              Sună — {PROMO_PHONE_DISPLAY}
-            </a>
+            <PhoneNumberReveal
+              phone={PROMO_PHONE}
+              display={PROMO_PHONE_DISPLAY}
+              revealedPrefix="Sună — "
+              context="media promo full"
+              style={fullPhoneBtnStyle}
+            />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <a
                 href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}

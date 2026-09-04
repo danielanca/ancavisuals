@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
+import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 
 export interface CampaignPackage {
   id: string;
@@ -238,14 +239,14 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             >
               Verifică dacă data ta este disponibilă <ArrowIcon />
             </a>
-            <a
-              href={`tel:${page.phoneNumber}`}
-              onClick={() => trackClick("click_phone", "hero")}
+            <PhoneNumberReveal
+              phone={page.phoneNumber}
+              buttonLabel="AFIȘEAZĂ NUMĂRUL"
+              context={`campanie ${page.slug} · hero`}
+              onRevealed={() => trackClick("click_phone", "hero")}
               className="inline-flex items-center justify-center gap-2.5 bg-white/10 hover:bg-white/20 backdrop-blur text-white font-medium px-7 py-4 rounded-xl text-sm border border-white/20 transition-all active:scale-[0.98]"
-            >
-              <PhoneIcon />
-              {page.phoneNumber}
-            </a>
+              icon={<PhoneIcon />}
+            />
           </div>
           <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-xs text-white/65">
             <span>✓ Peste 50 de evenimente fotografiate și filmate</span>
@@ -459,12 +460,15 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               <WhatsAppIcon />
               {page.ctaText || "Scrie pe WhatsApp"}
             </a>
-            <a href={`tel:${page.phoneNumber}`} onClick={() => trackClick("click_phone", "final_form")}
+            <PhoneNumberReveal
+              phone={page.phoneNumber}
+              buttonLabel="Sună acum"
+              revealedPrefix="Sună acum — "
+              context={`campanie ${page.slug} · formular final`}
+              onRevealed={() => trackClick("click_phone", "final_form")}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 py-3.5 rounded-xl text-sm border border-neutral-700 transition-all"
-            >
-              <PhoneIcon />
-              Sună acum
-            </a>
+              icon={<PhoneIcon />}
+            />
           </div>
         </div>
       </section>
