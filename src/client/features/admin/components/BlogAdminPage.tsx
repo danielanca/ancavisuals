@@ -110,6 +110,18 @@ export default function BlogAdminPage() {
     } finally { setSaving(false); }
   };
 
+  const regenerateLlmsTxt = async () => {
+    setSaving(true); setError("");
+    try {
+      const response = await fetch("/api/blog/admin/regenerate-llms-txt", { method: "POST", headers });
+      const data = await response.json() as { added?: number; total?: number; error?: string };
+      if (!response.ok) throw new Error(data.error ?? "llms.txt nu a putut fi regenerat.");
+      setMessage(`llms.txt actualizat — ${data.added ?? 0} articole noi adăugate din ${data.total ?? 0} publicate.`);
+    } catch (regenerateError) {
+      setError(regenerateError instanceof Error ? regenerateError.message : "llms.txt nu a putut fi regenerat.");
+    } finally { setSaving(false); }
+  };
+
   const generateTitleSuggestions = async () => {
     if (!selected.title.trim()) {
       setError("Scrie un titlu înainte să ceri sugestii.");
@@ -207,6 +219,9 @@ export default function BlogAdminPage() {
           <div className="flex flex-wrap gap-2">
             <button onClick={importPosts} disabled={saving} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-3.5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white disabled:opacity-50">
               <span className="text-base">↥</span> Importă .md
+            </button>
+            <button onClick={regenerateLlmsTxt} disabled={saving} title="Adaugă în llms.txt orice articol publicat care lipsește" className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-3.5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white disabled:opacity-50">
+              <span className="text-base">⟳</span> Regenerează llms.txt
             </button>
             <button onClick={() => { setSelected({ ...emptyPost }); setError(""); setMessage(""); }} className="inline-flex items-center gap-2 rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-neutral-950 transition-colors hover:bg-amber-200">
               <span className="text-lg leading-none">+</span> Articol nou

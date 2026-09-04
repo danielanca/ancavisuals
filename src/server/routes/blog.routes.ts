@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { Router } from "express";
 import { getAllPosts, getEditablePosts, getPostBySlug, importMarkdownPosts, saveBlogPost } from "../utils/blogUtils";
 import { addSitemapEntry, generateSitemapFromDb } from "../utils/sitemapGenerator";
+import { syncLlmsTxtWithPost, regenerateLlmsTxtFromDb } from "../utils/llmsTxtGenerator";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { firestore } from "../firestore";
 import Anthropic from "@anthropic-ai/sdk";
@@ -168,11 +169,21 @@ blogRouter.put("/admin/posts/:slug", requireFirebaseAuth, requireSupremeAdmin, a
         priority: "0.7",
       });
       await generateSitemapFromDb();
+      await syncLlmsTxtWithPost(savedPost);
     }
     res.json({ post: savedPost });
   } catch (error) {
     console.error("[blog] Save failed:", error);
     res.status(500).json({ error: "Articolul nu a putut fi salvat." });
+  }
+});
+
+blogRouter.post("/admin/regenerate-llms-txt", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    res.json(await regenerateLlmsTxtFromDb());
+  } catch (error) {
+    console.error("[blog] llms.txt regenerate failed:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "llms.txt nu a putut fi regenerat." });
   }
 });
 

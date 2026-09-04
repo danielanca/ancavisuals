@@ -1,11 +1,12 @@
 import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
-import { FieldValue } from "firebase-admin/firestore";
-import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { requireFirebaseAuth, requireSupremeAdmin, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
 import { firestore } from "../firestore.js";
 
 const HISTORY_COLLECTION = "seoRadarSearches";
+const LINKED_COLLECTION = "seoRadarLinkedPosts";
 const OWN_DOMAIN = "ancavisuals.ro";
 const DATAFORSEO_ROMANIA_LOCATION_CODE = 2642;
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 30_000, maxRetries: 1 });
@@ -19,6 +20,23 @@ type HistoryRecord = {
   ownDomainUrl?: string | null;
   positionChange?: number | null;
   localPack?: boolean;
+  organicResults?: SerpResult[];
+};
+type LinkedPostRecord = {
+  id: string;
+  queryKey: string;
+  keyword: string;
+  city: string;
+  provider: SearchProvider;
+  slug: string;
+  title: string;
+  url: string;
+  date?: string;
+  linkedAt: string | null;
+};
+type LinkedPostStatus = {
+  status: "ranked" | "own_other" | "pending";
+  rankedPosition: number | null;
 };
 type JsonRecord = Record<string, unknown>;
 type SearchProvider = "serpapi" | "dataforseo";
@@ -44,6 +62,28 @@ function queryKey(keyword: string, city: string, provider: SearchProvider): stri
   return `${provider}::${keyword.trim().toLowerCase()}::${city.trim().toLowerCase()}`;
 }
 
+// Groups near-identical analyses together by the keyword text only (the thing actually
+// searched on Google): strips diacritics, lowercases, reduces to a sorted word set so
+// "fotocabina Huedin" / "fotocabină huedin" / "fotocabina  huedin" collapse into one row.
+// The stored `city` field is only a geo hint and is deliberately ignored here — otherwise a
+// stale Locație value ("fotocabina huedin" scanned with city "Bacău") would fragment the row.
+// Provider stays separate because positions differ between SerpApi and DataForSEO.
+function analysisGroupKey(keyword: string, provider: SearchProvider): string {
+  const words = keyword
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return `${provider}::${Array.from(new Set(words)).sort().join(" ")}`;
+}
+
+// Diacritics/case/whitespace-insensitive form, order preserved — used to de-dupe keyword
+// suggestions and to exclude the seed term itself from its own alternatives.
+function normalizeKeyword(value: string): string {
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 function ownResult(results: SerpResult[]): SerpResult | null {
   return results.find((item) => item.domain === OWN_DOMAIN || item.domain.endsWith(`.${OWN_DOMAIN}`)) ?? null;
 }
@@ -53,6 +93,66 @@ async function getHistory(key: string) {
   return snapshot.docs
     .map((doc) => ({ id: doc.id, ...doc.data() } as HistoryRecord))
     .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)));
+}
+
+function toIso(value: unknown): string | null {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && typeof (value as { toDate?: () => Date }).toDate === "function") {
+    try { return (value as { toDate: () => Date }).toDate().toISOString(); } catch { return null; }
+  }
+  return null;
+}
+
+function sameBlogSlug(url: string, slug: string): boolean {
+  if (!url || !slug) return false;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "");
+    if (host !== OWN_DOMAIN && !host.endsWith(`.${OWN_DOMAIN}`)) return false;
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    return segments.length > 0 && segments[segments.length - 1] === slug;
+  } catch {
+    return false;
+  }
+}
+
+function linkedPostStatus(
+  post: { slug: string },
+  organicResults: SerpResult[],
+  ownDomainPosition: number | null,
+  ownDomainUrl: string | null,
+): LinkedPostStatus {
+  const match = organicResults.find((item) => sameBlogSlug(item.url, post.slug));
+  if (match) return { status: "ranked", rankedPosition: match.position ?? ownDomainPosition ?? null };
+  if (ownDomainUrl && sameBlogSlug(ownDomainUrl, post.slug)) {
+    return { status: "ranked", rankedPosition: ownDomainPosition ?? null };
+  }
+  if (ownDomainPosition !== null && ownDomainPosition !== undefined) {
+    return { status: "own_other", rankedPosition: ownDomainPosition };
+  }
+  return { status: "pending", rankedPosition: null };
+}
+
+async function getLinkedPosts(key: string): Promise<LinkedPostRecord[]> {
+  const snapshot = await firestore().collection(LINKED_COLLECTION).where("queryKey", "==", key).get();
+  return snapshot.docs
+    .map((doc) => {
+      const data = doc.data() as JsonRecord;
+      return {
+        id: doc.id,
+        queryKey: stringValue(data, "queryKey"),
+        keyword: stringValue(data, "keyword"),
+        city: stringValue(data, "city"),
+        provider: data.provider === "dataforseo" ? "dataforseo" : "serpapi",
+        slug: stringValue(data, "slug"),
+        title: stringValue(data, "title") || stringValue(data, "slug"),
+        url: stringValue(data, "url"),
+        date: typeof data.date === "string" ? data.date : undefined,
+        linkedAt: toIso(data.linkedAt),
+      } as LinkedPostRecord;
+    })
+    .sort((a, b) => String(a.linkedAt ?? "").localeCompare(String(b.linkedAt ?? "")));
 }
 
 const router = Router();
@@ -114,11 +214,277 @@ router.get("/history", async (req, res) => {
   if (!keyword) return res.status(400).json({ error: "Keyword-ul este obligatoriu." });
 
   try {
-    const history = await getHistory(queryKey(keyword, city, provider));
-    res.json({ keyword, city, history });
+    const key = queryKey(keyword, city, provider);
+    const history = await getHistory(key);
+    const latest = history.at(-1);
+    const linkedPosts = (await getLinkedPosts(key)).map((post) => ({
+      ...post,
+      ...linkedPostStatus(post, latest?.organicResults ?? [], latest?.ownDomainPosition ?? null, latest?.ownDomainUrl ?? null),
+    }));
+    res.json({ keyword, city, history, linkedPosts });
   } catch (error) {
     console.error("[seo-radar] history error:", error);
     res.status(500).json({ error: "Nu am putut încărca istoricul." });
+  }
+});
+
+router.get("/analyses", async (_req, res) => {
+  try {
+    const [scanSnap, linkSnap] = await Promise.all([
+      firestore().collection(HISTORY_COLLECTION)
+        .select("queryKey", "keyword", "city", "provider", "capturedAt", "ownDomainPosition", "ownDomainUrl", "localPack", "positionChange")
+        .orderBy("capturedAt", "desc")
+        .limit(2000)
+        .get(),
+      firestore().collection(LINKED_COLLECTION).limit(1000).get(),
+    ]);
+
+    const linksByKey = new Map<string, LinkedPostRecord[]>();
+    for (const doc of linkSnap.docs) {
+      const data = doc.data() as JsonRecord;
+      const key = stringValue(data, "queryKey");
+      if (!key) continue;
+      const record: LinkedPostRecord = {
+        id: doc.id,
+        queryKey: key,
+        keyword: stringValue(data, "keyword"),
+        city: stringValue(data, "city"),
+        provider: data.provider === "dataforseo" ? "dataforseo" : "serpapi",
+        slug: stringValue(data, "slug"),
+        title: stringValue(data, "title") || stringValue(data, "slug"),
+        url: stringValue(data, "url"),
+        date: typeof data.date === "string" ? data.date : undefined,
+        linkedAt: toIso(data.linkedAt),
+      };
+      const bucket = linksByKey.get(key) ?? [];
+      bucket.push(record);
+      linksByKey.set(key, bucket);
+    }
+
+    type ScanRow = { queryKey: string; keyword: string; city: string; provider: SearchProvider; capturedAt: string; ownDomainPosition: number | null; ownDomainUrl: string | null; localPack: boolean; positionChange: number | null };
+    const groups = new Map<string, ScanRow[]>();
+    for (const doc of scanSnap.docs) {
+      const data = doc.data() as JsonRecord;
+      const rawKey = stringValue(data, "queryKey");
+      if (!rawKey) continue;
+      const provider: SearchProvider = data.provider === "dataforseo" ? "dataforseo" : "serpapi";
+      const keyword = stringValue(data, "keyword");
+      const city = stringValue(data, "city");
+      const row: ScanRow = {
+        queryKey: rawKey,
+        keyword,
+        city,
+        provider,
+        capturedAt: stringValue(data, "capturedAt"),
+        ownDomainPosition: typeof data.ownDomainPosition === "number" ? data.ownDomainPosition : null,
+        ownDomainUrl: typeof data.ownDomainUrl === "string" ? data.ownDomainUrl : null,
+        localPack: data.localPack === true,
+        positionChange: typeof data.positionChange === "number" ? data.positionChange : null,
+      };
+      const groupKey = analysisGroupKey(keyword, provider);
+      const bucket = groups.get(groupKey) ?? [];
+      bucket.push(row);
+      groups.set(groupKey, bucket);
+    }
+
+    const analyses = Array.from(groups.values()).map((rowsUnsorted) => {
+      const rows = [...rowsUnsorted].sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+      const first = rows[0];
+      const latest = rows[rows.length - 1];
+      const firstPosition = first.ownDomainPosition;
+      const latestPosition = latest.ownDomainPosition;
+      const groupQueryKeys = Array.from(new Set(rows.map((row) => row.queryKey)));
+      const seenSlugs = new Set<string>();
+      const linkedPosts = groupQueryKeys
+        .flatMap((qk) => linksByKey.get(qk) ?? [])
+        .sort((a, b) => String(b.linkedAt ?? "").localeCompare(String(a.linkedAt ?? "")))
+        .filter((post) => (seenSlugs.has(post.slug) ? false : (seenSlugs.add(post.slug), true)))
+        .map((post) => {
+          const ranked = latest.ownDomainUrl && sameBlogSlug(latest.ownDomainUrl, post.slug);
+          const status: LinkedPostStatus["status"] = ranked ? "ranked" : latestPosition !== null ? "own_other" : "pending";
+          return { ...post, status, rankedPosition: ranked ? latestPosition : status === "own_other" ? latestPosition : null };
+        })
+        .sort((a, b) => String(a.linkedAt ?? "").localeCompare(String(b.linkedAt ?? "")));
+      return {
+        queryKey: latest.queryKey,
+        keyword: latest.keyword,
+        city: latest.city,
+        provider: latest.provider,
+        scanCount: rows.length,
+        firstScanAt: first.capturedAt,
+        lastScanAt: latest.capturedAt,
+        firstPosition,
+        latestPosition,
+        positionTrend: firstPosition !== null && latestPosition !== null ? firstPosition - latestPosition : null,
+        latestOwnUrl: latest.ownDomainUrl,
+        localPack: latest.localPack,
+        linkedPosts,
+        positionHistory: rows.map((row) => ({
+          capturedAt: row.capturedAt,
+          position: row.ownDomainPosition,
+          change: row.positionChange,
+        })),
+      };
+    }).sort((a, b) => b.lastScanAt.localeCompare(a.lastScanAt));
+
+    res.json({ analyses });
+  } catch (error) {
+    console.error("[seo-radar] analyses error:", error);
+    res.status(500).json({ error: "Nu am putut încărca analizele salvate." });
+  }
+});
+
+// Șterge definitiv una sau mai multe analize (toate scanările + articolele legate).
+// Body: { groups: [{ keyword, provider }] }. Fiecare grup e identificat prin analysisGroupKey.
+router.delete("/analyses", async (req, res) => {
+  const rawGroups = Array.isArray(req.body?.groups) ? req.body.groups : [];
+  const targets = rawGroups
+    .map((group: unknown) => {
+      const record = asRecord(group);
+      return {
+        keyword: stringValue(record, "keyword").trim(),
+        provider: (record.provider === "dataforseo" ? "dataforseo" : "serpapi") as SearchProvider,
+      };
+    })
+    .filter((group: { keyword: string }) => group.keyword.length > 0);
+  if (!targets.length) return res.status(400).json({ error: "Nicio analiză de șters." });
+
+  const wantedGroupKeys = new Set(targets.map((group: { keyword: string; provider: SearchProvider }) => analysisGroupKey(group.keyword, group.provider)));
+
+  try {
+    const db = firestore();
+    const scanSnap = await db.collection(HISTORY_COLLECTION)
+      .select("queryKey", "keyword", "provider")
+      .limit(5000)
+      .get();
+
+    const docRefs: FirebaseFirestore.DocumentReference[] = [];
+    const queryKeys = new Set<string>();
+    for (const doc of scanSnap.docs) {
+      const data = doc.data() as JsonRecord;
+      const keyword = stringValue(data, "keyword");
+      const provider: SearchProvider = data.provider === "dataforseo" ? "dataforseo" : "serpapi";
+      if (wantedGroupKeys.has(analysisGroupKey(keyword, provider))) {
+        docRefs.push(doc.ref);
+        const qk = stringValue(data, "queryKey");
+        if (qk) queryKeys.add(qk);
+      }
+    }
+
+    const linkedSnap = await db.collection(LINKED_COLLECTION).limit(2000).get();
+    for (const doc of linkedSnap.docs) {
+      if (queryKeys.has(stringValue(doc.data() as JsonRecord, "queryKey"))) docRefs.push(doc.ref);
+    }
+
+    for (let index = 0; index < docRefs.length; index += 450) {
+      const batch = db.batch();
+      docRefs.slice(index, index + 450).forEach(ref => batch.delete(ref));
+      await batch.commit();
+    }
+
+    res.json({ ok: true, deleted: docRefs.length });
+  } catch (error) {
+    console.error("[seo-radar] delete analyses error:", error);
+    res.status(500).json({ error: "Nu am putut șterge analiza." });
+  }
+});
+
+router.post("/linked-posts", async (req, res) => {
+  const provider: SearchProvider = req.body?.provider === "dataforseo" ? "dataforseo" : "serpapi";
+  const keyword = String(req.body?.keyword || "").trim();
+  const city = String(req.body?.city || "").trim();
+  const slug = String(req.body?.slug || "").trim();
+  const title = String(req.body?.title || "").trim();
+  const date = typeof req.body?.date === "string" ? req.body.date.trim() : "";
+  if (!keyword || !slug) return res.status(400).json({ error: "Keyword-ul și slug-ul sunt obligatorii." });
+
+  const url = (typeof req.body?.url === "string" && req.body.url.trim())
+    ? req.body.url.trim()
+    : `https://${OWN_DOMAIN}/blog/${slug}`;
+  const key = queryKey(keyword, city, provider);
+  const docId = `${key}::${slug}`;
+
+  try {
+    await firestore().collection(LINKED_COLLECTION).doc(docId).set({
+      queryKey: key,
+      keyword,
+      city,
+      provider,
+      slug,
+      title: title || slug,
+      url,
+      ...(date ? { date } : {}),
+      linkedAt: Timestamp.now(),
+      createdBy: (req as AuthenticatedRequest).firebaseEmail ?? null,
+    }, { merge: true });
+    res.json({ ok: true, linkedPost: { id: docId, queryKey: key, slug, title: title || slug, url, date: date || undefined, linkedAt: new Date().toISOString() } });
+  } catch (error) {
+    console.error("[seo-radar] link post error:", error);
+    res.status(500).json({ error: "Nu am putut lega articolul de analiză." });
+  }
+});
+
+router.delete("/linked-posts", async (req, res) => {
+  const key = String(req.query.queryKey || "").trim();
+  const slug = String(req.query.slug || "").trim();
+  if (!key || !slug) return res.status(400).json({ error: "queryKey și slug sunt obligatorii." });
+  try {
+    await firestore().collection(LINKED_COLLECTION).doc(`${key}::${slug}`).delete();
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[seo-radar] unlink post error:", error);
+    res.status(500).json({ error: "Nu am putut dezlega articolul." });
+  }
+});
+
+const ARTICLE_PLAN_COLLECTION = "seoRadarArticlePlans";
+
+router.get("/article-plan", async (req, res) => {
+  const keyword = String(req.query.keyword || "").trim();
+  const city = String(req.query.city || "").trim();
+  const provider: SearchProvider = req.query.provider === "dataforseo" ? "dataforseo" : "serpapi";
+  if (!keyword) return res.status(400).json({ error: "Keyword-ul este obligatoriu." });
+  try {
+    const key = queryKey(keyword, city, provider);
+    const doc = await firestore().collection(ARTICLE_PLAN_COLLECTION).doc(key).get();
+    if (!doc.exists) return res.json({ plan: null });
+    const data = doc.data() as JsonRecord;
+    res.json({
+      plan: {
+        targetKeyword: stringValue(data, "targetKeyword") || keyword,
+        secondaryKeywords: Array.isArray(data.secondaryKeywords) ? data.secondaryKeywords.filter((item): item is string => typeof item === "string") : [],
+      },
+    });
+  } catch (error) {
+    console.error("[seo-radar] article-plan get error:", error);
+    res.status(500).json({ error: "Nu am putut încărca planul articolului." });
+  }
+});
+
+router.put("/article-plan", async (req, res) => {
+  const provider: SearchProvider = req.body?.provider === "dataforseo" ? "dataforseo" : "serpapi";
+  const keyword = String(req.body?.keyword || "").trim();
+  const city = String(req.body?.city || "").trim();
+  const targetKeyword = String(req.body?.targetKeyword || "").trim() || keyword;
+  const secondaryKeywords = Array.isArray(req.body?.secondaryKeywords)
+    ? req.body.secondaryKeywords.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).map((item: string) => item.trim()).slice(0, 15)
+    : [];
+  if (!keyword) return res.status(400).json({ error: "Keyword-ul este obligatoriu." });
+  try {
+    const key = queryKey(keyword, city, provider);
+    await firestore().collection(ARTICLE_PLAN_COLLECTION).doc(key).set({
+      queryKey: key,
+      keyword,
+      city,
+      provider,
+      targetKeyword,
+      secondaryKeywords,
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[seo-radar] article-plan put error:", error);
+    res.status(500).json({ error: "Nu am putut salva planul articolului." });
   }
 });
 
@@ -183,6 +549,10 @@ router.post("/search", async (req, res) => {
     });
 
     const history = await getHistory(key);
+    const linkedPosts = (await getLinkedPosts(key)).map((post) => ({
+      ...post,
+      ...linkedPostStatus(post, organicResults, own?.position ?? null, own?.url ?? null),
+    }));
 
     res.json({
       keyword,
@@ -197,11 +567,13 @@ router.post("/search", async (req, res) => {
       previousPosition,
       positionChange,
       history,
+      linkedPosts,
       metadata,
     });
   } catch (error) {
     console.error("[seo-radar] search error:", error);
-    res.status(502).json({ error: "Nu am putut interoga SerpApi." });
+    const detail = error instanceof Error ? error.message : "";
+    res.status(502).json({ error: detail ? `Scanarea a eșuat: ${detail}` : `Nu am putut interoga ${provider === "dataforseo" ? "DataForSEO" : "SerpApi"}.` });
   }
 });
 
@@ -274,15 +646,27 @@ router.post("/generate-post", async (req, res) => {
   const city = typeof req.body?.city === "string" ? req.body.city.trim() : "";
   const results = Array.isArray(req.body?.organicResults) ? req.body.organicResults.slice(0, 10) : [];
   const variantIndex = Number.isInteger(req.body?.variantIndex) ? Number(req.body.variantIndex) : null;
+  const targetKeyword = typeof req.body?.targetKeyword === "string" ? req.body.targetKeyword.trim() : "";
+  const secondaryKeywords: string[] = Array.isArray(req.body?.secondaryKeywords)
+    ? req.body.secondaryKeywords.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).map((item: string) => item.trim()).slice(0, 15)
+    : [];
   if (!keyword) return res.status(400).json({ error: "Keyword-ul este obligatoriu." });
   try {
+    const planInstructions = [
+      targetKeyword && targetKeyword !== keyword
+        ? `Deși căutarea inițială a fost pentru "${keyword}", vizează precis termenul "${targetKeyword}" ca temă principală a articolului (titlu, slug, meta, unghi).`
+        : "",
+      secondaryKeywords.length
+        ? `Include natural, fără keyword stuffing, și aceste keyword-uri secundare: ${secondaryKeywords.join(", ")}. Folosește-le ca bază pentru "tags" din răspuns și țese-le firesc în title/metaDescription/body unde are sens real.`
+        : "",
+    ].filter(Boolean).join("\n");
     const message = await anthropicLong.messages.create({
       model: "claude-sonnet-4-6", max_tokens: 6000,
       messages: [{ role: "user", content: `Ești expert SEO și copywriter pentru AncaVisuals, studio românesc de fotografie, videografie și fotocabină. Creează ${variantIndex === null ? "3 variante distincte" : "o singură variantă distinctă"} de pagină/articol în limba română pentru keywordul "${keyword}" în ${city || "România"}.
 
 SERP-ul analizat: ${JSON.stringify(results)}
 Domeniu: ancavisuals.ro. Paginile locale existente folosesc tipare precum /fotograf-nunta-oras și /foto-video-serviciu-oras. Nu inventa recenzii, premii sau informații care nu apar în date. Fiecare variantă trebuie să fie suficient de diferită (unghi, titlu, structură), utilă pentru oameni și naturală SEO, nu keyword stuffing.
-
+${planInstructions ? `\n${planInstructions}\n` : ""}
 Răspunde STRICT cu un JSON array, fără markdown, cu exact ${variantIndex === null ? 3 : 1} ${variantIndex === null ? "obiecte" : "obiect"}:
 [{"title":"titlu SEO","slug":"slug-fara-diacritice","canonicalUrl":"https://ancavisuals.ro/blog/slug-fara-diacritice","metaDescription":"maxim 155 caractere","seoTitle":"titlu pentru title tag, maxim 60 caractere","tags":["tag1","tag2"],"category":"categorie","angle":"unghiul variantei","bodyHtml":"","faq":[{"question":"întrebare","answer":"răspuns"}],"internalLinks":["pagină recomandată pentru link intern"],"priority":"high | medium | low"}]
 Nu genera bodyHtml în acest pas: body-ul va fi creat separat doar după ce administratorul introduce contextul. Poți menționa serviciile AncaVisuals în metadata, dar nu inventa prețuri: lasă un loc clar de completat precum [PREȚ DE COMPLETAT] dacă este relevant.` }],
@@ -369,6 +753,134 @@ router.post("/diacritics", async (req, res) => {
     console.error("[seo-radar] diacritics error:", error);
     res.status(502).json({ error: "Nu am putut genera variantele cu diacritice." });
   }
+});
+
+router.post("/keyword-alternatives", async (req, res) => {
+  const login = process.env.API_LOGIN_DATAFORSEO;
+  const password = process.env.API_DATAFORSEO_PASSWORD;
+  if (!login || !password) return res.status(500).json({ error: "Lipsesc API_LOGIN_DATAFORSEO și API_DATAFORSEO_PASSWORD din .env." });
+
+  const baseKeyword = typeof req.body?.baseKeyword === "string" ? req.body.baseKeyword.trim() : "";
+  const city = typeof req.body?.city === "string" ? req.body.city.trim() : "";
+  if (!baseKeyword) return res.status(400).json({ error: "Keyword-ul de bază este obligatoriu." });
+
+  const seed = city ? `${baseKeyword} ${city}` : baseKeyword;
+  const seedNorm = normalizeKeyword(seed);
+  const credentials = Buffer.from(`${login}:${password}`).toString("base64");
+  const headers = { "Content-Type": "application/json", Authorization: `Basic ${credentials}` };
+
+  // Combined "serviciu + oraș" seeds return a lot of noise from Labs (generic city queries
+  // that have nothing to do with the service). Require the suggestion to still carry a real
+  // word from the service term itself — a no-op when baseKeyword has no city attached.
+  const baseWords = normalizeKeyword(baseKeyword).split(" ").filter((word) => word.length >= 3);
+  const isRelevant = (keyword: string): boolean => {
+    if (!baseWords.length) return true;
+    const norm = normalizeKeyword(keyword);
+    return baseWords.some((word) => norm.includes(word));
+  };
+
+  const suggestions = new Map<string, { keyword: string; volume: number | null; trendScore: number | null; rising: boolean }>();
+  const upsert = (keyword: string, patch: { volume?: number | null; trendScore?: number | null; rising?: boolean }) => {
+    const norm = normalizeKeyword(keyword);
+    if (!norm || norm === seedNorm || !isRelevant(keyword)) return;
+    const current = suggestions.get(norm) ?? { keyword: keyword.trim(), volume: null, trendScore: null, rising: false };
+    if (patch.volume !== undefined && patch.volume !== null) current.volume = patch.volume;
+    if (patch.trendScore !== undefined && patch.trendScore !== null) current.trendScore = Math.max(current.trendScore ?? 0, patch.trendScore);
+    if (patch.rising) current.rising = true;
+    suggestions.set(norm, current);
+  };
+
+  const results = await Promise.allSettled([
+    fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/related_keywords/live", {
+      method: "POST", headers,
+      body: JSON.stringify([{ keyword: seed, location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro", depth: 1, limit: 20 }]),
+    }).then(r => r.json()),
+    fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/keyword_ideas/live", {
+      method: "POST", headers,
+      body: JSON.stringify([{ keywords: [seed], location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro", limit: 20 }]),
+    }).then(r => r.json()),
+    fetch("https://api.dataforseo.com/v3/keywords_data/google_trends/explore/live", {
+      method: "POST", headers,
+      body: JSON.stringify([{ keywords: [seed], location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro", type: "web", item_types: ["google_trends_queries_list"] }]),
+    }).then(r => r.json()),
+  ]);
+
+  let succeeded = 0;
+  const [relatedResult, ideasResult, trendsResult] = results;
+
+  if (relatedResult.status === "fulfilled") {
+    try {
+      const items = (relatedResult.value as JsonRecord).tasks;
+      const list = Array.isArray(items) ? asRecord(asRecord(items[0]).result && (asRecord(items[0]).result as unknown[])[0]) : {};
+      const rows = Array.isArray(list.items) ? list.items : [];
+      for (const row of rows) {
+        const kwData = asRecord(asRecord(row).keyword_data);
+        const keyword = stringValue(kwData, "keyword");
+        const info = asRecord(kwData.keyword_info);
+        const volume = typeof info.search_volume === "number" ? info.search_volume : null;
+        if (keyword) upsert(keyword, { volume });
+      }
+      succeeded++;
+    } catch (error) {
+      console.error("[seo-radar] related_keywords parse error:", error);
+    }
+  }
+
+  if (ideasResult.status === "fulfilled") {
+    try {
+      const tasks = (ideasResult.value as JsonRecord).tasks;
+      const list = Array.isArray(tasks) ? asRecord(asRecord(tasks[0]).result && (asRecord(tasks[0]).result as unknown[])[0]) : {};
+      const rows = Array.isArray(list.items) ? list.items : [];
+      for (const row of rows) {
+        const item = asRecord(row);
+        const keyword = stringValue(item, "keyword");
+        const info = asRecord(item.keyword_info);
+        const volume = typeof info.search_volume === "number" ? info.search_volume : null;
+        if (keyword) upsert(keyword, { volume });
+      }
+      succeeded++;
+    } catch (error) {
+      console.error("[seo-radar] keyword_ideas parse error:", error);
+    }
+  }
+
+  if (trendsResult.status === "fulfilled") {
+    try {
+      const tasks = (trendsResult.value as JsonRecord).tasks;
+      const list = Array.isArray(tasks) ? asRecord(asRecord(tasks[0]).result && (asRecord(tasks[0]).result as unknown[])[0]) : {};
+      const items = Array.isArray(list.items) ? list.items : [];
+      const queriesItem = items.map(asRecord).find(item => stringValue(item, "type") === "google_trends_queries_list");
+      const data = asRecord(queriesItem?.data);
+      const top = Array.isArray(data.top) ? data.top : [];
+      const rising = Array.isArray(data.rising) ? data.rising : [];
+      for (const row of top) {
+        const item = asRecord(row);
+        const keyword = stringValue(item, "query");
+        if (keyword) upsert(keyword, { trendScore: numberValue(item, "value", 0) });
+      }
+      for (const row of rising) {
+        const item = asRecord(row);
+        const keyword = stringValue(item, "query");
+        if (keyword) upsert(keyword, { trendScore: numberValue(item, "value", 0), rising: true });
+      }
+      succeeded++;
+    } catch (error) {
+      console.error("[seo-radar] google_trends parse error:", error);
+    }
+  }
+
+  if (succeeded === 0) {
+    return res.status(502).json({ error: "Nu am putut găsi sugestii de keyword-uri." });
+  }
+
+  const sorted = Array.from(suggestions.values()).sort((a, b) => {
+    if (a.volume !== null && b.volume !== null) return b.volume - a.volume;
+    if (a.volume !== null) return -1;
+    if (b.volume !== null) return 1;
+    return (b.trendScore ?? 0) - (a.trendScore ?? 0);
+  }).slice(0, 20);
+
+  res.json({ suggestions: sorted });
 });
 
 async function searchSerpApi(keyword: string, city: string, apiKey: string): Promise<{ payload: JsonRecord; metadata: JsonRecord }> {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
+import DashboardSearch from "./DashboardSearch";
 
 interface NavItem {
   label: string;
@@ -277,7 +278,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Inspirație", path: "/admin/inspiration" },
         { label: "Zone Showcase", path: "/admin/showcase" },
         { label: "Analytics", path: "/admin/analytics" },
-        { label: "Venue Outreach", path: "/admin/venue-outreach" },
       ],
     },
     {
@@ -380,6 +380,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
               </svg>
               <span>Dashboard</span>
             </button>
+            <div className="px-1 pt-1.5">
+              <DashboardSearch onNavigate={onClose} />
+            </div>
           </div>
         )}
 
