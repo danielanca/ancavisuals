@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { destination } from "../../../utils/address";
+import { destination, isProd } from "../../../utils/address";
 import Breadcrumb from "./Breadcrumb";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import useAuth from "../auth/useAuth";
@@ -153,6 +153,16 @@ function QRLinkRow({ eventSlug, pin, eventType }: { eventSlug: string; pin: stri
   return (
     <div className="mt-4 rounded-xl bg-neutral-900 border border-neutral-800 p-4">
       <p className="text-neutral-500 text-xs uppercase tracking-wide mb-3">Acces public QR Moments</p>
+      {!isProd && (
+        <div className="mb-4 rounded-lg bg-red-950 border border-red-700 p-3">
+          <p className="text-red-300 text-xs font-semibold">
+            ⚠️ Rulezi pe localhost (development). Codul QR generat acum conține linkul "{destination}" și NU va funcționa pentru invitați.
+          </p>
+          <p className="text-red-400/80 text-xs mt-1">
+            Nu descărca și nu printa acest cod. Deschide https://ancavisuals.ro/admin pentru un cod QR valid.
+          </p>
+        </div>
+      )}
       <div className="flex gap-4 items-start">
         <img
           src={qrImageUrl}
@@ -173,9 +183,14 @@ function QRLinkRow({ eventSlug, pin, eventType }: { eventSlug: string; pin: stri
                 {copiedTarget === "guest" ? "Copiat!" : "Copiază link invitați"}
               </button>
               <a
-                href={qrImageUrl}
+                href={isProd ? qrImageUrl : undefined}
                 download={`qr-${eventSlug}.png`}
-                className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs hover:border-neutral-500 hover:text-white transition-colors"
+                aria-disabled={!isProd}
+                onClick={(e) => { if (!isProd) e.preventDefault(); }}
+                title={!isProd ? "Indisponibil pe localhost — deschide site-ul live" : undefined}
+                className={`px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs transition-colors ${
+                  isProd ? "text-neutral-300 hover:border-neutral-500 hover:text-white" : "text-neutral-600 cursor-not-allowed opacity-50"
+                }`}
               >
                 Descarcă QR
               </a>

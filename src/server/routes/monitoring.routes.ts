@@ -26,6 +26,25 @@ function isQrDebugError(message: string, page: string): boolean {
   return message.startsWith("[QR DEBUG]") || page.startsWith("/qr-moments/");
 }
 
+// A single stuck guest can fail dozens of photo uploads in a row (and re-tap
+// Submit), and every failure used to fire its own admin email. Throttle QR
+// debug emails to one per page+IP per window — the full detail is still written
+// to Firestore for the admin dashboard.
+const QR_DEBUG_EMAIL_COOLDOWN_MS = 10 * 60_000;
+const qrDebugEmailLastSent = new Map<string, number>();
+
+function shouldSendQrDebugEmail(page: string, ip?: string): boolean {
+  const key = `${page}::${ip ?? "-"}`;
+  const now = Date.now();
+  const last = qrDebugEmailLastSent.get(key);
+  if (last && now - last < QR_DEBUG_EMAIL_COOLDOWN_MS) return false;
+  qrDebugEmailLastSent.set(key, now);
+  for (const [storedKey, timestamp] of qrDebugEmailLastSent) {
+    if (now - timestamp > QR_DEBUG_EMAIL_COOLDOWN_MS) qrDebugEmailLastSent.delete(storedKey);
+  }
+  return true;
+}
+
 function isSlowLoadError(message: string): boolean {
   return message.startsWith("[SLOW LOAD]");
 }
@@ -101,7 +120,7 @@ router.post("/client-error", async (req: Request, res: Response) => {
       : undefined;
 
     captureClientError(message, stack, page, ip || undefined, geo);
-    if (isQrDebugError(message, page)) {
+    if (isQrDebugError(message, page) && shouldSendQrDebugEmail(page, ip || undefined)) {
       sendQrDebugEmail(message, stack, page, ip || undefined, geo).catch(() => {});
     }
     if (isSlowLoadError(message)) {

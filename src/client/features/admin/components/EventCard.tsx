@@ -582,6 +582,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         notes: form.notes,
         pricing: { total, advanceAmount, advancePaid: form.advancePaid, remainingAmount: total - advanceAmount },
       });
+      setEditing(false);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : "Eroare necunoscută.");
     } finally {

@@ -22,7 +22,7 @@ interface SelectedFile {
   previewUrl: string;
 }
 
-type UploadItemStatus = 'uploading' | 'done' | 'error';
+type UploadItemStatus = 'uploading' | 'retrying' | 'done' | 'error';
 interface UploadProgressEntry {
   status: UploadItemStatus;
   progress: number;
@@ -565,7 +565,15 @@ export default function QRMomentsPage() {
     return Math.min(UPLOAD_MAX_TIMEOUT_MS, Math.max(UPLOAD_MIN_TIMEOUT_MS, estimated));
   };
 
-  const uploadSingleItem = (id: string, blob: Blob, filename: string, batchId: string): Promise<void> => {
+  // One weak-signal blip used to kill a whole photo's upload and leave it for the
+  // guest to re-tap. Instead, re-send that one file automatically a few times
+  // with a growing pause — the rest of the batch is unaffected either way.
+  const UPLOAD_MAX_ATTEMPTS = 4;
+  const UPLOAD_RETRY_BACKOFF_MS = [2_000, 5_000, 12_000];
+
+  const RETRIABLE = 'RetriableUploadError';
+
+  const attemptUpload = (id: string, blob: Blob, filename: string, batchId: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append('guestId', guestId as string);
@@ -586,34 +594,62 @@ export default function QRMomentsPage() {
         setUploadProgress((prev) => ({ ...prev, [id]: { status: 'uploading', progress: pct } }));
       };
 
-      const fail = (message: string) => {
-        setUploadProgress((prev) => ({ ...prev, [id]: { status: 'error', progress: 0, error: message } }));
-        reject(new Error(message));
+      const fail = (message: string, retriable: boolean) => {
+        const err = new Error(message);
+        if (retriable) err.name = RETRIABLE;
+        reject(err);
       };
 
-      xhr.ontimeout = () => fail(`Timeout după ${xhr.timeout / 1000}s`);
-      xhr.onerror = () => fail('Conexiunea la internet pare instabilă. Încearcă dintr-un loc cu internet mai stabil, apoi reîncearcă uploadul.');
-      xhr.onabort = () => fail('Cerere anulată');
+      xhr.ontimeout = () => fail(`Semnal prea slab — upload întrerupt (timeout după ${xhr.timeout / 1000}s).`, true);
+      xhr.onerror = () => fail('Semnalul de internet pare prea slab. Mergi într-o zonă cu semnal mai bun sau conectează-te la Wi-Fi.', true);
+      xhr.onabort = () => fail('Cerere anulată', false);
       xhr.onload = () => {
         if (xhr.status < 200 || xhr.status >= 300) {
           let apiMessage = '';
           try { apiMessage = (JSON.parse(xhr.responseText) as { error?: string }).error ?? ''; } catch { /* ignore */ }
-          fail(apiMessage ? mapQrApiError(apiMessage) : `Status ${xhr.status}`);
+          // 5xx / 0 are transient server/network hiccups worth retrying; 4xx are
+          // permanent (bad PIN, file too large, upload window closed).
+          fail(apiMessage ? mapQrApiError(apiMessage) : `Status ${xhr.status}`, xhr.status === 0 || xhr.status >= 500);
           return;
         }
         try {
           const data = JSON.parse(xhr.responseText) as { error?: string };
-          if (data.error) { fail(mapQrApiError(data.error)); return; }
+          if (data.error) { fail(mapQrApiError(data.error), false); return; }
         } catch {
-          fail('Răspuns invalid de la server');
+          fail('Răspuns invalid de la server', true);
           return;
         }
-        setUploadProgress((prev) => ({ ...prev, [id]: { status: 'done', progress: 100 } }));
         resolve();
       };
 
       xhr.send(formData);
     });
+  };
+
+  const uploadSingleItem = async (id: string, blob: Blob, filename: string, batchId: string): Promise<void> => {
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        setUploadProgress((prev) => ({ ...prev, [id]: { status: 'uploading', progress: 0 } }));
+        await attemptUpload(id, blob, filename, batchId);
+        setUploadProgress((prev) => ({ ...prev, [id]: { status: 'done', progress: 100 } }));
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const retriable = lastError.name === RETRIABLE;
+        if (!retriable || attempt === UPLOAD_MAX_ATTEMPTS) break;
+
+        const waitMs = UPLOAD_RETRY_BACKOFF_MS[attempt - 1] ?? 12_000;
+        setUploadProgress((prev) => ({
+          ...prev,
+          [id]: { status: 'retrying', progress: 0, error: `Semnal slab — reîncerc automat (${attempt}/${UPLOAD_MAX_ATTEMPTS - 1})…` },
+        }));
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
+    }
+
+    setUploadProgress((prev) => ({ ...prev, [id]: { status: 'error', progress: 0, error: lastError?.message ?? 'Upload eșuat' } }));
+    throw lastError ?? new Error('Upload eșuat');
   };
 
   const retryFile = async (id: string) => {
@@ -633,7 +669,7 @@ export default function QRMomentsPage() {
       }
     } catch (error) {
       reportQrDebug('Retry failed for one file', { itemId: id, filename: item.file.name, error: serializeDebugValue(error) });
-      setUploadError('Conexiunea pare prea slabă; mergi într-un loc cu internet mai stabil și apasă din nou „REÎNCEARCĂ”.');
+      setUploadError('Semnalul e prea slab pentru upload. Mergi într-o zonă cu semnal mai bun sau pe Wi-Fi, apoi apasă din nou „REÎNCEARCĂ”. Dacă ai multe poze, trimite-le în grupuri mai mici.');
     } finally {
       setUploading(false);
     }
@@ -658,16 +694,28 @@ export default function QRMomentsPage() {
     const failedIds = new Set<string>();
     const batchId = crypto.randomUUID();
     let hadConnectionFailure = false;
+    const batchFailures: { filename: string; error: string }[] = [];
     for (const item of queue) {
       try {
         await uploadSingleItem(item.id, item.blob, item.filename, batchId);
       } catch (error) {
         failedIds.add(item.id);
-        if (error instanceof Error && (error.message.includes('internet') || error.message.includes('Timeout'))) {
+        if (error instanceof Error && (/semnal|internet|timeout/i).test(error.message)) {
           hadConnectionFailure = true;
         }
-        reportQrDebug('Upload failed for one file', { itemId: item.id, filename: item.filename, error: serializeDebugValue(error) });
+        batchFailures.push({ filename: item.filename, error: serializeDebugValue(error) });
       }
+    }
+
+    // One report per batch, not one per file — a stuck guest can fail dozens of
+    // photos and we don't want dozens of admin emails.
+    if (batchFailures.length > 0) {
+      reportQrDebug('Upload batch had failures', {
+        batchId,
+        failedCount: batchFailures.length,
+        totalCount: queue.length,
+        failures: batchFailures,
+      });
     }
 
     setUploading(false);
@@ -684,11 +732,11 @@ export default function QRMomentsPage() {
     }
 
     const retryMessage = failedIds.size === queue.length
-      ? 'Niciun fișier nu s-a trimis. Verifică conexiunea și încearcă din nou.'
-      : `${failedIds.size} din ${queue.length} fișiere nu s-au trimis. Restul au fost deja trimise — apasă din nou pentru a reîncerca ce a mai rămas.`;
+      ? 'Niciun fișier nu s-a trimis.'
+      : `${failedIds.size} din ${queue.length} fișiere nu s-au trimis. Restul au ajuns deja — apasă din nou pentru a reîncerca ce a mai rămas.`;
     setUploadError(hadConnectionFailure
-      ? `${retryMessage} Conexiunea pare prea slabă; mergi într-un loc cu internet mai stabil și reîncearcă.`
-      : retryMessage);
+      ? `${retryMessage} Semnalul de internet nu e suficient pentru atâtea poze deodată. Mergi într-o zonă cu semnal mai bun (sau conectează-te la Wi-Fi) și încearcă cu mai puține poze o dată — 5–10 pe rând.`
+      : `${retryMessage} Verifică conexiunea și încearcă din nou.`);
   };
 
   const formatSeconds = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
@@ -984,16 +1032,22 @@ export default function QRMomentsPage() {
         {(mediaTab === 'photo' || mediaTab === 'video') && (
           <div className="space-y-4">
             <button
+              disabled={uploading}
               onClick={() => openFilePicker(mediaTab === 'photo'
                 ? 'image/*,.heic,.heif,.jpg,.jpeg,.png,.webp'
                 : 'video/*,.mov,.hevc,.m4v,.mp4,.avi,.mkv'
               )}
-              className="qr-file-picker-button w-full py-8 border border-dashed border-emerald-500/50 bg-emerald-500/5 rounded-xl text-emerald-300 text-sm font-medium hover:border-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors"
+              className="qr-file-picker-button w-full py-8 border border-dashed border-emerald-500/50 bg-emerald-500/5 rounded-xl text-emerald-300 text-sm font-medium hover:border-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors disabled:opacity-50"
             >
               {mediaTab === 'photo' ? '+ Alege poze' : '+ Alege clipuri'}
             </button>
             <p className="text-center text-neutral-600 text-[11px]">
               Limită: maximum {MAX_UPLOAD_FILE_SIZE_MB} MB pentru fiecare fișier. Nu există limită totală pentru selecție.
+            </p>
+            <p className="text-center text-amber-200/70 text-[11px] leading-snug">
+              {mediaTab === 'photo'
+                ? '📶 Pozele se trimit una câte una și pot dura. Încarcă dintr-un loc cu semnal bun sau pe Wi-Fi, ține pagina deschisă până termină și nu bloca ecranul.'
+                : '📶 Clipurile se trimit unul câte unul și pot dura. Încarcă dintr-un loc cu semnal bun sau pe Wi-Fi, ține pagina deschisă până termină și nu bloca ecranul.'}
             </p>
 
             {selectedFiles.length > 0 && (
@@ -1021,6 +1075,13 @@ export default function QRMomentsPage() {
                               />
                             </div>
                             <span className="text-white text-[10px] font-medium">{progress.progress}%</span>
+                          </div>
+                        )}
+
+                        {progress?.status === 'retrying' && (
+                          <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1.5 px-2">
+                            <span className="h-4 w-4 rounded-full border-2 border-amber-300/40 border-t-amber-300 animate-spin" />
+                            <span className="text-amber-200 text-[9px] font-medium text-center leading-tight">{progress.error ?? 'Reîncerc…'}</span>
                           </div>
                         )}
 
@@ -1149,6 +1210,9 @@ export default function QRMomentsPage() {
                       </div>
                       <span className="text-neutral-500 text-[10px]">{uploadProgress.audio.progress}%</span>
                     </div>
+                  )}
+                  {uploadProgress.audio?.status === 'retrying' && (
+                    <p className="text-amber-300 text-[10px]">{uploadProgress.audio.error ?? 'Semnal slab — reîncerc automat…'}</p>
                   )}
                   {uploadProgress.audio?.status === 'error' && (
                     <p className="text-red-400 text-[10px]">Eroare la trimitere, apasă din nou pe „Trimite”.</p>
