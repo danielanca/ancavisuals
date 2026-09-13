@@ -1831,6 +1831,48 @@ const FinancialPage: React.FC = () => {
                 return { ...m, reached, remaining, eta };
               });
 
+              // ── Scenariu pe bază de evenimente rezervate ──────────────────
+              // În loc să presupunem venit uniform, ne uităm la evenimentele
+              // confirmate/tentative care mai urmează până la 31 dec și le
+              // adunăm pe rând, în ordinea datei, la venitul net de până acum.
+              const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+              const invoicedEventIds = new Set(
+                state.invoices.filter((inv) => inv.eventId).map((inv) => inv.eventId as string)
+              );
+              const upcomingEvents = state.events
+                .filter((e) => e.eventDate && (e.status === "confirmat" || e.status === "tentativ"))
+                .filter((e) => (e.eventDate as Date) > now && (e.eventDate as Date) <= endOfYear)
+                .map((e) => ({
+                  ...e,
+                  // Dacă evenimentul e deja facturat parțial, numărăm doar restul
+                  // rămas de facturat — restul e deja prins în overview.totalIncome.
+                  expectedNet: invoicedEventIds.has(e.id) ? Math.max(0, e.pricing.remainingAmount) : e.pricing.total,
+                }))
+                .sort((a, b) => (a.eventDate as Date).getTime() - (b.eventDate as Date).getTime());
+
+              // Cotă de venit net păstrat din brut, extrasă din cheltuielile
+              // deductibile de până acum — o aplicăm și la venitul viitor din evenimente.
+              const dedRatio = overview.totalIncome > 0 ? currentBase / overview.totalIncome : 1;
+              const expectedFromEvents = upcomingEvents.reduce((sum, e) => sum + e.expectedNet, 0);
+              const projectedIncomeEvents = overview.totalIncome + expectedFromEvents;
+              const projectedBaseEvents = currentBase + expectedFromEvents * dedRatio;
+              const projTaxEvents = calcPfaTax(projectedBaseEvents);
+
+              const eventMilestones = milestones.map((m) => {
+                if (m.reached) return { ...m, etaLabel: null as string | null, remainingAfterEvents: 0 };
+                let running = currentBase;
+                let etaLabel: string | null = null;
+                for (const e of upcomingEvents) {
+                  running += e.expectedNet * dedRatio;
+                  if (running >= m.threshold) {
+                    etaLabel = (e.eventDate as Date).toLocaleDateString("ro-RO", { day: "2-digit", month: "short" });
+                    break;
+                  }
+                }
+                const remainingAfterEvents = Math.max(0, m.threshold - projectedBaseEvents);
+                return { ...m, etaLabel, remainingAfterEvents };
+              });
+
               return (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
                   <div className="flex items-center justify-between">
@@ -1877,6 +1919,60 @@ const FinancialPage: React.FC = () => {
                   <p className="text-xs text-neutral-600">
                     Presupune venit uniform pe tot anul. Dacă ai sezon (nunți vara), ajustează mental. Estimat venit din facturi: {fmtCurrency(projectedIncome, "RON")}.
                   </p>
+
+                  {/* Scenariu pe bază de evenimente rezervate */}
+                  <div className="border-t border-neutral-800 pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-white">Scenariu pe bază de evenimente rezervate</p>
+                      <InfoBadge title="Scenariu pe evenimente" description="Venitul net de acum + suma contractată a evenimentelor confirmate/tentative din lista de evenimente, programate până la 31 dec. Mai realist decât media uniformă dacă ai sezon (nunți vara)." />
+                    </div>
+
+                    {upcomingEvents.length === 0 ? (
+                      <p className="text-xs text-neutral-500">Nu ai evenimente confirmate sau tentative programate până la sfârșitul anului.</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <p className="text-xs text-neutral-500">Evenimente rămase</p>
+                            <p className="text-white font-medium text-sm mt-0.5">{upcomingEvents.length} · {fmtCurrency(expectedFromEvents, "RON")}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-neutral-500">Venit net estimat 31 dec</p>
+                            <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(projectedBaseEvents, "RON")}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-neutral-500">Taxe estimate an întreg</p>
+                            <p className="text-amber-300 font-semibold text-sm mt-0.5">{fmtCurrency(projTaxEvents.total, "RON")}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          {eventMilestones.map((m) => (
+                            <div key={m.label}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm text-neutral-300">
+                                  <span className={m.reached ? "text-emerald-400" : "text-neutral-600"}>{m.reached ? "✓ " : "○ "}</span>
+                                  {m.label}
+                                </span>
+                                <span className="text-xs text-neutral-500 shrink-0">prag {fmtCurrency(m.threshold, "RON")}</span>
+                              </div>
+                              <p className="text-xs mt-0.5 ml-4">
+                                {m.reached
+                                  ? <span className="text-emerald-400/80">Deja atins</span>
+                                  : m.etaLabel
+                                    ? <span className="text-amber-300/90">Estimativ pe {m.etaLabel}, după evenimentele rezervate</span>
+                                    : <span className="text-neutral-500">Improbabil cu evenimentele rezervate — ar mai lipsi {fmtCurrency(m.remainingAfterEvents ?? 0, "RON")}</span>}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <p className="text-xs text-neutral-600">
+                          Estimat venit din evenimente rezervate: {fmtCurrency(projectedIncomeEvents, "RON")}. Nu include lead-uri neconfirmate și presupune că evenimentele tentative se confirmă.
+                        </p>
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })()}

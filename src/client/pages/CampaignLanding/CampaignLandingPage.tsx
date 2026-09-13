@@ -207,8 +207,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     if (spinCount >= 3 || promoSeconds <= 0 || spinResult === "won" || spinResult === "spinning") return;
     notifyInteraction("spinner");
     const nextSpin = spinCount + 1;
-    // wedge centres (deg from top, clockwise): FOTOCABINĂ 0 · VIDEOBOOTH 120 · MAI ÎNCEARCĂ 240
-    const targetAngle = nextSpin === 1 ? 240 : 0;
+    // Wedge centres, deg clockwise from top: FOTOCABINĂ 0 · VIDEOBOOTH 120 · MAI ÎNCEARCĂ 240.
+    // The wheel must rotate by (360 − centre) to bring a wedge under the top pointer,
+    // so MAI ÎNCEARCĂ needs 120° and FOTOCABINĂ needs 0°. First spin always lands on
+    // "mai încearcă", the second on the free photo booth.
+    const targetAngle = nextSpin === 1 ? 120 : 0;
     const currentAngle = ((wheelRotation % 360) + 360) % 360;
     const correction = (targetAngle - currentAngle + 360) % 360;
     setSpinCount(nextSpin);
@@ -398,35 +401,49 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                       <line x1="120" y1="120" x2="120" y2="6" transform="rotate(180 120 120)" />
                       <line x1="120" y1="120" x2="120" y2="6" transform="rotate(300 120 120)" />
                     </g>
+                    {/* One label per wedge, each defined in the "top" frame then
+                        rotated onto its wedge bisector so it stays centred and
+                        readable at any wheel angle (conic wedges: FOTOCABINĂ 0° ·
+                        VIDEOBOOTH 120° · MAI ÎNCEARCĂ 240°). */}
                     <g fill="#3a352e" stroke="#3a352e" strokeLinecap="round" strokeLinejoin="round">
-                      {/* FOTOCABINĂ GRATUITĂ — top */}
-                      <g transform="translate(120 40)" fill="none" strokeWidth="2.4">
-                        <rect x="-13" y="-6" width="26" height="18" rx="3" />
-                        <circle cx="0" cy="3" r="5.5" />
-                        <path d="M-6 -6 l2 -4 h8 l2 4" />
-                        <path d="M9 -10 l2 -3 M12 -8 l3 -1 M11 -4 l3 1" strokeWidth="1.8" />
-                      </g>
-                      <text x="120" y="66" textAnchor="middle" fontSize="12" fontWeight="700" letterSpacing="0.4" stroke="none">FOTOCABINĂ</text>
-                      <text x="120" y="80" textAnchor="middle" fontSize="12" fontWeight="700" letterSpacing="0.4" stroke="none">GRATUITĂ</text>
-
-                      {/* VIDEOBOOTH 360 — bottom right */}
-                      <g transform="translate(168 138)" fill="none" strokeWidth="2.2">
-                        <rect x="-7" y="-9" width="14" height="12" rx="2.5" />
-                        <circle cx="0" cy="-3" r="3.2" />
-                        <path d="M-13 4 a13 6 0 0 0 26 0" />
-                        <path d="M-13 4 l3 -2 M-13 4 l1 3" strokeWidth="1.8" />
-                        <path d="M13 4 l-3 -2 M13 4 l-1 3" strokeWidth="1.8" />
-                      </g>
-                      <text x="168" y="162" textAnchor="middle" fontSize="11" fontWeight="700" letterSpacing="0.3" stroke="none">VIDEOBOOTH</text>
-                      <text x="168" y="176" textAnchor="middle" fontSize="11" fontWeight="700" letterSpacing="0.3" stroke="none">360</text>
-
-                      {/* MAI ÎNCEARCĂ — bottom left */}
-                      <g transform="translate(72 138)" fill="none" strokeWidth="2.4">
-                        <path d="M8 -3 a9 9 0 1 0 2 7" />
-                        <path d="M8 -9 v6 h-6" />
-                      </g>
-                      <text x="72" y="162" textAnchor="middle" fontSize="11.5" fontWeight="700" letterSpacing="0.3" stroke="none">MAI</text>
-                      <text x="72" y="176" textAnchor="middle" fontSize="11.5" fontWeight="700" letterSpacing="0.3" stroke="none">ÎNCEARCĂ</text>
+                      {[
+                        {
+                          rot: 0, l1: "FOTOCABINĂ", l2: "GRATUITĂ",
+                          icon: (
+                            <>
+                              <rect x="-13" y="-6" width="26" height="18" rx="3" />
+                              <circle cx="0" cy="3" r="5.5" />
+                              <path d="M-6 -6 l2 -4 h8 l2 4" />
+                              <path d="M9 -10 l2 -3 M12 -8 l3 -1 M11 -4 l3 1" strokeWidth="1.6" />
+                            </>
+                          ),
+                        },
+                        {
+                          rot: 120, l1: "VIDEOBOOTH", l2: "360",
+                          icon: (
+                            <>
+                              <rect x="-9" y="-8" width="18" height="15" rx="3" />
+                              <circle cx="0" cy="-0.5" r="4" />
+                              <path d="M-13 12 a13 6 0 0 1 26 0" />
+                            </>
+                          ),
+                        },
+                        {
+                          rot: 240, l1: "MAI", l2: "ÎNCEARCĂ",
+                          icon: (
+                            <>
+                              <path d="M9 -2 a10 10 0 1 0 2 8" />
+                              <path d="M9 -9 v7 h-7" />
+                            </>
+                          ),
+                        },
+                      ].map(({ rot, l1, l2, icon }) => (
+                        <g key={rot} transform={`rotate(${rot} 120 120)`}>
+                          <g transform="translate(120 34)" fill="none" strokeWidth="2.2">{icon}</g>
+                          <text x="120" y="60" textAnchor="middle" fontSize="13" fontWeight="800" letterSpacing="0.4" stroke="none">{l1}</text>
+                          <text x="120" y="75" textAnchor="middle" fontSize="13" fontWeight="800" letterSpacing="0.4" stroke="none">{l2}</text>
+                        </g>
+                      ))}
                     </g>
                   </svg>
                 </div>
@@ -442,6 +459,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 </button>
               </div>
 
+              {/* prize key — so it's clear what's on the wheel before spinning */}
+              <div className="mx-auto mt-5 flex max-w-sm flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] font-medium text-[#6b6154]">
+                <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#aebd9d]" /> Fotocabină gratuită</span>
+                <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#e7d0c9]" /> Videobooth 360</span>
+                <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#d8cbb7]" /> Mai încearcă</span>
+              </div>
+
               {/* result / hint */}
               {spinResult === "won" ? (
                 <div className="mt-6 rounded-2xl border border-[#e3d8c4] p-5 sm:p-6">
@@ -449,6 +473,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   <p className="font-serif text-2xl leading-snug text-[#2f2a24] sm:text-3xl">Ai câștigat fotocabina gratuită!</p>
                   <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#6b6154]">Menționează acest câștig când ne trimiți cererea de disponibilitate.</p>
                 </div>
+              ) : spinResult === "lost" ? (
+                <p className="mt-6 text-sm text-[#6b6154]">
+                  De data asta n-a fost să fie — <span className="font-semibold text-[#2f2a24]">mai învârte o dată!</span> Șanse rămase: {3 - spinCount}
+                </p>
               ) : (
                 <p className="mt-6 text-sm text-[#6b6154]">
                   {spinResult === "spinning"
