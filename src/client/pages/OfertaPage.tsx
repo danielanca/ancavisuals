@@ -5,6 +5,7 @@ import CampaignLandingPage, { type CampaignPage } from "./CampaignLanding/Campai
 import type { OfferPackage } from "../../shared/offers/offerServices";
 import { measureOaiq } from "../utils/oaiq";
 import PhoneNumberReveal from "../components/PhoneReveal/PhoneNumberReveal";
+import { whenVisitorInteracts } from "../utils/visitorInteraction";
 
 const INITIAL_PHOTO_COUNT = 12;
 
@@ -76,6 +77,36 @@ function viewSessionKey(slug: string) {
   return `oferta_viewed_${slug}`;
 }
 
+/**
+ * Reports a page view exactly once per session — but only once someone
+ * genuinely interacts with the page. iOS silently reloads a saved/forgotten
+ * tab (or briefly resumes it as the last-active tab) whenever the browser
+ * app itself is opened, with no real visitor involved; that must never send
+ * the owner a "someone viewed your offer" email. A click, scroll, tap or key
+ * press is something a backgrounded tab can never produce, so waiting for
+ * one filters those out completely.
+ */
+function trackViewOnceVisible(opts: {
+  sessionKey: string;
+  url: string;
+  body: unknown;
+  trackedRef: React.MutableRefObject<boolean>;
+}): () => void {
+  const { sessionKey, url, body, trackedRef } = opts;
+  if (trackedRef.current || sessionStorage.getItem(sessionKey)) return () => {};
+
+  return whenVisitorInteracts(() => {
+    if (trackedRef.current) return;
+    trackedRef.current = true;
+    sessionStorage.setItem(sessionKey, "1");
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  });
+}
+
 function packageIncludes(value: string): string[] {
   return value
     .split(/\r?\n|•|;/)
@@ -140,29 +171,23 @@ export default function OfertaPage() {
   // Track view once per browser session — offer
   useEffect(() => {
     if (!offer || viewTracked.current) return;
-    const sessionKey = viewSessionKey(slug);
-    if (sessionStorage.getItem(sessionKey)) return;
-    viewTracked.current = true;
-    sessionStorage.setItem(sessionKey, "1");
-    fetch(`/api/oferte/${slug}/view`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pageUrl: window.location.href, referrer: document.referrer }),
-    }).catch(() => {});
+    return trackViewOnceVisible({
+      sessionKey: viewSessionKey(slug),
+      url: `/api/oferte/${slug}/view`,
+      body: { pageUrl: window.location.href, referrer: document.referrer },
+      trackedRef: viewTracked,
+    });
   }, [offer, slug]);
 
   // Track view once per browser session — campaign
   useEffect(() => {
     if (!campaign || viewTracked.current) return;
-    const sessionKey = viewSessionKey(`campaign_${slug}`);
-    if (sessionStorage.getItem(sessionKey)) return;
-    viewTracked.current = true;
-    sessionStorage.setItem(sessionKey, "1");
-    fetch(`/api/campaign/${slug}/view`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pageUrl: window.location.href, referrer: document.referrer }),
-    }).catch(() => {});
+    return trackViewOnceVisible({
+      sessionKey: viewSessionKey(`campaign_${slug}`),
+      url: `/api/campaign/${slug}/view`,
+      body: { pageUrl: window.location.href, referrer: document.referrer },
+      trackedRef: viewTracked,
+    });
   }, [campaign, slug]);
 
   const handleDownload = async () => {

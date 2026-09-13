@@ -3,6 +3,7 @@ import { adminUser } from "../constants/credentials";
 import { APP_BASE_URL } from "../constants/domain";
 import { sendEmail } from "./mailer";
 import { fetchIpInfo, getClientIp, type IpInfo } from "../utils/ipinfo";
+import { isNotifiableCountry } from "../utils/geoFilter";
 
 type OfferViewNotificationInput = {
   slug: string;
@@ -131,10 +132,15 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
     ? `${escapeHtml(location)} (<a href="${mapUrl}" style="color:#6d28d9;">hartă</a>)`
     : escapeHtml(location);
 
-  await sendEmail({
-    to: adminUser.email,
-    subject: `👁 ${kindLabel} · ${traffic.label} — /${input.slug} — ${subjectTime}`,
-    html: `
+  // Views from outside Europe are near-never a real lead for a local RO
+  // business — same policy as the "visitor entered the site" / 404 emails
+  // (see geoFilter.ts). The view still counts and still lands in the
+  // activity feed below; it just doesn't email the owner.
+  if (isNotifiableCountry(ipInfo?.country)) {
+    await sendEmail({
+      to: adminUser.email,
+      subject: `👁 ${kindLabel} · ${traffic.label} — /${input.slug} — ${subjectTime}`,
+      html: `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f5f5f5;padding:24px;color:#171717;">
         <div style="background:#111;color:#fff;border-radius:14px 14px 0 0;padding:24px;">
           <p style="margin:0 0 8px;color:#c4b5fd;font-size:11px;letter-spacing:.18em;text-transform:uppercase;">Ancavisuals · Oferte</p>
@@ -168,7 +174,8 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
         <p style="margin:14px 0 0;text-align:center;color:#a3a3a3;font-size:11px;">Notificare automată · ancavisuals.ro</p>
       </div>
     `,
-  });
+    });
+  }
 
   return { ip, ipInfo, userAgent, pageUrl, referrer, time };
 }

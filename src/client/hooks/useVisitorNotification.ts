@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { getCookie, setCookie, isBrowser } from "../utils/functions";
 import { sendTriggerEmail } from "../utils/triggers";
 import { captureLandingMeta, getLandingMeta } from "../utils/sessionAttribution";
+import { whenVisitorInteracts } from "../utils/visitorInteraction";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin", "/wedding-hub", "/colaborator"];
 const ADMIN_COOKIE = "av_admin";
@@ -90,48 +91,55 @@ export function useVisitorNotification() {
     // Oferta are deja notificarea proprie din /api/oferte/:slug/view.
     if (isOfferVisit) return;
 
-    const aiAttribution = getAiAttribution();
-    const aiNotificationSent = sessionStorage.getItem(AI_NOTIFICATION_KEY) === "1";
+    // A tab silently reloaded by iOS/Safari in the background — or briefly
+    // resumed as the last-active tab when the browser app itself relaunches —
+    // must never count as "a visitor entered the site". Everything below,
+    // including the once-per-session bookkeeping, waits for a real click,
+    // scroll, tap or key press first.
+    return whenVisitorInteracts(() => {
+      const aiAttribution = getAiAttribution();
+      const aiNotificationSent = sessionStorage.getItem(AI_NOTIFICATION_KEY) === "1";
 
-    // AI referrals are high-intent attribution signals. Notify once per browser
-    // session, even if the visitor has already been seen before.
-    if (aiAttribution && !aiNotificationSent) {
-      sessionStorage.setItem(AI_NOTIFICATION_KEY, "1");
+      // AI referrals are high-intent attribution signals. Notify once per browser
+      // session, even if the visitor has already been seen before.
+      if (aiAttribution && !aiNotificationSent) {
+        sessionStorage.setItem(AI_NOTIFICATION_KEY, "1");
+        sendTriggerEmail({
+          typeEvent: `Vizitator din ${aiAttribution.source}`,
+          url: `${aiAttribution.landingPath}${window.location.search}`,
+          isNewVisitor: true,
+          utmSource: aiAttribution.source,
+          utmMedium: aiAttribution.medium,
+          utmCampaign: aiAttribution.campaign,
+        }).catch(() => {});
+        return;
+      }
+
+      const notified = getNotifiedUrls();
+      if (notified.has(location.pathname)) return;
+
+      markUrlNotified(location.pathname);
+
+      const isNewVisitor = getCookie(VISITOR_COOKIE) === null;
+      if (isNewVisitor) {
+        setCookie(VISITOR_COOKIE, "1", VISITOR_COOKIE_DAYS);
+      }
+
+      // Forward the landing attribution so the server can tell Google Ads (gclid /
+      // wbraid / gbraid, or utm_medium=cpc) apart from organic Google search.
+      const landing = getLandingMeta();
       sendTriggerEmail({
-        typeEvent: `Vizitator din ${aiAttribution.source}`,
-        url: `${aiAttribution.landingPath}${window.location.search}`,
-        isNewVisitor: true,
-        utmSource: aiAttribution.source,
-        utmMedium: aiAttribution.medium,
-        utmCampaign: aiAttribution.campaign,
+        typeEvent: "Vizitator",
+        url: location.pathname,
+        isNewVisitor,
+        utmSource: landing?.utmSource,
+        utmMedium: landing?.utmMedium,
+        utmCampaign: landing?.utmCampaign,
+        keyword: landing?.keyword,
+        gclid: landing?.gclid,
+        wbraid: landing?.wbraid,
+        gbraid: landing?.gbraid,
       }).catch(() => {});
-      return;
-    }
-
-    const notified = getNotifiedUrls();
-    if (notified.has(location.pathname)) return;
-
-    markUrlNotified(location.pathname);
-
-    const isNewVisitor = getCookie(VISITOR_COOKIE) === null;
-    if (isNewVisitor) {
-      setCookie(VISITOR_COOKIE, "1", VISITOR_COOKIE_DAYS);
-    }
-
-    // Forward the landing attribution so the server can tell Google Ads (gclid /
-    // wbraid / gbraid, or utm_medium=cpc) apart from organic Google search.
-    const landing = getLandingMeta();
-    sendTriggerEmail({
-      typeEvent: "Vizitator",
-      url: location.pathname,
-      isNewVisitor,
-      utmSource: landing?.utmSource,
-      utmMedium: landing?.utmMedium,
-      utmCampaign: landing?.utmCampaign,
-      keyword: landing?.keyword,
-      gclid: landing?.gclid,
-      wbraid: landing?.wbraid,
-      gbraid: landing?.gbraid,
-    }).catch(() => {});
+    });
   }, [location.pathname]);
 }

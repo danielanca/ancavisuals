@@ -7,6 +7,7 @@ import { BOT_UA } from "../utils/botUa";
 import { logActivity } from "../services/activity.service";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
+import { isNotifiableCountry } from "../utils/geoFilter";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import {
   recordEvent,
@@ -200,9 +201,12 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
       }).catch(() => {});
     }
 
+    // Non-European traffic is near-never a real lead for a local RO business —
+    // same policy as the "visitor entered the site" / offer-view / 404 emails.
     const wantEmail =
-      Boolean(EMAIL_EVENTS[body.event]) ||
-      (body.event === "form_submitted" && formSubmittedShouldEmail(formKind));
+      (Boolean(EMAIL_EVENTS[body.event]) ||
+        (body.event === "form_submitted" && formSubmittedShouldEmail(formKind))) &&
+      isNotifiableCountry(session.country);
     if (wantEmail && shouldEmailEvent(body.sessionId, body.event, emailDiscriminator)) {
       sendEventEmail(body.event, session, {
         event: body.event,

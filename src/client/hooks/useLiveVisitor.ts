@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { getCookie, isBrowser } from "../utils/functions";
 import { getSessionId, getVisitorId, looksLikeBot } from "../utils/visitorSession";
 import { captureLandingMeta, getLandingMeta, isGoogleAdsSession } from "../utils/sessionAttribution";
+import { whenVisitorInteracts } from "../utils/visitorInteraction";
 
 const ADMIN_COOKIE = "av_admin";
 const SKIP_PREFIXES = ["/admin", "/login", "/revin", "/wedding-hub", "/colaborator", "/backup"];
@@ -148,12 +149,13 @@ export function useLiveVisitor() {
     // expose to the route effect below
     sendRef.current = send;
 
-    if (!firedOnceThisSession("session_started")) {
+    const stopSessionStartWatch = whenVisitorInteracts(() => {
+      if (firedOnceThisSession("session_started")) return;
       const meta = getLandingMeta();
       send("session_started", {
         landingMeta: meta ? { ...meta, isGoogleAds: isGoogleAdsSession(meta) } : undefined,
       });
-    }
+    });
 
     // Heartbeat
     const hb = window.setInterval(() => {
@@ -280,6 +282,7 @@ export function useLiveVisitor() {
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
+      stopSessionStartWatch();
       window.clearInterval(hb);
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("focusin", onFocusIn, true);
@@ -301,12 +304,14 @@ export function useLiveVisitor() {
     const send = sendRef.current;
     if (!send) return;
 
-    // small delay so document.title reflects the new route (Helmet updates async)
-    const t = window.setTimeout(() => {
-      send("page_view", { page: path, pageTitle: document.title, meta: { name: friendlyPageName(path) } });
-      if (isPricingPath(path)) send("pricing_viewed", { page: path, priority: "high", label: friendlyPageName(path) });
-      if (isGalleryPath(path)) send("gallery_viewed", { page: path, label: friendlyPageName(path) });
-    }, 250);
+    const stopPageViewWatch = whenVisitorInteracts(() => {
+      // small delay so document.title reflects the new route (Helmet updates async)
+      window.setTimeout(() => {
+        send("page_view", { page: path, pageTitle: document.title, meta: { name: friendlyPageName(path) } });
+        if (isPricingPath(path)) send("pricing_viewed", { page: path, priority: "high", label: friendlyPageName(path) });
+        if (isGalleryPath(path)) send("gallery_viewed", { page: path, label: friendlyPageName(path) });
+      }, 250);
+    });
 
     scrollHitRef.current = new Set();
     const onScroll = () => {
@@ -346,7 +351,7 @@ export function useLiveVisitor() {
     document.querySelectorAll("[data-track-section]").forEach((el) => io.observe(el));
 
     return () => {
-      window.clearTimeout(t);
+      stopPageViewWatch();
       window.removeEventListener("scroll", onScroll);
       dwellTimers.forEach((id) => window.clearTimeout(id));
       io.disconnect();

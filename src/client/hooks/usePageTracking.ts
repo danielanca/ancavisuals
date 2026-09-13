@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { getCookie, isBrowser } from "../utils/functions";
 import { getSessionId, getVisitorId, looksLikeBot } from "../utils/visitorSession";
+import { whenVisitorInteracts } from "../utils/visitorInteraction";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 const ADMIN_COOKIE = "av_admin";
@@ -88,25 +89,31 @@ export function usePageTracking() {
     const params = new URLSearchParams(window.location.search);
     const attribution = getAttribution();
 
-    fetch("/api/analytics/pageview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        page,
-        referrer,
-        sessionId,
-        visitorId,
-        isNew,
-        utmSource: attribution.source || params.get("utm_source") || undefined,
-        utmMedium: attribution.medium || params.get("utm_medium") || undefined,
-        utmCampaign: attribution.campaign || params.get("utm_campaign") || undefined,
-      }),
-    })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data: { ok: boolean; id?: string } | null) => {
-        if (data?.id) docId.current = data.id;
+    // iOS silently reloads a saved/forgotten tab (or briefly resumes it as the
+    // last-active tab) whenever the browser app itself is opened — with no
+    // real visitor involved. Wait for a genuine click, scroll, tap or key
+    // press before counting it, so a background reload never logs a visit.
+    const stopPageviewWatch = whenVisitorInteracts(() => {
+      fetch("/api/analytics/pageview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page,
+          referrer,
+          sessionId,
+          visitorId,
+          isNew,
+          utmSource: attribution.source || params.get("utm_source") || undefined,
+          utmMedium: attribution.medium || params.get("utm_medium") || undefined,
+          utmCampaign: attribution.campaign || params.get("utm_campaign") || undefined,
+        }),
       })
-      .catch(() => {});
+        .then((r) => r.ok ? r.json() : null)
+        .then((data: { ok: boolean; id?: string } | null) => {
+          if (data?.id) docId.current = data.id;
+        })
+        .catch(() => {});
+    });
 
     // ── Activity tracking ─────────────────────────────────────────
     // Any interaction resets the idle clock
@@ -151,6 +158,7 @@ export function usePageTracking() {
     }, HEARTBEAT_MS);
 
     return () => {
+      stopPageviewWatch();
       clearInterval(interval);
       window.removeEventListener("scroll", onScroll);
       ACTIVITY_EVENTS.forEach((ev) => window.removeEventListener(ev, onActivity));
