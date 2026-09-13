@@ -9,7 +9,6 @@ import {
   CITIES,
   GOOGLE_REVIEWS,
   GOOGLE_REVIEW_COUNT,
-  GOOGLE_BUSINESS_URL,
   SERVICES,
   getCityBySlug,
   getServiceBySlug,
@@ -118,7 +117,6 @@ const LocationPage: React.FC<Props> = ({
         author: { "@type": "Person", name: review.author },
         reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
         reviewBody: review.text,
-        publisher: { "@type": "Organization", name: "Google Business Profile" },
       })),
     },
     {
@@ -277,24 +275,12 @@ const LocationPage: React.FC<Props> = ({
       <PortfolioGallery altBase={galleryAltBase} />
 
       <section className="mx-auto max-w-6xl px-6 py-16">
-        <div className="flex items-end justify-between gap-6">
-          <div>
-            <h2 className="text-2xl font-light md:text-3xl">Review-uri Google</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-400">
-              Recenzii reale de la clienți care au lucrat cu noi pentru nunți, botezuri și alte
-              evenimente.
-            </p>
-          </div>
-          <div className="hidden text-right text-sm text-amber-200/80 md:block">
-            <a
-              href={GOOGLE_BUSINESS_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="underline decoration-amber-200/40 underline-offset-4 transition-colors hover:text-amber-100"
-            >
-              Rating Google: 5/5 din {GOOGLE_REVIEW_COUNT} review-uri · Vezi pe Google Business
-            </a>
-          </div>
+        <div>
+          <h2 className="text-2xl font-light md:text-3xl">Review-uri Google</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-400">
+            Recenzii reale de la clienți care au lucrat cu noi pentru nunți, botezuri și alte
+            evenimente.
+          </p>
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">

@@ -236,9 +236,9 @@ export function recordEvent(input: RecordEventInput, ctx: SessionContext): { ses
     name: input.event,
     at: now,
     page,
-    label: input.label,
     priority: input.priority ?? "normal",
-    meta,
+    ...(input.label !== undefined ? { label: input.label } : {}),
+    ...(meta !== undefined ? { meta } : {}),
   };
   session.events.push(event);
   if (session.events.length > EVENTS_CAP) session.events.splice(0, session.events.length - EVENTS_CAP);

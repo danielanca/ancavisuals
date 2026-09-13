@@ -4,6 +4,7 @@ import { jsonrepair } from "jsonrepair";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { requireFirebaseAuth, requireSupremeAdmin, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
 import { firestore } from "../firestore.js";
+import { dataforSeoCredentials, fetchKeywordSuggestions, KeywordIdeasError } from "../lib/dataforseoKeywords";
 
 const HISTORY_COLLECTION = "seoRadarSearches";
 const LINKED_COLLECTION = "seoRadarLinkedPosts";
@@ -76,12 +77,6 @@ function analysisGroupKey(keyword: string, provider: SearchProvider): string {
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
   return `${provider}::${Array.from(new Set(words)).sort().join(" ")}`;
-}
-
-// Diacritics/case/whitespace-insensitive form, order preserved — used to de-dupe keyword
-// suggestions and to exclude the seed term itself from its own alternatives.
-function normalizeKeyword(value: string): string {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function ownResult(results: SerpResult[]): SerpResult | null {
@@ -858,131 +853,21 @@ router.post("/diacritics", async (req, res) => {
 });
 
 router.post("/keyword-alternatives", async (req, res) => {
-  const login = process.env.API_LOGIN_DATAFORSEO;
-  const password = process.env.API_DATAFORSEO_PASSWORD;
-  if (!login || !password) return res.status(500).json({ error: "Lipsesc API_LOGIN_DATAFORSEO și API_DATAFORSEO_PASSWORD din .env." });
+  const credentials = dataforSeoCredentials();
+  if (!credentials) return res.status(500).json({ error: "Lipsesc API_LOGIN_DATAFORSEO și API_DATAFORSEO_PASSWORD din .env." });
 
   const baseKeyword = typeof req.body?.baseKeyword === "string" ? req.body.baseKeyword.trim() : "";
   const city = typeof req.body?.city === "string" ? req.body.city.trim() : "";
   if (!baseKeyword) return res.status(400).json({ error: "Keyword-ul de bază este obligatoriu." });
 
-  const seed = city ? `${baseKeyword} ${city}` : baseKeyword;
-  const seedNorm = normalizeKeyword(seed);
-  const credentials = Buffer.from(`${login}:${password}`).toString("base64");
-  const headers = { "Content-Type": "application/json", Authorization: `Basic ${credentials}` };
-
-  // Combined "serviciu + oraș" seeds return a lot of noise from Labs (generic city queries
-  // that have nothing to do with the service). Require the suggestion to still carry a real
-  // word from the service term itself — a no-op when baseKeyword has no city attached.
-  const baseWords = normalizeKeyword(baseKeyword).split(" ").filter((word) => word.length >= 3);
-  const isRelevant = (keyword: string): boolean => {
-    if (!baseWords.length) return true;
-    const norm = normalizeKeyword(keyword);
-    return baseWords.some((word) => norm.includes(word));
-  };
-
-  const suggestions = new Map<string, { keyword: string; volume: number | null; trendScore: number | null; rising: boolean }>();
-  const upsert = (keyword: string, patch: { volume?: number | null; trendScore?: number | null; rising?: boolean }) => {
-    const norm = normalizeKeyword(keyword);
-    if (!norm || norm === seedNorm || !isRelevant(keyword)) return;
-    const current = suggestions.get(norm) ?? { keyword: keyword.trim(), volume: null, trendScore: null, rising: false };
-    if (patch.volume !== undefined && patch.volume !== null) current.volume = patch.volume;
-    if (patch.trendScore !== undefined && patch.trendScore !== null) current.trendScore = Math.max(current.trendScore ?? 0, patch.trendScore);
-    if (patch.rising) current.rising = true;
-    suggestions.set(norm, current);
-  };
-
-  const results = await Promise.allSettled([
-    fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/related_keywords/live", {
-      method: "POST", headers,
-      body: JSON.stringify([{ keyword: seed, location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro", depth: 1, limit: 20 }]),
-    }).then(r => r.json()),
-    fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/keyword_ideas/live", {
-      method: "POST", headers,
-      body: JSON.stringify([{ keywords: [seed], location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro", limit: 20 }]),
-    }).then(r => r.json()),
-    fetch("https://api.dataforseo.com/v3/keywords_data/google_trends/explore/live", {
-      method: "POST", headers,
-      body: JSON.stringify([{ keywords: [seed], location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro", type: "web", item_types: ["google_trends_queries_list"] }]),
-    }).then(r => r.json()),
-  ]);
-
-  let succeeded = 0;
-  const [relatedResult, ideasResult, trendsResult] = results;
-
-  if (relatedResult.status === "fulfilled") {
-    try {
-      const items = (relatedResult.value as JsonRecord).tasks;
-      const list = Array.isArray(items) ? asRecord(asRecord(items[0]).result && (asRecord(items[0]).result as unknown[])[0]) : {};
-      const rows = Array.isArray(list.items) ? list.items : [];
-      for (const row of rows) {
-        const kwData = asRecord(asRecord(row).keyword_data);
-        const keyword = stringValue(kwData, "keyword");
-        const info = asRecord(kwData.keyword_info);
-        const volume = typeof info.search_volume === "number" ? info.search_volume : null;
-        if (keyword) upsert(keyword, { volume });
-      }
-      succeeded++;
-    } catch (error) {
-      console.error("[seo-radar] related_keywords parse error:", error);
-    }
+  try {
+    const suggestions = await fetchKeywordSuggestions(baseKeyword, city, credentials);
+    res.json({ suggestions: suggestions.slice(0, 20) });
+  } catch (error) {
+    if (error instanceof KeywordIdeasError) return res.status(502).json({ error: error.message });
+    console.error("[seo-radar] keyword-alternatives error:", error);
+    res.status(502).json({ error: "Nu am putut găsi sugestii de keyword-uri." });
   }
-
-  if (ideasResult.status === "fulfilled") {
-    try {
-      const tasks = (ideasResult.value as JsonRecord).tasks;
-      const list = Array.isArray(tasks) ? asRecord(asRecord(tasks[0]).result && (asRecord(tasks[0]).result as unknown[])[0]) : {};
-      const rows = Array.isArray(list.items) ? list.items : [];
-      for (const row of rows) {
-        const item = asRecord(row);
-        const keyword = stringValue(item, "keyword");
-        const info = asRecord(item.keyword_info);
-        const volume = typeof info.search_volume === "number" ? info.search_volume : null;
-        if (keyword) upsert(keyword, { volume });
-      }
-      succeeded++;
-    } catch (error) {
-      console.error("[seo-radar] keyword_ideas parse error:", error);
-    }
-  }
-
-  if (trendsResult.status === "fulfilled") {
-    try {
-      const tasks = (trendsResult.value as JsonRecord).tasks;
-      const list = Array.isArray(tasks) ? asRecord(asRecord(tasks[0]).result && (asRecord(tasks[0]).result as unknown[])[0]) : {};
-      const items = Array.isArray(list.items) ? list.items : [];
-      const queriesItem = items.map(asRecord).find(item => stringValue(item, "type") === "google_trends_queries_list");
-      const data = asRecord(queriesItem?.data);
-      const top = Array.isArray(data.top) ? data.top : [];
-      const rising = Array.isArray(data.rising) ? data.rising : [];
-      for (const row of top) {
-        const item = asRecord(row);
-        const keyword = stringValue(item, "query");
-        if (keyword) upsert(keyword, { trendScore: numberValue(item, "value", 0) });
-      }
-      for (const row of rising) {
-        const item = asRecord(row);
-        const keyword = stringValue(item, "query");
-        if (keyword) upsert(keyword, { trendScore: numberValue(item, "value", 0), rising: true });
-      }
-      succeeded++;
-    } catch (error) {
-      console.error("[seo-radar] google_trends parse error:", error);
-    }
-  }
-
-  if (succeeded === 0) {
-    return res.status(502).json({ error: "Nu am putut găsi sugestii de keyword-uri." });
-  }
-
-  const sorted = Array.from(suggestions.values()).sort((a, b) => {
-    if (a.volume !== null && b.volume !== null) return b.volume - a.volume;
-    if (a.volume !== null) return -1;
-    if (b.volume !== null) return 1;
-    return (b.trendScore ?? 0) - (a.trendScore ?? 0);
-  }).slice(0, 20);
-
-  res.json({ suggestions: sorted });
 });
 
 async function searchSerpApi(keyword: string, city: string, apiKey: string): Promise<{ payload: JsonRecord; metadata: JsonRecord }> {
