@@ -14,6 +14,7 @@ type OfferMediaAsset = {
   sourceAlbumSlug?: string;
   sourceProposalId?: string;
   displayUrl?: string;
+  alt?: string;
 };
 
 type ProposalItem = {
@@ -86,6 +87,8 @@ export default function MediaAssetsAdminPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
   const [reprocessSummary, setReprocessSummary] = useState<string | null>(null);
+  const [generatingAltIds, setGeneratingAltIds] = useState<Set<string>>(new Set());
+  const [bulkAltProgress, setBulkAltProgress] = useState<{ done: number; total: number } | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -161,6 +164,41 @@ export default function MediaAssetsAdminPage() {
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : String(deleteError));
     }
+  }
+
+  async function generateAlt(assetId: string) {
+    setGeneratingAltIds(current => new Set(current).add(assetId));
+    try {
+      const response = await fetch(`/api/oferte/admin/media-assets/${assetId}/generate-alt`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      const data = await readJsonResponse<{ alt?: string; error?: string }>(response);
+      if (!response.ok) throw new Error(data.error ?? "Generarea alt-ului a esuat.");
+      setAssets(current => current.map(asset => asset.id === assetId ? { ...asset, alt: data.alt ?? "" } : asset));
+      return true;
+    } catch (altError) {
+      setError(altError instanceof Error ? altError.message : String(altError));
+      return false;
+    } finally {
+      setGeneratingAltIds(current => {
+        const next = new Set(current);
+        next.delete(assetId);
+        return next;
+      });
+    }
+  }
+
+  async function generateMissingAlts() {
+    const targets = assets.filter(asset => asset.kind === "image" && !asset.alt);
+    if (targets.length === 0) return;
+    setError(null);
+    setBulkAltProgress({ done: 0, total: targets.length });
+    for (const [index, asset] of targets.entries()) {
+      await generateAlt(asset.id);
+      setBulkAltProgress({ done: index + 1, total: targets.length });
+    }
+    setBulkAltProgress(null);
   }
 
   async function handleDeleteGroup() {
@@ -336,14 +374,26 @@ export default function MediaAssetsAdminPage() {
               Biblioteca globala pentru poze si video folosite in oferte. Fisierele sunt urcate in Bunny sub <code className="text-neutral-400">offers-assets/</code>, independent de galeriile de album.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void reprocessAlbumImports()}
-            disabled={reprocessing}
-            className="shrink-0 rounded-lg border border-teal-800 px-4 py-2 text-sm text-teal-300 transition-colors hover:border-teal-600 hover:text-teal-200 disabled:border-neutral-800 disabled:text-neutral-600"
-          >
-            {reprocessing ? "Se optimizeaza..." : "Optimizeaza importurile din albume"}
-          </button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void generateMissingAlts()}
+              disabled={!!bulkAltProgress || assets.filter(a => a.kind === "image" && !a.alt).length === 0}
+              className="rounded-lg border border-violet-800 px-4 py-2 text-sm text-violet-300 transition-colors hover:border-violet-600 hover:text-violet-200 disabled:border-neutral-800 disabled:text-neutral-600"
+            >
+              {bulkAltProgress
+                ? `Generez alt-uri... (${bulkAltProgress.done}/${bulkAltProgress.total})`
+                : `Genereaza alt-uri lipsa (AI)${assets.filter(a => a.kind === "image" && !a.alt).length > 0 ? ` (${assets.filter(a => a.kind === "image" && !a.alt).length})` : ""}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => void reprocessAlbumImports()}
+              disabled={reprocessing}
+              className="rounded-lg border border-teal-800 px-4 py-2 text-sm text-teal-300 transition-colors hover:border-teal-600 hover:text-teal-200 disabled:border-neutral-800 disabled:text-neutral-600"
+            >
+              {reprocessing ? "Se optimizeaza..." : "Optimizeaza importurile din albume"}
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -473,7 +523,7 @@ export default function MediaAssetsAdminPage() {
                                     {asset.kind === "video" ? (
                                       <video src={assetUrl(asset)} className="w-full" muted draggable={false} />
                                     ) : (
-                                      <img src={assetUrl(asset)} alt={asset.label} className="w-full" loading="lazy" draggable={false} />
+                                      <img src={assetUrl(asset)} alt={asset.alt || asset.label} className="w-full" loading="lazy" draggable={false} />
                                     )}
                                     <button
                                       type="button"
@@ -483,7 +533,23 @@ export default function MediaAssetsAdminPage() {
                                     >
                                       ×
                                     </button>
+                                    {asset.kind === "image" && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); void generateAlt(asset.id); }}
+                                        disabled={generatingAltIds.has(asset.id)}
+                                        title={asset.alt ? "Regenereaza alt (AI)" : "Genereaza alt (AI)"}
+                                        className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/75 text-xs text-white opacity-0 transition-opacity hover:bg-violet-600 group-hover:opacity-100 disabled:opacity-100"
+                                      >
+                                        {generatingAltIds.has(asset.id) ? "…" : "AI"}
+                                      </button>
+                                    )}
                                   </div>
+                                  {asset.kind === "image" && (
+                                    <p className={`truncate px-2 py-1.5 text-[10px] ${asset.alt ? "text-neutral-400" : "text-neutral-700 italic"}`} title={asset.alt}>
+                                      {asset.alt || "fara alt text"}
+                                    </p>
+                                  )}
                                 </article>
                               ))}
                             </div>
@@ -579,7 +645,7 @@ export default function MediaAssetsAdminPage() {
           ) : (
             <img
               src={assetUrl(lightbox)}
-              alt={lightbox.label}
+              alt={lightbox.alt || lightbox.label}
               className="max-h-[90vh] max-w-full rounded-2xl object-contain"
               onClick={(e) => e.stopPropagation()}
             />

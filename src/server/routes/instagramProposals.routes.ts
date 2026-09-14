@@ -7,6 +7,7 @@ import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } fro
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { markCollaboratorInviteCompleted } from "../services/collaboratorInvite.service";
+import { generateRomanianAlt } from "../lib/imageAlt";
 
 const router = express.Router();
 const COLLECTION = "instagramProposals";
@@ -80,6 +81,7 @@ async function importProposalToMediaAssets(id: string, proposal: Record<string, 
 
   const { buffer, contentType } = await downloadBunnyOriginal(photoUrl);
   const createdAt = new Date().toISOString();
+  const alt = typeof proposal.alt === "string" && proposal.alt.trim() ? proposal.alt.trim() : undefined;
 
   const createdIds = await Promise.all(serviceIds.map(async serviceId => {
     const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName.replace(/[^a-zA-Z0-9.]/g, "_")}`;
@@ -95,6 +97,7 @@ async function importProposalToMediaAssets(id: string, proposal: Record<string, 
       sourceProposalId: id,
       sourceAlbumSlug: proposal.albumSlug ?? "",
       sourcePhotoUrl: photoUrl,
+      ...(alt ? { alt } : {}),
     });
     return docRef.id;
   }));
@@ -249,6 +252,47 @@ router.get("/album/:slug", requireFirebaseAuth, async (req: Request, res: Respon
     res.json({ proposals });
   } catch (error) {
     res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /generate-alt — generates a Romanian alt text (Claude Vision) for a photo and saves it
+// on every proposal doc that represents it (a photo proposed by several people has one doc per
+// person). Runs before acceptance so that if the photo is later imported into Media Assets, the
+// alt text is already carried over by importProposalToMediaAssets.
+router.post("/generate-alt", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { ids, photoUrl } = req.body as { ids?: string[]; photoUrl?: string };
+  const targetIds = Array.isArray(ids) ? ids.filter((value): value is string => typeof value === "string" && value.length > 0) : [];
+  if (!targetIds.length || !photoUrl) {
+    res.status(400).json({ error: "ids si photoUrl sunt obligatorii." });
+    return;
+  }
+
+  try {
+    const { alt, skip } = await generateRomanianAlt(originalPhotoUrl(photoUrl));
+    const finalAlt = skip ? "" : alt;
+
+    const db = firestore();
+    const batch = db.batch();
+    for (const id of targetIds) batch.update(db.collection(COLLECTION).doc(id), { alt: finalAlt });
+    await batch.commit();
+
+    // Best-effort: if any of these proposals were already imported into Media Assets
+    // (accepted before this alt text existed), keep the live copy in sync too.
+    const docs = await Promise.all(targetIds.map(id => db.collection(COLLECTION).doc(id).get()));
+    const mediaAssetIds = docs.flatMap(doc => {
+      const data = doc.data();
+      return Array.isArray(data?.mediaAssetIds) ? data.mediaAssetIds as string[] : [];
+    });
+    if (mediaAssetIds.length > 0) {
+      const assetBatch = db.batch();
+      for (const assetId of new Set(mediaAssetIds)) assetBatch.update(db.collection("offer_media_assets").doc(assetId), { alt: finalAlt });
+      await assetBatch.commit();
+    }
+
+    res.json({ alt: finalAlt });
+  } catch (error) {
+    console.error("[instagram-proposals] generate-alt error:", error);
+    res.status(502).json({ error: "Nu am putut genera textul alt." });
   }
 });
 

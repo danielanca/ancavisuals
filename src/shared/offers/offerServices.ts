@@ -19,6 +19,7 @@ export type OfferMediaAsset = {
   sourceAlbumSlug?: string;
   sourceProposalId?: string;
   displayUrl?: string;
+  alt?: string;
 };
 
 export type OfferTemplateAsset = {

@@ -18,6 +18,7 @@ type InstagramProposal = {
   status: ProposalStatus;
   destinations?: ProposalDestination[];
   mediaAssetServiceIds?: string[];
+  alt?: string;
 };
 
 type GroupedProposal = {
@@ -30,6 +31,7 @@ type GroupedProposal = {
   ids: string[];
   status: ProposalStatus;
   destinations: ProposalDestination[];
+  alt?: string;
 };
 
 const STATUS_PRIORITY: Record<ProposalStatus, number> = { pending: 4, accepted: 3, archived: 2, rejected: 1 };
@@ -49,6 +51,7 @@ function groupByPhoto(proposals: InstagramProposal[]): GroupedProposal[] {
         ids: [],
         status: p.status,
         destinations: [],
+        alt: undefined,
       });
     }
     const group = map.get(key)!;
@@ -57,6 +60,7 @@ function groupByPhoto(proposals: InstagramProposal[]): GroupedProposal[] {
     for (const dest of (p.destinations ?? ["instagram"] as ProposalDestination[])) {
       if (!group.destinations.includes(dest)) group.destinations.push(dest);
     }
+    if (!group.alt && p.alt) group.alt = p.alt;
     if (STATUS_PRIORITY[p.status] > STATUS_PRIORITY[group.status]) group.status = p.status;
   }
   return Array.from(map.values());
@@ -103,16 +107,20 @@ function PendingCard({
   group,
   busy,
   accepted,
+  generatingAlt,
   onAccept,
   onReject,
   onDelete,
+  onGenerateAlt,
 }: {
   group: GroupedProposal;
   busy: boolean;
   accepted: boolean;
+  generatingAlt: boolean;
   onAccept: (destinations: ProposalDestination[]) => void;
   onReject: () => void;
   onDelete: () => void;
+  onGenerateAlt: () => void;
 }) {
   const [accepting, setAccepting] = useState(false);
   const [acceptDests, setAcceptDests] = useState<Set<ProposalDestination>>(
@@ -136,11 +144,22 @@ function PendingCard({
         <div className="relative flex-shrink-0 w-28 sm:w-full">
           <img
             src={group.originalPhotoUrl ?? group.photoUrl}
-            alt={group.fileName}
+            alt={group.alt || group.fileName}
             className="w-full h-28 sm:h-auto sm:aspect-square object-cover block"
             loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+          {!accepted && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onGenerateAlt(); }}
+              disabled={generatingAlt}
+              title={group.alt ? "Regenereaza alt (AI)" : "Genereaza alt (AI)"}
+              className="absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/75 text-[10px] font-bold text-white hover:bg-violet-600 transition-colors disabled:opacity-60"
+            >
+              {generatingAlt ? "…" : "AI"}
+            </button>
+          )}
           {accepted && (
             <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
               <div className="flex flex-col items-center gap-1">
@@ -169,6 +188,7 @@ function PendingCard({
           >
             {group.albumSlug}
           </a>
+          {group.alt && <p className="truncate text-[10px] text-neutral-500" title={group.alt}>{group.alt}</p>}
 
           {accepted ? (
             <div className="flex gap-1 flex-wrap">
@@ -273,29 +293,42 @@ function AcceptedCard({
   proposal,
   wasDownloaded,
   busy,
+  generatingAlt,
   onDownload,
   onArchive,
   onDelete,
+  onGenerateAlt,
 }: {
   proposal: InstagramProposal;
   wasDownloaded: boolean;
   busy: boolean;
+  generatingAlt: boolean;
   onDownload: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  onGenerateAlt: () => void;
 }) {
   return (
     <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
       <div className="relative">
         <img
           src={proposal.originalPhotoUrl ?? proposal.photoUrl}
-          alt={proposal.fileName}
+          alt={proposal.alt || proposal.fileName}
           className="w-full aspect-square object-cover block"
           loading="lazy"
         />
         <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-900/70 text-cyan-300">
           Acceptat
         </span>
+        <button
+          type="button"
+          onClick={onGenerateAlt}
+          disabled={generatingAlt}
+          title={proposal.alt ? "Regenereaza alt (AI)" : "Genereaza alt (AI)"}
+          className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/75 text-[10px] font-bold text-white hover:bg-violet-600 transition-colors disabled:opacity-60"
+        >
+          {generatingAlt ? "…" : "AI"}
+        </button>
       </div>
       <div className="p-3 flex flex-col gap-2 flex-1">
         <a
@@ -306,6 +339,7 @@ function AcceptedCard({
         >
           {proposal.albumSlug}
         </a>
+        {proposal.alt && <p className="truncate text-[10px] text-neutral-500" title={proposal.alt}>{proposal.alt}</p>}
         <div className="flex gap-1 flex-wrap">
           {(proposal.destinations ?? ["instagram"]).map((destination) => (
             <span
@@ -407,6 +441,8 @@ export default function InstagramProposalsAdminPage() {
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const [acceptedInSession, setAcceptedInSession] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [generatingAltKeys, setGeneratingAltKeys] = useState<Set<string>>(new Set());
+  const [bulkAltProgress, setBulkAltProgress] = useState<{ done: number; total: number } | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -456,6 +492,38 @@ export default function InstagramProposalsAdminPage() {
       setProposals((prev) => prev.map((p) => ids.includes(p.id) ? { ...p, status, ...(destinations ? { destinations } : {}) } : p));
       if (status === "accepted") setAcceptedInSession((prev) => new Set([...prev, groupKey]));
     } catch { } finally { setUpdatingId(null); }
+  };
+
+  const generateAlt = async (key: string, ids: string[], photoUrl: string) => {
+    if (!auth.accessToken) return;
+    setGeneratingAltKeys((prev) => new Set(prev).add(key));
+    try {
+      const response = await fetch("/api/instagram-proposals/generate-alt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({ ids, photoUrl }),
+      });
+      const data = await response.json() as { alt?: string; error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Generarea a esuat.");
+      setProposals((prev) => prev.map((p) => (ids.includes(p.id) ? { ...p, alt: data.alt ?? "" } : p)));
+    } catch { } finally {
+      setGeneratingAltKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  const generateMissingAltsForPending = async (groups: GroupedProposal[]) => {
+    const targets = groups.filter((group) => !group.alt);
+    if (targets.length === 0) return;
+    setBulkAltProgress({ done: 0, total: targets.length });
+    for (const [index, group] of targets.entries()) {
+      await generateAlt(group.key, group.ids, group.photoUrl);
+      setBulkAltProgress({ done: index + 1, total: targets.length });
+    }
+    setBulkAltProgress(null);
   };
 
   const deleteProposal = async (id: string) => {
@@ -650,37 +718,58 @@ export default function InstagramProposalsAdminPage() {
               </div>
             );
           }
-          return albumGroups.map(([albumSlug, albumProposals]) => {
-            const photoGroups = groupByPhoto(albumProposals);
-            return (
-              <div key={albumSlug} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-                <AlbumGroupHeader
-                  albumSlug={albumSlug}
-                  count={photoGroups.length}
-                  label={photoGroups.length !== albumProposals.length ? `poze (${albumProposals.length} propuneri)` : "propuneri"}
-                  labelColor="bg-orange-500/20 text-orange-400"
-                  isCollapsed={collapsedAlbums.has(albumSlug)}
-                  onToggle={() => toggleAlbum(albumSlug)}
-                />
-                {!collapsedAlbums.has(albumSlug) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-neutral-800">
-                    {photoGroups.map((group) => (
-                      <div key={group.key} className="bg-neutral-950">
-                        <PendingCard
-                          group={group}
-                          busy={updatingId === group.key}
-                          accepted={acceptedInSession.has(group.key)}
-                          onAccept={(destinations) => updateStatusGroup(group.key, group.ids, "accepted", destinations)}
-                          onReject={() => updateStatusGroup(group.key, group.ids, "rejected")}
-                          onDelete={() => deleteProposalGroup(group.key, group.ids)}
-                        />
+          const allPhotoGroups = albumGroups.flatMap(([, albumProposals]) => groupByPhoto(albumProposals));
+          const missingAltCount = allPhotoGroups.filter((group) => !group.alt).length;
+          return (
+            <>
+              {missingAltCount > 0 && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => void generateMissingAltsForPending(allPhotoGroups)}
+                    disabled={!!bulkAltProgress}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-violet-900/40 text-violet-300 border border-violet-800/60 hover:bg-violet-800/50 transition-colors disabled:opacity-40"
+                  >
+                    {bulkAltProgress
+                      ? `Generez alt-uri... (${bulkAltProgress.done}/${bulkAltProgress.total})`
+                      : `Genereaza alt-uri lipsa (AI) (${missingAltCount})`}
+                  </button>
+                </div>
+              )}
+              {albumGroups.map(([albumSlug, albumProposals]) => {
+                const photoGroups = groupByPhoto(albumProposals);
+                return (
+                  <div key={albumSlug} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                    <AlbumGroupHeader
+                      albumSlug={albumSlug}
+                      count={photoGroups.length}
+                      label={photoGroups.length !== albumProposals.length ? `poze (${albumProposals.length} propuneri)` : "propuneri"}
+                      labelColor="bg-orange-500/20 text-orange-400"
+                      isCollapsed={collapsedAlbums.has(albumSlug)}
+                      onToggle={() => toggleAlbum(albumSlug)}
+                    />
+                    {!collapsedAlbums.has(albumSlug) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-neutral-800">
+                        {photoGroups.map((group) => (
+                          <div key={group.key} className="bg-neutral-950">
+                            <PendingCard
+                              group={group}
+                              busy={updatingId === group.key}
+                              accepted={acceptedInSession.has(group.key)}
+                              generatingAlt={generatingAltKeys.has(group.key)}
+                              onAccept={(destinations) => updateStatusGroup(group.key, group.ids, "accepted", destinations)}
+                              onReject={() => updateStatusGroup(group.key, group.ids, "rejected")}
+                              onDelete={() => deleteProposalGroup(group.key, group.ids)}
+                              onGenerateAlt={() => void generateAlt(group.key, group.ids, group.photoUrl)}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          });
+                );
+              })}
+            </>
+          );
         })()}
 
         {/* ── ACCEPTATE ── */}
@@ -721,9 +810,11 @@ export default function InstagramProposalsAdminPage() {
                           proposal={proposal}
                           wasDownloaded={downloaded.has(proposal.id)}
                           busy={updatingId === proposal.id}
+                          generatingAlt={generatingAltKeys.has(proposal.id)}
                           onDownload={() => handleDownload(proposal)}
                           onArchive={() => updateStatus(proposal.id, "archived")}
                           onDelete={() => deleteProposal(proposal.id)}
+                          onGenerateAlt={() => void generateAlt(proposal.id, [proposal.id], proposal.photoUrl)}
                         />
                       ))}
                     </div>

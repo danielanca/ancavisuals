@@ -20,6 +20,7 @@ type OfferServiceSection = {
     url: string;
     label: string;
     displayUrl?: string;
+    alt?: string;
   }>;
 };
 
@@ -330,7 +331,7 @@ export default function OfertaPage() {
                         <div key={asset.id} className="group mb-3 break-inside-avoid overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
                           <img
                             src={assetUrl(asset)}
-                            alt={`${service.label} Ancavisuals ${index + 1}`}
+                            alt={asset.alt || `${service.label} Ancavisuals ${index + 1}`}
                             loading="lazy"
                             className="block h-auto w-full transition-transform duration-500 group-hover:scale-[1.03]"
                           />

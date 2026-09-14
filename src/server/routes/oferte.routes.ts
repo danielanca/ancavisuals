@@ -20,6 +20,7 @@ import {
 import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { loadAlbum } from "../services/album.service";
+import { generateRomanianAlt } from "../lib/imageAlt";
 
 const router = Router();
 const mediaAssetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
@@ -392,6 +393,25 @@ router.get("/admin/media-assets", requireFirebaseAuth, requireSupremeAdmin, asyn
   } catch (error) {
     console.error("[oferte] GET /admin/media-assets failed:", error);
     res.status(500).json({ error: "Eroare server." });
+  }
+});
+
+router.post("/admin/media-assets/:assetId/generate-alt", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { assetId } = req.params;
+  try {
+    const docRef = firestore().collection("offer_media_assets").doc(assetId);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Asset-ul nu a fost gasit." });
+    const asset = doc.data() as OfferMediaAsset;
+    if (asset.kind !== "image") return res.status(400).json({ error: "Alt text se genereaza doar pentru poze." });
+
+    const { alt, skip } = await generateRomanianAlt(asset.displayUrl ?? asset.url, asset.label);
+    const finalAlt = skip ? "" : alt;
+    await docRef.update({ alt: finalAlt });
+    res.json({ alt: finalAlt });
+  } catch (error) {
+    console.error("[oferte] POST /admin/media-assets/:assetId/generate-alt failed:", error);
+    res.status(502).json({ error: "Nu am putut genera textul alt." });
   }
 });
 

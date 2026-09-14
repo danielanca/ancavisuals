@@ -82,6 +82,10 @@ function InstagramIcon() {
   );
 }
 
+function isEmbedVideoUrl(url: string) {
+  return /^https?:\/\/iframe\.mediadelivery\.net\//.test(url);
+}
+
 function ArrowIcon() {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
@@ -733,6 +737,37 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
+      {(page.videoUrl || page.heroVideoUrl) && (
+        <section className="py-20 sm:py-24 px-6 max-w-5xl mx-auto">
+          <div className="mb-8 text-center">
+            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
+            <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+            <div className="aspect-video w-full">
+              {isEmbedVideoUrl(page.videoUrl ?? "") ? (
+                <iframe
+                  src={page.videoUrl}
+                  className="h-full w-full"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                  allowFullScreen
+                />
+              ) : (
+                <video
+                  src={page.videoUrl || page.heroVideoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  poster={page.videoThumbnailUrl || undefined}
+                  className="h-full w-full object-contain"
+                />
+              )}
+            </div>
           </div>
         </section>
       )}
