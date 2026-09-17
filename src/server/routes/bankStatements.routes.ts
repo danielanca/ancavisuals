@@ -263,7 +263,7 @@ router.post("/upload-analyze", requireFirebaseAuth, requireSupremeAdmin, upload.
 
     const message = await anthropic.messages.create({
       model: "claude-opus-4-7",
-      max_tokens: 4096,
+      max_tokens: 16000,
       messages: [
         {
           role: "user",
@@ -302,8 +302,23 @@ Reguli:
     });
 
     const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "{}";
+
+    if (message.stop_reason === "max_tokens") {
+      res.status(422).json({
+        error: "Extrasul are prea multe tranzacții pentru a fi procesat într-un singur pas. Împarte fișierul PDF în două și reîncearcă.",
+      });
+      return;
+    }
+
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) as { statementDate?: unknown; entries?: unknown[] } : {};
+    let parsed: { statementDate?: unknown; entries?: unknown[] };
+    try {
+      parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as { statementDate?: unknown; entries?: unknown[] }) : {};
+    } catch (parseError) {
+      console.error("[bank-statements] JSON parse failed:", parseError, raw.slice(0, 500));
+      res.status(422).json({ error: "AI a răspuns cu JSON invalid. Reîncearcă, sau împarte extrasul în fișiere mai mici." });
+      return;
+    }
 
     const extractedEntries: ExtractedEntry[] = Array.isArray(parsed.entries)
       ? parsed.entries
