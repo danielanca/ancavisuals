@@ -58,6 +58,7 @@ const ProgressDetailPage = loadable(() => import("../features/admin/components/P
 const ContactsAdminPage = loadable(() => import("../features/admin/components/ContactsAdminPage"), opts);
 const EquipmentAdminPage = loadable(() => import("../features/admin/components/EquipmentAdminPage"), opts);
 const AdminSettingsPage = loadable(() => import("../features/admin/components/AdminSettingsPage"), opts);
+const CompanyDocumentsPage = loadable(() => import("../features/admin/components/CompanyDocumentsPage"), opts);
 
 
 export const adminRoutes = [
@@ -110,6 +111,7 @@ export const adminRoutes = [
       <Route path="/admin/contacte" element={<ContactsAdminPage />} />
       <Route path="/admin/echipamente" element={<EquipmentAdminPage />} />
       <Route path="/admin/settings" element={<AdminSettingsPage />} />
+      <Route path="/admin/company-documents" element={<CompanyDocumentsPage />} />
       <Route path="/admin/invoices" element={<Navigate to="/admin/financial" replace />} />
       <Route path="/admin/expenses" element={<Navigate to="/admin/financial" replace />} />
       <Route path="/admin/health" element={<Navigate to="/admin/sanatate" replace />} />

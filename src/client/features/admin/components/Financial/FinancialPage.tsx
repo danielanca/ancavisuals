@@ -1,5 +1,5 @@
 import React, { useReducer, useEffect, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import useAuth from "../../auth/useAuth";
 import type { ClientEvent } from "../../types";
 import Breadcrumb from "../Breadcrumb";
@@ -125,6 +125,7 @@ interface State {
   invoiceSearch: string;
   duplicateAlert: { expense: Expense; year: number } | null;
   highlightedExpenseId: string | null;
+  highlightedInvoiceId: string | null;
   events: ClientEvent[];
   fiscalSettings: Partial<FiscalSettings>;
   loadingExpenses: boolean;
@@ -160,6 +161,7 @@ type Action =
   | { type: "UPDATE_EXPENSE"; id: string; patch: Partial<Expense> }
   | { type: "SET_DUPLICATE_ALERT"; payload: { expense: Expense; year: number } | null }
   | { type: "SET_HIGHLIGHTED_EXPENSE"; id: string | null }
+  | { type: "SET_HIGHLIGHTED_INVOICE"; id: string | null }
   | { type: "ADD_INVOICE"; invoice: Invoice }
   | { type: "REMOVE_INVOICE"; id: string }
   | { type: "SET_INVOICE_PAID"; id: string; paid: boolean; paidAt: string | null }
@@ -186,6 +188,7 @@ const initialState: State = {
   expenseSearch: "",
   duplicateAlert: null,
   highlightedExpenseId: null,
+  highlightedInvoiceId: null,
   invoices: [],
   invoiceSearch: "",
   events: [],
@@ -247,6 +250,7 @@ function reducer(state: State, action: Action): State {
     case "UPDATE_INVOICE": return { ...state, invoices: state.invoices.map(i => i.id === action.invoice.id ? action.invoice : i), editInvoice: null };
     case "SET_DUPLICATE_ALERT": return { ...state, duplicateAlert: action.payload };
     case "SET_HIGHLIGHTED_EXPENSE": return { ...state, highlightedExpenseId: action.id };
+    case "SET_HIGHLIGHTED_INVOICE": return { ...state, highlightedInvoiceId: action.id };
     default: return state;
   }
 }
@@ -342,6 +346,16 @@ function matchesSearch(query: string, parts: Array<string | null | undefined>): 
   const haystack = normaliseForSearch(parts.filter(Boolean).join(" "));
   const collapsed = haystack.replace(/ /g, "");
   return words.every((word) => haystack.includes(word) || collapsed.includes(word));
+}
+
+// Furnizori din străinătate care emit facturi fără TVA românesc (taxare inversă /
+// achiziție intracomunitară de servicii ori bunuri) — extinde lista dacă apar alții.
+const REVERSE_CHARGE_SUPPLIERS = ["google", "openai", "anthropic", "bunny", "thomann", "meta", "facebook"];
+
+function isReverseChargeSupplier(supplier: string | null | undefined): boolean {
+  if (!supplier) return false;
+  const normalised = normaliseForSearch(supplier);
+  return REVERSE_CHARGE_SUPPLIERS.some((name) => normalised.includes(name));
 }
 
 let activeInfoBadgeId: string | null = null;
@@ -759,6 +773,11 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
             <label className="block text-xs text-neutral-400 mb-1">Furnizor</label>
             <input type="text" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="ex: Petrom, Dedeman..."
               className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+            {isReverseChargeSupplier(supplier) && (
+              <p className="mt-1.5 text-xs text-sky-400 leading-relaxed">
+                ⚠️ Furnizor din străinătate — factura vine fără TVA românesc. Ai obligația de autotaxare (taxare inversă): Decontul special de TVA (formular 301), până pe 25 ale lunii următoare. Verifică cu un contabil.
+              </p>
+            )}
           </div>
 
           <div>
@@ -1383,9 +1402,41 @@ async function fileToBase64(file: File): Promise<string> {
 
 const FinancialPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { auth } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
   const [exchangeRate, setExchangeRate] = React.useState(5);
+
+  // Deep-link din pagina de extrase bancare: comută pe tab-ul și anul corecte,
+  // apoi evidențiază cheltuiala/factura după ce lista respectivă s-a încărcat.
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const year = searchParams.get("year");
+    if (tab === "cheltuieli" || tab === "facturi") dispatch({ type: "SET_TAB", tab });
+    if (year) dispatch({ type: "SET_YEAR", year: Number(year) });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const highlightExpense = searchParams.get("highlightExpense");
+    if (!highlightExpense) return;
+    if (!state.expenses.some((expense) => expense.id === highlightExpense)) return; // așteaptă încărcarea listei
+    dispatch({ type: "SET_HIGHLIGHTED_EXPENSE", id: highlightExpense });
+    setTimeout(() => document.getElementById(`expense-${highlightExpense}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+    setTimeout(() => dispatch({ type: "SET_HIGHLIGHTED_EXPENSE", id: null }), 4000);
+    setSearchParams((prev) => { prev.delete("highlightExpense"); return prev; }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.expenses]);
+
+  useEffect(() => {
+    const highlightInvoice = searchParams.get("highlightInvoice");
+    if (!highlightInvoice) return;
+    if (!state.invoices.some((invoice) => invoice.id === highlightInvoice)) return; // așteaptă încărcarea listei
+    dispatch({ type: "SET_HIGHLIGHTED_INVOICE", id: highlightInvoice });
+    setTimeout(() => document.getElementById(`invoice-${highlightInvoice}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+    setTimeout(() => dispatch({ type: "SET_HIGHLIGHTED_INVOICE", id: null }), 4000);
+    setSearchParams((prev) => { prev.delete("highlightInvoice"); return prev; }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.invoices]);
 
   const authHeader = useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
@@ -2123,6 +2174,15 @@ const FinancialPage: React.FC = () => {
                             <span className="text-white text-sm font-medium">{fmtCurrency(expense.amount, expense.currency)}</span>
                             <CategoryBadge value={expense.category} />
                             <DeductibleBadge expense={expense} onSave={handleUpdateDeductible} />
+                            {isReverseChargeSupplier(expense.supplier) && (
+                              <span className="inline-flex items-center gap-1">
+                                <span className="text-xs px-1.5 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-400 font-medium">TVA taxare inversă</span>
+                                <InfoBadge
+                                  title="TVA taxare inversă"
+                                  description="Furnizor din străinătate — factura nu conține TVA românesc. Ai obligația de autotaxare: depui Decontul special de TVA (formular 301) până pe 25 ale lunii următoare celei în care ai primit serviciul/bunul, chiar dacă nu ești înregistrat ca plătitor de TVA în România. Verifică cu un contabil dacă se aplică și în cazul tău."
+                                />
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
                             <span>{fmtDate(expense.date)}</span>
@@ -2239,7 +2299,8 @@ const FinancialPage: React.FC = () => {
                   {filteredInvoices.map((invoice) => {
                     const invoiceRef = invoice.invoiceRef ?? `${invoice.series}-${String(invoice.invoiceNumber).padStart(4, "0")}`;
                     return (
-                      <div key={invoice.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                      <div key={invoice.id} id={`invoice-${invoice.id}`}
+                        className={`rounded-xl p-4 border transition-colors duration-500 ${state.highlightedInvoiceId === invoice.id ? "bg-amber-500/10 border-amber-500/50" : "bg-neutral-900 border-neutral-800"}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">

@@ -259,6 +259,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Rezumat financiar", path: "/admin/financial" },
         { label: "Extrase bancare", path: "/admin/bank-statements" },
         { label: "Detalii bancare", path: "/admin/bank-details" },
+        { label: "Documente firmă", path: "/admin/company-documents" },
       ],
     },
     {

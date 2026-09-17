@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
+import CompanyDocumentsTab from "./CompanyDocumentsTab";
 
 interface FirmSettings {
   ownerName: string;
@@ -43,8 +44,11 @@ const FIELDS: { key: keyof FirmSettings; label: string; placeholder: string; hin
   { key: "invoiceSeries", label: "Serie factură", placeholder: "ADE", hint: "Prefixul seriei (ex: ADE → ADE-0001)" },
 ];
 
+type SettingsTab = "general" | "documente";
+
 export default function AdminSettingsPage() {
   const { auth } = useAuth();
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [form, setForm] = useState<FirmSettings>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,20 +101,34 @@ export default function AdminSettingsPage() {
     <div className="min-h-screen bg-neutral-950 text-white p-6 max-w-2xl mx-auto">
       <Breadcrumb />
 
-      <div className="mt-6 mb-8">
+      <div className="mt-6 mb-6">
         <h1 className="text-2xl font-bold text-white">Setări firmă</h1>
         <p className="text-neutral-400 text-sm mt-1">
           Aceste date apar pe toate facturile și contractele generate.
         </p>
       </div>
 
-      {isMissing && !loading && (
+      <div className="flex gap-1 border-b border-neutral-800 mb-8">
+        {([["general", "Date firmă"], ["documente", "Documente"]] as const).map(([tab, label]) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-white text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "documente" && <CompanyDocumentsTab accessToken={auth.accessToken ?? ""} />}
+
+      {activeTab === "general" && isMissing && !loading && (
         <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-sm">
           ⚠️ Datele firmei sunt incomplete. Facturile generate nu vor conține detaliile emitentului până când completezi câmpurile obligatorii (Nume, CIF, IBAN).
         </div>
       )}
 
-      {loading ? (
+      {activeTab === "general" && (loading ? (
         <div className="text-neutral-500 text-sm py-12 text-center">Se încarcă...</div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -175,7 +193,7 @@ export default function AdminSettingsPage() {
             <p className="text-center text-emerald-400 text-sm">✓ Salvat cu succes</p>
           )}
         </form>
-      )}
+      ))}
     </div>
   );
 }

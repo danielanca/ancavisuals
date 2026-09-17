@@ -27,6 +27,7 @@ type StoredEntry = ExtractedEntry & {
   matchedType: "invoice" | "expense" | null;
   matchedId: string | null;
   matchedLabel: string | null;
+  matchedFileUrl: string | null;
 };
 
 function normalizeText(value: unknown): string {
@@ -78,12 +79,15 @@ function amountsEqual(a: number, b: number): boolean {
   return Math.abs(a - b) < 0.01;
 }
 
-function pickBestInvoice(entry: ExtractedEntry, invoices: Array<Record<string, unknown>>) {
+function pickBestInvoice(entry: ExtractedEntry, invoices: Array<Record<string, unknown>>, usedIds: Set<string>) {
   const counterparty = normalizeText(entry.counterparty);
   const description = normalizeText(entry.description);
-  let best: { id: string; label: string; score: number } | null = null;
+  let best: { id: string; label: string; fileUrl: string | null; score: number } | null = null;
 
   for (const invoice of invoices) {
+    const id = String(invoice.id ?? "");
+    if (usedIds.has(id)) continue; // deja folosită ca justificare pentru altă tranzacție
+
     const totalAmount = Number(invoice.totalAmount ?? 0);
     const currency = safeCurrency(invoice.currency);
     const date = invoice.date instanceof Timestamp ? invoice.date.toDate().toISOString() : String(invoice.date ?? "");
@@ -92,12 +96,17 @@ function pickBestInvoice(entry: ExtractedEntry, invoices: Array<Record<string, u
     const clientName = String(invoice.clientName ?? "");
     const scoreDate = daysBetween(entry.date, date) <= 7 ? (daysBetween(entry.date, date) <= 2 ? 4 : 2) : 0;
     const scoreText = includesSoft(counterparty, normalizeText(clientName)) || includesSoft(description, normalizeText(clientName)) ? 3 : 0;
+    // Suma+moneda identice nu sunt suficiente — fără proximitate de dată SAU
+    // asemănare de nume, e prea probabil o coincidență (ex. transfer către un
+    // cont/pocket personal cu aceeași sumă ca o factură nelegată).
+    if (scoreDate === 0 && scoreText === 0) continue;
     const score = 5 + scoreDate + scoreText;
 
     if (!best || score > best.score) {
       best = {
-        id: String(invoice.id ?? ""),
+        id,
         label: `Factură ${String(invoice.series ?? "")}-${String(invoice.invoiceNumber ?? "")} · ${clientName || "client necunoscut"}`,
+        fileUrl: null,
         score,
       };
     }
@@ -106,12 +115,15 @@ function pickBestInvoice(entry: ExtractedEntry, invoices: Array<Record<string, u
   return best;
 }
 
-function pickBestExpense(entry: ExtractedEntry, expenses: Array<Record<string, unknown>>) {
+function pickBestExpense(entry: ExtractedEntry, expenses: Array<Record<string, unknown>>, usedIds: Set<string>) {
   const counterparty = normalizeText(entry.counterparty);
   const description = normalizeText(entry.description);
-  let best: { id: string; label: string; score: number } | null = null;
+  let best: { id: string; label: string; fileUrl: string | null; score: number } | null = null;
 
   for (const expense of expenses) {
+    const id = String(expense.id ?? "");
+    if (usedIds.has(id)) continue; // deja folosită ca justificare pentru altă tranzacție
+
     const amount = Number(expense.amount ?? 0);
     const currency = safeCurrency(expense.currency);
     const date = expense.date instanceof Timestamp ? expense.date.toDate().toISOString() : String(expense.date ?? "");
@@ -126,12 +138,19 @@ function pickBestExpense(entry: ExtractedEntry, expenses: Array<Record<string, u
       includesSoft(description, normalizeText(expDescription))
         ? 3
         : 0;
+    // Suma+moneda identice nu sunt suficiente — fără proximitate de dată SAU
+    // asemănare de nume, e prea probabil o coincidență (ex. transfer către un
+    // cont/pocket personal cu aceeași sumă ca o cheltuială nelegată).
+    if (scoreDate === 0 && scoreText === 0) continue;
     const score = 5 + scoreDate + scoreText;
 
     if (!best || score > best.score) {
+      const factura = expense.factura as { url?: string } | null;
+      const chitanta = expense.chitanta as { url?: string } | null;
       best = {
-        id: String(expense.id ?? ""),
+        id,
         label: `Cheltuială · ${supplier || expDescription || "fără descriere"}`,
+        fileUrl: factura?.url ?? chitanta?.url ?? null,
         score,
       };
     }
@@ -140,7 +159,7 @@ function pickBestExpense(entry: ExtractedEntry, expenses: Array<Record<string, u
   return best;
 }
 
-async function matchStatementEntries(entries: ExtractedEntry[], year: number): Promise<StoredEntry[]> {
+async function matchStatementEntries(entries: ExtractedEntry[], year: number, excludeStatementId?: string): Promise<StoredEntry[]> {
   const startDate = new Date(year, 0, 1);
   const endDate = new Date(year + 1, 0, 1);
   const db = firestore();
@@ -158,25 +177,45 @@ async function matchStatementEntries(entries: ExtractedEntry[], year: number): P
   const invoices = invoicesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   const expenses = expensesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
+  // O factură/cheltuială deja folosită ca justificare pentru o altă tranzacție
+  // (din acest extras sau din altul) nu mai poate justifica și una nouă — altfel
+  // o singură achiziție ar putea "acoperi" mai multe mișcări bancare coincidente
+  // ca sumă (ex. două plăți de 50 RON către același furnizor).
+  const otherStatementsSnapshot = await db.collection(COLLECTION).where("year", "==", year).get();
+  const usedInvoiceIds = new Set<string>();
+  const usedExpenseIds = new Set<string>();
+  for (const doc of otherStatementsSnapshot.docs) {
+    if (doc.id === excludeStatementId) continue;
+    const existingEntries = (doc.data().entries as StoredEntry[]) ?? [];
+    for (const existing of existingEntries) {
+      if (existing.matchedType === "invoice" && existing.matchedId) usedInvoiceIds.add(existing.matchedId);
+      if (existing.matchedType === "expense" && existing.matchedId) usedExpenseIds.add(existing.matchedId);
+    }
+  }
+
   return entries.map((entry) => {
     if (entry.direction === "in") {
-      const match = pickBestInvoice(entry, invoices);
+      const match = pickBestInvoice(entry, invoices, usedInvoiceIds);
+      if (match) usedInvoiceIds.add(match.id);
       return {
         ...entry,
         justificationStatus: match ? "matched" : "unmatched",
         matchedType: match ? "invoice" : null,
         matchedId: match?.id ?? null,
         matchedLabel: match?.label ?? null,
+        matchedFileUrl: match?.fileUrl ?? null,
       };
     }
 
-    const match = pickBestExpense(entry, expenses);
+    const match = pickBestExpense(entry, expenses, usedExpenseIds);
+    if (match) usedExpenseIds.add(match.id);
     return {
       ...entry,
       justificationStatus: match ? "matched" : "unmatched",
       matchedType: match ? "expense" : null,
       matchedId: match?.id ?? null,
       matchedLabel: match?.label ?? null,
+      matchedFileUrl: match?.fileUrl ?? null,
     };
   });
 }
@@ -202,23 +241,32 @@ async function uploadStatementFile(file: Express.Multer.File, year: string | und
   return { url: `${cdnDomain}/${folder}/${safeFileName}`, name: file.originalname, mediaType: file.mimetype || "application/octet-stream" };
 }
 
+const DEFAULT_ACCOUNT = "Cont principal";
+
 router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
-    const { year } = req.query as { year?: string };
+    const { year, account } = req.query as { year?: string; account?: string };
     const selectedYear = year ? Number(year) : null;
     const snapshot = await db.collection(COLLECTION).orderBy("statementDate", "desc").get();
-    const statements = snapshot.docs.map((doc) => {
+    const allStatements = snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
         ...data,
+        account: (data.account as string | undefined) || DEFAULT_ACCOUNT,
         statementDate: (data.statementDate as Timestamp).toDate().toISOString(),
         createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
       };
-    }).filter((statement) => selectedYear == null || Number((statement as Record<string, unknown>).year) === selectedYear);
+    });
 
-    res.json({ statements });
+    const accounts = [...new Set(allStatements.map((statement) => statement.account))].sort();
+    const statements = allStatements.filter((statement) =>
+      (selectedYear == null || Number((statement as Record<string, unknown>).year) === selectedYear) &&
+      (!account || statement.account === account)
+    );
+
+    res.json({ statements, accounts });
   } catch (error) {
     console.error("[bank-statements] GET / failed:", error);
     res.status(500).json({ error: String(error) });
@@ -227,7 +275,8 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, r
 
 router.post("/upload-analyze", requireFirebaseAuth, requireSupremeAdmin, upload.single("file"), async (req: Request, res: Response) => {
   const file = req.file;
-  const { year } = req.body as { year?: string };
+  const { year, account: rawAccount } = req.body as { year?: string; account?: string };
+  const account = String(rawAccount ?? "").trim() || DEFAULT_ACCOUNT;
 
   if (!file) {
     res.status(400).json({ error: "Fișier lipsă." });
@@ -357,7 +406,7 @@ Reguli:
           .filter((entry): entry is ExtractedEntry => Boolean(entry))
       : [];
 
-    if (extractedEntries.length === 0) {
+    if (!Array.isArray(parsed.entries)) {
       res.status(422).json({ error: "AI nu a reușit să extragă tranzacții din extras." });
       return;
     }
@@ -369,6 +418,7 @@ Reguli:
     const docRef = await db.collection(COLLECTION).add({
       statementDate: Timestamp.fromDate(new Date(statementDate)),
       year: Number(statementDate.slice(0, 4)),
+      account,
       file: uploaded,
       fileHash,
       entries,
@@ -381,6 +431,7 @@ Reguli:
         id: docRef.id,
         statementDate: new Date(statementDate).toISOString(),
         year: Number(statementDate.slice(0, 4)),
+        account,
         file: uploaded,
         entries,
         unmatchedCount: entries.filter((entry) => entry.justificationStatus === "unmatched").length,
@@ -403,7 +454,7 @@ router.post("/:id/rematch", requireFirebaseAuth, requireSupremeAdmin, async (req
     const data = doc.data()!;
     const year = Number(data.year) || new Date().getFullYear();
     const rawEntries = (data.entries as StoredEntry[]) ?? [];
-    const entries = await matchStatementEntries(rawEntries, year);
+    const entries = await matchStatementEntries(rawEntries, year, req.params.id);
     const unmatchedCount = entries.filter((entry) => entry.justificationStatus === "unmatched").length;
 
     await db.collection(COLLECTION).doc(req.params.id).update({ entries, unmatchedCount });
@@ -413,6 +464,7 @@ router.post("/:id/rematch", requireFirebaseAuth, requireSupremeAdmin, async (req
         id: doc.id,
         statementDate: (data.statementDate as Timestamp).toDate().toISOString(),
         year,
+        account: (data.account as string | undefined) || DEFAULT_ACCOUNT,
         file: data.file,
         entries,
         unmatchedCount,
@@ -431,6 +483,25 @@ router.delete("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Requ
     res.json({ ok: true });
   } catch (error) {
     console.error("[bank-statements] DELETE /:id failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// PATCH /rename-account — renames an account label across every statement that has it
+router.patch("/rename-account", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { oldName, newName } = req.body as { oldName?: string; newName?: string };
+    if (!oldName?.trim() || !newName?.trim()) { res.status(400).json({ error: "Nume cont lipsă." }); return; }
+
+    const db = firestore();
+    const snapshot = await db.collection(COLLECTION).where("account", "==", oldName.trim()).get();
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { account: newName.trim() }));
+    await batch.commit();
+
+    res.json({ ok: true, updated: snapshot.size });
+  } catch (error) {
+    console.error("[bank-statements] PATCH /rename-account failed:", error);
     res.status(500).json({ error: String(error) });
   }
 });

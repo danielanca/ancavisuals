@@ -34,6 +34,7 @@ const LABELS: Record<string, string> = {
   "storage-stats": "Stocare Bunny",
   showcase: "Zone Showcase",
   settings: "Setări firmă",
+  "company-documents": "Documente firmă",
 };
 
 export default function Breadcrumb() {

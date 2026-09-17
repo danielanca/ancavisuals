@@ -1,4 +1,6 @@
 import { Router } from "express";
+import puppeteer from "puppeteer";
+import { JSDOM } from "jsdom";
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
@@ -747,6 +749,7 @@ router.post("/generate-post", async (req, res) => {
   const secondaryKeywords: string[] = Array.isArray(req.body?.secondaryKeywords)
     ? req.body.secondaryKeywords.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).map((item: string) => item.trim()).slice(0, 15)
     : [];
+  const competitorNotes = typeof req.body?.competitorNotes === "string" ? req.body.competitorNotes.trim().slice(0, 2000) : "";
   if (!keyword) return res.status(400).json({ error: "Keyword-ul este obligatoriu." });
   try {
     const planInstructions = [
@@ -755,6 +758,9 @@ router.post("/generate-post", async (req, res) => {
         : "",
       secondaryKeywords.length
         ? `Include natural, fără keyword stuffing, și aceste keyword-uri secundare: ${secondaryKeywords.join(", ")}. Folosește-le ca bază pentru "tags" din răspuns și țese-le firesc în title/metaDescription/body unde are sens real.`
+        : "",
+      competitorNotes
+        ? `Analiza competitorilor din top 10 a găsit aceste goluri față de pagina noastră — ține cont de ele la titlu, slug și unghi (ex. dacă un gol e "cuvântul cheie lipsește din titlu", asigură-te că "${targetKeyword || keyword}" apare clar în title/seoTitle):\n${competitorNotes}`
         : "",
     ].filter(Boolean).join("\n");
     const message = await anthropicLong.messages.create({
@@ -962,5 +968,369 @@ function domainOf(value: string): string {
   try { return new URL(value.startsWith("http") ? value : `https://${value}`).hostname.replace(/^www\./, ""); }
   catch { return ""; }
 }
+
+// ─── PDF export ──────────────────────────────────────────────────────────────
+
+type ExportRow = {
+  city: string; county: string; service: string; keyword: string; status: string;
+  latestPosition: number | null; firstPosition: number | null; trend: string;
+  scanCount: number; lastScanAt: string; hasOwnArticle: string; articleRanked: string;
+};
+type ExportSummary = { total: number; pos1: number; top3: number; top10: number; absent: number; unscanned: number };
+
+function escHtml(value: unknown): string {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function statusRowClass(status: string): string {
+  if (status.startsWith("Absent")) return "row-absent";
+  if (status.startsWith("Top 4")) return "row-top10";
+  return "";
+}
+
+router.post("/export-pdf", async (req, res) => {
+  try {
+    const { rows, summary } = req.body as { rows?: ExportRow[]; summary?: ExportSummary };
+    if (!Array.isArray(rows)) { res.status(400).json({ error: "Date lipsă." }); return; }
+
+    const generatedAt = new Date().toLocaleDateString("ro-RO", { day: "2-digit", month: "long", year: "numeric" });
+
+    const summaryCards = summary
+      ? [
+          ["Combinații", summary.total], ["Poziția 1", summary.pos1], ["Top 3", summary.top3],
+          ["Top 4–10", summary.top10], ["Absent", summary.absent], ["Nescanat", summary.unscanned],
+        ].map(([label, value]) => `<div class="card"><p class="card-label">${escHtml(label)}</p><p class="card-value">${escHtml(value)}</p></div>`).join("")
+      : "";
+
+    const tableRows = rows.map((row) => `
+      <tr class="${statusRowClass(row.status)}">
+        <td>${escHtml(row.city)}</td>
+        <td>${escHtml(row.county)}</td>
+        <td>${escHtml(row.service)}</td>
+        <td class="kw">${escHtml(row.keyword)}</td>
+        <td>${escHtml(row.status)}</td>
+        <td class="num">${row.latestPosition ?? "peste 10"}</td>
+        <td class="num">${escHtml(row.trend)}</td>
+        <td class="num">${row.scanCount}</td>
+        <td>${escHtml(row.hasOwnArticle)}</td>
+      </tr>`).join("");
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; font-size: 9pt; color: #111; }
+      .page { padding: 14mm 12mm; }
+      h1 { font-size: 16pt; font-weight: 700; }
+      .subtitle { font-size: 9pt; color: #666; margin-top: 4px; margin-bottom: 14px; }
+      .cards { display: flex; gap: 8px; margin-bottom: 16px; }
+      .card { flex: 1; border: 1px solid #ddd; border-radius: 6px; padding: 8px 10px; }
+      .card-label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.5px; color: #888; }
+      .card-value { font-size: 14pt; font-weight: 700; margin-top: 2px; }
+      table { width: 100%; border-collapse: collapse; }
+      th { background: #1a1a1a; color: #fff; font-size: 8pt; padding: 5px 6px; text-align: left; }
+      td { padding: 5px 6px; font-size: 8.5pt; border-bottom: 1px solid #eee; }
+      td.num { text-align: right; }
+      td.kw { font-weight: 600; }
+      tr.row-absent td { background: #fdeaea; }
+      tr.row-top10 td { background: #fdf6e3; }
+      .note { margin-top: 14px; font-size: 8pt; color: #666; font-style: italic; }
+      .footer { margin-top: 10px; font-size: 7.5pt; color: #aaa; }
+    </style></head><body><div class="page">
+      <h1>Raport SEO Radar — Ancavisuals</h1>
+      <p class="subtitle">Generat pe ${escHtml(generatedAt)} · ${rows.length} combinații scanate</p>
+      <div class="cards">${summaryCards}</div>
+      <table>
+        <thead><tr>
+          <th>Oraș</th><th>Județ</th><th>Serviciu</th><th>Cuvinte cheie</th><th>Status</th>
+          <th class="num">Poziție</th><th class="num">Tendință</th><th class="num">Scanări</th><th>Articol propriu</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <p class="note">Sortat cu golurile primele (roșu = absent din top 10, galben = top 4–10) — cele mai bune ținte pentru conținut nou.</p>
+      <p class="footer">Document generat electronic din SEO Radar.</p>
+    </div></body></html>`;
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
+    try {
+      const page = await browser.newPage();
+      await page.emulateMediaType("print");
+      await page.setContent(html, { waitUntil: "networkidle0" });
+      const pdf = await page.pdf({
+        format: "A4",
+        landscape: true,
+        printBackground: true,
+        margin: { top: "10mm", bottom: "10mm", left: "10mm", right: "10mm" },
+      });
+      res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="seo-radar.pdf"` });
+      res.send(Buffer.from(pdf));
+    } finally {
+      await browser.close();
+    }
+  } catch (error) {
+    console.error("[seo-radar] POST /export-pdf failed:", error);
+    res.status(500).json({ error: "Generarea PDF-ului a eșuat." });
+  }
+});
+
+// ─── Competitor on-page factor analysis ────────────────────────────────────────
+// Nu folosește niciun API nou: URL-urile competitorilor vin din organicResults
+// deja salvate la ultima scanare (DataForSEO/SerpApi, plătite deja); paginile
+// lor sunt doar HTML public, citit direct cu fetch + jsdom.
+
+interface OnPageFactors {
+  title: string | null;
+  titleLength: number;
+  metaDescription: string | null;
+  h1Count: number;
+  h1Text: string | null;
+  h2Count: number;
+  wordCount: number;
+  schemaTypes: string[];
+  imgCount: number;
+  imgWithAlt: number;
+  internalLinks: number;
+  externalLinks: number;
+  hasCanonical: boolean;
+  keywordInTitle: boolean;
+  keywordInH1: boolean;
+  keywordInUrl: boolean;
+}
+
+function normalizeForMatch(value: string): string {
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+function factorsFromHtml(html: string, baseUrl: string, keyword: string): OnPageFactors {
+  const dom = new JSDOM(html, { url: baseUrl });
+  const doc = dom.window.document;
+  const ownHost = new URL(baseUrl).hostname.replace(/^www\./, "");
+
+  doc.querySelectorAll("script, style, noscript").forEach((el) => el.remove());
+
+  const title = doc.querySelector("title")?.textContent?.trim() ?? null;
+  const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute("content")?.trim() ?? null;
+  const h1s = Array.from(doc.querySelectorAll("h1"));
+  const h2Count = doc.querySelectorAll("h2").length;
+  const bodyText = doc.body?.textContent ?? "";
+  const wordCount = bodyText.split(/\s+/).filter(Boolean).length;
+
+  const schemaTypes = new Set<string>();
+  doc.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
+    try {
+      const parsed = JSON.parse(script.textContent ?? "");
+      const entries = Array.isArray(parsed) ? parsed : [parsed];
+      entries.forEach((entry) => {
+        const type = entry?.["@type"];
+        if (typeof type === "string") schemaTypes.add(type);
+        else if (Array.isArray(type)) type.forEach((t) => typeof t === "string" && schemaTypes.add(t));
+      });
+    } catch { /* JSON-LD invalid — ignorăm */ }
+  });
+
+  const images = Array.from(doc.querySelectorAll("img"));
+  const links = Array.from(doc.querySelectorAll("a[href]"));
+  let internalLinks = 0;
+  let externalLinks = 0;
+  links.forEach((link) => {
+    try {
+      const href = new URL(link.getAttribute("href") ?? "", baseUrl).hostname.replace(/^www\./, "");
+      if (href === ownHost) internalLinks++;
+      else externalLinks++;
+    } catch { /* href invalid (mailto:, javascript:, etc.) — ignorăm */ }
+  });
+
+  const normKeyword = normalizeForMatch(keyword);
+  return {
+    title,
+    titleLength: title?.length ?? 0,
+    metaDescription,
+    h1Count: h1s.length,
+    h1Text: h1s[0]?.textContent?.trim() ?? null,
+    h2Count,
+    wordCount,
+    schemaTypes: Array.from(schemaTypes),
+    imgCount: images.length,
+    imgWithAlt: images.filter((img) => (img.getAttribute("alt") ?? "").trim().length > 0).length,
+    internalLinks,
+    externalLinks,
+    hasCanonical: doc.querySelector('link[rel="canonical"]') !== null,
+    keywordInTitle: title ? normalizeForMatch(title).includes(normKeyword) : false,
+    keywordInH1: h1s[0]?.textContent ? normalizeForMatch(h1s[0].textContent).includes(normKeyword) : false,
+    keywordInUrl: normalizeForMatch(baseUrl).includes(normKeyword.replace(/\s+/g, "-")) || normalizeForMatch(baseUrl).includes(normKeyword.replace(/\s+/g, "")),
+  };
+}
+
+async function fetchPageFactors(url: string, keyword: string): Promise<OnPageFactors> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AncavisualsSEOBot/1.0)" },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const html = await response.text();
+    return factorsFromHtml(html, url, keyword);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Golurile față de competitori, reutilizat atât pentru pagina live (analyze-competitors)
+// cât și pentru un draft nepublicat (check-draft).
+function computeGaps(ownFactors: OnPageFactors | null, competitorFactors: OnPageFactors[]): string[] {
+  const gaps: string[] = [];
+  if (competitorFactors.length === 0) return gaps;
+
+  const avgWordCount = Math.round(competitorFactors.reduce((s, f) => s + f.wordCount, 0) / competitorFactors.length);
+  const ourWordCount = ownFactors?.wordCount ?? 0;
+  if (ourWordCount < avgWordCount * 0.7) gaps.push(`Competitorii au în medie ${avgWordCount} cuvinte pe pagină, tu ai ${ourWordCount}.`);
+
+  const pctWithKeywordInTitle = competitorFactors.filter((f) => f.keywordInTitle).length;
+  if (pctWithKeywordInTitle >= Math.ceil(competitorFactors.length / 2) && !ownFactors?.keywordInTitle) {
+    gaps.push(`${pctWithKeywordInTitle} din ${competitorFactors.length} competitori au cuvântul cheie în titlu — tu nu.`);
+  }
+  const pctWithKeywordInH1 = competitorFactors.filter((f) => f.keywordInH1).length;
+  if (pctWithKeywordInH1 >= Math.ceil(competitorFactors.length / 2) && !ownFactors?.keywordInH1) {
+    gaps.push(`${pctWithKeywordInH1} din ${competitorFactors.length} competitori au cuvântul cheie în H1 — tu nu.`);
+  }
+  const schemaCounts = new Map<string, number>();
+  competitorFactors.forEach((f) => f.schemaTypes.forEach((t) => schemaCounts.set(t, (schemaCounts.get(t) ?? 0) + 1)));
+  const ourSchemaTypes = new Set(ownFactors?.schemaTypes ?? []);
+  schemaCounts.forEach((count, type) => {
+    if (count >= Math.ceil(competitorFactors.length / 2) && !ourSchemaTypes.has(type)) {
+      gaps.push(`${count} din ${competitorFactors.length} competitori folosesc schema „${type}" — tu nu.`);
+    }
+  });
+  if (!ownFactors?.hasCanonical && competitorFactors.filter((f) => f.hasCanonical).length >= Math.ceil(competitorFactors.length / 2)) {
+    gaps.push(`Majoritatea competitorilor au tag canonical — tu nu.`);
+  }
+  return gaps;
+}
+
+router.post("/analyze-competitors", async (req, res) => {
+  try {
+    const { keyword, city, provider } = req.body as { keyword?: string; city?: string; provider?: SearchProvider };
+    if (!keyword) { res.status(400).json({ error: "Keyword-ul este obligatoriu." }); return; }
+
+    const key = queryKey(keyword, city ?? "", provider === "dataforseo" ? "dataforseo" : "serpapi");
+    const history = await getHistory(key);
+    const latest = history.at(-1);
+    if (!latest || !Array.isArray(latest.organicResults) || latest.organicResults.length === 0) {
+      res.status(404).json({ error: "Nu există o scanare cu rezultate pentru această combinație. Scanează-o mai întâi." });
+      return;
+    }
+
+    const own = ownResult(latest.organicResults);
+    const competitorResults = latest.organicResults.filter((item) => item.domain !== OWN_DOMAIN && !item.domain.endsWith(`.${OWN_DOMAIN}`)).slice(0, 5);
+
+    const [ownFactors, ...competitorFactors] = await Promise.all([
+      own ? fetchPageFactors(own.url, keyword).then((factors) => ({ factors, error: null })).catch((err) => ({ factors: null, error: err instanceof Error ? err.message : "Eroare necunoscută" })) : Promise.resolve(null),
+      ...competitorResults.map((item) =>
+        fetchPageFactors(item.url, keyword).then((factors) => ({ factors, error: null })).catch((err) => ({ factors: null, error: err instanceof Error ? err.message : "Eroare necunoscută" }))
+      ),
+    ]);
+
+    const competitors = competitorResults.map((item, index) => ({
+      url: item.url,
+      domain: item.domain,
+      position: item.position,
+      factors: competitorFactors[index]?.factors ?? null,
+      error: competitorFactors[index]?.error ?? null,
+    }));
+
+    // Recomandări: comparăm valorile noastre cu media competitorilor care s-au putut citi.
+    const validCompetitorFactors = competitors.map((c) => c.factors).filter((f): f is OnPageFactors => f !== null);
+    const gaps = computeGaps(ownFactors?.factors ?? null, validCompetitorFactors);
+    if (!own) gaps.unshift(`Nu ai o pagină în top 10 pentru „${keyword}" — prioritate: creează una.`);
+
+    // Propuneri AI, pe baza factorilor reali culeși de la primii 3-4 competitori.
+    let recommendations: string | null = null;
+    const topCompetitors = competitors.filter((c) => c.factors !== null).slice(0, 4);
+    if (topCompetitors.length > 0) {
+      const describeFactors = (f: OnPageFactors) =>
+        `titlu: "${f.title ?? "—"}" (${f.titleLength} car.) · H1: "${f.h1Text ?? "—"}" · ${f.wordCount} cuvinte · ${f.h2Count} H2 · schema: ${f.schemaTypes.join(", ") || "niciuna"} · imagini: ${f.imgCount} (${f.imgWithAlt} cu alt) · linkuri interne/externe: ${f.internalLinks}/${f.externalLinks} · keyword în titlu: ${f.keywordInTitle ? "da" : "nu"} · keyword în H1: ${f.keywordInH1 ? "da" : "nu"} · canonical: ${f.hasCanonical ? "da" : "nu"}`;
+
+      const prompt = `Ești un consultant SEO care ajută un fotograf/videograf de nuntă din România (ancavisuals.ro) să depășească în clasament competitorii pentru cuvântul cheie „${keyword}".
+
+PAGINA NOASTRĂ${own ? ` (poziția ${own.position})` : " — nu apărem în top 10"}:
+${ownFactors?.factors ? describeFactors(ownFactors.factors) : ownFactors?.error ? `Nu am putut citi pagina: ${ownFactors.error}` : "Nu avem o pagină proprie în top 10 pentru acest cuvânt cheie."}
+
+PRIMII ${topCompetitors.length} COMPETITORI:
+${topCompetitors.map((c, i) => `${i + 1}. Poziția ${c.position} — ${c.domain}\n   ${c.factors ? describeFactors(c.factors) : `Nu am putut citi pagina: ${c.error}`}`).join("\n")}
+
+Scrie în română un plan concret, în ordinea priorității, cu 4-6 pași specifici (nu generici) pentru ca pagina noastră să depășească acești competitori pentru „${keyword}". Bazează-te STRICT pe diferențele reale de mai sus (lungime conținut, structură, schema, cuvinte cheie, linkuri) — nu inventa factori pe care nu-i poți vedea (nu menționezi backlink-uri sau autoritate de domeniu, nu le putem verifica aici). Fii concis, un pas = 1-2 fraze. Nu adăuga introducere sau concluzie, doar lista numerotată.`;
+
+      try {
+        const message = await anthropic.messages.create({
+          model: "claude-sonnet-4-6",
+          max_tokens: 900,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const block = message.content.find((b) => b.type === "text");
+        recommendations = block && block.type === "text" ? block.text.trim() : null;
+      } catch (err) {
+        console.error("[seo-radar] analyze-competitors AI recommendation failed:", err);
+      }
+    }
+
+    res.json({
+      keyword,
+      own: own ? { url: own.url, position: own.position, factors: ownFactors?.factors ?? null, error: ownFactors?.error ?? null } : null,
+      competitors,
+      gaps,
+      recommendations,
+    });
+  } catch (error) {
+    console.error("[seo-radar] POST /analyze-competitors failed:", error);
+    res.status(500).json({ error: "Analiza competitorilor a eșuat." });
+  }
+});
+
+// POST /check-draft — verifică un articol NEPUBLICAT (titlu + body) față de aceiași
+// competitori, fără să fie nevoie să existe deja o pagină live de-a noastră.
+router.post("/check-draft", async (req, res) => {
+  try {
+    const { title, bodyHtml, keyword, city, provider } = req.body as {
+      title?: string; bodyHtml?: string; keyword?: string; city?: string; provider?: SearchProvider;
+    };
+    if (!keyword) { res.status(400).json({ error: "Keyword-ul este obligatoriu." }); return; }
+    if (!bodyHtml?.trim()) { res.status(400).json({ error: "Draftul nu are încă niciun conținut de verificat." }); return; }
+
+    const key = queryKey(keyword, city ?? "", provider === "dataforseo" ? "dataforseo" : "serpapi");
+    const history = await getHistory(key);
+    const latest = history.at(-1);
+    if (!latest || !Array.isArray(latest.organicResults) || latest.organicResults.length === 0) {
+      res.status(404).json({ error: "Nu există o scanare cu rezultate pentru această combinație. Scanează-o mai întâi." });
+      return;
+    }
+
+    const competitorResults = latest.organicResults.filter((item) => item.domain !== OWN_DOMAIN && !item.domain.endsWith(`.${OWN_DOMAIN}`)).slice(0, 5);
+    const competitorFactorResults = await Promise.all(
+      competitorResults.map((item) =>
+        fetchPageFactors(item.url, keyword).then((factors) => ({ factors, error: null })).catch((err) => ({ factors: null, error: err instanceof Error ? err.message : "Eroare necunoscută" }))
+      ),
+    );
+    const competitors = competitorResults.map((item, index) => ({
+      url: item.url,
+      domain: item.domain,
+      position: item.position,
+      factors: competitorFactorResults[index]?.factors ?? null,
+      error: competitorFactorResults[index]?.error ?? null,
+    }));
+
+    const draftHtml = `<html><head><title>${title ?? ""}</title></head><body><h1>${title ?? ""}</h1>${bodyHtml}</body></html>`;
+    const draftFactors = factorsFromHtml(draftHtml, "https://ancavisuals.ro/blog/draft", keyword);
+    const validCompetitorFactors = competitors.map((c) => c.factors).filter((f): f is OnPageFactors => f !== null);
+    const gaps = computeGaps(draftFactors, validCompetitorFactors);
+
+    res.json({ own: { factors: draftFactors }, competitors, gaps });
+  } catch (error) {
+    console.error("[seo-radar] POST /check-draft failed:", error);
+    res.status(500).json({ error: "Verificarea draftului a eșuat." });
+  }
+});
 
 export default router;

@@ -51,6 +51,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Propuneri Swipe", path: "/admin/swipe-proposals", category: "Media", icon: "👆", keywords: "swipe propuneri selectie" },
   // Sistem & Conturi
   { label: "Setări firmă", path: "/admin/settings", category: "Sistem", icon: "⚙️", keywords: "setari firma pfa cif iban adresa facturare serie fiscal date emitent" },
+  { label: "Documente firmă", path: "/admin/company-documents", category: "Sistem", icon: "📁", keywords: "acte documente firma pfa onrc certificat constatator vecini comodat masina domiciliu contract" },
   { label: "Conturi", path: "/admin/accounts", category: "Sistem", icon: "👥", keywords: "utilizatori acces cont admin" },
   { label: "Contacte", path: "/admin/contacte", category: "Sistem", icon: "📇", keywords: "contacte clienti leads crm" },
   { label: "Echipamente", path: "/admin/echipamente", category: "Sistem", icon: "🎛️", keywords: "echipamente camera obiectiv gear" },

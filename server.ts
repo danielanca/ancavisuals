@@ -34,6 +34,7 @@ import monitoringRouter from "./src/server/routes/monitoring.routes";
 import expensesRouter from "./src/server/routes/expenses.routes";
 import invoicesRouter from "./src/server/routes/invoices.routes";
 import bankStatementsRouter from "./src/server/routes/bankStatements.routes";
+import companyDocumentsRouter from "./src/server/routes/companyDocuments.routes";
 import contractClauseTemplatesRouter from "./src/server/routes/contractClauseTemplates.routes";
 import loginEventsRouter from "./src/server/routes/loginEvents.routes";
 import landingRouter from "./src/server/routes/landing.routes";
@@ -196,6 +197,7 @@ async function createServer() {
   app.use("/api/admin/expenses", expensesRouter);
   app.use("/api/admin/invoices", invoicesRouter);
   app.use("/api/admin/bank-statements", bankStatementsRouter);
+  app.use("/api/admin/company-documents", companyDocumentsRouter);
   app.use("/api/admin/contract-clause-templates", contractClauseTemplatesRouter);
   app.use("/api", loginEventsRouter);
   app.use("/api/admin/landing", landingRouter);

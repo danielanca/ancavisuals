@@ -63,6 +63,43 @@ interface KeywordSuggestion {
   trendScore: number | null;
   rising: boolean;
 }
+interface OnPageFactors {
+  title: string | null;
+  titleLength: number;
+  metaDescription: string | null;
+  h1Count: number;
+  h1Text: string | null;
+  h2Count: number;
+  wordCount: number;
+  schemaTypes: string[];
+  imgCount: number;
+  imgWithAlt: number;
+  internalLinks: number;
+  externalLinks: number;
+  hasCanonical: boolean;
+  keywordInTitle: boolean;
+  keywordInH1: boolean;
+  keywordInUrl: boolean;
+}
+interface CompetitorFactorResult {
+  url: string;
+  domain: string;
+  position: number;
+  factors: OnPageFactors | null;
+  error: string | null;
+}
+interface CompetitorAnalysisResult {
+  keyword: string;
+  own: { url: string; position: number; factors: OnPageFactors | null; error: string | null } | null;
+  competitors: CompetitorFactorResult[];
+  gaps: string[];
+  recommendations: string | null;
+}
+interface CheckDraftResult {
+  own: { factors: OnPageFactors };
+  competitors: CompetitorFactorResult[];
+  gaps: string[];
+}
 interface AdsInsight {
   keyword: string;
   volume: number | null;
@@ -199,28 +236,74 @@ const detectService = (keyword: string, columns: CoverageService[] = SEO_RADAR_S
 const serviceLabel = (id: string | null, columns: CoverageService[] = SEO_RADAR_SERVICES): string =>
   columns.find(service => service.id === id)?.label ?? "Alt serviciu";
 
-const ARDEAL_COUNTIES = new Set([
-  "Alba", "Arad", "Bihor", "Bistrița-Năsăud", "Brașov", "Cluj", "Covasna", "Harghita",
-  "Hunedoara", "Maramureș", "Mureș", "Sălaj", "Satu Mare", "Sibiu",
-]);
-const ARDEAL_POPULATION_2021: Record<string, number> = {
-  "Cluj-Napoca": 286598, Brașov: 237589, Oradea: 183105, Arad: 145078, Sibiu: 134308,
-  "Târgu Mureș": 116033, "Baia Mare": 108759, "Satu Mare": 91056, Bistrița: 78877,
-  "Alba Iulia": 64359, Turda: 55401, Deva: 53011, Zalău: 52238, Hunedoara: 50457,
-  "Sfântu Gheorghe": 50080, "Câmpia Turzii": 20895, Mediaș: 39780, Reghin: 29115,
-  Aiud: 21822, Sebeș: 27019, Luduș: 15000, Sighișoara: 23087, Cugir: 21762, Gherla: 20765,
-  Blaj: 17800, Avrig: 12624, Făgăraș: 30488, Predeal: 4186, Sovata: 11000,
-};
-const ARDEAL_CITIES = CITIES
-  .filter(cityData => ARDEAL_COUNTIES.has(cityData.county))
-  .map(cityData => ({ ...cityData, population: ARDEAL_POPULATION_2021[cityData.name] ?? 0 }))
-  .sort((a, b) => b.population - a.population || a.name.localeCompare(b.name, "ro"));
+interface RadarCity {
+  name: string;
+  county: string;
+  population: number;
+}
+
+// Catalogul pentru SEO Radar conține numai municipii și orașe, nu comune/sate.
+// Este separat de CITIES: adăugarea unei sugestii aici nu publică automat o pagină SEO.
+const RADAR_CITY_CATALOG: Array<Omit<RadarCity, "population"> & { population?: number }> = [
+  { name: "Alba Iulia", county: "Alba", population: 64359 }, { name: "Sebeș", county: "Alba", population: 27019 },
+  { name: "Aiud", county: "Alba", population: 21822 }, { name: "Cugir", county: "Alba", population: 21762 },
+  { name: "Blaj", county: "Alba", population: 17800 }, { name: "Ocna Mureș", county: "Alba" },
+  { name: "Zlatna", county: "Alba" }, { name: "Abrud", county: "Alba" }, { name: "Baia de Arieș", county: "Alba" },
+  { name: "Câmpeni", county: "Alba" }, { name: "Teiuș", county: "Alba" },
+  { name: "Arad", county: "Arad", population: 145078 }, { name: "Ineu", county: "Arad" },
+  { name: "Lipova", county: "Arad" }, { name: "Nădlac", county: "Arad" }, { name: "Pecica", county: "Arad" },
+  { name: "Pâncota", county: "Arad" }, { name: "Sântana", county: "Arad" }, { name: "Sebiş", county: "Arad" },
+  { name: "Curtici", county: "Arad" }, { name: "Chișineu-Criș", county: "Arad" },
+  { name: "Oradea", county: "Bihor", population: 183105 }, { name: "Beiuș", county: "Bihor" },
+  { name: "Marghita", county: "Bihor" }, { name: "Salonta", county: "Bihor" }, { name: "Aleșd", county: "Bihor" },
+  { name: "Ștei", county: "Bihor" }, { name: "Valea lui Mihai", county: "Bihor" }, { name: "Vascău", county: "Bihor" },
+  { name: "Bistrița", county: "Bistrița-Năsăud", population: 78877 }, { name: "Beclean", county: "Bistrița-Năsăud" },
+  { name: "Năsăud", county: "Bistrița-Năsăud" }, { name: "Sângeorz-Băi", county: "Bistrița-Năsăud" },
+  { name: "Brașov", county: "Brașov", population: 237589 }, { name: "Făgăraș", county: "Brașov", population: 30488 },
+  { name: "Săcele", county: "Brașov" }, { name: "Codlea", county: "Brașov" }, { name: "Râșnov", county: "Brașov" },
+  { name: "Zărnești", county: "Brașov" }, { name: "Rupea", county: "Brașov" }, { name: "Victoria", county: "Brașov" },
+  { name: "Predeal", county: "Brașov", population: 4186 },
+  { name: "Cluj-Napoca", county: "Cluj", population: 286598 }, { name: "Turda", county: "Cluj", population: 55401 },
+  { name: "Câmpia Turzii", county: "Cluj", population: 20895 }, { name: "Dej", county: "Cluj" },
+  { name: "Gherla", county: "Cluj", population: 20765 }, { name: "Huedin", county: "Cluj" },
+  { name: "Sfântu Gheorghe", county: "Covasna", population: 50080 }, { name: "Târgu Secuiesc", county: "Covasna" },
+  { name: "Covasna", county: "Covasna" }, { name: "Baraolt", county: "Covasna" }, { name: "Întorsura Buzăului", county: "Covasna" },
+  { name: "Deva", county: "Hunedoara", population: 53011 }, { name: "Hunedoara", county: "Hunedoara", population: 50457 },
+  { name: "Petroșani", county: "Hunedoara" }, { name: "Orăștie", county: "Hunedoara" }, { name: "Brad", county: "Hunedoara" },
+  { name: "Lupeni", county: "Hunedoara" }, { name: "Vulcan", county: "Hunedoara" }, { name: "Aninoasa", county: "Hunedoara" },
+  { name: "Călan", county: "Hunedoara" }, { name: "Geoagiu", county: "Hunedoara" }, { name: "Hațeg", county: "Hunedoara" },
+  { name: "Miercurea Ciuc", county: "Harghita" }, { name: "Odorheiu Secuiesc", county: "Harghita" },
+  { name: "Gheorgheni", county: "Harghita" }, { name: "Toplița", county: "Harghita" }, { name: "Cristuru Secuiesc", county: "Harghita" },
+  { name: "Bălan", county: "Harghita" }, { name: "Borsec", county: "Harghita" }, { name: "Vlăhița", county: "Harghita" },
+  { name: "Baia Mare", county: "Maramureș", population: 108759 }, { name: "Sighetu Marmației", county: "Maramureș" },
+  { name: "Borșa", county: "Maramureș" }, { name: "Vișeu de Sus", county: "Maramureș" }, { name: "Târgu Lăpuș", county: "Maramureș" },
+  { name: "Cavnic", county: "Maramureș" }, { name: "Seini", county: "Maramureș" }, { name: "Șomcuta Mare", county: "Maramureș" },
+  { name: "Târgu Mureș", county: "Mureș", population: 116033 }, { name: "Sighișoara", county: "Mureș", population: 23087 },
+  { name: "Reghin", county: "Mureș", population: 29115 }, { name: "Târnăveni", county: "Mureș" }, { name: "Luduș", county: "Mureș", population: 15000 },
+  { name: "Iernut", county: "Mureș" }, { name: "Sovata", county: "Mureș", population: 11000 }, { name: "Miercurea Nirajului", county: "Mureș" },
+  { name: "Zalău", county: "Sălaj", population: 52238 }, { name: "Șimleu Silvaniei", county: "Sălaj" },
+  { name: "Jibou", county: "Sălaj" }, { name: "Cehu Silvaniei", county: "Sălaj" },
+  { name: "Satu Mare", county: "Satu Mare", population: 91056 }, { name: "Carei", county: "Satu Mare" },
+  { name: "Negrești-Oaș", county: "Satu Mare" }, { name: "Tășnad", county: "Satu Mare" }, { name: "Livada", county: "Satu Mare" },
+  { name: "Sibiu", county: "Sibiu", population: 134308 }, { name: "Mediaș", county: "Sibiu", population: 39780 },
+  { name: "Cisnădie", county: "Sibiu" }, { name: "Avrig", county: "Sibiu", population: 12624 }, { name: "Agnita", county: "Sibiu" },
+  { name: "Dumbrăveni", county: "Sibiu" }, { name: "Tălmaciu", county: "Sibiu" }, { name: "Miercurea Sibiului", county: "Sibiu" },
+  { name: "Timișoara", county: "Timiș" }, { name: "Lugoj", county: "Timiș" }, { name: "Sânnicolau Mare", county: "Timiș" },
+  { name: "Jimbolia", county: "Timiș" }, { name: "Buziaș", county: "Timiș" }, { name: "Deta", county: "Timiș" },
+  { name: "Făget", county: "Timiș" }, { name: "Recaș", county: "Timiș" },
+  { name: "Râmnicu Vâlcea", county: "Vâlcea" }, { name: "Drăgășani", county: "Vâlcea" }, { name: "Călimănești", county: "Vâlcea" },
+  { name: "Băbeni", county: "Vâlcea" }, { name: "Brezoi", county: "Vâlcea" }, { name: "Horezu", county: "Vâlcea" },
+  { name: "Băile Govora", county: "Vâlcea" }, { name: "Băile Olănești", county: "Vâlcea" }, { name: "Ocnele Mari", county: "Vâlcea" },
+];
+const ARDEAL_CITIES: RadarCity[] = Array.from(
+  new Map(RADAR_CITY_CATALOG.map(city => [city.name, { ...city, population: city.population ?? 0 }])).values(),
+).sort((a, b) => b.population - a.population || a.name.localeCompare(b.name, "ro"));
 
 // Longest CITIES name whose normalized form appears in the text ("" if none).
 const cityInKeyword = (text: string): string => {
   const normalized = normalizeText(text);
   let best = "";
-  for (const cityData of CITIES) {
+  for (const cityData of [...CITIES, ...ARDEAL_CITIES]) {
     const cityNorm = normalizeText(cityData.name);
     if (cityNorm && normalized.includes(cityNorm) && cityData.name.length > best.length) best = cityData.name;
   }
@@ -294,6 +377,7 @@ const SeoRadarPage: React.FC = () => {
   const [publishing, setPublishing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [postVariants, setPostVariants] = useState<PostVariant[]>([]);
+  const [competitorBrief, setCompetitorBrief] = useState<{ gaps: string[]; recommendations: string | null } | null>(null);
   const [selectedVariant, setSelectedVariant] = useState(0);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
@@ -451,6 +535,29 @@ const SeoRadarPage: React.FC = () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Nu am putut estima bugetul.");
     return data.estimate as AdsBudgetEstimate;
+  };
+
+  const analyzeCompetitors = async (keywordValue: string, cityValue: string, providerValue: "serpapi" | "dataforseo"): Promise<CompetitorAnalysisResult> => {
+    const response = await fetch("/api/admin/seo-radar/analyze-competitors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+      body: JSON.stringify({ keyword: keywordValue, city: cityValue, provider: providerValue }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Analiza competitorilor a eșuat.");
+    return data as CompetitorAnalysisResult;
+  };
+
+  const checkDraft = async (variant: PostVariant): Promise<CheckDraftResult> => {
+    if (!result) throw new Error("Nu știu pentru ce cuvânt cheie e acest draft — deschide analiza din grilă mai întâi.");
+    const response = await fetch("/api/admin/seo-radar/check-draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+      body: JSON.stringify({ title: variant.title, bodyHtml: variant.bodyHtml, keyword: result.keyword, city: result.city, provider: result.source }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Verificarea draftului a eșuat.");
+    return data as CheckDraftResult;
   };
 
   // Încarcă planul de articol (keyword țintă + secundare) al combinației curente.
@@ -663,6 +770,13 @@ const SeoRadarPage: React.FC = () => {
     window.setTimeout(() => creatorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   };
 
+  // Declanșat din panoul „De ce nu suntem în top?" — ținem minte golurile + propunerile
+  // AI ca să le folosim la generarea metadatelor și ca instrucțiune de pornire pentru body.
+  const createArticleFromCompetitors = (analysis: Analysis, brief: { gaps: string[]; recommendations: string | null }) => {
+    setCompetitorBrief(brief);
+    void createArticleFor(analysis);
+  };
+
   const unlinkPost = async (post: LinkedPost) => {
     setUnlinking(post.id);
     try {
@@ -734,6 +848,9 @@ const SeoRadarPage: React.FC = () => {
           variantIndex: index,
           targetKeyword: articlePlan?.targetKeyword ?? "",
           secondaryKeywords: articlePlan?.secondaryKeywords ?? [],
+          competitorNotes: competitorBrief
+            ? [...competitorBrief.gaps, competitorBrief.recommendations ?? ""].filter(Boolean).join("\n")
+            : "",
         }),
       });
       const data = await response.json();
@@ -948,6 +1065,9 @@ const SeoRadarPage: React.FC = () => {
           onStopQueue={stopScanQueue}
           onClearScanResult={clearScanResult}
           disabled={loading}
+          accessToken={auth.accessToken}
+          onAnalyzeCompetitors={analyzeCompetitors}
+          onCreateArticleFromCompetitors={createArticleFromCompetitors}
         />
         {error && <p className="mt-5 text-red-300">{error}</p>}
         {result && (
@@ -1202,6 +1322,8 @@ const SeoRadarPage: React.FC = () => {
                         current.map((item, index) => (index === selectedVariant ? updated : item)),
                       )
                     }
+                    competitorBrief={competitorBrief}
+                    onCheckDraft={checkDraft}
                   />
                 </div>
               )}
@@ -1511,6 +1633,8 @@ const PostVariantEditor = ({
   onGenerate,
   publishing,
   onPublish,
+  competitorBrief,
+  onCheckDraft,
 }: {
   variant: PostVariant;
   token: string;
@@ -1519,7 +1643,12 @@ const PostVariantEditor = ({
   onGenerate: () => void;
   publishing: boolean;
   onPublish: () => void;
+  competitorBrief: { gaps: string[]; recommendations: string | null } | null;
+  onCheckDraft: (variant: PostVariant) => Promise<CheckDraftResult>;
 }) => {
+  const [draftCheck, setDraftCheck] = useState<CheckDraftResult | null>(null);
+  const [checkingDraft, setCheckingDraft] = useState(false);
+  const [draftCheckError, setDraftCheckError] = useState("");
   const [instruction, setInstruction] = useState("");
   const [bodyOptions, setBodyOptions] = useState<{ title: string; html: string }[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -1703,11 +1832,39 @@ const PostVariantEditor = ({
           <button type="button" onClick={onGenerate} disabled={postGenerating} className="rounded-xl bg-amber-200 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">
             {postGenerating ? "Claude generează…" : variant.title ? "Regenerează cu Claude" : "Generează cu Claude"}
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCheckingDraft(true);
+              setDraftCheckError("");
+              onCheckDraft(variant)
+                .then(setDraftCheck)
+                .catch(err => setDraftCheckError(err instanceof Error ? err.message : "Verificarea a eșuat."))
+                .finally(() => setCheckingDraft(false));
+            }}
+            disabled={checkingDraft || !variant.bodyHtml.trim()}
+            className="rounded-xl border border-violet-300/50 px-4 py-2 text-sm font-medium text-violet-200 disabled:opacity-40"
+          >
+            {checkingDraft ? "Verific…" : "Verifică față de competitori"}
+          </button>
           <button type="button" onClick={onPublish} disabled={publishing || !variant.title.trim() || !variant.slug.trim() || !variant.bodyHtml.trim()} className="rounded-xl border border-emerald-300/50 px-4 py-2 text-sm font-medium text-emerald-200 disabled:opacity-40">
             {publishing ? "Se publică…" : "Publică articolul"}
           </button>
         </div>
       </div>
+      {draftCheckError && <p className="text-sm text-red-300">{draftCheckError}</p>}
+      {draftCheck && (
+        <div className="rounded-2xl border border-violet-300/20 bg-violet-300/5 p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-violet-200/80">Draftul tău vs. competitorii — {draftCheck.own.factors.wordCount} cuvinte, {draftCheck.own.factors.h1Count} H1</p>
+          {draftCheck.gaps.length === 0 ? (
+            <p className="mt-2 text-sm text-emerald-300">Nicio diferență majoră găsită — draftul se aliniază cu ce au competitorii de top.</p>
+          ) : (
+            <ul className="mt-2 space-y-1">
+              {draftCheck.gaps.map((gap, i) => <li key={i} className="text-xs text-red-200">• {gap}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <label className="text-xs uppercase tracking-wider text-gray-500">
           Titlu SEO
@@ -1767,6 +1924,21 @@ const PostVariantEditor = ({
         <div className="mb-5 border-b border-white/10 pb-4">
           <p className="text-xs uppercase tracking-wider text-amber-200/70">Context pentru body</p>
           <p className="mt-1 text-xs text-gray-500">Body-ul se generează numai după ce introduci contextul și apeși butonul.</p>
+          {competitorBrief && (competitorBrief.gaps.length > 0 || competitorBrief.recommendations) && (
+            <div className="mt-2 rounded-xl border border-violet-300/20 bg-violet-300/5 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-violet-200">Propuneri din analiza competitorilor, disponibile</p>
+                <button
+                  type="button"
+                  onClick={() => setInstruction([...competitorBrief.gaps, competitorBrief.recommendations ?? ""].filter(Boolean).join("\n"))}
+                  className="shrink-0 rounded-lg border border-violet-300/40 px-2.5 py-1 text-xs text-violet-200"
+                >
+                  Folosește ca instrucțiune
+                </button>
+              </div>
+              <p className="mt-1 text-[11px] text-gray-500">Le poți edita înainte de a genera — apasă butonul, apoi corectează textul din câmpul de mai jos.</p>
+            </div>
+          )}
           <div className="mt-2 flex flex-col gap-2 md:flex-row">
             <textarea
               value={instruction}
@@ -1917,6 +2089,10 @@ const deltaText = (delta: TrendDelta): string => {
 const deltaTone = (delta: TrendDelta): string => {
   if (!delta || delta.dir === "flat") return "text-gray-400";
   return delta.dir === "down" ? "text-red-300" : "text-emerald-300";
+};
+const fmtDateShort = (iso: string): string => {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 const positionLabel = (position: number | null): string => (position === null ? "peste 10" : `#${position}`);
 
@@ -2376,6 +2552,119 @@ const AdsInsightPanel = ({
   );
 };
 
+const factorRow = (label: string, own: React.ReactNode, competitor: React.ReactNode, gap: boolean) => (
+  <tr className={gap ? "bg-red-400/5" : ""}>
+    <td className="py-1 pr-3 text-gray-400">{label}</td>
+    <td className="py-1 pr-3 text-white">{own}</td>
+    <td className="py-1 text-gray-300">{competitor}</td>
+  </tr>
+);
+
+const CompetitorAnalysisPanel = ({
+  analysis,
+  city,
+  onAnalyze,
+  onCreateArticle,
+}: {
+  analysis: Analysis;
+  city: string;
+  onAnalyze: (keyword: string, city: string, provider: "serpapi" | "dataforseo") => Promise<CompetitorAnalysisResult>;
+  onCreateArticle: (analysis: Analysis, brief: { gaps: string[]; recommendations: string | null }) => void;
+}) => {
+  const { keyword, provider } = analysis;
+  const [result, setResult] = useState<CompetitorAnalysisResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const run = () => {
+    setLoading(true);
+    setError("");
+    onAnalyze(keyword, city, provider)
+      .then(setResult)
+      .catch(err => setError(err instanceof Error ? err.message : "Analiza a eșuat."))
+      .finally(() => setLoading(false));
+  };
+
+  return (
+    <div className="rounded-xl border border-violet-300/20 bg-violet-300/5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs uppercase tracking-[0.2em] text-violet-200/80">De ce nu suntem în top? (primii competitori)</p>
+        <button type="button" onClick={run} disabled={loading} className="rounded-lg border border-violet-300/40 px-3 py-1.5 text-xs font-medium text-violet-200 disabled:opacity-50">
+          {loading ? "Analizez paginile…" : result ? "Reanalizează" : "Analizează competitorii"}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+      {loading && <p className="mt-2 text-xs text-gray-500">Citesc paginile primilor competitori… poate dura câteva secunde.</p>}
+      {result && (
+        <div className="mt-3 space-y-3">
+          {result.gaps.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-300">Diferențe găsite</p>
+              <ul className="mt-1 space-y-1">
+                {result.gaps.map((gap, i) => (
+                  <li key={i} className="text-xs text-red-200">• {gap}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-gray-500">
+                  <th className="py-1 pr-3">Factor</th>
+                  <th className="py-1 pr-3">Noi</th>
+                  <th className="py-1">Competitori (poz. {result.competitors.filter(c => c.factors).map(c => c.position).join(", ") || "—"})</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const ownF = result.own?.factors ?? null;
+                  const compF = result.competitors.map(c => c.factors).filter((f): f is OnPageFactors => f !== null);
+                  const avg = (pick: (f: OnPageFactors) => number) => compF.length ? Math.round(compF.reduce((s, f) => s + pick(f), 0) / compF.length) : null;
+                  const pctYes = (pick: (f: OnPageFactors) => boolean) => compF.filter(pick).length;
+                  return (
+                    <>
+                      {factorRow("Cuvinte în pagină", ownF?.wordCount ?? "—", `~${avg(f => f.wordCount) ?? "—"} în medie`, !!ownF && !!avg(f => f.wordCount) && ownF.wordCount < (avg(f => f.wordCount) ?? 0) * 0.7)}
+                      {factorRow("Keyword în titlu", ownF ? (ownF.keywordInTitle ? "da" : "nu") : "—", `${pctYes(f => f.keywordInTitle)}/${compF.length} au`, !!ownF && !ownF.keywordInTitle && pctYes(f => f.keywordInTitle) > compF.length / 2)}
+                      {factorRow("Keyword în H1", ownF ? (ownF.keywordInH1 ? "da" : "nu") : "—", `${pctYes(f => f.keywordInH1)}/${compF.length} au`, !!ownF && !ownF.keywordInH1 && pctYes(f => f.keywordInH1) > compF.length / 2)}
+                      {factorRow("Schema markup", ownF?.schemaTypes.join(", ") || "niciuna", compF.map(f => f.schemaTypes.join(",")).filter(Boolean).join(" · ") || "niciuna", false)}
+                      {factorRow("Imagini (cu alt)", ownF ? `${ownF.imgCount} (${ownF.imgWithAlt})` : "—", `~${avg(f => f.imgCount) ?? "—"} în medie`, false)}
+                      {factorRow("Linkuri interne/externe", ownF ? `${ownF.internalLinks}/${ownF.externalLinks}` : "—", `~${avg(f => f.internalLinks) ?? "—"}/${avg(f => f.externalLinks) ?? "—"} în medie`, false)}
+                    </>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+
+          {result.competitors.some(c => c.error) && (
+            <p className="text-[11px] text-gray-600">
+              Nu am putut citi: {result.competitors.filter(c => c.error).map(c => c.domain).join(", ")}.
+            </p>
+          )}
+
+          {result.recommendations && (
+            <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/5 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-emerald-200">Propuneri AI ca să-i depășim</p>
+                <button
+                  type="button"
+                  onClick={() => onCreateArticle(analysis, { gaps: result.gaps, recommendations: result.recommendations })}
+                  className="shrink-0 rounded-lg border border-emerald-300/40 px-3 py-1.5 text-xs font-medium text-emerald-200"
+                >
+                  Creează articol din această analiză →
+                </button>
+              </div>
+              <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-gray-200">{result.recommendations}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CoverageDetailPanel = ({
   cell,
   disabled,
@@ -2390,6 +2679,8 @@ const CoverageDetailPanel = ({
   onDiscoverAdsInsight,
   onDiscoverAdsBudget,
   requestConfirm,
+  onAnalyzeCompetitors,
+  onCreateArticleFromCompetitors,
 }: {
   cell: CoverageCell;
   disabled: boolean;
@@ -2404,6 +2695,8 @@ const CoverageDetailPanel = ({
   onDiscoverAdsInsight: (keyword: string) => Promise<AdsInsight>;
   onDiscoverAdsBudget: (keyword: string, bid: number) => Promise<AdsBudgetEstimate>;
   requestConfirm: (title: string, message: string, onConfirm: () => void, confirmLabel?: string) => void;
+  onAnalyzeCompetitors: (keyword: string, city: string, provider: "serpapi" | "dataforseo") => Promise<CompetitorAnalysisResult>;
+  onCreateArticleFromCompetitors: (analysis: Analysis, brief: { gaps: string[]; recommendations: string | null }) => void;
 }) => {
   const analysis = cell.analysis;
   if (!analysis) return null;
@@ -2443,6 +2736,14 @@ const CoverageDetailPanel = ({
           onDiscoverInsight={onDiscoverAdsInsight}
           onDiscoverBudget={onDiscoverAdsBudget}
           requestConfirm={requestConfirm}
+        />
+      </div>
+      <div className="mt-3">
+        <CompetitorAnalysisPanel
+          analysis={analysis}
+          city={cell.city}
+          onAnalyze={onAnalyzeCompetitors}
+          onCreateArticle={onCreateArticleFromCompetitors}
         />
       </div>
       <div className="mt-3">
@@ -2488,6 +2789,9 @@ const CoverageReport = ({
   onStopQueue,
   onClearScanResult,
   disabled,
+  accessToken,
+  onAnalyzeCompetitors,
+  onCreateArticleFromCompetitors,
 }: {
   analyses: Analysis[];
   loading: boolean;
@@ -2523,6 +2827,9 @@ const CoverageReport = ({
   onStopQueue: () => void;
   onClearScanResult: (key: string) => void;
   disabled: boolean;
+  accessToken: string;
+  onAnalyzeCompetitors: (keyword: string, city: string, provider: "serpapi" | "dataforseo") => Promise<CompetitorAnalysisResult>;
+  onCreateArticleFromCompetitors: (analysis: Analysis, brief: { gaps: string[]; recommendations: string | null }) => void;
 }) => {
   const queuedKeySet = React.useMemo(() => new Set(queuedKeys.map(job => job.key)), [queuedKeys]);
   const activeScanLabel = queuedKeys.find(job => job.key === activeScanKey)?.label ?? "";
@@ -2533,11 +2840,17 @@ const CoverageReport = ({
   const [newCity, setNewCity] = useState("");
   const [newColumn, setNewColumn] = useState("");
   const [selectMode, setSelectMode] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkProvider, setBulkProvider] = useState<"serpapi" | "dataforseo">(defaultProvider);
   const [expandedCombo, setExpandedCombo] = useState<string | null>(null);
   const [exploreState, setExploreState] = useState<{ done: number; total: number; current: string } | null>(null);
   const [exploreResults, setExploreResults] = useState<(KeywordSuggestion & { sources: string[] })[] | null>(null);
+  const planCityNames = React.useMemo(() => new Set(planCities.map(normalizeText)), [planCities]);
+  const availableRadarCities = React.useMemo(
+    () => ARDEAL_CITIES.filter(cityData => !planCityNames.has(normalizeText(cityData.name))),
+    [planCityNames],
+  );
   const existingQueries = React.useMemo(() => new Set(columns.map(col => normalizeText(col.query))), [columns]);
   const comboKey = (serviceId: string, city: string) => `${serviceId}|${city}`;
   const toggleCombo = (serviceId: string, city: string) => {
@@ -2614,6 +2927,84 @@ const CoverageReport = ({
     if (statusFilter === "all") return true;
     if (statusFilter === "gaps") return status === "absent" || status === "unscanned";
     return statusFilter === status;
+  };
+
+  // ── Export CSV / PDF ──────────────────────────────────────────────────────────
+  // Un rând per combinație scanată (celulele nescanate nu au date de exportat).
+  // Sortate cu golurile (absent, apoi top 4-10) primele — sunt cele mai utile ca
+  // brief pentru un AI care scrie conținut țintit pe orașele/serviciile unde nu apărem bine.
+  const buildExportRows = React.useCallback(() => {
+    const statusOrder: Record<CoverageCellStatus, number> = { absent: 0, top10: 1, top3: 2, pos1: 3, unscanned: 4 };
+    const countyFor = (cityName: string) => RADAR_CITY_CATALOG.find(c => normalizeText(c.name) === normalizeText(cityName))?.county ?? "";
+    return allCells
+      .filter(cell => cell.analysis !== null)
+      .map(cell => {
+        const a = cell.analysis!;
+        const delta = historyDelta(a.positionHistory);
+        return {
+          city: cell.city,
+          county: countyFor(cell.city),
+          service: cell.serviceLabel,
+          keyword: a.keyword,
+          status: statusText(cell.status),
+          statusOrder: statusOrder[cell.status],
+          latestPosition: a.latestPosition,
+          firstPosition: a.firstPosition,
+          trend: deltaText(delta),
+          scanCount: a.scanCount,
+          lastScanAt: a.lastScanAt,
+          hasOwnArticle: cell.articleCount > 0 ? "da" : "nu",
+          articleRanked: cell.articleRanked ? "da" : "nu",
+        };
+      })
+      .sort((x, y) => x.statusOrder - y.statusOrder || (x.latestPosition ?? 999) - (y.latestPosition ?? 999) || x.city.localeCompare(y.city, "ro"));
+  }, [allCells]);
+
+  const exportCsv = () => {
+    const rows = buildExportRows();
+    const headers = ["Oraș", "Județ", "Serviciu", "Cuvinte cheie", "Status", "Poziție curentă", "Poziție inițială", "Tendință", "Nr. scanări", "Ultima scanare", "Are articol propriu", "Articol în top"];
+    const csvCell = (value: unknown) => {
+      const str = String(value ?? "");
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const lines = [
+      headers.join(","),
+      ...rows.map(row => [
+        row.city, row.county, row.service, row.keyword, row.status,
+        row.latestPosition ?? "peste 10", row.firstPosition ?? "peste 10", row.trend,
+        row.scanCount, fmtDateShort(row.lastScanAt), row.hasOwnArticle, row.articleRanked,
+      ].map(csvCell).join(",")),
+    ];
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `seo-radar-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const response = await fetch("/api/admin/seo-radar/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ rows: buildExportRows(), summary }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `seo-radar-${new Date().toISOString().slice(0, 10)}.pdf`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (error) {
+      requestConfirm("Export PDF eșuat", error instanceof Error ? error.message : "Eroare necunoscută.", () => {}, "OK");
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   const addCity = () => {
@@ -2826,6 +3217,14 @@ const CoverageReport = ({
         >
           {selectMode ? "Renunță la selecție" : "Selectează pentru scanare"}
         </button>
+        <span className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={exportCsv} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-gray-300 hover:border-emerald-300/40 hover:text-emerald-200">
+            Export CSV
+          </button>
+          <button type="button" onClick={() => void exportPdf()} disabled={exportingPdf} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-gray-300 hover:border-emerald-300/40 hover:text-emerald-200 disabled:opacity-50">
+            {exportingPdf ? "Generez PDF…" : "Export PDF"}
+          </button>
+        </span>
       </div>
 
       {selectMode && (
@@ -2901,7 +3300,7 @@ const CoverageReport = ({
               className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white"
             />
             <datalist id="seo-coverage-cities">
-              {ARDEAL_CITIES.map(cityData => <option key={`${cityData.county}-${cityData.name}`} value={cityData.name} />)}
+              {availableRadarCities.map(cityData => <option key={`${cityData.county}-${cityData.name}`} value={cityData.name} />)}
             </datalist>
             <button type="button" onClick={addCity} className="rounded-xl border border-amber-200/50 px-4 py-2 text-sm text-amber-200">Adaugă</button>
           </div>
@@ -3162,6 +3561,8 @@ const CoverageReport = ({
                             onDiscoverAdsInsight={onDiscoverAdsInsight}
                             onDiscoverAdsBudget={onDiscoverAdsBudget}
                             requestConfirm={requestConfirm}
+                            onAnalyzeCompetitors={onAnalyzeCompetitors}
+                            onCreateArticleFromCompetitors={onCreateArticleFromCompetitors}
                           />
                         </td>
                       </tr>

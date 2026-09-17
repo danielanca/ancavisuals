@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 import { ROMANIAN_COUNTIES, getCitiesForCounty } from "../../../../data/romaniaLocations";
@@ -11,13 +12,17 @@ interface BankStatementEntry {
   counterparty: string | null;
   description: string | null;
   justificationStatus: "matched" | "unmatched";
+  matchedType: "invoice" | "expense" | null;
+  matchedId: string | null;
   matchedLabel: string | null;
+  matchedFileUrl: string | null;
 }
 
 interface BankStatement {
   id: string;
   statementDate: string;
   year: number;
+  account: string;
   file: {
     url: string;
     name: string;
@@ -27,6 +32,8 @@ interface BankStatement {
   unmatchedCount: number;
   createdAt: string;
 }
+
+const DEFAULT_ACCOUNT = "Cont principal";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, index) => CURRENT_YEAR - index);
@@ -97,15 +104,67 @@ function InfoBadge({ title, description }: { title: string; description: string 
   );
 }
 
+function EmptyStatementRow({
+  statement,
+  showAccount,
+  deleting,
+  onDelete,
+}: {
+  statement: BankStatement;
+  showAccount: boolean;
+  deleting: boolean;
+  onDelete: () => void;
+}) {
+  return (
+    <details className="group rounded-xl border border-neutral-800 bg-neutral-900/60">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2 flex-wrap">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-neutral-600 transition-transform group-open:rotate-90"><polyline points="9 18 15 12 9 6" /></svg>
+          <span className="truncate text-sm text-neutral-300">{statement.file.name}</span>
+          {showAccount && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-xs font-medium text-sky-400">{statement.account}</span>}
+          <span className="rounded bg-neutral-700/40 px-1.5 py-0.5 text-xs font-medium text-neutral-400">Extras gol · fără tranzacții</span>
+          <span className="text-xs text-neutral-600">{fmtDate(statement.statementDate)}</span>
+        </div>
+      </summary>
+      <div className="flex items-center justify-between gap-3 border-t border-neutral-800 px-4 py-3">
+        <p className="text-xs text-neutral-500">
+          AI a citit extrasul și nu a găsit nicio tranzacție — luna respectivă a avut 0 lei încasări și 0 lei plăți.
+        </p>
+        <div className="flex shrink-0 items-center gap-3">
+          <a
+            href={statement.file.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 rounded border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+            Vezi PDF
+          </a>
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="text-neutral-600 transition-colors hover:text-red-400 disabled:opacity-50"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+          </button>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 interface AddBankStatementModalProps {
   accessToken: string;
   selectedYear: number;
+  knownAccounts: string[];
+  defaultAccount: string;
   onClose: () => void;
   onAdded: (statement: BankStatement) => void;
 }
 
-function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: AddBankStatementModalProps) {
+function AddBankStatementModal({ accessToken, selectedYear, knownAccounts, defaultAccount, onClose, onAdded }: AddBankStatementModalProps) {
   const [files, setFiles] = React.useState<File[]>([]);
+  const [account, setAccount] = React.useState(defaultAccount);
   const [processing, setProcessing] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
   const [statusLabel, setStatusLabel] = React.useState("Pregătit pentru upload");
@@ -183,6 +242,7 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
         const formData = new FormData();
         formData.append("file", current);
         formData.append("year", String(selectedYear));
+        formData.append("account", account.trim() || DEFAULT_ACCOUNT);
         const labelPrefix = files.length > 1 ? `Fișier ${i + 1} din ${files.length}: ` : "";
         const statement = await uploadAndAnalyzeStatement(formData, labelPrefix);
         onAdded(statement);
@@ -211,6 +271,25 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Cont / PFA *</label>
+            <input
+              list="bank-statement-accounts"
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
+              disabled={processing}
+              required
+              placeholder="ex. Cont principal, PFA 2"
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-500 disabled:opacity-50"
+            />
+            <datalist id="bank-statement-accounts">
+              {knownAccounts.map((a) => <option key={a} value={a} />)}
+            </datalist>
+            <p className="mt-1 text-xs text-neutral-500">
+              Toate fișierele selectate mai jos vor fi salvate pe acest cont. Dacă e un cont nou, scrie orice nume — apare apoi în filtrul de conturi.
+            </p>
+          </div>
+
           <div>
             <label className="mb-1 block text-xs text-neutral-400">Fișiere extras *</label>
             <input
@@ -280,14 +359,22 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
 
           {error && <p className="text-sm text-red-400">{error}</p>}
 
-          <div className="flex gap-2 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-neutral-700 py-2 text-sm text-neutral-400 hover:border-neutral-500">
-              Anulează
-            </button>
-            <button type="submit" disabled={files.length === 0 || processing} className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-500 disabled:opacity-50">
-              {processing ? "Se procesează..." : files.length > 1 ? `Analizează ${files.length} extrase` : "Analizează extrasul"}
-            </button>
-          </div>
+          {failedFiles.length > 0 && files.length === 0 ? (
+            <div className="pt-2">
+              <button type="button" onClick={onClose} className="w-full rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-500">
+                OK
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-neutral-700 py-2 text-sm text-neutral-400 hover:border-neutral-500">
+                Anulează
+              </button>
+              <button type="submit" disabled={files.length === 0 || processing} className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-500 disabled:opacity-50">
+                {processing ? "Se procesează..." : files.length > 1 ? `Analizează ${files.length} extrase` : "Analizează extrasul"}
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>
@@ -456,6 +543,7 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
   const [amount, setAmount] = React.useState(String(entry.amount));
   const [date, setDate] = React.useState(entry.date.slice(0, 10));
   const [deductibility, setDeductibility] = React.useState("100");
+  const [docFile, setDocFile] = React.useState<File | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -464,6 +552,24 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
     setSaving(true);
     setError(null);
     try {
+      let factura: { url: string; name: string; hash?: string } | null = null;
+      if (docFile) {
+        const year = new Date(date).getFullYear();
+        const month = new Date(date).getMonth() + 1;
+        const formData = new FormData();
+        formData.append("file", docFile);
+        formData.append("year", String(year));
+        formData.append("month", String(month));
+        const uploadRes = await fetch("/api/admin/expenses/upload-doc", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || uploadData.error) throw new Error(uploadData.error ?? "Nu s-a putut încărca documentul.");
+        factura = { url: uploadData.url, name: uploadData.name, hash: uploadData.hash };
+      }
+
       const res = await fetch("/api/admin/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -475,6 +581,7 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
           amount: Number(amount),
           currency: entry.currency,
           deductibility: Number(deductibility),
+          factura,
         }),
       });
       const data = await res.json();
@@ -535,6 +642,27 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
             </div>
           </div>
 
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Factură / chitanță (opțional)</label>
+            <div className="flex items-center gap-2">
+              <label className="flex-1 min-w-0 cursor-pointer truncate rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-300 hover:border-neutral-500">
+                {docFile ? docFile.name : "Alege fișierul (PDF sau imagine)"}
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {docFile && (
+                <button type="button" onClick={() => setDocFile(null)} className="shrink-0 text-neutral-500 hover:text-red-400">
+                  ✕
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-neutral-500">Fără document deductibilitatea rămâne validă, dar e mai greu de justificat la control.</p>
+          </div>
+
           {error && <p className="text-sm text-red-400">{error}</p>}
 
           <div className="flex gap-2 pt-2">
@@ -551,25 +679,36 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
 
 const BankStatementsPage: React.FC = () => {
   const { auth } = useAuth();
+  const navigate = useNavigate();
   const [selectedYear, setSelectedYear] = React.useState(CURRENT_YEAR);
+  const [selectedAccount, setSelectedAccount] = React.useState("");
+  const [knownAccounts, setKnownAccounts] = React.useState<string[]>([]);
   const [bankStatements, setBankStatements] = React.useState<BankStatement[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [showAddModal, setShowAddModal] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [rematchingId, setRematchingId] = React.useState<string | null>(null);
   const [quickAdd, setQuickAdd] = React.useState<{ statementId: string; type: "invoice" | "expense"; entry: BankStatementEntry } | null>(null);
+  const [renamingAccount, setRenamingAccount] = React.useState(false);
+  const [renameValue, setRenameValue] = React.useState("");
+  const [renaming, setRenaming] = React.useState(false);
 
   const authHeader = React.useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
   React.useEffect(() => {
     if (!auth.accessToken) return;
     setLoading(true);
-    fetch(`/api/admin/bank-statements?year=${selectedYear}`, { headers: authHeader })
+    const params = new URLSearchParams({ year: String(selectedYear) });
+    if (selectedAccount) params.set("account", selectedAccount);
+    fetch(`/api/admin/bank-statements?${params.toString()}`, { headers: authHeader })
       .then((response) => response.json())
-      .then((data) => setBankStatements(data.statements ?? []))
+      .then((data) => {
+        setBankStatements(data.statements ?? []);
+        setKnownAccounts(data.accounts ?? []);
+      })
       .catch(() => setBankStatements([]))
       .finally(() => setLoading(false));
-  }, [auth.accessToken, authHeader, selectedYear]);
+  }, [auth.accessToken, authHeader, selectedYear, selectedAccount]);
 
   const totals = React.useMemo(() => {
     const entries = bankStatements.flatMap((statement) => statement.entries);
@@ -609,6 +748,26 @@ const BankStatementsPage: React.FC = () => {
     }
   }
 
+  async function handleRenameAccount() {
+    const oldName = selectedAccount;
+    const newName = renameValue.trim();
+    if (!oldName || !newName || newName === oldName) { setRenamingAccount(false); return; }
+    setRenaming(true);
+    try {
+      await fetch("/api/admin/bank-statements/rename-account", {
+        method: "PATCH",
+        headers: { ...authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify({ oldName, newName }),
+      });
+      setBankStatements((current) => current.map((s) => s.account === oldName ? { ...s, account: newName } : s));
+      setKnownAccounts((current) => [...new Set(current.map((a) => a === oldName ? newName : a))].sort());
+      setSelectedAccount(newName);
+      setRenamingAccount(false);
+    } finally {
+      setRenaming(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="mx-auto max-w-5xl space-y-6">
@@ -624,6 +783,43 @@ const BankStatementsPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            {renamingAccount ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void handleRenameAccount(); if (e.key === "Escape") setRenamingAccount(false); }}
+                  className="rounded-lg border border-emerald-500/50 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none"
+                />
+                <button onClick={() => void handleRenameAccount()} disabled={renaming}
+                  className="rounded-lg border border-emerald-500/40 px-2 py-2 text-xs text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
+                  {renaming ? "..." : "✓"}
+                </button>
+                <button onClick={() => setRenamingAccount(false)} className="rounded-lg border border-neutral-700 px-2 py-2 text-xs text-neutral-400 hover:border-neutral-500">✕</button>
+              </div>
+            ) : (
+              <>
+                <select
+                  value={selectedAccount}
+                  onChange={(e) => setSelectedAccount(e.target.value)}
+                  className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none"
+                >
+                  <option value="">Toate conturile</option>
+                  {knownAccounts.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+                {selectedAccount && (
+                  <button
+                    onClick={() => { setRenameValue(selectedAccount); setRenamingAccount(true); }}
+                    title="Redenumește contul"
+                    className="rounded-lg border border-neutral-700 px-2 py-2 text-xs text-neutral-400 transition-colors hover:border-neutral-500 hover:text-white"
+                  >
+                    ✎
+                  </button>
+                )}
+              </>
+            )}
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -671,53 +867,80 @@ const BankStatementsPage: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {bankStatements.map((statement) => {
+              if (statement.entries.length === 0) {
+                return (
+                  <EmptyStatementRow
+                    key={statement.id}
+                    statement={statement}
+                    showAccount={!selectedAccount}
+                    deleting={deletingId === statement.id}
+                    onDelete={() => handleDeleteBankStatement(statement.id)}
+                  />
+                );
+              }
+
               const incoming = statement.entries.filter((entry) => entry.direction === "in");
               const outgoing = statement.entries.filter((entry) => entry.direction === "out");
 
               return (
-                <div key={statement.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                <details key={statement.id} open className="group rounded-xl border border-neutral-800 bg-neutral-900">
+                  <summary className="flex cursor-pointer list-none items-start justify-between gap-4 p-4 flex-wrap">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-neutral-600 transition-transform group-open:rotate-90"><polyline points="9 18 15 12 9 6" /></svg>
                         <span className="text-sm font-medium text-white">{statement.file.name}</span>
+                        {!selectedAccount && (
+                          <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-xs font-medium text-sky-400">{statement.account}</span>
+                        )}
                         <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${statement.unmatchedCount > 0 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>
                           {statement.unmatchedCount > 0 ? `${statement.unmatchedCount} nejustificate` : "Totul justificat"}
                         </span>
-                        <InfoBadge title="Status extras" description="Verde înseamnă că toate tranzacțiile au fost corelate de AI cu facturi sau cheltuieli. Galben înseamnă că au rămas tranzacții fără justificare." />
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap text-xs text-neutral-500">
+                      <div className="flex items-center gap-2 flex-wrap pl-5 text-xs text-neutral-500">
                         <span>{fmtDate(statement.statementDate)}</span>
-                        <span>·</span>
-                        <a href={statement.file.url} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-white">
-                          Vezi extrasul
-                        </a>
                       </div>
-                      <div className="flex gap-4 flex-wrap pt-1 text-xs text-neutral-400">
+                      <div className="flex gap-4 flex-wrap pl-5 pt-1 text-xs text-neutral-400">
                         <span>Încasări: <span className="text-emerald-400">{summarizeCurrencies(incoming)}</span></span>
                         <span>Plăți: <span className="text-red-400">{summarizeCurrencies(outgoing)}</span></span>
                       </div>
                     </div>
+                  </summary>
 
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleRematch(statement.id)}
-                        disabled={rematchingId === statement.id}
-                        className="flex items-center gap-1.5 text-xs text-neutral-400 transition-colors hover:text-white disabled:opacity-50"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
-                        {rematchingId === statement.id ? "Se reverifică..." : "Re-verifică"}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteBankStatement(statement.id)}
-                        disabled={deletingId === statement.id}
-                        className="text-neutral-600 transition-colors hover:text-red-400 disabled:opacity-50"
-                      >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
-                      </button>
+                  <div className="border-t border-neutral-800 px-4 pb-4 pt-3">
+                    <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <InfoBadge title="Status extras" description="Verde înseamnă că toate tranzacțiile au fost corelate de AI cu facturi sau cheltuieli. Galben înseamnă că au rămas tranzacții fără justificare." />
+                        <a
+                          href={statement.file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                          Vezi PDF
+                        </a>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleRematch(statement.id)}
+                          disabled={rematchingId === statement.id}
+                          className="flex items-center gap-1.5 text-xs text-neutral-400 transition-colors hover:text-white disabled:opacity-50"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                          {rematchingId === statement.id ? "Se reverifică..." : "Re-verifică"}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBankStatement(statement.id)}
+                          disabled={deletingId === statement.id}
+                          className="text-neutral-600 transition-colors hover:text-red-400 disabled:opacity-50"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="mt-4 overflow-x-auto">
+                    <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-neutral-800">
@@ -742,7 +965,24 @@ const BankStatementsPage: React.FC = () => {
                             </td>
                             <td className="px-2 py-2">
                               {entry.justificationStatus === "matched" ? (
-                                <span className="inline-flex rounded bg-emerald-500/15 px-2 py-1 text-xs text-emerald-400">{entry.matchedLabel}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!entry.matchedId) return;
+                                    if (entry.matchedFileUrl) {
+                                      window.open(entry.matchedFileUrl, "_blank", "noopener,noreferrer");
+                                      return;
+                                    }
+                                    const tab = entry.matchedType === "invoice" ? "facturi" : "cheltuieli";
+                                    const param = entry.matchedType === "invoice" ? "highlightInvoice" : "highlightExpense";
+                                    navigate(`/admin/financial?tab=${tab}&${param}=${entry.matchedId}&year=${statement.year}`);
+                                  }}
+                                  disabled={!entry.matchedId}
+                                  className="inline-flex rounded bg-emerald-500/15 px-2 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/25 hover:text-emerald-300 disabled:cursor-default disabled:hover:bg-emerald-500/15 disabled:hover:text-emerald-400"
+                                  title={entry.matchedFileUrl ? "Deschide factura/chitanța" : entry.matchedId ? "Deschide în Financiar" : undefined}
+                                >
+                                  {entry.matchedLabel}
+                                </button>
                               ) : (
                                 <div className="flex items-center gap-2">
                                   <span className="inline-flex rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-400">Nejustificată încă</span>
@@ -760,8 +1000,9 @@ const BankStatementsPage: React.FC = () => {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
-                </div>
+                </details>
               );
             })}
           </div>
@@ -772,8 +1013,15 @@ const BankStatementsPage: React.FC = () => {
         <AddBankStatementModal
           accessToken={auth.accessToken ?? ""}
           selectedYear={selectedYear}
+          knownAccounts={knownAccounts}
+          defaultAccount={selectedAccount || DEFAULT_ACCOUNT}
           onClose={() => setShowAddModal(false)}
-          onAdded={(statement) => setBankStatements((current) => [statement, ...current])}
+          onAdded={(statement) => {
+            if (!selectedAccount || statement.account === selectedAccount) {
+              setBankStatements((current) => [statement, ...current]);
+            }
+            setKnownAccounts((current) => current.includes(statement.account) ? current : [...current, statement.account].sort());
+          }}
         />
       )}
 
