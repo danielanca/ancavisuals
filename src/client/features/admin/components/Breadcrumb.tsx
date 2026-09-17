@@ -30,6 +30,8 @@ const LABELS: Record<string, string> = {
   "template-oferte": "Template Oferte",
   oferte: "Oferte",
   "media-assets": "Media Assets",
+  "album-health": "Albume",
+  "storage-stats": "Stocare Bunny",
   showcase: "Zone Showcase",
   settings: "Setări firmă",
 };

@@ -6,12 +6,20 @@ import { useNavigate } from "react-router-dom";
 type SearchItem = { label: string; path: string; category: string; icon: string; keywords?: string };
 
 const SEARCH_ITEMS: SearchItem[] = [
+  // Sistem
+  { label: "Dashboard", path: "/admin", category: "Sistem", icon: "🏠", keywords: "acasa home principal" },
   // Evenimente
   { label: "Calendar", path: "/admin/calendar", category: "Evenimente", icon: "📅" },
+  { label: "Eveniment nou", path: "/admin/create-event", category: "Evenimente", icon: "➕", keywords: "adauga programare rezervare booking creeaza" },
+  { label: "Invitație nuntă", path: "/admin/create-event-wedding", category: "Evenimente", icon: "💌", keywords: "nunta invitatie wedding creeaza" },
   { label: "Mementouri", path: "/admin/mementos", category: "Evenimente", icon: "🔔", keywords: "remindere notificari" },
   { label: "Moderare albume", path: "/admin/moderare", category: "Evenimente", icon: "🖼️", keywords: "album moderat aprobare" },
   // Contracte & Oferte
   { label: "Contracte", path: "/admin/contracts", category: "Contracte & Oferte", icon: "📝", keywords: "semnat client acord" },
+  { label: "Contract nou", path: "/admin/contracts/create", category: "Contracte & Oferte", icon: "➕", keywords: "creeaza contract nou" },
+  { label: "Șabloane clauze contract", path: "/admin/contracts/templates", category: "Contracte & Oferte", icon: "📚", keywords: "clauze biblioteca sablon contract" },
+  { label: "Procese Verbale", path: "/admin/handover", category: "Contracte & Oferte", icon: "📄", keywords: "predare preluare echipament handover" },
+  { label: "Proces verbal nou", path: "/admin/handover/new", category: "Contracte & Oferte", icon: "➕", keywords: "creeaza predare preluare" },
   { label: "Oferte", path: "/admin/oferte", category: "Contracte & Oferte", icon: "💼", keywords: "pret pachet propunere" },
   { label: "Template Oferte", path: "/admin/template-oferte", category: "Contracte & Oferte", icon: "📋", keywords: "sablon model oferta" },
   // Media
@@ -21,6 +29,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Activitate album", path: "/admin/media-activity", category: "Media", icon: "📊", keywords: "vizualizari descarcare activitate" },
   { label: "Optimizare poze", path: "/admin/image-optimizer", category: "Media", icon: "⚡", keywords: "compresie webp optimizare imagini" },
   { label: "Sănătate albume", path: "/admin/album-health", category: "Media", icon: "💊", keywords: "zip webp status album health" },
+  { label: "Stocare Bunny", path: "/admin/storage-stats", category: "Media", icon: "🗄️", keywords: "bunny storage spatiu gb poze video arhive stocare" },
   // Evenimente
   { label: "Progres Evenimente", path: "/admin/progress", category: "Evenimente", icon: "📋", keywords: "progres editare livrare fotografiere etape status" },
   // Financiar
@@ -30,8 +39,12 @@ const SEARCH_ITEMS: SearchItem[] = [
   // Marketing & Web
   { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web", icon: "✨", keywords: "moodboard idei stil" },
   { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web", icon: "📈", keywords: "vizitatori trafic statistici seo" },
+  { label: "Vizitatori live", path: "/admin/live", category: "Marketing & Web", icon: "👁️", keywords: "live visitors realtime vizitatori acum" },
   { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", icon: "🖥️", keywords: "banner reclama footer homepage" },
   { label: "SEO Generator", path: "/admin/seo-generator", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },
+  { label: "SEO Radar", path: "/admin/seo-radar", category: "Marketing & Web", icon: "🛰️", keywords: "seo radar monitorizare ranking pozitii" },
+  { label: "Pagini SEO", path: "/admin/seo-pages", category: "Marketing & Web", icon: "📄", keywords: "seo pagini landing" },
+  { label: "Ads Radar", path: "/admin/ads-radar", category: "Marketing & Web", icon: "📡", keywords: "reclame ads radar campanii publicitate google facebook" },
   { label: "Blog", path: "/admin/blog", category: "Marketing & Web", icon: "✍️", keywords: "articole markdown continut publicare draft" },
   { label: "Campanii", path: "/admin/campanii", category: "Marketing & Web", icon: "📣", keywords: "campanie marketing email newsletter" },
   { label: "Colecții foto", path: "/admin/colectii", category: "Media", icon: "🗃️", keywords: "colectie galerie foto organizare" },
@@ -42,6 +55,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Contacte", path: "/admin/contacte", category: "Sistem", icon: "📇", keywords: "contacte clienti leads crm" },
   { label: "Echipamente", path: "/admin/echipamente", category: "Sistem", icon: "🎛️", keywords: "echipamente camera obiectiv gear" },
   { label: "Wedding Hub", path: "/admin/wedding-hub", category: "Sistem", icon: "💍", keywords: "nunta invitati rsvp plan mese" },
+  { label: "Colaborator", path: "/colaborator", category: "Sistem", icon: "🤝", keywords: "echipa colaborator acces extern" },
   { label: "Erori server", path: "/admin/errors", category: "Sistem", icon: "🐛", keywords: "logs erori bugs debug" },
   { label: "Health Tracker", path: "/admin/sanatate", category: "Sistem", icon: "❤️", keywords: "sanatate greutate pasi mancare calorii health" },
 ];

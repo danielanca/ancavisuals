@@ -105,21 +105,24 @@ interface AddBankStatementModalProps {
 }
 
 function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: AddBankStatementModalProps) {
-  const [file, setFile] = React.useState<File | null>(null);
+  const [files, setFiles] = React.useState<File[]>([]);
   const [processing, setProcessing] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
   const [statusLabel, setStatusLabel] = React.useState("Pregătit pentru upload");
   const [error, setError] = React.useState<string | null>(null);
+  const [fileIndex, setFileIndex] = React.useState(0);
+  const [failedFiles, setFailedFiles] = React.useState<{ name: string; error: string }[]>([]);
 
   React.useEffect(() => {
     if (!processing || progress < 100) return;
 
+    const labelPrefix = files.length > 1 ? `Fișier ${fileIndex + 1} din ${files.length}: ` : "";
     const labels = [
-      "Upload finalizat. Serverul pregătește documentul...",
-      "AI citește extrasul și extrage tranzacțiile...",
-      "AI încearcă să identifice încasările și plățile...",
-      "Se caută potriviri cu facturile și cheltuielile existente...",
-      "Se finalizează reconcilierea extrasului...",
+      `${labelPrefix}Upload finalizat. Serverul pregătește documentul...`,
+      `${labelPrefix}AI citește extrasul și extrage tranzacțiile...`,
+      `${labelPrefix}AI încearcă să identifice încasările și plățile...`,
+      `${labelPrefix}Se caută potriviri cu facturile și cheltuielile existente...`,
+      `${labelPrefix}Se finalizează reconcilierea extrasului...`,
     ];
 
     let index = 0;
@@ -130,9 +133,9 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
     }, 1800);
 
     return () => window.clearInterval(interval);
-  }, [processing, progress]);
+  }, [processing, progress, fileIndex, files.length]);
 
-  function uploadAndAnalyzeStatement(formData: FormData): Promise<BankStatement> {
+  function uploadAndAnalyzeStatement(formData: FormData, labelPrefix: string): Promise<BankStatement> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/admin/bank-statements/upload-analyze");
@@ -143,7 +146,7 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
         if (!event.lengthComputable) return;
         const nextProgress = Math.min(100, Math.round((event.loaded / event.total) * 100));
         setProgress(nextProgress);
-        setStatusLabel(nextProgress < 100 ? `Se încarcă fișierul... ${nextProgress}%` : "Upload finalizat. Pornește analiza AI...");
+        setStatusLabel(nextProgress < 100 ? `${labelPrefix}Se încarcă fișierul... ${nextProgress}%` : `${labelPrefix}Upload finalizat. Pornește analiza AI...`);
       };
 
       xhr.onerror = () => reject(new Error("Upload eșuat. Verifică conexiunea și încearcă din nou."));
@@ -163,24 +166,37 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file) return;
+    if (files.length === 0) return;
     setProcessing(true);
-    setProgress(0);
-    setStatusLabel("Pornim upload-ul...");
     setError(null);
+    setFailedFiles([]);
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("year", String(selectedYear));
-      const statement = await uploadAndAnalyzeStatement(formData);
-      setStatusLabel("Gata. Adaug extrasul în listă...");
-      onAdded(statement);
+    const failures: { name: string; error: string }[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const current = files[i];
+      setFileIndex(i);
+      setProgress(0);
+      setStatusLabel(files.length > 1 ? `Fișier ${i + 1} din ${files.length}: pornim upload-ul...` : "Pornim upload-ul...");
+
+      try {
+        const formData = new FormData();
+        formData.append("file", current);
+        formData.append("year", String(selectedYear));
+        const labelPrefix = files.length > 1 ? `Fișier ${i + 1} din ${files.length}: ` : "";
+        const statement = await uploadAndAnalyzeStatement(formData, labelPrefix);
+        onAdded(statement);
+      } catch (err) {
+        failures.push({ name: current.name, error: err instanceof Error ? err.message : "Eroare la analiză." });
+      }
+    }
+
+    setProcessing(false);
+    if (failures.length === 0) {
       onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Eroare la analiză.");
-    } finally {
-      setProcessing(false);
+    } else {
+      setFailedFiles(failures);
+      setFiles([]);
     }
   }
 
@@ -196,16 +212,34 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
 
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <div>
-            <label className="mb-1 block text-xs text-neutral-400">Fișier extras *</label>
+            <label className="mb-1 block text-xs text-neutral-400">Fișiere extras *</label>
             <input
               type="file"
+              multiple
               accept="image/*,.pdf,application/pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-500"
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              disabled={processing}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-500 disabled:opacity-50"
             />
             <p className="mt-1 text-xs text-neutral-500">
-              AI extrage toate tranzacțiile și încearcă să le lege automat de facturi și cheltuieli deja existente.
+              Poți selecta mai multe fișiere deodată (ex. extrasele pe mai multe luni). AI extrage toate tranzacțiile din fiecare și încearcă să le lege automat de facturi și cheltuieli deja existente.
             </p>
+            {files.length > 0 && !processing && (
+              <ul className="mt-2 space-y-1">
+                {files.map((f, i) => (
+                  <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-950/60 px-3 py-1.5 text-xs text-neutral-300">
+                    <span className="truncate">{f.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="shrink-0 text-neutral-500 hover:text-red-400"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {processing && (
@@ -220,9 +254,27 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
                   style={{ width: `${Math.max(progress, 6)}%` }}
                 />
               </div>
+              {files.length > 1 && (
+                <div className="h-1 overflow-hidden rounded-full bg-neutral-800">
+                  <div
+                    className="h-full rounded-full bg-sky-500 transition-[width] duration-300"
+                    style={{ width: `${Math.round((fileIndex / files.length) * 100)}%` }}
+                  />
+                </div>
+              )}
               <p className="text-[11px] text-neutral-500">
                 Bara arată progresul de upload. După 100%, mesajele indică etapele de analiză AI până vine răspunsul final.
               </p>
+            </div>
+          )}
+
+          {failedFiles.length > 0 && (
+            <div className="space-y-1.5 rounded-lg border border-red-500/40 bg-red-500/10 p-3">
+              <p className="text-xs font-medium text-red-300">{failedFiles.length} fișier{failedFiles.length > 1 ? "e" : ""} nu {failedFiles.length > 1 ? "au" : "a"} putut fi procesat{failedFiles.length > 1 ? "e" : ""}:</p>
+              {failedFiles.map((f, i) => (
+                <p key={i} className="text-[11px] text-red-300/80 truncate">{f.name} — {f.error}</p>
+              ))}
+              <p className="text-[11px] text-red-300/60">Celelalte fișiere au fost adăugate cu succes. Selectează din nou fișierele de mai sus ca să reîncerci.</p>
             </div>
           )}
 
@@ -232,8 +284,8 @@ function AddBankStatementModal({ accessToken, selectedYear, onClose, onAdded }: 
             <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-neutral-700 py-2 text-sm text-neutral-400 hover:border-neutral-500">
               Anulează
             </button>
-            <button type="submit" disabled={!file || processing} className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-500 disabled:opacity-50">
-              {processing ? "Se procesează..." : "Analizează extrasul"}
+            <button type="submit" disabled={files.length === 0 || processing} className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-500 disabled:opacity-50">
+              {processing ? "Se procesează..." : files.length > 1 ? `Analizează ${files.length} extrase` : "Analizează extrasul"}
             </button>
           </div>
         </form>

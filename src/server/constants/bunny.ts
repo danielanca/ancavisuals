@@ -1,6 +1,6 @@
 // Shared Bunny Storage constants used across uploads, album downloads, and stats.
 export const BUNNY_STORAGE_BASE_URL = "https://storage.bunnycdn.com";
-export const BUNNY_STORAGE_ZONE_FALLBACK = "ancavisuals-romania";
+export const BUNNY_STORAGE_ZONE_FALLBACK = "ancavisuals-ro";
 export const BUNNY_ACCESS_KEY_HEADER = "AccessKey";
 
 // Common folder names in Bunny for delivered media.

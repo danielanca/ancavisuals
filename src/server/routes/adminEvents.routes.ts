@@ -1253,4 +1253,114 @@ router.post("/album-health/:slug/process", requireFirebaseAuth, requireSupremeAd
   res.json({ ok: true, status: "started" });
 });
 
+// ─── GET /api/admin/storage-stats — scan every file in Bunny Storage and report totals ───
+
+type BunnyStatEntry = { ObjectName: string; IsDirectory: boolean; Length?: number };
+type StorageFileType = "image" | "video" | "archive" | "document" | "other";
+
+const FILE_TYPE_PATTERNS: { key: StorageFileType; pattern: RegExp }[] = [
+  { key: "image", pattern: /\.(jpg|jpeg|png|webp|heic|gif)$/i },
+  { key: "video", pattern: /\.(mp4|mov|avi|mkv|webm|m4v)$/i },
+  { key: "archive", pattern: /\.(zip|rar|7z)$/i },
+  { key: "document", pattern: /\.(pdf|docx?|xlsx?|csv)$/i },
+];
+
+function classifyStorageFile(name: string): StorageFileType {
+  return FILE_TYPE_PATTERNS.find(({ pattern }) => pattern.test(name))?.key ?? "other";
+}
+
+type StorageStatsResult = {
+  computedAt: string;
+  totalFiles: number;
+  totalBytes: number;
+  byType: Record<StorageFileType, { files: number; bytes: number }>;
+  byFolder: { folder: string; files: number; bytes: number; videoFiles: number; videoBytes: number }[];
+};
+
+let storageStatsCache: StorageStatsResult | null = null;
+const STORAGE_STATS_TTL_MS = 5 * 60 * 1000;
+
+async function walkBunnyDir(
+  storageKey: string,
+  path: string,
+  onFile: (name: string, bytes: number) => void
+): Promise<void> {
+  const res = await nodeFetch(buildBunnyDirectoryUrl(path), {
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+    agent: bunnyAgent,
+  });
+  if (!res.ok) return;
+  const entries = await res.json() as BunnyStatEntry[];
+  const subdirs: string[] = [];
+  for (const entry of entries) {
+    if (entry.IsDirectory) subdirs.push(`${path}/${entry.ObjectName}`);
+    else onFile(entry.ObjectName, entry.Length ?? 0);
+  }
+  await Promise.all(subdirs.map((dir) => walkBunnyDir(storageKey, dir, onFile)));
+}
+
+async function computeStorageStats(): Promise<StorageStatsResult> {
+  const storageKey = getBunnyStorageKey();
+  const rootRes = await nodeFetch(buildBunnyDirectoryUrl(""), {
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+    agent: bunnyAgent,
+  });
+  if (!rootRes.ok) throw new Error("Nu pot lista root-ul Bunny.");
+  const topDirs = (await rootRes.json() as BunnyStatEntry[]).filter((e) => e.IsDirectory);
+
+  const byType: Record<StorageFileType, { files: number; bytes: number }> = {
+    image: { files: 0, bytes: 0 },
+    video: { files: 0, bytes: 0 },
+    archive: { files: 0, bytes: 0 },
+    document: { files: 0, bytes: 0 },
+    other: { files: 0, bytes: 0 },
+  };
+  const byFolder: { folder: string; files: number; bytes: number; videoFiles: number; videoBytes: number }[] = [];
+  let totalFiles = 0;
+  let totalBytes = 0;
+
+  await Promise.all(
+    topDirs.map(async (dir) => {
+      let files = 0;
+      let bytes = 0;
+      let videoFiles = 0;
+      let videoBytes = 0;
+      await walkBunnyDir(storageKey, dir.ObjectName, (name, size) => {
+        const type = classifyStorageFile(name);
+        byType[type].files += 1;
+        byType[type].bytes += size;
+        files += 1;
+        bytes += size;
+        if (type === "video") {
+          videoFiles += 1;
+          videoBytes += size;
+        }
+      });
+      byFolder.push({ folder: dir.ObjectName, files, bytes, videoFiles, videoBytes });
+      totalFiles += files;
+      totalBytes += bytes;
+    })
+  );
+
+  byFolder.sort((a, b) => b.bytes - a.bytes);
+
+  return { computedAt: new Date().toISOString(), totalFiles, totalBytes, byType, byFolder };
+}
+
+router.get("/storage-stats", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const forceRefresh = req.query.refresh === "true" || req.query.refresh === "1";
+    const isFresh = storageStatsCache && Date.now() - new Date(storageStatsCache.computedAt).getTime() < STORAGE_STATS_TTL_MS;
+    if (!forceRefresh && storageStatsCache && isFresh) {
+      return res.json(storageStatsCache);
+    }
+    const result = await computeStorageStats();
+    storageStatsCache = result;
+    res.json(result);
+  } catch (error) {
+    console.error("[storage-stats] GET failed:", error);
+    res.status(500).json({ error: "Nu s-a putut scana Bunny Storage." });
+  }
+});
+
 export default router;

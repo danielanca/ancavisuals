@@ -244,6 +244,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Activitate album", path: "/admin/media-activity" },
         { label: "Optimizare poze", path: "/admin/image-optimizer" },
         { label: "Albume", path: "/admin/album-health" },
+        { label: "Stocare Bunny", path: "/admin/storage-stats" },
       ],
     },
     {
