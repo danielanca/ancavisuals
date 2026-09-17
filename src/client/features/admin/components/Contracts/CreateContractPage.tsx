@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { BankProfile } from "../../types";
 import ClauseChecklistEditor, { type ClauseSnapshot } from "./ClauseChecklistEditor";
+import Checkbox from "./Checkbox";
 
 interface CreateContractState {
   eventId?: string;
@@ -616,33 +617,33 @@ const CreateContractPage: React.FC = () => {
             )}
 
             {/* Exchange rate + currency — above the checkboxes */}
-            <div className="flex items-center gap-3 pb-3 border-b border-neutral-800 mb-1">
+            <div className="flex items-center gap-3 flex-wrap pb-3 border-b border-neutral-800 mb-1">
               <div className="flex items-center gap-2">
                 <Label>Monedă</Label>
                 <select value={currency} onChange={(e) => setCurrency(e.target.value)}
-                  className="bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-100 focus:outline-none focus:border-emerald-500/50">
+                  className="bg-neutral-800 border border-neutral-600 rounded-lg px-2 py-1.5 text-xs text-neutral-100 focus:outline-none focus:border-emerald-500">
                   {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-neutral-500">1 EUR =</span>
+                <span className="text-xs text-neutral-400">1 EUR =</span>
                 <input
                   type="number"
                   min="1"
                   step="0.05"
                   value={eurRate}
                   onChange={(e) => { setEurRate(parseFloat(e.target.value) || DEFAULT_EUR_RATE); setEurRateDate(null); }}
-                  className="w-24 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-100 text-center focus:outline-none focus:border-emerald-500/50"
+                  className="w-24 bg-neutral-800 border border-neutral-600 rounded-lg px-2 py-1.5 text-xs text-neutral-100 text-center focus:outline-none focus:border-emerald-500"
                 />
-                <span className="text-xs text-neutral-500">RON</span>
+                <span className="text-xs text-neutral-400">RON</span>
                 {eurRateLoading && (
-                  <span className="text-xs text-neutral-600 animate-pulse">se încarcă...</span>
+                  <span className="text-xs text-neutral-500 animate-pulse">se încarcă...</span>
                 )}
                 {eurRateDate && !eurRateLoading && (
-                  <span className="text-xs text-emerald-500/70">BCE {eurRateDate}</span>
+                  <span className="text-xs text-emerald-400">BCE {eurRateDate}</span>
                 )}
               </div>
-              <span className="text-xs text-neutral-600 ml-auto">
+              <span className="text-xs text-neutral-500 basis-full sm:basis-auto sm:ml-auto">
                 Prețurile sunt în {currency} · conversie afișată în {otherCurrency}
               </span>
             </div>
@@ -660,12 +661,7 @@ const CreateContractPage: React.FC = () => {
                 return (
                   <div key={s.id} className={`flex items-center gap-2 rounded-lg px-2 py-1 ${isMissing ? "bg-red-500/10" : ""}`}>
                     <label className="flex items-center gap-2 cursor-pointer flex-1">
-                      <input
-                        type="checkbox"
-                        checked={s.included}
-                        onChange={() => toggleService(s.id)}
-                        className="accent-emerald-500 shrink-0"
-                      />
+                      <Checkbox checked={s.included} onChange={() => toggleService(s.id)} />
                       <span className={`text-xs leading-tight ${s.included ? "text-neutral-200" : "text-neutral-500"}`}>
                         {s.label}
                       </span>
@@ -698,7 +694,7 @@ const CreateContractPage: React.FC = () => {
                     ) : s.included && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         {conversion && (
-                          <span className="text-xs text-neutral-600">{conversion}</span>
+                          <span className="text-xs text-neutral-500">{conversion}</span>
                         )}
                         <input
                           type="text"
@@ -713,7 +709,7 @@ const CreateContractPage: React.FC = () => {
                               : "bg-neutral-700 border border-neutral-600 text-neutral-100 placeholder-neutral-500"
                           }`}
                         />
-                        <span className="text-xs text-neutral-600">{currency}</span>
+                        <span className="text-xs text-neutral-500">{currency}</span>
                       </div>
                     )}
                   </div>
@@ -738,9 +734,9 @@ const CreateContractPage: React.FC = () => {
                         value={s.label}
                         onChange={(e) => setCustomServices((prev) => prev.map((cs, ci) => ci === i ? { ...cs, label: e.target.value } : cs))}
                         placeholder="Denumire serviciu"
-                        className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-100 focus:outline-none"
+                        className="flex-1 bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500"
                       />
-                      {conversion && <span className="text-xs text-neutral-600 shrink-0">{conversion}</span>}
+                      {conversion && <span className="text-xs text-neutral-500 shrink-0">{conversion}</span>}
                       <input
                         type="text"
                         value={s.priceRaw}
@@ -751,11 +747,11 @@ const CreateContractPage: React.FC = () => {
                             ? "bg-red-500/20 border border-red-500/50 text-red-300"
                             : isGratuit
                             ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
-                            : "bg-neutral-800 border border-neutral-700 text-neutral-100"
+                            : "bg-neutral-800 border border-neutral-600 text-neutral-100 focus:border-emerald-500"
                         }`}
                       />
-                      <span className="text-xs text-neutral-600">{currency}</span>
-                      <button type="button" onClick={() => removeCustomService(i)} className="text-neutral-600 hover:text-red-400 text-xl shrink-0">×</button>
+                      <span className="text-xs text-neutral-500">{currency}</span>
+                      <button type="button" onClick={() => removeCustomService(i)} className="text-neutral-500 hover:text-red-400 text-xl shrink-0">×</button>
                     </div>
                   );
                 })}
@@ -773,15 +769,15 @@ const CreateContractPage: React.FC = () => {
             <div className="col-span-2">
               <div className="flex items-center gap-3 mb-1">
                 <Label>Total ({currency})</Label>
-                <label className="flex items-center gap-1 cursor-pointer text-xs text-neutral-500">
-                  <input type="checkbox" checked={manualTotal} onChange={(e) => setManualTotal(e.target.checked)} className="accent-emerald-500" />
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs text-neutral-500">
+                  <Checkbox checked={manualTotal} onChange={setManualTotal} />
                   manual
                 </label>
               </div>
               {manualTotal ? (
                 <DecimalInput value={priceTotal} onChange={setPriceTotal} step={50} className={inp} placeholder="0" />
               ) : (
-                <div className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-neutral-100 flex items-center justify-between">
+                <div className="bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2.5 text-sm text-neutral-100 flex items-center justify-between">
                   <span>{autoTotal} {currency}</span>
                   <span className="text-neutral-500 text-xs">
                     {convertAmount(autoTotal, currency, eurRate) || "(suma serviciilor)"}
@@ -791,11 +787,10 @@ const CreateContractPage: React.FC = () => {
             </div>
 
             <label className="flex items-center gap-3 cursor-pointer group">
-              <input
-                type="checkbox"
+              <Checkbox
+                accent="sky"
                 checked={noAdvance}
-                onChange={(e) => { setNoAdvance(e.target.checked); if (e.target.checked) { setPriceAdvance(0); setAdvancePaidAt(""); } }}
-                className="accent-sky-500 w-4 h-4 shrink-0"
+                onChange={(checked) => { setNoAdvance(checked); if (checked) { setPriceAdvance(0); setAdvancePaidAt(""); } }}
               />
               <span className="text-sm text-sky-400 group-hover:text-sky-300 transition-colors">
                 Fără avans obligatoriu
@@ -1022,17 +1017,12 @@ const CreateContractPage: React.FC = () => {
               </div>
             )}
 
-            <p className="text-neutral-600 text-xs">
+            <p className="text-neutral-500 text-xs">
               Câmpurile de mai sus sunt opționale — clientul le va vedea pre-completate și poate corecta înainte de a semna.
             </p>
 
             <label className="flex items-center gap-3 cursor-pointer group">
-              <input
-                type="checkbox"
-                checked={privateClient}
-                onChange={(e) => setPrivateClient(e.target.checked)}
-                className="accent-amber-500 w-4 h-4 shrink-0"
-              />
+              <Checkbox accent="amber" checked={privateClient} onChange={setPrivateClient} />
               <span className="text-sm text-amber-400 group-hover:text-amber-300 transition-colors">
                 Clientul dorește pozele/video să fie private
                 <span className="block text-xs text-neutral-500 font-normal mt-0.5">
@@ -1095,7 +1085,7 @@ const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="text-xs font-medium text-neutral-400 mb-1.5 uppercase tracking-wide">{children}</div>
 );
 
-const inp = "w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500/50 transition-colors placeholder-neutral-600";
-const sel = "w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500/50 transition-colors";
+const inp = "w-full bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500 transition-colors placeholder-neutral-500";
+const sel = "w-full bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500 transition-colors";
 
 export default CreateContractPage;

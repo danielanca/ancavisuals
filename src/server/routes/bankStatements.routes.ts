@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import { createHash } from "crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
@@ -242,6 +243,23 @@ router.post("/upload-analyze", requireFirebaseAuth, requireSupremeAdmin, upload.
   }
 
   try {
+    const fileHash = createHash("sha256").update(new Uint8Array(file.buffer)).digest("hex");
+    const db = firestore();
+    const duplicate = await db.collection(COLLECTION).where("fileHash", "==", fileHash).limit(1).get();
+    if (!duplicate.empty) {
+      const existing = duplicate.docs[0];
+      const existingData = existing.data();
+      res.status(409).json({
+        error: "Acest extras a fost deja încărcat.",
+        existingStatement: {
+          id: existing.id,
+          statementDate: (existingData.statementDate as Timestamp).toDate().toISOString(),
+          fileName: existingData.file?.name ?? null,
+        },
+      });
+      return;
+    }
+
     const uploaded = await uploadStatementFile(file, year);
     const contentBlock = isImage
       ? ({
@@ -345,7 +363,6 @@ Reguli:
     }
 
     const inferredYear = Number(year) || new Date().getFullYear();
-    const db = firestore();
     const entries: StoredEntry[] = await matchStatementEntries(extractedEntries, inferredYear);
 
     const statementDate = safeDate(parsed.statementDate) ?? `${inferredYear}-01-01`;
@@ -353,6 +370,7 @@ Reguli:
       statementDate: Timestamp.fromDate(new Date(statementDate)),
       year: Number(statementDate.slice(0, 4)),
       file: uploaded,
+      fileHash,
       entries,
       unmatchedCount: entries.filter((entry) => entry.justificationStatus === "unmatched").length,
       createdAt: Timestamp.now(),

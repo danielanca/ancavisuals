@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import useAuth from "../../auth/useAuth";
 import RichTextEditor from "./RichTextEditor";
+import Checkbox from "./Checkbox";
 
 export interface ClauseSnapshot {
   templateId: string;
@@ -184,11 +185,10 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
             return (
               <div key={clause.templateId} className={`rounded-lg border p-3 ${isChecked ? "border-neutral-700 bg-neutral-900" : "border-neutral-800/50 bg-neutral-900/40 opacity-60"}`}>
                 <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={isChecked}
-                    onChange={(e) => toggle(clause, e.target.checked)}
-                    className="mt-1 w-4 h-4 accent-emerald-500 cursor-pointer shrink-0"
+                    onChange={(checked) => toggle(clause, checked)}
+                    className="mt-1"
                   />
                   <input
                     value={currentTitle}
