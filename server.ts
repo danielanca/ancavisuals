@@ -68,8 +68,12 @@ import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startCollaboratorInviteReminderCron } from "./src/server/cron/collaboratorInviteReminder.cron";
 import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
+import { startReverseChargeVatCron } from "./src/server/cron/reverseChargeVat.cron";
 // import { startHealthStepsReminderCron } from "./src/server/cron/healthStepsReminder.cron"; // dezactivat — health tracker nu mai e folosit
 import { startPhotoboothNotifyCron } from "./src/server/cron/photoboothNotify.cron";
+import { startSeoRadarWeeklyScanCron } from "./src/server/cron/seoRadarWeeklyScan.cron";
+import adminAiAssistantRouter from "./src/server/routes/adminAiAssistant.routes";
+import reviewsRouter from "./src/server/routes/reviews.routes";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
 import healthRouter from "./src/server/routes/health.routes";
@@ -197,6 +201,8 @@ async function createServer() {
   app.use("/api/admin/expenses", expensesRouter);
   app.use("/api/admin/invoices", invoicesRouter);
   app.use("/api/admin/bank-statements", bankStatementsRouter);
+  app.use("/api/admin/ai-assistant", adminAiAssistantRouter);
+  app.use("/api/reviews", reviewsRouter);
   app.use("/api/admin/company-documents", companyDocumentsRouter);
   app.use("/api/admin/contract-clause-templates", contractClauseTemplatesRouter);
   app.use("/api", loginEventsRouter);
@@ -232,8 +238,10 @@ async function createServer() {
   // startHealthStepsReminderCron(); // dezactivat — health tracker nu mai e folosit
   startPhotoboothNotifyCron();
   startLiveVisitorsSweeper();
+  startReverseChargeVatCron();
+  startSeoRadarWeeklyScanCron();
 
-  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites · photobooth notify");
+  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites · photobooth notify · reverse-charge VAT · seo radar weekly scan");
 
   let vite: ViteDevServer | undefined;
   let template: string;

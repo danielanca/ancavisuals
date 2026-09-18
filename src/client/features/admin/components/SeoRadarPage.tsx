@@ -761,20 +761,25 @@ const SeoRadarPage: React.FC = () => {
     });
   };
 
-  const createArticleFor = async (analysis: Analysis) => {
+  // Deschide editorul și pornește imediat generarea cu Claude a primei variante, folosind
+  // tot ce știm deja din analiză (rezultatele organice + golurile față de competitori, dacă
+  // există) — utilizatorul nu mai trebuie să caute manual butonul „Generează cu Claude".
+  const createArticleFor = async (analysis: Analysis, competitorNotes = "") => {
     const loaded = await viewAnalysis(analysis, false);
     if (!loaded) return;
     setPostVariants([emptyPostVariant(), emptyPostVariant(), emptyPostVariant()]);
     setSelectedVariant(0);
     setAnalysisError("");
     window.setTimeout(() => creatorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    void generateVariantWithContext(0, loaded, analysis.keyword, [], competitorNotes);
   };
 
-  // Declanșat din panoul „De ce nu suntem în top?" — ținem minte golurile + propunerile
-  // AI ca să le folosim la generarea metadatelor și ca instrucțiune de pornire pentru body.
+  // Declanșat din panoul „De ce nu suntem în top?" — pasăm golurile + propunerile AI direct
+  // ca instrucțiune pentru Claude, nu doar le ținem minte pentru mai târziu.
   const createArticleFromCompetitors = (analysis: Analysis, brief: { gaps: string[]; recommendations: string | null }) => {
     setCompetitorBrief(brief);
-    void createArticleFor(analysis);
+    const competitorNotes = [...brief.gaps, brief.recommendations ?? ""].filter(Boolean).join("\n");
+    void createArticleFor(analysis, competitorNotes);
   };
 
   const unlinkPost = async (post: LinkedPost) => {
@@ -831,8 +836,37 @@ const SeoRadarPage: React.FC = () => {
     setSelectedVariant(0);
   };
 
-  const generateVariant = async (index: number) => {
-    if (!result) return;
+  // Salvarea articolului scrie direct pe doc(slug) — dacă slug-ul generat de Claude e deja
+  // ocupat de alt articol (nou sau vechi), publicarea l-ar suprascrie silențios. Verificăm
+  // și, dacă e ocupat, adăugăm „-2", „-3"... până găsim unul liber.
+  const ensureUniqueSlug = async (baseSlug: string): Promise<string> => {
+    if (!baseSlug.trim()) return baseSlug;
+    let candidate = baseSlug;
+    for (let attempt = 2; attempt <= 20; attempt++) {
+      try {
+        const response = await fetch(`/api/blog/admin/posts/${encodeURIComponent(candidate)}/exists`, {
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+        });
+        const data = await response.json();
+        if (!response.ok || data.exists !== true) return candidate;
+      } catch {
+        return candidate; // dacă verificarea eșuează, nu blocăm generarea — mai bine cerem confirmare la publicare
+      }
+      candidate = `${baseSlug}-${attempt}`;
+    }
+    return candidate;
+  };
+
+  // Face efectiv apelul către Claude, pe baza unui context explicit — separat de
+  // `generateVariant` ca să poată fi declanșat automat imediat după „Creează articol",
+  // fără să depindă de faptul că `result`/`articlePlan` din state au apucat să se actualizeze.
+  const generateVariantWithContext = async (
+    index: number,
+    context: { keyword: string; city: string; source: "serpapi" | "dataforseo"; organicResults: Result[] },
+    targetKeyword: string,
+    secondaryKeywords: string[],
+    competitorNotes: string,
+  ) => {
     setAnalysisLoading(true);
     setAnalysisProgress(`Claude generează varianta ${index + 1}…`);
     setAnalysisError("");
@@ -841,25 +875,25 @@ const SeoRadarPage: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
         body: JSON.stringify({
-          keyword: result.keyword,
-          city: result.city,
-          source: result.source,
-          organicResults: result.organicResults,
+          keyword: context.keyword,
+          city: context.city,
+          source: context.source,
+          organicResults: context.organicResults,
           variantIndex: index,
-          targetKeyword: articlePlan?.targetKeyword ?? "",
-          secondaryKeywords: articlePlan?.secondaryKeywords ?? [],
-          competitorNotes: competitorBrief
-            ? [...competitorBrief.gaps, competitorBrief.recommendations ?? ""].filter(Boolean).join("\n")
-            : "",
+          targetKeyword,
+          secondaryKeywords,
+          competitorNotes,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Generarea variantei a eșuat.");
       const generatedVariant = data.variants[0] as PostVariant;
+      const uniqueSlug = await ensureUniqueSlug(generatedVariant.slug);
       const normalizedVariant = {
         ...generatedVariant,
-        tags: Array.from(new Set([...(generatedVariant.tags ?? []), ...(articlePlan?.secondaryKeywords ?? [])])),
-        canonicalUrl: generatedVariant.slug ? `https://ancavisuals.ro/blog/${generatedVariant.slug}` : generatedVariant.canonicalUrl,
+        slug: uniqueSlug,
+        tags: Array.from(new Set([...(generatedVariant.tags ?? []), ...secondaryKeywords])),
+        canonicalUrl: uniqueSlug ? `https://ancavisuals.ro/blog/${uniqueSlug}` : generatedVariant.canonicalUrl,
       };
       setPostVariants(current => current.map((item, itemIndex) => itemIndex === index ? normalizedVariant : item));
     } catch (err) {
@@ -867,6 +901,17 @@ const SeoRadarPage: React.FC = () => {
     } finally {
       setAnalysisLoading(false);
     }
+  };
+
+  const generateVariant = async (index: number) => {
+    if (!result) return;
+    await generateVariantWithContext(
+      index,
+      result,
+      articlePlan?.targetKeyword ?? "",
+      articlePlan?.secondaryKeywords ?? [],
+      competitorBrief ? [...competitorBrief.gaps, competitorBrief.recommendations ?? ""].filter(Boolean).join("\n") : "",
+    );
   };
 
   const publishVariant = async (variant: PostVariant) => {
@@ -1030,6 +1075,13 @@ const SeoRadarPage: React.FC = () => {
           />
         </div>
         <DiacriticsCorrector token={auth.accessToken} />
+        <PublishedArticlesImpact
+          analyses={analyses}
+          onRescan={rescanAnalysis}
+          activeScanKey={activeScanKey}
+          queuedKeys={scanQueueView}
+          disabled={loading}
+        />
         <CoverageReport
           analyses={analyses}
           loading={analysesLoading}
@@ -1666,6 +1718,7 @@ const PostVariantEditor = ({
   const voiceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [canonicalCheck, setCanonicalCheck] = useState<{ exists: boolean; status: number | null; message?: string } | null>(null);
   const [checkingCanonical, setCheckingCanonical] = useState(false);
+  const bodyEditorRef = useRef<HTMLDivElement>(null);
   const inputClass = "mt-1 w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white";
   const update = <K extends keyof PostVariant>(key: K, value: PostVariant[K]) => onChange({ ...variant, [key]: value });
   const format = (command: string) => document.execCommand(command, false);
@@ -1803,6 +1856,15 @@ const PostVariantEditor = ({
     recognitionRef.current?.stop();
     stopVoiceWaveform();
   }, []);
+  // Sincronizează DOM-ul editorului doar când body-ul se schimbă din afara editorului
+  // (generare AI, variantă nouă) — altfel, rescrierea innerHTML la fiecare keystroke
+  // din onInput reseta cursorul la începutul textului.
+  useEffect(() => {
+    const el = bodyEditorRef.current;
+    if (el && el.innerHTML !== variant.bodyHtml) {
+      el.innerHTML = variant.bodyHtml;
+    }
+  }, [variant.bodyHtml]);
   const generateBody = async () => {
     setGenerating(true);
     setBodyError("");
@@ -1988,9 +2050,9 @@ const PostVariantEditor = ({
           <span className="ml-2 self-center text-xs text-gray-500">Body articol · editare vizuală</span>
         </div>
         <div
+          ref={bodyEditorRef}
           contentEditable
           suppressContentEditableWarning
-          dangerouslySetInnerHTML={{ __html: variant.bodyHtml }}
           onInput={event => update("bodyHtml", event.currentTarget.innerHTML)}
           className="blog-article mt-4 min-h-[360px] rounded-xl border border-white/10 bg-black p-4 text-sm leading-7 text-gray-200 outline-none focus:border-amber-200/50"
         />
@@ -2095,6 +2157,136 @@ const fmtDateShort = (iso: string): string => {
   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 const positionLabel = (position: number | null): string => (position === null ? "peste 10" : `#${position}`);
+
+// Cât de mult a ajutat un articol publicat: compară ultima poziție cunoscută *înainte*
+// de publicare cu ultima poziție cunoscută *după* — izolând efectul articolului de
+// restul istoricului scanărilor pentru același cuvânt cheie.
+type ArticleImpact = { before: number | null; after: number | null; scansSince: number; label: string; tone: "good" | "bad" | "neutral" };
+const computeArticleImpact = (history: PositionPoint[], linkedAt: string | null): ArticleImpact => {
+  const sorted = [...history].sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+  const linkedTime = linkedAt ? new Date(linkedAt).getTime() : NaN;
+  const lastKnown = (points: PositionPoint[]): number | null => {
+    for (let i = points.length - 1; i >= 0; i--) if (points[i].position !== null) return points[i].position;
+    return null;
+  };
+
+  if (isNaN(linkedTime)) {
+    return { before: null, after: lastKnown(sorted), scansSince: sorted.length, label: "Dată de publicare necunoscută", tone: "neutral" };
+  }
+
+  const beforeEntries = sorted.filter(p => new Date(p.capturedAt).getTime() < linkedTime);
+  const afterEntries = sorted.filter(p => new Date(p.capturedAt).getTime() >= linkedTime);
+  const before = lastKnown(beforeEntries);
+  const after = lastKnown(afterEntries);
+
+  if (afterEntries.length === 0) {
+    return { before, after, scansSince: 0, label: "Prea devreme — nicio rescanare încă", tone: "neutral" };
+  }
+  if (after !== null && after <= 10 && (before === null || before > 10)) {
+    return { before, after, scansSince: afterEntries.length, label: "A ajutat — a intrat în top 10", tone: "good" };
+  }
+  if (before !== null && after !== null && after < before) {
+    return { before, after, scansSince: afterEntries.length, label: `A urcat cu ${before - after} poziții`, tone: "good" };
+  }
+  if (before !== null && after !== null && after > before) {
+    return { before, after, scansSince: afterEntries.length, label: `A coborât cu ${after - before} poziții`, tone: "bad" };
+  }
+  if (before !== null && after !== null) {
+    return { before, after, scansSince: afterEntries.length, label: "Fără schimbare de poziție", tone: "neutral" };
+  }
+  if (after === null) {
+    return { before, after, scansSince: afterEntries.length, label: "Încă nu apare în top 10", tone: "bad" };
+  }
+  return { before, after, scansSince: afterEntries.length, label: "Date insuficiente", tone: "neutral" };
+};
+
+const impactToneClass = (tone: ArticleImpact["tone"]): string => ({
+  good: "border-emerald-300/40 bg-emerald-300/10 text-emerald-300",
+  bad: "border-red-300/40 bg-red-300/10 text-red-300",
+  neutral: "border-gray-500/30 bg-gray-500/10 text-gray-400",
+}[tone]);
+
+const PublishedArticlesImpact = ({
+  analyses,
+  onRescan,
+  activeScanKey,
+  queuedKeys,
+  disabled,
+}: {
+  analyses: Analysis[];
+  onRescan: (analysis: Analysis) => void;
+  activeScanKey: string | null;
+  queuedKeys: ScanJob[];
+  disabled: boolean;
+}) => {
+  const rows = analyses
+    .flatMap(analysis => analysis.linkedPosts.map(post => ({
+      analysis,
+      post,
+      impact: computeArticleImpact(analysis.positionHistory, post.linkedAt),
+    })))
+    .sort((a, b) => String(b.post.linkedAt ?? "").localeCompare(String(a.post.linkedAt ?? "")));
+
+  if (rows.length === 0) return null;
+
+  const queuedKeySet = new Set(queuedKeys.map(job => job.key));
+
+  return (
+    <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Articole publicate — te-au ajutat?</p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-gray-500">
+              <th className="py-1 pr-3">Articol</th>
+              <th className="py-1 pr-3">Cuvânt cheie</th>
+              <th className="py-1 pr-3">Publicat</th>
+              <th className="py-1 pr-3">Poziție înainte</th>
+              <th className="py-1 pr-3">Poziție acum</th>
+              <th className="py-1 pr-3">Ultima scanare</th>
+              <th className="py-1 pr-3">Rezultat</th>
+              <th className="py-1"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ analysis, post, impact }) => {
+              const scanning = activeScanKey === analysis.queryKey;
+              const queued = queuedKeySet.has(analysis.queryKey) && !scanning;
+              return (
+                <tr key={post.id} className="border-t border-white/5">
+                  <td className="py-1.5 pr-3">
+                    <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-violet-300 hover:underline">{post.title}</a>
+                  </td>
+                  <td className="py-1.5 pr-3 text-gray-300">{analysis.keyword}{analysis.city ? ` · ${analysis.city}` : ""}</td>
+                  <td className="py-1.5 pr-3 text-gray-500">{post.linkedAt ? fmtDateShort(post.linkedAt) : "—"}</td>
+                  <td className="py-1.5 pr-3 text-gray-300">{positionLabel(impact.before)}</td>
+                  <td className="py-1.5 pr-3 text-gray-300">{positionLabel(impact.after)}</td>
+                  <td className="py-1.5 pr-3 text-gray-500">{analysis.lastScanAt ? fmtDateShort(analysis.lastScanAt) : "—"}</td>
+                  <td className="py-1.5 pr-3">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 ${impactToneClass(impact.tone)}`}>{impact.label}</span>
+                  </td>
+                  <td className="py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onRescan(analysis)}
+                      disabled={disabled || scanning || queued}
+                      className="shrink-0 rounded-lg border border-amber-200/50 px-2.5 py-1 text-xs font-medium text-amber-200 disabled:opacity-50"
+                    >
+                      {scanning ? "Scanez…" : queued ? "În coadă…" : "Rescanează"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-[11px] text-gray-600">
+        „Înainte" e ultima poziție știută dinaintea publicării; „Acum" e ultima poziție știută de atunci încoace. Se actualizează automat la fiecare rescanare (manuală sau din verificarea săptămânală).
+      </p>
+    </div>
+  );
+};
 
 // Grafic inline de evoluție a poziției — o singură serie (amber), Y inversat, bandă „peste 10".
 const PositionTimeline = ({ history }: { history: PositionPoint[] }) => {
@@ -2638,11 +2830,48 @@ const CompetitorAnalysisPanel = ({
             </table>
           </div>
 
-          {result.competitors.some(c => c.error) && (
-            <p className="text-[11px] text-gray-600">
-              Nu am putut citi: {result.competitors.filter(c => c.error).map(c => c.domain).join(", ")}.
-            </p>
-          )}
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-gray-300">Fiecare competitor analizat</p>
+            {result.competitors.map((c, i) => (
+              <details key={i} className="group rounded-lg border border-white/10 bg-black/20">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs">
+                  <span className="flex min-w-0 items-center gap-2 text-gray-200">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-600 transition-transform group-open:rotate-90"><polyline points="9 18 15 12 9 6" /></svg>
+                    <span className="shrink-0 text-gray-500">poz. {c.position}</span>
+                    <span className="truncate font-medium">{c.domain}</span>
+                  </span>
+                  {c.error ? (
+                    <span className="shrink-0 text-red-300">nu am putut citi</span>
+                  ) : c.factors ? (
+                    <span className="shrink-0 text-gray-500">{c.factors.wordCount} cuvinte</span>
+                  ) : null}
+                </summary>
+                <div className="space-y-1 border-t border-white/10 px-3 py-2 text-xs text-gray-300">
+                  <p className="truncate">
+                    <span className="text-gray-500">URL: </span>
+                    <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-violet-300 hover:underline">{c.url}</a>
+                  </p>
+                  {c.error ? (
+                    <p className="text-red-300">{c.error}</p>
+                  ) : c.factors ? (
+                    <>
+                      <p><span className="text-gray-500">Titlu ({c.factors.titleLength} car.): </span>{c.factors.title ?? "—"}</p>
+                      <p><span className="text-gray-500">Meta descriere: </span>{c.factors.metaDescription ?? "—"}</p>
+                      <p><span className="text-gray-500">H1 ({c.factors.h1Count}) / H2 ({c.factors.h2Count}): </span>{c.factors.h1Text ?? "—"}</p>
+                      <p><span className="text-gray-500">Cuvinte în pagină: </span>{c.factors.wordCount}</p>
+                      <p><span className="text-gray-500">Schema markup: </span>{c.factors.schemaTypes.join(", ") || "niciuna"}</p>
+                      <p><span className="text-gray-500">Imagini: </span>{c.factors.imgCount} ({c.factors.imgWithAlt} cu alt text)</p>
+                      <p><span className="text-gray-500">Linkuri interne/externe: </span>{c.factors.internalLinks} / {c.factors.externalLinks}</p>
+                      <p><span className="text-gray-500">Canonical: </span>{c.factors.hasCanonical ? "da" : "nu"}</p>
+                      <p><span className="text-gray-500">Cuvântul cheie apare în: </span>{[c.factors.keywordInTitle && "titlu", c.factors.keywordInH1 && "H1", c.factors.keywordInUrl && "URL"].filter(Boolean).join(", ") || "nicăieri"}</p>
+                    </>
+                  ) : (
+                    <p className="text-gray-500">Fără date.</p>
+                  )}
+                </div>
+              </details>
+            ))}
+          </div>
 
           {result.recommendations && (
             <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/5 p-3">

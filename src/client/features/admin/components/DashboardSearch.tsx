@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
+import useAuth from "../auth/useAuth";
+import { getRegisteredSearchables, subscribeSearchables } from "./dashboardSearchRegistry";
 
 // ── Dashboard Search ──────────────────────────────────────────────────────────
 
@@ -46,6 +48,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Pagini SEO", path: "/admin/seo-pages", category: "Marketing & Web", icon: "📄", keywords: "seo pagini landing" },
   { label: "Ads Radar", path: "/admin/ads-radar", category: "Marketing & Web", icon: "📡", keywords: "reclame ads radar campanii publicitate google facebook" },
   { label: "Blog", path: "/admin/blog", category: "Marketing & Web", icon: "✍️", keywords: "articole markdown continut publicare draft" },
+  { label: "Recenzii", path: "/admin/recenzii", category: "Marketing & Web", icon: "⭐", keywords: "recenzii review testimoniale oferta olx nunta" },
   { label: "Campanii", path: "/admin/campanii", category: "Marketing & Web", icon: "📣", keywords: "campanie marketing email newsletter" },
   { label: "Colecții foto", path: "/admin/colectii", category: "Media", icon: "🗃️", keywords: "colectie galerie foto organizare" },
   { label: "Propuneri Swipe", path: "/admin/swipe-proposals", category: "Media", icon: "👆", keywords: "swipe propuneri selectie" },
@@ -165,13 +168,13 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   );
 }
 
-function useSearchRecents() {
+function useSearchRecents(allItems: SearchItem[]) {
   const load = (): SearchItem[] => {
     try {
       const raw = localStorage.getItem(RECENTS_KEY);
       if (!raw) return [];
       const paths: string[] = JSON.parse(raw);
-      return paths.map((p) => SEARCH_ITEMS.find((item) => item.path === p)).filter(Boolean) as SearchItem[];
+      return paths.map((p) => allItems.find((item) => item.path === p)).filter(Boolean) as SearchItem[];
     } catch { return []; }
   };
 
@@ -188,14 +191,23 @@ function useSearchRecents() {
 
 export default function DashboardSearch({ onNavigate }: { onNavigate?: () => void } = {}) {
   const navigate = useNavigate();
+  const { auth } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [recents, setRecents] = useState<SearchItem[]>([]);
-  const { load: loadRecents, save: saveRecent } = useSearchRecents();
+  const [aiAnswer, setAiAnswer] = useState<{ query: string; text: string } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
-  const results: SearchItem[] = query.trim().length === 0 ? [] : SEARCH_ITEMS
+  // Feature-uri fără rută proprie (taburi/secțiuni) care s-au înregistrat singure la montare —
+  // vezi useSearchable din dashboardSearchRegistry.ts. Se combină cu lista curatoriată de mai sus.
+  const registered = useSyncExternalStore(subscribeSearchables, getRegisteredSearchables, getRegisteredSearchables);
+  const allItems = useMemo(() => [...SEARCH_ITEMS, ...registered], [registered]);
+
+  const { load: loadRecents, save: saveRecent } = useSearchRecents(allItems);
+
+  const results: SearchItem[] = query.trim().length === 0 ? [] : allItems
     .map((item) => ({ item, score: scoreItem(item, query.trim()) }))
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)
@@ -205,7 +217,32 @@ export default function DashboardSearch({ onNavigate }: { onNavigate?: () => voi
   const displayItems = query.trim().length === 0 ? recents : results;
   const isShowingRecents = query.trim().length === 0;
 
-  useEffect(() => { setActiveIndex(0); }, [query]);
+  useEffect(() => { setActiveIndex(0); setAiAnswer(null); }, [query]);
+
+  const askAi = useCallback(async () => {
+    const q = query.trim();
+    if (!q || aiLoading) return;
+    setAiLoading(true);
+    try {
+      const catalog = allItems
+        .map((item) => `- ${item.label} (${item.category}) → ${item.path}${item.keywords ? ` — cuvinte cheie: ${item.keywords}` : ""}`)
+        .join("\n");
+      const response = await fetch("/api/admin/ai-assistant/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({
+          context: `Pagină curentă: căutarea rapidă din panoul de admin (⌘K). Mai jos e catalogul paginilor/secțiunilor cunoscute, cu path-ul lor:\n${catalog}`,
+          messages: [{ role: "user", content: `Căutarea fuzzy nu a găsit nimic pentru: "${q}". Care e cea mai probabilă pagină din catalog la care se referă utilizatorul? Răspunde foarte scurt (1-2 fraze): numele paginii și de ce, sau spune clar dacă nu găsești nimic potrivit în catalog.` }],
+        }),
+      });
+      const data = await response.json();
+      setAiAnswer({ query: q, text: response.ok ? data.reply : (data.error || "Asistentul nu a putut răspunde.") });
+    } catch {
+      setAiAnswer({ query: q, text: "Asistentul nu a putut răspunde." });
+    } finally {
+      setAiLoading(false);
+    }
+  }, [query, aiLoading, allItems, auth.accessToken]);
 
   const goTo = useCallback((item: SearchItem) => {
     saveRecent(item);
@@ -241,7 +278,8 @@ export default function DashboardSearch({ onNavigate }: { onNavigate?: () => voi
     if (e.key === "Enter" && displayItems[activeIndex]) goTo(displayItems[activeIndex]);
   };
 
-  const showDropdown = focused && displayItems.length > 0;
+  const showNoResults = focused && !isShowingRecents && displayItems.length === 0;
+  const showDropdown = focused && (displayItems.length > 0 || showNoResults);
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
@@ -291,7 +329,7 @@ export default function DashboardSearch({ onNavigate }: { onNavigate?: () => voi
           )}
           {displayItems.map((item, i) => (
             <button
-              key={item.path}
+              key={`${item.path}::${item.label}`}
               onMouseDown={() => goTo(item)}
               onMouseEnter={() => setActiveIndex(i)}
               style={{
@@ -312,6 +350,29 @@ export default function DashboardSearch({ onNavigate }: { onNavigate?: () => voi
               </span>
             </button>
           ))}
+          {showNoResults && (
+            <div style={{ padding: "14px" }}>
+              {aiAnswer && aiAnswer.query === query.trim() ? (
+                <p style={{ margin: 0, fontSize: "12px", lineHeight: 1.5, color: "#bbb" }}>{aiAnswer.text}</p>
+              ) : (
+                <>
+                  <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#555" }}>Niciun rezultat pentru „{query}".</p>
+                  <button
+                    onMouseDown={() => void askAi()}
+                    disabled={aiLoading}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "6px", width: "100%",
+                      padding: "8px 10px", background: "#161616", border: "1px solid #262626",
+                      borderRadius: "8px", color: "#8ee6b0", fontSize: "12px", fontWeight: 500,
+                      cursor: aiLoading ? "default" : "pointer", opacity: aiLoading ? 0.6 : 1,
+                    }}
+                  >
+                    ✨ {aiLoading ? "Întreb asistentul..." : "Întreabă AI unde găsesc asta"}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           <div style={{ padding: "6px 14px", borderTop: "1px solid #161616", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "10px", color: "#333" }}>↑↓ navighează · Enter deschide · Esc închide</span>
             {!isShowingRecents && results.length > 0 && (

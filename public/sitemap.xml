@@ -1206,6 +1206,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.ancavisuals.ro/blog/fotocabina-targu-mures</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.ancavisuals.ro/blog/fotograf-alba-iulia</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -1216,12 +1221,22 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.ancavisuals.ro/blog/fotograf-sebes</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.ancavisuals.ro/blog/fotograf-turda</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.ancavisuals.ro/blog/ghid-mireasa-prima-nunta</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.ancavisuals.ro/blog/oglinda-foto-turda</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

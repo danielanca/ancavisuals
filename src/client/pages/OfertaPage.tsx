@@ -6,6 +6,7 @@ import type { OfferPackage } from "../../shared/offers/offerServices";
 import { measureOaiq } from "../utils/oaiq";
 import PhoneNumberReveal from "../components/PhoneReveal/PhoneNumberReveal";
 import { whenVisitorInteracts } from "../utils/visitorInteraction";
+import ReviewsGrid from "../components/Reviews/ReviewsGrid";
 
 const INITIAL_PHOTO_COUNT = 12;
 
@@ -468,6 +469,14 @@ export default function OfertaPage() {
             </button>
           </div>
         )}
+
+        <ReviewsGrid
+          category="oferta"
+          offerSlug={offer.slug}
+          title="Ce spun cei care au încercat deja"
+          accentText="text-violet-400"
+          accentBgSubtle="bg-violet-900/20"
+        />
 
         {/* Divider */}
         <div className="border-t border-neutral-800/60 pt-10">

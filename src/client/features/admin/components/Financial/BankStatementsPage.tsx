@@ -4,6 +4,13 @@ import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 import { ROMANIAN_COUNTIES, getCitiesForCounty } from "../../../../data/romaniaLocations";
 
+interface ReviewCandidate {
+  type: "invoice" | "expense";
+  id: string;
+  label: string;
+  date: string;
+}
+
 interface BankStatementEntry {
   date: string;
   direction: "in" | "out";
@@ -11,11 +18,13 @@ interface BankStatementEntry {
   currency: string;
   counterparty: string | null;
   description: string | null;
-  justificationStatus: "matched" | "unmatched";
+  justificationStatus: "matched" | "unmatched" | "review";
   matchedType: "invoice" | "expense" | null;
   matchedId: string | null;
   matchedLabel: string | null;
   matchedFileUrl: string | null;
+  reviewCandidates?: ReviewCandidate[] | null;
+  dismissed?: boolean;
 }
 
 interface BankStatement {
@@ -30,6 +39,7 @@ interface BankStatement {
   };
   entries: BankStatementEntry[];
   unmatchedCount: number;
+  reviewCount?: number;
   createdAt: string;
 }
 
@@ -533,7 +543,7 @@ interface QuickAddExpenseModalProps {
   accessToken: string;
   entry: BankStatementEntry;
   onClose: () => void;
-  onAdded: () => void;
+  onAdded: () => void | Promise<unknown>;
 }
 
 function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAddExpenseModalProps) {
@@ -544,6 +554,7 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
   const [date, setDate] = React.useState(entry.date.slice(0, 10));
   const [deductibility, setDeductibility] = React.useState("100");
   const [docFile, setDocFile] = React.useState<File | null>(null);
+  const [dragging, setDragging] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -585,7 +596,18 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
         }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.message ?? data.error ?? "Eroare la salvare.");
+      if (!res.ok || data.error) {
+        if (data.error === "DUPLICATE_FILE" && data.existingId) {
+          // Documentul e deja înregistrat ca altă cheltuială — tranzacția asta e
+          // deja justificată de acea cheltuială, doar că extrasul nu știe încă.
+          // Re-verificăm potrivirile în loc să blocăm utilizatorul într-o eroare
+          // fără ieșire.
+          await onAdded();
+          onClose();
+          return;
+        }
+        throw new Error(data.message ?? data.error ?? "Eroare la salvare.");
+      }
       onAdded();
       onClose();
     } catch (err) {
@@ -644,9 +666,19 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
 
           <div>
             <label className="mb-1 block text-xs text-neutral-400">Factură / chitanță (opțional)</label>
-            <div className="flex items-center gap-2">
+            <div
+              className={`flex items-center gap-2 rounded-lg border transition-colors ${dragging ? "border-emerald-500 bg-emerald-600/10" : "border-transparent"}`}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                const file = e.dataTransfer.files[0];
+                if (file) setDocFile(file);
+              }}
+            >
               <label className="flex-1 min-w-0 cursor-pointer truncate rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-300 hover:border-neutral-500">
-                {docFile ? docFile.name : "Alege fișierul (PDF sau imagine)"}
+                {docFile ? docFile.name : dragging ? "Dă drumul aici..." : "Trage fișierul sau apasă (PDF sau imagine)"}
                 <input
                   type="file"
                   accept="image/*,.pdf"
@@ -677,6 +709,102 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
   );
 }
 
+interface ManualReviewRowProps {
+  accessToken: string;
+  statementId: string;
+  entryIndex: number;
+  entry: BankStatementEntry;
+  onResolved: (statement: BankStatement) => void;
+}
+
+function ManualReviewRow({ accessToken, statementId, entryIndex, entry, onResolved }: ManualReviewRowProps) {
+  const candidates = entry.reviewCandidates ?? [];
+  const [selected, setSelected] = React.useState(candidates[0]?.id ?? "");
+  const [busy, setBusy] = React.useState<"link" | "dismiss" | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function handleLink() {
+    const candidate = candidates.find((c) => c.id === selected);
+    if (!candidate) return;
+    setBusy("link");
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/bank-statements/${statementId}/entries/${entryIndex}/link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ type: candidate.type, targetId: candidate.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? "Eroare la legare.");
+      onResolved(data.statement);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eroare.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleDismiss() {
+    setBusy("dismiss");
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/bank-statements/${statementId}/entries/${entryIndex}/dismiss`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? "Eroare.");
+      onResolved(data.statement);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eroare.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-400">
+        <div>
+          <span className="text-white">{fmtDate(entry.date)}</span> · {fmtCurrency(entry.amount, entry.currency)} ·{" "}
+          {entry.counterparty ?? "—"}
+          {entry.description && <span className="text-neutral-500"> · {entry.description}</span>}
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <select
+          className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-xs text-white focus:outline-none focus:border-neutral-500"
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+        >
+          {candidates.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label} · {fmtDate(c.date)}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={handleLink}
+          disabled={busy !== null || !selected}
+          className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs text-white hover:bg-sky-500 disabled:opacity-50"
+        >
+          {busy === "link" ? "Se leagă..." : "Leagă"}
+        </button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          disabled={busy !== null}
+          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-400 hover:border-neutral-500 disabled:opacity-50"
+        >
+          {busy === "dismiss" ? "Se salvează..." : "Nu se aplică"}
+        </button>
+      </div>
+      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 const BankStatementsPage: React.FC = () => {
   const { auth } = useAuth();
   const navigate = useNavigate();
@@ -692,8 +820,58 @@ const BankStatementsPage: React.FC = () => {
   const [renamingAccount, setRenamingAccount] = React.useState(false);
   const [renameValue, setRenameValue] = React.useState("");
   const [renaming, setRenaming] = React.useState(false);
+  const [hideEmpty, setHideEmpty] = React.useState(false);
+  const [showJustified, setShowJustified] = React.useState(true);
+  const [showUnjustified, setShowUnjustified] = React.useState(true);
 
   const authHeader = React.useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
+
+  // Preferințe de UI salvate pe cont (settings/admin → uiPreferences), ca să rămână
+  // consistente între refresh-uri și dispozitive, nu doar în acest browser. Ținem
+  // obiectul complet ca să nu pierdem alte chei la salvare (PUT /settings suprascrie
+  // tot map-ul uiPreferences, nu face merge recursiv pe câmpuri imbricate).
+  const uiPreferencesRef = React.useRef<Record<string, unknown>>({});
+
+  React.useEffect(() => {
+    if (!auth.accessToken) return;
+    fetch("/api/admin/settings", { headers: authHeader })
+      .then((r) => r.json())
+      .then((data: { uiPreferences?: Record<string, unknown> }) => {
+        const prefs = data.uiPreferences ?? {};
+        uiPreferencesRef.current = prefs;
+        if (prefs.hideEmptyBankStatements) setHideEmpty(true);
+        if (prefs.showJustifiedEntries === false) setShowJustified(false);
+        if (prefs.showUnjustifiedEntries === false) setShowUnjustified(false);
+      })
+      .catch(() => {});
+  }, [auth.accessToken, authHeader]);
+
+  function savePreference(key: string, value: boolean) {
+    uiPreferencesRef.current = { ...uiPreferencesRef.current, [key]: value };
+    fetch("/api/admin/settings", {
+      method: "PUT",
+      headers: { ...authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ uiPreferences: uiPreferencesRef.current }),
+    }).catch(() => {});
+  }
+
+  function toggleHideEmpty() {
+    setHideEmpty((current) => { const next = !current; savePreference("hideEmptyBankStatements", next); return next; });
+  }
+
+  function toggleShowJustified() {
+    setShowJustified((current) => { const next = !current; savePreference("showJustifiedEntries", next); return next; });
+  }
+
+  function toggleShowUnjustified() {
+    setShowUnjustified((current) => { const next = !current; savePreference("showUnjustifiedEntries", next); return next; });
+  }
+
+  // "Nejustificate" acoperă și tranzacțiile "de verificat" — niciuna nu e confirmată încă.
+  const entryPassesFilter = React.useCallback(
+    (entry: BankStatementEntry) => (entry.justificationStatus === "matched" ? showJustified : showUnjustified),
+    [showJustified, showUnjustified]
+  );
 
   React.useEffect(() => {
     if (!auth.accessToken) return;
@@ -709,6 +887,14 @@ const BankStatementsPage: React.FC = () => {
       .catch(() => setBankStatements([]))
       .finally(() => setLoading(false));
   }, [auth.accessToken, authHeader, selectedYear, selectedAccount]);
+
+  const emptyCount = React.useMemo(() => bankStatements.filter((s) => s.entries.length === 0).length, [bankStatements]);
+  const visibleStatements = React.useMemo(() => {
+    const list = hideEmpty ? bankStatements.filter((s) => s.entries.length > 0) : bankStatements;
+    // Cele mai noi extrase sus, cele mai vechi jos — indiferent de ordinea
+    // în care au fost încărcate (ex. upload în bloc pe mai multe luni deodată).
+    return [...list].sort((a, b) => new Date(b.statementDate).getTime() - new Date(a.statementDate).getTime());
+  }, [bankStatements, hideEmpty]);
 
   const totals = React.useMemo(() => {
     const entries = bankStatements.flatMap((statement) => statement.entries);
@@ -827,6 +1013,20 @@ const BankStatementsPage: React.FC = () => {
             >
               {YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
+            {emptyCount > 0 && (
+              <button
+                onClick={toggleHideEmpty}
+                title={hideEmpty ? "Arată și extrasele goale" : "Ascunde extrasele fără tranzacții"}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  hideEmpty
+                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
+                    : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white"
+                }`}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" /></svg>
+                {hideEmpty ? `Extrase goale ascunse (${emptyCount})` : `Ascunde extrasele goale (${emptyCount})`}
+              </button>
+            )}
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/30"
@@ -857,6 +1057,20 @@ const BankStatementsPage: React.FC = () => {
           </div>
         </div>
 
+        <div className="flex items-center gap-4 text-sm text-neutral-300">
+          <span className="text-xs text-neutral-500">Arată tranzacțiile:</span>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={showJustified} onChange={toggleShowJustified}
+              className="h-3.5 w-3.5 rounded border-neutral-600 bg-neutral-800 accent-emerald-500" />
+            Justificate
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={showUnjustified} onChange={toggleShowUnjustified}
+              className="h-3.5 w-3.5 rounded border-neutral-600 bg-neutral-800 accent-amber-500" />
+            Nejustificate
+          </label>
+        </div>
+
         {loading ? (
           <p className="py-10 text-center text-sm text-neutral-500">Se încarcă...</p>
         ) : bankStatements.length === 0 ? (
@@ -864,9 +1078,14 @@ const BankStatementsPage: React.FC = () => {
             <p className="text-sm">Niciun extras analizat.</p>
             <p className="mt-1 text-xs">Încarcă un PDF sau o imagine, iar AI va completa toate entry-urile.</p>
           </div>
+        ) : visibleStatements.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 py-16 text-center text-neutral-600">
+            <p className="text-sm">Toate extrasele din acest an sunt goale.</p>
+            <button onClick={() => setHideEmpty(false)} className="mt-2 text-xs text-emerald-400 hover:text-emerald-300">Arată-le din nou</button>
+          </div>
         ) : (
           <div className="space-y-4">
-            {bankStatements.map((statement) => {
+            {visibleStatements.map((statement) => {
               if (statement.entries.length === 0) {
                 return (
                   <EmptyStatementRow
@@ -881,6 +1100,9 @@ const BankStatementsPage: React.FC = () => {
 
               const incoming = statement.entries.filter((entry) => entry.direction === "in");
               const outgoing = statement.entries.filter((entry) => entry.direction === "out");
+              const displayEntries = statement.entries
+                .map((entry, index) => ({ entry, index }))
+                .filter(({ entry }) => entryPassesFilter(entry));
 
               return (
                 <details key={statement.id} open className="group rounded-xl border border-neutral-800 bg-neutral-900">
@@ -895,6 +1117,11 @@ const BankStatementsPage: React.FC = () => {
                         <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${statement.unmatchedCount > 0 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>
                           {statement.unmatchedCount > 0 ? `${statement.unmatchedCount} nejustificate` : "Totul justificat"}
                         </span>
+                        {(statement.reviewCount ?? 0) > 0 && (
+                          <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-xs font-medium text-sky-400">
+                            {statement.reviewCount} de verificat
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap pl-5 text-xs text-neutral-500">
                         <span>{fmtDate(statement.statementDate)}</span>
@@ -940,6 +1167,9 @@ const BankStatementsPage: React.FC = () => {
                       </div>
                     </div>
 
+                    {displayEntries.length === 0 ? (
+                      <p className="py-6 text-center text-sm text-neutral-600">Nicio tranzacție nu corespunde filtrului selectat.</p>
+                    ) : (
                     <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
@@ -952,7 +1182,7 @@ const BankStatementsPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {statement.entries.map((entry, index) => (
+                        {displayEntries.map(({ entry, index }) => (
                           <tr key={`${statement.id}-${index}`} className="border-b border-neutral-800/50 last:border-0">
                             <td className="px-2 py-2 text-neutral-300">{fmtDate(entry.date)}</td>
                             <td className={`px-2 py-2 text-xs font-medium ${entry.direction === "in" ? "text-emerald-400" : "text-red-400"}`}>
@@ -983,6 +1213,10 @@ const BankStatementsPage: React.FC = () => {
                                 >
                                   {entry.matchedLabel}
                                 </button>
+                              ) : entry.justificationStatus === "review" ? (
+                                <span className="inline-flex rounded bg-sky-500/15 px-2 py-1 text-xs text-sky-400">
+                                  De verificat · {entry.reviewCandidates?.length ?? 0} candidați
+                                </span>
                               ) : (
                                 <div className="flex items-center gap-2">
                                   <span className="inline-flex rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-400">Nejustificată încă</span>
@@ -1001,6 +1235,29 @@ const BankStatementsPage: React.FC = () => {
                       </tbody>
                     </table>
                     </div>
+                    )}
+
+                    {showUnjustified && statement.entries.some((entry) => entry.justificationStatus === "review") && (
+                      <div className="mt-4 rounded-lg border border-sky-900/50 bg-sky-950/20 p-3">
+                        <p className="mb-3 text-xs font-medium text-sky-400">
+                          De verificat manual — algoritmul și AI-ul nu sunt siguri, alege tu potrivirea corectă
+                        </p>
+                        <div className="space-y-2">
+                          {statement.entries.map((entry, entryIndex) =>
+                            entry.justificationStatus === "review" ? (
+                              <ManualReviewRow
+                                key={entryIndex}
+                                accessToken={auth.accessToken ?? ""}
+                                statementId={statement.id}
+                                entryIndex={entryIndex}
+                                entry={entry}
+                                onResolved={(updated) => setBankStatements((current) => current.map((s) => (s.id === updated.id ? updated : s)))}
+                              />
+                            ) : null
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </details>
               );

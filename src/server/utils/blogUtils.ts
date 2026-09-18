@@ -166,6 +166,14 @@ async function getFirestorePost(slug: string): Promise<EditableBlogPost | null> 
   }
 }
 
+// Verifică direct în Firestore dacă slug-ul e deja ocupat (draft sau publicat) — spre
+// deosebire de getPostBySlug, care ignoră draft-urile. Folosit ca să nu suprascriem
+// silențios un articol existent când salvăm un slug nou generat de AI.
+export async function slugExists(slug: string): Promise<boolean> {
+  const doc = await firestore().collection(BLOG_COLLECTION).doc(slug).get();
+  return doc.exists;
+}
+
 async function getFirestorePosts(status?: "draft" | "published"): Promise<EditableBlogPost[]> {
   try {
     const snapshot = await firestore().collection(BLOG_COLLECTION).get();

@@ -14,6 +14,7 @@ import {
   createJob, getJob, getAllJobs, serializeJob,
   appendJobLog, setJobProgress, finishJob, errorJob,
 } from "../services/albumProcessingJobs.js";
+import { getBnrRate, getBnrYearRates, BnrRateError } from "../services/bnrExchangeRate.service.js";
 
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
@@ -463,6 +464,25 @@ router.get("/settings", async (_req: Request, res: Response) => {
   } catch (error) {
     console.error("[adminEvents] GET /settings failed:", error);
     res.status(500).json({ error: "Nu s-au putut încărca setările." });
+  }
+});
+
+// GET /api/admin/exchange-rates?year=2026&currency=EUR|USD — full RON rate table for the
+// year, from BNR (falls back to the admin-configured flat exchangeRate on failure)
+router.get("/exchange-rates", async (req: Request, res: Response) => {
+  const year = Number(req.query.year) || new Date().getUTCFullYear();
+  const currency = req.query.currency === "USD" ? "USD" : "EUR";
+  try {
+    const [rates, latest] = await Promise.all([
+      getBnrYearRates(year, currency),
+      getBnrRate(new Date(), currency),
+    ]);
+    res.json({ source: "bnr", year, currency, rates, latest });
+  } catch (error) {
+    console.error("[adminEvents] GET /exchange-rates failed:", error instanceof BnrRateError ? error.message : error);
+    const settingsDoc = await firestore().collection("settings").doc("admin").get();
+    const fallback = Number(settingsDoc.data()?.exchangeRate) || 5;
+    res.json({ source: "fallback", year, currency, rates: {}, latest: fallback });
   }
 });
 

@@ -4,10 +4,13 @@ import useAuth from "../../auth/useAuth";
 import type { ClientEvent } from "../../types";
 import Breadcrumb from "../Breadcrumb";
 import { ROMANIAN_COUNTIES, getCitiesForCounty } from "../../../../data/romaniaLocations";
+import { isReverseChargeSupplier, STANDARD_VAT_RATE } from "../../../../../shared/finance/reverseChargeSuppliers";
+import AiContextChat from "../AiContextChat";
+import { useSearchable } from "../dashboardSearchRegistry";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ActiveTab = "overview" | "taxe" | "cheltuieli" | "facturi";
+type ActiveTab = "overview" | "taxe" | "cheltuieli" | "facturi" | "tva";
 
 interface FiscalSettings {
   ownerName: string;
@@ -121,6 +124,8 @@ interface State {
   expenseRevision: number;
   expenses: Expense[];
   expenseSearch: string;
+  expenseDateFrom: string;
+  expenseDateTo: string;
   invoices: Invoice[];
   invoiceSearch: string;
   duplicateAlert: { expense: Expense; year: number } | null;
@@ -148,6 +153,8 @@ type Action =
   | { type: "SET_MONTH_TO"; month: number }
   | { type: "SET_EXPENSES"; expenses: Expense[] }
   | { type: "SET_EXPENSE_SEARCH"; value: string }
+  | { type: "SET_EXPENSE_DATE_FROM"; value: string }
+  | { type: "SET_EXPENSE_DATE_TO"; value: string }
   | { type: "SET_INVOICES"; invoices: Invoice[] }
   | { type: "SET_INVOICE_SEARCH"; value: string }
   | { type: "SET_EVENTS"; events: ClientEvent[] }
@@ -186,6 +193,8 @@ const initialState: State = {
   expenseRevision: 0,
   expenses: [],
   expenseSearch: "",
+  expenseDateFrom: "",
+  expenseDateTo: "",
   duplicateAlert: null,
   highlightedExpenseId: null,
   highlightedInvoiceId: null,
@@ -214,6 +223,8 @@ function reducer(state: State, action: Action): State {
     case "SET_MONTH_TO": return { ...state, selectedMonthTo: action.month };
     case "SET_EXPENSES": return { ...state, expenses: action.expenses, loadingExpenses: false };
     case "SET_EXPENSE_SEARCH": return { ...state, expenseSearch: action.value };
+    case "SET_EXPENSE_DATE_FROM": return { ...state, expenseDateFrom: action.value };
+    case "SET_EXPENSE_DATE_TO": return { ...state, expenseDateTo: action.value };
     case "SET_INVOICES": return { ...state, invoices: action.invoices, loadingInvoices: false };
     case "SET_INVOICE_SEARCH": return { ...state, invoiceSearch: action.value };
     case "SET_EVENTS": return { ...state, events: action.events, loadingEvents: false };
@@ -346,16 +357,6 @@ function matchesSearch(query: string, parts: Array<string | null | undefined>): 
   const haystack = normaliseForSearch(parts.filter(Boolean).join(" "));
   const collapsed = haystack.replace(/ /g, "");
   return words.every((word) => haystack.includes(word) || collapsed.includes(word));
-}
-
-// Furnizori din străinătate care emit facturi fără TVA românesc (taxare inversă /
-// achiziție intracomunitară de servicii ori bunuri) — extinde lista dacă apar alții.
-const REVERSE_CHARGE_SUPPLIERS = ["google", "openai", "anthropic", "bunny", "thomann", "meta", "facebook"];
-
-function isReverseChargeSupplier(supplier: string | null | undefined): boolean {
-  if (!supplier) return false;
-  const normalised = normaliseForSearch(supplier);
-  return REVERSE_CHARGE_SUPPLIERS.some((name) => normalised.includes(name));
 }
 
 let activeInfoBadgeId: string | null = null;
@@ -1027,7 +1028,9 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
   const [clientCIF, setClientCIF] = React.useState("");
   const [items, setItems] = React.useState<InvoiceItem[]>([{ description: "Servicii fotografiere", quantity: 1, unitPrice: 0, total: 0 }]);
   const [currency, setCurrency] = React.useState("RON");
-  const [exchangeRate, setExchangeRate] = React.useState(5);
+  const [eurRates, setEurRates] = React.useState<{ rates: Record<string, number>; latest: number }>({ rates: {}, latest: 5 });
+  // BNR rate for the invoice's own date, falling back to the latest known rate.
+  const exchangeRate = eurRates.rates[date] ?? eurRates.latest;
   const [notes, setNotes] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -1077,16 +1080,17 @@ function AddInvoiceModal({ accessToken, events, onClose, onAdded }: AddInvoiceMo
   }
 
   React.useEffect(() => {
-    fetch("/api/admin/settings", {
+    const year = date.slice(0, 4);
+    fetch(`/api/admin/exchange-rates?year=${year}`, {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
     })
       .then((r) => r.json())
-      .then((data: { exchangeRate?: unknown }) => {
-        const nextRate = Number(data.exchangeRate);
-        if (Number.isFinite(nextRate) && nextRate > 0) setExchangeRate(nextRate);
+      .then((data: { rates?: Record<string, number>; latest?: number }) => {
+        const latest = Number(data.latest);
+        setEurRates({ rates: data.rates ?? {}, latest: latest > 0 ? latest : 5 });
       })
       .catch(() => {});
-  }, [accessToken]);
+  }, [accessToken, date]);
 
   function prefillFromEvent(eventId: string) {
     setSelectedEventId(eventId);
@@ -1398,6 +1402,181 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
+const MONTHS_RO = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
+
+// ─── TVA Taxare Inversă Tab ─────────────────────────────────────────────────
+// Cheltuielile de la furnizori străini (Google, OpenAI, Bunny etc.) vin fără TVA
+// românesc — obligația de autotaxare (Decontul special de TVA, formular 301) cade pe noi.
+// Tab-ul ăsta agregă acele cheltuieli lună de lună, ca să știi din timp cât ai de declarat.
+function ReverseChargeVatTab({
+  year,
+  rateForDate,
+  accessToken,
+}: {
+  year: number;
+  rateForDate: (dateIso: string) => number;
+  accessToken: string;
+}) {
+  // Fetch propriu, pe tot anul — independent de filtrul de lună din tab-ul Cheltuieli.
+  // Dacă am fi refolosit state.expenses din pagina părinte, un filtru de lună activ acolo
+  // ar fi ascuns cheltuielile din celelalte luni și de aici, deși pagina asta trebuie să
+  // vadă tot anul ca să nu rateze facturi cu taxare inversă.
+  const [expenses, setExpenses] = React.useState<Expense[]>([]);
+  const [loadingExpenses, setLoadingExpenses] = React.useState(true);
+  const [usdRates, setUsdRates] = React.useState<{ rates: Record<string, number>; latest: number }>({ rates: {}, latest: 0 });
+
+  React.useEffect(() => {
+    if (!accessToken) return;
+    setLoadingExpenses(true);
+    fetch(`/api/admin/expenses?year=${year}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+      .then((r) => r.json())
+      .then((data) => setExpenses(Array.isArray(data.expenses) ? data.expenses : []))
+      .catch(() => setExpenses([]))
+      .finally(() => setLoadingExpenses(false));
+  }, [accessToken, year]);
+
+  React.useEffect(() => {
+    if (!accessToken) return;
+    fetch(`/api/admin/exchange-rates?year=${year}&currency=USD`, { headers: { Authorization: `Bearer ${accessToken}` } })
+      .then((r) => r.json())
+      .then((data: { rates?: Record<string, number>; latest?: number }) => {
+        setUsdRates({ rates: data.rates ?? {}, latest: Number(data.latest) || 0 });
+      })
+      .catch(() => {});
+  }, [accessToken, year]);
+
+  const rateForDateUsd = React.useCallback((dateIso: string): number => {
+    const cursor = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`);
+    for (let i = 0; i < 10; i++) {
+      const rate = usdRates.rates[cursor.toISOString().slice(0, 10)];
+      if (rate !== undefined) return rate;
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
+    }
+    return usdRates.latest;
+  }, [usdRates]);
+
+  const { monthly, skipped, yearBase } = useMemo(() => {
+    const monthlyMap: Record<number, { base: number; count: number }> = {};
+    for (let m = 1; m <= 12; m++) monthlyMap[m] = { base: 0, count: 0 };
+    const skippedExpenses: Expense[] = [];
+
+    expenses
+      .filter((expense) => isReverseChargeSupplier(expense.supplier))
+      .forEach((expense) => {
+        const month = new Date(expense.date).getMonth() + 1;
+        let amountRon: number | null = null;
+        if (expense.currency === "RON") amountRon = expense.amount;
+        else if (expense.currency === "EUR") amountRon = expense.amount * rateForDate(expense.date);
+        else if (expense.currency === "USD") amountRon = expense.amount * rateForDateUsd(expense.date);
+        if (amountRon === null) { skippedExpenses.push(expense); return; }
+        monthlyMap[month].base += amountRon;
+        monthlyMap[month].count += 1;
+      });
+
+    const totalBase = Object.values(monthlyMap).reduce((sum, m) => sum + m.base, 0);
+    return { monthly: monthlyMap, skipped: skippedExpenses, yearBase: totalBase };
+  }, [expenses, rateForDate, rateForDateUsd]);
+
+  const yearVat = Math.round(yearBase * STANDARD_VAT_RATE * 100) / 100;
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+
+  const aiContext = useMemo(() => {
+    const lines = Object.entries(monthly)
+      .filter(([, m]) => m.base > 0)
+      .map(([m, data]) => {
+        const base = Math.round(data.base * 100) / 100;
+        const vat = Math.round(base * STANDARD_VAT_RATE * 100) / 100;
+        return `- ${MONTHS_RO[Number(m) - 1]} ${year}: ${data.count} cheltuial${data.count === 1 ? "ă" : "i"}, bază impozabilă ${base} RON, TVA estimat (${Math.round(STANDARD_VAT_RATE * 100)}%) ${vat} RON`;
+      });
+    const skippedNote = skipped.length > 0
+      ? `\n\n${skipped.length} cheltuieli nu au putut fi convertite automat (monedă necunoscută): ${skipped.map((e) => `${e.supplier ?? "?"} (${e.amount} ${e.currency})`).join(", ")}.`
+      : "";
+    return `Pagina curentă: tab-ul "TVA Taxare Inversă" din Financiar, anul ${year}.\n\nCe este taxarea inversă: cheltuielile de la furnizori din străinătate (Google, OpenAI, Anthropic, Bunny, Meta, Thomann etc.) vin fără TVA românesc; obligația de autotaxare se declară prin Decontul special de TVA (formularul 301), până pe 25 ale lunii următoare celei în care a fost primit serviciul.\n\nDefalcare lunară (bază impozabilă = suma cheltuielilor de la acei furnizori, convertită în RON):\n${lines.join("\n") || "Nicio cheltuială de la furnizori cu taxare inversă în acest an."}\n\nTotal an ${year}: bază impozabilă ${Math.round(yearBase * 100) / 100} RON, TVA estimat ${yearVat} RON.${skippedNote}`;
+  }, [monthly, skipped, year, yearBase, yearVat]);
+
+  if (loadingExpenses) {
+    return <p className="text-sm text-neutral-500">Se încarcă cheltuielile din tot anul {year}...</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start gap-2 rounded-xl border border-sky-900/50 bg-sky-950/20 p-4 text-sm text-sky-200">
+        <InfoBadge title="Ce e taxarea inversă" description="Furnizorii din străinătate (Google, OpenAI, Bunny etc.) facturează fără TVA românesc. Tu ai obligația de autotaxare: declari și plătești TVA-ul prin Decontul special de TVA (formularul 301), până pe 25 ale lunii următoare celei în care ai primit factura." />
+        <p>Estimare orientativă — cota de TVA și baza impozabilă trebuie confirmate cu un contabil înainte de depunere.</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <p className="text-xs text-neutral-500">Bază impozabilă · {year}</p>
+          <p className="mt-1 text-lg font-medium text-white">{fmtCurrency(yearBase, "RON")}</p>
+        </div>
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <p className="text-xs text-neutral-500">TVA de plată (estimat, {Math.round(STANDARD_VAT_RATE * 100)}%) · {year}</p>
+          <p className="mt-1 text-lg font-medium text-amber-400">{fmtCurrency(yearVat, "RON")}</p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-neutral-800">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-neutral-800 bg-neutral-900">
+              <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Lună</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-neutral-500">Cheltuieli</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-neutral-500">Bază impozabilă</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-neutral-500">TVA estimat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MONTHS_RO.map((label, index) => {
+              const month = index + 1;
+              const data = monthly[month];
+              const isCurrent = year === currentYear && month === currentMonth;
+              if (data.count === 0) {
+                return (
+                  <tr key={month} className={`border-b border-neutral-800/50 last:border-0 ${isCurrent ? "bg-neutral-900/60" : ""}`}>
+                    <td className={`px-3 py-2 ${isCurrent ? "text-white" : "text-neutral-500"}`}>{label}{isCurrent ? " · luna curentă" : ""}</td>
+                    <td className="px-3 py-2 text-right text-neutral-600">—</td>
+                    <td className="px-3 py-2 text-right text-neutral-600">—</td>
+                    <td className="px-3 py-2 text-right text-neutral-600">—</td>
+                  </tr>
+                );
+              }
+              const vat = Math.round(data.base * STANDARD_VAT_RATE * 100) / 100;
+              return (
+                <tr key={month} className={`border-b border-neutral-800/50 last:border-0 ${isCurrent ? "bg-emerald-500/5" : ""}`}>
+                  <td className={`px-3 py-2 ${isCurrent ? "text-white font-medium" : "text-neutral-300"}`}>{label}{isCurrent ? " · luna curentă" : ""}</td>
+                  <td className="px-3 py-2 text-right text-neutral-400">{data.count}</td>
+                  <td className="px-3 py-2 text-right text-white">{fmtCurrency(data.base, "RON")}</td>
+                  <td className="px-3 py-2 text-right text-amber-400">{fmtCurrency(vat, "RON")}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {skipped.length > 0 && (
+        <div className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-4 text-sm text-amber-200">
+          <p className="font-medium">{skipped.length} cheltuial{skipped.length === 1 ? "ă" : "i"} nu {skipped.length === 1 ? "a putut fi convertită" : "au putut fi convertite"} automat (monedă diferită de RON/EUR) — verifică manual:</p>
+          <ul className="mt-1.5 space-y-0.5 text-xs text-amber-300/80">
+            {skipped.map((expense) => (
+              <li key={expense.id}>{fmtDate(expense.date)} · {expense.supplier ?? "—"} · {expense.amount} {expense.currency}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <AiContextChat
+        accessToken={accessToken}
+        context={aiContext}
+        title="Întreabă despre taxarea inversă"
+        placeholder='ex: "cât am de plătit luna asta?"'
+      />
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const FinancialPage: React.FC = () => {
@@ -1405,14 +1584,34 @@ const FinancialPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { auth } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
-  const [exchangeRate, setExchangeRate] = React.useState(5);
+  // Per-day EUR→RON rates from BNR (see /api/admin/exchange-rates), keyed by ISO date,
+  // so each invoice/expense converts at the rate that actually applied on its own date.
+  const [eurRates, setEurRates] = React.useState<{ rates: Record<string, number>; latest: number }>({ rates: {}, latest: 5 });
+  const exchangeRate = eurRates.latest;
+  const rateForDate = React.useCallback((dateIso: string): number => {
+    const cursor = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`);
+    for (let i = 0; i < 10; i++) {
+      const rate = eurRates.rates[cursor.toISOString().slice(0, 10)];
+      if (rate !== undefined) return rate;
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
+    }
+    return eurRates.latest;
+  }, [eurRates]);
+
+  // Anunță taburile astea la căutarea rapidă (⌘K) — nu au rută proprie, deci nu apar
+  // acolo decât dacă se înregistrează singure. Vezi dashboardSearchRegistry.ts.
+  useSearchable({ label: "Overview financiar", path: "/admin/financial?tab=overview", category: "Financiar", icon: "💰", keywords: "rezumat overview venituri cheltuieli sold" });
+  useSearchable({ label: "Taxe & Estimări", path: "/admin/financial?tab=taxe", category: "Financiar", icon: "🧮", keywords: "impozit cas cass smin proiectie estimare taxe" });
+  useSearchable({ label: "Cheltuieli", path: "/admin/financial?tab=cheltuieli", category: "Financiar", icon: "🧾", keywords: "cheltuieli expenses deductibil chitanta factura primita" });
+  useSearchable({ label: "Facturi emise", path: "/admin/financial?tab=facturi", category: "Financiar", icon: "📄", keywords: "facturi emise invoices client incasari" });
+  useSearchable({ label: "TVA Taxare Inversă", path: "/admin/financial?tab=tva", category: "Financiar", icon: "🌍", keywords: "tva taxare inversa d301 decont special autotaxare google openai anthropic bunny" });
 
   // Deep-link din pagina de extrase bancare: comută pe tab-ul și anul corecte,
   // apoi evidențiază cheltuiala/factura după ce lista respectivă s-a încărcat.
   useEffect(() => {
     const tab = searchParams.get("tab");
     const year = searchParams.get("year");
-    if (tab === "cheltuieli" || tab === "facturi") dispatch({ type: "SET_TAB", tab });
+    if (tab === "cheltuieli" || tab === "facturi" || tab === "taxe" || tab === "tva") dispatch({ type: "SET_TAB", tab });
     if (year) dispatch({ type: "SET_YEAR", year: Number(year) });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1485,24 +1684,29 @@ const FinancialPage: React.FC = () => {
       .then((r) => r.json())
       .then((data) => dispatch({ type: "SET_FISCAL", settings: data }))
       .catch(() => {});
+  }, [auth.accessToken, authHeader]);
 
-    fetch("/api/admin/settings", { headers: authHeader })
+  // Load real BNR EUR/RON rates for the selected year (re-fetched on year change).
+  useEffect(() => {
+    if (!auth.accessToken) return;
+    fetch(`/api/admin/exchange-rates?year=${state.selectedYear}`, { headers: authHeader })
       .then((r) => r.json())
-      .then((data: { exchangeRate?: unknown }) => {
-        const rate = Number(data.exchangeRate);
-        if (rate > 0) setExchangeRate(rate);
+      .then((data: { rates?: Record<string, number>; latest?: number }) => {
+        const latest = Number(data.latest);
+        setEurRates({ rates: data.rates ?? {}, latest: latest > 0 ? latest : 5 });
       })
       .catch(() => {});
-  }, [auth.accessToken, authHeader]);
+  }, [auth.accessToken, authHeader, state.selectedYear]);
 
   // Overview calculations
   const overview = useMemo(() => {
-    const toRON = (amount: number, currency: string) => currency === "EUR" ? amount * exchangeRate : amount;
+    const toRON = (amount: number, currency: string, dateIso: string) =>
+      currency === "EUR" ? amount * rateForDate(dateIso) : amount;
 
-    const totalIncome = state.invoices.reduce((sum, inv) => sum + toRON(inv.totalAmount, inv.currency), 0);
-    const totalUnpaid = state.invoices.filter(inv => !inv.paid).reduce((sum, inv) => sum + toRON(inv.totalAmount, inv.currency), 0);
-    const totalExpenses = state.expenses.reduce((sum, exp) => sum + toRON(exp.amount, exp.currency), 0);
-    const totalDeductible = state.expenses.reduce((sum, exp) => sum + toRON(exp.deductibleAmount, exp.currency), 0);
+    const totalIncome = state.invoices.reduce((sum, inv) => sum + toRON(inv.totalAmount, inv.currency, inv.date), 0);
+    const totalUnpaid = state.invoices.filter(inv => !inv.paid).reduce((sum, inv) => sum + toRON(inv.totalAmount, inv.currency, inv.date), 0);
+    const totalExpenses = state.expenses.reduce((sum, exp) => sum + toRON(exp.amount, exp.currency, exp.date), 0);
+    const totalDeductible = state.expenses.reduce((sum, exp) => sum + toRON(exp.deductibleAmount, exp.currency, exp.date), 0);
     const netBalance = totalIncome - totalExpenses;
     const taxableBase = totalIncome - totalDeductible;
 
@@ -1516,8 +1720,8 @@ const FinancialPage: React.FC = () => {
     });
     state.expenses.forEach((exp) => {
       const month = new Date(exp.date).getMonth() + 1;
-      monthlyMap[month].expenses += toRON(exp.amount, exp.currency);
-      monthlyMap[month].deductible += toRON(exp.deductibleAmount, exp.currency);
+      monthlyMap[month].expenses += toRON(exp.amount, exp.currency, exp.date);
+      monthlyMap[month].deductible += toRON(exp.deductibleAmount, exp.currency, exp.date);
     });
 
     return {
@@ -1529,14 +1733,31 @@ const FinancialPage: React.FC = () => {
       taxableBase,
       monthlyMap,
     };
-  }, [state.invoices, state.expenses, exchangeRate]);
+  }, [state.invoices, state.expenses, rateForDate]);
 
   const filteredExpenses = useMemo(() => {
     const q = state.expenseSearch.trim();
-    if (!q) return state.expenses;
-    return state.expenses.filter((exp) =>
-      matchesSearch(q, [exp.supplier, exp.description, fmtDate(exp.date), exp.date]));
-  }, [state.expenses, state.expenseSearch]);
+    const fromTime = state.expenseDateFrom ? new Date(state.expenseDateFrom + "T00:00:00").getTime() : null;
+    const toTime = state.expenseDateTo ? new Date(state.expenseDateTo + "T23:59:59").getTime() : null;
+
+    return state.expenses.filter((exp) => {
+      if (fromTime != null || toTime != null) {
+        const t = new Date(exp.date).getTime();
+        if (fromTime != null && t < fromTime) return false;
+        if (toTime != null && t > toTime) return false;
+      }
+      if (!q) return true;
+      return matchesSearch(q, [
+        exp.supplier,
+        exp.description,
+        fmtDate(exp.date),
+        exp.date,
+        fmtCurrency(exp.amount, exp.currency),
+        String(exp.amount),
+        exp.amount.toFixed(2),
+      ]);
+    });
+  }, [state.expenses, state.expenseSearch, state.expenseDateFrom, state.expenseDateTo]);
 
   const filteredInvoices = useMemo(() => {
     const q = state.invoiceSearch.trim();
@@ -1731,7 +1952,7 @@ const FinancialPage: React.FC = () => {
                     { key: "csv",      label: "CSV pentru contabil",          sub: "2 fișiere Excel-ready",      endpoint: "export-csv",      file: "fiscal-csv-{year}.zip" },
                     { key: "report",   label: "Raport fiscal PDF",             sub: "Sumar anual complet",         endpoint: "export-report",   file: "raport-fiscal-{year}.pdf" },
                     { key: "registru", label: "Registru incasări și plăți",   sub: "Document obligatoriu PFA",    endpoint: "export-registru", file: "registru-incasari-plati-{year}.pdf" },
-                    { key: "zip",      label: "ZIP documente",                 sub: "Facturi PDF + chitanțe",      endpoint: "export-zip",      file: "fiscal-{year}.zip" },
+                    { key: "zip",      label: "Export complet (tot)",          sub: "Facturi + chitanțe + poze + sumar CSV cu sume", endpoint: "export-zip", file: "fiscal-{year}.zip" },
                   ].map(item => (
                     <button key={item.key} onClick={() => handleExport(item.key, item.endpoint, item.file)}
                       className="w-full text-left px-4 py-3 hover:bg-neutral-800 transition-colors border-b border-neutral-800 last:border-0">
@@ -1759,7 +1980,7 @@ const FinancialPage: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-neutral-800">
-          {([["overview", "Overview"], ["taxe", "Taxe & Estimări"], ["cheltuieli", "Cheltuieli"], ["facturi", "Facturi emise"]] as const).map(([tab, label]) => (
+          {([["overview", "Overview"], ["taxe", "Taxe & Estimări"], ["cheltuieli", "Cheltuieli"], ["facturi", "Facturi emise"], ["tva", "TVA Taxare Inversă"]] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => dispatch({ type: "SET_TAB", tab })}
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${state.activeTab === tab ? "border-white text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"}`}>
               {label}
@@ -1900,7 +2121,7 @@ const FinancialPage: React.FC = () => {
                 {overview.taxableBase <= 0 && (
                   <p className="text-xs text-neutral-600">Nicio taxă estimată — cheltuielile depășesc incasările.</p>
                 )}
-                <p className="text-xs text-neutral-600">Estimare orientativă · SMIN 2026 = 3.700 RON · Curs EUR = {exchangeRate} RON · plată anuală unică (D212), nu în rate trimestriale · CAS (pensie) devine obligatoriu de la 12 salarii minime (44.400 RON) venit net</p>
+                <p className="text-xs text-neutral-600">Estimare orientativă · SMIN 2026 = 3.700 RON · Curs EUR = {exchangeRate} RON · plată anuală unică (D212), nu în rate trimestriale · CAS (pensie) devine obligatoriu de la 12 salarii minime (44.400 RON) profit</p>
               </div>
 
               {/* Proiecție an — doar pentru anul curent, când există venit */}
@@ -1927,7 +2148,8 @@ const FinancialPage: React.FC = () => {
                   const monthsAway = monthlyRate > 0 ? remaining / monthlyRate : Infinity;
                   const etaIndex = Math.ceil(monthsElapsed + monthsAway);
                   const eta = !reached && etaIndex >= 1 && etaIndex <= 12 ? MONTHS[etaIndex] : null;
-                  return { ...m, reached, remaining, eta };
+                  const remainingAfterProjection = Math.max(0, m.threshold - projectedBase);
+                  return { ...m, reached, remaining, eta, remainingAfterProjection };
                 });
 
                 // ── Scenariu pe bază de evenimente rezervate ──────────────────
@@ -1951,7 +2173,7 @@ const FinancialPage: React.FC = () => {
                   }))
                   .sort((a, b) => (a.eventDate as Date).getTime() - (b.eventDate as Date).getTime());
 
-                // Cotă de venit net păstrat din brut, extrasă din cheltuielile
+                // Cotă de profit reținut din venitul brut, extrasă din cheltuielile
                 // deductibile de până acum — o aplicăm și la venitul viitor din evenimente.
                 const dedRatio = overview.totalIncome > 0 ? currentBase / overview.totalIncome : 1;
                 const expectedFromEvents = upcomingEvents.reduce((sum, e) => sum + e.expectedNet, 0);
@@ -1974,20 +2196,39 @@ const FinancialPage: React.FC = () => {
                   return { ...m, etaLabel, remainingAfterEvents };
                 });
 
-                return (
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-white">Proiecție la 31 decembrie {state.selectedYear}</p>
-                      <InfoBadge title="Proiecție" description="Estimare pe baza ritmului mediu de până acum: venit net de la începutul anului ÷ lunile scurse × 12. Se actualizează pe măsură ce adaugi facturi și cheltuieli." />
+                // Bară de progres: verde = profit realizat până acum, chihlimbar = ce ai
+                // mai ajunge dacă se confirmă și restul estimării (uniform sau evenimente).
+                function renderMilestoneBar(threshold: number, projected: number) {
+                  const pctCurrent = Math.min(100, (currentBase / threshold) * 100);
+                  const pctProjected = Math.min(100, (projected / threshold) * 100);
+                  return (
+                    <div className="relative mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+                      <div className="absolute inset-y-0 left-0 rounded-full bg-amber-400/40" style={{ width: `${pctProjected}%` }} />
+                      <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-400" style={{ width: `${pctCurrent}%` }} />
                     </div>
+                  );
+                }
 
+                function renderBarLegend(amberLabel: string) {
+                  return (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-neutral-500">
+                      <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400" /> profit realizat până acum</span>
+                      <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400/60" /> {amberLabel}</span>
+                    </div>
+                  );
+                }
+
+                const hasEvents = upcomingEvents.length > 0;
+
+                const uniformScenario = (
+                  <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <p className="text-xs text-neutral-500">Venit net acum</p>
+                        <p className="text-xs text-neutral-500">Profit acum</p>
                         <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(currentBase, "RON")}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-neutral-500">Venit net estimat 31 dec</p>
+                        <p className="text-xs text-neutral-500">Profit estimat 31 dec</p>
                         <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(projectedBase, "RON")}</p>
                       </div>
                       <div>
@@ -1997,83 +2238,150 @@ const FinancialPage: React.FC = () => {
                     </div>
 
                     <div className="space-y-3 border-t border-neutral-800 pt-3">
+                      {renderBarLegend("cât mai ajungi din estimare")}
                       {milestones.map((m) => (
                         <div key={m.label}>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-sm text-neutral-300">
-                              <span className={m.reached ? "text-emerald-400" : "text-neutral-600"}>{m.reached ? "✓ " : "○ "}</span>
+                              {m.reached && <span className="text-emerald-400">✓ </span>}
                               {m.label}
                             </span>
                             <span className="text-xs text-neutral-500 shrink-0">prag {fmtCurrency(m.threshold, "RON")}</span>
                           </div>
-                          <p className="text-xs mt-0.5 ml-4">
+                          {renderMilestoneBar(m.threshold, projectedBase)}
+                          <p className="text-xs mt-1">
                             {m.reached
                               ? <span className="text-emerald-400/80">Deja atins</span>
                               : m.eta
-                                ? <span className="text-amber-300/90">Estimativ în {m.eta} — îți mai trebuie {fmtCurrency(m.remaining, "RON")} venit net</span>
-                                : <span className="text-neutral-500">Improbabil anul acesta — lipsesc {fmtCurrency(m.remaining, "RON")}</span>}
+                                ? <span className="text-amber-300/90">Estimativ în {m.eta} — îți mai trebuie {fmtCurrency(m.remaining, "RON")} profit</span>
+                                : <span className="text-neutral-500">Improbabil anul acesta — lipsesc {fmtCurrency(m.remainingAfterProjection, "RON")} față de estimarea de 31 dec</span>}
                           </p>
                         </div>
                       ))}
                     </div>
 
                     <p className="text-xs text-neutral-600">
-                      Presupune venit uniform pe tot anul. Dacă ai sezon (nunți vara), ajustează mental. Estimat venit din facturi: {fmtCurrency(projectedIncome, "RON")}.
+                      Presupune venit uniform pe tot anul, pe baza ritmului de până acum. Dacă ai sezon (nunți vara), tratează-o ca limită inferioară — estimat venit din facturi: {fmtCurrency(projectedIncome, "RON")}.
                     </p>
+                  </div>
+                );
 
-                    {/* Scenariu pe bază de evenimente rezervate */}
-                    <div className="border-t border-neutral-800 pt-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-white">Scenariu pe bază de evenimente rezervate</p>
-                        <InfoBadge title="Scenariu pe evenimente" description="Venitul net de acum + suma contractată a evenimentelor confirmate/tentative din lista de evenimente, programate până la 31 dec. Mai realist decât media uniformă dacă ai sezon (nunți vara)." />
+                const eventScenario = (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <p className="text-xs text-neutral-500">Evenimente rămase</p>
+                        <p className="text-white font-medium text-sm mt-0.5">{upcomingEvents.length} · {fmtCurrency(expectedFromEvents, "RON")}</p>
                       </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Profit estimat 31 dec</p>
+                        <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(projectedBaseEvents, "RON")}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Taxe estimate an întreg</p>
+                        <p className="text-amber-300 font-semibold text-sm mt-0.5">{fmtCurrency(projTaxEvents.total, "RON")}</p>
+                      </div>
+                    </div>
 
-                      {upcomingEvents.length === 0 ? (
-                        <p className="text-xs text-neutral-500">Nu ai evenimente confirmate sau tentative programate până la sfârșitul anului.</p>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div>
-                              <p className="text-xs text-neutral-500">Evenimente rămase</p>
-                              <p className="text-white font-medium text-sm mt-0.5">{upcomingEvents.length} · {fmtCurrency(expectedFromEvents, "RON")}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-neutral-500">Venit net estimat 31 dec</p>
-                              <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(projectedBaseEvents, "RON")}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-neutral-500">Taxe estimate an întreg</p>
-                              <p className="text-amber-300 font-semibold text-sm mt-0.5">{fmtCurrency(projTaxEvents.total, "RON")}</p>
-                            </div>
-                          </div>
-
-                          <div className="space-y-3">
-                            {eventMilestones.map((m) => (
-                              <div key={m.label}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-sm text-neutral-300">
-                                    <span className={m.reached ? "text-emerald-400" : "text-neutral-600"}>{m.reached ? "✓ " : "○ "}</span>
-                                    {m.label}
+                    <details className="group rounded-lg border border-neutral-800 bg-neutral-950/40">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs text-neutral-400 hover:text-white">
+                        <span className="flex items-center gap-1.5">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 transition-transform group-open:rotate-90"><polyline points="9 18 15 12 9 6" /></svg>
+                          Vezi evenimentele ({upcomingEvents.length})
+                        </span>
+                        <span className="text-neutral-600">sumă contractată pe eveniment, în ordinea datei</span>
+                      </summary>
+                      <div className="divide-y divide-neutral-800/60 border-t border-neutral-800">
+                        {upcomingEvents.map((e, i) => {
+                          const runningTotal = currentBase + upcomingEvents.slice(0, i + 1).reduce((sum, ev) => sum + ev.expectedNet * dedRatio, 0);
+                          return (
+                            <div key={e.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                              <div className="min-w-0">
+                                <p className="truncate text-neutral-200">
+                                  {e.client.fullName} <span className="text-neutral-600">· {e.type}</span>
+                                </p>
+                                <p className="text-neutral-600">
+                                  {(e.eventDate as Date).toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" })}
+                                  {" · "}
+                                  <span className={e.status === "confirmat" ? "text-emerald-400" : "text-amber-400"}>
+                                    {e.status === "confirmat" ? "Confirmat" : "Tentativ"}
                                   </span>
-                                  <span className="text-xs text-neutral-500 shrink-0">prag {fmtCurrency(m.threshold, "RON")}</span>
-                                </div>
-                                <p className="text-xs mt-0.5 ml-4">
-                                  {m.reached
-                                    ? <span className="text-emerald-400/80">Deja atins</span>
-                                    : m.etaLabel
-                                      ? <span className="text-amber-300/90">Estimativ pe {m.etaLabel}, după evenimentele rezervate</span>
-                                      : <span className="text-neutral-500">Improbabil cu evenimentele rezervate — ar mai lipsi {fmtCurrency(m.remainingAfterEvents ?? 0, "RON")}</span>}
                                 </p>
                               </div>
-                            ))}
-                          </div>
+                              <div className="shrink-0 text-right">
+                                <p className="font-medium text-white">+{fmtCurrency(e.expectedNet, "RON")}</p>
+                                <p className="text-neutral-600">profit cumulat {fmtCurrency(runningTotal, "RON")}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
 
-                          <p className="text-xs text-neutral-600">
-                            Estimat venit din evenimente rezervate: {fmtCurrency(projectedIncomeEvents, "RON")}. Nu include lead-uri neconfirmate și presupune că evenimentele tentative se confirmă.
+                    <div className="space-y-3">
+                      {renderBarLegend("ce ai mai ajunge dacă se confirmă evenimentele rezervate")}
+                      {eventMilestones.map((m) => (
+                        <div key={m.label}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm text-neutral-300">
+                              {m.reached && <span className="text-emerald-400">✓ </span>}
+                              {m.label}
+                            </span>
+                            <span className="text-xs text-neutral-500 shrink-0">prag {fmtCurrency(m.threshold, "RON")}</span>
+                          </div>
+                          {renderMilestoneBar(m.threshold, projectedBaseEvents)}
+                          <p className="text-xs mt-1">
+                            {m.reached
+                              ? <span className="text-emerald-400/80">Deja atins</span>
+                              : m.etaLabel
+                                ? <span className="text-amber-300/90">Estimativ pe {m.etaLabel}, după evenimentele rezervate</span>
+                                : <span className="text-neutral-500">Improbabil cu evenimentele rezervate — ar mai lipsi {fmtCurrency(m.remainingAfterEvents ?? 0, "RON")}</span>}
                           </p>
-                        </>
-                      )}
+                        </div>
+                      ))}
                     </div>
+
+                    <p className="text-xs text-neutral-600">
+                      Estimat venit din evenimente rezervate: {fmtCurrency(projectedIncomeEvents, "RON")}. Nu include lead-uri neconfirmate și presupune că evenimentele tentative se confirmă.
+                    </p>
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-3">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-white">
+                          Proiecție la 31 decembrie {state.selectedYear}
+                          {hasEvents && <span className="font-normal text-neutral-500"> · pe baza evenimentelor rezervate</span>}
+                        </p>
+                        <InfoBadge
+                          title="Cum se calculează"
+                          description={hasEvents
+                            ? "Profitul de acum + profitul estimat din evenimentele confirmate/tentative programate până la 31 dec — mai realist decât o medie uniformă dacă ai sezon (nunți vara). Bara de sub fiecare prag: verde = profit realizat până acum, chihlimbar = ce ai mai ajunge dacă se confirmă evenimentele rezervate."
+                            : "Nu ai evenimente confirmate sau tentative programate până la final de an, deci estimăm pe baza ritmului mediu de până acum: profit de la începutul anului ÷ lunile scurse × 12."}
+                        />
+                      </div>
+
+                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                        <p className="text-xs text-amber-100/70">Cât vei plăti statului în total, estimat pentru tot anul {state.selectedYear} (impozit + CASS + CAS)</p>
+                        <p className="mt-1 text-2xl font-semibold text-amber-300">{fmtCurrency(hasEvents ? projTaxEvents.total : projTax.total, "RON")}</p>
+                      </div>
+
+                      {hasEvents ? eventScenario : uniformScenario}
+                    </div>
+
+                    {hasEvents && (
+                      <details className="group rounded-xl border border-neutral-800 bg-neutral-900/40">
+                        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-2.5 text-xs text-neutral-500 hover:text-neutral-300">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 transition-transform group-open:rotate-90"><polyline points="9 18 15 12 9 6" /></svg>
+                          Vezi și estimarea pe ritm mediu (fără evenimente)
+                        </summary>
+                        <div className="border-t border-neutral-800 p-4">
+                          {uniformScenario}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 );
               })()}
@@ -2132,19 +2440,34 @@ const FinancialPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="relative">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input type="text" value={state.expenseSearch}
-                onChange={(e) => dispatch({ type: "SET_EXPENSE_SEARCH", value: e.target.value })}
-                placeholder="Caută după furnizor, descriere sau dată..."
-                className="w-full pl-9 pr-8 py-2 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors" />
-              {state.expenseSearch && (
-                <button onClick={() => dispatch({ type: "SET_EXPENSE_SEARCH", value: "" })}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">✕</button>
-              )}
+            <div className="flex gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[220px]">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none">
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input type="text" value={state.expenseSearch}
+                  onChange={(e) => dispatch({ type: "SET_EXPENSE_SEARCH", value: e.target.value })}
+                  placeholder="Caută după furnizor, descriere sau sumă..."
+                  className="w-full pl-9 pr-8 py-2 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors" />
+                {state.expenseSearch && (
+                  <button onClick={() => dispatch({ type: "SET_EXPENSE_SEARCH", value: "" })}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">✕</button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input type="date" value={state.expenseDateFrom}
+                  onChange={(e) => dispatch({ type: "SET_EXPENSE_DATE_FROM", value: e.target.value })}
+                  className="py-2 px-2.5 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors [color-scheme:dark]" />
+                <span className="text-neutral-600 text-xs">–</span>
+                <input type="date" value={state.expenseDateTo}
+                  onChange={(e) => dispatch({ type: "SET_EXPENSE_DATE_TO", value: e.target.value })}
+                  className="py-2 px-2.5 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors [color-scheme:dark]" />
+                {(state.expenseDateFrom || state.expenseDateTo) && (
+                  <button onClick={() => { dispatch({ type: "SET_EXPENSE_DATE_FROM", value: "" }); dispatch({ type: "SET_EXPENSE_DATE_TO", value: "" }); }}
+                    className="text-neutral-500 hover:text-white transition-colors text-xs px-1">✕</button>
+                )}
+              </div>
             </div>
 
             {state.loadingExpenses ? (
@@ -2156,13 +2479,13 @@ const FinancialPage: React.FC = () => {
               </div>
             ) : filteredExpenses.length === 0 ? (
               <div className="text-center py-16 text-neutral-600">
-                <p className="text-sm">Nicio cheltuială găsită pentru "{state.expenseSearch}".</p>
+                <p className="text-sm">Nicio cheltuială găsită{state.expenseSearch ? ` pentru "${state.expenseSearch}"` : ""}{(state.expenseDateFrom || state.expenseDateTo) ? " în intervalul selectat" : ""}.</p>
               </div>
             ) : (
               <>
                 <div className="flex gap-4 text-sm px-1">
-                  <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(filteredExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.amount * exchangeRate : e.amount), 0), "RON")}</span></span>
-                  <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(filteredExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.deductibleAmount * exchangeRate : e.deductibleAmount), 0), "RON")}</span></span>
+                  <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(filteredExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.amount * rateForDate(e.date) : e.amount), 0), "RON")}</span></span>
+                  <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(filteredExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.deductibleAmount * rateForDate(e.date) : e.deductibleAmount), 0), "RON")}</span></span>
                 </div>
                 <div className="space-y-2">
                   {filteredExpenses.map((expense) => (
@@ -2285,7 +2608,7 @@ const FinancialPage: React.FC = () => {
                 <div className="text-sm px-1 text-neutral-400">
                   Total facturat: <span className="text-white font-medium">
                     {filteredInvoices.some((inv) => inv.currency !== "RON") ? "≈ " : ""}
-                    {fmtCurrency(filteredInvoices.reduce((s, inv) => s + (inv.currency === "EUR" ? inv.totalAmount * exchangeRate : inv.totalAmount), 0), "RON")}
+                    {fmtCurrency(filteredInvoices.reduce((s, inv) => s + (inv.currency === "EUR" ? inv.totalAmount * rateForDate(inv.date) : inv.totalAmount), 0), "RON")}
                   </span>
                 </div>
                 {state.invoiceActionError && (
@@ -2366,6 +2689,11 @@ const FinancialPage: React.FC = () => {
               </>
             )}
           </div>
+        )}
+
+        {/* ─── TVA Taxare Inversă Tab ─── */}
+        {state.activeTab === "tva" && (
+          <ReverseChargeVatTab year={state.selectedYear} rateForDate={rateForDate} accessToken={auth.accessToken ?? ""} />
         )}
 
       </div>

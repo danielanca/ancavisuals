@@ -42,7 +42,7 @@ type LinkedPostStatus = {
   rankedPosition: number | null;
 };
 type JsonRecord = Record<string, unknown>;
-type SearchProvider = "serpapi" | "dataforseo";
+export type SearchProvider = "serpapi" | "dataforseo";
 
 function asRecord(value: unknown): JsonRecord {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
@@ -587,6 +587,82 @@ router.post("/ads-budget", async (req, res) => {
   }
 });
 
+// Rulează o scanare completă (interoghează providerul, salvează istoricul, recalculează
+// statusul articolelor legate) — extras din handler-ul POST /search ca să poată fi rulat
+// și dintr-un cron (fără request/response HTTP), pentru rescanarea automată săptămânală.
+export async function runSeoScan(keyword: string, city: string, provider: SearchProvider) {
+  const { payload, metadata } = provider === "dataforseo"
+    ? await searchDataForSeo(keyword, city)
+    : await searchSerpApi(keyword, city, process.env.SERP_API!);
+
+  const organicResults = (Array.isArray(payload.organic_results) ? payload.organic_results : []).slice(0, 10).map((rawItem: unknown, index: number) => {
+    const item = asRecord(rawItem);
+    const url = stringValue(item, "link");
+    return {
+    position: numberValue(item, "position", index + 1),
+    title: stringValue(item, "title"),
+    url,
+    domain: domainOf(url || stringValue(item, "displayed_link")),
+    snippet: stringValue(item, "snippet"),
+    };
+  });
+  const ads = (Array.isArray(payload.ads) ? payload.ads : Array.isArray(payload.top_ads) ? payload.top_ads : []).map((rawItem: unknown) => {
+    const item = asRecord(rawItem);
+    const url = stringValue(item, "link") || stringValue(item, "redirect_link");
+    return {
+    title: stringValue(item, "title"),
+    url,
+    domain: domainOf(url || stringValue(item, "displayed_link")),
+    };
+  });
+  const capturedAt = new Date().toISOString();
+  const own = ownResult(organicResults);
+  const key = queryKey(keyword, city, provider);
+  const previousHistory = await getHistory(key);
+  const previous = previousHistory.at(-1);
+  const previousPosition = previous?.ownDomainPosition ?? null;
+  const positionChange = own && previousPosition !== null ? previousPosition - own.position : null;
+
+  await firestore().collection(HISTORY_COLLECTION).add({
+    queryKey: key,
+    keyword,
+    city,
+    provider,
+    capturedAt,
+    searchedAt: FieldValue.serverTimestamp(),
+    organicResults,
+    ads,
+    localPack: hasLocalPack(payload.local_results),
+    ownDomainPosition: own?.position ?? null,
+    ownDomainUrl: own?.url ?? null,
+    previousPosition,
+    positionChange,
+  });
+
+  const history = await getHistory(key);
+  const linkedPosts = (await getLinkedPosts(key)).map((post) => ({
+    ...post,
+    ...linkedPostStatus(post, organicResults, own?.position ?? null, own?.url ?? null),
+  }));
+
+  return {
+    keyword,
+    city,
+    capturedAt,
+    source: provider,
+    organicResults,
+    ads,
+    localPack: hasLocalPack(payload.local_results),
+    ownDomainPosition: own?.position ?? null,
+    ownDomainUrl: own?.url ?? null,
+    previousPosition,
+    positionChange,
+    history,
+    linkedPosts,
+    metadata,
+  };
+}
+
 router.post("/search", async (req, res) => {
   const provider: SearchProvider = req.body?.provider === "dataforseo" ? "dataforseo" : "serpapi";
   const keyword = String(req.body?.keyword || "").trim();
@@ -599,76 +675,8 @@ router.post("/search", async (req, res) => {
   if (!keyword) return res.status(400).json({ error: "Keyword-ul este obligatoriu." });
 
   try {
-    const { payload, metadata } = provider === "dataforseo"
-      ? await searchDataForSeo(keyword, city)
-      : await searchSerpApi(keyword, city, process.env.SERP_API!);
-
-    const organicResults = (Array.isArray(payload.organic_results) ? payload.organic_results : []).slice(0, 10).map((rawItem: unknown, index: number) => {
-      const item = asRecord(rawItem);
-      const url = stringValue(item, "link");
-      return {
-      position: numberValue(item, "position", index + 1),
-      title: stringValue(item, "title"),
-      url,
-      domain: domainOf(url || stringValue(item, "displayed_link")),
-      snippet: stringValue(item, "snippet"),
-      };
-    });
-    const ads = (Array.isArray(payload.ads) ? payload.ads : Array.isArray(payload.top_ads) ? payload.top_ads : []).map((rawItem: unknown) => {
-      const item = asRecord(rawItem);
-      const url = stringValue(item, "link") || stringValue(item, "redirect_link");
-      return {
-      title: stringValue(item, "title"),
-      url,
-      domain: domainOf(url || stringValue(item, "displayed_link")),
-      };
-    });
-    const capturedAt = new Date().toISOString();
-    const own = ownResult(organicResults);
-    const key = queryKey(keyword, city, provider);
-    const previousHistory = await getHistory(key);
-    const previous = previousHistory.at(-1);
-    const previousPosition = previous?.ownDomainPosition ?? null;
-    const positionChange = own && previousPosition !== null ? previousPosition - own.position : null;
-
-    await firestore().collection(HISTORY_COLLECTION).add({
-      queryKey: key,
-      keyword,
-      city,
-      provider,
-      capturedAt,
-      searchedAt: FieldValue.serverTimestamp(),
-      organicResults,
-      ads,
-      localPack: hasLocalPack(payload.local_results),
-      ownDomainPosition: own?.position ?? null,
-      ownDomainUrl: own?.url ?? null,
-      previousPosition,
-      positionChange,
-    });
-
-    const history = await getHistory(key);
-    const linkedPosts = (await getLinkedPosts(key)).map((post) => ({
-      ...post,
-      ...linkedPostStatus(post, organicResults, own?.position ?? null, own?.url ?? null),
-    }));
-
-    res.json({
-      keyword,
-      city,
-      capturedAt,
-      source: provider,
-      organicResults,
-      ads,
-      localPack: hasLocalPack(payload.local_results),
-      ownDomainPosition: own?.position ?? null,
-      ownDomainUrl: own?.url ?? null,
-      previousPosition,
-      positionChange,
-      history,
-      linkedPosts,
-      metadata,
-    });
+    const result = await runSeoScan(keyword, city, provider);
+    res.json(result);
   } catch (error) {
     console.error("[seo-radar] search error:", error);
     const detail = error instanceof Error ? error.message : "";

@@ -53,12 +53,11 @@ const BlogPost: React.FC = () => {
   }, [slug]);
 
   const meta = post ?? staticMeta;
-  if (!meta && !loading) return <Navigate to="/blog" replace />;
-  if (notFound) return <Navigate to="/blog" replace />;
+  if (!meta && !loading) return <Navigate to="/" replace />;
+  if (notFound) return <Navigate to="/" replace />;
 
   const breadcrumbs = [
     { label: "Acasă", to: "/" },
-    { label: "Blog", to: "/blog" },
     { label: meta?.title ?? slug ?? "", to: `/blog/${slug}` },
   ];
 
@@ -92,8 +91,6 @@ const BlogPost: React.FC = () => {
           {/* Breadcrumbs */}
           <nav className="text-sm text-gray-500 mb-8 flex gap-2 flex-wrap">
             <Link to="/" className="hover:text-white transition-colors">Acasă</Link>
-            <span>/</span>
-            <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>
             {meta && (
               <>
                 <span>/</span>

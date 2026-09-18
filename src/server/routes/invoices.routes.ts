@@ -10,7 +10,8 @@ import type { InvoiceItem, InvoiceData } from "../services/invoice.pdf";
 import { generateInvoiceXML } from "../services/invoice.generator";
 import type { InvoiceData as EFacturaData } from "../services/invoice.generator";
 import { generateFiscalReport, generateRegistru, buildInvoicesCsv, buildExpensesCsv } from "../services/fiscal.reports";
-import type { FiscalInvoice, FiscalExpense } from "../services/fiscal.reports";
+import type { FiscalInvoice, FiscalExpense, EurRateLookup } from "../services/fiscal.reports";
+import { getBnrYearRates } from "../services/bnrExchangeRate.service";
 
 const router = Router();
 const COLLECTION = "invoices";
@@ -469,7 +470,10 @@ async function fetchFiscalData(year: number) {
   ]);
 
   const fiscal = fiscalDoc.exists ? fiscalDoc.data()! : {};
-  const exchangeRate = Number(settingsDoc.data()?.exchangeRate) || 5;
+  const fallbackRate = Number(settingsDoc.data()?.exchangeRate) || 5;
+  const eurRates: EurRateLookup = await getBnrYearRates(year, "EUR")
+    .then(byDate => ({ byDate, fallback: fallbackRate }))
+    .catch(() => ({ byDate: {}, fallback: fallbackRate }));
 
   const invoices: FiscalInvoice[] = invoicesSnap.docs.map(doc => {
     const data = doc.data();
@@ -502,7 +506,7 @@ async function fetchFiscalData(year: number) {
     } as FiscalExpense & { factura: { url: string; name: string } | null; chitanta: { url: string; name: string } | null };
   });
 
-  return { invoices, expenses, fiscal, exchangeRate };
+  return { invoices, expenses, fiscal, eurRates };
 }
 
 // GET /export-csv?year=2026 — ZIP cu două CSV-uri (facturi + cheltuieli)
@@ -529,8 +533,8 @@ router.get("/export-csv", requireFirebaseAuth, requireSupremeAdmin, async (req: 
 router.get("/export-report", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const year = Number(req.query.year) || new Date().getFullYear();
   try {
-    const { invoices, expenses, fiscal, exchangeRate } = await fetchFiscalData(year);
-    const pdfBuffer = await generateFiscalReport({ year, invoices, expenses, fiscal, exchangeRate });
+    const { invoices, expenses, fiscal, eurRates } = await fetchFiscalData(year);
+    const pdfBuffer = await generateFiscalReport({ year, invoices, expenses, fiscal, eurRates });
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="raport-fiscal-${year}.pdf"` });
     res.send(pdfBuffer);
   } catch (error) {
@@ -543,8 +547,8 @@ router.get("/export-report", requireFirebaseAuth, requireSupremeAdmin, async (re
 router.get("/export-registru", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const year = Number(req.query.year) || new Date().getFullYear();
   try {
-    const { invoices, expenses, fiscal, exchangeRate } = await fetchFiscalData(year);
-    const pdfBuffer = await generateRegistru({ year, invoices, expenses, fiscal, exchangeRate });
+    const { invoices, expenses, fiscal, eurRates } = await fetchFiscalData(year);
+    const pdfBuffer = await generateRegistru({ year, invoices, expenses, fiscal, eurRates });
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="registru-incasari-plati-${year}.pdf"` });
     res.send(pdfBuffer);
   } catch (error) {
@@ -553,7 +557,7 @@ router.get("/export-registru", requireFirebaseAuth, requireSupremeAdmin, async (
   }
 });
 
-// GET /export-zip?year=2026 — ZIP cu facturi emise (PDF) + documente cheltuieli
+// GET /export-zip?year=2026 — ZIP complet: facturi emise (PDF) + documente cheltuieli + sumar CSV
 router.get("/export-zip", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const year = Number(req.query.year) || new Date().getFullYear();
 
@@ -562,7 +566,7 @@ router.get("/export-zip", requireFirebaseAuth, requireSupremeAdmin, async (req: 
     const startDate = new Date(year, 0, 1);
     const endDate = new Date(year + 1, 0, 1);
 
-    const [invoicesSnap, expensesSnap, fiscalDoc] = await Promise.all([
+    const [invoicesSnap, expensesSnap, fiscalDoc, csvData] = await Promise.all([
       db.collection(COLLECTION)
         .where("date", ">=", Timestamp.fromDate(startDate))
         .where("date", "<", Timestamp.fromDate(endDate))
@@ -574,6 +578,7 @@ router.get("/export-zip", requireFirebaseAuth, requireSupremeAdmin, async (req: 
         .orderBy("date", "asc")
         .get(),
       db.collection(SETTINGS_COLLECTION).doc(FISCAL_DOC).get(),
+      fetchFiscalData(year),
     ]);
 
     const fiscal = fiscalDoc.exists ? fiscalDoc.data()! : {};
@@ -638,6 +643,10 @@ router.get("/export-zip", requireFirebaseAuth, requireSupremeAdmin, async (req: 
         }
       }
     }
+
+    // ── Sumar cu toate sumele, într-un singur loc ───────────────────────────
+    archive.append(buildInvoicesCsv(csvData.invoices), { name: `sumar-facturi-emise-${year}.csv` });
+    archive.append(buildExpensesCsv(csvData.expenses), { name: `sumar-cheltuieli-${year}.csv` });
 
     await archive.finalize();
   } catch (error) {

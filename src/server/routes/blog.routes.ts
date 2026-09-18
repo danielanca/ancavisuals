@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
-import { getAllPosts, getEditablePosts, getPostBySlug, importMarkdownPosts, saveBlogPost } from "../utils/blogUtils";
+import { getAllPosts, getEditablePosts, getPostBySlug, importMarkdownPosts, saveBlogPost, slugExists } from "../utils/blogUtils";
 import { addSitemapEntry, generateSitemapFromDb } from "../utils/sitemapGenerator";
 import { syncLlmsTxtWithPost, regenerateLlmsTxtFromDb } from "../utils/llmsTxtGenerator";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
@@ -147,6 +147,22 @@ Nu include markdown sau explicații.`,
   } catch (error) {
     console.error(`[blog] ${kind} suggestions failed:`, error);
     res.status(500).json({ error: "Sugestiile nu au putut fi generate." });
+  }
+});
+
+// Verificare rapidă de disponibilitate slug — folosită la generarea AI de articole
+// (SEO Radar), ca să nu se suprascrie silențios un articol existent cu același slug.
+blogRouter.get("/admin/posts/:slug/exists", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const slug = normalizeSlug(req.params.slug);
+  if (!slug) {
+    res.status(400).json({ error: "Slug invalid." });
+    return;
+  }
+  try {
+    res.json({ exists: await slugExists(slug) });
+  } catch (error) {
+    console.error("[blog] slug exists check failed:", error);
+    res.status(500).json({ error: "Verificarea slug-ului a eșuat." });
   }
 });
 

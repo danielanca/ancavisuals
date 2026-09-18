@@ -15,6 +15,7 @@ import {
 } from "./locationData";
 import pricesData from "../../../shared/pricing/prices.json";
 import PortfolioGallery from "../Portfolio/PortfolioGallery";
+import ReviewsGrid from "../../components/Reviews/ReviewsGrid";
 
 const photoPackage = pricesData.packages.find(pkg => pkg.id === "photo");
 const videoPackage = pricesData.packages.find(pkg => pkg.id === "video");
@@ -274,37 +275,11 @@ const LocationPage: React.FC<Props> = ({
       </section>
       <PortfolioGallery altBase={galleryAltBase} />
 
-      <section className="mx-auto max-w-6xl px-6 py-16">
-        <div>
-          <h2 className="text-2xl font-light md:text-3xl">Review-uri Google</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-400">
-            Recenzii reale de la clienți care au lucrat cu noi pentru nunți, botezuri și alte
-            evenimente.
-          </p>
-        </div>
-
-        <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {GOOGLE_REVIEWS.map(review => (
-            <article
-              key={`${review.author}-${review.relativeDate}`}
-              className="rounded-3xl border border-white/10 bg-white/5 p-6"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-medium text-white">{review.author}</h3>
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
-                    Google · {review.relativeDate}
-                  </p>
-                </div>
-                <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">
-                  5/5
-                </span>
-              </div>
-              <p className="mt-4 text-sm leading-7 text-gray-300">{review.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      <ReviewsGrid
+        category="wedding"
+        title="Recenzii de la clienți"
+        subtitle="Recenzii reale de la clienți care au lucrat cu noi pentru nunți, botezuri și alte evenimente."
+      />
 
       <section className="max-w-4xl mx-auto px-6 pb-16">
         <h2 className="text-2xl font-light tracking-wide text-center mb-10">

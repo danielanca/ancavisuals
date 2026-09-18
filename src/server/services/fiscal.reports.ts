@@ -100,6 +100,25 @@ export interface FiscalExpense {
   deductibleAmount: number;
 }
 
+// EUR/RON rate table keyed by ISO date (BNR reference rates), with a flat fallback used
+// when a date has no published rate nearby (feed unreachable, or date far outside range).
+export interface EurRateLookup {
+  byDate: Record<string, number>;
+  fallback: number;
+}
+
+// Looks up the rate for a date, walking back up to 10 days to cover weekends/holidays
+// (BNR only publishes on banking days) before giving up and using the flat fallback.
+function eurRateFor(dateIso: string, lookup: EurRateLookup): number {
+  const cursor = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`);
+  for (let i = 0; i < 10; i++) {
+    const rate = lookup.byDate[cursor.toISOString().slice(0, 10)];
+    if (rate !== undefined) return rate;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  return lookup.fallback;
+}
+
 // ─── Raport fiscal anual ──────────────────────────────────────────────────────
 
 export async function generateFiscalReport(params: {
@@ -107,25 +126,26 @@ export async function generateFiscalReport(params: {
   invoices: FiscalInvoice[];
   expenses: FiscalExpense[];
   fiscal: FiscalSettings;
-  exchangeRate: number;
+  eurRates: EurRateLookup;
 }): Promise<Buffer> {
-  const { year, invoices, expenses, fiscal, exchangeRate } = params;
+  const { year, invoices, expenses, fiscal, eurRates } = params;
 
-  const toRON = (amount: number, currency: string) => currency === "EUR" ? amount * exchangeRate : amount;
+  const toRON = (amount: number, currency: string, dateIso: string) =>
+    currency === "EUR" ? amount * eurRateFor(dateIso, eurRates) : amount;
 
-  const totalIncome = invoices.reduce((s, inv) => s + toRON(inv.totalAmount, inv.currency), 0);
-  const totalExpenses = expenses.reduce((s, exp) => s + toRON(exp.amount, exp.currency), 0);
-  const totalDeductible = expenses.reduce((s, exp) => s + toRON(exp.deductibleAmount, exp.currency), 0);
+  const totalIncome = invoices.reduce((s, inv) => s + toRON(inv.totalAmount, inv.currency, inv.date), 0);
+  const totalExpenses = expenses.reduce((s, exp) => s + toRON(exp.amount, exp.currency, exp.date), 0);
+  const totalDeductible = expenses.reduce((s, exp) => s + toRON(exp.deductibleAmount, exp.currency, exp.date), 0);
   const taxableBase = Math.max(0, totalIncome - totalDeductible);
 
   // Monthly breakdown
   const monthly: Record<number, { income: number; expenses: number; deductible: number }> = {};
   for (let m = 1; m <= 12; m++) monthly[m] = { income: 0, expenses: 0, deductible: 0 };
-  invoices.forEach(inv => { monthly[new Date(inv.date).getMonth() + 1].income += toRON(inv.totalAmount, inv.currency); });
+  invoices.forEach(inv => { monthly[new Date(inv.date).getMonth() + 1].income += toRON(inv.totalAmount, inv.currency, inv.date); });
   expenses.forEach(exp => {
     const m = new Date(exp.date).getMonth() + 1;
-    monthly[m].expenses += toRON(exp.amount, exp.currency);
-    monthly[m].deductible += toRON(exp.deductibleAmount, exp.currency);
+    monthly[m].expenses += toRON(exp.amount, exp.currency, exp.date);
+    monthly[m].deductible += toRON(exp.deductibleAmount, exp.currency, exp.date);
   });
 
   const summaryHtml = `
@@ -138,7 +158,7 @@ export async function generateFiscalReport(params: {
       <div class="kv"><span class="k">Nr. facturi emise</span><span class="v">${invoices.length}</span></div>
       <div class="kv"><span class="k">Nr. cheltuieli înregistrate</span><span class="v">${expenses.length}</span></div>
     </div>
-    <p class="disclaimer">* Baza impozabilă = incasări − cheltuieli deductibile. Curs EUR/RON folosit: ${exchangeRate} RON. Estimare orientativă — consultați un expert fiscal.</p>`;
+    <p class="disclaimer">* Baza impozabilă = incasări − cheltuieli deductibile. Sumele în EUR sunt convertite la cursul BNR din data fiecărei tranzacții. Estimare orientativă — consultați un expert fiscal.</p>`;
 
   const monthlyRows = Object.entries(monthly)
     .filter(([, d]) => d.income > 0 || d.expenses > 0)
@@ -166,7 +186,7 @@ export async function generateFiscalReport(params: {
       <td>${esc(inv.clientName)}</td>
       <td>${esc(inv.type)}</td>
       <td class="right bold">${fmtAmt(inv.totalAmount)} ${esc(inv.currency)}</td>
-      <td class="right">${toRON(inv.totalAmount, inv.currency) !== inv.totalAmount ? fmtAmt(toRON(inv.totalAmount, inv.currency)) + " RON" : "—"}</td>
+      <td class="right">${inv.currency === "EUR" ? fmtAmt(toRON(inv.totalAmount, inv.currency, inv.date)) + " RON" : "—"}</td>
     </tr>`;
   }).join("");
 
@@ -205,11 +225,12 @@ export async function generateRegistru(params: {
   invoices: FiscalInvoice[];
   expenses: FiscalExpense[];
   fiscal: FiscalSettings;
-  exchangeRate: number;
+  eurRates: EurRateLookup;
 }): Promise<Buffer> {
-  const { year, invoices, expenses, fiscal, exchangeRate } = params;
+  const { year, invoices, expenses, fiscal, eurRates } = params;
 
-  const toRON = (amount: number, currency: string) => currency === "EUR" ? amount * exchangeRate : amount;
+  const toRON = (amount: number, currency: string, dateIso: string) =>
+    currency === "EUR" ? amount * eurRateFor(dateIso, eurRates) : amount;
 
   type Entry = { date: string; sortKey: string; doc: string; description: string; incasare: number; plata: number; };
 
@@ -219,7 +240,7 @@ export async function generateRegistru(params: {
       sortKey: inv.date,
       doc: `${inv.series}-${String(inv.invoiceNumber).padStart(4, "0")}`,
       description: `Prestări servicii – ${inv.clientName}`,
-      incasare: toRON(inv.totalAmount, inv.currency),
+      incasare: toRON(inv.totalAmount, inv.currency, inv.date),
       plata: 0,
     })),
     ...expenses.map(exp => ({
@@ -228,7 +249,7 @@ export async function generateRegistru(params: {
       doc: exp.invoiceNumber ?? "—",
       description: [exp.supplier, exp.description, exp.category].filter(Boolean).join(" · "),
       incasare: 0,
-      plata: toRON(exp.amount, exp.currency),
+      plata: toRON(exp.amount, exp.currency, exp.date),
     })),
   ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
@@ -260,7 +281,7 @@ export async function generateRegistru(params: {
   </tr>`;
 
   const body = `
-    <p style="margin-bottom:10px;font-size:10px;color:#555">Toate sumele sunt exprimate în RON. Curs EUR/RON: ${exchangeRate}.</p>
+    <p style="margin-bottom:10px;font-size:10px;color:#555">Toate sumele sunt exprimate în RON, convertite la cursul BNR din data fiecărei tranzacții.</p>
     <table>
       <thead>
         <tr>

@@ -37,6 +37,13 @@ const LABELS: Record<string, string> = {
   "company-documents": "Documente firmă",
 };
 
+// Pagini care nu sunt nested în URL (ex. /admin/bank-statements), dar care
+// logic aparțin de o secțiune părinte — inserăm un crumb "virtual" către
+// acea secțiune, ca să poți naviga înapoi fără back din browser.
+const VIRTUAL_PARENTS: Record<string, { path: string; label: string }> = {
+  "bank-statements": { path: "/admin/financial", label: "Financiar" },
+};
+
 export default function Breadcrumb() {
   const { pathname } = useLocation();
 
@@ -49,6 +56,12 @@ export default function Breadcrumb() {
     const isLast = i === segments.length - 1;
     return { path, label, isLast };
   });
+
+  const lastSegment = segments[segments.length - 1];
+  const virtualParent = lastSegment ? VIRTUAL_PARENTS[lastSegment] : undefined;
+  if (virtualParent) {
+    crumbs.splice(crumbs.length - 1, 0, { ...virtualParent, isLast: false });
+  }
 
   if (crumbs.length <= 1) return null;
 
