@@ -2,13 +2,18 @@ import React from "react";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
 
+interface ReviewPhoto {
+  url: string;
+  name: string;
+}
+
 interface Review {
   id: string;
   author: string;
   date: string;
   rating: number;
   text: string;
-  photo: { url: string; name: string } | null;
+  photos: ReviewPhoto[];
   verified: boolean;
   category: "wedding" | "oferta";
   offerSlug: string | null;
@@ -22,8 +27,8 @@ type FormState = {
   category: "wedding" | "oferta";
   offerSlug: string;
   verified: boolean;
-  photoFile: File | null;
-  removePhoto: boolean;
+  existingPhotos: ReviewPhoto[];
+  newPhotoFiles: File[];
 };
 
 const emptyForm = (): FormState => ({
@@ -34,8 +39,8 @@ const emptyForm = (): FormState => ({
   category: "wedding",
   offerSlug: "",
   verified: false,
-  photoFile: null,
-  removePhoto: false,
+  existingPhotos: [],
+  newPhotoFiles: [],
 });
 
 function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
@@ -50,6 +55,16 @@ function StarPicker({ value, onChange }: { value: number; onChange: (n: number) 
   );
 }
 
+function useObjectUrls(files: File[]): string[] {
+  const [urls, setUrls] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    const next = files.map((f) => URL.createObjectURL(f));
+    setUrls(next);
+    return () => next.forEach((u) => URL.revokeObjectURL(u));
+  }, [files]);
+  return urls;
+}
+
 const ReviewsAdminPage: React.FC = () => {
   const { auth } = useAuth();
   const authHeader = React.useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
@@ -62,6 +77,7 @@ const ReviewsAdminPage: React.FC = () => {
   const [dragging, setDragging] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const newPhotoPreviews = useObjectUrls(form.newPhotoFiles);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const loadReviews = React.useCallback(() => {
@@ -93,8 +109,8 @@ const ReviewsAdminPage: React.FC = () => {
       category: review.category,
       offerSlug: review.offerSlug ?? "",
       verified: review.verified,
-      photoFile: null,
-      removePhoto: false,
+      existingPhotos: review.photos,
+      newPhotoFiles: [],
     });
     setError(null);
     setShowForm(true);
@@ -117,8 +133,8 @@ const ReviewsAdminPage: React.FC = () => {
       body.set("category", form.category);
       if (form.category === "oferta") body.set("offerSlug", form.offerSlug.trim());
       body.set("verified", String(form.verified));
-      if (form.photoFile) body.set("photo", form.photoFile);
-      if (form.removePhoto) body.set("removePhoto", "true");
+      form.newPhotoFiles.forEach((file) => body.append("photos", file));
+      if (editingId) body.set("keepPhotoUrls", JSON.stringify(form.existingPhotos.map((p) => p.url)));
 
       const url = editingId ? `/api/reviews/admin/${editingId}` : "/api/reviews/admin";
       const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers: authHeader, body });
@@ -172,8 +188,15 @@ const ReviewsAdminPage: React.FC = () => {
           <div className="space-y-2">
             {reviews.map((review) => (
               <div key={review.id} className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-                {review.photo && (
-                  <img src={review.photo.url} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                {review.photos.length > 0 && (
+                  <div className="relative h-16 w-16 shrink-0">
+                    <img src={review.photos[0].url} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                    {review.photos.length > 1 && (
+                      <span className="absolute -right-1.5 -top-1.5 rounded-full bg-neutral-800 px-1.5 py-0.5 text-[10px] font-medium text-neutral-300 ring-1 ring-neutral-700">
+                        +{review.photos.length - 1}
+                      </span>
+                    )}
+                  </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -259,28 +282,57 @@ const ReviewsAdminPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs text-neutral-400 mb-1">Poză (opțional)</label>
+                <label className="block text-xs text-neutral-400 mb-1">Poze (opțional)</label>
                 <div
-                  className={`flex items-center gap-2 rounded-lg border transition-colors ${dragging ? "border-emerald-500 bg-emerald-600/10" : "border-transparent"}`}
+                  className={`rounded-lg border transition-colors ${dragging ? "border-emerald-500 bg-emerald-600/10" : "border-transparent"}`}
                   onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                   onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
                   onDrop={(e) => {
                     e.preventDefault();
                     setDragging(false);
-                    const file = e.dataTransfer.files[0];
-                    if (file) setForm((f) => ({ ...f, photoFile: file, removePhoto: false }));
+                    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+                    if (files.length) setForm((f) => ({ ...f, newPhotoFiles: [...f.newPhotoFiles, ...files] }));
                   }}
                 >
-                  <label className="flex-1 min-w-0 cursor-pointer truncate rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-300 hover:border-neutral-500">
-                    {form.photoFile ? form.photoFile.name : dragging ? "Dă drumul aici..." : "Trage o poză sau apasă"}
-                    <input type="file" accept="image/*" className="hidden"
-                      onChange={(e) => { const file = e.target.files?.[0]; if (file) setForm((f) => ({ ...f, photoFile: file, removePhoto: false })); }} />
+                  <label className="block cursor-pointer rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-300 hover:border-neutral-500">
+                    {dragging ? "Dă drumul aici..." : "Trage poze (una sau mai multe) sau apasă"}
+                    <input type="file" accept="image/*" multiple className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        if (files.length) setForm((f) => ({ ...f, newPhotoFiles: [...f.newPhotoFiles, ...files] }));
+                        e.target.value = "";
+                      }} />
                   </label>
-                  {editingId && !form.photoFile && (
-                    <label className="flex items-center gap-1.5 text-xs text-neutral-500">
-                      <input type="checkbox" checked={form.removePhoto} onChange={(e) => setForm((f) => ({ ...f, removePhoto: e.target.checked }))} />
-                      șterge poza
-                    </label>
+
+                  {(form.existingPhotos.length > 0 || form.newPhotoFiles.length > 0) && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {form.existingPhotos.map((photo) => (
+                        <div key={photo.url} className="group relative h-16 w-16 shrink-0">
+                          <img src={photo.url} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, existingPhotos: f.existingPhotos.filter((p) => p.url !== photo.url) }))}
+                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-xs text-neutral-300 ring-1 ring-neutral-700 hover:bg-red-500/80 hover:text-white"
+                            title="Șterge poza"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      {form.newPhotoFiles.map((file, i) => (
+                        <div key={`${file.name}-${i}`} className="group relative h-16 w-16 shrink-0">
+                          <img src={newPhotoPreviews[i]} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, newPhotoFiles: f.newPhotoFiles.filter((_, idx) => idx !== i) }))}
+                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-xs text-neutral-300 ring-1 ring-neutral-700 hover:bg-red-500/80 hover:text-white"
+                            title="Șterge poza"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>

@@ -10,6 +10,7 @@ import { normalizePackages } from "./utils/normalize";
 import { formatDate } from "./utils/time";
 import { PHONE_RE } from "./utils/validators";
 import type { Step, EventType, Errors } from "./types";
+import { fireAdsLeadConversion } from "../../../utils/googleAds";
 
 
 // Steps
@@ -19,10 +20,6 @@ import Step3Contact from "./steps/Step3Contact";
 import Step4Details from "./steps/Step4Details";
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string;
-
-type ConversionWindow = Window & {
-  gtag?: (eventName: string, action: string, params: Record<string, string | number>) => void;
-};
 
 
 /* ---------- local helpers (duration & final HTML) ---------- */
@@ -90,10 +87,10 @@ export default function BookingWizard() {
   const [step, setStep] = useState<Step>(1);
   const [saveContactConsent, setSaveContactConsent] = useState(true);
 
-  // Step 1 – data
-  const [day, setDay] = useState(1);
-  const [month, setMonth] = useState(0); // 0-based
-  const [year, setYear] = useState(2026);
+  // Step 1 – data (defaults to today so a stale hardcoded date never starts out already-passed)
+  const [day, setDay] = useState(() => new Date().getDate());
+  const [month, setMonth] = useState(() => new Date().getMonth()); // 0-based
+  const [year, setYear] = useState(() => new Date().getFullYear());
 
   // Pre-fill date from localStorage (set by the chatbot during availability check)
   useEffect(() => {
@@ -212,15 +209,7 @@ export default function BookingWizard() {
     }
 
     // Google Ads conversion — quick lead
-    const conversionWindow = window as ConversionWindow;
-    if (typeof window !== "undefined" && typeof conversionWindow.gtag === "function") {
-      conversionWindow.gtag("event", "conversion", {
-        send_to: "AW-10941123412/ww8eCM7HiakYENSWkeEo",
-        value: 1.0, // or 1.0 if you only want to count conversions
-        currency: "EUR",
-        transaction_id: "", // set a unique ID here if available
-      });
-    }
+    fireAdsLeadConversion({ phone });
     // Proceed to next step regardless
     setStep(4);
   };
@@ -328,6 +317,9 @@ export default function BookingWizard() {
           totalPrice,
           fullName,
         });
+        // Google Ads conversion — full booking request (the quick-lead one in
+        // handleContactStepNext only fires when step 3 is completed).
+        fireAdsLeadConversion({ value: totalPrice || 1.0, phone });
         setSubmitted(true);
         setStep(5);
 

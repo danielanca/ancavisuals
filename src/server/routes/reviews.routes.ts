@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import multer from "multer";
-import { Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { BUNNY_STORAGE_BASE_URL, getBunnyStorageZone, getBunnyStoragePassword, BUNNY_ACCESS_KEY_HEADER } from "../constants/bunny";
@@ -9,6 +9,7 @@ import { BUNNY_STORAGE_BASE_URL, getBunnyStorageZone, getBunnyStoragePassword, B
 const router = Router();
 const COLLECTION = "siteReviews";
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const MAX_PHOTOS = 10;
 
 type ReviewCategory = "wedding" | "oferta";
 type ReviewPhoto = { url: string; name: string };
@@ -32,13 +33,19 @@ async function uploadReviewPhoto(file: Express.Multer.File): Promise<ReviewPhoto
 
 function serializeReview(doc: FirebaseFirestore.DocumentSnapshot) {
   const data = doc.data() ?? {};
+  // Recenziile vechi aveau un singur `photo`; cele noi au `photos: ReviewPhoto[]`.
+  const photos = Array.isArray(data.photos)
+    ? (data.photos as ReviewPhoto[])
+    : data.photo
+      ? [data.photo as ReviewPhoto]
+      : [];
   return {
     id: doc.id,
     author: (data.author as string) ?? "",
     date: (data.date as string) ?? "",
     rating: (data.rating as number) ?? 5,
     text: (data.text as string) ?? "",
-    photo: (data.photo as ReviewPhoto | null) ?? null,
+    photos,
     verified: data.verified === true,
     category: (data.category as ReviewCategory) ?? "wedding",
     offerSlug: (data.offerSlug as string | null) ?? null,
@@ -77,7 +84,7 @@ router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (_req: 
   }
 });
 
-router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.single("photo"), async (req: Request, res: Response) => {
+router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
   const { author, date, rating, text, category, offerSlug, verified } = req.body as Record<string, string | undefined>;
   if (!author?.trim() || !text?.trim()) {
     res.status(400).json({ error: "Nume și text sunt obligatorii." });
@@ -85,13 +92,14 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.single("p
   }
 
   try {
-    const photo = req.file ? await uploadReviewPhoto(req.file) : null;
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    const photos = await Promise.all(files.map(uploadReviewPhoto));
     const docRef = await firestore().collection(COLLECTION).add({
       author: author.trim(),
       date: date?.trim() || new Date().toISOString().slice(0, 10),
       rating: Math.min(5, Math.max(1, Number(rating) || 5)),
       text: text.trim(),
-      photo,
+      photos,
       verified: verified === "true",
       category: category === "oferta" ? "oferta" : "wedding",
       offerSlug: category === "oferta" && offerSlug?.trim() ? offerSlug.trim() : null,
@@ -106,8 +114,8 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.single("p
   }
 });
 
-router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.single("photo"), async (req: Request, res: Response) => {
-  const { author, date, rating, text, category, offerSlug, verified, removePhoto } = req.body as Record<string, string | undefined>;
+router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
+  const { author, date, rating, text, category, offerSlug, verified, keepPhotoUrls } = req.body as Record<string, string | undefined>;
   try {
     const ref = firestore().collection(COLLECTION).doc(req.params.id);
     const update: Record<string, unknown> = {};
@@ -118,8 +126,28 @@ router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.single
     if (category !== undefined) update.category = category === "oferta" ? "oferta" : "wedding";
     if (offerSlug !== undefined) update.offerSlug = category === "oferta" && offerSlug?.trim() ? offerSlug.trim() : null;
     if (verified !== undefined) update.verified = verified === "true";
-    if (req.file) update.photo = await uploadReviewPhoto(req.file);
-    else if (removePhoto === "true") update.photo = null;
+
+    if (keepPhotoUrls !== undefined) {
+      const existingSnapshot = await ref.get();
+      const existingData = existingSnapshot.data() ?? {};
+      const existingPhotos: ReviewPhoto[] = Array.isArray(existingData.photos)
+        ? (existingData.photos as ReviewPhoto[])
+        : existingData.photo
+          ? [existingData.photo as ReviewPhoto]
+          : [];
+      let keepUrls: string[] = [];
+      try {
+        const parsed = JSON.parse(keepPhotoUrls);
+        if (Array.isArray(parsed)) keepUrls = parsed.filter((u): u is string => typeof u === "string");
+      } catch {
+        // keepPhotoUrls invalid — nu păstrăm nicio poză veche
+      }
+      const kept = existingPhotos.filter((p) => keepUrls.includes(p.url));
+      const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+      const uploaded = await Promise.all(files.map(uploadReviewPhoto));
+      update.photos = [...kept, ...uploaded];
+      if ("photo" in existingData) update.photo = FieldValue.delete();
+    }
 
     await ref.update(update);
     const doc = await ref.get();

@@ -55,6 +55,7 @@ const AlbumHealthPage = loadable(() => import("../features/admin/components/Albu
 const StorageStatsPage = loadable(() => import("../features/admin/components/StorageStatsPage"), opts);
 const SwipeProposalsPage = loadable(() => import("../features/admin/components/SwipeProposalsPage"), opts);
 const ProgressListPage = loadable(() => import("../features/admin/components/ProgressListPage"), opts);
+const PreviewDeliveryPage = loadable(() => import("../features/admin/components/PreviewDeliveryPage"), opts);
 const ProgressDetailPage = loadable(() => import("../features/admin/components/ProgressDetailPage"), opts);
 const ContactsAdminPage = loadable(() => import("../features/admin/components/ContactsAdminPage"), opts);
 const EquipmentAdminPage = loadable(() => import("../features/admin/components/EquipmentAdminPage"), opts);
@@ -110,6 +111,7 @@ export const adminRoutes = [
       <Route path="/admin/swipe-proposals" element={<SwipeProposalsPage />} />
       <Route path="/admin/progress" element={<ProgressListPage />} />
       <Route path="/admin/progress/:eventId" element={<ProgressDetailPage />} />
+      <Route path="/admin/livrare-preview" element={<PreviewDeliveryPage />} />
       <Route path="/admin/contacte" element={<ContactsAdminPage />} />
       <Route path="/admin/echipamente" element={<EquipmentAdminPage />} />
       <Route path="/admin/settings" element={<AdminSettingsPage />} />

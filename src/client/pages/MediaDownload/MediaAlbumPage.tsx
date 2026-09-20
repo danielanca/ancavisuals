@@ -1708,7 +1708,7 @@ export default function MediaAlbumPage() {
                   )}
                   {!isModerationMode && (
                     album.zipReady ? (
-                      <button className={styles.pickBtnSecondary} type="button" onClick={downloadAllPhotos} data-onboarding="download-btn">
+                      <button className={styles.downloadAllPulse} type="button" onClick={downloadAllPhotos} data-onboarding="download-btn">
                         {"DESCARCĂ TOATE POZELE" + (stats ? ` (${fmtBytes(stats.photosBytesTotal)})` : "")}
                       </button>
                     ) : (
@@ -1976,7 +1976,20 @@ export default function MediaAlbumPage() {
                 <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
                   {printPhotos.map(({ fileName, src }) => (
                     <div key={fileName} className={styles.printPhotoWrapper}>
-                      <img src={src} alt={`Poză pentru imprimare: ${fileName}`} className={styles.printPhotoImg} loading="lazy" />
+                      <img
+                        src={src}
+                        alt={`Poză pentru imprimare: ${fileName}`}
+                        className={styles.printPhotoImg}
+                        loading="lazy"
+                        draggable={false}
+                        onContextMenu={(e) => { e.preventDefault(); showImageSaveWarning(); }}
+                        onDragStart={(e) => e.preventDefault()}
+                        style={{
+                          WebkitTouchCallout: "none" as React.CSSProperties["WebkitTouchCallout"],
+                          userSelect: "none",
+                          pointerEvents: "none",
+                        }}
+                      />
                       <button
                         className={styles.removePrintBtn}
                         onClick={() => removeFromPrint(fileName)}

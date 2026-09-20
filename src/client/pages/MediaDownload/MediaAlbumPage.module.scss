@@ -177,6 +177,26 @@ $font-body:       'DM Sans', sans-serif;
   composes: btn btnOutline;
 }
 
+// Pulsează discret negru → galben, ca să atragă atenția clientului să-și descarce
+// pozele înainte să expire albumul.
+@keyframes downloadAttentionPulse {
+  0%, 100% {
+    background-color: transparent;
+    border-color: $border;
+    color: $text-primary;
+  }
+  50% {
+    background-color: #facc15;
+    border-color: #facc15;
+    color: #000000;
+  }
+}
+
+.downloadAllPulse {
+  composes: pickBtnSecondary;
+  animation: downloadAttentionPulse 2s ease-in-out infinite;
+}
+
 .pickBtnSecondary + .sectionTitle,
 .pickBtnSecondary ~ .sectionRow {
   margin-top: 48px;

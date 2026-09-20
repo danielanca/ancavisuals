@@ -7,7 +7,7 @@ interface Review {
   date: string;
   rating: number;
   text: string;
-  photo: { url: string; name: string } | null;
+  photos: { url: string; name: string }[];
   verified: boolean;
 }
 
@@ -51,6 +51,7 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [openReview, setOpenReview] = useState<Review | null>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams({ category });
@@ -64,7 +65,11 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
 
   useEffect(() => {
     if (!openReview) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenReview(null); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenReview(null);
+      else if (e.key === "ArrowLeft") setPhotoIndex((i) => (i - 1 + openReview.photos.length) % openReview.photos.length);
+      else if (e.key === "ArrowRight") setPhotoIndex((i) => (i + 1) % openReview.photos.length);
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [openReview]);
@@ -98,20 +103,25 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
 
             <p className="mt-4 text-sm leading-7 text-gray-300">{review.text}</p>
 
-            {review.photo && (
+            {review.photos.length > 0 && (
               <button
                 type="button"
-                onClick={() => setOpenReview(review)}
-                className="mt-4 block w-full overflow-hidden rounded-2xl border border-white/10 transition-opacity hover:opacity-90"
+                onClick={() => { setOpenReview(review); setPhotoIndex(0); }}
+                className="relative mt-4 block w-full overflow-hidden rounded-2xl border border-white/10 transition-opacity hover:opacity-90"
               >
-                <img src={review.photo.url} alt={`Poză de la ${review.author}`} className="w-full object-cover" loading="lazy" />
+                <img src={review.photos[0].url} alt={`Poză de la ${review.author}`} className="w-full object-cover" loading="lazy" />
+                {review.photos.length > 1 && (
+                  <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
+                    +{review.photos.length - 1}
+                  </span>
+                )}
               </button>
             )}
           </article>
         ))}
       </div>
 
-      {openReview?.photo && (
+      {openReview && openReview.photos.length > 0 && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
           onClick={() => setOpenReview(null)}
@@ -129,7 +139,32 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
               >
                 ✕
               </button>
-              <img src={openReview.photo.url} alt={`Poză de la ${openReview.author}`} className="max-h-[80vh] w-full object-contain" />
+              <img src={openReview.photos[photoIndex].url} alt={`Poză de la ${openReview.author}`} className="max-h-[80vh] w-full object-contain" />
+              {openReview.photos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoIndex((i) => (i - 1 + openReview.photos.length) % openReview.photos.length)}
+                    className="absolute left-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+                    aria-label="Poza anterioară"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoIndex((i) => (i + 1) % openReview.photos.length)}
+                    className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+                    aria-label="Poza următoare"
+                  >
+                    ›
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+                    {openReview.photos.map((_, i) => (
+                      <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === photoIndex ? "bg-white" : "bg-white/40"}`} />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
             <div className="overflow-y-auto p-6 md:p-8">
               <h3 className="flex items-center gap-1.5 text-lg font-medium text-white">

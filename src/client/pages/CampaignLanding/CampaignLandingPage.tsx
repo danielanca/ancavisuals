@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
+import { fireAdsLeadConversion, fireAdsContactClickConversion } from "../../utils/googleAds";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
@@ -94,24 +95,6 @@ function ArrowIcon() {
   );
 }
 
-const journeySteps = [
-  {
-    number: "01",
-    title: "Descoperă stilul nostru",
-    text: "Privește momente reale și vezi dacă felul în care spunem o poveste vă reprezintă.",
-  },
-  {
-    number: "02",
-    title: "Alege ce vi se potrivește",
-    text: "Compară simplu pachetele și păstrează doar serviciile care contează pentru evenimentul vostru.",
-  },
-  {
-    number: "03",
-    title: "Verificăm împreună data",
-    text: "Trimite-ne câteva detalii, iar noi revenim cu disponibilitatea și următorii pași.",
-  },
-];
-
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
   const defaultDate = (() => {
@@ -131,11 +114,21 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const [availStatus, setAvailStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
   const [leaveNumber, setLeaveNumber] = useState(false);
 
+  const todayForDate = new Date();
+  const todayYear = todayForDate.getFullYear();
+  const todayMonth = todayForDate.getMonth();
+  const todayDay = todayForDate.getDate();
+
   const setDatePart = (patch: Partial<typeof dateParts>) => {
     setDateParts((prev) => {
       const next = { ...prev, ...patch };
+      // Never let the picker land on an already-passed date.
+      if (next.year < todayYear) { next.year = todayYear; next.month = todayMonth; }
+      if (next.year === todayYear && next.month < todayMonth) next.month = todayMonth;
       const maxDay = daysInMonth(next.year, next.month);
+      const minDay = next.year === todayYear && next.month === todayMonth ? todayDay : 1;
       if (next.day > maxDay) next.day = maxDay;
+      if (next.day < minDay) next.day = minDay;
       setForm((f) => ({ ...f, eventDate: toIso(next.day, next.month, next.year) }));
       return next;
     });
@@ -154,6 +147,41 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const [spinCount, setSpinCount] = useState(0);
   const [spinResult, setSpinResult] = useState<"idle" | "spinning" | "lost" | "won">("idle");
   const [wheelRotation, setWheelRotation] = useState(0);
+  // Teaser spin: a purely visual nudge that replays every time the wheel scrolls
+  // into view, always landing on "MAI ÎNCEARCĂ". It drives the very same
+  // wheelRotation the real click-to-spin uses (a second, stacked transform layer
+  // previously caused the pointer and the "won" label to disagree), but never
+  // touches spinCount/spinResult — so it can't fake a win or a try.
+  const [isTeasing, setIsTeasing] = useState(false);
+  const spinResultRef = useRef(spinResult);
+  useEffect(() => { spinResultRef.current = spinResult; }, [spinResult]);
+  const isTeasingRef = useRef(false);
+  useEffect(() => { isTeasingRef.current = isTeasing; }, [isTeasing]);
+  const wheelViewRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = wheelViewRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          // Already won, mid real-spin, or already teasing — leave the wheel alone.
+          if (spinResultRef.current === "won" || spinResultRef.current === "spinning" || isTeasingRef.current) return;
+          setIsTeasing(true);
+          const targetAngle = 120; // MAI ÎNCEARCĂ — see spinPromo below.
+          setWheelRotation((rotation) => {
+            const currentAngle = ((rotation % 360) + 360) % 360;
+            const correction = (targetAngle - currentAngle + 360) % 360;
+            return rotation + 1080 + correction;
+          });
+          window.setTimeout(() => setIsTeasing(false), 1300);
+        });
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const [promoSeconds, setPromoSeconds] = useState(15 * 60 * 60);
   const promoOpen = true;
   const [isAdmin, setIsAdmin] = useState(() => {
@@ -199,7 +227,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     notifyInteraction("form");
     measureOaiq("form_started", { page_path: `/oferta/${page.slug}` });
   };
-  const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
+  const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => {
+    measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
+    fireAdsContactClickConversion();
+  };
 
   useEffect(() => {
     if (promoSeconds <= 0) return;
@@ -211,7 +242,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     if (spinCount >= 3 || promoSeconds <= 0 || spinResult === "won" || spinResult === "spinning") return;
     notifyInteraction("spinner");
     const nextSpin = spinCount + 1;
-    // Wedge centres, deg clockwise from top: FOTOCABINĂ 0 · VIDEOBOOTH 120 · MAI ÎNCEARCĂ 240.
+    // Wedge centres, deg clockwise from top: FOTOCABINĂ 0 · MAI ÎNCEARCĂ 120 · MAI ÎNCEARCĂ 240.
     // The wheel must rotate by (360 − centre) to bring a wedge under the top pointer,
     // so MAI ÎNCEARCĂ needs 120° and FOTOCABINĂ needs 0°. First spin always lands on
     // "mai încearcă", the second on the free photo booth.
@@ -250,6 +281,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       setFormStatus(res.ok ? "sent" : "error");
       if (res.ok) {
         measureOaiq("lead_created", { type: "customer_action", page_path: `/oferta/${page.slug}` });
+        // Google Ads conversion — this is a paid-campaign landing page, so a
+        // submitted lead here needs to reach Ads just like the /contact wizard does.
+        fireAdsLeadConversion({ phone: form.phone });
         // Panel live only — the lead email is sent by /api/campaign/:slug/contact.
         sendLiveEvent("form_submitted", {
           priority: "critical",
@@ -375,26 +409,33 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       <section className="bg-[#f6f2ea] px-6 py-16 sm:py-20 text-[#2f2a24]">
         <div className="mx-auto max-w-lg text-center">
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.32em] text-[#a98d5f]">Un mic dar pentru voi</p>
-          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">Învârte roata surprizelor</h2>
+          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">Șansa să câștigi fotocabina gratuit</h2>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#6b6154]">Pentru amintiri și mai frumoase împreună.</p>
 
           {promoOpen && (
             <div className="mx-auto mt-8 rounded-[28px] border border-[#e3d8c4] bg-[#fbf8f2] p-6 shadow-[0_20px_50px_-24px_rgba(120,95,55,0.35)] sm:p-8">
               {/* wheel */}
-              <div className="relative mx-auto h-[300px] w-[300px] max-w-full">
+              <div ref={wheelViewRef} className="relative mx-auto h-[300px] w-[300px] max-w-full">
                 {/* pointer */}
                 <div
                   aria-hidden="true"
                   className="absolute left-1/2 top-1 z-20 h-0 w-0 -translate-x-1/2"
                   style={{ borderLeft: "13px solid transparent", borderRight: "13px solid transparent", borderTop: "20px solid #c9a96e", filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.18))" }}
                 />
-                {/* rotating wheel */}
+                {/* rotating wheel — single source of truth for the visual angle, driven
+                    both by the real click-to-spin (spinPromo) and the viewport teaser
+                    above, so the pointer and the "won"/"lost" text always agree. */}
                 <div
                   aria-label="Roata surprizelor"
                   style={{
-                    background: "conic-gradient(from -60deg, #aebd9d 0deg 120deg, #e7d0c9 120deg 240deg, #d8cbb7 240deg 360deg)",
+                    background: "conic-gradient(from -60deg, #aebd9d 0deg 120deg, #d8cbb7 120deg 240deg, #d8cbb7 240deg 360deg)",
                     transform: `rotate(${wheelRotation}deg)`,
-                    transition: spinResult === "spinning" ? "transform 2300ms cubic-bezier(0.12, 0.8, 0.18, 1)" : "none",
+                    transition:
+                      spinResult === "spinning"
+                        ? "transform 2300ms cubic-bezier(0.12, 0.8, 0.18, 1)"
+                        : isTeasing
+                          ? "transform 1300ms cubic-bezier(0.16, 0.8, 0.24, 1)"
+                          : "none",
                   }}
                   className="absolute inset-2 overflow-hidden rounded-full border-[6px] border-white shadow-[inset_0_0_0_2px_rgba(255,255,255,0.5),0_16px_40px_-16px_rgba(90,70,40,0.5)]"
                 >
@@ -408,48 +449,47 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                     {/* One label per wedge, each defined in the "top" frame then
                         rotated onto its wedge bisector so it stays centred and
                         readable at any wheel angle (conic wedges: FOTOCABINĂ 0° ·
-                        VIDEOBOOTH 120° · MAI ÎNCEARCĂ 240°). */}
+                        MAI ÎNCEARCĂ 120° · MAI ÎNCEARCĂ 240°). */}
                     <g fill="#3a352e" stroke="#3a352e" strokeLinecap="round" strokeLinejoin="round">
-                      {[
-                        {
-                          rot: 0, l1: "FOTOCABINĂ", l2: "GRATUITĂ",
-                          icon: (
-                            <>
-                              <rect x="-13" y="-6" width="26" height="18" rx="3" />
-                              <circle cx="0" cy="3" r="5.5" />
-                              <path d="M-6 -6 l2 -4 h8 l2 4" />
-                              <path d="M9 -10 l2 -3 M12 -8 l3 -1 M11 -4 l3 1" strokeWidth="1.6" />
-                            </>
-                          ),
-                        },
-                        {
-                          rot: 120, l1: "VIDEOBOOTH", l2: "360",
-                          icon: (
-                            <>
-                              <rect x="-9" y="-8" width="18" height="15" rx="3" />
-                              <circle cx="0" cy="-0.5" r="4" />
-                              <path d="M-13 12 a13 6 0 0 1 26 0" />
-                            </>
-                          ),
-                        },
-                        {
-                          rot: 240, l1: "MAI", l2: "ÎNCEARCĂ",
-                          icon: (
-                            <>
-                              <path d="M9 -2 a10 10 0 1 0 2 8" />
-                              <path d="M9 -9 v7 h-7" />
-                            </>
-                          ),
-                        },
-                      ].map(({ rot, l1, l2, icon }) => (
-                        <g key={rot} transform={`rotate(${rot} 120 120)`}>
-                          <g transform="translate(120 34)" fill="none" strokeWidth="2.2">{icon}</g>
-                          <text x="120" y="60" textAnchor="middle" fontSize="13" fontWeight="800" letterSpacing="0.4" stroke="none">{l1}</text>
-                          <text x="120" y="75" textAnchor="middle" fontSize="13" fontWeight="800" letterSpacing="0.4" stroke="none">{l2}</text>
-                        </g>
-                      ))}
-                    </g>
-                  </svg>
+                        {[
+                          {
+                            rot: 0, l1: "FOTOCABINĂ", l2: "GRATUITĂ",
+                            icon: (
+                              <>
+                                <rect x="-13" y="-6" width="26" height="18" rx="3" />
+                                <circle cx="0" cy="3" r="5.5" />
+                                <path d="M-6 -6 l2 -4 h8 l2 4" />
+                                <path d="M9 -10 l2 -3 M12 -8 l3 -1 M11 -4 l3 1" strokeWidth="1.6" />
+                              </>
+                            ),
+                          },
+                          {
+                            rot: 120, l1: "MAI", l2: "ÎNCEARCĂ",
+                            icon: (
+                              <>
+                                <path d="M9 -2 a10 10 0 1 0 2 8" />
+                                <path d="M9 -9 v7 h-7" />
+                              </>
+                            ),
+                          },
+                          {
+                            rot: 240, l1: "MAI", l2: "ÎNCEARCĂ",
+                            icon: (
+                              <>
+                                <path d="M9 -2 a10 10 0 1 0 2 8" />
+                                <path d="M9 -9 v7 h-7" />
+                              </>
+                            ),
+                          },
+                        ].map(({ rot, l1, l2, icon }) => (
+                          <g key={rot} transform={`rotate(${rot} 120 120)`}>
+                            <g transform="translate(120 34)" fill="none" strokeWidth="2.2">{icon}</g>
+                            <text x="120" y="60" textAnchor="middle" fontSize="13" fontWeight="800" letterSpacing="0.4" stroke="none">{l1}</text>
+                            <text x="120" y="75" textAnchor="middle" fontSize="13" fontWeight="800" letterSpacing="0.4" stroke="none">{l2}</text>
+                          </g>
+                        ))}
+                      </g>
+                    </svg>
                 </div>
                 {/* centre spin button (does not rotate) */}
                 <button
@@ -461,13 +501,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 >
                   {spinResult === "spinning" ? "…" : "ÎNVÂRTE"}
                 </button>
-              </div>
-
-              {/* prize key — so it's clear what's on the wheel before spinning */}
-              <div className="mx-auto mt-5 flex max-w-sm flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] font-medium text-[#6b6154]">
-                <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#aebd9d]" /> Fotocabină gratuită</span>
-                <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#e7d0c9]" /> Videobooth 360</span>
-                <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#d8cbb7]" /> Mai încearcă</span>
               </div>
 
               {/* result / hint */}
@@ -528,9 +561,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   onChange={(e) => setDatePart({ day: Number(e.target.value) })}
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
                 >
-                  {Array.from({ length: daysInMonth(dateParts.year, dateParts.month) }, (_, i) => i + 1).map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
+                  {(() => {
+                    const maxDay = daysInMonth(dateParts.year, dateParts.month);
+                    const minDay = dateParts.year === todayYear && dateParts.month === todayMonth ? todayDay : 1;
+                    return Array.from({ length: maxDay - minDay + 1 }, (_, i) => minDay + i).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ));
+                  })()}
                 </select>
                 <select
                   aria-label="Luna"
@@ -539,7 +576,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
                 >
                   {MONTHS_RO_CAP.map((label, index) => (
-                    <option key={label} value={index}>{label}</option>
+                    (dateParts.year > todayYear || index >= todayMonth) && (
+                      <option key={label} value={index}>{label}</option>
+                    )
                   ))}
                 </select>
                 <select
@@ -548,7 +587,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   onChange={(e) => setDatePart({ year: Number(e.target.value) })}
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
                 >
-                  {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() + i).map((y) => (
+                  {Array.from({ length: 4 }, (_, i) => todayYear + i).map((y) => (
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
@@ -652,24 +691,36 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </div>
       </section>
 
-      {/* ── JOURNEY ────────────────────────────────────────────────── */}
-      <section className="py-20 px-6 border-b border-white/10">
-        <div className="max-w-6xl mx-auto">
-          <div className="max-w-2xl mb-12">
-            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Simplu, de la primul mesaj</p>
-            <h2 className="text-3xl sm:text-4xl font-light leading-tight">Tot ce ai nevoie ca să alegi cu încredere.</h2>
+      {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
+      {(page.videoUrl || page.heroVideoUrl) && (
+        <section className="py-20 sm:py-24 px-6 max-w-5xl mx-auto border-b border-white/10">
+          <div className="mb-8 text-center">
+            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
+            <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
           </div>
-          <div className="grid md:grid-cols-3 border-y border-white/10">
-            {journeySteps.map((step, index) => (
-              <div key={step.number} className={`py-8 md:py-3 md:pr-8 ${index ? "md:pl-8 md:border-l md:border-white/10" : ""}`}>
-                <p className="text-amber-200 text-xs tracking-[0.2em] mb-8">{step.number}</p>
-                <h3 className="text-lg font-medium mb-3">{step.title}</h3>
-                <p className="text-sm leading-relaxed text-neutral-400">{step.text}</p>
-              </div>
-            ))}
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+            <div className="aspect-video w-full">
+              {isEmbedVideoUrl(page.videoUrl ?? "") ? (
+                <iframe
+                  src={page.videoUrl}
+                  className="h-full w-full"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                  allowFullScreen
+                />
+              ) : (
+                <video
+                  src={page.videoUrl || page.heroVideoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  poster={page.videoThumbnailUrl || undefined}
+                  className="h-full w-full object-contain"
+                />
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ── PACKAGES ───────────────────────────────────────────────── */}
       {page.packages.length > 0 && (
@@ -737,37 +788,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 </div>
               </div>
             ))}
-          </div>
-        </section>
-      )}
-
-      {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
-      {(page.videoUrl || page.heroVideoUrl) && (
-        <section className="py-20 sm:py-24 px-6 max-w-5xl mx-auto">
-          <div className="mb-8 text-center">
-            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
-            <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
-          </div>
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-            <div className="aspect-video w-full">
-              {isEmbedVideoUrl(page.videoUrl ?? "") ? (
-                <iframe
-                  src={page.videoUrl}
-                  className="h-full w-full"
-                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                  allowFullScreen
-                />
-              ) : (
-                <video
-                  src={page.videoUrl || page.heroVideoUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  poster={page.videoThumbnailUrl || undefined}
-                  className="h-full w-full object-contain"
-                />
-              )}
-            </div>
           </div>
         </section>
       )}

@@ -51,23 +51,45 @@ const Step1Date: React.FC<Step1DateProps> = ({
   setIsAvailable,
   setErrors,
 }) => {
-  const maxDays = useMemo(() => daysInMonth(year, month), [year, month]);
+  const today = useMemo(() => new Date(), []);
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
+  const todayDay = today.getDate();
+  const yearOptions = useMemo(() => Array.from({ length: 7 }, (_, i) => todayYear + i), [todayYear]);
 
-  // if month/year changes and the day is out of range, clamp it in useEffect (not in render)
+  const maxDays = useMemo(() => daysInMonth(year, month), [year, month]);
+  const minMonth = year === todayYear ? todayMonth : 0;
+  const minDay = year === todayYear && month === todayMonth ? todayDay : 1;
+
+  // Past days/months are never valid — clamp forward instead of letting a stale
+  // selection (or a month/year change) land on an already-passed date.
   useEffect(() => {
     if (day > maxDays) {
       setDay(maxDays);
       setIsAvailable(null);
       setErrors({});
+    } else if (day < minDay) {
+      setDay(minDay);
+      setIsAvailable(null);
+      setErrors({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maxDays]);
+  }, [maxDays, minDay]);
+
+  useEffect(() => {
+    if (month < minMonth) {
+      setMonth(minMonth);
+      setIsAvailable(null);
+      setErrors({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minMonth]);
 
   const humanDate = useMemo(() => `${day} ${MONTHS_RO[month]} ${year}`, [day, month, year]);
 
   const handleDayChange = (value: string) => {
     const d = Number(value);
-    if (!Number.isNaN(d) && d >= 1 && d <= maxDays) {
+    if (!Number.isNaN(d) && d >= minDay && d <= maxDays) {
       setDay(d);
       setIsAvailable(null);
       setErrors({});
@@ -76,7 +98,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
 
   const handleMonthChange = (value: string) => {
     const m = Number(value);
-    if (!Number.isNaN(m) && m >= 0 && m <= 11) {
+    if (!Number.isNaN(m) && m >= minMonth && m <= 11) {
       setMonth(m);
       setIsAvailable(null);
       setErrors({});
@@ -85,7 +107,7 @@ const Step1Date: React.FC<Step1DateProps> = ({
 
   const handleYearChange = (value: string) => {
     const y = Number(value);
-    if (!Number.isNaN(y) && y >= 2024 && y <= 2030) {
+    if (!Number.isNaN(y) && y >= todayYear && y <= todayYear + 6) {
       setYear(y);
       setIsAvailable(null);
       setErrors({});
@@ -113,8 +135,8 @@ const Step1Date: React.FC<Step1DateProps> = ({
       <div className="input-group date-select-group">
         {/* Zi */}
         <select className="date-select" value={day} onChange={e => handleDayChange(e.target.value)}>
-          {Array.from({ length: maxDays }).map((_, i) => {
-            const d = i + 1;
+          {Array.from({ length: maxDays - minDay + 1 }).map((_, i) => {
+            const d = minDay + i;
             return (
               <option key={d} value={d}>
                 {d}
@@ -126,22 +148,21 @@ const Step1Date: React.FC<Step1DateProps> = ({
         {/* Month */}
         <select className="date-select" value={month} onChange={e => handleMonthChange(e.target.value)}>
           {MONTHS_RO.map((label, index) => (
-            <option key={label} value={index}>
-              {label}
-            </option>
+            index >= minMonth && (
+              <option key={label} value={index}>
+                {label}
+              </option>
+            )
           ))}
         </select>
 
         {/* An */}
         <select className="date-select" value={year} onChange={e => handleYearChange(e.target.value)}>
-          {Array.from({ length: 7 }).map((_, i) => {
-            const y = 2024 + i;
-            return (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            );
-          })}
+          {yearOptions.map(y => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
         </select>
 
         {/* Check button */}

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import DashboardSearch from "./DashboardSearch";
+import type { ClientEvent } from "../types";
+import { PREVIEW_DEADLINE_DAYS } from "../types";
 
 interface NavItem {
   label: string;
@@ -26,6 +28,7 @@ function useBadgeCounts(accessToken: string) {
   const [pendingModeration, setPendingModeration] = useState(0);
   const [pendingProposals, setPendingProposals] = useState(0);
   const [unseenErrors, setUnseenErrors] = useState(0);
+  const [overduePreviews, setOverduePreviews] = useState(0);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -58,16 +61,31 @@ function useBadgeCounts(accessToken: string) {
       .then((r) => r.json())
       .then((d: { count?: number }) => setUnseenErrors(d.count ?? 0))
       .catch(() => {});
+
+    fetch("/api/admin/events", { headers: authHeader })
+      .then((r) => r.json())
+      .then((d: { events?: ClientEvent[] }) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const PAST_STATUSES = new Set(["confirmat", "finalizat"]);
+        const overdue = (d.events ?? []).filter((e) => {
+          if (!PAST_STATUSES.has(e.status) || !e.eventDate || e.delivery?.previewSent === true) return false;
+          const daysElapsed = Math.floor((today.getTime() - new Date(new Date(e.eventDate).setHours(0, 0, 0, 0)).getTime()) / 86400000);
+          return daysElapsed >= 0 && daysElapsed - PREVIEW_DEADLINE_DAYS > 0;
+        }).length;
+        setOverduePreviews(overdue);
+      })
+      .catch(() => {});
   }, [accessToken]);
 
-  return { urgentMementos, pendingModeration, pendingProposals, unseenErrors, setUnseenErrors };
+  return { urgentMementos, pendingModeration, pendingProposals, unseenErrors, overduePreviews, setUnseenErrors };
 }
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { auth } = useAuth();
-  const { urgentMementos, pendingModeration, pendingProposals, unseenErrors, setUnseenErrors } =
+  const { urgentMementos, pendingModeration, pendingProposals, unseenErrors, overduePreviews, setUnseenErrors } =
     useBadgeCounts(auth.accessToken);
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => {
@@ -211,6 +229,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Calendar", path: "/admin/calendar" },
         { label: "Mementouri", path: "/admin/mementos", badge: urgentMementos },
         { label: "Moderare albume", path: "/admin/moderare", badge: pendingModeration },
+        { label: "Livrare preview", path: "/admin/livrare-preview", badge: overduePreviews },
       ],
     },
     {

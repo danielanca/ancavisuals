@@ -22,7 +22,14 @@ export interface EventDelivery {
   albumCreated?: boolean;
   albumSentToClient?: boolean;
   physicalDelivery?: boolean;
+  previewSent?: boolean;
+  previewSentAt?: string;
+  instagramTagged?: boolean;
+  instagramTaggedAt?: string;
 }
+
+// Termen (în zile de la eveniment) până la trimiterea preview-urilor către client.
+export const PREVIEW_DEADLINE_DAYS = 3;
 
 export interface ClientEvent {
   id: string;
