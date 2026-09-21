@@ -51,6 +51,26 @@ function isSlowLoadError(message: string): boolean {
   return message.startsWith("[SLOW LOAD]");
 }
 
+function isImageLoadError(message: string): boolean {
+  return message.startsWith("[IMAGE LOAD FAILED]");
+}
+
+// Same broken photo can be hit by many visitors loading the same page — one
+// email per unique image URL per window is enough to flag it for a fix.
+const IMAGE_LOAD_EMAIL_COOLDOWN_MS = 6 * 60 * 60_000;
+const imageLoadEmailLastSent = new Map<string, number>();
+
+function shouldSendImageLoadEmail(url: string): boolean {
+  const now = Date.now();
+  const last = imageLoadEmailLastSent.get(url);
+  if (last && now - last < IMAGE_LOAD_EMAIL_COOLDOWN_MS) return false;
+  imageLoadEmailLastSent.set(url, now);
+  for (const [storedKey, timestamp] of imageLoadEmailLastSent) {
+    if (now - timestamp > IMAGE_LOAD_EMAIL_COOLDOWN_MS) imageLoadEmailLastSent.delete(storedKey);
+  }
+  return true;
+}
+
 // Someone landing on a broken link (usually a wrong URL in an ad or printed
 // material) triggers one email per unique path per window — the same bad ad
 // gets clicked many times, but the admin only needs to hear about it once.
@@ -124,6 +144,28 @@ async function sendSlowLoadEmail(message: string, page: string, ip?: string) {
   });
 }
 
+async function sendImageLoadFailedEmail(message: string, stack: string, page: string, ip?: string) {
+  const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const url = message.replace("[IMAGE LOAD FAILED] ", "");
+  await sendEmail({
+    to: adminUser.email,
+    subject: `🖼️ Poză care nu se încarcă pe ancavisuals.ro`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5;border-radius:12px;">
+        <h2 style="color:#f59e0b;margin:0 0 8px;">🖼️ O poză a picat, chiar și după reîncercare</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:6px 0;color:#737373;width:110px;">URL poză</td><td style="color:#f5f5f5;font-weight:600;word-break:break-all;">${safe(url)}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">Pagină</td><td style="color:#facc15;word-break:break-all;">${safe(page || "-")}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">IP</td><td style="color:#999;font-size:11px;">${safe(ip || "—")}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">Context</td><td style="color:#a3a3a3;font-size:11px;word-break:break-all;">${safe(stack || "-")}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">Ora</td><td style="color:#f5f5f5;">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
+        </table>
+        <p style="color:#444;font-size:11px;margin:20px 0 0;">Trimis automat de AncaVisuals monitoring · max. 1 email / 6h pentru aceeași poză</p>
+      </div>
+    `,
+  });
+}
+
 async function sendQrDebugEmail(message: string, stack: string, page: string, ip?: string, geo?: { city?: string; region?: string; country?: string }) {
   const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const location = geo ? [geo.city, geo.region, geo.country].filter(Boolean).join(", ") : "";
@@ -181,6 +223,9 @@ router.post("/client-error", async (req: Request, res: Response) => {
     }
     if (isSlowLoadError(message)) {
       sendSlowLoadEmail(message, page, ip || undefined).catch(() => {});
+    }
+    if (isImageLoadError(message) && shouldSendImageLoadEmail(message)) {
+      sendImageLoadFailedEmail(message, stack, page, ip || undefined).catch(() => {});
     }
     res.json({ ok: true });
   } catch {

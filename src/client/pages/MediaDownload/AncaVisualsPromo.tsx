@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import PhotoLightbox from "./PhotoLightbox";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
+import RetryImage from "../../components/UI/RetryImage";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
@@ -66,6 +67,10 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
       .catch(() => {});
   }, [compact]);
 
+  const dropBrokenPhoto = (url: string) => {
+    setShowcasePhotos((prev) => prev.filter((p) => p !== url));
+  };
+
   const galleryColumns = useMemo(() => {
     const columns: Array<Array<{ url: string; index: number }>> = [[], []];
     showcasePhotos.forEach((url, index) => {
@@ -120,11 +125,13 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
           <div style={{ display: "flex", gap: "3px", flexWrap: "nowrap", padding: 0, overflow: "hidden" }}>
             {Array.from({ length: 18 }, (_, i) => showcasePhotos[i % showcasePhotos.length]).map((url, i) => (
               <div key={i} style={{ flex: "1 1 0", minWidth: 0, aspectRatio: "1 / 1", overflow: "hidden" }}>
-                <img
+                <RetryImage
                   src={url}
                   alt=""
                   style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.75, display: "block" }}
                   loading="lazy"
+                  context="media_footer promo strip"
+                  onGiveUp={dropBrokenPhoto}
                 />
               </div>
             ))}
@@ -160,12 +167,14 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
                   <div key={columnIndex} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     {column.map(({ url, index }) => (
                       <div key={url} style={{ overflow: "hidden", borderRadius: "6px", background: "#111" }}>
-                        <img
+                        <RetryImage
                           src={url}
                           alt=""
                           style={{ width: "100%", height: "auto", objectFit: "cover", opacity: 0.85, display: "block", cursor: "pointer" }}
                           loading="lazy"
+                          context="media_footer promo grid"
                           onClick={() => setLightboxIndex(index)}
+                          onGiveUp={dropBrokenPhoto}
                         />
                       </div>
                     ))}

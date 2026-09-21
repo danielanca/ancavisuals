@@ -2,9 +2,23 @@ import express, { type Request, type Response } from "express";
 import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
+import { signBunnyUrl } from "../utils/signBunnyUrl";
 
 const router = express.Router();
 const COLLECTION = "showcase_zones";
+
+// Stored URLs may carry a Bunny token that's since expired (tokens last 1h) —
+// re-sign the path fresh on every read instead of trusting the stored token.
+function refreshBunnyUrl(url: string): string {
+  const cdnBase = process.env.BUNNY_CDN_DOMAIN ?? "";
+  if (!url || !cdnBase || !url.startsWith(cdnBase)) return url;
+  try {
+    const { pathname } = new URL(url);
+    return signBunnyUrl(pathname);
+  } catch {
+    return url;
+  }
+}
 
 router.get("/:id/sources", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
@@ -19,7 +33,7 @@ router.get("/:id/sources", requireFirebaseAuth, requireSupremeAdmin, async (req:
       const data = doc.data();
       return {
         id: doc.id,
-        photoUrl: String(data.photoUrl ?? ""),
+        photoUrl: refreshBunnyUrl(String(data.photoUrl ?? "")),
         albumSlug: String(data.albumSlug ?? ""),
         fileName: String(data.fileName ?? ""),
       };
@@ -29,7 +43,7 @@ router.get("/:id/sources", requireFirebaseAuth, requireSupremeAdmin, async (req:
       const data = doc.data();
       return {
         id: doc.id,
-        url: String(data.url ?? ""),
+        url: refreshBunnyUrl(String(data.url ?? "")),
         label: String(data.label ?? ""),
         serviceId: String(data.serviceId ?? ""),
       };
@@ -52,7 +66,7 @@ router.get("/:id", async (req: Request, res: Response) => {
     }
     const data = doc.data();
     const photos = Array.isArray(data?.photos)
-      ? (data.photos as Array<{ url?: unknown }>).map((p) => String(p.url ?? "")).filter(Boolean)
+      ? (data.photos as Array<{ url?: unknown }>).map((p) => refreshBunnyUrl(String(p.url ?? ""))).filter(Boolean)
       : [];
     res.json({ photos });
   } catch (error) {
