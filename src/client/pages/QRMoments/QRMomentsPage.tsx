@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import useAuth from '../../features/admin/auth/useAuth';
 import { getHeadlineText, getHostsPairLabel, normalizeQrEventType, type QrEventType } from '../../../shared/qrMoments/hostRoles';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../../shared/qrMoments/uploadLimits';
+import { UPLOAD_ORIGIN } from '../../utils/address';
 import PortfolioGallery from '../Portfolio/PortfolioGallery';
 
 type Step = 'loading' | 'closed' | 'not-found' | 'form' | 'upload' | 'success';
@@ -584,7 +585,8 @@ export default function QRMomentsPage() {
       const authHeader = auth.authorise && auth.accessToken ? `Bearer ${auth.accessToken}` : null;
 
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `/api/qr-moments/${eventSlug}/upload`);
+      // Ocolește proxy-ul Cloudflare (plafon 100MB) pentru fișiere mari — vezi UPLOAD_ORIGIN.
+      xhr.open('POST', `${UPLOAD_ORIGIN}/api/qr-moments/${eventSlug}/upload`);
       if (authHeader) xhr.setRequestHeader('Authorization', authHeader);
       xhr.timeout = computeUploadTimeoutMs(blob.size);
 

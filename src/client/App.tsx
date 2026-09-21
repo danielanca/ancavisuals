@@ -74,7 +74,7 @@ import { weddingHubRoutes } from "./routes/weddingHubRoutes";
 const AncaChat = loadable(() => import("./features/chat/components/AncaChat"), { fallback: <></> });
 const NotFoundPage = loadable(() => import("./pages/NotFoundPage"), { fallback: <AncaLoader /> });
 
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup"];
+const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup", "/bio"];
 
 export const App = () => {
   const location = useLocation();
@@ -92,7 +92,7 @@ export const App = () => {
     captureLandingMeta();
   }, []);
 
-  const suppressCookieBot = location.pathname.startsWith("/media") || location.pathname.startsWith("/admin");
+  const suppressCookieBot = location.pathname.startsWith("/media") || location.pathname.startsWith("/admin") || location.pathname.startsWith("/bio");
 
   useEffect(() => {
     const STYLE_ID = "uc-suppress-style";

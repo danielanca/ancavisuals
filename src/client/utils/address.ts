@@ -9,3 +9,8 @@ export const thePORT = DEFAULT_APP_PORT;
 export const remoteAddress = PROD_ORIGIN;
 export const remoteAddressLocal = LOCAL_ORIGIN;
 export const destination: string = isProd ? PROD_ORIGIN : LOCAL_ORIGIN;
+
+// Subdomeniu DNS-only în Cloudflare (nu trece prin proxy-ul portocaliu), folosit
+// doar pentru upload-uri mari (ex: video QR Moments) ca să ocolească plafonul
+// de 100MB pe care Cloudflare îl impune peste tot altundeva pe domeniul principal.
+export const UPLOAD_ORIGIN: string = isProd ? "https://upload.ancavisuals.ro" : LOCAL_ORIGIN;

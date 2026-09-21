@@ -456,6 +456,7 @@ router.get("/settings", async (_req: Request, res: Response) => {
           iban: "",
         },
         bankProfiles: [],
+        yearlyTargets: {},
       };
       return res.json(defaults);
     }

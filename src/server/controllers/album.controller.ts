@@ -47,6 +47,11 @@ const isSafeFile = (name: string) => {
 
 const isSafeSlug = (slug: string) => /^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug);
 
+// Albume puse manual "pe standby" — linkul se afișează ca expirat pentru
+// oricine îl deschide, inclusiv admin, fără să mai fie nevoie să ștergem
+// albumul din Bunny/Firestore.
+const DISABLED_ALBUM_SLUGS = new Set(["4iulie2026"]);
+
 async function logMediaVisit(req: Request, slug: string) {
   const ip = getClientIp(req);
   const ua = req.headers["user-agent"] ?? "";
@@ -65,6 +70,10 @@ async function logMediaVisit(req: Request, slug: string) {
 
 export async function getAlbum(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
+
+  if (DISABLED_ALBUM_SLUGS.has(slug)) {
+    return res.status(410).json({ error: "album_expired" });
+  }
 
   // albumExists + toate apelurile Bunny rulează în paralel în loadAlbum
   const album = await loadAlbum(slug);

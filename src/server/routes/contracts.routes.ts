@@ -169,6 +169,43 @@ router.get("/", async (_req: Request, res: Response) => {
   }
 });
 
+// GET /api/contracts/latest-signed — public, sanitized: most recently signed
+// contract, used for a "recent booking" social-proof note on public campaign
+// pages. Never exposes the real client name — only masked initials (first 2
+// letters of each word, rest replaced with asterisks), and excludes company
+// (PJ) contracts since there's no individual to anonymize there.
+function maskName(fullName: string): string {
+  return fullName
+    .trim()
+    .split(/\s+/)
+    .map((word) => (word.length <= 2 ? word : word.slice(0, 2) + "*".repeat(word.length - 2)))
+    .join(" ");
+}
+
+router.get("/latest-signed", async (_req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const snapshot = await db.collection("contracts").orderBy("signedAt", "desc").limit(10).get();
+    const match = snapshot.docs.find((doc) => doc.data().clientType !== "PJ" && doc.data().clientName);
+
+    if (!match) {
+      res.json({ contract: null });
+      return;
+    }
+
+    const data = match.data();
+    res.json({
+      contract: {
+        maskedName: maskName(String(data.clientName)),
+        signedAt: tsToISO(data.signedAt),
+      },
+    });
+  } catch (error) {
+    console.error("[contracts] GET /latest-signed failed:", error);
+    res.status(500).json({ error: "Nu s-a putut încărca ultimul contract semnat." });
+  }
+});
+
 // NOTE: /sign/:token routes must come BEFORE /:id to avoid route collision
 
 // GET /api/contracts/sign/:token/pdf — PDF contract for public preview

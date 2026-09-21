@@ -109,6 +109,11 @@ export interface Goal {
   endDate: string;
 }
 
+export interface YearTarget {
+  targetEvents?: number;
+  targetRevenue?: number;
+}
+
 export interface BankProfile {
   id: string;
   label: string;
@@ -128,4 +133,5 @@ export interface AdminSettings {
     iban: string;
   };
   bankProfiles: BankProfile[];
+  yearlyTargets?: Record<string, YearTarget>;
 }

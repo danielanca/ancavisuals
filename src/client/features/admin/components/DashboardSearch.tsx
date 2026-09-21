@@ -38,11 +38,13 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", icon: "💰", keywords: "bani venituri cheltuieli profit facturi cheltuieli invoices expenses" },
   { label: "Extrase bancare", path: "/admin/bank-statements", category: "Financiar", icon: "🏦", keywords: "extras cont tranzactii" },
   { label: "Detalii bancare", path: "/admin/bank-details", category: "Financiar", icon: "💳", keywords: "iban cont bancar" },
+  { label: "Proiecție evenimente", path: "/admin/proiectie", category: "Financiar", icon: "🔮", keywords: "forecast target obiectiv an viitor 2027 2028 contracte semnate proiectie" },
   // Marketing & Web
   { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web", icon: "✨", keywords: "moodboard idei stil" },
   { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web", icon: "📈", keywords: "vizitatori trafic statistici seo" },
   { label: "Vizitatori live", path: "/admin/live", category: "Marketing & Web", icon: "👁️", keywords: "live visitors realtime vizitatori acum" },
   { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", icon: "🖥️", keywords: "banner reclama footer homepage" },
+  { label: "PDF-uri & Ghiduri", path: "/admin/pdf-resources", category: "Marketing & Web", icon: "📄", keywords: "pdf ghid brosura upload bunny bio link special" },
   { label: "SEO Generator", path: "/admin/seo-generator", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },
   { label: "SEO Radar", path: "/admin/seo-radar", category: "Marketing & Web", icon: "🛰️", keywords: "seo radar monitorizare ranking pozitii" },
   { label: "Pagini SEO", path: "/admin/seo-pages", category: "Marketing & Web", icon: "📄", keywords: "seo pagini landing" },

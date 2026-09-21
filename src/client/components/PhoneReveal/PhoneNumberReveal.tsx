@@ -39,6 +39,9 @@ function notifyPhoneReveal(context: string) {
     utmCampaign: landing?.utmCampaign,
     landingPath: landing?.landingPath,
     keyword: landing?.utmTerm ?? landing?.keyword,
+    gclid: landing?.gclid,
+    wbraid: landing?.wbraid,
+    gbraid: landing?.gbraid,
   }).catch(() => {});
 }
 

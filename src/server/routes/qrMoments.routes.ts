@@ -21,6 +21,7 @@ import { APP_BASE_URL } from '../constants/domain';
 import { getHeadlineText, getHostRoleLabel, getHostsFallbackName, normalizeQrEventType, type QrEventType } from '../../shared/qrMoments/hostRoles';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../shared/qrMoments/uploadLimits';
 import { downloadBunnyOriginal } from '../utils/downloadBunnyOriginal';
+import { applyCORSpolicy } from '../constants/cors';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_FILE_SIZE_BYTES } });
@@ -609,9 +610,20 @@ router.post('/guest/register', async (request: Request, response: Response) => {
 });
 
 // ─── Public: upload asset ────────────────────────────────────────────────────
+// Uploads pentru fișiere mari (video) sunt trimise către un subdomeniu
+// separat (upload.ancavisuals.ro, DNS-only în Cloudflare) ca să ocolească
+// plafonul de 100MB al proxy-ului Cloudflare — vezi shared/qrMoments/uploadLimits.ts.
+// Asta face request-ul cross-origin din perspectiva browserului, deci ruta are
+// nevoie de CORS explicit (inclusiv pe branch-urile de eroare din multer).
+
+router.options('/:eventSlug/upload', (request: Request, response: Response) => {
+  applyCORSpolicy(response);
+  response.sendStatus(204);
+});
 
 router.post(
   '/:eventSlug/upload',
+  (request: Request, response: Response, next: NextFunction) => { applyCORSpolicy(response); next(); },
   uploadFilesMiddleware,
   async (request: Request, response: Response) => {
     const { eventSlug } = request.params;

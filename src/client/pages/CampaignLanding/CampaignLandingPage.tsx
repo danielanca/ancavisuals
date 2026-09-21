@@ -3,6 +3,7 @@ import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
 import { fireAdsLeadConversion, fireAdsContactClickConversion } from "../../utils/googleAds";
+import { getLandingMeta } from "../../utils/sessionAttribution";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
@@ -15,6 +16,14 @@ function formatDateRo(iso: string): string {
 const daysInMonth = (year: number, monthZeroBased: number) => new Date(year, monthZeroBased + 1, 0).getDate();
 const toIso = (day: number, monthZeroBased: number, year: number) =>
   `${year}-${String(monthZeroBased + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+// Fiecare pachet primește un accent de culoare diferit (ciclic), ca să nu mai pară 3 carduri identice
+// cu doar textul schimbat — indiferent câte pachete sunt sau care e marcat "highlighted".
+const PACKAGE_ACCENTS = [
+  { border: "border-amber-700/40", bg: "bg-gradient-to-b from-amber-950/25 via-neutral-900 to-neutral-900", bar: "bg-amber-500", price: "text-amber-400" },
+  { border: "border-sky-700/40", bg: "bg-gradient-to-b from-sky-950/25 via-neutral-900 to-neutral-900", bar: "bg-sky-400", price: "text-sky-400" },
+  { border: "border-violet-700/40", bg: "bg-gradient-to-b from-violet-950/25 via-neutral-900 to-neutral-900", bar: "bg-violet-400", price: "text-violet-400" },
+];
 
 export interface CampaignPackage {
   id: string;
@@ -142,48 +151,31 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       .then((d: { dates?: string[] }) => setBookedDates(d.dates ?? []))
       .catch(() => setBookedDates([]));
   }, []);
+  // Real social-proof note: most recently signed contract, name masked
+  // server-side. Shown once per page load after a short delay, dismissible —
+  // not a repeating/fake "someone just booked" spam pattern.
+  const [latestContract, setLatestContract] = useState<{ maskedName: string; signedAt: string } | null>(null);
+  const [showLatestContract, setShowLatestContract] = useState(false);
+  useEffect(() => {
+    fetch("/api/contracts/latest-signed")
+      .then((r) => r.json())
+      .then((d: { contract?: { maskedName: string; signedAt: string } | null }) => {
+        if (!d.contract) return;
+        setLatestContract(d.contract);
+        window.setTimeout(() => setShowLatestContract(true), 3000);
+      })
+      .catch(() => {});
+  }, []);
   const [galleryExpanded, setGalleryExpanded] = useState(false);
   const GALLERY_INITIAL = 16;
-  const [spinCount, setSpinCount] = useState(0);
-  const [spinResult, setSpinResult] = useState<"idle" | "spinning" | "lost" | "won">("idle");
-  const [wheelRotation, setWheelRotation] = useState(0);
-  // Teaser spin: a purely visual nudge that replays every time the wheel scrolls
-  // into view, always landing on "MAI ÎNCEARCĂ". It drives the very same
-  // wheelRotation the real click-to-spin uses (a second, stacked transform layer
-  // previously caused the pointer and the "won" label to disagree), but never
-  // touches spinCount/spinResult — so it can't fake a win or a try.
-  const [isTeasing, setIsTeasing] = useState(false);
-  const spinResultRef = useRef(spinResult);
-  useEffect(() => { spinResultRef.current = spinResult; }, [spinResult]);
-  const isTeasingRef = useRef(false);
-  useEffect(() => { isTeasingRef.current = isTeasing; }, [isTeasing]);
-  const wheelViewRef = useRef<HTMLDivElement>(null);
+  // Real, fixed promo deadline — does not reset per visit/session, unlike the
+  // old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
+  const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const el = wheelViewRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          // Already won, mid real-spin, or already teasing — leave the wheel alone.
-          if (spinResultRef.current === "won" || spinResultRef.current === "spinning" || isTeasingRef.current) return;
-          setIsTeasing(true);
-          const targetAngle = 120; // MAI ÎNCEARCĂ — see spinPromo below.
-          setWheelRotation((rotation) => {
-            const currentAngle = ((rotation % 360) + 360) % 360;
-            const correction = (targetAngle - currentAngle + 360) % 360;
-            return rotation + 1080 + correction;
-          });
-          window.setTimeout(() => setIsTeasing(false), 1300);
-        });
-      },
-      { threshold: 0.5 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
-  const [promoSeconds, setPromoSeconds] = useState(15 * 60 * 60);
-  const promoOpen = true;
   const [isAdmin, setIsAdmin] = useState(() => {
     const hasAdminCookie = getCookie("av_admin") === "1";
     try {
@@ -199,21 +191,19 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   }, []);
   const formStarted = useRef(false);
   const interactionKeys = useRef(new Set<string>());
-  const notifyInteraction = (interaction: "spinner" | "form" | "form_action") => {
+  const notifyInteraction = (interaction: "form" | "form_action") => {
     if (isAdmin) {
       setAdminNotice(true);
       window.setTimeout(() => setAdminNotice(false), 2800);
       return;
     }
     const key = `${page.slug}:${interaction}`;
-    if (interaction !== "spinner") {
-      if (interactionKeys.current.has(key)) return;
-      try {
-        if (sessionStorage.getItem(`av_campaign_interaction_${key}`)) return;
-        sessionStorage.setItem(`av_campaign_interaction_${key}`, "1");
-      } catch { /* sessionStorage poate fi indisponibil în mod privat */ }
-      interactionKeys.current.add(key);
-    }
+    if (interactionKeys.current.has(key)) return;
+    try {
+      if (sessionStorage.getItem(`av_campaign_interaction_${key}`)) return;
+      sessionStorage.setItem(`av_campaign_interaction_${key}`, "1");
+    } catch { /* sessionStorage poate fi indisponibil în mod privat */ }
+    interactionKeys.current.add(key);
     fetch(`/api/campaign/${page.slug}/interaction`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -230,31 +220,24 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => {
     measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
     fireAdsContactClickConversion();
+    // Server-side backup for the same conversion — only worth a round trip
+    // when there's a click id to key it on.
+    const landing = getLandingMeta();
+    if (landing?.gclid || landing?.wbraid || landing?.gbraid) {
+      fetch(`/api/campaign/${page.slug}/contact-click`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gclid: landing.gclid, wbraid: landing.wbraid, gbraid: landing.gbraid }),
+      }).catch(() => {});
+    }
   };
 
-  useEffect(() => {
-    if (promoSeconds <= 0) return;
-    const timer = window.setInterval(() => setPromoSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
-    return () => window.clearInterval(timer);
-  }, [promoSeconds]);
-
-  const spinPromo = () => {
-    if (spinCount >= 3 || promoSeconds <= 0 || spinResult === "won" || spinResult === "spinning") return;
-    notifyInteraction("spinner");
-    const nextSpin = spinCount + 1;
-    // Wedge centres, deg clockwise from top: FOTOCABINĂ 0 · MAI ÎNCEARCĂ 120 · MAI ÎNCEARCĂ 240.
-    // The wheel must rotate by (360 − centre) to bring a wedge under the top pointer,
-    // so MAI ÎNCEARCĂ needs 120° and FOTOCABINĂ needs 0°. First spin always lands on
-    // "mai încearcă", the second on the free photo booth.
-    const targetAngle = nextSpin === 1 ? 120 : 0;
-    const currentAngle = ((wheelRotation % 360) + 360) % 360;
-    const correction = (targetAngle - currentAngle + 360) % 360;
-    setSpinCount(nextSpin);
-    setSpinResult("spinning");
-    setWheelRotation((rotation) => rotation + 1440 + correction);
-    window.setTimeout(() => setSpinResult(nextSpin === 1 ? "lost" : "won"), 2300);
-  };
-  const timerLabel = `${String(Math.floor(promoSeconds / 3600)).padStart(2, "0")}:${String(Math.floor((promoSeconds % 3600) / 60)).padStart(2, "0")}:${String(promoSeconds % 60).padStart(2, "0")}`;
+  const msLeft = Math.max(0, PROMO_DEADLINE - now);
+  const promoExpired = msLeft <= 0;
+  const daysLeft = Math.floor(msLeft / (1000 * 60 * 60 * 24));
+  const hoursLeft = Math.floor((msLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutesLeft = Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60));
+  const secondsLeft = Math.floor((msLeft % (1000 * 60)) / 1000);
 
   const checkAvailability = (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,10 +256,16 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     if (!form.name.trim() || !form.phone.trim()) return;
     setFormStatus("sending");
     try {
+      const landing = getLandingMeta();
       const res = await fetch(`/api/campaign/${page.slug}/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          gclid: landing?.gclid,
+          wbraid: landing?.wbraid,
+          gbraid: landing?.gbraid,
+        }),
       });
       setFormStatus(res.ok ? "sent" : "error");
       if (res.ok) {
@@ -307,6 +296,23 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     <div className="min-h-screen bg-neutral-950 text-white">
       <style>{`@keyframes promoRainbow { 0%, 24.99% { color: #ef4444; } 25%, 49.99% { color: #facc15; } 50%, 74.99% { color: #22c55e; } 75%, 99.99% { color: #3b82f6; } } .promo-rainbow-text { animation: promoRainbow 2.8s steps(1, end) infinite; }`}</style>
       {adminNotice && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full border border-amber-300/40 bg-neutral-900/95 px-4 py-2 text-xs font-semibold text-amber-200 shadow-xl shadow-black/30">Ești admin — notificările sunt dezactivate.</div>}
+
+      {showLatestContract && latestContract && (
+        <div className="fixed bottom-4 left-4 z-40 flex max-w-xs items-start gap-3 rounded-2xl border border-white/10 bg-neutral-900/95 p-4 text-left shadow-2xl shadow-black/40 backdrop-blur">
+          <span aria-hidden="true" className="text-lg">🎉</span>
+          <p className="flex-1 text-sm text-neutral-200">
+            <span className="font-semibold text-white">{latestContract.maskedName}</span> a semnat contractul pe {formatDateRo(latestContract.signedAt.slice(0, 10))}
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowLatestContract(false)}
+            aria-label="Închide"
+            className="text-neutral-500 transition-colors hover:text-white"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <header className="absolute top-0 inset-x-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
@@ -405,130 +411,41 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </section>
       )}
 
-      {/* ── ROATA SURPRIZELOR ──────────────────────────────────────── */}
+      {/* ── OFERTĂ FOTOCABINĂ ──────────────────────────────────────── */}
       <section className="bg-[#f6f2ea] px-6 py-16 sm:py-20 text-[#2f2a24]">
         <div className="mx-auto max-w-lg text-center">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.32em] text-[#a98d5f]">Un mic dar pentru voi</p>
-          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">Șansa să câștigi fotocabina gratuit</h2>
-          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#6b6154]">Pentru amintiri și mai frumoase împreună.</p>
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.32em] text-[#a98d5f]">Ofertă limitată</p>
+          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">Fotocabină gratuită pentru următoarele 4 evenimente</h2>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#6b6154]">Inclusă în pachet, fără costuri suplimentare — valabilă pentru primele 4 nunți rezervate până la termen.</p>
 
-          {promoOpen && (
-            <div className="mx-auto mt-8 rounded-[28px] border border-[#e3d8c4] bg-[#fbf8f2] p-6 shadow-[0_20px_50px_-24px_rgba(120,95,55,0.35)] sm:p-8">
-              {/* wheel */}
-              <div ref={wheelViewRef} className="relative mx-auto h-[300px] w-[300px] max-w-full">
-                {/* pointer */}
-                <div
-                  aria-hidden="true"
-                  className="absolute left-1/2 top-1 z-20 h-0 w-0 -translate-x-1/2"
-                  style={{ borderLeft: "13px solid transparent", borderRight: "13px solid transparent", borderTop: "20px solid #c9a96e", filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.18))" }}
-                />
-                {/* rotating wheel — single source of truth for the visual angle, driven
-                    both by the real click-to-spin (spinPromo) and the viewport teaser
-                    above, so the pointer and the "won"/"lost" text always agree. */}
-                <div
-                  aria-label="Roata surprizelor"
-                  style={{
-                    background: "conic-gradient(from -60deg, #aebd9d 0deg 120deg, #d8cbb7 120deg 240deg, #d8cbb7 240deg 360deg)",
-                    transform: `rotate(${wheelRotation}deg)`,
-                    transition:
-                      spinResult === "spinning"
-                        ? "transform 2300ms cubic-bezier(0.12, 0.8, 0.18, 1)"
-                        : isTeasing
-                          ? "transform 1300ms cubic-bezier(0.16, 0.8, 0.24, 1)"
-                          : "none",
-                  }}
-                  className="absolute inset-2 overflow-hidden rounded-full border-[6px] border-white shadow-[inset_0_0_0_2px_rgba(255,255,255,0.5),0_16px_40px_-16px_rgba(90,70,40,0.5)]"
-                >
-                  <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 240 240" aria-hidden="true">
-                    {/* dividers */}
-                    <g stroke="#fbf8f2" strokeWidth="3">
-                      <line x1="120" y1="120" x2="120" y2="6" transform="rotate(60 120 120)" />
-                      <line x1="120" y1="120" x2="120" y2="6" transform="rotate(180 120 120)" />
-                      <line x1="120" y1="120" x2="120" y2="6" transform="rotate(300 120 120)" />
-                    </g>
-                    {/* One label per wedge, each defined in the "top" frame then
-                        rotated onto its wedge bisector so it stays centred and
-                        readable at any wheel angle (conic wedges: FOTOCABINĂ 0° ·
-                        MAI ÎNCEARCĂ 120° · MAI ÎNCEARCĂ 240°). */}
-                    <g fill="#3a352e" stroke="#3a352e" strokeLinecap="round" strokeLinejoin="round">
-                        {[
-                          {
-                            rot: 0, l1: "FOTOCABINĂ", l2: "GRATUITĂ",
-                            icon: (
-                              <>
-                                <rect x="-13" y="-6" width="26" height="18" rx="3" />
-                                <circle cx="0" cy="3" r="5.5" />
-                                <path d="M-6 -6 l2 -4 h8 l2 4" />
-                                <path d="M9 -10 l2 -3 M12 -8 l3 -1 M11 -4 l3 1" strokeWidth="1.6" />
-                              </>
-                            ),
-                          },
-                          {
-                            rot: 120, l1: "MAI", l2: "ÎNCEARCĂ",
-                            icon: (
-                              <>
-                                <path d="M9 -2 a10 10 0 1 0 2 8" />
-                                <path d="M9 -9 v7 h-7" />
-                              </>
-                            ),
-                          },
-                          {
-                            rot: 240, l1: "MAI", l2: "ÎNCEARCĂ",
-                            icon: (
-                              <>
-                                <path d="M9 -2 a10 10 0 1 0 2 8" />
-                                <path d="M9 -9 v7 h-7" />
-                              </>
-                            ),
-                          },
-                        ].map(({ rot, l1, l2, icon }) => (
-                          <g key={rot} transform={`rotate(${rot} 120 120)`}>
-                            <g transform="translate(120 34)" fill="none" strokeWidth="2.2">{icon}</g>
-                            <text x="120" y="60" textAnchor="middle" fontSize="13" fontWeight="800" letterSpacing="0.4" stroke="none">{l1}</text>
-                            <text x="120" y="75" textAnchor="middle" fontSize="13" fontWeight="800" letterSpacing="0.4" stroke="none">{l2}</text>
-                          </g>
-                        ))}
-                      </g>
-                    </svg>
+          <div className="mx-auto mt-8 rounded-[28px] border border-[#e3d8c4] bg-[#fbf8f2] p-6 shadow-[0_20px_50px_-24px_rgba(120,95,55,0.35)] sm:p-8">
+            {promoExpired ? (
+              <p className="text-sm text-[#6b6154]">Oferta s-a încheiat.</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-center gap-3 sm:gap-5">
+                  {[
+                    { label: "zile", value: daysLeft },
+                    { label: "ore", value: hoursLeft },
+                    { label: "min", value: minutesLeft },
+                    { label: "sec", value: secondsLeft },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex flex-col items-center">
+                      <span className="font-serif text-3xl tabular-nums text-[#2f2a24] sm:text-4xl">{String(value).padStart(2, "0")}</span>
+                      <span className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[#8a7c67]">{label}</span>
+                    </div>
+                  ))}
                 </div>
-                {/* centre spin button (does not rotate) */}
-                <button
-                  type="button"
-                  onClick={spinPromo}
-                  disabled={spinCount >= 3 || promoSeconds <= 0 || spinResult === "spinning" || spinResult === "won"}
-                  aria-label="Învârte roata"
-                  className="absolute left-1/2 top-1/2 z-10 h-[86px] w-[86px] -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-[#2b2b2b] text-[11px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)] transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
-                >
-                  {spinResult === "spinning" ? "…" : "ÎNVÂRTE"}
-                </button>
-              </div>
-
-              {/* result / hint */}
-              {spinResult === "won" ? (
-                <div className="mt-6 rounded-2xl border border-[#e3d8c4] p-5 sm:p-6">
-                  <p className="mb-3 text-center text-lg" aria-hidden="true">🌿</p>
-                  <p className="font-serif text-2xl leading-snug text-[#2f2a24] sm:text-3xl">Ai câștigat fotocabina gratuită!</p>
-                  <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#6b6154]">Menționează acest câștig când ne trimiți cererea de disponibilitate.</p>
-                </div>
-              ) : spinResult === "lost" ? (
-                <p className="mt-6 text-sm text-[#6b6154]">
-                  De data asta n-a fost să fie — <span className="font-semibold text-[#2f2a24]">mai învârte o dată!</span> Șanse rămase: {3 - spinCount}
-                </p>
-              ) : (
-                <p className="mt-6 text-sm text-[#6b6154]">
-                  {spinResult === "spinning"
-                    ? "Roata se oprește…"
-                    : spinCount === 0
-                      ? "Apasă ÎNVÂRTE și vezi ce câștigi."
-                      : `Șanse rămase: ${3 - spinCount}`}
-                </p>
-              )}
-
-              <div className="mt-6 flex items-center justify-center gap-2 border-t border-[#e9e0d0] pt-5 text-xs font-medium text-[#8a7c67]">
-                <span aria-hidden="true">🕐</span> Oferta expiră în {timerLabel}
-              </div>
-            </div>
-          )}
+                <p className="mt-5 text-xs font-medium text-[#8a7c67]">Valabil până pe 30 octombrie 2026</p>
+              </>
+            )}
+            <a
+              href="#verifica-data"
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#2b2b2b] px-6 py-3 text-xs font-bold uppercase tracking-[0.18em] text-white transition-transform hover:scale-105"
+            >
+              Verifică disponibilitatea
+            </a>
+          </div>
         </div>
       </section>
 
@@ -732,42 +649,44 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               <p className="text-sm text-neutral-400 leading-relaxed">Fiecare pachet este un punct de plecare. Ne adaptăm poveștii, ritmului și oamenilor care fac ziua voastră unică.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {page.packages.map((pkg) => (
-                <div
-                  key={pkg.id}
-                  className={`rounded-2xl border p-6 flex flex-col ${
-                    pkg.highlighted
-                      ? "bg-amber-950/30 border-amber-700/50 shadow-lg shadow-amber-900/20"
-                      : "bg-neutral-900 border-neutral-800"
-                  }`}
-                >
-                  {pkg.highlighted && (
-                    <span className="self-start text-[10px] font-bold tracking-widest uppercase text-amber-400 bg-amber-900/40 px-2.5 py-1 rounded-full mb-3">
-                      Popular
-                    </span>
-                  )}
-                  <h3 className="text-white font-semibold text-lg mb-1">{pkg.name}</h3>
-                  <p className="text-amber-400 text-2xl font-light mb-5">{pkg.price}</p>
-                  <ul className="space-y-2 flex-1">
-                    {pkg.features.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-start gap-2 text-sm text-neutral-300">
-                        <span className="text-green-400 mt-0.5 flex-shrink-0">✓</span>
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <a
-                    href={whatsappLink}
-                    onClick={() => trackClick("click_whatsapp", "package")}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-6 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-medium py-3 px-4 rounded-xl transition-colors"
+              {page.packages.map((pkg, index) => {
+                const accent = PACKAGE_ACCENTS[index % PACKAGE_ACCENTS.length];
+                return (
+                  <div
+                    key={pkg.id}
+                    className={`relative overflow-hidden rounded-2xl border p-6 flex flex-col transition-transform ${accent.border} ${accent.bg} ${
+                      pkg.highlighted ? "shadow-xl shadow-black/40 ring-1 ring-white/15 sm:-translate-y-2" : ""
+                    }`}
                   >
-                    <WhatsAppIcon />
-                    Alege pachetul
-                  </a>
-                </div>
-              ))}
+                    <span className={`absolute inset-x-0 top-0 h-1 ${accent.bar}`} />
+                    {pkg.highlighted && (
+                      <span className="self-start text-[10px] font-bold tracking-widest uppercase text-black bg-white px-2.5 py-1 rounded-full mb-3">
+                        ★ Popular
+                      </span>
+                    )}
+                    <h3 className="text-white font-semibold text-lg mb-1">{pkg.name}</h3>
+                    <p className={`text-2xl font-light mb-5 ${accent.price}`}>{pkg.price}</p>
+                    <ul className="space-y-2 flex-1">
+                      {pkg.features.map((feature, featureIndex) => (
+                        <li key={featureIndex} className="flex items-start gap-2 text-sm text-neutral-300">
+                          <span className="text-green-400 mt-0.5 flex-shrink-0">✓</span>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <a
+                      href={whatsappLink}
+                      onClick={() => trackClick("click_whatsapp", "package")}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-6 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-medium py-3 px-4 rounded-xl transition-colors"
+                    >
+                      <WhatsAppIcon />
+                      Alege pachetul
+                    </a>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>

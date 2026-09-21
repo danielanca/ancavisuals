@@ -255,6 +255,7 @@ export default function MediaAlbumPage() {
   const pageFromUrl = Number(searchParams.get("page") ?? "1");
 
   const [album, setAlbum] = useState<AlbumWithPrint | null>(null);
+  const [albumExpired, setAlbumExpired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingSlow, setLoadingSlow] = useState(false);
   const [gallery, dispatch] = useReducer(galleryReducer, initialGalleryState);
@@ -616,6 +617,7 @@ export default function MediaAlbumPage() {
         console.log(`[album] status: ${response.status}`);
         if (!response.ok) {
           console.warn(`[album] răspuns non-ok (${response.status}) pentru slug="${slug}"`);
+          if (response.status === 410) setAlbumExpired(true);
           setAlbum(null); setLoading(false); return;
         }
         const data = await response.json();
@@ -1181,7 +1183,11 @@ export default function MediaAlbumPage() {
       )}
     </div>
   );
-  if (!album) return <AlbumNotFound />;
+  if (!album) {
+    return albumExpired
+      ? <AlbumNotFound heading="Link-ul a expirat" message="Acest link nu mai este disponibil momentan. Scrie-ne dacă ai nevoie de el și îl retrimitem." />
+      : <AlbumNotFound />;
+  }
 
   // ── DIAGNOSTIC PANEL — vizibil clientei când pozele nu apar ───────────────
   const hasNoPhotos = !album.photos?.length;

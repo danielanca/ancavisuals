@@ -192,6 +192,9 @@ const normalizeText = (value: string): string =>
 const SEO_RADAR_COVERAGE_KEY = "ancavisuals:seo-radar:coverage-cities";
 const OTHER_SERVICE_ID = "other";
 const SEO_RADAR_COLUMNS_KEY = "ancavisuals:seo-radar:columns";
+// Rând special în grilă pentru cuvinte cheie fără oraș (ex. doar „fotograf"). Nu e un oraș real:
+// nu se adaugă sufix de oraș la interogare și nu se trimite locație către provider (căutare pe toată țara).
+const NO_CITY_ROW = "Fără oraș";
 
 interface CoverageService {
   id: string;
@@ -730,22 +733,23 @@ const SeoRadarPage: React.FC = () => {
 
   // Scanează o singură combinație (buton „+"). Confirmare custom, apoi rulează în fundal.
   const scanOneCombo = (serviceId: string, cityName: string) => {
+    const isNoCity = cityName === NO_CITY_ROW;
     const term = serviceQuery(serviceId, allColumns);
     if (!term) {
       setKeyword(cityName);
-      setCity(cityName);
+      setCity(isNoCity ? "" : cityName);
       setResult(null);
       setViewingSavedAt(null);
       keywordBuilderRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    const scanKeyword = `${term} ${cityName}`;
+    const scanKeyword = isNoCity ? term : `${term} ${cityName}`;
     setConfirmDialog({
       title: "Scanare",
       message: `Scanez „${scanKeyword}" cu ${providerName(provider)}. Consumă un credit.`,
       confirmLabel: "Scanează",
       onConfirm: () => enqueueScans([
-        { key: `${serviceId}|${cityName}`, label: scanKeyword, keyword: scanKeyword, city: cityName, provider },
+        { key: `${serviceId}|${cityName}`, label: scanKeyword, keyword: scanKeyword, city: isNoCity ? "" : cityName, provider },
       ]),
     });
   };
@@ -2107,6 +2111,7 @@ interface CoverageCell {
 }
 
 const cityRank = (name: string): number => {
+  if (name === NO_CITY_ROW) return -1;
   const index = ARDEAL_CITIES.findIndex(cityData => cityData.name === name);
   return index === -1 ? ARDEAL_CITIES.length + 1 : index;
 };
@@ -2219,6 +2224,7 @@ const PublishedArticlesImpact = ({
   queuedKeys: ScanJob[];
   disabled: boolean;
 }) => {
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const rows = analyses
     .flatMap(analysis => analysis.linkedPosts.map(post => ({
       analysis,
@@ -2252,12 +2258,24 @@ const PublishedArticlesImpact = ({
             {rows.map(({ analysis, post, impact }) => {
               const scanning = activeScanKey === analysis.queryKey;
               const queued = queuedKeySet.has(analysis.queryKey) && !scanning;
+              const isExpanded = expandedPostId === post.id;
               return (
-                <tr key={post.id} className="border-t border-white/5">
+                <React.Fragment key={post.id}>
+                <tr className="border-t border-white/5">
                   <td className="py-1.5 pr-3">
                     <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-violet-300 hover:underline">{post.title}</a>
                   </td>
-                  <td className="py-1.5 pr-3 text-gray-300">{analysis.keyword}{analysis.city ? ` · ${analysis.city}` : ""}</td>
+                  <td className="py-1.5 pr-3">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedPostId(current => (current === post.id ? null : post.id))}
+                      title="Vezi istoricul de poziții pentru acest cuvânt cheie"
+                      className="flex items-center gap-1.5 text-left text-gray-300 hover:text-amber-200 hover:underline"
+                    >
+                      <span className={`text-amber-200 transition-transform ${isExpanded ? "rotate-90" : ""}`}>›</span>
+                      {analysis.keyword}{analysis.city ? ` · ${analysis.city}` : ""}
+                    </button>
+                  </td>
                   <td className="py-1.5 pr-3 text-gray-500">{post.linkedAt ? fmtDateShort(post.linkedAt) : "—"}</td>
                   <td className="py-1.5 pr-3 text-gray-300">{positionLabel(impact.before)}</td>
                   <td className="py-1.5 pr-3 text-gray-300">{positionLabel(impact.after)}</td>
@@ -2276,6 +2294,18 @@ const PublishedArticlesImpact = ({
                     </button>
                   </td>
                 </tr>
+                {isExpanded && (
+                  <tr className="border-t border-white/5 bg-black/20">
+                    <td colSpan={8} className="px-3 py-4">
+                      <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-gray-500">
+                        Istoric poziții · {analysis.keyword}{analysis.city ? ` · ${analysis.city}` : ""}
+                      </p>
+                      <PositionTimeline history={analysis.positionHistory} />
+                      <PositionHistoryTable history={analysis.positionHistory} />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               );
             })}
           </tbody>
@@ -3119,8 +3149,9 @@ const CoverageReport = ({
   }, [columns, hasOtherService, serviceFilter]);
 
   const cellFor = React.useCallback((serviceId: string, cityName: string): CoverageCell => {
+    const isNoCity = cityName === NO_CITY_ROW;
     const cityNorm = normalizeText(cityName);
-    const matches = annotated.filter(item => item.serviceId === serviceId && normalizeText(item.city) === cityNorm);
+    const matches = annotated.filter(item => item.serviceId === serviceId && (isNoCity ? item.city === "" : normalizeText(item.city) === cityNorm));
     const best = matches
       .map(item => item.analysis)
       .sort((a, b) => (a.latestPosition ?? 999) - (b.latestPosition ?? 999))[0] ?? null;
@@ -3310,9 +3341,10 @@ const CoverageReport = ({
 
   // Toate analizele care aparțin unui oraș (toate serviciile) — pentru „șterge orașul".
   const analysesForCity = (cityName: string) => {
+    const isNoCity = cityName === NO_CITY_ROW;
     const cityNorm = normalizeText(cityName);
     return annotated
-      .filter(item => normalizeText(item.city) === cityNorm)
+      .filter(item => (isNoCity ? item.city === "" : normalizeText(item.city) === cityNorm))
       .map(item => ({ keyword: item.analysis.keyword, provider: item.analysis.provider }));
   };
   const removeCityFromPlan = (cityName: string) =>
@@ -3342,8 +3374,9 @@ const CoverageReport = ({
     }
     const term = serviceQuery(serviceId, columns);
     if (!term) return null;
-    const scanKeyword = `${term} ${cityName}`;
-    return { key: comboKey(serviceId, cityName), label: scanKeyword, keyword: scanKeyword, city: cityName, provider: bulkProvider };
+    const isNoCity = cityName === NO_CITY_ROW;
+    const scanKeyword = isNoCity ? term : `${term} ${cityName}`;
+    return { key: comboKey(serviceId, cityName), label: scanKeyword, keyword: scanKeyword, city: isNoCity ? "" : cityName, provider: bulkProvider };
   };
   const visibleCombos = (): [string, string][] =>
     cityList
@@ -3532,6 +3565,15 @@ const CoverageReport = ({
               {availableRadarCities.map(cityData => <option key={`${cityData.county}-${cityData.name}`} value={cityData.name} />)}
             </datalist>
             <button type="button" onClick={addCity} className="rounded-xl border border-amber-200/50 px-4 py-2 text-sm text-amber-200">Adaugă</button>
+            <button
+              type="button"
+              onClick={() => setPlanCities(current => (current.includes(NO_CITY_ROW) ? current : [...current, NO_CITY_ROW]))}
+              disabled={planCities.includes(NO_CITY_ROW)}
+              title="Cuvinte cheie fără legătură cu un oraș anume, ex. doar „fotograf”"
+              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-gray-300 disabled:opacity-40"
+            >
+              + Fără oraș
+            </button>
           </div>
           {detectedCities.length > 0 && (
             <button

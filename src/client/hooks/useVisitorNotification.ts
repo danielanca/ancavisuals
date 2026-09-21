@@ -13,6 +13,10 @@ const SESSION_KEY = "av_notified";
 const AI_ATTRIBUTION_KEY = "av_ai_attribution";
 const AI_NOTIFICATION_KEY = "av_ai_source_notified";
 const OFFER_PATH = "/oferta/olx";
+// Albume media pentru care adminul a cerut explicit să nu mai primească
+// emailuri de vizitator — de obicei albume distribuite public cu mult trafic
+// de la invitați, unde notificarea "Vizitator NOU" nu mai aduce informație utilă.
+const MUTED_VISITOR_PATHS = new Set(["/media/4iulie2026"]);
 
 const AI_SOURCES: Record<string, string> = {
   "chatgpt.com": "ChatGPT",
@@ -82,6 +86,7 @@ export function useVisitorNotification() {
     if (!isBrowser()) return;
     if (getCookie(ADMIN_COOKIE) === "1") return;
     if (SKIP_PREFIXES.some((prefix) => location.pathname.startsWith(prefix))) return;
+    if (MUTED_VISITOR_PATHS.has(location.pathname)) return;
 
     // Snapshot the landing referrer/UTM/gclid before any of it can be lost — the
     // effect order in App.tsx doesn't guarantee this ran elsewhere first.

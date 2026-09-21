@@ -276,6 +276,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       ),
       items: [
         { label: "Rezumat financiar", path: "/admin/financial" },
+        { label: "Proiecție evenimente", path: "/admin/proiectie" },
         { label: "Extrase bancare", path: "/admin/bank-statements" },
         { label: "Detalii bancare", path: "/admin/bank-details" },
         { label: "Documente firmă", path: "/admin/company-documents" },
@@ -300,6 +301,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Recenzii", path: "/admin/recenzii" },
         { label: "Inspirație", path: "/admin/inspiration" },
         { label: "Zone Showcase", path: "/admin/showcase" },
+        { label: "PDF-uri & Ghiduri", path: "/admin/pdf-resources" },
         { label: "Analytics", path: "/admin/analytics" },
         { label: "Vizitatori live", path: "/admin/live" },
       ],

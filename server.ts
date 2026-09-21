@@ -35,6 +35,7 @@ import expensesRouter from "./src/server/routes/expenses.routes";
 import invoicesRouter from "./src/server/routes/invoices.routes";
 import bankStatementsRouter from "./src/server/routes/bankStatements.routes";
 import companyDocumentsRouter from "./src/server/routes/companyDocuments.routes";
+import pdfResourcesRouter from "./src/server/routes/pdfResources.routes";
 import contractClauseTemplatesRouter from "./src/server/routes/contractClauseTemplates.routes";
 import loginEventsRouter from "./src/server/routes/loginEvents.routes";
 import landingRouter from "./src/server/routes/landing.routes";
@@ -204,6 +205,7 @@ async function createServer() {
   app.use("/api/admin/ai-assistant", adminAiAssistantRouter);
   app.use("/api/reviews", reviewsRouter);
   app.use("/api/admin/company-documents", companyDocumentsRouter);
+  app.use("/api/pdf-resources", pdfResourcesRouter);
   app.use("/api/admin/contract-clause-templates", contractClauseTemplatesRouter);
   app.use("/api", loginEventsRouter);
   app.use("/api/admin/landing", landingRouter);

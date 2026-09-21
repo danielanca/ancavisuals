@@ -6,6 +6,7 @@ import { firestore } from "../firestore";
 import { getBunnyStorageKey, buildBunnyStorageUrl, BUNNY_ACCESS_KEY_HEADER } from "../constants/bunny";
 import { getNotificationSettings } from "../services/activity.service";
 import { sendOfferViewNotification } from "../notifications/offerViewNotification";
+import { reportLeadConversion, reportContactClickConversion } from "../services/googleAdsConversion.service";
 
 const router = Router();
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -106,14 +107,29 @@ router.post("/:slug/interaction", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// POST /api/campaign/:slug/contact-click — WhatsApp/phone click-out signal.
+// Server-side backup for the fireAdsContactClickConversion() fired client-side
+// on the same click — no email, no Firestore write, just the conversion
+// upload (see live-notification email policy: click-outs stay live-panel-only).
+router.post("/:slug/contact-click", (req: Request, res: Response) => {
+  const { gclid, wbraid, gbraid } = req.body as { gclid?: string; wbraid?: string; gbraid?: string };
+  reportContactClickConversion({ gclid, wbraid, gbraid })
+    .catch((err) => console.error("[googleAdsConversion] campaign contact-click report failed:", err));
+  res.status(204).send();
+});
+
 // POST /api/campaign/:slug/contact — form submission from landing page
 router.post("/:slug/contact", async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
-    const { name, phone, eventDate, eventType, location, message } = req.body as {
+    const { name, phone, eventDate, eventType, location, message, gclid, wbraid, gbraid } = req.body as {
       name?: string; phone?: string; eventDate?: string; eventType?: string; location?: string; message?: string;
+      gclid?: string; wbraid?: string; gbraid?: string;
     };
     if (!name || !phone) { res.status(400).json({ error: "Nume și telefon sunt obligatorii." }); return; }
+
+    reportLeadConversion({ gclid, wbraid, gbraid, phone })
+      .catch((err) => console.error("[googleAdsConversion] campaign lead report failed:", err));
 
     const doc = await firestore().collection(COLLECTION).doc(slug).get();
     const pageTitle = doc.exists ? (doc.data()?.title ?? slug) : slug;

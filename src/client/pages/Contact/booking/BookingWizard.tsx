@@ -11,6 +11,7 @@ import { formatDate } from "./utils/time";
 import { PHONE_RE } from "./utils/validators";
 import type { Step, EventType, Errors } from "./types";
 import { fireAdsLeadConversion } from "../../../utils/googleAds";
+import { getLandingMeta } from "../../../utils/sessionAttribution";
 
 
 // Steps
@@ -166,11 +167,15 @@ export default function BookingWizard() {
     if (saveContactConsent) {
       try {
         const subject = `Lead rapid – ${eventType.toUpperCase()} – ${selectedFormattedDate}`;
+        const landing = getLandingMeta();
 
         const payload = {
           typeEvent: "Lead Rapid",
           to: BOOKING_TO,
           subject,
+          gclid: landing?.gclid,
+          wbraid: landing?.wbraid,
+          gbraid: landing?.gbraid,
           html: `
             <h2>Lead rapid din configurator</h2>
             <ul>
@@ -290,11 +295,15 @@ export default function BookingWizard() {
         video,
       });
 
+      const landing = getLandingMeta();
       const payload = {
         typeEvent: `Rezervare ${eventType.toUpperCase()}`,
         to: BOOKING_TO,
         subject,
         html, // HTML complet, nu "..."
+        gclid: landing?.gclid,
+        wbraid: landing?.wbraid,
+        gbraid: landing?.gbraid,
         booking: {
           date: selectedFormattedDate,
           eventType,

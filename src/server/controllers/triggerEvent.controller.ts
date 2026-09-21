@@ -6,6 +6,7 @@ import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
 import { renderTriggerTemplate } from "../notifications/templates/triggerTemplate";
 import { logActivity, getNotificationSettings } from "../services/activity.service.js";
 import { isNotifiableCountry } from "../utils/geoFilter.js";
+import { reportLeadConversion, reportContactClickConversion } from "../services/googleAdsConversion.service.js";
 
 interface TypeEvent {
   typeEvent: string;
@@ -28,6 +29,10 @@ interface TypeEvent {
   subject?: string;
   html?: string;
   to?: string;
+  booking?: {
+    phone?: string;
+    price?: number;
+  };
 }
 
 const COOLDOWN_MS = 18 * 60 * 60 * 1000; // 18 hours
@@ -152,6 +157,19 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const isNew = triggerData.isNewVisitor !== false;
     const visitorLabel = isNew ? "🆕 Vizitator NOU" : "🔁 Vizitator cunoscut";
     const isBookingSubmission = !!triggerData.html && !!triggerData.subject;
+
+    // Server-side Google Ads conversion backup — fires alongside (not instead
+    // of) the client-side gtag conversion, so a blocked/failed browser fire
+    // doesn't mean a lost conversion. No-op until GOOGLE_ADS_* env vars and
+    // the click id are both present.
+    const clickIds = { gclid: triggerData.gclid, gbraid: triggerData.gbraid, wbraid: triggerData.wbraid };
+    if (isBookingSubmission) {
+      reportLeadConversion({ ...clickIds, phone: triggerData.booking?.phone, value: triggerData.booking?.price })
+        .catch((err) => console.error("[googleAdsConversion] lead report failed:", err));
+    } else if (isPhoneReveal) {
+      reportContactClickConversion(clickIds)
+        .catch((err) => console.error("[googleAdsConversion] contact-click report failed:", err));
+    }
 
     // Detect source for activity metadata
     const referrer = triggerData.referrer ?? "direct";

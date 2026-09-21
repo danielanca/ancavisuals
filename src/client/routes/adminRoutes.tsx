@@ -28,6 +28,7 @@ const AnalyticsPage = loadable(() => import("../features/admin/components/Analyt
 const LiveVisitorsPage = loadable(() => import("../features/admin/components/LiveVisitorsPage"), opts);
 const ImageOptimizerPage = loadable(() => import("../features/admin/components/ImageOptimizerPage"), opts);
 const GoalDetailPage = loadable(() => import("../features/admin/components/GoalDetailPage"), opts);
+const ForecastPage = loadable(() => import("../features/admin/components/ForecastPage"), opts);
 const BankDetailsPage = loadable(() => import("../features/admin/components/BankDetailsPage"), opts);
 const ModerationReviewPage = loadable(() => import("../features/admin/components/Moderation/ModerationReviewPage"), opts);
 const ErrorsPage = loadable(() => import("../features/admin/components/ErrorsPage"), opts);
@@ -61,6 +62,7 @@ const ContactsAdminPage = loadable(() => import("../features/admin/components/Co
 const EquipmentAdminPage = loadable(() => import("../features/admin/components/EquipmentAdminPage"), opts);
 const AdminSettingsPage = loadable(() => import("../features/admin/components/AdminSettingsPage"), opts);
 const CompanyDocumentsPage = loadable(() => import("../features/admin/components/CompanyDocumentsPage"), opts);
+const PdfResourcesPage = loadable(() => import("../features/admin/components/PdfResourcesPage"), opts);
 
 
 export const adminRoutes = [
@@ -85,6 +87,7 @@ export const adminRoutes = [
       <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
       <Route path="/admin/bank-details" element={<BankDetailsPage />} />
       <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
+      <Route path="/admin/proiectie" element={<ForecastPage />} />
       <Route path="/admin/moderare" element={<ModerationReviewPage />} />
       <Route path="/admin/errors" element={<ErrorsPage />} />
       <Route path="/admin/financial" element={<FinancialPage />} />
@@ -116,6 +119,7 @@ export const adminRoutes = [
       <Route path="/admin/echipamente" element={<EquipmentAdminPage />} />
       <Route path="/admin/settings" element={<AdminSettingsPage />} />
       <Route path="/admin/company-documents" element={<CompanyDocumentsPage />} />
+      <Route path="/admin/pdf-resources" element={<PdfResourcesPage />} />
       <Route path="/admin/invoices" element={<Navigate to="/admin/financial" replace />} />
       <Route path="/admin/expenses" element={<Navigate to="/admin/financial" replace />} />
       <Route path="/admin/health" element={<Navigate to="/admin/sanatate" replace />} />
