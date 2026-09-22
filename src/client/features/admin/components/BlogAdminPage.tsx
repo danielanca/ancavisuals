@@ -262,10 +262,13 @@ export default function BlogAdminPage() {
         </div>
         {activeCategory && <div className="mt-5 rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-medium uppercase tracking-wider text-neutral-600">Categorie selectată</p><h3 className="mt-1 text-lg font-semibold text-white">{activeCategory}</h3></div><div className="flex flex-wrap gap-2">{activeCategoryCities.length > 0 ? activeCategoryCities.map((city) => <span key={city} className="rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-300">{city}</span>) : <span className="text-xs text-neutral-600">Fără oraș setat</span>}</div></div>
-          <div className="mt-4 columns-1 gap-2 sm:columns-2 lg:columns-3">{activeCategoryPosts.map((post) => <button key={post.slug} type="button" onClick={() => setSelected(post)} style={viewTint(post)} className={`mb-2 block w-full break-inside-avoid rounded-xl border p-3 text-left transition-colors ${selected.slug === post.slug ? "ring-1 ring-amber-300/70" : "hover:brightness-110"}`}>
-            <span className="block truncate text-sm font-medium text-neutral-200">{post.title || "Fără titlu"}</span>
-            <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600"><span className={`h-1.5 w-1.5 rounded-full ${post.status === "draft" ? "bg-amber-300" : "bg-emerald-400"}`} />{post.city || "Fără oraș"}<span>·</span>{post.status === "draft" ? "Draft" : "Publicat"}<span>·</span><span>{viewCounts[post.slug] ?? 0} vizualizări</span></span>
-          </button>)}</div>
+          <div className="mt-4 columns-1 gap-2 sm:columns-2 lg:columns-3">{activeCategoryPosts.map((post) => <div key={post.slug} style={viewTint(post)} className={`group relative mb-2 block w-full break-inside-avoid rounded-xl border p-3 pr-8 text-left transition-colors ${selected.slug === post.slug ? "ring-1 ring-amber-300/70" : "hover:brightness-110"}`}>
+            <button type="button" onClick={() => setSelected(post)} className="block w-full text-left">
+              <span className="block truncate text-sm font-medium text-neutral-200">{post.title || "Fără titlu"}</span>
+              <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600"><span className={`h-1.5 w-1.5 rounded-full ${post.status === "draft" ? "bg-amber-300" : "bg-emerald-400"}`} />{post.city || "Fără oraș"}<span>·</span>{post.status === "draft" ? "Draft" : "Publicat"}<span>·</span><span>{viewCounts[post.slug] ?? 0} vizualizări</span></span>
+            </button>
+            <a href={`/blog/${encodeURIComponent(post.slug)}`} target="_blank" rel="noreferrer" title="Deschide articolul" aria-label="Deschide articolul într-un tab nou" className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-neutral-500 opacity-0 transition-opacity hover:text-amber-300 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>↗</a>
+          </div>)}</div>
           <p className="mt-3 text-xs text-neutral-600">{activeCategoryPosts.length} {activeCategoryPosts.length === 1 ? "articol" : "articole"} în această categorie</p>
         </div>}
       </section>}
@@ -292,10 +295,13 @@ export default function BlogAdminPage() {
                   <span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-neutral-300"><span className={`text-base leading-none transition-transform ${isCollapsed ? "" : "rotate-90"}`}>›</span><span className="truncate">{category}</span></span>
                   <span className="rounded-md bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-500">{categoryPosts.length}</span>
                 </button>
-                {!isCollapsed && <div className="border-t border-neutral-800/80 p-1">{categoryPosts.map((post) => <button key={post.slug} onClick={() => setSelected(post)} style={viewTint(post)} className={`mb-1 w-full rounded-xl border p-3 text-left transition-colors last:mb-0 ${selected.slug === post.slug ? "ring-1 ring-amber-300/70" : "hover:brightness-110"}`}>
-                  <span className="block truncate text-sm font-medium text-neutral-200">{post.title || "Fără titlu"}</span>
-                  <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600"><span className={`h-1.5 w-1.5 rounded-full ${post.status === "draft" ? "bg-amber-300" : "bg-emerald-400"}`} />{post.city || "Fără oraș"}<span>·</span>{post.status === "draft" ? "Draft" : "Publicat"}<span>·</span><span>{viewCounts[post.slug] ?? 0} vizualizări</span></span>
-                </button>)}</div>}
+                {!isCollapsed && <div className="border-t border-neutral-800/80 p-1">{categoryPosts.map((post) => <div key={post.slug} style={viewTint(post)} className={`group relative mb-1 w-full rounded-xl border p-3 pr-8 text-left transition-colors last:mb-0 ${selected.slug === post.slug ? "ring-1 ring-amber-300/70" : "hover:brightness-110"}`}>
+                  <button type="button" onClick={() => setSelected(post)} className="block w-full text-left">
+                    <span className="block truncate text-sm font-medium text-neutral-200">{post.title || "Fără titlu"}</span>
+                    <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600"><span className={`h-1.5 w-1.5 rounded-full ${post.status === "draft" ? "bg-amber-300" : "bg-emerald-400"}`} />{post.city || "Fără oraș"}<span>·</span>{post.status === "draft" ? "Draft" : "Publicat"}<span>·</span><span>{viewCounts[post.slug] ?? 0} vizualizări</span></span>
+                  </button>
+                  <a href={`/blog/${encodeURIComponent(post.slug)}`} target="_blank" rel="noreferrer" title="Deschide articolul" aria-label="Deschide articolul într-un tab nou" className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-neutral-500 opacity-0 transition-opacity hover:text-amber-300 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>↗</a>
+                </div>)}</div>}
               </div>;
             })}
           </div>
