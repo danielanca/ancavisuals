@@ -1071,7 +1071,7 @@ export function getServiceBySlug(slug: string): ServiceData | undefined {
   return SERVICES.find(s => s.slug === slug);
 }
 
-function allowedServices(city: CityData): ServiceData[] {
+export function allowedServices(city: CityData): ServiceData[] {
   if (!city.services) return SERVICES;
   return SERVICES.filter(s => city.services!.includes(s.slug));
 }

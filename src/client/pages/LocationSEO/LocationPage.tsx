@@ -9,7 +9,7 @@ import {
   CITIES,
   GOOGLE_REVIEWS,
   GOOGLE_REVIEW_COUNT,
-  SERVICES,
+  allowedServices,
   getCityBySlug,
   getServiceBySlug,
 } from "./locationData";
@@ -349,7 +349,7 @@ const LocationPage: React.FC<Props> = ({
         <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 md:p-10">
           <h2 className="text-2xl font-light md:text-3xl">Servicii conexe în {city.name}</h2>
           <div className="mt-6 flex flex-wrap gap-3">
-            {SERVICES.map(serviceEntry => (
+            {allowedServices(city).map(serviceEntry => (
               <Link
                 key={serviceEntry.slug}
                 to={`/foto-video-${serviceEntry.slug}-${city.slug}`}
@@ -384,7 +384,7 @@ const LocationPage: React.FC<Props> = ({
           Alte orașe în care lucrăm
         </h2>
         <div className="flex flex-wrap justify-center gap-3">
-          {CITIES.filter(entry => entry.slug !== city.slug).map(entry => (
+          {CITIES.filter(entry => entry.slug !== city.slug && allowedServices(entry).some(s => s.slug === service.slug)).map(entry => (
             <Link
               key={entry.slug}
               to={`/foto-video-${service.slug}-${entry.slug}`}
