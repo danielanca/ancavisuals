@@ -7,7 +7,6 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { BOT_UA } from "../utils/botUa";
-import { isNotifiableCountry } from "../utils/geoFilter";
 
 const router = Router();
 
@@ -263,9 +262,9 @@ router.post("/not-found", async (req: Request, res: Response) => {
     const ip = getClientIp(req);
     const geoData = await fetchIpInfo(ip).catch(() => null);
 
-    // Only notify for visitors from Europe — US / Canada / Mexic / rest of the
-    // world on a 404 is almost always a bot or irrelevant.
-    if (geoData && !isNotifiableCountry(geoData.country)) {
+    // Only notify for visitors from Romania — everything else on a 404 is
+    // almost always a bot, a scanner, or irrelevant foreign traffic.
+    if (geoData && geoData.country && geoData.country.toUpperCase() !== "RO") {
       res.json({ ok: true, ignored: true });
       return;
     }

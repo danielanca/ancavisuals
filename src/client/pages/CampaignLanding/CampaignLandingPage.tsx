@@ -156,16 +156,29 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   // not a repeating/fake "someone just booked" spam pattern.
   const [latestContract, setLatestContract] = useState<{ maskedName: string; signedAt: string } | null>(null);
   const [showLatestContract, setShowLatestContract] = useState(false);
+  const [latestContractVisible, setLatestContractVisible] = useState(false);
+  const dismissLatestContract = () => {
+    setLatestContractVisible(false);
+    window.setTimeout(() => setShowLatestContract(false), 300);
+  };
   useEffect(() => {
     fetch("/api/contracts/latest-signed")
       .then((r) => r.json())
       .then((d: { contract?: { maskedName: string; signedAt: string } | null }) => {
         if (!d.contract) return;
         setLatestContract(d.contract);
-        window.setTimeout(() => setShowLatestContract(true), 3000);
+        window.setTimeout(() => {
+          setShowLatestContract(true);
+          window.setTimeout(() => setLatestContractVisible(true), 20);
+        }, 3000);
       })
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!latestContractVisible) return;
+    const timer = window.setTimeout(() => dismissLatestContract(), 10000);
+    return () => window.clearTimeout(timer);
+  }, [latestContractVisible]);
   const [galleryExpanded, setGalleryExpanded] = useState(false);
   const GALLERY_INITIAL = 16;
   // Real, fixed promo deadline — does not reset per visit/session, unlike the
@@ -298,16 +311,20 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {adminNotice && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full border border-amber-300/40 bg-neutral-900/95 px-4 py-2 text-xs font-semibold text-amber-200 shadow-xl shadow-black/30">Ești admin — notificările sunt dezactivate.</div>}
 
       {showLatestContract && latestContract && (
-        <div className="fixed bottom-4 left-4 z-40 flex max-w-xs items-start gap-3 rounded-2xl border border-white/10 bg-neutral-900/95 p-4 text-left shadow-2xl shadow-black/40 backdrop-blur">
+        <div
+          className={`fixed bottom-4 right-4 z-40 flex max-w-xs items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-xl shadow-black/10 transition-all duration-300 ease-out ${
+            latestContractVisible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+          }`}
+        >
           <span aria-hidden="true" className="text-lg">🎉</span>
-          <p className="flex-1 text-sm text-neutral-200">
-            <span className="font-semibold text-white">{latestContract.maskedName}</span> a semnat contractul pe {formatDateRo(latestContract.signedAt.slice(0, 10))}
+          <p className="flex-1 text-sm text-neutral-600">
+            <span className="font-semibold text-neutral-900">{latestContract.maskedName}</span> a semnat contractul pe {formatDateRo(latestContract.signedAt.slice(0, 10))}
           </p>
           <button
             type="button"
-            onClick={() => setShowLatestContract(false)}
+            onClick={dismissLatestContract}
             aria-label="Închide"
-            className="text-neutral-500 transition-colors hover:text-white"
+            className="text-neutral-400 transition-colors hover:text-neutral-700"
           >
             ×
           </button>
