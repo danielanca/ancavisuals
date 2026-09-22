@@ -69,6 +69,7 @@
     "framer-motion": "^12.18.1",
     "googleapis": "^173.0.0",
     "gray-matter": "^4.0.3",
+    "gsap": "^3.15.0",
     "heic-convert": "^2.1.0",
     "jsdom": "^22.1.0",
     "jsonrepair": "^3.14.0",

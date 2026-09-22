@@ -4,8 +4,7 @@ import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import Breadcrumbs from "../../components/SEO/Breadcrumbs";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
-import PortfolioHero from "./PortfolioHero";
-import PortfolioGallery from "./PortfolioGallery";
+import PortfolioParallaxGallery from "./PortfolioParallaxGallery";
 import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
 import "./Portfolio.css";
 
@@ -39,8 +38,7 @@ const Portfolio = () => {
       <div className="mx-auto max-w-6xl px-6 pt-28 pb-6">
         <Breadcrumbs items={breadcrumbs} />
       </div>
-      <PortfolioHero />
-      <PortfolioGallery />
+      <PortfolioParallaxGallery />
       <AncaVisualsPromo />
       <Footer />
     </>
