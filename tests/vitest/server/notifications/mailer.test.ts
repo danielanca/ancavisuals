@@ -37,13 +37,13 @@ describe("sendEmail", () => {
       }));
     });
 
-    test("uses the configured sender email as from", async () => {
+    test("uses the configured sender email, with a display name, as from", async () => {
       const { sendEmail, sendMailMock } = await buildMailer("studio@ancavisuals.ro");
 
       await sendEmail({ to: "client@example.com", subject: "S", html: "<p>x</p>" });
 
       expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
-        from: "studio@ancavisuals.ro",
+        from: '"AncaVisuals" <studio@ancavisuals.ro>',
       }));
     });
 
@@ -65,6 +65,28 @@ describe("sendEmail", () => {
 
       await expect(sendEmail({ to: "x@x.com", subject: "S", html: "<p>x</p>" }))
         .rejects.toThrow("SMTP error");
+    });
+  });
+
+  describe("contact footer", () => {
+    test("appends the email + WhatsApp contact footer to plain content", async () => {
+      const { sendEmail, sendMailMock } = await buildMailer();
+
+      await sendEmail({ to: "client@example.com", subject: "S", html: "<p>Hello</p>" });
+
+      const html = sendMailMock.mock.calls[0][0].html as string;
+      expect(html).toContain("info@ancavisuals.ro");
+      expect(html).toContain("https://wa.me/40745469907");
+      expect(html).toContain("<p>Hello</p>");
+    });
+
+    test("does not inject the footer into an already-complete HTML document", async () => {
+      const { sendEmail, sendMailMock } = await buildMailer();
+      const fullDoc = "<!DOCTYPE html><html><body><p>Pre-built report</p></body></html>";
+
+      await sendEmail({ to: "client@example.com", subject: "S", html: fullDoc });
+
+      expect(sendMailMock.mock.calls[0][0].html).toBe(fullDoc);
     });
   });
 });
