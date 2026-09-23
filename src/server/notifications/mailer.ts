@@ -2,8 +2,11 @@ import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { emailAuth } from "../constants/credentials";
 
+// Paid Zoho Workplace/Mail plans serve SMTP from smtppro.zoho.eu (not
+// smtp.zoho.eu, which is what the free plan's docs point to) — see the
+// account's Settings → Mail Accounts → SMTP server configuration.
 const productionTransport = nodemailer.createTransport({
-  host: "smtp.zoho.eu",
+  host: "smtppro.zoho.eu",
   port: 465,
   secure: true,
   auth: { user: emailAuth.email, pass: emailAuth.password },
