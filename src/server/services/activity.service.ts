@@ -72,6 +72,11 @@ export async function markRead(id: string): Promise<void> {
   await db.collection(COLLECTION).doc(id).update({ read: true });
 }
 
+export async function deleteActivity(id: string): Promise<void> {
+  const db = firestore();
+  await db.collection(COLLECTION).doc(id).delete();
+}
+
 export async function getNotificationSettings(): Promise<NotificationSettings> {
   const db = firestore();
   const [collection, docId] = SETTINGS_DOC.split("/");

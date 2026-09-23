@@ -29,9 +29,21 @@ function useBadgeCounts(accessToken: string) {
   const [pendingProposals, setPendingProposals] = useState(0);
   const [unseenErrors, setUnseenErrors] = useState(0);
   const [overduePreviews, setOverduePreviews] = useState(0);
+  const [unreadLeads, setUnreadLeads] = useState(0);
 
   useEffect(() => {
     if (!accessToken) return;
+
+    const authHeaderLeads = { Authorization: `Bearer ${accessToken}` };
+    const fetchUnreadLeads = () =>
+      fetch("/api/admin/activity", { headers: authHeaderLeads })
+        .then((r) => r.json())
+        .then((d: { activities?: { type: string; read: boolean }[] }) =>
+          setUnreadLeads((d.activities ?? []).filter((a) => a.type === "lead" && !a.read).length)
+        )
+        .catch(() => {});
+    fetchUnreadLeads();
+    const leadsInterval = setInterval(fetchUnreadLeads, 30000);
 
     fetch("/api/admin/mementos")
       .then((r) => r.json())
@@ -76,16 +88,18 @@ function useBadgeCounts(accessToken: string) {
         setOverduePreviews(overdue);
       })
       .catch(() => {});
+
+    return () => clearInterval(leadsInterval);
   }, [accessToken]);
 
-  return { urgentMementos, pendingModeration, pendingProposals, unseenErrors, overduePreviews, setUnseenErrors };
+  return { urgentMementos, pendingModeration, pendingProposals, unseenErrors, overduePreviews, unreadLeads, setUnseenErrors };
 }
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { auth } = useAuth();
-  const { urgentMementos, pendingModeration, pendingProposals, unseenErrors, overduePreviews, setUnseenErrors } =
+  const { urgentMementos, pendingModeration, pendingProposals, unseenErrors, overduePreviews, unreadLeads, setUnseenErrors } =
     useBadgeCounts(auth.accessToken);
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => {
@@ -404,7 +418,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
               </svg>
-              <span>Dashboard</span>
+              <span className="flex-1 text-left">Dashboard</span>
+              {unreadLeads > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[19px] h-[19px] px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.7)]">
+                  {unreadLeads}
+                </span>
+              )}
             </button>
             <div className="px-1 pt-1.5">
               <DashboardSearch onNavigate={onClose} />

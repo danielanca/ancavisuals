@@ -4,7 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { firestore } from "../firestore";
 import { getBunnyStorageKey, buildBunnyStorageUrl, BUNNY_ACCESS_KEY_HEADER } from "../constants/bunny";
-import { getNotificationSettings } from "../services/activity.service";
+import { getNotificationSettings, logActivity } from "../services/activity.service";
 import { sendOfferViewNotification } from "../notifications/offerViewNotification";
 import { reportLeadConversion, reportContactClickConversion } from "../services/googleAdsConversion.service";
 import { geolocateIp } from "../utils/geolocateIp";
@@ -148,27 +148,53 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
     const doc = await firestore().collection(COLLECTION).doc(slug).get();
     const pageTitle = doc.exists ? (doc.data()?.title ?? slug) : slug;
 
-    const { sendEmail } = await import("../notifications/mailer.js");
-    const { adminUser } = await import("../constants/credentials.js");
+    // Email is best-effort — a broken mail provider must never lose a real
+    // contact request. The lead is always persisted below (via logActivity,
+    // which backs the admin activity inbox) regardless of whether this
+    // succeeds, and the inbox flags it visibly when it didn't.
+    let emailSent = false;
+    try {
+      const { sendEmail } = await import("../notifications/mailer.js");
+      const { adminUser } = await import("../constants/credentials.js");
 
-    await sendEmail({
-      to: adminUser.email,
-      subject: `📩 Cerere nouă de pe landing "${pageTitle}"`,
-      html: `
-        <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
-          <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            ${name ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${name}</td></tr>` : ""}
-            <tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${phone}</td></tr>
-            ${eventType ? `<tr><td style="padding:8px 0;color:#666;">Tip eveniment</td><td style="color:#111;">${eventType}</td></tr>` : ""}
-            ${eventDate ? `<tr><td style="padding:8px 0;color:#666;">Dată eveniment</td><td style="color:#111;">${eventDate}</td></tr>` : ""}
-            ${location ? `<tr><td style="padding:8px 0;color:#666;">Localitate</td><td style="color:#111;">${location}</td></tr>` : ""}
-            ${message ? `<tr><td style="padding:8px 0;color:#666;">Mesaj</td><td style="color:#111;">${message}</td></tr>` : ""}
-            <tr><td style="padding:8px 0;color:#666;">Landing</td><td style="color:#6d28d9;">/oferta/${slug}</td></tr>
-          </table>
-        </div>
-      `,
-    });
+      await sendEmail({
+        to: adminUser.email,
+        subject: `📩 Cerere nouă de pe landing "${pageTitle}"`,
+        html: `
+          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+            <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              ${name ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${name}</td></tr>` : ""}
+              <tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${phone}</td></tr>
+              ${eventType ? `<tr><td style="padding:8px 0;color:#666;">Tip eveniment</td><td style="color:#111;">${eventType}</td></tr>` : ""}
+              ${eventDate ? `<tr><td style="padding:8px 0;color:#666;">Dată eveniment</td><td style="color:#111;">${eventDate}</td></tr>` : ""}
+              ${location ? `<tr><td style="padding:8px 0;color:#666;">Localitate</td><td style="color:#111;">${location}</td></tr>` : ""}
+              ${message ? `<tr><td style="padding:8px 0;color:#666;">Mesaj</td><td style="color:#111;">${message}</td></tr>` : ""}
+              <tr><td style="padding:8px 0;color:#666;">Landing</td><td style="color:#6d28d9;">/oferta/${slug}</td></tr>
+            </table>
+          </div>
+        `,
+      });
+      emailSent = true;
+    } catch (emailError) {
+      console.error("[campaign] email for /:slug/contact lead failed (lead is still saved):", emailError);
+    }
+
+    await logActivity({
+      type: "lead",
+      title: `${emailSent ? "📩" : "⚠️ EMAIL EȘUAT —"} Cerere nouă de pe landing "${pageTitle}"`,
+      description: `${[name, phone].filter(Boolean).join(" · ")} · /oferta/${slug}`,
+      metadata: {
+        slug,
+        name: name ?? "",
+        phone,
+        eventType: eventType ?? "",
+        eventDate: eventDate ?? "",
+        location: location ?? "",
+        message: message ?? "",
+      },
+      emailSent,
+    }).catch((err) => console.error("[campaign] logActivity failed for lead:", err));
 
     res.json({ ok: true });
   } catch (error) {

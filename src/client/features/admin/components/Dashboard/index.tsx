@@ -19,7 +19,7 @@ import DashboardSearch from "../DashboardSearch";
 
 // ── Widget Order ──────────────────────────────────────────────────────────
 
-const DEFAULT_WIDGET_ORDER = ["goals", "financial", "countdown", "activity", "albumHealth", "mementos", "events"];
+const DEFAULT_WIDGET_ORDER = ["activity", "goals", "financial", "countdown", "albumHealth", "mementos", "events"];
 const WIDGET_ORDER_KEY = "dashboard_widget_order";
 
 function useDashboardWidgetOrder() {

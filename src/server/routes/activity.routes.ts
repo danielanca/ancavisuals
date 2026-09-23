@@ -4,6 +4,7 @@ import {
   getActivities,
   markAllRead,
   markRead,
+  deleteActivity,
   getNotificationSettings,
   saveNotificationSettings,
   type NotificationSettings,
@@ -35,6 +36,16 @@ router.patch("/activity/read-all", requireFirebaseAuth, requireSupremeAdmin, asy
 router.patch("/activity/:id/read", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     await markRead(req.params.id);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// DELETE /api/admin/activity/:id
+router.delete("/activity/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    await deleteActivity(req.params.id);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: String(error) });

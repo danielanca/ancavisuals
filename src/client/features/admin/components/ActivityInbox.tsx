@@ -145,6 +145,15 @@ export default function ActivityInbox() {
     }).catch(() => {});
   };
 
+  const deleteEntry = async (id: string) => {
+    if (!auth.accessToken) return;
+    setActivities((prev) => prev.filter((a) => a.id !== id));
+    await fetch(`/api/admin/activity/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    }).catch(() => {});
+  };
+
   const saveSettings = async () => {
     if (!auth.accessToken || !settings) return;
     setSavingSettings(true);
@@ -336,6 +345,23 @@ export default function ActivityInbox() {
                   <span style={{ fontSize: 9, color: "#374151", background: "#1f2937", borderRadius: 4, padding: "1px 5px" }}>email</span>
                 )}
               </div>
+
+              {/* Delete */}
+              <button
+                title="Șterge"
+                onClick={(e) => { e.stopPropagation(); deleteEntry(activity.id); }}
+                style={{
+                  flexShrink: 0, width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center",
+                  border: "none", background: "transparent", color: "#333", cursor: "pointer", borderRadius: 6,
+                  transition: "color 0.15s, background 0.15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "#f87171"; e.currentTarget.style.background = "rgba(248,113,113,0.1)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "#333"; e.currentTarget.style.background = "transparent"; }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
           ))
         )}

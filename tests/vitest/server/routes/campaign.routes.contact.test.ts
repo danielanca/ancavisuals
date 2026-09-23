@@ -37,8 +37,10 @@ async function loadRouter() {
     reportContactClickConversion,
   }));
   vi.doMock("src/server/utils/geolocateIp", () => ({ geolocateIp }));
+  const logActivity = vi.fn().mockResolvedValue("activity-1");
   vi.doMock("src/server/services/activity.service", () => ({
     getNotificationSettings: vi.fn().mockResolvedValue({ email: { offerViewed: true } }),
+    logActivity,
   }));
   vi.doMock("src/server/notifications/offerViewNotification", () => ({
     sendOfferViewNotification: vi.fn().mockResolvedValue(undefined),
@@ -68,6 +70,7 @@ async function loadRouter() {
     reportContactClickConversion,
     geolocateIp,
     docGetMock,
+    logActivity,
     postContact: getHandler("post", "/:slug/contact"),
     postContactClick: getHandler("post", "/:slug/contact-click"),
     postInteraction: getHandler("post", "/:slug/interaction"),
@@ -177,16 +180,39 @@ describe("campaign.routes — public landing-page flow", () => {
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
 
-    test("returns 500 with an error payload when sending the email fails", async () => {
-      const { postContact, sendEmail } = await loadRouter();
+    test("still saves the lead and returns ok:true when sending the email fails (e.g. SMTP down)", async () => {
+      const { postContact, sendEmail, logActivity } = await loadRouter();
       sendEmail.mockRejectedValueOnce(new Error("smtp down"));
+      const res = createMockResponse();
+
+      await postContact(
+        { params: { slug: "oferta-nunti" }, body: { name: "Andrei Pop", phone: "0712345678" } },
+        res,
+      );
+
+      expect(res.status).not.toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ ok: true });
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "lead",
+          title: expect.stringContaining("EMAIL EȘUAT"),
+          emailSent: false,
+          metadata: expect.objectContaining({ name: "Andrei Pop", phone: "0712345678" }),
+        }),
+      );
+    });
+
+    test("logs the lead with emailSent:true when the email actually goes out", async () => {
+      const { postContact, logActivity } = await loadRouter();
       const res = createMockResponse();
 
       await postContact({ params: { slug: "oferta-nunti" }, body: { phone: "0712345678" } }, res);
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(String) }));
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "lead", emailSent: true }),
+      );
     });
+
   });
 
   describe("POST /:slug/contact-click", () => {
