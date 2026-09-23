@@ -147,6 +147,14 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
 
     const doc = await firestore().collection(COLLECTION).doc(slug).get();
     const pageTitle = doc.exists ? (doc.data()?.title ?? slug) : slug;
+    const subjectTime = new Date().toLocaleString("ro-RO", {
+      timeZone: "Europe/Bucharest",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).replace(",", "");
 
     // Email is best-effort — a broken mail provider must never lose a real
     // contact request. The lead is always persisted below (via logActivity,
@@ -159,7 +167,7 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
 
       await sendEmail({
         to: adminUser.email,
-        subject: `📩 Cerere nouă de pe landing "${pageTitle}"`,
+        subject: `📩 Cerere nouă de pe landing "${pageTitle}" — ${subjectTime}`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
             <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>
@@ -182,7 +190,7 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
 
     await logActivity({
       type: "lead",
-      title: `${emailSent ? "📩" : "⚠️ EMAIL EȘUAT —"} Cerere nouă de pe landing "${pageTitle}"`,
+      title: `${emailSent ? "📩" : "⚠️ EMAIL EȘUAT —"} Cerere nouă de pe landing "${pageTitle}" — ${subjectTime}`,
       description: `${[name, phone].filter(Boolean).join(" · ")} · /oferta/${slug}`,
       metadata: {
         slug,
