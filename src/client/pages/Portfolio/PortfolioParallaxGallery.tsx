@@ -21,28 +21,45 @@ function getColumnCount(width: number) {
 export default function PortfolioParallaxGallery({
   altBase = "fotograf videograf eveniment Anca Visuals",
 }: PortfolioParallaxGalleryProps) {
-  const [images, setImages] = useState<string[]>([]);
+  const [zoneData, setZoneData] = useState<{ desktop: string[]; mobile: string[] }>({ desktop: [], mobile: [] });
   const [loading, setLoading] = useState(true);
   const [columnCount, setColumnCount] = useState(() =>
     getColumnCount(typeof window !== "undefined" ? window.innerWidth : 1280)
   );
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
   const containerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    fetch("/api/oferte/portfolio-images")
+    fetch("/api/showcase-zones/portfolio_gallery")
       .then((response) => response.json())
-      .then((data: { urls?: string[] }) => {
-        if (Array.isArray(data.urls)) {
-          setImages(Array.from(new Set(data.urls)).slice(0, MAX_IMAGES));
+      .then(async (data: { desktop?: string[]; mobile?: string[] }) => {
+        const desktop = data.desktop ?? [];
+        const mobile = data.mobile ?? [];
+        // Zona nu a fost curatoriata inca din admin — pastram vechiul pool
+        // de poze in loc sa aratam o galerie goala.
+        if (desktop.length === 0 && mobile.length === 0) {
+          const fallback = await fetch("/api/oferte/portfolio-images").then((r) => r.json());
+          setZoneData({ desktop: Array.isArray(fallback.urls) ? fallback.urls : [], mobile: [] });
+          return;
         }
+        setZoneData({ desktop, mobile });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
+  // A device without its own curated set falls back to the other device's set.
+  const images = useMemo(() => {
+    const list = isMobile && zoneData.mobile.length > 0 ? zoneData.mobile : zoneData.desktop;
+    return Array.from(new Set(list)).slice(0, MAX_IMAGES);
+  }, [zoneData, isMobile]);
+
   useEffect(() => {
-    const handleResize = () => setColumnCount(getColumnCount(window.innerWidth));
+    const handleResize = () => {
+      setColumnCount(getColumnCount(window.innerWidth));
+      setIsMobile(window.innerWidth < 640);
+    };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);

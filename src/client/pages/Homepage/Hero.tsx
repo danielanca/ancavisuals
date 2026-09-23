@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { getCatalogImageAlt } from "../../utils/imageAlt";
 
+const HERO_IMAGE_URL =
+  "https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FVertical-225.jpg?alt=media&token=bc2c762a-569a-4858-bfd6-5c46a34428ed";
+
+// Același video de hero folosit pe oferta/olx (PetcuShort.mp4).
+const HERO_VIDEO_URL = "https://ancavisuals.b-cdn.net/offers-assets/video/1778536704893-ye9ph3-PetcuShort.mp4";
+
+// Pornește de la 0:59 și se reia tot de acolo, în buclă — fără ultimele
+// HERO_VIDEO_LOOP_END_MARGIN secunde (la fel ca tratamentul de pe oferta/olx).
+const HERO_VIDEO_LOOP_START = 59;
+const HERO_VIDEO_LOOP_END_MARGIN = 6;
+
 const Hero = () => {
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
@@ -17,11 +28,8 @@ const Hero = () => {
           {/* Fallback image */}
           {!isVideoLoaded && (
             <img
-              src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FVertical-225.jpg?alt=media&token=bc2c762a-569a-4858-bfd6-5c46a34428ed"
-              alt={getCatalogImageAlt(
-                "https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FVertical-225.jpg?alt=media&token=bc2c762a-569a-4858-bfd6-5c46a34428ed",
-                "Fotografie de eveniment Anca Visuals",
-              )}
+              src={HERO_IMAGE_URL}
+              alt={getCatalogImageAlt(HERO_IMAGE_URL, "Fotografie de eveniment Anca Visuals")}
               className="absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-700"
             />
           )}
@@ -29,18 +37,32 @@ const Hero = () => {
           {/* Video appears after 2s */}
           {showVideo && (
             <video
+              src={HERO_VIDEO_URL}
               autoPlay
               muted
-              loop
               playsInline
               className="w-full h-full object-cover z-0"
               onCanPlayThrough={() => setIsVideoLoaded(true)}
-            >
-              <source
-                src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fvideos%2FFaraPOVText.mp4?alt=media&token=b6ea3ef1-13a1-4617-b246-f10a47d9b8e8"
-                type="video/mp4"
-              />
-            </video>
+              onLoadedMetadata={(e) => {
+                const video = e.currentTarget;
+                if (Number.isFinite(video.duration) && video.duration > HERO_VIDEO_LOOP_START) {
+                  video.currentTime = HERO_VIDEO_LOOP_START;
+                }
+              }}
+              onTimeUpdate={(e) => {
+                const video = e.currentTarget;
+                if (!Number.isFinite(video.duration)) return;
+                const loopEnd = video.duration - HERO_VIDEO_LOOP_END_MARGIN;
+                if (loopEnd > HERO_VIDEO_LOOP_START && video.currentTime >= loopEnd) {
+                  video.currentTime = HERO_VIDEO_LOOP_START;
+                }
+              }}
+              onEnded={(e) => {
+                const video = e.currentTarget;
+                video.currentTime = HERO_VIDEO_LOOP_START;
+                void video.play();
+              }}
+            />
           )}
 
           <div className="absolute inset-0 bg-black/20 z-20"></div>
@@ -49,10 +71,10 @@ const Hero = () => {
 
       {/* Text Overlay */}
       <div className="relative z-40 text-center px-4 md:px-6">
-        <p className="text-xs md:text-sm lg:text-base tracking-[0.2em] md:tracking-[0.3em] uppercase mb-6 md:mb-8">
+        <p className="text-xs md:text-sm lg:text-base font-medium tracking-[0.2em] md:tracking-[0.3em] uppercase mb-6 md:mb-8">
           FOTOGRAFIE & VIDEOGRAFIE EVENIMENT
         </p>
-        <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl xl:text-8xl font-extralight tracking-[0.02em] md:tracking-[0.05em] leading-tight">
+        <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl xl:text-8xl font-light tracking-[0.02em] md:tracking-[0.05em] leading-tight">
           PENTRU AMINTIRI
           <br />
           <span className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl xl:text-7xl">CE RAMÂN O VIAȚĂ</span>

@@ -14,6 +14,10 @@ type OfferViewNotificationInput = {
   pageUrl?: string;
   referrer?: string;
   kind?: "offer" | "campaign";
+  /** Set when this "view" is actually a visitor bounced here from a dead
+   * link by NotFoundPage — the original bad path they hit. Never a real,
+   * direct visit to this offer/campaign. */
+  redirectedFrom?: string;
 };
 
 export type OfferViewContext = {
@@ -125,7 +129,9 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
   }).replace(",", "");
   const { device, browser, os } = parseDevice(userAgent);
   const mapUrl = mapsLink(ipInfo?.loc);
-  const kindLabel = input.kind === "campaign" ? "Campanie vizualizată" : "Ofertă vizualizată";
+  const kindLabel = input.redirectedFrom
+    ? "Redirecționat de pe un link inexistent"
+    : input.kind === "campaign" ? "Campanie vizualizată" : "Ofertă vizualizată";
   const traffic = classifyTraffic(pageUrl, referrer);
   const location = locationLabel(ipInfo);
   const locationWithMap = mapUrl
@@ -139,7 +145,7 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
   if (isNotifiableCountry(ipInfo?.country)) {
     await sendEmail({
       to: adminUser.email,
-      subject: `👁 ${kindLabel} · ${traffic.label} — /${input.slug} — ${subjectTime}`,
+      subject: `${input.redirectedFrom ? "🔀" : "👁"} ${kindLabel} · ${traffic.label} — /${input.slug} — ${subjectTime}`,
       html: `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f5f5f5;padding:24px;color:#171717;">
         <div style="background:#111;color:#fff;border-radius:14px 14px 0 0;padding:24px;">
@@ -147,9 +153,14 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
           <h1 style="margin:0;font-size:22px;font-weight:500;">${escapeHtml(kindLabel)}</h1>
           <p style="margin:8px 0 0;color:#a3a3a3;font-size:13px;">${escapeHtml(time)}</p>
         </div>
+        ${input.redirectedFrom ? `
+        <div style="background:#fef3c7;padding:12px 24px;font-size:12.5px;color:#92400e;">
+          Nu e o vizită directă pe /${escapeHtml(input.slug)} — vizitatorul a ajuns pe un link inexistent (<strong>${escapeHtml(input.redirectedFrom)}</strong>) și a fost trimis automat aici.
+        </div>` : ""}
         <div style="background:#fff;padding:22px 24px;">
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
             ${row("Adresă", `/${input.slug}`)}
+            ${input.redirectedFrom ? row("Link inexistent accesat", input.redirectedFrom) : ""}
             ${input.title ? row("Titlu", input.title) : ""}
             ${input.clientName ? row("Client asociat", input.clientName) : ""}
             ${row("IP", ipInfo?.ip ?? ip)}

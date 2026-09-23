@@ -300,7 +300,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Blog", path: "/admin/blog" },
         { label: "Recenzii", path: "/admin/recenzii" },
         { label: "Inspirație", path: "/admin/inspiration" },
-        { label: "Zone Showcase", path: "/admin/showcase" },
+        { label: "Bibliotecă Media", path: "/admin/showcase" },
         { label: "PDF-uri & Ghiduri", path: "/admin/pdf-resources" },
         { label: "Analytics", path: "/admin/analytics" },
         { label: "Vizitatori live", path: "/admin/live" },

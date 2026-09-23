@@ -25,7 +25,7 @@ const Footer = () => {
           <div className="mb-8">
             <h3 className="text-2xl font-light tracking-[0.1em] mb-4">ANCA VISUALS</h3>
             <p className="text-gray-400 max-w-2xl mx-auto leading-relaxed">
-              Creăm amintiri fără vârstă prin arta fotografiei de film. Pentru oameni care prețuiesc momentele autentice
+              Creăm amintiri fără vârstă prin arta fotografiei de eveniment. Pentru oameni care prețuiesc momentele autentice
               — cele care rămân, indiferent cât timp trece.
             </p>
           </div>

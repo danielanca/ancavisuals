@@ -43,7 +43,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web", icon: "✨", keywords: "moodboard idei stil" },
   { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web", icon: "📈", keywords: "vizitatori trafic statistici seo" },
   { label: "Vizitatori live", path: "/admin/live", category: "Marketing & Web", icon: "👁️", keywords: "live visitors realtime vizitatori acum" },
-  { label: "Zone Showcase", path: "/admin/showcase", category: "Marketing & Web", icon: "🖥️", keywords: "banner reclama footer homepage" },
+  { label: "Bibliotecă Media", path: "/admin/showcase", category: "Marketing & Web", icon: "🖼️", keywords: "poze homepage ultimele evenimente galerie portofoliu parallax video promo footer banner zone showcase oferte campanii organizeaza" },
   { label: "PDF-uri & Ghiduri", path: "/admin/pdf-resources", category: "Marketing & Web", icon: "📄", keywords: "pdf ghid brosura upload bunny bio link special" },
   { label: "SEO Generator", path: "/admin/seo-generator", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },
   { label: "SEO Radar", path: "/admin/seo-radar", category: "Marketing & Web", icon: "🛰️", keywords: "seo radar monitorizare ranking pozitii" },

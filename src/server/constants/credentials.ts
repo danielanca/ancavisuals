@@ -5,6 +5,6 @@ export const adminUser = {
 
 export const emailAuth = {
   email: process.env.SMTP_SENDER_EMAIL || "",
-  // Google displays app passwords grouped with spaces; SMTP expects the raw value.
+  // Some providers display app passwords grouped with spaces; SMTP expects the raw value.
   password: (process.env.SMTP_APP_PASSWORD || "").replace(/\s+/g, ""),
 };

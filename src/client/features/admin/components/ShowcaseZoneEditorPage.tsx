@@ -1,14 +1,59 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 // useRef păstrat pentru saveResultTimerRef
+import { useParams, useNavigate } from "react-router-dom";
 import SmartImage from "../../../components/UI/SmartImage";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
+import ReorderableMediaGrid, { type ReorderableMediaItem } from "./shared/ReorderableMediaGrid";
 
 type Proposal = { id: string; photoUrl: string; albumSlug: string; fileName: string };
-type Asset = { id: string; url: string; label: string; serviceId: string };
+type Asset = { id: string; url: string; label: string; serviceId: string; kind?: "image" | "video" };
 type PhotoItem = { url: string; sourceType: "proposal" | "media_asset" | "manual"; sourceId?: string };
+type ZoneMediaItem = ReorderableMediaItem & { sourceType: PhotoItem["sourceType"]; sourceId?: string };
+type Device = "desktop" | "mobile";
 
-const ZONE_ID = "media_footer";
+export type ZoneConfig = {
+  label: string;
+  mode: "single" | "device";
+  mediaKind: "image" | "video";
+  description: string;
+  // "grid": carduri mici pătrate, ordine strict stânga-dreapta — potrivit
+  // pentru o fâșie/footer. Implicit "masonry" (proporții naturale).
+  layout?: "masonry" | "grid";
+};
+
+export const ZONE_CONFIGS: Record<string, ZoneConfig> = {
+  media_footer: {
+    label: "Fâșie promo",
+    mode: "single",
+    mediaKind: "image",
+    description: "Pozele selectate apar în secțiunea promo de pe site (album, share, homepage, contact, portofoliu).",
+    layout: "grid",
+  },
+  homepage_gallery: {
+    label: "Galerie Homepage",
+    mode: "device",
+    mediaKind: "image",
+    description: "Pozele din secțiunea \"Ultimele evenimente\" de pe homepage. Set independent de galeria de portofoliu.",
+  },
+  portfolio_gallery: {
+    label: "Galerie Portofoliu",
+    mode: "device",
+    mediaKind: "image",
+    description: "Pozele afișate pe pagina de portofoliu. Set independent de galeria de pe homepage.",
+  },
+  homepage_videos: {
+    label: "Videouri Homepage",
+    mode: "device",
+    mediaKind: "video",
+    description: "Videourile afișate pe homepage.",
+  },
+};
+
+const DEFAULT_CONFIG: ZoneConfig = { label: "Zonă", mode: "single", mediaKind: "image", description: "" };
+
+// Ordinea taburilor din bibliotecă — cele mai folosite zone primele.
+export const ZONE_TAB_ORDER = ["homepage_gallery", "portfolio_gallery", "homepage_videos", "media_footer"];
 
 function photosEqual(a: PhotoItem[], b: PhotoItem[]): boolean {
   if (a.length !== b.length) return false;
@@ -19,47 +64,63 @@ function photosEqual(a: PhotoItem[], b: PhotoItem[]): boolean {
   );
 }
 
+function toZoneMediaItems(list: PhotoItem[], kind: "image" | "video"): ZoneMediaItem[] {
+  return list.map((item, index) => ({
+    id: item.url,
+    url: item.url,
+    kind,
+    label: `Poza ${index + 1}`,
+    sourceType: item.sourceType,
+    sourceId: item.sourceId,
+  }));
+}
+
+function fromZoneMediaItems(items: ZoneMediaItem[]): PhotoItem[] {
+  return items.map(({ url, sourceType, sourceId }) => ({ url, sourceType, sourceId }));
+}
+
 export default function ShowcaseZoneEditorPage() {
   const { auth } = useAuth();
+  const navigate = useNavigate();
+  const { zoneId = "media_footer" } = useParams<{ zoneId: string }>();
+  const config = ZONE_CONFIGS[zoneId] ?? DEFAULT_CONFIG;
 
   const [sources, setSources] = useState<{ proposals: Proposal[]; assets: Asset[] } | null>(null);
   const [sourcesLoading, setSourcesLoading] = useState(true);
   const [sourcesError, setSourcesError] = useState(false);
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
-  const [savedPhotos, setSavedPhotos] = useState<PhotoItem[]>([]);
-  const [sourceTab, setSourceTab] = useState<"proposals" | "assets">("proposals");
+  const [photosByDevice, setPhotosByDevice] = useState<Record<Device, PhotoItem[]>>({ desktop: [], mobile: [] });
+  const [savedByDevice, setSavedByDevice] = useState<Record<Device, PhotoItem[]>>({ desktop: [], mobile: [] });
+  const [activeDevice, setActiveDevice] = useState<Device>("desktop");
+  const [sourceTab, setSourceTab] = useState<"proposals" | "assets">(config.mediaKind === "video" ? "assets" : "proposals");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dropIndex, setDropIndex] = useState<number | null>(null);
-  const [confirmClear, setConfirmClear] = useState(false);
 
   const saveResultTimerRef = useRef<number | null>(null);
-
-  const authHeaders: Record<string, string> = auth.accessToken
-    ? { Authorization: `Bearer ${auth.accessToken}` }
-    : {};
+  const activeDeviceKey: Device = config.mode === "single" ? "desktop" : activeDevice;
+  const activeList = photosByDevice[activeDeviceKey];
 
   // Load zone data — nu necesită autentificare
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    fetch(`/api/showcase-zones/${ZONE_ID}`, { signal: controller.signal })
+    setLoading(true);
+    fetch(`/api/showcase-zones/${zoneId}`, { signal: controller.signal })
       .then((r) => r.ok ? r.json() : null)
-      .then((zoneData: { photos?: string[] } | null) => {
+      .then((zoneData: { photos?: string[]; desktop?: string[]; mobile?: string[] } | null) => {
         if (cancelled) return;
-        if (zoneData?.photos) {
-          const loaded: PhotoItem[] = zoneData.photos.map((url) => ({ url, sourceType: "manual" as const }));
-          setPhotos(loaded);
-          setSavedPhotos(loaded);
-        }
+        const toItems = (urls?: string[]): PhotoItem[] => (urls ?? []).map((url) => ({ url, sourceType: "manual" as const }));
+        const loaded: Record<Device, PhotoItem[]> = (ZONE_CONFIGS[zoneId] ?? DEFAULT_CONFIG).mode === "single"
+          ? { desktop: toItems(zoneData?.photos), mobile: [] }
+          : { desktop: toItems(zoneData?.desktop), mobile: toItems(zoneData?.mobile) };
+        setPhotosByDevice(loaded);
+        setSavedByDevice(loaded);
       })
       .catch((err) => { if (err.name !== "AbortError") console.error("[Showcase] zone load error:", err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; controller.abort(); };
-  }, []);
+  }, [zoneId]);
 
   // Load sources — necesită autentificare
   useEffect(() => {
@@ -68,7 +129,7 @@ export default function ShowcaseZoneEditorPage() {
     const controller = new AbortController();
     setSourcesLoading(true);
     setSourcesError(false);
-    fetch(`/api/showcase-zones/${ZONE_ID}/sources`, {
+    fetch(`/api/showcase-zones/${zoneId}/sources?kind=${config.mediaKind}`, {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
       signal: controller.signal,
     })
@@ -84,40 +145,26 @@ export default function ShowcaseZoneEditorPage() {
       })
       .finally(() => { if (!cancelled) setSourcesLoading(false); });
     return () => { cancelled = true; controller.abort(); };
-  }, [auth.loading, auth.accessToken]);
+  }, [auth.loading, auth.accessToken, zoneId, config.mediaKind]);
 
   const togglePhoto = useCallback((url: string, sourceType: PhotoItem["sourceType"], sourceId?: string) => {
-    setPhotos((prev) => {
-      if (prev.some((p) => p.url === url)) return prev.filter((p) => p.url !== url);
-      return [...prev, { url, sourceType, sourceId }];
+    setPhotosByDevice((prev) => {
+      const list = prev[activeDeviceKey];
+      const nextList = list.some((p) => p.url === url)
+        ? list.filter((p) => p.url !== url)
+        : [...list, { url, sourceType, sourceId }];
+      return { ...prev, [activeDeviceKey]: nextList };
     });
     setSaveResult(null);
-  }, []);
+  }, [activeDeviceKey]);
 
-  const removePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
-    setSaveResult(null);
-  };
-
-  const move = (index: number, direction: -1 | 1) => {
-    const next = index + direction;
-    if (next < 0 || next >= photos.length) return;
-    setPhotos((prev) => {
-      const arr = [...prev];
-      [arr[index], arr[next]] = [arr[next], arr[index]];
-      return arr;
-    });
+  const removePhotoByUrl = (url: string) => {
+    setPhotosByDevice((prev) => ({ ...prev, [activeDeviceKey]: prev[activeDeviceKey].filter((p) => p.url !== url) }));
     setSaveResult(null);
   };
 
-  const reorder = (from: number, to: number) => {
-    if (from === to) return;
-    setPhotos((prev) => {
-      const next = [...prev];
-      const [item] = next.splice(from, 1);
-      next.splice(to, 0, item);
-      return next;
-    });
+  const handleReorder = (nextItems: ReorderableMediaItem[]) => {
+    setPhotosByDevice((prev) => ({ ...prev, [activeDeviceKey]: fromZoneMediaItems(nextItems as ZoneMediaItem[]) }));
     setSaveResult(null);
   };
 
@@ -144,22 +191,25 @@ export default function ShowcaseZoneEditorPage() {
       console.error("[Showcase] PUT timeout după 12s");
     }, 12000);
     try {
-      console.log("[Showcase] PUT", photos.length, "poze");
-      const res = await fetch(`/api/showcase-zones/${ZONE_ID}`, {
+      const body = config.mode === "single"
+        ? { photos: photosByDevice.desktop }
+        : { desktop: photosByDevice.desktop, mobile: photosByDevice.mobile };
+      console.log("[Showcase] PUT", zoneId, body);
+      const res = await fetch(`/api/showcase-zones/${zoneId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-        body: JSON.stringify({ photos }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
       console.log("[Showcase] răspuns:", res.status);
       if (res.ok) {
-        setSavedPhotos([...photos]);
+        setSavedByDevice(photosByDevice);
         showSaveResult("Salvat ✓");
       } else {
-        const body = await res.text().catch(() => res.statusText);
-        console.error("[Showcase] eroare:", res.status, body);
-        showSaveResult(`Eroare ${res.status}: ${body}`);
+        const errBody = await res.text().catch(() => res.statusText);
+        console.error("[Showcase] eroare:", res.status, errBody);
+        showSaveResult(`Eroare ${res.status}: ${errBody}`);
       }
     } catch (err) {
       clearTimeout(timeoutId);
@@ -171,12 +221,12 @@ export default function ShowcaseZoneEditorPage() {
     }
   };
 
-  const isDirty = !photosEqual(photos, savedPhotos);
+  const isDirty = !photosEqual(photosByDevice.desktop, savedByDevice.desktop) || !photosEqual(photosByDevice.mobile, savedByDevice.mobile);
 
   // Filtered source list
   const rawSourceList = sourceTab === "proposals"
-    ? (sources?.proposals ?? []).map((p) => ({ id: p.id, url: p.photoUrl, label: p.fileName, sourceType: "proposal" as const }))
-    : (sources?.assets ?? []).map((a) => ({ id: a.id, url: a.url, label: a.label, sourceType: "media_asset" as const }));
+    ? (sources?.proposals ?? []).map((p) => ({ id: p.id, url: p.photoUrl, label: p.fileName, sourceType: "proposal" as const, kind: "image" as const }))
+    : (sources?.assets ?? []).map((a) => ({ id: a.id, url: a.url, label: a.label, sourceType: "media_asset" as const, kind: a.kind ?? "image" }));
 
   const filteredSourceList = searchQuery.trim()
     ? rawSourceList.filter((item) => item.label.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -197,13 +247,39 @@ export default function ShowcaseZoneEditorPage() {
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", padding: "20px 24px 80px" }}>
       <Breadcrumb />
 
+      {/* Taburi — o singură pagină pentru toate destinațiile de media */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {ZONE_TAB_ORDER.map((id) => {
+          const tabConfig = ZONE_CONFIGS[id] ?? DEFAULT_CONFIG;
+          const isActive = id === zoneId;
+          return (
+            <button
+              key={id}
+              onClick={() => {
+                if (isActive) return;
+                if (isDirty && !window.confirm("Ai modificări nesalvate în această zonă. Schimbi oricum și le pierzi?")) return;
+                navigate(`/admin/showcase/${id}`);
+              }}
+              style={{
+                padding: "8px 16px", borderRadius: 10, border: "1px solid",
+                borderColor: isActive ? "#7c3aed" : "#2a2a2a",
+                background: isActive ? "#7c3aed22" : "#111",
+                color: isActive ? "#a78bfa" : "#888",
+                fontSize: 13, fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {tabConfig.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Zone Showcase</h1>
-          <p style={{ fontSize: 12, color: "#555", marginTop: 3 }}>
-            Pozele selectate apar în secțiunea promo de pe site (album, share, homepage, contact, portofoliu)
-          </p>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{config.label}</h1>
+          <p style={{ fontSize: 12, color: "#555", marginTop: 3 }}>{config.description}</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {saveResult && (
@@ -223,7 +299,7 @@ export default function ShowcaseZoneEditorPage() {
               transition: "all 0.15s",
             }}
           >
-            {saving ? "Se salvează..." : isDirty ? `Salvează (${photos.length} poze)` : "Salvat ✓"}
+            {saving ? "Se salvează..." : isDirty ? "Salvează" : "Salvat ✓"}
           </button>
         </div>
       </div>
@@ -232,7 +308,7 @@ export default function ShowcaseZoneEditorPage() {
       <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 14, padding: 20, marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
           <p style={{ fontSize: 12, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
-            📂 Surse disponibile — selectează pozele
+            📂 Surse disponibile — selectează {config.mediaKind === "video" ? "videourile" : "pozele"}
           </p>
           {/* Search */}
           <input
@@ -249,24 +325,26 @@ export default function ShowcaseZoneEditorPage() {
         </div>
 
         {/* Source tabs */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {(["proposals", "assets"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => { setSourceTab(t); setSearchQuery(""); }}
-              style={{
-                padding: "7px 16px", borderRadius: 8, border: "1px solid",
-                borderColor: sourceTab === t ? "#7c3aed" : "#2a2a2a",
-                background: sourceTab === t ? "#7c3aed22" : "transparent",
-                color: sourceTab === t ? "#a78bfa" : "#666",
-                fontSize: 13, cursor: "pointer", fontWeight: sourceTab === t ? 600 : 400,
-                transition: "all 0.15s",
-              }}
-            >
-              {t === "proposals" ? `📸 Propuneri (${proposalCount})` : `🖼 Media Assets (${assetCount})`}
-            </button>
-          ))}
-        </div>
+        {config.mediaKind !== "video" && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            {(["proposals", "assets"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => { setSourceTab(t); setSearchQuery(""); }}
+                style={{
+                  padding: "7px 16px", borderRadius: 8, border: "1px solid",
+                  borderColor: sourceTab === t ? "#7c3aed" : "#2a2a2a",
+                  background: sourceTab === t ? "#7c3aed22" : "transparent",
+                  color: sourceTab === t ? "#a78bfa" : "#666",
+                  fontSize: 13, cursor: "pointer", fontWeight: sourceTab === t ? 600 : 400,
+                  transition: "all 0.15s",
+                }}
+              >
+                {t === "proposals" ? `📸 Propuneri (${proposalCount})` : `🖼 Media Assets (${assetCount})`}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Source grid */}
         {sourcesLoading ? (
@@ -299,8 +377,8 @@ export default function ShowcaseZoneEditorPage() {
             paddingRight: 4,
           }}>
             {filteredSourceList.map((item) => {
-              const isSelected = photos.some((p) => p.url === item.url);
-              const positionIndex = photos.findIndex((p) => p.url === item.url);
+              const isSelected = activeList.some((p) => p.url === item.url);
+              const positionIndex = activeList.findIndex((p) => p.url === item.url);
               return (
                 <div
                   key={item.id}
@@ -308,17 +386,31 @@ export default function ShowcaseZoneEditorPage() {
                   title={item.label}
                   style={{ position: "relative", cursor: "pointer", borderRadius: 8, overflow: "hidden", userSelect: "none" }}
                 >
-                  <SmartImage
-                    src={item.url}
-                    alt={item.label}
-                    style={{
-                      width: "100%", aspectRatio: "1", objectFit: "cover", display: "block",
-                      border: isSelected ? "3px solid #7c3aed" : "3px solid transparent",
-                      borderRadius: 8,
-                      opacity: isSelected ? 0.6 : 1,
-                      transition: "all 0.15s",
-                    }}
-                  />
+                  {item.kind === "video" ? (
+                    <video
+                      src={item.url}
+                      muted
+                      style={{
+                        width: "100%", aspectRatio: "1", objectFit: "cover", display: "block",
+                        border: isSelected ? "3px solid #7c3aed" : "3px solid transparent",
+                        borderRadius: 8,
+                        opacity: isSelected ? 0.6 : 1,
+                        transition: "all 0.15s",
+                      }}
+                    />
+                  ) : (
+                    <SmartImage
+                      src={item.url}
+                      alt={item.label}
+                      style={{
+                        width: "100%", aspectRatio: "1", objectFit: "cover", display: "block",
+                        border: isSelected ? "3px solid #7c3aed" : "3px solid transparent",
+                        borderRadius: 8,
+                        opacity: isSelected ? 0.6 : 1,
+                        transition: "all 0.15s",
+                      }}
+                    />
+                  )}
                   {isSelected && (
                     <div style={{
                       position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
@@ -344,165 +436,45 @@ export default function ShowcaseZoneEditorPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
-              🔢 Ordinea în care apar pe site ({photos.length} poze)
+              🔢 Ordinea în care apar pe site ({activeList.length})
             </p>
             <p style={{ fontSize: 11, color: "#444", marginTop: 4 }}>
-              Trage pozele pentru a reordona • Prima poză apare prima pe site
+              Trage cardurile pentru reordonare • dublu-click pe două poze ca să facă schimb de locuri • ține apăsat pentru selecție multiplă • prima apare prima pe site
             </p>
           </div>
-          {photos.length > 0 && (
-            confirmClear ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, color: "#f87171" }}>Sigur ștergi tot?</span>
+          {config.mode === "device" && (
+            <div style={{ display: "flex", borderRadius: 8, border: "1px solid #2a2a2a", padding: 4 }}>
+              {(["desktop", "mobile"] as const).map((device) => (
                 <button
-                  onClick={() => { setPhotos([]); setSaveResult(null); setConfirmClear(false); }}
-                  style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #7f1d1d", background: "none", color: "#f87171", fontSize: 12, cursor: "pointer" }}
+                  key={device}
+                  onClick={() => setActiveDevice(device)}
+                  style={{
+                    padding: "6px 14px", borderRadius: 6, border: "none",
+                    background: activeDevice === device ? "#7c3aed" : "transparent",
+                    color: activeDevice === device ? "#fff" : "#888",
+                    fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+                  }}
                 >
-                  Da, golește
+                  {device === "desktop" ? "🖥️ Desktop" : "📱 Mobil"}
                 </button>
-                <button
-                  onClick={() => setConfirmClear(false)}
-                  style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "none", color: "#666", fontSize: 12, cursor: "pointer" }}
-                >
-                  Anulează
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmClear(true)}
-                style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid #2a2a2a", background: "none", color: "#555", fontSize: 12, cursor: "pointer" }}
-              >
-                Golește tot
-              </button>
-            )
+              ))}
+            </div>
           )}
         </div>
 
-        {photos.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "#333" }}>
-            <p style={{ fontSize: 32, margin: "0 0 12px" }}>📭</p>
-            <p style={{ fontSize: 14, color: "#444" }}>Nicio poză selectată.</p>
-            <p style={{ fontSize: 12, color: "#333", marginTop: 4 }}>Selectează din surse de mai sus.</p>
-          </div>
-        ) : (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 12,
-          }}>
-            {photos.map((photo, index) => (
-              <div
-                key={`${photo.url}-${index}`}
-                draggable
-                onDragStart={() => setDragIndex(index)}
-                onDragOver={(e) => { e.preventDefault(); setDropIndex(index); }}
-                onDragEnd={() => {
-                  if (dragIndex !== null && dropIndex !== null && dragIndex !== dropIndex) {
-                    reorder(dragIndex, dropIndex);
-                  }
-                  setDragIndex(null);
-                  setDropIndex(null);
-                }}
-                style={{
-                  position: "relative",
-                  borderRadius: 10,
-                  overflow: "hidden",
-                  cursor: "grab",
-                  outline: dropIndex === index && dragIndex !== index ? "3px solid #7c3aed" : "3px solid transparent",
-                  opacity: dragIndex === index ? 0.4 : 1,
-                  transition: "opacity 0.15s, outline 0.1s",
-                  background: "#0a0a0a",
-                }}
-              >
-                <SmartImage
-                  src={photo.url}
-                  alt={`Poza ${index + 1}`}
-                  style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block", pointerEvents: "none" }}
-                  draggable={false}
-                />
-
-                {/* Position badge */}
-                <div style={{
-                  position: "absolute", top: 8, left: 8,
-                  background: index === 0 ? "#7c3aed" : "rgba(0,0,0,0.75)",
-                  color: "#fff", fontSize: 13, fontWeight: 800,
-                  borderRadius: 6, padding: "2px 8px",
-                  backdropFilter: "blur(4px)",
-                  border: index === 0 ? "none" : "1px solid rgba(255,255,255,0.1)",
-                }}>
-                  {index === 0 ? "⭐ 1" : `#${index + 1}`}
-                </div>
-
-                {/* Remove button */}
-                <button
-                  onClick={() => removePhoto(index)}
-                  style={{
-                    position: "absolute", top: 8, right: 8,
-                    background: "rgba(0,0,0,0.75)", border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 6, color: "#ef4444", cursor: "pointer",
-                    padding: "2px 8px", fontSize: 13, fontWeight: 700,
-                    backdropFilter: "blur(4px)",
-                  }}
-                >
-                  ✕
-                </button>
-
-                {/* Move buttons — visible on hover via opacity trick, always visible on mobile */}
-                <div style={{
-                  position: "absolute", bottom: 0, left: 0, right: 0,
-                  display: "flex", gap: 0, background: "rgba(0,0,0,0.7)",
-                  backdropFilter: "blur(4px)",
-                }}>
-                  <button
-                    onClick={() => move(index, -1)}
-                    disabled={index === 0}
-                    style={{
-                      flex: 1, padding: "6px 0", border: "none",
-                      background: "none", color: index === 0 ? "#333" : "#aaa",
-                      fontSize: 16, cursor: index === 0 ? "default" : "pointer",
-                      borderRight: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                    title="Mută înainte"
-                  >←</button>
-                  <button
-                    onClick={() => move(index, 1)}
-                    disabled={index === photos.length - 1}
-                    style={{
-                      flex: 1, padding: "6px 0", border: "none",
-                      background: "none", color: index === photos.length - 1 ? "#333" : "#aaa",
-                      fontSize: 16, cursor: index === photos.length - 1 ? "default" : "pointer",
-                    }}
-                    title="Mută înapoi"
-                  >→</button>
-                </div>
-              </div>
-            ))}
-          </div>
+        {config.mode === "device" && (
+          <p style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+            {activeDevice === "desktop" ? "Aceasta ordine e văzută pe desktop." : "Aceasta ordine e văzută pe mobil."}
+          </p>
         )}
 
-        {/* Save at bottom too */}
-        {photos.length > 0 && (
-          <div style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 12 }}>
-            <button
-              onClick={save}
-              disabled={!isDirty || saving}
-              style={{
-                padding: "12px 32px", borderRadius: 8, border: "none",
-                background: isDirty && !saving ? "#7c3aed" : "#1a1a1a",
-                color: isDirty && !saving ? "#fff" : "#444",
-                fontSize: 14, fontWeight: 700,
-                cursor: isDirty && !saving ? "pointer" : "not-allowed",
-              }}
-            >
-              {saving ? "Se salvează..." : isDirty ? `Salvează ordinea (${photos.length} poze)` : "Totul e salvat ✓"}
-            </button>
-            {saveResult && (
-              <span style={{ fontSize: 13, fontWeight: 600, color: saveResult.startsWith("Salvat") ? "#34d399" : "#f87171" }}>
-                {saveResult}
-              </span>
-            )}
-          </div>
-        )}
+        <ReorderableMediaGrid
+          items={toZoneMediaItems(activeList, config.mediaKind)}
+          onReorder={handleReorder}
+          onRemove={removePhotoByUrl}
+          emptyLabel={`Nicio ${config.mediaKind === "video" ? "video" : "poză"} selectată${config.mode === "device" ? ` pentru ${activeDevice === "desktop" ? "desktop" : "mobil"}` : ""}.`}
+          layout={config.layout ?? "masonry"}
+        />
       </div>
 
       <style>{`

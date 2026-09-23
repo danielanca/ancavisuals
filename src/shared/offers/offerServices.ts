@@ -27,6 +27,13 @@ export type OfferTemplateAsset = {
   order: number;
 };
 
+export type OfferDeviceKey = "desktop" | "mobile";
+
+export type OfferDeviceTemplateAssets = {
+  desktop: OfferTemplateAsset[];
+  mobile: OfferTemplateAsset[];
+};
+
 export type OfferPackageItem = {
   id: string;
   label: string;
@@ -158,14 +165,17 @@ export const OFFER_SERVICES: OfferServiceDefinition[] = [
 
 const OFFER_SERVICE_IDS = new Set(OFFER_SERVICES.map(service => service.id));
 
+type OfferShowcaseAsset = {
+  id: string;
+  kind: OfferAssetKind;
+  url: string;
+  label: string;
+  displayUrl?: string;
+};
+
 export type OfferShowcaseService = OfferServiceDefinition & {
-  assets: Array<{
-    id: string;
-    kind: OfferAssetKind;
-    url: string;
-    label: string;
-    displayUrl?: string;
-  }>;
+  assets: OfferShowcaseAsset[];
+  assetsMobile: OfferShowcaseAsset[];
 };
 
 export function normalizeOfferServiceIds(input: unknown): string[] {
@@ -204,14 +214,39 @@ export function normalizeOfferTemplateAssets(input: unknown): OfferTemplateAsset
     .map((value, index) => ({ ...value, order: index }));
 }
 
+// Legacy stored shape was a flat OfferTemplateAsset[] shared by every device.
+// Older docs (or a doc never re-saved since this shipped) normalize to the
+// same order on both desktop and mobile, so nothing regresses until someone
+// curates them separately.
+export function normalizeOfferDeviceShowcase(input: unknown): OfferDeviceTemplateAssets {
+  if (Array.isArray(input)) {
+    const legacy = normalizeOfferTemplateAssets(input);
+    return { desktop: legacy, mobile: legacy };
+  }
+  if (input && typeof input === "object") {
+    const record = input as Record<string, unknown>;
+    return {
+      desktop: normalizeOfferTemplateAssets(record.desktop),
+      mobile: normalizeOfferTemplateAssets(record.mobile),
+    };
+  }
+  return { desktop: [], mobile: [] };
+}
+
+export type OfferResolvedDeviceAssets = Record<string, { desktop: OfferMediaAsset[]; mobile: OfferMediaAsset[] }>;
+
 export function mergeOfferShowcase(
   raw: unknown,
-  resolvedAssets?: Record<string, OfferMediaAsset[]>,
+  resolvedAssets?: OfferResolvedDeviceAssets,
 ): OfferShowcaseService[] {
   const showcaseMap = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  const toShowcaseAssets = (assets: OfferMediaAsset[]): OfferShowcaseAsset[] =>
+    assets.map(asset => ({ id: asset.id, kind: asset.kind, url: asset.url, label: asset.label, displayUrl: asset.displayUrl }));
+
   return OFFER_SERVICES.map(service => {
     const entry = showcaseMap[service.id];
-    const assets = resolvedAssets?.[service.id] ?? [];
+    const desktopAssets = resolvedAssets?.[service.id]?.desktop ?? [];
+    const mobileAssets = resolvedAssets?.[service.id]?.mobile ?? [];
     const fallbackImages = entry && typeof entry === "object" && "images" in (entry as Record<string, unknown>)
       ? normalizeShowcaseImages((entry as { images?: unknown }).images).map((url, index) => ({
           id: `${service.id}-fallback-${index}`,
@@ -226,11 +261,12 @@ export function mergeOfferShowcase(
           label: service.label,
         }));
 
-    return {
-      ...service,
-      assets: assets.length > 0
-        ? assets.map(asset => ({ id: asset.id, kind: asset.kind, url: asset.url, label: asset.label, displayUrl: asset.displayUrl }))
-        : fallbackImages,
-    };
+    const assets = desktopAssets.length > 0 ? toShowcaseAssets(desktopAssets) : fallbackImages;
+    // A device without its own curated set falls back to the other device's
+    // set before falling back to generic sample images — most services won't
+    // ever get a separate mobile curation, and they shouldn't need one.
+    const assetsMobile = mobileAssets.length > 0 ? toShowcaseAssets(mobileAssets) : assets;
+
+    return { ...service, assets, assetsMobile };
   });
 }

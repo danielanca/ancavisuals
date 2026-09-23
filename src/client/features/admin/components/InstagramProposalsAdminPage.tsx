@@ -143,7 +143,7 @@ function PendingCard({
       <div className="flex sm:flex-col">
         <div className="relative flex-shrink-0 w-28 sm:w-full">
           <img
-            src={group.originalPhotoUrl ?? group.photoUrl}
+            src={group.photoUrl}
             alt={group.alt || group.fileName}
             className="w-full h-28 sm:h-auto sm:aspect-square object-cover block"
             loading="lazy"
@@ -312,7 +312,7 @@ function AcceptedCard({
     <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
       <div className="relative">
         <img
-          src={proposal.originalPhotoUrl ?? proposal.photoUrl}
+          src={proposal.photoUrl}
           alt={proposal.alt || proposal.fileName}
           className="w-full aspect-square object-cover block"
           loading="lazy"
@@ -847,7 +847,7 @@ export default function InstagramProposalsAdminPage() {
                 <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                   <div className="relative">
                     <img
-                      src={proposal.originalPhotoUrl ?? proposal.photoUrl}
+                      src={proposal.photoUrl}
                       alt={proposal.fileName}
                       className="w-full aspect-square object-cover block grayscale opacity-50"
                       loading="lazy"
@@ -911,7 +911,7 @@ export default function InstagramProposalsAdminPage() {
                 <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                   <div className="relative">
                     <img
-                      src={proposal.originalPhotoUrl ?? proposal.photoUrl}
+                      src={proposal.photoUrl}
                       alt={proposal.fileName}
                       className="w-full aspect-square object-cover block"
                       loading="lazy"
@@ -1007,7 +1007,7 @@ export default function InstagramProposalsAdminPage() {
                   <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                     <div className="relative">
                       <img
-                        src={proposal.originalPhotoUrl ?? proposal.photoUrl}
+                        src={proposal.photoUrl}
                         alt={proposal.fileName}
                         className="w-full aspect-square object-cover block"
                         loading="lazy"

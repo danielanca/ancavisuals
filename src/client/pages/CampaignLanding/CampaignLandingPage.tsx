@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
@@ -13,6 +14,10 @@ function formatDateRo(iso: string): string {
   if (!m) return iso;
   return `${Number(m[3])} ${MONTHS_RO[Number(m[2]) - 1]} ${m[1]}`;
 }
+// Video-ul de hero pornește de la 0:59 și se reia tot de acolo, în buclă —
+// fără ultimele HERO_VIDEO_LOOP_END_MARGIN secunde (acolo e credits-ul).
+const HERO_VIDEO_LOOP_START = 59;
+const HERO_VIDEO_LOOP_END_MARGIN = 6;
 const daysInMonth = (year: number, monthZeroBased: number) => new Date(year, monthZeroBased + 1, 0).getDate();
 const toIso = (day: number, monthZeroBased: number, year: number) =>
   `${year}-${String(monthZeroBased + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -56,6 +61,10 @@ export interface CampaignPage {
   heroVideoUrl: string;
   videoUrl?: string;
   gallery: CampaignGalleryItem[];
+  // Liste separate desktop/mobil, administrate din CampaignAdminPage. Campaniile
+  // vechi (nemigrate) au doar `gallery` — vezi fallback-ul in randarea publica.
+  galleryDesktop?: CampaignGalleryItem[];
+  galleryMobile?: CampaignGalleryItem[];
   packages: CampaignPackage[];
   testimonials: CampaignTestimonial[];
   active: boolean;
@@ -181,6 +190,27 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   }, [latestContractVisible]);
   const [galleryExpanded, setGalleryExpanded] = useState(false);
   const GALLERY_INITIAL = 16;
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  // Orașul vizitatorului (doar dacă e din România) — personalizează
+  // "pentru nunți în {oraș} și Transilvania" fără să schimbe nimic pentru
+  // vizitatorii din afara țării, care văd doar "Transilvania".
+  const [visitorCity, setVisitorCity] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/campaign/geo-city")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { city?: string | null } | null) => setVisitorCity(data?.city ?? null))
+      .catch(() => {});
+  }, []);
+
+  // Campanii nemigrate au doar `gallery` — o folosim ca fallback pe ambele device-uri.
+  const galleryItems = isMobile
+    ? (page.galleryMobile?.length ? page.galleryMobile : page.gallery)
+    : (page.galleryDesktop?.length ? page.galleryDesktop : page.gallery);
   // Real, fixed promo deadline — does not reset per visit/session, unlike the
   // old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
   const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
@@ -266,7 +296,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.phone.trim()) return;
+    if (!form.phone.trim()) return;
     setFormStatus("sending");
     try {
       const landing = getLandingMeta();
@@ -333,10 +363,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       <header className="absolute top-0 inset-x-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
-          <a href="#acasa" className="text-xs tracking-[0.28em] uppercase font-medium text-white">Anca Visuals</a>
+          <Link to="/" className="text-xs tracking-[0.28em] uppercase font-bold sm:font-medium text-white">Anca Visuals</Link>
           <a
             href="#verifica-data"
-            className="hidden sm:inline-flex items-center gap-2 text-xs tracking-wide text-white/80 hover:text-white transition-colors"
+            className="hidden sm:inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold tracking-wide text-black transition-colors hover:bg-neutral-100"
           >
             Verifică disponibilitatea <ArrowIcon />
           </a>
@@ -350,8 +380,30 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             src={page.heroVideoUrl}
             autoPlay
             muted
-            loop
             playsInline
+            // Pornește de la 0:59 și se reia tot de acolo (nu de la început) —
+            // atributul nativ "loop" ar sări direct la 0, așa că bucla se face manual.
+            // Ultimele HERO_VIDEO_LOOP_END_MARGIN secunde (credits-ul) sunt tăiate —
+            // bucla o ia de la capăt înainte să ajungă acolo.
+            onLoadedMetadata={(e) => {
+              const video = e.currentTarget;
+              if (Number.isFinite(video.duration) && video.duration > HERO_VIDEO_LOOP_START) {
+                video.currentTime = HERO_VIDEO_LOOP_START;
+              }
+            }}
+            onTimeUpdate={(e) => {
+              const video = e.currentTarget;
+              if (!Number.isFinite(video.duration)) return;
+              const loopEnd = video.duration - HERO_VIDEO_LOOP_END_MARGIN;
+              if (loopEnd > HERO_VIDEO_LOOP_START && video.currentTime >= loopEnd) {
+                video.currentTime = HERO_VIDEO_LOOP_START;
+              }
+            }}
+            onEnded={(e) => {
+              const video = e.currentTarget;
+              video.currentTime = HERO_VIDEO_LOOP_START;
+              void video.play();
+            }}
             className="absolute inset-0 w-full h-full object-cover"
           />
         ) : page.heroImageUrl ? (
@@ -378,7 +430,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               {page.subtitle}
             </p>
           )}
-          <div className="flex flex-col sm:flex-row gap-3">
+          {/* Pe mobil, bara fixă de jos are deja "Verifică data" + WhatsApp —
+              butoanele astea două ar dubla acțiunea și aglomerau hero-ul. */}
+          <div className="hidden sm:flex flex-col sm:flex-row gap-3">
             <a
               href="#verifica-data"
               className="inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-7 py-4 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-green-900/40"
@@ -396,24 +450,21 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           </div>
           <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-xs text-white/65">
             <span>✓ Peste 50 de evenimente fotografiate și filmate</span>
-            <span>✓ Echipă foto-video pentru nunți în Transilvania</span>
-            <span>✓ Răspuns personalizat</span>
+            <span>✓ Echipă foto-video pentru nunți în {visitorCity ? `${visitorCity} și Transilvania` : "Transilvania"}</span>
+            <span>✓ Îți personalizăm oferta</span>
           </div>
         </div>
       </section>
 
       {/* ── PORTFOLIO (imediat după hero) ──────────────────────────── */}
-      {page.gallery.length > 0 && (
+      {galleryItems.length > 0 && (
         <section className="py-20 sm:py-24 px-6 max-w-6xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
-            <div>
-              <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Portofoliu</p>
-              <h2 className="text-3xl font-light">Mai mult decât imagini frumoase.</h2>
-            </div>
-            <a href="#verifica-data" className="inline-flex items-center gap-2 text-sm text-white hover:text-amber-100 transition-colors">Verifică data ta <ArrowIcon /></a>
+          <div className="mb-10">
+            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Portofoliu</p>
+            <h2 className="text-3xl font-light">Mai mult decât imagini frumoase.</h2>
           </div>
           <div className="columns-2 sm:columns-3 lg:columns-4 gap-2 sm:gap-3">
-            {(galleryExpanded ? page.gallery : page.gallery.slice(0, GALLERY_INITIAL)).map((item, index) => (
+            {(galleryExpanded ? galleryItems : galleryItems.slice(0, GALLERY_INITIAL)).map((item, index) => (
               <div key={index} className="mb-2 sm:mb-3 break-inside-avoid overflow-hidden rounded-xl">
                 <img
                   src={item.url}
@@ -424,7 +475,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               </div>
             ))}
           </div>
-          {page.gallery.length > GALLERY_INITIAL && <button type="button" onClick={() => setGalleryExpanded((expanded) => !expanded)} className="mx-auto mt-7 block rounded-full border border-white/20 px-5 py-2.5 text-xs font-semibold tracking-[0.14em] text-white transition-colors hover:border-amber-200 hover:text-amber-100">{galleryExpanded ? "Ascunde galeria" : "Vezi galeria completă"}</button>}
+          {galleryItems.length > GALLERY_INITIAL && <button type="button" onClick={() => setGalleryExpanded((expanded) => !expanded)} className="mx-auto mt-7 block rounded-full border border-white/20 px-5 py-2.5 text-xs font-semibold tracking-[0.14em] text-white transition-colors hover:border-amber-200 hover:text-amber-100">{galleryExpanded ? "Ascunde galeria" : "Vezi galeria completă"}</button>}
         </section>
       )}
 
@@ -588,16 +639,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             {leaveNumber && formStatus !== "sent" && (
               <form onSubmit={handleFormSubmit} onFocus={trackFormStart} data-live-track="off" className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
                 <input
-                  type="text"
-                  required
-                  placeholder="Numele tău"
-                  value={form.name}
-                  onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
-                />
-                <input
                   type="tel"
                   required
+                  autoComplete="tel"
+                  inputMode="tel"
+                  name="phone"
                   placeholder="Telefon sau WhatsApp"
                   value={form.phone}
                   onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
@@ -606,7 +652,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 {formStatus === "error" && <p className="text-sm text-red-400">A apărut o eroare. Încearcă din nou.</p>}
                 <button
                   type="submit"
-                  disabled={formStatus === "sending" || !form.name || !form.phone}
+                  disabled={formStatus === "sending" || !form.phone}
                   className="w-full rounded-xl bg-amber-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
                 >
                   {formStatus === "sending" ? "Se trimite…" : "Trimite numărul"}
@@ -766,6 +812,61 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             >
               <InstagramIcon /> Vezi-ne pe Instagram
             </a>
+          </div>
+
+          {/* ── CALLBACK REQUEST — pentru cei care nu au chef să scrie/sune ── */}
+          <div className="mt-8 flex items-center gap-3 text-neutral-700">
+            <span className="h-px flex-1 bg-neutral-800" />
+            <span className="text-[11px] uppercase tracking-[0.2em]">sau</span>
+            <span className="h-px flex-1 bg-neutral-800" />
+          </div>
+          <div className="mt-6 rounded-2xl border border-dashed border-amber-700/40 bg-amber-500/[0.06] p-5 text-left sm:p-6">
+            <p className="text-sm font-semibold text-amber-200">📞 Nu ai chef să ne cauți tu?</p>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-400">
+              Lasă-ne numărul și te sunăm noi — fără nicio presiune, doar o vorbă.
+            </p>
+            {formStatus === "sent" ? (
+              <p className="mt-3 text-sm font-medium text-green-300">✓ Am primit numărul tău — te sunăm noi în curând!</p>
+            ) : (
+              <form
+                onSubmit={handleFormSubmit}
+                onFocus={trackFormStart}
+                data-live-track="off"
+                className="mt-3 flex flex-col gap-2 sm:flex-row"
+              >
+                <input
+                  type="text"
+                  required
+                  autoComplete="name"
+                  name="name"
+                  placeholder="Numele tău"
+                  value={form.name}
+                  onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
+                  className="flex-1 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
+                />
+                <input
+                  type="tel"
+                  required
+                  autoComplete="tel"
+                  inputMode="tel"
+                  name="phone"
+                  placeholder="Numărul tău"
+                  value={form.phone}
+                  onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
+                  className="flex-1 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
+                />
+                <button
+                  type="submit"
+                  disabled={formStatus === "sending" || !form.name || !form.phone}
+                  className="whitespace-nowrap rounded-xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
+                >
+                  {formStatus === "sending" ? "Se trimite…" : "Sună-mă tu"}
+                </button>
+              </form>
+            )}
+            {formStatus === "error" && (
+              <p className="mt-2 text-xs text-red-400">A apărut o eroare. Încearcă din nou sau scrie-ne pe WhatsApp.</p>
+            )}
           </div>
         </div>
       </section>

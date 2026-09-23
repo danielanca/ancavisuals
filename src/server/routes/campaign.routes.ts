@@ -7,6 +7,7 @@ import { getBunnyStorageKey, buildBunnyStorageUrl, BUNNY_ACCESS_KEY_HEADER } fro
 import { getNotificationSettings } from "../services/activity.service";
 import { sendOfferViewNotification } from "../notifications/offerViewNotification";
 import { reportLeadConversion, reportContactClickConversion } from "../services/googleAdsConversion.service";
+import { geolocateIp } from "../utils/geolocateIp";
 
 const router = Router();
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -48,6 +49,18 @@ router.get("/public/:slug", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/campaign/geo-city — orașul vizitatorului, doar dacă IP-ul e din
+// România (altfel null) — pentru personalizarea textelor de tip "pentru
+// nunți în {oraș} și Transilvania" fără să afectăm vizitatorii din afara țării.
+router.get("/geo-city", async (req: Request, res: Response) => {
+  const ipHeader = String(req.headers["x-forwarded-for"] ?? req.socket?.remoteAddress ?? "");
+  const ip = ipHeader.startsWith("::ffff:") ? ipHeader.slice(7) : ipHeader.split(",")[0].trim();
+  const geo = await geolocateIp(ip);
+  const isRomania = geo.countryCode === "RO" || geo.country === "România" || geo.country === "Romania";
+  const city = isRomania && geo.city && geo.city !== "Necunoscut" && geo.city !== "Local" ? geo.city : null;
+  res.json({ city });
+});
+
 // POST /api/campaign/:slug/view — track a real visitor view
 router.post("/:slug/view", async (req: Request, res: Response) => {
   try {
@@ -77,7 +90,7 @@ router.post("/:slug/view", async (req: Request, res: Response) => {
     const newCount = (campaign.viewCount ?? 0) + 1;
     await doc.ref.update({ viewCount: newCount });
 
-    const body = req.body as { pageUrl?: unknown; referrer?: unknown };
+    const body = req.body as { pageUrl?: unknown; referrer?: unknown; redirectedFrom?: unknown };
     const settings = await getNotificationSettings().catch(() => null);
     if (settings?.email.offerViewed ?? true) {
       await sendOfferViewNotification({
@@ -88,6 +101,7 @@ router.post("/:slug/view", async (req: Request, res: Response) => {
         title: campaign.title,
         pageUrl: typeof body.pageUrl === "string" ? body.pageUrl : undefined,
         referrer: typeof body.referrer === "string" ? body.referrer : undefined,
+        redirectedFrom: typeof body.redirectedFrom === "string" ? body.redirectedFrom : undefined,
       });
     }
 
@@ -408,6 +422,8 @@ router.get("/stream-videos", requireFirebaseAuth, requireSupremeAdmin, async (_r
 
 // ─── GALLERY ─────────────────────────────────────────────────────────────────
 
+type CampaignGalleryItem = { url: string; bunnyPath: string };
+
 router.post(
   "/:slug/gallery",
   requireFirebaseAuth,
@@ -421,8 +437,12 @@ router.post(
       const bunnyPath = `campaigns/${req.params.slug}/gallery/${safeFileName}`;
       await uploadToBunny(file.buffer, bunnyPath, file.mimetype);
       const url = bunnyPublicUrl(bunnyPath);
+      const item: CampaignGalleryItem = { url, bunnyPath };
+      // Adaugat implicit pe ambele device-uri — adminul le poate diverge
+      // ulterior din tab-urile Desktop/Mobil.
       await firestore().collection(COLLECTION).doc(req.params.slug).update({
-        gallery: FieldValue.arrayUnion({ url, bunnyPath }),
+        galleryDesktop: FieldValue.arrayUnion(item),
+        galleryMobile: FieldValue.arrayUnion(item),
         updatedAt: new Date().toISOString(),
       });
       res.json({ url, bunnyPath });
@@ -436,16 +456,63 @@ router.delete("/:slug/gallery", requireFirebaseAuth, requireSupremeAdmin, async 
   try {
     const { url, bunnyPath } = req.body as { url: string; bunnyPath: string };
     const db = firestore();
-    const doc = await db.collection(COLLECTION).doc(req.params.slug).get();
+    const docRef = db.collection(COLLECTION).doc(req.params.slug);
+    const doc = await docRef.get();
     if (!doc.exists) { res.status(404).json({ error: "Not found" }); return; }
-    const data = doc.data() as { gallery: Array<{ url: string; bunnyPath: string }> };
-    const newGallery = data.gallery.filter((item) => item.url !== url);
-    await db.collection(COLLECTION).doc(req.params.slug).update({
-      gallery: newGallery,
+    const data = doc.data() as {
+      gallery?: CampaignGalleryItem[];
+      galleryDesktop?: CampaignGalleryItem[];
+      galleryMobile?: CampaignGalleryItem[];
+    };
+    // Sterge din toate campurile posibile — vechiul "gallery" (campanii
+    // nemigrate inca) plus noile liste per device.
+    const without = (list?: CampaignGalleryItem[]) => (list ?? []).filter((item) => item.url !== url);
+    await docRef.update({
+      gallery: without(data.gallery),
+      galleryDesktop: without(data.galleryDesktop),
+      galleryMobile: without(data.galleryMobile),
       updatedAt: new Date().toISOString(),
     });
     if (bunnyPath) await deleteFromBunny(bunnyPath).catch(() => {});
     res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.put("/:slug/gallery/order", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { desktop, mobile } = req.body as { desktop?: CampaignGalleryItem[]; mobile?: CampaignGalleryItem[] };
+    if (!Array.isArray(desktop) || !Array.isArray(mobile)) {
+      res.status(400).json({ error: "desktop si mobile sunt obligatorii." });
+      return;
+    }
+    const db = firestore();
+    const docRef = db.collection(COLLECTION).doc(req.params.slug);
+    const doc = await docRef.get();
+    if (!doc.exists) { res.status(404).json({ error: "Not found" }); return; }
+    const data = doc.data() as {
+      gallery?: CampaignGalleryItem[];
+      galleryDesktop?: CampaignGalleryItem[];
+      galleryMobile?: CampaignGalleryItem[];
+    };
+    // Accepta doar reordonari ale itemilor deja existenti in galerie —
+    // evita injectarea de URL-uri arbitrare din body.
+    const knownUrls = new Set([
+      ...(data.gallery ?? []).map((item) => item.url),
+      ...(data.galleryDesktop ?? []).map((item) => item.url),
+      ...(data.galleryMobile ?? []).map((item) => item.url),
+    ]);
+    const sanitize = (list: CampaignGalleryItem[]) =>
+      list.filter((item) => item && typeof item.url === "string" && knownUrls.has(item.url));
+    const nextDesktop = sanitize(desktop);
+    const nextMobile = sanitize(mobile);
+    await docRef.update({
+      galleryDesktop: nextDesktop,
+      galleryMobile: nextMobile,
+      updatedAt: new Date().toISOString(),
+    });
+    res.json({ galleryDesktop: nextDesktop, galleryMobile: nextMobile });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }

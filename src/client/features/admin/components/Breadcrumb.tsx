@@ -33,7 +33,8 @@ const LABELS: Record<string, string> = {
   "media-assets": "Media Assets",
   "album-health": "Albume",
   "storage-stats": "Stocare Bunny",
-  showcase: "Zone Showcase",
+  showcase: "Bibliotecă Media",
+  campanii: "Campanii",
   settings: "Setări firmă",
   "company-documents": "Documente firmă",
 };

@@ -14,20 +14,42 @@ const SKELETON_HEIGHTS = [280, 380, 240, 420, 300, 360, 260, 440, 310, 390, 270,
 export default function PortfolioGallery({
   altBase = "fotograf videograf eveniment Anca Visuals",
 }: PortfolioGalleryProps) {
-  const [images, setImages] = useState<string[]>([]);
+  const [zoneData, setZoneData] = useState<{ desktop: string[]; mobile: string[] }>({ desktop: [], mobile: [] });
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   const [lightboxIndex, setLightboxIndex] = useState(-1);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
 
   useEffect(() => {
-    Promise.resolve(fetch("/api/oferte/portfolio-images"))
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/showcase-zones/homepage_gallery")
       .then((response) => response.json())
-      .then((data: { urls?: string[] }) => {
-        if (Array.isArray(data.urls)) setImages(Array.from(new Set(data.urls)));
+      .then(async (data: { desktop?: string[]; mobile?: string[] }) => {
+        const desktop = data.desktop ?? [];
+        const mobile = data.mobile ?? [];
+        // Zona nu a fost curatoriata inca din admin — pastram vechiul pool
+        // de poze in loc sa aratam o galerie goala.
+        if (desktop.length === 0 && mobile.length === 0) {
+          const fallback = await fetch("/api/oferte/portfolio-images").then((r) => r.json());
+          setZoneData({ desktop: Array.isArray(fallback.urls) ? fallback.urls : [], mobile: [] });
+          return;
+        }
+        setZoneData({ desktop, mobile });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // A device without its own curated set falls back to the other device's set.
+  const images = useMemo(() => {
+    const list = isMobile && zoneData.mobile.length > 0 ? zoneData.mobile : zoneData.desktop;
+    return Array.from(new Set(list));
+  }, [zoneData, isMobile]);
 
   const lightboxSlides = useMemo(() => images.map((src) => ({ src })), [images]);
 

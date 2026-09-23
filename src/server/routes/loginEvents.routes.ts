@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { sendEmail } from "../notifications/mailer";
+import { geolocateIp } from "../utils/geolocateIp";
 
 const router = Router();
 const ADMIN_EMAIL = "ancadaniel1994@gmail.com";
@@ -70,32 +71,6 @@ function maskEmail(email: string): string {
   return `${masked}@${domain}`;
 }
 
-interface GeoResult {
-  city: string;
-  country: string;
-  flag: string;
-}
-
-async function geolocateIp(ip: string): Promise<GeoResult> {
-  try {
-    const isLocal = ip === "127.0.0.1" || ip === "::1" || ip.startsWith("192.168") || ip.startsWith("10.");
-    if (isLocal) return { city: "Local", country: "Rețea locală", flag: "🏠" };
-
-    const response = await fetch(`https://ipwho.is/${ip}`, { signal: AbortSignal.timeout(3000) });
-    const data = await response.json() as { success?: boolean; city?: string; country?: string; flag?: { emoji?: string } };
-
-    if (data.success && data.city) {
-      return {
-        city: data.city,
-        country: data.country ?? "",
-        flag: data.flag?.emoji ?? "",
-      };
-    }
-  } catch {
-    // geolocation failed, continue without it
-  }
-  return { city: "Necunoscut", country: "", flag: "🌍" };
-}
 
 function buildEmailHtml(params: {
   type: "success" | "failure";

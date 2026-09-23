@@ -1,6 +1,8 @@
-import React, { useReducer, useEffect, useCallback, useState } from "react";
+import React, { useReducer, useEffect, useCallback, useState, useRef } from "react";
+import { useParams } from "react-router-dom";
 import Breadcrumb from "./Breadcrumb";
 import type { CampaignPage, CampaignPackage } from "../../../pages/CampaignLanding/CampaignLandingPage";
+import ReorderableMediaGrid, { type ReorderableMediaItem } from "./shared/ReorderableMediaGrid";
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
@@ -104,7 +106,13 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "SET_LOADING": return { ...state, loading: action.value };
     case "SET_PAGES": return { ...state, pages: action.pages, loading: false };
-    case "OPEN_EDIT": return { ...state, view: "edit", editingPage: { ...action.page } };
+    case "OPEN_EDIT": {
+      // Campanii nemigrate au doar `gallery` — pornim editorul cu ambele
+      // liste device populate din ea, ca sa nu inceapa goale.
+      const galleryDesktop = action.page.galleryDesktop?.length ? action.page.galleryDesktop : action.page.gallery;
+      const galleryMobile = action.page.galleryMobile?.length ? action.page.galleryMobile : action.page.gallery;
+      return { ...state, view: "edit", editingPage: { ...action.page, galleryDesktop, galleryMobile } };
+    }
     case "CLOSE_EDIT": return { ...state, view: "list", editingPage: null };
     case "PATCH_EDITING": return state.editingPage ? { ...state, editingPage: { ...state.editingPage, ...action.patch } } : state;
     case "SET_SAVING": return { ...state, saving: action.value };
@@ -354,6 +362,12 @@ type MediaSource = { id: string; url: string; label: string; kind: "asset" | "pr
 function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
   const galleryInputRef = React.useRef<HTMLInputElement>(null);
   const [showPicker, setShowPicker] = useState<"gallery" | "heroImage" | "heroVideo" | null>(null);
+  const [galleryDevice, setGalleryDevice] = useState<"desktop" | "mobile">("desktop");
+  const galleryDesktop = page.galleryDesktop ?? [];
+  const galleryMobile = page.galleryMobile ?? [];
+  const activeGalleryList = galleryDevice === "desktop" ? galleryDesktop : galleryMobile;
+  const galleryItemByUrl = new Map([...page.gallery, ...galleryDesktop, ...galleryMobile].map((item) => [item.url, item]));
+  const activeGalleryMediaItems: ReorderableMediaItem[] = activeGalleryList.map((item) => ({ id: item.url, url: item.url, kind: "image" }));
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const [collections, setCollections] = useState<Array<{ id: string; name: string; items: Array<{ url: string; sourceType: string }> }> | null>(null);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
@@ -391,9 +405,10 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
   };
 
   const addCollection = (col: { id: string; name: string; items: Array<{ url: string; sourceType: string }> }) => {
-    const existing = new Set(page.gallery.map((g) => g.url));
+    const existing = new Set(galleryDesktop.map((g) => g.url));
     const newItems = col.items.filter((i) => !existing.has(i.url)).map((i) => ({ url: i.url, bunnyPath: "" }));
-    dispatch({ type: "PATCH_EDITING", patch: { gallery: [...page.gallery, ...newItems] } });
+    // Adaugat pe ambele device-uri implicit — adminul le poate diverge apoi.
+    dispatch({ type: "PATCH_EDITING", patch: { galleryDesktop: [...galleryDesktop, ...newItems], galleryMobile: [...galleryMobile, ...newItems] } });
     setShowCollectionPicker(false);
   };
 
@@ -407,8 +422,9 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
 
   const handlePickerSelect = (item: MediaSource) => {
     if (showPicker === "gallery") {
-      if (!page.gallery.some((g) => g.url === item.url)) {
-        dispatch({ type: "PATCH_EDITING", patch: { gallery: [...page.gallery, { url: item.url, bunnyPath: "" }] } });
+      if (!galleryDesktop.some((g) => g.url === item.url)) {
+        const newItem = { url: item.url, bunnyPath: "" };
+        dispatch({ type: "PATCH_EDITING", patch: { galleryDesktop: [...galleryDesktop, newItem], galleryMobile: [...galleryMobile, newItem] } });
       }
     } else if (showPicker === "heroImage") {
       dispatch({ type: "PATCH_EDITING", patch: { heroImageUrl: item.url } });
@@ -448,7 +464,8 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
       );
       const results = await Promise.all(uploads);
       const newItems = results.map((result) => ({ url: result.url, bunnyPath: result.bunnyPath ?? "" }));
-      dispatch({ type: "PATCH_EDITING", patch: { gallery: [...page.gallery, ...newItems] } });
+      // Serverul le adauga deja pe ambele device-uri — oglindim local.
+      dispatch({ type: "PATCH_EDITING", patch: { galleryDesktop: [...galleryDesktop, ...newItems], galleryMobile: [...galleryMobile, ...newItems] } });
     } finally {
       dispatch({ type: "SET_UPLOADING_GALLERY", value: false });
     }
@@ -458,9 +475,29 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
     dispatch({ type: "SET_DELETING_GALLERY", url });
     try {
       await apiDelete(`/api/campaign/${page.slug}/gallery`, { url, bunnyPath });
-      dispatch({ type: "PATCH_EDITING", patch: { gallery: page.gallery.filter((item) => item.url !== url) } });
+      dispatch({
+        type: "PATCH_EDITING",
+        patch: {
+          gallery: page.gallery.filter((item) => item.url !== url),
+          galleryDesktop: galleryDesktop.filter((item) => item.url !== url),
+          galleryMobile: galleryMobile.filter((item) => item.url !== url),
+        },
+      });
     } finally {
       dispatch({ type: "SET_DELETING_GALLERY", url: null });
+    }
+  }
+
+  async function handleGalleryReorder(nextItems: ReorderableMediaItem[]) {
+    const reordered = nextItems.map((item) => ({ url: item.url, bunnyPath: galleryItemByUrl.get(item.url)?.bunnyPath ?? "" }));
+    const nextDesktop = galleryDevice === "desktop" ? reordered : galleryDesktop;
+    const nextMobile = galleryDevice === "mobile" ? reordered : galleryMobile;
+    dispatch({ type: "PATCH_EDITING", patch: { galleryDesktop: nextDesktop, galleryMobile: nextMobile } });
+    try {
+      await apiPut(`/api/campaign/${page.slug}/gallery/order`, { desktop: nextDesktop, mobile: nextMobile });
+    } catch {
+      // Ordinea ramane in editorul local — se retrimite la urmatorul Salvează
+      // sau la urmatoarea reordonare.
     }
   }
 
@@ -576,7 +613,7 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
         <div className="space-y-5">
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs text-neutral-400 uppercase tracking-wider">Galerie ({page.gallery.length})</h3>
+              <h3 className="text-xs text-neutral-400 uppercase tracking-wider">Galerie ({galleryDesktop.length} desktop · {galleryMobile.length} mobil)</h3>
               <div className="flex items-center gap-3">
                 <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleGalleryUpload(e.target.files)} />
                 <button onClick={() => galleryInputRef.current?.click()} disabled={state.uploadingGallery} className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors disabled:opacity-50">
@@ -625,7 +662,7 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
                       ) : (
                         <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                           {items.map((item) => {
-                            const already = showPicker === "gallery" && page.gallery.some((g) => g.url === item.url);
+                            const already = showPicker === "gallery" && galleryDesktop.some((g) => g.url === item.url);
                             const isSelectedHero = (showPicker === "heroImage" && page.heroImageUrl === item.url) || (showPicker === "heroVideo" && page.heroVideoUrl === item.url);
                             return (
                               <div key={item.id} onClick={() => !already && handlePickerSelect(item)} title={item.label}
@@ -646,7 +683,7 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
                   </div>
                   <div className="p-3 border-t border-neutral-800 flex items-center justify-between">
                     <span className="text-xs text-neutral-600">
-                      {showPicker === "gallery" ? `${page.gallery.length} poze selectate` : showPicker === "heroVideo" ? "Click pentru a selecta" : "Click pentru a selecta"}
+                      {showPicker === "gallery" ? `${galleryDesktop.length} poze selectate` : showPicker === "heroVideo" ? "Click pentru a selecta" : "Click pentru a selecta"}
                     </span>
                     <button onClick={() => setShowPicker(null)} className="text-sm text-white bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded-lg transition-colors">
                       Gata
@@ -655,23 +692,27 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-4 gap-1.5">
-              {page.gallery.map((item) => (
-                <div key={item.url} className="relative group aspect-square">
-                  <img src={item.url} alt="" className="w-full h-full object-cover rounded-lg" loading="lazy" />
-                  <button
-                    onClick={() => handleDeleteGalleryItem(item.url, item.bunnyPath)}
-                    disabled={state.deletingGalleryUrl === item.url}
-                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-600 text-white rounded-full text-xs items-center justify-center hidden group-hover:flex"
-                  >
-                    ×
-                  </button>
-                </div>
+            <div className="flex items-center gap-2 mb-3">
+              {(["desktop", "mobile"] as const).map((device) => (
+                <button
+                  key={device}
+                  onClick={() => setGalleryDevice(device)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    galleryDevice === device ? "bg-amber-600 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  {device === "desktop" ? "🖥️ Desktop" : "📱 Mobil"}
+                </button>
               ))}
-              {page.gallery.length === 0 && (
-                <div className="col-span-4 py-6 text-center text-neutral-600 text-xs">Nicio poză adăugată</div>
-              )}
             </div>
+            <p className="text-xs text-neutral-600 mb-3">Trage pozele pentru a reordona • dublu-click pe două poze ca să facă schimb de locuri.</p>
+            <ReorderableMediaGrid
+              items={activeGalleryMediaItems}
+              onReorder={handleGalleryReorder}
+              onRemove={(url) => handleDeleteGalleryItem(url, galleryItemByUrl.get(url)?.bunnyPath ?? "")}
+              emptyLabel={`Nicio poză adăugată pentru ${galleryDevice === "desktop" ? "desktop" : "mobil"}.`}
+              columnsClassName="columns-2 gap-2 sm:columns-3"
+            />
           </div>
 
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
@@ -805,6 +846,8 @@ interface CampaignTemplate {
 
 export default function CampaignAdminPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { slug: slugParam } = useParams<{ slug?: string }>();
+  const autoOpenedSlugRef = useRef<string | null>(null);
   const [showCreate, setShowCreate] = React.useState(false);
   const [templates, setTemplates] = useState<CampaignTemplate[]>([]);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
@@ -829,6 +872,17 @@ export default function CampaignAdminPage() {
 
   useEffect(() => { void loadPages(); }, [loadPages]);
 
+  // Link direct dintr-un card din Bibliotecă Media ("Organizează pozele") —
+  // deschide automat campania respectivă direct în editor, o singură dată.
+  useEffect(() => {
+    if (!slugParam || autoOpenedSlugRef.current === slugParam) return;
+    const match = state.pages.find((p) => p.slug === slugParam);
+    if (match) {
+      autoOpenedSlugRef.current = slugParam;
+      dispatch({ type: "OPEN_EDIT", page: match });
+    }
+  }, [slugParam, state.pages]);
+
   async function handleSave() {
     if (!state.editingPage) return;
     dispatch({ type: "SET_SAVING", value: true });
@@ -845,6 +899,8 @@ export default function CampaignAdminPage() {
         videoUrl: state.editingPage.videoUrl,
         videoThumbnailUrl: state.editingPage.videoThumbnailUrl ?? "",
         gallery: state.editingPage.gallery,
+        galleryDesktop: state.editingPage.galleryDesktop ?? [],
+        galleryMobile: state.editingPage.galleryMobile ?? [],
       });
       dispatch({ type: "SET_PAGES", pages: state.pages.map((page) => page.slug === state.editingPage!.slug ? state.editingPage! : page) });
     } finally {
@@ -997,7 +1053,7 @@ export default function CampaignAdminPage() {
             {state.pages.map((page) => (
               <div key={page.slug} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
                 {(() => {
-                  const thumb = page.heroImageUrl || page.gallery?.[0]?.url;
+                  const thumb = page.heroImageUrl || page.galleryDesktop?.[0]?.url || page.gallery?.[0]?.url;
                   return thumb ? (
                     <img src={thumb} alt={page.title} className="w-full h-32 object-cover" />
                   ) : (
@@ -1015,7 +1071,7 @@ export default function CampaignAdminPage() {
                   </div>
                   <p className="text-neutral-500 text-xs mb-3">/oferta/{page.slug}</p>
                   <div className="flex items-center gap-2 text-xs text-neutral-500 mb-4 flex-wrap">
-                    <span>{page.gallery?.length ?? 0} poze</span>
+                    <span>{page.galleryDesktop?.length || page.gallery?.length || 0} poze</span>
                     <span>·</span>
                     <span>{page.packages?.length ?? 0} pachete</span>
                     <span>·</span>

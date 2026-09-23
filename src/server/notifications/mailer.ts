@@ -3,9 +3,8 @@ import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { emailAuth } from "../constants/credentials";
 
 const productionTransport = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  host: "smtp.zoho.eu",
   port: 465,
-  service: "gmail",
   secure: true,
   auth: { user: emailAuth.email, pass: emailAuth.password },
 } as SMTPTransport.Options);

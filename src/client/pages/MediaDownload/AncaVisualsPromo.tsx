@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import PhotoLightbox from "./PhotoLightbox";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 import RetryImage from "../../components/UI/RetryImage";
@@ -44,10 +44,16 @@ interface AncaVisualsPromoProps {
   compact?: boolean;
 }
 
+const STRIP_SIZE = 18;
+const STRIP_ROTATE_MS = 10000;
+
 export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoProps) {
   const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  // La fiecare 10s, fâșia de sus arată alte 18 poze din pool — cu efect de
+  // mozaic (fiecare pătrat apare cu propria întârziere), nu un fade uniform.
+  const [stripTick, setStripTick] = useState(0);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
@@ -67,9 +73,47 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
       .catch(() => {});
   }, [compact]);
 
+  const stripTickRef = useRef(0);
+  useEffect(() => { stripTickRef.current = stripTick; }, [stripTick]);
+
+  useEffect(() => {
+    if (compact || isMobile || showcasePhotos.length <= STRIP_SIZE) return;
+    let cancelled = false;
+    const interval = window.setInterval(() => {
+      const nextTick = stripTickRef.current + 1;
+      const nextUrls = Array.from(
+        { length: STRIP_SIZE },
+        (_, i) => showcasePhotos[(i + nextTick * STRIP_SIZE) % showcasePhotos.length],
+      );
+      // Preîncarcă lotul următor în fundal — abia când pozele chiar au sosit
+      // (sau după cel mult 3s, ca un lot cu o poză căzută să nu blocheze la
+      // nesfârșit rotația) trecem efectiv la el, ca mozaicul să nu apară gol.
+      Promise.race([
+        Promise.all(nextUrls.map((url) => new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = url;
+        }))),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 3000)),
+      ]).then(() => {
+        if (!cancelled) setStripTick(nextTick);
+      });
+    }, STRIP_ROTATE_MS);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [compact, isMobile, showcasePhotos]);
+
   const dropBrokenPhoto = (url: string) => {
     setShowcasePhotos((prev) => prev.filter((p) => p !== url));
   };
+
+  const stripPhotos = useMemo(() => {
+    if (showcasePhotos.length === 0) return [];
+    return Array.from(
+      { length: STRIP_SIZE },
+      (_, i) => showcasePhotos[(i + stripTick * STRIP_SIZE) % showcasePhotos.length],
+    );
+  }, [showcasePhotos, stripTick]);
 
   const galleryColumns = useMemo(() => {
     const columns: Array<Array<{ url: string; index: number }>> = [[], []];
@@ -116,26 +160,45 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
         />
       )}
 
-      <div id="media-promo-zone" style={{ background: "#0a0a0a" }}>
+      <div id="media-promo-zone" style={{ background: "#0a0a0a", marginTop: "48px" }}>
         {/* Gold divider */}
         <div style={{ height: "2px", background: "linear-gradient(90deg, transparent 0%, #c9a96e 20%, #e8c97a 50%, #c9a96e 80%, transparent 100%)" }} />
 
-        {/* Photo strip — desktop only */}
-        {!isMobile && showcasePhotos.length > 0 && (
-          <div style={{ display: "flex", gap: "3px", flexWrap: "nowrap", padding: 0, overflow: "hidden" }}>
-            {Array.from({ length: 18 }, (_, i) => showcasePhotos[i % showcasePhotos.length]).map((url, i) => (
-              <div key={i} style={{ flex: "1 1 0", minWidth: 0, aspectRatio: "1 / 1", overflow: "hidden" }}>
-                <RetryImage
-                  src={url}
-                  alt=""
-                  style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.75, display: "block" }}
-                  loading="lazy"
-                  context="media_footer promo strip"
-                  onGiveUp={dropBrokenPhoto}
-                />
-              </div>
-            ))}
-          </div>
+        {/* Photo strip — desktop only, se reînnoiește la fiecare 10s cu efect de mozaic */}
+        {!isMobile && stripPhotos.length > 0 && (
+          <>
+            <style>{`
+              @keyframes mediaPromoMosaicIn {
+                0% { opacity: 0; transform: scale(1.15); filter: blur(8px) saturate(1.5); }
+                60% { opacity: 1; filter: blur(0) saturate(1.2); }
+                100% { opacity: 0.75; transform: scale(1); filter: blur(0) saturate(1); }
+              }
+            `}</style>
+            <div style={{ display: "flex", gap: "3px", flexWrap: "nowrap", padding: 0, overflow: "hidden" }}>
+              {stripPhotos.map((url, i) => (
+                <div key={`${i}-${stripTick}`} style={{ flex: "1 1 0", minWidth: 0, aspectRatio: "1 / 1", overflow: "hidden" }}>
+                  <RetryImage
+                    src={url}
+                    alt=""
+                    style={{
+                      width: "100%", height: "100%", objectFit: "cover", display: "block",
+                      // Totul într-un singur shorthand — "animation" + "animationDelay"
+                      // separate se anulau reciproc (browserul le combină pe una singură
+                      // și întârzierea individuală se pierdea, rămânând blocată la 0).
+                      // Ordinea întârzierilor e pseudo-aleatorie, ca pătratele să nu
+                      // apară strict de la stânga la dreapta — mai aproape de un mozaic.
+                      animation: `mediaPromoMosaicIn 700ms ease ${(i * 137) % 650}ms 1 normal both`,
+                    }}
+                    // Fâșia se reînnoiește la fiecare 10s — poze noi, neîncărcate încă
+                    // de browser, deci "lazy" ar întârzia inutil apariția lor.
+                    loading="eager"
+                    context="media_footer promo strip"
+                    onGiveUp={dropBrokenPhoto}
+                  />
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Content */}
@@ -147,11 +210,11 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
           </p>
 
           <h2 style={{ color: "#f0ebe0", fontSize: "clamp(20px, 4vw, 30px)", fontWeight: 300, margin: "0 0 16px", lineHeight: 1.35, letterSpacing: "0.3px" }}>
-            Foto &amp; Video pentru<br />momentele tale autentice
+            <span style={{ textTransform: "uppercase", fontWeight: 500 }}>Foto &amp; Video</span> pentru<br />momentele tale autentice
           </h2>
 
           <p style={{ color: "#555", fontSize: "13px", margin: "0 0 10px", lineHeight: 1.7 }}>
-            Creăm amintiri fără vârstă prin arta fotografiei analogice.
+            Creăm amintiri fără vârstă prin arta fotografiei autentice.
           </p>
 
           <p style={{ color: "#c9a96e", fontSize: "10px", letterSpacing: "3px", textTransform: "uppercase", margin: "0 0 40px", opacity: 0.7 }}>

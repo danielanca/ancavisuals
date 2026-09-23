@@ -10,19 +10,22 @@ import ReviewsGrid from "../components/Reviews/ReviewsGrid";
 
 const INITIAL_PHOTO_COUNT = 12;
 
+type OfferAsset = {
+  id: string;
+  kind: "image" | "video";
+  url: string;
+  label: string;
+  displayUrl?: string;
+  alt?: string;
+};
+
 type OfferServiceSection = {
   id: string;
   label: string;
   description: string;
   basePrice: string;
-  assets: Array<{
-    id: string;
-    kind: "image" | "video";
-    url: string;
-    label: string;
-    displayUrl?: string;
-    alt?: string;
-  }>;
+  assets: OfferAsset[];
+  assetsMobile: OfferAsset[];
 };
 
 type Offer = {
@@ -133,8 +136,15 @@ export default function OfertaPage() {
   const [notFound, setNotFound] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [expandedPhotoServices, setExpandedPhotoServices] = useState<Set<string>>(() => new Set());
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
   const viewTracked = useRef(false);
   const assetUrl = (asset: OfferServiceSection["assets"][number]) => asset.displayUrl ?? asset.url;
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   function showAllPhotos(serviceId: string) {
     setExpandedPhotoServices(current => {
@@ -184,10 +194,14 @@ export default function OfertaPage() {
   // Track view once per browser session — campaign
   useEffect(() => {
     if (!campaign || viewTracked.current) return;
+    // A visit redirected here from a broken link (NotFoundPage) is tagged so
+    // it never gets mistaken for a real, direct /oferta/olx visit — in the
+    // view-notification email, the activity feed, or the view count.
+    const redirectedFrom = new URLSearchParams(window.location.search).get("notFound") || undefined;
     return trackViewOnceVisible({
       sessionKey: viewSessionKey(`campaign_${slug}`),
       url: `/api/campaign/${slug}/view`,
-      body: { pageUrl: window.location.href, referrer: document.referrer },
+      body: { pageUrl: window.location.href, referrer: document.referrer, redirectedFrom },
       trackedRef: viewTracked,
     });
   }, [campaign, slug]);
@@ -312,8 +326,9 @@ export default function OfertaPage() {
 
             <div className="space-y-8">
               {offer.serviceSections.map(service => {
-                const imageAssets = service.assets.filter(asset => asset.kind !== "video");
-                const videoAssets = service.assets.filter(asset => asset.kind === "video");
+                const deviceAssets = isMobile && service.assetsMobile.length > 0 ? service.assetsMobile : service.assets;
+                const imageAssets = deviceAssets.filter(asset => asset.kind !== "video");
+                const videoAssets = deviceAssets.filter(asset => asset.kind === "video");
                 const showAll = expandedPhotoServices.has(service.id);
                 const visibleImages = showAll ? imageAssets : imageAssets.slice(0, INITIAL_PHOTO_COUNT);
 

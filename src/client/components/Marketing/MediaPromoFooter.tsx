@@ -77,11 +77,11 @@ export default function MediaPromoFooter() {
         </p>
 
         <h2 style={{ color: "#f0ebe0", fontSize: "clamp(20px, 4vw, 30px)", fontWeight: 300, margin: "0 0 16px", lineHeight: 1.35, letterSpacing: "0.3px" }}>
-          Fotografie de film pentru<br />momentele tale autentice
+          <span style={{ textTransform: "uppercase", fontWeight: 500 }}>Foto &amp; Video</span> pentru<br />momentele tale autentice
         </h2>
 
         <p style={{ color: "#555", fontSize: "13px", margin: "0 0 10px", lineHeight: 1.7 }}>
-          Creăm amintiri fără vârstă prin arta fotografiei analogice.
+          Creăm amintiri fără vârstă prin arta fotografiei autentice.
         </p>
 
         <p style={{ color: "#c9a96e", fontSize: "10px", letterSpacing: "3px", textTransform: "uppercase", margin: "0 0 40px", opacity: 0.7 }}>

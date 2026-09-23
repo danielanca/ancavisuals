@@ -44,6 +44,7 @@ const OfferTemplateAdminPage = loadable(() => import("../features/admin/componen
 const OfferTemplateOrganizerPage = loadable(() => import("../features/admin/components/OfferTemplateOrganizerPage"), opts);
 const MediaAssetsAdminPage = loadable(() => import("../features/admin/components/MediaAssetsAdminPage"), opts);
 const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/components/ShowcaseZoneEditorPage"), opts);
+const MediaLibraryHubPage = loadable(() => import("../features/admin/components/MediaLibraryHubPage"), opts);
 const SeoGeneratorPage = loadable(() => import("../features/admin/components/SeoGeneratorPage"), opts);
 const SeoRadarPage = loadable(() => import("../features/admin/components/SeoRadarPage"), opts);
 const AdsRadarPage = loadable(() => import("../features/admin/components/AdsRadarPage"), opts);
@@ -100,13 +101,15 @@ export const adminRoutes = [
       <Route path="/admin/media-assets" element={<MediaAssetsAdminPage />} />
       <Route path="/admin/template-oferte" element={<OfferTemplateAdminPage />} />
       <Route path="/admin/template-oferte/:serviceId" element={<OfferTemplateOrganizerPage />} />
-      <Route path="/admin/showcase" element={<ShowcaseZoneEditorPage />} />
+      <Route path="/admin/showcase" element={<MediaLibraryHubPage />} />
+      <Route path="/admin/showcase/:zoneId" element={<ShowcaseZoneEditorPage />} />
       <Route path="/admin/seo-generator" element={<SeoGeneratorPage />} />
       <Route path="/admin/seo-radar" element={<SeoRadarPage />} />
       <Route path="/admin/ads-radar" element={<AdsRadarPage />} />
       <Route path="/admin/seo-pages" element={<SeoPagesAdminPage />} />
       <Route path="/admin/blog" element={<BlogAdminPage />} />
       <Route path="/admin/campanii" element={<CampaignAdminPage />} />
+      <Route path="/admin/campanii/:slug" element={<CampaignAdminPage />} />
       <Route path="/admin/sanatate" element={<HealthTrackerPage />} />
       <Route path="/admin/colectii" element={<PhotoCollectionsPage />} />
       <Route path="/admin/album-health" element={<AlbumHealthPage />} />

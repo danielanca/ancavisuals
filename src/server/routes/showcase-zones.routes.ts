@@ -23,31 +23,41 @@ function refreshBunnyUrl(url: string): string {
 router.get("/:id/sources", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
+    // Proposals are photo-only, so a zone curating videos (e.g. homepage_videos)
+    // has no use for them — skip that query entirely in that case.
+    const kindFilter = req.query.kind === "video" ? "video" : req.query.kind === "image" ? "image" : null;
 
     const [proposalsSnap, assetsSnap] = await Promise.all([
-      db.collection("instagramProposals").where("status", "==", "accepted").get(),
+      kindFilter === "video"
+        ? Promise.resolve(null)
+        : db.collection("instagramProposals").where("status", "==", "accepted").get(),
       db.collection("offer_media_assets").get(),
     ]);
 
-    const proposals = proposalsSnap.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        photoUrl: refreshBunnyUrl(String(data.photoUrl ?? "")),
-        albumSlug: String(data.albumSlug ?? ""),
-        fileName: String(data.fileName ?? ""),
-      };
-    });
+    const proposals = proposalsSnap
+      ? proposalsSnap.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            photoUrl: refreshBunnyUrl(String(data.photoUrl ?? "")),
+            albumSlug: String(data.albumSlug ?? ""),
+            fileName: String(data.fileName ?? ""),
+          };
+        })
+      : [];
 
-    const assets = assetsSnap.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        url: refreshBunnyUrl(String(data.url ?? "")),
-        label: String(data.label ?? ""),
-        serviceId: String(data.serviceId ?? ""),
-      };
-    });
+    const assets = assetsSnap.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          url: refreshBunnyUrl(String(data.url ?? "")),
+          label: String(data.label ?? ""),
+          serviceId: String(data.serviceId ?? ""),
+          kind: data.kind === "video" ? "video" as const : "image" as const,
+        };
+      })
+      .filter((asset) => !kindFilter || asset.kind === kindFilter);
 
     res.json({ proposals, assets });
   } catch (error) {
@@ -61,14 +71,19 @@ router.get("/:id", async (req: Request, res: Response) => {
     const db = firestore();
     const doc = await db.collection(COLLECTION).doc(id).get();
     if (!doc.exists) {
-      res.json({ photos: [] });
+      res.json({ photos: [], desktop: [], mobile: [] });
       return;
     }
     const data = doc.data();
-    const photos = Array.isArray(data?.photos)
-      ? (data.photos as Array<{ url?: unknown }>).map((p) => refreshBunnyUrl(String(p.url ?? ""))).filter(Boolean)
-      : [];
-    res.json({ photos });
+    const toUrls = (list: unknown) =>
+      Array.isArray(list)
+        ? (list as Array<{ url?: unknown }>).map((p) => refreshBunnyUrl(String(p.url ?? ""))).filter(Boolean)
+        : [];
+    res.json({
+      photos: toUrls(data?.photos),
+      desktop: toUrls(data?.desktop),
+      mobile: toUrls(data?.mobile),
+    });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
@@ -77,26 +92,32 @@ router.get("/:id", async (req: Request, res: Response) => {
 router.put("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   console.log(`[showcase] PUT /${id} — body keys:`, Object.keys(req.body ?? {}));
-  const { label, photos } = req.body as {
+  const { label, photos, desktop, mobile } = req.body as {
     label?: string;
-    photos: Array<{ url: string; sourceType: "proposal" | "media_asset" | "manual"; sourceId?: string }>;
+    photos?: Array<{ url: string; sourceType: "proposal" | "media_asset" | "manual"; sourceId?: string }>;
+    desktop?: Array<{ url: string; sourceType: "proposal" | "media_asset" | "manual"; sourceId?: string }>;
+    mobile?: Array<{ url: string; sourceType: "proposal" | "media_asset" | "manual"; sourceId?: string }>;
   };
 
-  if (!Array.isArray(photos)) {
-    res.status(400).json({ error: "photos este obligatoriu." });
+  const hasSingleList = Array.isArray(photos);
+  const hasDeviceLists = Array.isArray(desktop) && Array.isArray(mobile);
+  if (!hasSingleList && !hasDeviceLists) {
+    res.status(400).json({ error: "photos sau (desktop + mobile) sunt obligatorii." });
     return;
   }
 
   try {
     const db = firestore();
     const docRef = db.collection(COLLECTION).doc(id);
-    const update: Record<string, unknown> = {
-      photos,
-      updatedAt: Timestamp.now(),
-    };
+    const update: Record<string, unknown> = { updatedAt: Timestamp.now() };
+    if (hasSingleList) update.photos = photos;
+    if (hasDeviceLists) {
+      update.desktop = desktop;
+      update.mobile = mobile;
+    }
     if (label !== undefined) update.label = label;
     await docRef.set(update, { merge: true });
-    console.log(`[showcase] salvat ${photos.length} poze în zona "${id}"`);
+    console.log(`[showcase] salvat zona "${id}" —`, hasSingleList ? `${photos!.length} poze` : `desktop:${desktop!.length} mobil:${mobile!.length}`);
     res.json({ ok: true });
   } catch (error) {
     console.error("[showcase] eroare Firestore:", error);

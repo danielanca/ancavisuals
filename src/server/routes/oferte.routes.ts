@@ -13,9 +13,11 @@ import {
   mergeOfferShowcase,
   type OfferMediaAsset,
   type OfferAssetKind,
+  type OfferDeviceTemplateAssets,
   normalizeOfferServiceIds,
   normalizeOfferPackages,
   normalizeOfferTemplateAssets,
+  normalizeOfferDeviceShowcase,
 } from "../../shared/offers/offerServices";
 import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
@@ -108,13 +110,12 @@ function detectAssetKind(file: Express.Multer.File): OfferAssetKind {
   return file.mimetype.toLowerCase().startsWith("video/") ? "video" : "image";
 }
 
-function normalizeStoredShowcase(raw: unknown): Record<string, StoredTemplateAsset[]> {
+function normalizeStoredShowcase(raw: unknown): Record<string, OfferDeviceTemplateAssets> {
   const source = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-  const out: Record<string, StoredTemplateAsset[]> = {};
+  const out: Record<string, OfferDeviceTemplateAssets> = {};
 
   for (const service of OFFER_SERVICES) {
-    const list = Array.isArray(source[service.id]) ? source[service.id] as unknown[] : [];
-    out[service.id] = normalizeOfferTemplateAssets(list);
+    out[service.id] = normalizeOfferDeviceShowcase(source[service.id]);
   }
 
   return out;
@@ -125,7 +126,7 @@ async function readTemplateShowcase() {
   return normalizeStoredShowcase(doc.data()?.services);
 }
 
-async function writeTemplateShowcase(services: Record<string, StoredTemplateAsset[]>) {
+async function writeTemplateShowcase(services: Record<string, OfferDeviceTemplateAssets>) {
   await firestore().collection("offer_template_showcase").doc(OFFER_TEMPLATE_DOC_ID).set(
     {
       services,
@@ -170,19 +171,35 @@ async function enrichMediaAssetDisplayUrls(assets: StoredOfferMediaAsset[]): Pro
   }));
 }
 
+function resolveDeviceAssetList(items: StoredTemplateAsset[], byId: Map<string, OfferMediaAsset>): OfferMediaAsset[] {
+  return items
+    .map(item => byId.get(item.assetId))
+    .filter((asset): asset is OfferMediaAsset => Boolean(asset));
+}
+
+function filterShowcaseEntry(entry: OfferDeviceTemplateAssets, keep: (assetId: string) => boolean): OfferDeviceTemplateAssets {
+  const filterList = (list: StoredTemplateAsset[]) =>
+    list.filter(item => keep(item.assetId)).map((item, index) => ({ ...item, order: index }));
+  return { desktop: filterList(entry.desktop), mobile: filterList(entry.mobile) };
+}
+
 function resolveTemplateAssets(
   selectedServiceIds: string[],
-  showcase: Record<string, StoredTemplateAsset[]>,
+  showcase: Record<string, OfferDeviceTemplateAssets>,
   assets: OfferMediaAsset[],
-): Record<string, OfferMediaAsset[]> {
+): Record<string, { desktop: OfferMediaAsset[]; mobile: OfferMediaAsset[] }> {
   const byId = new Map(assets.map(asset => [asset.id, asset]));
   return Object.fromEntries(
-    selectedServiceIds.map(serviceId => [
-      serviceId,
-      (showcase[serviceId] ?? [])
-        .map(item => byId.get(item.assetId))
-        .filter((asset): asset is OfferMediaAsset => Boolean(asset)),
-    ]),
+    selectedServiceIds.map(serviceId => {
+      const entry = showcase[serviceId] ?? { desktop: [], mobile: [] };
+      return [
+        serviceId,
+        {
+          desktop: resolveDeviceAssetList(entry.desktop, byId),
+          mobile: resolveDeviceAssetList(entry.mobile, byId),
+        },
+      ];
+    }),
   );
 }
 
@@ -374,10 +391,14 @@ router.get("/admin/template-showcase", requireFirebaseAuth, requireSupremeAdmin,
     const showcase = await readTemplateShowcase();
     const allAssets = await enrichMediaAssetDisplayUrls(await listMediaAssets());
     res.json({
-      services: OFFER_SERVICES.map(service => ({
-        ...service,
-        assets: resolveTemplateAssets([service.id], showcase, allAssets)[service.id] ?? [],
-      })),
+      services: OFFER_SERVICES.map(service => {
+        const resolved = resolveTemplateAssets([service.id], showcase, allAssets)[service.id];
+        return {
+          ...service,
+          assets: resolved?.desktop ?? [],
+          assetsMobile: resolved?.mobile ?? [],
+        };
+      }),
     });
   } catch (error) {
     console.error("[oferte] GET /admin/template-showcase failed:", error);
@@ -582,9 +603,12 @@ router.delete("/admin/media-assets/by-source", requireFirebaseAuth, requireSupre
     const deletedIds = new Set(snapshot.docs.map(d => d.id));
     let showcaseChanged = false;
     for (const service of OFFER_SERVICES) {
-      const before = showcase[service.id] ?? [];
-      const after = before.filter(item => !deletedIds.has(item.assetId)).map((item, i) => ({ ...item, order: i }));
-      if (after.length !== before.length) { showcase[service.id] = after; showcaseChanged = true; }
+      const before = showcase[service.id] ?? { desktop: [], mobile: [] };
+      const after = filterShowcaseEntry(before, assetId => !deletedIds.has(assetId));
+      if (after.desktop.length !== before.desktop.length || after.mobile.length !== before.mobile.length) {
+        showcase[service.id] = after;
+        showcaseChanged = true;
+      }
     }
     if (showcaseChanged) await writeTemplateShowcase(showcase);
 
@@ -608,9 +632,10 @@ router.delete("/admin/media-assets/:assetId", requireFirebaseAuth, requireSuprem
 
     const showcase = await readTemplateShowcase();
     for (const service of OFFER_SERVICES) {
-      showcase[service.id] = (showcase[service.id] ?? [])
-        .filter(item => item.assetId !== assetId)
-        .map((item, index) => ({ ...item, order: index }));
+      showcase[service.id] = filterShowcaseEntry(
+        showcase[service.id] ?? { desktop: [], mobile: [] },
+        storedAssetId => storedAssetId !== assetId,
+      );
     }
     await writeTemplateShowcase(showcase);
     res.json({ ok: true });
@@ -622,11 +647,17 @@ router.delete("/admin/media-assets/:assetId", requireFirebaseAuth, requireSuprem
 
 router.put("/admin/template-showcase/:serviceId/order", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { serviceId } = req.params;
-  const assetIds: string[] = Array.isArray(req.body.assetIds)
-    ? req.body.assetIds.map((value: unknown) => String(value))
-    : Array.isArray(req.body.imageIds)
-      ? req.body.imageIds.map((value: unknown) => String(value))
-      : [];
+
+  const toIds = (value: unknown): string[] =>
+    Array.isArray(value) ? value.map((v: unknown) => String(v)) : [];
+
+  // Accepts either the current { desktop, mobile } shape (both saved together,
+  // in one atomic write) or the legacy flat assetIds/imageIds shape, which is
+  // applied to both devices so old callers keep working.
+  const hasDeviceShape = Array.isArray(req.body.desktop) || Array.isArray(req.body.mobile);
+  const legacyIds = toIds(req.body.assetIds).length ? toIds(req.body.assetIds) : toIds(req.body.imageIds);
+  const desktopIds = hasDeviceShape ? toIds(req.body.desktop) : legacyIds;
+  const mobileIds = hasDeviceShape ? toIds(req.body.mobile) : legacyIds;
 
   if (!OFFER_SERVICES.some(service => service.id === serviceId)) {
     return res.status(404).json({ error: "Serviciul nu a fost gasit." });
@@ -636,10 +667,13 @@ router.put("/admin/template-showcase/:serviceId/order", requireFirebaseAuth, req
     const showcase = await readTemplateShowcase();
     const allAssets = await listMediaAssets(serviceId);
     const allowedAssetIds = new Set(allAssets.map(asset => asset.id));
-    const filteredAssetIds = assetIds.filter(assetId => allowedAssetIds.has(assetId));
-    showcase[serviceId] = filteredAssetIds.map((assetId, index) => ({ assetId, order: index }));
+    const toOrderedList = (ids: string[]) => ids
+      .filter(assetId => allowedAssetIds.has(assetId))
+      .map((assetId, index) => ({ assetId, order: index }));
+    showcase[serviceId] = { desktop: toOrderedList(desktopIds), mobile: toOrderedList(mobileIds) };
     await writeTemplateShowcase(showcase);
-    res.json({ assets: resolveTemplateAssets([serviceId], showcase, allAssets)[serviceId] ?? [] });
+    const resolved = resolveTemplateAssets([serviceId], showcase, allAssets)[serviceId];
+    res.json({ assets: resolved?.desktop ?? [], assetsMobile: resolved?.mobile ?? [] });
   } catch (error) {
     console.error("[oferte] PUT /admin/template-showcase/:serviceId/order failed:", error);
     res.status(500).json({ error: "Eroare server." });
@@ -655,9 +689,10 @@ router.delete("/admin/template-showcase/:serviceId/assets/:assetId", requireFire
 
   try {
     const showcase = await readTemplateShowcase();
-    showcase[serviceId] = (showcase[serviceId] ?? [])
-      .filter(item => item.assetId !== assetId)
-      .map((item, index) => ({ ...item, order: index }));
+    showcase[serviceId] = filterShowcaseEntry(
+      showcase[serviceId] ?? { desktop: [], mobile: [] },
+      storedAssetId => storedAssetId !== assetId,
+    );
     await writeTemplateShowcase(showcase);
     res.json({ ok: true });
   } catch (error) {
