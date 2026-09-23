@@ -140,7 +140,7 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
       name?: string; phone?: string; eventDate?: string; eventType?: string; location?: string; message?: string;
       gclid?: string; wbraid?: string; gbraid?: string;
     };
-    if (!name || !phone) { res.status(400).json({ error: "Nume și telefon sunt obligatorii." }); return; }
+    if (!phone) { res.status(400).json({ error: "Telefonul este obligatoriu." }); return; }
 
     reportLeadConversion({ gclid, wbraid, gbraid, phone })
       .catch((err) => console.error("[googleAdsConversion] campaign lead report failed:", err));
@@ -158,8 +158,8 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
         <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
           <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            <tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${name}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;">Telefon</td><td style="color:#111;font-weight:600;">${phone}</td></tr>
+            ${name ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${name}</td></tr>` : ""}
+            <tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${phone}</td></tr>
             ${eventType ? `<tr><td style="padding:8px 0;color:#666;">Tip eveniment</td><td style="color:#111;">${eventType}</td></tr>` : ""}
             ${eventDate ? `<tr><td style="padding:8px 0;color:#666;">Dată eveniment</td><td style="color:#111;">${eventDate}</td></tr>` : ""}
             ${location ? `<tr><td style="padding:8px 0;color:#666;">Localitate</td><td style="color:#111;">${location}</td></tr>` : ""}

@@ -8,7 +8,6 @@ import pricesData from "../../../../shared/pricing/prices.json";
 import { safeTrigger, BOOKING_TO } from "./utils/api";
 import { normalizePackages } from "./utils/normalize";
 import { formatDate } from "./utils/time";
-import { PHONE_RE } from "./utils/validators";
 import type { Step, EventType, Errors } from "./types";
 import { fireAdsLeadConversion } from "../../../utils/googleAds";
 import { getLandingMeta } from "../../../utils/sessionAttribution";
@@ -153,7 +152,7 @@ export default function BookingWizard() {
     // Quick validation for step 3
     const errs: Errors = {};
     if (!fullName.trim()) errs.fullName = "Completează numele.";
-    if (!phone || !PHONE_RE.test(phone)) errs.phone = "Număr de telefon invalid.";
+    if (!phone.trim()) errs.phone = "Completează numărul de telefon.";
 
     if (Object.keys(errs).length > 0) {
       setErrors(prev => ({ ...prev, ...errs }));
@@ -233,7 +232,7 @@ export default function BookingWizard() {
 
     if (s === 3) {
       if (!fullName.trim()) errs.fullName = "Completează numele.";
-      if (!phone || !PHONE_RE.test(phone)) errs.phone = "Număr de telefon invalid.";
+      if (!phone.trim()) errs.phone = "Completează numărul de telefon.";
     }
 
     if (s === 4) {

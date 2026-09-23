@@ -4,7 +4,6 @@ import SeoPageHead from "../../components/SEO/SeoPageHead";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 import { reportAvailabilityCheck } from "../../utils/liveEvent";
 import { destination } from "../../utils/address";
-import { PHONE_RE } from "../Contact/booking/utils/validators";
 
 const PHONE = "0745469907";
 const PHONE_DISPLAY = "0745 469 907";
@@ -164,8 +163,8 @@ const BioPage: React.FC = () => {
 
   const requestCallback = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!PHONE_RE.test(callbackPhone)) {
-      setCallbackError("Număr de telefon invalid.");
+    if (!callbackPhone.trim()) {
+      setCallbackError("Completează numărul de telefon.");
       return;
     }
     setCallbackError("");

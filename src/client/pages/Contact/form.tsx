@@ -38,7 +38,6 @@ type DisplayPackageOption = PackageOption | CustomPackageOption;
 // ---------- Utils ----------
 const pad2 = (n: number) => (n < 10 ? "0" : "") + n;
 const formatDate = (d: number, mi: number, y: number) => `${pad2(d)}/${pad2(mi + 1)}/${y}`;
-const PHONE_RE = /^[0-9+\s()-]{8,20}$/;
 const parseTimeToMinutes = (t: string) => {
   if (!t) return null;
   const [hh, mm] = t.split(":").map(Number);
@@ -168,7 +167,7 @@ export default function BookingWizard() {
     if (s === 2 && !eventType) errs.eventType = "Alege tipul de eveniment.";
     if (s === 3) {
       if (!fullName.trim()) errs.fullName = "Completează numele.";
-      if (!phone || !PHONE_RE.test(phone)) errs.phone = "Număr de telefon invalid.";
+      if (!phone.trim()) errs.phone = "Completează numărul de telefon.";
     }
     if (s === 4) {
       if (!location.trim()) errs.location = "Completează locația.";
