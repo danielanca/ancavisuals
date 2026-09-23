@@ -14,28 +14,27 @@ $pg-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.95);
   padding: 3rem 1rem;
 }
 
+// Grid + coloane distribuite în JS (round-robin), nu CSS column-count —
+// altfel fiecare poză nouă adăugată la "mai multe poze" reflow-uia tot
+// layout-ul, mutând vizibil pozele deja afișate.
 .pg-masonry {
-  column-count: 1;
-  column-gap: $pg-gap;
+  display: grid;
+  gap: $pg-gap;
+}
 
-  @media (min-width: 640px) {
-    column-count: 2;
-  }
-
-  @media (min-width: 1024px) {
-    column-count: 3;
-  }
+.pg-col {
+  display: flex;
+  flex-direction: column;
+  gap: $pg-gap;
 }
 
 .pg-item {
   position: relative;
   display: block;
   width: 100%;
-  margin: 0 0 $pg-gap;
   border-radius: $pg-radius;
   overflow: hidden;
   box-shadow: $pg-shadow;
-  break-inside: avoid;
   transition:
     transform 0.22s ease,
     box-shadow 0.22s ease;

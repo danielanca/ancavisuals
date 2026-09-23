@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Lightbox from "yet-another-react-lightbox";
 import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
 import "yet-another-react-lightbox/styles.css";
@@ -11,6 +11,12 @@ const INITIAL_VISIBLE = 40;
 const LOAD_MORE_STEP = 20;
 const SKELETON_HEIGHTS = [280, 380, 240, 420, 300, 360, 260, 440, 310, 390, 270, 350];
 
+function getColumnCount(width: number) {
+  if (width < 640) return 1;
+  if (width < 1024) return 2;
+  return 3;
+}
+
 export default function PortfolioGallery({
   altBase = "fotograf videograf eveniment Anca Visuals",
 }: PortfolioGalleryProps) {
@@ -19,9 +25,15 @@ export default function PortfolioGallery({
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
+  const [columnCount, setColumnCount] = useState(() =>
+    getColumnCount(typeof window !== "undefined" ? window.innerWidth : 1280)
+  );
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+      setColumnCount(getColumnCount(window.innerWidth));
+    };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -53,6 +65,17 @@ export default function PortfolioGallery({
 
   const lightboxSlides = useMemo(() => images.map((src) => ({ src })), [images]);
 
+  // Distribuție round-robin pe coloane (nu CSS column-count) — pozele deja
+  // afișate rămân exact pe loc când apeși "mai multe poze"; CSS multi-column
+  // reflow-uia tot layout-ul la fiecare imagine nouă adăugată.
+  const columns = useMemo(() => {
+    const cols: Array<Array<{ src: string; index: number }>> = Array.from({ length: columnCount }, () => []);
+    images.slice(0, visibleCount).forEach((src, index) => {
+      cols[index % columnCount].push({ src, index });
+    });
+    return cols;
+  }, [images, visibleCount, columnCount]);
+
   if (loading) {
     return (
       <section className="pg-section">
@@ -81,25 +104,26 @@ export default function PortfolioGallery({
     <>
       <section className="pg-section">
         <div className="pg-container">
-          <div className="pg-masonry">
-            {images.slice(0, visibleCount).map((src, index) => (
-              <div
-                key={src + index}
-                className="pg-item"
-              >
-                <button
-                  type="button"
-                  className="pg-img-trigger"
-                  onClick={() => setLightboxIndex(index)}
-                  aria-label="Deschide fotografia"
-                >
-                  <img
-                    src={src}
-                    alt={getCatalogImageAlt(src, buildSeoImageAlt(altBase, index))}
-                    loading="lazy"
-                    className="pg-img"
-                  />
-                </button>
+          <div className="pg-masonry" style={{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }}>
+            {columns.map((col, colIndex) => (
+              <div key={colIndex} className="pg-col">
+                {col.map(({ src, index }) => (
+                  <div key={src + index} className="pg-item">
+                    <button
+                      type="button"
+                      className="pg-img-trigger"
+                      onClick={() => setLightboxIndex(index)}
+                      aria-label="Deschide fotografia"
+                    >
+                      <img
+                        src={src}
+                        alt={getCatalogImageAlt(src, buildSeoImageAlt(altBase, index))}
+                        loading="lazy"
+                        className="pg-img"
+                      />
+                    </button>
+                  </div>
+                ))}
               </div>
             ))}
           </div>

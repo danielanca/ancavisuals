@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import QRMomentsPage from "src/client/pages/QRMoments/QRMomentsPage";
 import QRMomentsGalleryPage from "src/client/pages/QRMoments/QRMomentsGalleryPage";
 import QRMomentsUnsubscribePage from "src/client/pages/QRMoments/QRMomentsUnsubscribePage";
+import { UPLOAD_ORIGIN } from "src/client/utils/address";
 
 vi.mock("firebase/storage", async () => {
   const actual = await vi.importActual<typeof import("firebase/storage")>("firebase/storage");
@@ -72,7 +73,9 @@ describe("QRMomentsPage", () => {
         json: async () => ({
           guestId: "guest-1",
         }),
-      });
+      })
+      // Fallback for PortfolioGallery's homepage-gallery fetch, rendered on this page.
+      .mockResolvedValue({ json: async () => ({ desktop: [], mobile: [] }) });
     vi.stubGlobal("fetch", fetchMock);
 
     // The upload flow uses a raw XMLHttpRequest (for upload progress events), not
@@ -166,7 +169,7 @@ describe("QRMomentsPage", () => {
 
     const uploadRequest = FakeUploadXHR.instances[0];
     expect(uploadRequest.method).toBe("POST");
-    expect(uploadRequest.url).toBe("/api/qr-moments/27martie2028/upload");
+    expect(uploadRequest.url).toBe(`${UPLOAD_ORIGIN}/api/qr-moments/27martie2028/upload`);
     expect(uploadRequest.body?.get("guestId")).toBe("guest-1");
     expect(uploadRequest.body?.get("pass")).toBe("SECRET");
     expect(await screen.findByText(/Fișierele tale au ajuns la miri/i)).toBeInTheDocument();
@@ -285,7 +288,9 @@ describe("QRMomentsPage", () => {
       .mockResolvedValueOnce({
         json: async () => ({ bride: "Ana", groom: "Dan", isOpen: true, deadline: "2028-03-28T01:00:00.000Z" }),
       })
-      .mockResolvedValueOnce({ json: async () => ({ guestId: "guest-1" }) });
+      .mockResolvedValueOnce({ json: async () => ({ guestId: "guest-1" }) })
+      // Fallback for PortfolioGallery's homepage-gallery fetch, rendered on this page.
+      .mockResolvedValue({ json: async () => ({ desktop: [], mobile: [] }) });
     vi.stubGlobal("fetch", fetchMock);
 
     renderUploadPage();

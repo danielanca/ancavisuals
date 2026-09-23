@@ -12,7 +12,7 @@ import { APP_BASE_URL } from "../constants/domain";
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
 const EXCLUDED_DIRS = new Set(["expenses", "bank-statements", "offers", "offers-assets", "qr-moments"]);
-const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+const STALE_THRESHOLD_MS = 18 * 60 * 60 * 1000; // 18 hours
 const NOTIFICATION_COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000; // re-notify max once per 5 days per album
 const NOTIFICATIONS_COL = "albumZipNotifications";
 
@@ -148,7 +148,7 @@ async function runZipCheck() {
     for (const album of results) {
       if (album.status === "ok") continue;
 
-      // Only alert if photos are old enough (> 15 min) — give the user time to compress
+      // Only alert if photos are old enough (> 18h) — give the user time to compress
       const latestPhotoDate = album.latestPhotoDate;
       if (!latestPhotoDate) continue;
       if (now - latestPhotoDate.getTime() < STALE_THRESHOLD_MS) continue;

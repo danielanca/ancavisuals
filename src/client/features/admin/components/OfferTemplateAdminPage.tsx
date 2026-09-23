@@ -156,7 +156,7 @@ export default function OfferTemplateAdminPage() {
               </div>
 
               {service.assets.length > 0 ? (
-                <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                <div className="mt-5 columns-2 gap-4 sm:columns-3 lg:columns-4">
                   {service.assets.map((asset, index) => (
                     <article
                       key={asset.id}
@@ -173,7 +173,7 @@ export default function OfferTemplateAdminPage() {
                         setDragOverAsset(null);
                       }}
                       onDragEnd={() => { setDraggingAsset(null); setDragOverAsset(null); }}
-                      className={`overflow-hidden rounded-2xl border bg-neutral-950 cursor-grab active:cursor-grabbing transition-opacity ${
+                      className={`mb-4 break-inside-avoid overflow-hidden rounded-2xl border bg-neutral-950 cursor-grab active:cursor-grabbing transition-opacity ${
                         draggingAsset?.assetId === asset.id ? "opacity-40 border-violet-700"
                         : dragOverAsset?.assetId === asset.id ? "border-violet-500 ring-1 ring-violet-500"
                         : "border-neutral-800"
@@ -181,9 +181,9 @@ export default function OfferTemplateAdminPage() {
                     >
                       <div className="relative">
                         {asset.kind === "video" ? (
-                          <video src={assetUrl(asset)} className="h-40 w-full object-cover" muted draggable={false} />
+                          <video src={assetUrl(asset)} className="block h-auto w-full" muted draggable={false} />
                         ) : (
-                          <img src={assetUrl(asset)} alt={asset.label} className="h-40 w-full object-cover" loading="lazy" draggable={false} />
+                          <img src={assetUrl(asset)} alt={asset.label} className="block h-auto w-full" loading="lazy" draggable={false} />
                         )}
                         <div className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[10px] text-white pointer-events-none">
                           #{index + 1}

@@ -4,6 +4,7 @@
 
 .ppg-intro {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 46vh;
@@ -16,6 +17,14 @@
   font-size: clamp(2rem, 6vw, 4rem);
   letter-spacing: -0.02em;
   visibility: hidden;
+}
+
+.ppg-subtitle {
+  margin-top: 1rem;
+  font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .ppg-wrap {
@@ -44,6 +53,15 @@
   margin: 0;
   width: 100%;
   height: auto;
+}
+
+// Reveal folosit doar cât timp galeria se rotește (prop "rotate") — fiecare
+// poză reapare cu propria întârziere, ca la fâșia din footer, în loc de un
+// fade uniform.
+@keyframes ppg-mosaic-in {
+  0% { opacity: 0; transform: scale(1.12); filter: blur(6px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 
 .ppg-spacer {

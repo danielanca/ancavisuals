@@ -4,10 +4,19 @@
  * cookie — ensuring the admin does not receive duplicate or unwanted emails.
  */
 import React from "react";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useVisitorNotification } from "src/client/hooks/useVisitorNotification";
+
+// The hook waits for a real interaction (whenVisitorInteracts) before firing —
+// a backgrounded/silently-reloaded tab must never count as a visit. Tests
+// that expect the email to fire must simulate that interaction first.
+function simulateInteraction() {
+  act(() => {
+    window.dispatchEvent(new MouseEvent("mousedown"));
+  });
+}
 
 vi.mock("src/client/utils/triggers", () => ({
   sendTriggerEmail: vi.fn().mockResolvedValue(undefined),
@@ -38,6 +47,7 @@ beforeEach(() => {
 describe("useVisitorNotification", () => {
   test("sends email on first visit to a public page", () => {
     renderHook(() => useVisitorNotification(), { wrapper: wrapper("/portofoliu") });
+    simulateInteraction();
 
     expect(sendTriggerEmail).toHaveBeenCalledOnce();
     expect(sendTriggerEmail).toHaveBeenCalledWith({ typeEvent: "Vizitator", url: "/portofoliu", isNewVisitor: true });
@@ -53,6 +63,7 @@ describe("useVisitorNotification", () => {
     const wrap = wrapper("/portofoliu");
     renderHook(() => useVisitorNotification(), { wrapper: wrap });
     renderHook(() => useVisitorNotification(), { wrapper: wrap });
+    simulateInteraction();
 
     expect(sendTriggerEmail).toHaveBeenCalledOnce();
   });
@@ -60,6 +71,7 @@ describe("useVisitorNotification", () => {
   test("sends separate emails for two distinct URLs", () => {
     renderHook(() => useVisitorNotification(), { wrapper: wrapper("/portofoliu") });
     renderHook(() => useVisitorNotification(), { wrapper: wrapper("/contact") });
+    simulateInteraction();
 
     expect(sendTriggerEmail).toHaveBeenCalledTimes(2);
   });
@@ -92,12 +104,14 @@ describe("useVisitorNotification", () => {
   test("does nothing when admin cookie is set", () => {
     vi.mocked(getCookie).mockReturnValue("1");
     renderHook(() => useVisitorNotification(), { wrapper: wrapper("/portofoliu") });
+    simulateInteraction();
     expect(sendTriggerEmail).not.toHaveBeenCalled();
   });
 
   test("does nothing when not in browser environment", () => {
     vi.mocked(isBrowser).mockReturnValue(false);
     renderHook(() => useVisitorNotification(), { wrapper: wrapper("/portofoliu") });
+    simulateInteraction();
     expect(sendTriggerEmail).not.toHaveBeenCalled();
   });
 
@@ -105,6 +119,7 @@ describe("useVisitorNotification", () => {
     renderHook(() => useVisitorNotification(), { wrapper: wrapper("/nunta-cluj") });
     // simulate a second component mount on the same route (e.g., re-render after navigation)
     renderHook(() => useVisitorNotification(), { wrapper: wrapper("/nunta-cluj") });
+    simulateInteraction();
 
     expect(sendTriggerEmail).toHaveBeenCalledOnce();
     const stored = JSON.parse(sessionStorage.getItem("av_notified") ?? "[]") as string[];

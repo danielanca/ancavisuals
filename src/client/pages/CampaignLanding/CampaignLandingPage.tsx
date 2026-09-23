@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
@@ -6,6 +6,8 @@ import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
 import { fireAdsLeadConversion, fireAdsContactClickConversion } from "../../utils/googleAds";
 import { getLandingMeta } from "../../utils/sessionAttribution";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
+import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
+import PortfolioParallaxGallery from "../Portfolio/PortfolioParallaxGallery";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -188,8 +190,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     const timer = window.setTimeout(() => dismissLatestContract(), 10000);
     return () => window.clearTimeout(timer);
   }, [latestContractVisible]);
-  const [galleryExpanded, setGalleryExpanded] = useState(false);
-  const GALLERY_INITIAL = 16;
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 640);
@@ -211,6 +211,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const galleryItems = isMobile
     ? (page.galleryMobile?.length ? page.galleryMobile : page.gallery)
     : (page.galleryDesktop?.length ? page.galleryDesktop : page.gallery);
+  // Referință stabilă — fără asta, ticăitul din secundă în secundă al
+  // cronometrului de mai jos ar recrea acest array la fiecare render, ceea
+  // ce distruge și reface în buclă animația GSAP din galerie (rămâne blocată
+  // la opacitate 0, vezi PortfolioParallaxGallery's useEffect(..., [columns])).
+  const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
   // Real, fixed promo deadline — does not reset per visit/session, unlike the
   // old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
   const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
@@ -456,28 +461,18 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </div>
       </section>
 
-      {/* ── PORTFOLIO (imediat după hero) ──────────────────────────── */}
+      {/* ── PORTFOLIO (imediat după hero) — aceeași galerie parallax ca /portofoliu,
+          dar cu pozele curatoriate ale acestei campanii, nu pool-ul global ── */}
       {galleryItems.length > 0 && (
-        <section className="py-20 sm:py-24 px-6 max-w-6xl mx-auto">
-          <div className="mb-10">
-            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Portofoliu</p>
-            <h2 className="text-3xl font-light">Mai mult decât imagini frumoase.</h2>
-          </div>
-          <div className="columns-2 sm:columns-3 lg:columns-4 gap-2 sm:gap-3">
-            {(galleryExpanded ? galleryItems : galleryItems.slice(0, GALLERY_INITIAL)).map((item, index) => (
-              <div key={index} className="mb-2 sm:mb-3 break-inside-avoid overflow-hidden rounded-xl">
-                <img
-                  src={item.url}
-                  alt={`Ancavisuals ${index + 1}`}
-                  loading="lazy"
-                  className="w-full object-cover hover:scale-[1.02] transition-transform duration-500"
-                />
-              </div>
-            ))}
-          </div>
-          {galleryItems.length > GALLERY_INITIAL && <button type="button" onClick={() => setGalleryExpanded((expanded) => !expanded)} className="mx-auto mt-7 block rounded-full border border-white/20 px-5 py-2.5 text-xs font-semibold tracking-[0.14em] text-white transition-colors hover:border-amber-200 hover:text-amber-100">{galleryExpanded ? "Ascunde galeria" : "Vezi galeria completă"}</button>}
-        </section>
+        <PortfolioParallaxGallery
+          images={galleryImageUrls}
+          altBase="fotografie și videografie Anca Visuals"
+          rotate
+        />
       )}
+
+      {/* ── MEDIA PROMO FOOTER (aceeași fâșie de poze + CTA ca pe homepage) ── */}
+      <AncaVisualsPromo />
 
       {/* ── OFERTĂ FOTOCABINĂ ──────────────────────────────────────── */}
       <section className="bg-[#f6f2ea] px-6 py-16 sm:py-20 text-[#2f2a24]">
@@ -526,7 +521,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-400">Îți spunem pe loc dacă suntem liberi. Fără să lași date de contact.</p>
           </div>
 
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-5 sm:p-6">
+          {/* min-height fix — cardul avea înălțimi diferite în funcție de starea
+              afișată (formular gol vs. mesaj disponibilitate vs. formular telefon
+              vs. confirmare), ceea ce făcea layout-ul să sară vizibil la fiecare
+              pas. Rezervăm dinainte spațiul pentru cea mai "plină" stare. */}
+          <div className="min-h-[560px] rounded-2xl border border-neutral-800 bg-neutral-950/70 p-5 sm:p-6">
             <form onSubmit={checkAvailability} data-live-track="off" className="space-y-3">
               <select
                 value={form.eventType}
@@ -821,9 +820,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <span className="h-px flex-1 bg-neutral-800" />
           </div>
           <div className="mt-6 rounded-2xl border border-dashed border-amber-700/40 bg-amber-500/[0.06] p-5 text-left sm:p-6">
-            <p className="text-sm font-semibold text-amber-200">📞 Nu ai chef să ne cauți tu?</p>
+            <p className="text-sm font-semibold text-amber-200">📞 Mai simplu: te sunăm noi.</p>
             <p className="mt-1 text-xs leading-relaxed text-neutral-400">
-              Lasă-ne numărul și te sunăm noi — fără nicio presiune, doar o vorbă.
+              Lasă-ne numărul și te sunăm noi.
             </p>
             {formStatus === "sent" ? (
               <p className="mt-3 text-sm font-medium text-green-300">✓ Am primit numărul tău — te sunăm noi în curând!</p>
@@ -834,16 +833,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 data-live-track="off"
                 className="mt-3 flex flex-col gap-2 sm:flex-row"
               >
-                <input
-                  type="text"
-                  required
-                  autoComplete="name"
-                  name="name"
-                  placeholder="Numele tău"
-                  value={form.name}
-                  onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
-                  className="flex-1 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
-                />
                 <input
                   type="tel"
                   required
@@ -857,7 +846,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 />
                 <button
                   type="submit"
-                  disabled={formStatus === "sending" || !form.name || !form.phone}
+                  disabled={formStatus === "sending" || !form.phone}
                   className="whitespace-nowrap rounded-xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
                 >
                   {formStatus === "sending" ? "Se trimite…" : "Sună-mă tu"}

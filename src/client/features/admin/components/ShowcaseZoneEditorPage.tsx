@@ -20,6 +20,11 @@ export type ZoneConfig = {
   // "grid": carduri mici pătrate, ordine strict stânga-dreapta — potrivit
   // pentru o fâșie/footer. Implicit "masonry" (proporții naturale).
   layout?: "masonry" | "grid";
+  // O pagină publică reală unde zona chiar se afișează azi — pentru linkul
+  // "Deschide pagina" de lângă titlu. Unele zone apar pe mai multe pagini;
+  // aici ținem doar cel mai simplu exemplu static, ca linkul să funcționeze
+  // mereu fără parametri.
+  livePath?: string;
 };
 
 export const ZONE_CONFIGS: Record<string, ZoneConfig> = {
@@ -29,24 +34,30 @@ export const ZONE_CONFIGS: Record<string, ZoneConfig> = {
     mediaKind: "image",
     description: "Pozele selectate apar în secțiunea promo de pe site (album, share, homepage, contact, portofoliu).",
     layout: "grid",
+    livePath: "/",
   },
   homepage_gallery: {
     label: "Galerie Homepage",
     mode: "device",
     mediaKind: "image",
     description: "Pozele din secțiunea \"Ultimele evenimente\" de pe homepage. Set independent de galeria de portofoliu.",
+    // Nu apare pe "/" în acest moment — componenta e folosită azi pe
+    // paginile QR Moments, SEO de oraș, Fotocabină și Blog. Exemplu static.
+    livePath: "/foto-video-nunta-cluj",
   },
   portfolio_gallery: {
     label: "Galerie Portofoliu",
     mode: "device",
     mediaKind: "image",
     description: "Pozele afișate pe pagina de portofoliu. Set independent de galeria de pe homepage.",
+    livePath: "/portofoliu",
   },
   homepage_videos: {
     label: "Videouri Homepage",
     mode: "device",
     mediaKind: "video",
     description: "Videourile afișate pe homepage.",
+    livePath: "/",
   },
 };
 
@@ -278,7 +289,29 @@ export default function ShowcaseZoneEditorPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{config.label}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{config.label}</h1>
+            {config.livePath && (
+              <a
+                href={config.livePath}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  fontSize: 12, fontWeight: 600, color: "#a78bfa",
+                  textDecoration: "none", padding: "3px 9px", borderRadius: 999,
+                  border: "1px solid #3a2f5c", background: "#7c3aed15",
+                }}
+              >
+                Deschide pagina
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+            )}
+          </div>
           <p style={{ fontSize: 12, color: "#555", marginTop: 3 }}>{config.description}</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
