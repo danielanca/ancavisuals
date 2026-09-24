@@ -216,6 +216,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   // ce distruge și reface în buclă animația GSAP din galerie (rămâne blocată
   // la opacitate 0, vezi PortfolioParallaxGallery's useEffect(..., [columns])).
   const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
+  const promoAtPageEnd = page.slug === "olx";
   // Real, fixed promo deadline — does not reset per visit/session, unlike the
   // old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
   const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
@@ -461,8 +462,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </div>
       </section>
 
-      {/* ── PORTFOLIO (imediat după hero) — aceeași galerie parallax ca /portofoliu,
-          dar cu pozele curatoriate ale acestei campanii, nu pool-ul global ── */}
+      {/* ── PORTFOLIO — rămâne sus, imediat după hero ── */}
       {galleryItems.length > 0 && (
         <PortfolioParallaxGallery
           images={galleryImageUrls}
@@ -471,8 +471,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         />
       )}
 
-      {/* ── MEDIA PROMO FOOTER (aceeași fâșie de poze + CTA ca pe homepage) ── */}
-      <AncaVisualsPromo />
+      {/* ── MEDIA PROMO FOOTER (a doua galerie rămâne sus pe celelalte campanii) ── */}
+      {!promoAtPageEnd && <AncaVisualsPromo />}
 
       {/* ── OFERTĂ FOTOCABINĂ ──────────────────────────────────────── */}
       <section className="bg-[#f6f2ea] px-6 py-16 sm:py-20 text-[#2f2a24]">
@@ -584,6 +584,30 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 {availStatus === "checking" ? "Se verifică…" : "Verifică disponibilitatea"}
               </button>
             </form>
+
+            <div className="mt-4 border-t border-neutral-800 pt-4 text-center">
+              <p className="mb-2 text-xs text-neutral-400">Preferi să vorbim direct?</p>
+              <div className="flex flex-col justify-center gap-2 sm:flex-row">
+                <PhoneNumberReveal
+                  phone={page.phoneNumber}
+                  buttonLabel="Afișează numărul de telefon"
+                  revealedPrefix="Sună — "
+                  context={`campanie ${page.slug} · verificare disponibilitate`}
+                  onRevealed={() => trackClick("click_phone", "availability")}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
+                  icon={<PhoneIcon />}
+                />
+                <a
+                  href={whatsappLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => trackClick("click_whatsapp", "availability")}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"
+                >
+                  <WhatsAppIcon /> Scrie-ne pe WhatsApp
+                </a>
+              </div>
+            </div>
 
             {availStatus === "available" && formStatus !== "sent" && (
               <div className="mt-4 rounded-xl border border-green-700/40 bg-green-900/25 p-4">
@@ -863,6 +887,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       <div className="py-6 text-center">
         <p className="text-neutral-700 text-xs">© Ancavisuals · ancavisuals.ro</p>
       </div>
+
+      {promoAtPageEnd && <AncaVisualsPromo />}
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-neutral-950/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:hidden">
         <div className="mx-auto flex max-w-lg gap-2">
