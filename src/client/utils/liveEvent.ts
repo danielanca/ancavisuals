@@ -1,3 +1,4 @@
+import { captureLandingMeta, getLandingMeta } from "./sessionAttribution";
 import { isBrowser } from "./functions";
 import { getSessionId, getVisitorId } from "./visitorSession";
 
@@ -14,6 +15,7 @@ interface LiveEventExtra {
 export function sendLiveEvent(event: string, extra: LiveEventExtra = {}): void {
   if (!isBrowser()) return;
   try {
+    captureLandingMeta();
     const { visitorId } = getVisitorId();
     fetch("/api/analytics/live/event", {
       method: "POST",
@@ -22,12 +24,13 @@ export function sendLiveEvent(event: string, extra: LiveEventExtra = {}): void {
       body: JSON.stringify({
         sessionId: getSessionId(),
         visitorId,
+        landingMeta: getLandingMeta(),
         event,
         page: extra.page ?? window.location.pathname,
         pageTitle: document.title,
         label: extra.label,
         priority: extra.priority,
-        meta: extra.meta,
+        meta: event === "form_submitted" ? { ...extra.meta, confirmed: true } : extra.meta,
       }),
     }).catch(() => {});
   } catch {

@@ -88,6 +88,10 @@ async function loadRouter() {
     requireSupremeAdmin: (_req: any, _res: any, next: () => void) => next(),
   }));
 
+  vi.doMock("src/server/notifications/mailer", () => ({
+    sendEmail: vi.fn().mockResolvedValue(undefined),
+  }));
+
   vi.doMock("src/server/firestore", () => ({
     firestore: () => ({ collection: collectionMock }),
   }));
@@ -802,7 +806,7 @@ describe("adminEvents routes", () => {
     test("creates album folders and saves slug on event", async () => {
       const { postCreateAlbum, updateMock, nodeFetchMock } = await loadRouter();
       nodeFetchMock
-        .mockResolvedValueOnce({ ok: false }) // check — doesn't exist
+        .mockResolvedValueOnce({ ok: false, status: 404 }) // check — doesn't exist
         .mockResolvedValue({ ok: true });     // all PUT folder placeholders
       const res = createMockResponse();
       await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
@@ -810,10 +814,34 @@ describe("adminEvents routes", () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true, slug: "nunta-test-2026" }));
     });
 
+    test("does not save the album when successful uploads leave folders missing", async () => {
+      const { postCreateAlbum, updateMock, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockImplementation(async (_url: string, options: { method?: string }) =>
+        options?.method === "PUT" ? { ok: true } : { ok: false, status: 404 },
+      );
+      const res = createMockResponse();
+      await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(updateMock).not.toHaveBeenCalled();
+      const uploads = nodeFetchMock.mock.calls.filter(([, options]) => options?.method === "PUT");
+      expect(uploads).toHaveLength(8);
+      expect(uploads.every(([, options]) => options.body.length > 0)).toBe(true);
+    });
+
+    test("does not treat a Bunny access error as a missing folder", async () => {
+      const { postCreateAlbum, updateMock, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: false, status: 401 });
+      const res = createMockResponse();
+      await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(nodeFetchMock).toHaveBeenCalledTimes(1);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
     test("returns 500 when a Bunny folder upload fails", async () => {
       const { postCreateAlbum, nodeFetchMock } = await loadRouter();
       nodeFetchMock
-        .mockResolvedValueOnce({ ok: false })  // check — doesn't exist
+        .mockResolvedValueOnce({ ok: false, status: 404 })  // check — doesn't exist
         .mockResolvedValueOnce({ ok: false }); // first PUT fails
       const res = createMockResponse();
       await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);

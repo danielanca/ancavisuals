@@ -15,8 +15,11 @@ import {
   appendJobLog, setJobProgress, finishJob, errorJob,
 } from "../services/albumProcessingJobs.js";
 import { getBnrRate, getBnrYearRates, BnrRateError } from "../services/bnrExchangeRate.service.js";
+import { sendEmail } from "../notifications/mailer";
+import { APP_BASE_URL } from "../constants/domain";
 
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
+const ADMIN_EMAIL = "ancadaniel1994@gmail.com";
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -529,15 +532,20 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
     }
 
     // Check if the folder already exists in Bunny
-    const checkUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER) + "/";
+    const checkUrl = buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER);
     const checkRes = await nodeFetch(checkUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, agent: bunnyAgent });
     if (checkRes.ok) {
       return res.status(409).json({ error: "Un album cu acest slug există deja în Bunny." });
     }
 
-    // Create folder structure via placeholder files
+    if (checkRes.status !== 404) {
+      return res.status(502).json({ error: `Nu pot verifica folderul în Bunny (${checkRes.status}).` });
+    }
+
+    // Use a non-empty marker and verify storage before reporting success.
     const folders = [
       BUNNY_PHOTOS_FOLDER,
+      "photos_preview",
       "shortvideo",
       "longvideo",
       "photobooth",
@@ -550,13 +558,24 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
       const uploadRes = await nodeFetch(placeholderUrl, {
         method: "PUT",
         headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(), "Content-Type": "application/octet-stream" },
-        body: "",
+        body: "AncaVisuals album folder\n",
         agent: bunnyAgent,
       });
       if (!uploadRes.ok) {
         return res.status(500).json({ error: `Bunny upload failed for ${folder}: ${uploadRes.status}` });
       }
     }
+
+    for (const folder of folders) {
+      const verifyRes = await nodeFetch(buildBunnyDirectoryUrl(slug, folder), {
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
+        agent: bunnyAgent,
+      });
+      if (!verifyRes.ok) {
+        return res.status(502).json({ error: `Folderul ${folder} nu a putut fi verificat în Bunny. Reîncearcă.` });
+      }
+    }
+    invalidateAlbumCache(slug);
 
     // Save albumSlug and albumPin on the event
     const db = firestore();
@@ -832,106 +851,29 @@ router.patch("/events/:id/album", async (req: Request, res: Response) => {
 });
 
 // POST /api/admin/events/:id/process-album
-// SSE stream: generates WebP previews in photos_preview/ and a photos.zip in Bunny
+// Starts (or reports) a background job that generates WebP previews in photos_preview/.
+// The job runs independently of this HTTP request — closing the browser tab does not
+// interrupt it. Live progress can be watched via GET /album-health/:slug/live, and an
+// email is sent to the admin when the job finishes (see runAlbumProcessing below).
 router.post("/events/:id/process-album", async (req: Request, res: Response) => {
   const { id } = req.params;
-
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
-
-  const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
-
   try {
     const db = firestore();
     const doc = await db.collection("adminEvents").doc(id).get();
     const slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Evenimentul nu are albumSlug setat." });
 
-    if (!slug) {
-      send({ error: "Evenimentul nu are albumSlug setat." });
-      return res.end();
+    const existing = getJob(slug);
+    if (existing?.status === "running") {
+      return res.json({ ok: true, slug, status: "already_running" });
     }
 
-    const storageKey = getBunnyStorageKey();
-
-    // List all files in photos/
-    const listUrl = buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER);
-    const listRes = await nodeFetch(listUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent });
-    if (!listRes.ok) {
-      send({ error: "Nu pot lista folderul photos din Bunny." });
-      return res.end();
-    }
-
-    const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
-    const photos = entries
-      .filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png)$/i.test(e.ObjectName) && e.ObjectName !== ".keep")
-      .map((e) => e.ObjectName);
-
-    send({ stage: "start", total: photos.length });
-
-    // List existing previews to skip already-processed files
-    const previewListUrl = buildBunnyDirectoryUrl(slug, "photos_preview");
-    const previewListRes = await nodeFetch(previewListUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent });
-    const existingPreviews = new Set<string>();
-    if (previewListRes.ok) {
-      const previewEntries = await previewListRes.json() as { ObjectName: string }[];
-      previewEntries.forEach((e) => {
-        const base = e.ObjectName.replace(/\.[^.]+$/, "");
-        existingPreviews.add(base);
-      });
-    }
-
-    // Step 1: Generate WebP previews incrementally
-    send({ stage: "previews", message: "Generez previzualizări WebP..." });
-    let previewsDone = 0;
-    let previewsSkipped = 0;
-
-    for (const filename of photos) {
-      const baseName = filename.replace(/\.[^.]+$/, "");
-      if (existingPreviews.has(baseName)) {
-        previewsSkipped++;
-        continue;
-      }
-
-      const originalUrl = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename);
-      const dlRes = await nodeFetch(originalUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent });
-      if (!dlRes.ok || !dlRes.body) {
-        send({ stage: "previews", warning: `Skip ${filename}: download failed` });
-        continue;
-      }
-
-      const buffer = Buffer.from(await dlRes.arrayBuffer());
-      const webpBuffer = await sharp(buffer)
-        .resize({ width: 1400, withoutEnlargement: true })
-        .webp({ quality: 72 })
-        .toBuffer();
-
-      const previewName = `${baseName}.webp`;
-      const uploadUrl = buildBunnyStorageUrl(slug, "photos_preview", previewName);
-      const upRes = await nodeFetch(uploadUrl, {
-        method: "PUT",
-        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "image/webp" },
-        body: webpBuffer,
-        agent: bunnyAgent,
-      });
-
-      if (upRes.ok) {
-        previewsDone++;
-        send({ stage: "previews", done: previewsDone, total: photos.length, current: previewName });
-      } else {
-        send({ stage: "previews", warning: `Upload failed for ${previewName}` });
-      }
-    }
-
-    send({ stage: "previews_complete", done: previewsDone, skipped: previewsSkipped });
-    invalidateAlbumCache(slug);
-    send({ stage: "done" });
+    createJob(slug, 0);
+    runAlbumProcessing(slug).catch(() => {});
+    res.json({ ok: true, slug, status: "started" });
   } catch (err) {
-    send({ error: String(err) });
+    res.status(500).json({ error: String(err) });
   }
-
-  res.end();
 });
 
 // GET /api/admin/media-activity — most recent visits to /media pages
@@ -1176,10 +1118,23 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     appendJobLog(slug, `🎉 Gata! ${done} generate, ${skipped} sărite`);
     invalidateAlbumCache(slug);
     finishJob(slug);
+    sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `✅ Preview procesat: ${slug}`,
+      html: `<p>Folderul <strong>photos_preview</strong> pentru albumul <strong>${slug}</strong> a fost procesat.</p>
+             <p>${done} previzualizări generate, ${skipped} sărite (deja existente).</p>
+             <p><a href="${APP_BASE_URL}/media/${slug}">Vezi galeria</a></p>`,
+    }).catch((err) => console.error("[album-processing] email notify failed:", err));
   } catch (err) {
     const message = String(err);
     appendJobLog(slug, `❌ Eroare: ${message}`);
     errorJob(slug, message);
+    sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `❌ Eroare la procesarea albumului: ${slug}`,
+      html: `<p>Procesarea folderului <strong>photos_preview</strong> pentru albumul <strong>${slug}</strong> a eșuat.</p>
+             <p>Eroare: ${message}</p>`,
+    }).catch((err) => console.error("[album-processing] email notify failed:", err));
   }
 }
 

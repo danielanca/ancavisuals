@@ -369,7 +369,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       });
       const data = await res.json();
       if (res.status === 409) {
-        setFolderResult({ ok: true, msg: "Folderele există deja în Bunny." });
+        setFolderResult({ ok: false, msg: data.error ?? "Albumul există deja în Bunny." });
       } else if (!res.ok) {
         setFolderResult({ ok: false, msg: data.error ?? "Eroare la creare folder." });
       } else {
@@ -387,50 +387,76 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     }
   };
 
+  // Starts a background job on the server (survives closing this tab) and
+  // watches its live progress over SSE. When the job finishes, the server
+  // sends an email to the admin — no need to keep this page open.
+  const watchAlbumJob = (slug: string) => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/album-health/${encodeURIComponent(slug)}/live`, {
+          headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
+          signal: controller.signal,
+        });
+        if (!res.body) return;
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
+              if (data.type === "init") {
+                setProcessLog((data.log as string[] | undefined) ?? []);
+                if (data.status !== "running") setProcessing(false);
+              } else if (data.type === "log") {
+                setProcessLog((l) => [...l, data.message as string]);
+              } else if (data.type === "done") {
+                setProcessLog((l) => [...l, "🎉 Procesare completă! Vei primi un email de confirmare."]);
+                setProcessing(false);
+              } else if (data.type === "error") {
+                setProcessLog((l) => [...l, `❌ Eroare: ${data.error}`]);
+                setProcessing(false);
+              }
+            } catch {}
+          }
+        }
+      } catch {
+        // connection dropped (e.g. tab closed) — the job itself keeps running server-side
+      }
+    })();
+  };
+
   const handleProcessAlbum = async () => {
-    if (!event.id || processing) return;
+    if (!event.id || !albumSlug || processing) return;
     setProcessing(true);
-    setProcessLog(["Se conectează..."]);
+    setProcessLog(["Se pornește procesarea pe server..."]);
 
     try {
       const res = await fetch(`/api/admin/events/${event.id}/process-album`, { method: "POST" });
-      if (!res.body) throw new Error("No response body");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
-            if (data.stage === "start") {
-              setProcessLog((l) => [...l, `📂 ${data.total} poze găsite`]);
-            } else if (data.stage === "previews") {
-              if (data.current) setProcessLog((l) => [...l, `🖼 Preview: ${data.current} (${data.done}/${data.total})`]);
-              else setProcessLog((l) => [...l, `🖼 ${data.message}`]);
-            } else if (data.stage === "previews_complete") {
-              setProcessLog((l) => [...l, `✅ Previews: ${data.done} generate, ${data.skipped} sărite`]);
-            } else if (data.stage === "done") {
-              setProcessLog((l) => [...l, "🎉 Procesare completă!"]);
-            } else if (data.error) {
-              setProcessLog((l) => [...l, `❌ Eroare: ${data.error}`]);
-            } else if (data.warning) {
-              setProcessLog((l) => [...l, `⚠️ ${data.warning}`]);
-            }
-          } catch {}
-        }
+      const data = (await res.json()) as { ok?: boolean; slug?: string; status?: string; error?: string };
+      if (!res.ok || !data.ok || !data.slug) {
+        setProcessLog((l) => [...l, `❌ ${data.error ?? "Eroare la pornirea procesării."}`]);
+        setProcessing(false);
+        return;
       }
+      if (data.status === "already_running") {
+        setProcessLog((l) => [...l, "ℹ️ O procesare este deja în curs pentru acest album."]);
+      } else {
+        setProcessLog((l) => [...l, "✅ Procesare pornită pe server. Poți închide fereastra — vei primi un email când e gata."]);
+      }
+      watchAlbumJob(data.slug);
     } catch (err) {
       setProcessLog((l) => [...l, `❌ ${String(err)}`]);
-    } finally {
       setProcessing(false);
     }
   };
@@ -1053,7 +1079,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                           </svg>
-                          Compress în Bunny
+                          Deschide în Bunny
                         </a>
                       )}
                       {folderResult && (

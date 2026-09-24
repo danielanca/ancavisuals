@@ -1,3 +1,4 @@
+import { numberDailyVisitors, visitDayBounds, visitSource } from "../../shared/liveVisits";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { firestore } from "../firestore";
@@ -11,6 +12,8 @@ import { isNotifiableCountry } from "../utils/geoFilter";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import {
   recordEvent,
+  restoreSession,
+  setSessionArchived,
   ping,
   endSession,
   getActiveSnapshot,
@@ -156,11 +159,12 @@ function isTrackableRequest(req: Request, page?: string): boolean {
 liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response) => {
   try {
     const body = req.body as RecordEventInput;
-    if (!body?.sessionId || !body?.event || typeof body.sessionId !== "string") {
+    if (!body?.sessionId || !body?.event || typeof body.sessionId !== "string" || body.sessionId.length > 256 || body.sessionId.includes("/") || typeof body.event !== "string") {
       return res.status(400).json({ error: "invalid_payload" });
     }
     if (!isTrackableRequest(req, body.page)) return res.json({ ok: true, ignored: true });
 
+    await restoreSession(body.sessionId);
     const ip = getClientIp(req) ?? "";
     const ua = String(req.headers["user-agent"] ?? "");
 
@@ -235,8 +239,11 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
 // POST /api/analytics/live/ping
 liveVisitorsPublicRouter.post("/live/ping", (req: Request, res: Response) => {
   try {
-    const { sessionId } = req.body as { sessionId?: string };
-    if (sessionId && typeof sessionId === "string") ping(sessionId);
+    const { sessionId, visibility } = req.body as { sessionId?: string; visibility?: string };
+    if (sessionId && typeof sessionId === "string") {
+      if (visibility === "visible" || visibility === "hidden") ping(sessionId, visibility);
+      else ping(sessionId);
+    }
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "failed" });
@@ -294,37 +301,64 @@ liveVisitorsAdminRouter.get(
   requireSupremeAdmin,
   async (req: Request, res: Response) => {
     try {
-      const limit = Math.min(Number(req.query.limit) || 100, 500);
+      const requestedLimit = Number(req.query.limit ?? 100);
+      if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 500) {
+        return res.status(400).json({ error: "Limită invalidă." });
+      }
+      const limit = requestedLimit;
+      const day = typeof req.query.date === "string" ? req.query.date : "";
+      let bounds: { start: number; end: number } | undefined;
+      try { if (day) bounds = visitDayBounds(day); }
+      catch { return res.status(400).json({ error: "Dată invalidă." }); }
       const wantArchived = req.query.archived === "1" || req.query.archived === "true";
-      // Fetch a wider window then filter by archived flag in code (legacy docs
-      // have no `archived` field, which a Firestore `where` would exclude).
-      const snap = await firestore()
-        .collection("live_sessions")
-        .orderBy("startedAtMs", "desc")
-        .limit(limit * 3)
-        .get();
-
+      const cursor = typeof req.query.cursor === "string" ? req.query.cursor : "";
+      const collection = firestore().collection("live_sessions");
+      let visitorNumbers: Record<string, number> = {};
+      if (bounds && !cursor) {
+        const daySnapshot = await collection
+          .orderBy("startedAtMs", "asc")
+          .where("startedAtMs", ">=", bounds.start)
+          .where("startedAtMs", "<", bounds.end)
+          .limit(10_000)
+          .get();
+        if (daySnapshot.size === 10_000) {
+          return res.status(503).json({ error: "Ziua are prea multe sesiuni pentru numerotare exactă." });
+        }
+        visitorNumbers = numberDailyVisitors(daySnapshot.docs.map((doc) => {
+          const d = doc.data();
+          return {
+            sessionId: doc.id,
+            visitorId: typeof d.visitorId === "string" ? d.visitorId : "",
+            firstSeenAt: Number(d.firstSeenAt ?? d.startedAtMs ?? 0),
+          };
+        }));
+      }
+      let query: FirebaseFirestore.Query = collection.orderBy("startedAtMs", "desc");
+      if (bounds) query = query.where("startedAtMs", ">=", bounds.start).where("startedAtMs", "<", bounds.end);
+      if (cursor) {
+        if (cursor.includes("/") || cursor.length > 256) return res.status(400).json({ error: "Cursor invalid." });
+        const doc = await collection.doc(cursor).get();
+        if (!doc.exists) return res.status(400).json({ error: "Cursor expirat. Reîncarcă lista." });
+        query = query.startAfter(doc);
+      }
+      // Paginate the scanned documents, including archived records. No skipped gaps.
+      const snap = await query.limit(limit).get();
       const items = snap.docs
         .filter((doc) => Boolean(doc.data().archived) === wantArchived)
-        .slice(0, limit)
         .map((doc) => {
           const d = doc.data();
-          delete d.updatedAt; // Firestore Timestamp — not needed by the client
+          delete d.updatedAt;
           delete d.ip;
           delete d.ua;
           return {
-            ...d,
-            sessionId: doc.id,
-            archived: Boolean(d.archived),
+            ...d, sessionId: doc.id, archived: Boolean(d.archived),
             firstSeenAt: d.firstSeenAt ?? d.startedAtMs ?? null,
-            path: d.path ?? [],
-            events: d.events ?? [],
-            source: d.source ?? "direct",
+            path: d.path ?? [], events: d.events ?? [], scrollByPage: d.scrollByPage ?? {},
+            source: visitSource(d.attribution ?? {}, Boolean(d.isGoogleAds)),
             attribution: d.attribution ?? {},
           };
         });
-
-      res.json({ sessions: items });
+      res.json({ sessions: items, visitorNumbers, nextCursor: snap.size === limit ? snap.docs[snap.docs.length - 1].id : null, date: day || null });
     } catch (error) {
       console.error("[live-visitors] GET /live/history failed:", error);
       res.status(500).json({ error: "failed" });
@@ -342,6 +376,7 @@ liveVisitorsAdminRouter.post(
       const { sessionId } = req.params;
       const archived = (req.body as { archived?: boolean }).archived !== false;
       await firestore().collection("live_sessions").doc(sessionId).set({ archived }, { merge: true });
+      setSessionArchived(sessionId, archived);
       res.json({ ok: true, archived });
     } catch (error) {
       console.error("[live-visitors] POST /live/:sessionId/archive failed:", error);

@@ -8,6 +8,7 @@ interface Visit {
   sessionId: string;
   visitorId: string;
   isNew: boolean;
+  isBounce: boolean;
   page: string;
   referrer: string;
   timestamp: string;
@@ -38,6 +39,7 @@ interface PageEntry {
   timestamp: string;
   timeSpent?: number;
   scrollDepth?: number;
+  isBounce?: boolean;
 }
 
 interface SessionEntry {
@@ -158,7 +160,7 @@ function groupByVisitors(visits: Visit[]): Visitor[] {
       sessionMap.set(sid, { sessionId: sid, pages: [], firstSeen: visit.timestamp, lastSeen: visit.timestamp });
     }
     const session = sessionMap.get(sid)!;
-    session.pages.push({ page: visit.page, timestamp: visit.timestamp, timeSpent: visit.timeSpent, scrollDepth: visit.scrollDepth });
+    session.pages.push({ page: visit.page, timestamp: visit.timestamp, timeSpent: visit.timeSpent, scrollDepth: visit.scrollDepth, isBounce: visit.isBounce });
     if (visit.timestamp < session.firstSeen) session.firstSeen = visit.timestamp;
     if (visit.timestamp > session.lastSeen) session.lastSeen = visit.timestamp;
   }
@@ -660,6 +662,11 @@ export default function AnalyticsPage() {
                                           {p.scrollDepth != null && p.scrollDepth > 0 && (
                                             <span className="text-neutral-600 text-[11px]">↕ {p.scrollDepth}% scroll</span>
                                           )}
+                                        </span>
+                                      )}
+                                      {p.isBounce && (
+                                        <span className="ml-2 inline-flex items-center rounded border border-orange-500/20 bg-orange-500/10 px-1.5 py-0.5 text-[10px] text-orange-300">
+                                          bounce — fără interacțiune
                                         </span>
                                       )}
                                     </div>

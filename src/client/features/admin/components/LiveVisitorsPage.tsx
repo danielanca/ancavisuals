@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
+import { visitDay, visitDayBounds, visitStatus, observedDuration, visitSource, isAlbumVisit, type VisitSource } from "../../../../shared/liveVisits";
+import "./LiveVisitorsPage.css";
 
 // ── Types (mirror server serializeSession) ───────────────────────────────────
 
 type Priority = "low" | "normal" | "high" | "critical";
-type Source = "google_ads" | "organic" | "ai" | "direct" | "referral";
+type Source = VisitSource;
 
 interface LiveEvent {
   id: string;
@@ -20,6 +22,8 @@ interface LiveEvent {
 interface LiveSession {
   sessionId: string;
   visitorNumber: number;
+  visitorId?: string;
+  visibility?: "visible" | "hidden";
   isNew: boolean;
   firstSeenAt: number;
   lastSeenAt: number;
@@ -41,6 +45,9 @@ interface LiveSession {
   deviceType: "mobile" | "tablet" | "desktop";
   idle: boolean;
   archived?: boolean;
+  audience?: "client" | "prospect";
+  hasContactIntent?: boolean;
+  hasConfirmedLead?: boolean;
 }
 
 // ── Formatting ──────────────────────────────────────────────────────────────
@@ -49,10 +56,13 @@ const PRIORITY_RANK: Record<Priority, number> = { low: 0, normal: 1, high: 2, cr
 
 const SOURCE_BADGE: Record<Source, { label: string; cls: string }> = {
   google_ads: { label: "Google Ads", cls: "bg-amber-500/20 text-amber-300 border-amber-500/30" },
-  organic: { label: "Organic", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25" },
-  ai: { label: "AI", cls: "bg-violet-500/15 text-violet-300 border-violet-500/25" },
+  organic: { label: "Organic · Google & altele", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25" },
+  instagram: { label: "Instagram", cls: "text-pink-300" },
+  facebook: { label: "Facebook", cls: "text-blue-300" },
+  tiktok: { label: "TikTok", cls: "text-cyan-300" },
+  ai: { label: "AI / LLM", cls: "bg-violet-500/15 text-violet-300 border-violet-500/25" },
   referral: { label: "Referral", cls: "bg-sky-500/15 text-sky-300 border-sky-500/25" },
-  direct: { label: "Direct", cls: "bg-neutral-700/40 text-neutral-300 border-neutral-600/40" },
+  direct: { label: "Direct / necunoscut", cls: "bg-neutral-700/40 text-neutral-300 border-neutral-600/40" },
 };
 
 function pageName(path: string): string {
@@ -127,8 +137,11 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
       if (kind === "contact") return `A început formularul de contact.`;
       return `A început să completeze un formular.`;
     }
+    case "form_submit_attempted":
+      return "A încercat să trimită formularul (rezultatul nu este confirmat).";
     case "form_submitted": {
       const kind = ev.meta?.kind;
+      if (ev.meta?.confirmed !== true && !ev.meta?.phone) return "Trimitere formular raportată (înregistrare veche, rezultat neconfirmat).";
       if (kind === "delivery") return `📦 A completat adresa de livrare — vrea albumul fizic.`;
       if (kind === "subscribe") return `📧 S-a abonat — vrea notificare când sunt gata pozele.`;
       if (kind === "contact") {
@@ -143,7 +156,7 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
       return `Vizitatorul este inactiv.`;
     case "session_ended": {
       const d = Number(ev.meta?.durationSeconds ?? s.durationSeconds);
-      return `Vizitatorul a plecat după ${formatDuration(d)}.`;
+      return `Sesiunea s-a încheiat după ${formatDuration(d)}${ev.meta?.reason === "timeout" ? " — fără semnal recent" : ""}.`;
     }
     default:
       return ev.label || ev.name;
@@ -151,106 +164,90 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
 }
 
 function shortTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(ts).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Bucharest" });
 }
 
-// ── Component ───────────────────────────────────────────────────────────────
+const STATUS_LABEL = { active: "Activ", idle: "Fără interacțiuni", hidden: "Tab în fundal", ended: "Încheiat" };
+const CONTACT_EVENTS = new Set(["whatsapp_clicked", "phone_revealed", "contact_clicked", "availability_checked"]);
+const isLead = (s: LiveSession) => s.hasConfirmedLead || s.events.some((e) => e.name === "form_submitted" && e.meta?.kind === "contact" && (e.meta?.confirmed === true || Boolean(e.meta?.name && e.meta?.phone)));
+const hasIntent = (s: LiveSession) => s.hasContactIntent || s.events.some((e) => CONTACT_EVENTS.has(e.name));
+const visitorIdentity = (s: LiveSession) => s.visitorId ? `visitor:${s.visitorId}` : `session:${s.sessionId}`;
+const shiftDay = (day: string, offset: number) => new Date(Date.parse(`${day}T12:00:00Z`) + offset * 86400000).toISOString().slice(0, 10);
+const channelOf = (s: LiveSession) => isAlbumVisit(s) ? "clients" : visitSource(s.attribution, s.isGoogleAds);
+const CHANNELS = [
+  { id: "all", label: "Tot traficul" }, { id: "google_ads", label: "Google Ads" },
+  { id: "organic", label: "Organic" }, { id: "instagram", label: "Instagram" },
+  { id: "facebook", label: "Facebook" }, { id: "tiktok", label: "TikTok" },
+  { id: "ai", label: "AI / LLM" }, { id: "referral", label: "Alte surse" },
+  { id: "direct", label: "Direct / necunoscut" }, { id: "clients", label: "Clienți · Albume" },
+];
 
 export default function LiveVisitorsPage() {
   const { auth } = useAuth();
-  const [sessions, setSessions] = useState<Map<string, LiveSession>>(new Map());
+  const [day, setDay] = useState(() => visitDay());
+  const [history, setHistory] = useState<LiveSession[]>([]);
+  const [dailyVisitorNumbers, setDailyVisitorNumbers] = useState<Record<string, number>>({});
+  const [sessions, setSessions] = useState(new Map<string, LiveSession>());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
-  const [onlyGoogleAds, setOnlyGoogleAds] = useState(false);
-  const [minPriority, setMinPriority] = useState<Priority>("low");
-  const [tab, setTab] = useState<"live" | "history">("live");
-  const [history, setHistory] = useState<LiveSession[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
-  const [, forceTick] = useState(0);
-  const feedRef = useRef<HTMLDivElement | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [channel, setChannel] = useState("all");
+  const [search, setSearch] = useState("");
+  const [device, setDevice] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [archived, setArchived] = useState(false);
+  const [priority, setPriority] = useState<Priority>("low");
+  const [follow, setFollow] = useState(true);
+  const [now, setNow] = useState(Date.now());
+  const [archiving, setArchiving] = useState(false);
+  const requestRef = useRef<AbortController | null>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
+  const today = visitDay(now);
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (after?: string) => {
     if (!auth.accessToken) return;
-    setHistoryLoading(true);
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true);
+    setError("");
+    if (!after) { setHistory([]); setCursor(null); }
     try {
-      const res = await fetch(`/api/admin/analytics/live/history?limit=200&archived=${showArchived ? "1" : "0"}`, {
-        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      const params = new URLSearchParams({ date: day, limit: "200", archived: archived ? "1" : "0" });
+      if (after) params.set("cursor", after);
+      const res = await fetch(`/api/admin/analytics/live/history?${params}`, {
+        headers: { Authorization: `Bearer ${auth.accessToken}` }, signal: controller.signal,
       });
-      const data = (await res.json()) as { sessions?: LiveSession[] };
-      setHistory(data.sessions ?? []);
-    } catch {
-      setHistory([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [auth.accessToken, showArchived]);
+      if (!res.ok) throw new Error(res.status === 401 ? "Sesiunea de autentificare a expirat. Reautentifică-te." : "Istoricul nu a putut fi încărcat. Încearcă din nou.");
+      const data = await res.json() as { sessions: LiveSession[]; visitorNumbers?: Record<string, number>; nextCursor?: string | null };
+      if (controller.signal.aborted) return;
+      if (data.visitorNumbers) setDailyVisitorNumbers(data.visitorNumbers);
+      setHistory((prev) => Array.from(new Map([...(after ? prev : []), ...data.sessions].map((s) => [s.sessionId, s])).values()));
+      setCursor(data.nextCursor ?? null);
+    } catch (e) {
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Eroare de conexiune.");
+    } finally { if (!controller.signal.aborted) setLoading(false); }
+  }, [auth.accessToken, day, archived]);
 
-  useEffect(() => {
-    if (tab === "history") { setSelectedId(null); void loadHistory(); }
-  }, [tab, loadHistory]);
+  useEffect(() => { setSelectedId(null); void loadHistory(); return () => requestRef.current?.abort(); }, [loadHistory]);
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
 
-  const archiveSession = useCallback(async (sessionId: string, archived: boolean) => {
-    if (!auth.accessToken) return;
-    setHistory((prev) => prev.filter((s) => s.sessionId !== sessionId));
-    if (selectedId === sessionId) setSelectedId(null);
-    try {
-      await fetch(`/api/admin/analytics/live/${encodeURIComponent(sessionId)}/archive`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-        body: JSON.stringify({ archived }),
-      });
-    } catch { /* revert on next reload */ }
-  }, [auth.accessToken, selectedId]);
-
-  // tick every second so live durations advance
-  useEffect(() => {
-    const id = window.setInterval(() => forceTick((n) => n + 1), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const applyEvent = useCallback((payload: Record<string, unknown>) => {
-    const type = payload.type as string;
-    if (type === "snapshot") {
-      const map = new Map<string, LiveSession>();
-      (payload.sessions as LiveSession[]).forEach((s) => map.set(s.sessionId, s));
-      setSessions(map);
-      return;
-    }
-    if (type === "session_removed") {
-      setSessions((prev) => {
-        const next = new Map(prev);
-        next.delete(payload.sessionId as string);
-        return next;
-      });
-      return;
-    }
-    const s = payload.session as LiveSession | undefined;
-    if (s) {
-      setSessions((prev) => {
-        const next = new Map(prev);
-        next.set(s.sessionId, s);
-        return next;
-      });
-    }
-  }, []);
-
-  // SSE connection with reconnect
   useEffect(() => {
     if (!auth.accessToken) return;
     let stopped = false;
     let retry = 0;
-    let controller: AbortController | null = null;
-
+    let timer: number | undefined;
+    let controller: AbortController;
     const connect = async () => {
+      if (stopped) return;
       controller = new AbortController();
       try {
         const res = await fetch("/api/admin/analytics/live/stream", {
-          headers: { Authorization: `Bearer ${auth.accessToken}` },
-          signal: controller.signal,
+          headers: { Authorization: `Bearer ${auth.accessToken}` }, signal: controller.signal,
         });
-        if (!res.body) throw new Error("no body");
-        setConnected(true);
+        if (!res.ok || !res.body || !res.headers.get("content-type")?.includes("text/event-stream")) throw new Error("stream unavailable");
         retry = 0;
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -263,219 +260,200 @@ export default function LiveVisitorsPage() {
           buffer = lines.pop() ?? "";
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
-            try { applyEvent(JSON.parse(line.slice(6)) as Record<string, unknown>); } catch { /* skip */ }
+            const data = JSON.parse(line.slice(6)) as { type: string; sessions?: LiveSession[]; session?: LiveSession };
+            if (data.type === "snapshot") {
+              setConnected(true);
+              setSessions((prev) => new Map([...prev, ...(data.sessions ?? []).map((s): [string, LiveSession] => [s.sessionId, s])]));
+            } else if (data.session) {
+              const session = data.session;
+              setSessions((prev) => new Map(prev).set(session.sessionId, session));
+              if (data.type === "archived") setHistory((prev) => prev.map((s) => s.sessionId === session.sessionId ? session : s));
+            }
+            // Retain ended sessions for the current day's list until the next snapshot.
           }
         }
-      } catch { /* fallthrough to reconnect */ }
+      } catch { /* reconnect below, with explicit stale state */ }
       if (stopped) return;
       setConnected(false);
       retry = Math.min(retry + 1, 6);
-      window.setTimeout(connect, 1000 * retry);
+      timer = window.setTimeout(connect, retry * 1500);
     };
-    connect();
+    void connect();
+    return () => { stopped = true; clearTimeout(timer); controller?.abort(); setConnected(false); };
+  }, [auth.accessToken]);
 
-    return () => { stopped = true; controller?.abort(); };
-  }, [auth.accessToken, applyEvent]);
+  const all = useMemo(() => {
+    const bounds = visitDayBounds(day);
+    const map = new Map(history.filter((s) => Boolean(s.archived) === archived).map((s) => [s.sessionId, s]));
+    if (day === visitDay() && !archived) {
+      sessions.forEach((s) => {
+        if (s.firstSeenAt >= bounds.start && s.firstSeenAt < bounds.end && !s.archived && !map.get(s.sessionId)?.archived) map.set(s.sessionId, s);
+      });
+    }
+    return [...map.values()].sort((a, b) => b.firstSeenAt - a.firstSeenAt);
+  }, [history, sessions, day, archived]);
+  const dailyNumbers = useMemo(() => {
+    const result = { ...dailyVisitorNumbers };
+    let next = Math.max(0, ...Object.values(result));
+    const orderedHistory = [...all].sort((a, b) => a.firstSeenAt - b.firstSeenAt || a.sessionId.localeCompare(b.sessionId));
+    for (const s of orderedHistory) {
+      const identity = visitorIdentity(s);
+      if (!result[identity]) result[identity] = ++next;
+      result[`session:${s.sessionId}`] = result[identity];
+    }
+    const orderedLive = day === today && !archived
+      ? [...sessions.values()].filter((s) => s.firstSeenAt >= visitDayBounds(day).start && s.firstSeenAt < visitDayBounds(day).end).sort((a, b) => a.firstSeenAt - b.firstSeenAt || a.sessionId.localeCompare(b.sessionId))
+      : [];
+    for (const s of orderedLive) {
+      const identity = visitorIdentity(s);
+      if (!result[identity]) result[identity] = ++next;
+      result[`session:${s.sessionId}`] = result[identity];
+    }
+    return result;
+  }, [dailyVisitorNumbers, sessions, day, today, archived]);
+  const counts = useMemo(() => all.reduce<Record<string, number>>((acc, s) => {
+    const key = channelOf(s); acc[key] = (acc[key] ?? 0) + 1; return acc;
+  }, {}), [all]);
+  const channelSessions = all.filter((s) => channel === "all" || channelOf(s) === channel);
+  const numberFor = (s: LiveSession) => dailyNumbers[visitorIdentity(s)] ?? dailyNumbers[`session:${s.sessionId}`] ?? s.visitorNumber;
+  const visitorLabel = (s: LiveSession) => `#${numberFor(s)}`;
+  const list = channelSessions.filter((s) => {
+    const haystack = [visitorLabel(s), s.currentPage, s.city, s.country, ...s.path.map((p) => p.page), ...Object.values(s.attribution)].join(" ").toLowerCase();
+    return (!search || haystack.includes(search.toLowerCase())) && (device === "all" || s.deviceType === device)
+      && (status === "all" || visitStatus(s, now) === status);
+  });
+  const selected = list.find((s) => s.sessionId === selectedId) ?? list[0] ?? null;
+  const selectedStatus = selected ? visitStatus(selected, now) : "ended";
+  const visibleEvents = selected?.events.filter((e, i, events) =>
+    !(e.name === "visitor_idle" && events[i - 1]?.name === "visitor_idle") && PRIORITY_RANK[e.priority] >= PRIORITY_RANK[priority]) ?? [];
+  const unavailable = (loading || Boolean(error)) && !history.length;
+  const prospects = channelSessions.filter((s) => !isAlbumVisit(s));
+  const active = channelSessions.filter((s) => visitStatus(s, now) === "active").length;
+  const unique = new Set(channelSessions.map((s) => s.visitorId || s.sessionId)).size;
+  const median = channelSessions.map(observedDuration).sort((a, b) => a - b);
+  const medianSeconds = median.length ? median[Math.floor(median.length / 2)] : 0;
 
-  const liveList = useMemo(() => {
-    let arr = Array.from(sessions.values());
-    if (onlyGoogleAds) arr = arr.filter((s) => s.isGoogleAds);
-    return arr.sort((a, b) => {
-      const aActive = a.endedAt ? 0 : 1;
-      const bActive = b.endedAt ? 0 : 1;
-      if (aActive !== bActive) return bActive - aActive;
-      return b.lastEventAt - a.lastEventAt;
-    });
-  }, [sessions, onlyGoogleAds]);
-
-  const historyList = useMemo(() => {
-    let arr = [...history];
-    if (onlyGoogleAds) arr = arr.filter((s) => s.isGoogleAds);
-    return arr.sort((a, b) => (b.firstSeenAt ?? 0) - (a.firstSeenAt ?? 0));
-  }, [history, onlyGoogleAds]);
-
-  const list = tab === "live" ? liveList : historyList;
-  const activeCount = liveList.filter((s) => !s.endedAt).length;
-  const selected = selectedId ? list.find((s) => s.sessionId === selectedId) ?? null : null;
-
-  // auto-select the most recent visitor when nothing selected (live tab only)
   useEffect(() => {
-    if (tab === "live" && !selectedId && liveList.length > 0) setSelectedId(liveList[0].sessionId);
-  }, [tab, liveList, selectedId]);
+    if (follow && feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
+  }, [selected?.sessionId, visibleEvents.length, follow]);
 
-  const visibleEvents = useMemo(() => {
-    if (!selected) return [];
-    return selected.events.filter((e) => PRIORITY_RANK[e.priority] >= PRIORITY_RANK[minPriority]);
-  }, [selected, minPriority]);
-
-  // When switching visitor, jump straight to the newest events (bottom), no animation.
-  useLayoutEffect(() => {
-    const el = feedRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [selectedId]);
-
-  // Follow new events for the visitor already open.
-  useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
-  }, [visibleEvents.length]);
+  const archiveSession = async () => {
+    if (!selected || archiving) return;
+    setArchiving(true); setError("");
+    const id = selected.sessionId;
+    try {
+      const res = await fetch(`/api/admin/analytics/live/${encodeURIComponent(id)}/archive`, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({ archived: !archived }),
+      });
+      if (!res.ok) throw new Error("Arhivarea nu a reușit. Sesiunea a fost păstrată în listă.");
+      setHistory((prev) => prev.filter((s) => s.sessionId !== id));
+      setSessions((prev) => { const next = new Map(prev); const s = next.get(id); if (s) next.set(id, { ...s, archived: !archived }); return next; });
+      setSelectedId(null);
+    } catch (e) { setError(e instanceof Error ? e.message : "Arhivarea nu a reușit."); }
+    finally { setArchiving(false); }
+  };
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+    <div className="live-visits">
       <Breadcrumb />
-
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <h1 className="text-white text-xl font-bold">Vizitatori</h1>
-        <div className="flex rounded-lg border border-neutral-700 overflow-hidden text-xs">
-          <button
-            onClick={() => setTab("live")}
-            className={`px-3 py-1.5 transition-colors ${tab === "live" ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}
-          >
-            Live{activeCount > 0 ? ` (${activeCount})` : ""}
-          </button>
-          <button
-            onClick={() => setTab("history")}
-            className={`px-3 py-1.5 transition-colors ${tab === "history" ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}
-          >
-            Istoric
-          </button>
+      <header className="lv-header">
+        <div><p className="lv-eyebrow">AUDIENȚĂ & COMPORTAMENT</p><h1>Vizitatori <span>live</span></h1><p className="lv-subtitle">De unde vin, ce îi interesează și unde ajung.</p></div>
+        <div className={`lv-connection ${connected ? "is-connected" : ""}`} role="status"><i />{connected ? "Actualizare live conectată" : "Reconectare · datele pot fi vechi"}</div>
+      </header>
+      <section className="lv-datebar" aria-label="Selectează ziua">
+        <div className="lv-date-controls">
+          <button aria-label="Ziua precedentă" onClick={() => setDay(shiftDay(day, -1))}>‹</button>
+          <input aria-label="Data vizitelor" type="date" value={day} max={today} onChange={(e) => { if (e.target.value && e.target.value <= today) setDay(e.target.value); }} />
+          <button aria-label="Ziua următoare" disabled={day >= today} onClick={() => setDay(shiftDay(day, 1))}>›</button>
         </div>
-        {tab === "live" ? (
-          <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border ${connected ? "border-emerald-500/40 text-emerald-300" : "border-neutral-600 text-neutral-400"}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400 animate-pulse" : "bg-neutral-500"}`} />
-            {connected ? "conectat" : "reconectare…"}
-          </span>
-        ) : (
-          <>
-            <button onClick={loadHistory} className="text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-2.5 py-1 transition-colors">
-              {historyLoading ? "Se încarcă…" : "Reîncarcă"}
-            </button>
-            <label className="flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
-              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-              Arhivate
-            </label>
-          </>
-        )}
-        <label className="ml-auto flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
-          <input type="checkbox" checked={onlyGoogleAds} onChange={(e) => setOnlyGoogleAds(e.target.checked)} />
-          Doar Google Ads
-        </label>
-        <select
-          value={minPriority}
-          onChange={(e) => setMinPriority(e.target.value as Priority)}
-          className="bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-200 px-2 py-1"
-        >
-          <option value="low">Toate evenimentele</option>
-          <option value="normal">Normale și importante</option>
-          <option value="high">Importante și critice</option>
-          <option value="critical">Doar critice</option>
-        </select>
+        <button className={day === today ? "is-selected" : ""} onClick={() => setDay(today)}>Astăzi</button>
+        <button className={day === shiftDay(today, -1) ? "is-selected" : ""} onClick={() => setDay(shiftDay(today, -1))}>Ieri</button>
+        <span className="lv-timezone">Ora României · {day === today ? "în curs" : "00:00–23:59"}</span>
+        <button className="lv-refresh" disabled={loading} onClick={() => void loadHistory()}>{loading ? "Se încarcă…" : "↻ Actualizează"}</button>
+      </section>
+      {error && <div className="lv-error" role="alert">{error} <button onClick={() => void loadHistory()}>Reîncearcă</button></div>}
+      <div className="lv-metrics">
+        <Metric label="Sesiuni" value={unavailable ? "—" : channelSessions.length} hint={unavailable ? "În așteptarea datelor" : `${unique} ${unique === 1 ? "vizitator identificat" : "vizitatori identificați"}`} />
+        <Metric label="Activi acum" value={day === today && connected ? active : "—"} hint={day === today ? "Interacțiune în ultimele 60 secunde" : "Zi din istoric"} accent />
+        <Metric label="Interes de contact" value={unavailable ? "—" : prospects.filter(hasIntent).length} hint="Click contact, telefon, WhatsApp sau dată" />
+        <Metric label="Formulare confirmate" value={unavailable ? "—" : prospects.filter(isLead).length} hint="Confirmare explicită după trimitere reușită" />
+        <Metric label="Durată mediană" value={unavailable ? "—" : compactDuration(medianSeconds)} hint="Timp observat · nu timp de atenție" />
       </div>
-
-      <div className="grid md:grid-cols-[320px_1fr] gap-4">
-        {/* Visitor list */}
-        <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
-          {list.length === 0 && (
-            <p className="text-neutral-500 text-sm p-4 border border-neutral-800 rounded-xl">
-              {tab === "live"
-                ? "Niciun vizitator momentan. Deschide site-ul într-un alt browser pentru test."
-                : historyLoading
-                  ? "Se încarcă istoricul…"
-                  : showArchived ? "Nicio sesiune arhivată." : "Nicio sesiune în istoric încă."}
-            </p>
-          )}
-          {list.map((s) => {
-            const badge = SOURCE_BADGE[s.source];
-            const dur = s.endedAt ? s.durationSeconds : Math.round((Date.now() - s.firstSeenAt) / 1000);
-            const last = s.events[s.events.length - 1];
-            return (
-              <div
-                key={s.sessionId}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedId(s.sessionId)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedId(s.sessionId); }}
-                className={`w-full text-left p-3 rounded-xl border transition-colors cursor-pointer ${
-                  selectedId === s.sessionId ? "border-neutral-500 bg-neutral-800/60" : "border-neutral-800 hover:border-neutral-700"
-                } ${s.endedAt && tab === "live" ? "opacity-55" : ""}`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-white text-sm font-semibold">Vizitator {s.visitorNumber}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>
-                  {s.idle && !s.endedAt && <span className="text-[10px] text-neutral-500">idle</span>}
-                  {s.endedAt && tab === "live" && <span className="text-[10px] text-neutral-500">plecat</span>}
-                  <span className="ml-auto text-[11px] text-neutral-500">{formatDuration(dur)}</span>
-                </div>
-                <p className="text-xs text-neutral-300 truncate">{pageName(s.currentPage)} · {s.deviceType} · {s.pageCount} pag.</p>
-                <p className="text-[11px] text-neutral-500 truncate">
-                  {tab === "history" && s.firstSeenAt ? `${new Date(s.firstSeenAt).toLocaleString("ro-RO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} · ` : ""}
-                  {[s.city, s.country].filter(Boolean).join(", ") || "locație necunoscută"}
-                  {last ? ` · ${formatEvent(last, s)}` : ""}
-                </p>
-                {tab === "history" && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); archiveSession(s.sessionId, !showArchived); }}
-                    className="mt-1.5 text-[11px] text-neutral-500 hover:text-neutral-200 transition-colors"
-                  >
-                    {showArchived ? "↩ Dezarhivează" : "🗄 Arhivează"}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Feed */}
-        <div className="border border-neutral-800 rounded-xl overflow-hidden flex flex-col max-h-[70vh]">
-          {!selected ? (
-            <p className="text-neutral-500 text-sm p-6">Selectează un vizitator.</p>
-          ) : (
-            <>
-              <div className="p-3 border-b border-neutral-800 bg-neutral-900/60">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-white font-semibold">Vizitator {selected.visitorNumber}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${SOURCE_BADGE[selected.source].cls}`}>
-                    {SOURCE_BADGE[selected.source].label}
-                  </span>
-                  <span className="text-xs text-neutral-400">
-                    {selected.pageCount} pagin{selected.pageCount === 1 ? "ă" : "i"} · {[selected.city, selected.country].filter(Boolean).join(", ") || "loc. necunoscută"}
-                  </span>
-                  {tab === "history" && (
-                    <button
-                      onClick={() => archiveSession(selected.sessionId, !showArchived)}
-                      className="ml-auto text-[11px] text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-2 py-0.5 transition-colors"
-                    >
-                      {showArchived ? "↩ Dezarhivează" : "🗄 Arhivează"}
-                    </button>
-                  )}
-                </div>
-                {tab === "history" && selected.firstSeenAt && (
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    {new Date(selected.firstSeenAt).toLocaleString("ro-RO", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    {" · durată "}{formatDuration(selected.durationSeconds)}
-                  </p>
-                )}
-                {(selected.attribution.utmCampaign || selected.attribution.gclid) && (
-                  <p className="text-[11px] text-neutral-500 mt-1 truncate">
-                    {selected.attribution.utmCampaign ? `campanie: ${selected.attribution.utmCampaign}` : ""}
-                    {selected.attribution.gclid ? "  · gclid ✓" : ""}
-                  </p>
-                )}
-              </div>
-              <div ref={feedRef} className="flex-1 overflow-y-auto p-3 space-y-1.5">
-                {visibleEvents.map((ev) => (
-                  <div key={ev.id} className="flex gap-2 text-sm">
-                    <span className="text-neutral-600 text-xs shrink-0 tabular-nums pt-0.5">{shortTime(ev.at)}</span>
-                    <span className={ev.priority === "critical" ? "text-amber-300 font-medium" : ev.priority === "high" ? "text-neutral-100" : "text-neutral-300"}>
-                      {formatEvent(ev, selected)}
-                    </span>
-                  </div>
-                ))}
-                {visibleEvents.length === 0 && <p className="text-neutral-600 text-xs">Niciun eveniment la acest nivel de prioritate.</p>}
-              </div>
-            </>
-          )}
-        </div>
+      <nav className="lv-channels" aria-label="Surse de trafic">
+        {CHANNELS.map((c) => <button key={c.id} aria-pressed={channel === c.id} className={channel === c.id ? "is-selected" : ""} onClick={() => { setChannel(c.id); setSelectedId(null); }}>
+          {c.label}<span>{unavailable ? "—" : c.id === "all" ? all.length : counts[c.id] ?? 0}</span>
+        </button>)}
+      </nav>
+      <div className="lv-scope">
+        <span>{loading ? "Se încarcă sesiunile…" : unavailable ? "Istoric indisponibil" : `${all.length} sesiuni începute în ziua aleasă`}{cursor ? " · listă parțială, mai sunt sesiuni de încărcat" : ""}</span>
+        <span>{channel === "clients" ? "Vizite la /media · excluse din indicatorii de contact" : "Sursa se bazează pe UTM / referrer. Blogul singur nu confirmă SEO."}</span>
       </div>
+      <div className="lv-toolbar">
+        <input aria-label="Caută sesiuni" type="search" placeholder="Caută pagină, oraș, campanie sau vizitator…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select aria-label="Dispozitiv" value={device} onChange={(e) => setDevice(e.target.value)}><option value="all">Toate dispozitivele</option><option value="mobile">Mobil</option><option value="desktop">Desktop</option><option value="tablet">Tabletă</option></select>
+        <select aria-label="Starea sesiunii" value={status} onChange={(e) => setStatus(e.target.value)}><option value="all">Toate stările</option>{Object.entries(STATUS_LABEL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+        <label><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} /> Arhivate</label>
+      </div>
+      <div className="lv-workspace">
+        <section className="lv-list-panel" aria-label="Lista sesiunilor">
+          <div className="lv-panel-title"><h2>Sesiuni</h2><span>{list.length} rezultate</span></div>
+          <div className="lv-session-list">
+            {!list.length && <div className="lv-empty"><span>◎</span><h3>{loading ? "Încărcăm vizitele" : error ? "Date indisponibile" : "Nicio sesiune pentru selecția ta"}</h3><p>{loading ? "Pregătim istoricul zilei." : "Schimbă ziua sau filtrele. Vizitele apar după prima interacțiune cu site-ul."}</p></div>}
+            {list.map((s) => {
+              const state = visitStatus(s, now);
+              const source = visitSource(s.attribution, s.isGoogleAds);
+              return <button key={s.sessionId} className={`lv-session ${selected?.sessionId === s.sessionId ? "is-selected" : ""}`} aria-pressed={selected?.sessionId === s.sessionId} onClick={() => setSelectedId(s.sessionId)}>
+                <div className="lv-session-top"><strong>Vizitator {visitorLabel(s)}</strong><time>{shortTime(s.firstSeenAt).slice(0, 5)}</time></div>
+                <div className="lv-session-tags"><span className={`lv-source source-${source}`}>{SOURCE_BADGE[source].label}</span>{isAlbumVisit(s) && <span className="lv-client">Client · Album</span>}{!isAlbumVisit(s) && s.path.some((p) => /^\/blog(?:\/|$)/.test(p.page)) && <span className="lv-client">{source === "direct" ? "Blog · sursă necunoscută" : "Blog"}</span>}<span className={`lv-status state-${state}`}>{STATUS_LABEL[state]}</span></div>
+                <p className="lv-session-page" title={s.currentPage}>{s.currentPage}</p>
+                <div className="lv-session-bottom"><span>{s.city || s.country || "Locație necunoscută"} · {s.deviceType === "mobile" ? "Mobil" : s.deviceType === "tablet" ? "Tabletă" : "Desktop"}</span><span>{s.pageCount} pag. · {compactDuration(observedDuration(s))}</span></div>
+                {(isLead(s) || hasIntent(s)) && !isAlbumVisit(s) && <span className="lv-intent">{isLead(s) ? "✓ Formular de contact" : "↗ Interes de contact"}</span>}
+              </button>;
+            })}
+          </div>
+          {cursor && <button className="lv-load-more" disabled={loading} onClick={() => void loadHistory(cursor)}>{loading ? "Se încarcă…" : "Încarcă mai multe sesiuni din această zi"}</button>}
+        </section>
+        <section className="lv-details" aria-label="Detaliile sesiunii">
+          {!selected ? <div className="lv-empty lv-empty-detail"><span>↗</span><h3>Fiecare vizită are un traseu</h3><p>Selectează o sesiune pentru a vedea sursa, paginile și acțiunile vizitatorului.</p></div> : <>
+            <div className="lv-detail-heading"><div><p className="lv-eyebrow">DETALII SESIUNE</p><h2>Vizitator {visitorLabel(selected)}</h2><span className={`lv-status state-${selectedStatus}`}>{STATUS_LABEL[selectedStatus]}</span></div><button disabled={archiving} onClick={() => void archiveSession()}>{archiving ? "Se salvează…" : archived ? "Restaurează" : "Arhivează"}</button></div>
+            <dl className="lv-facts">
+              <Fact label="Sursă identificată" value={SOURCE_BADGE[visitSource(selected.attribution, selected.isGoogleAds)].label} />
+              <Fact label="Origine / serviciu" value={originLabel(selected)} />
+              <Fact label="Campanie" value={selected.attribution.utmCampaign || "Nespecificată"} />
+              <Fact label="Locație aproximativă" value={[selected.city, selected.country].filter(Boolean).join(", ") || "Necunoscută"} />
+              <Fact label="Prima interacțiune" value={shortTime(selected.firstSeenAt)} />
+              <Fact label="Ultimul semnal" value={shortTime(selected.lastSeenAt)} />
+              <Fact label="Durată observată" value={compactDuration(observedDuration(selected))} />
+              <Fact label="Pagina de intrare" value={selected.attribution.landingPath || selected.path[0]?.page || selected.currentPage} />
+            </dl>
+            {selected.path.some((p) => /^\/blog(?:\/|$)/.test(p.page)) && <p className="lv-note">Articol de blog vizitat{visitSource(selected.attribution, selected.isGoogleAds) === "direct" ? " · sursa intrării nu poate fi confirmată." : " · sursa afișată provine din atribuirea vizitei."}</p>}
+            {isAlbumVisit(selected) && <p className="lv-note">Client / vizitator de album. Sesiunea este separată de traficul de achiziție; sursa originală rămâne vizibilă.</p>}
+            <div className="lv-journey"><h3>Traseul pe site <span>{selected.pageCount} pagini</span></h3><ol>{selected.path.map((p, i) => <li key={`${p.at}-${i}`}><time>{shortTime(p.at).slice(0, 5)}</time><span title={p.page}>{p.page}</span></li>)}</ol></div>
+            <div className="lv-feed-heading"><h3>Activitate <span>{visibleEvents.length}</span></h3><select aria-label="Prioritatea evenimentelor" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}><option value="low">Toate acțiunile</option><option value="high">Acțiuni importante</option><option value="critical">Doar critice</option></select><label><input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> Urmărește</label></div>
+            <div ref={feedRef} className="lv-feed">{visibleEvents.map((ev) => <div key={ev.id} className={`lv-event priority-${ev.priority}`}><time>{shortTime(ev.at)}</time><i /><div><p>{formatEvent(ev, selected)}</p><span>{ev.page}</span></div></div>)}{!visibleEvents.length && <p className="lv-note">Nicio acțiune la prioritatea aleasă.</p>}</div>
+            <p className="lv-footnote">Ultimele 200 de acțiuni și 60 de pagini sunt păstrate per sesiune. Lipsa unui semnal înseamnă încheiere estimată, nu o plecare observată direct.</p>
+          </>}
+        </section>
+      </div>
+      <p className="lv-footnote">O sesiune reprezintă o filă de browser. Vizitatorii sunt identificați prin cookie, nu ca persoane certe. Clickurile de contact nu confirmă o conversație sau o rezervare.</p>
     </div>
   );
+}
+
+function compactDuration(seconds: number): string {
+  const value = Math.max(0, Math.round(seconds));
+  if (value >= 3600) return `${Math.floor(value / 3600)}h ${Math.floor(value % 3600 / 60)}m`;
+  if (value >= 60) return `${Math.floor(value / 60)}m ${value % 60}s`;
+  return `${value}s`;
+}
+function originLabel(s: LiveSession): string {
+  if (s.attribution.utmSource) return s.attribution.utmSource;
+  try { return new URL(s.attribution.referrer || "").hostname; } catch { return visitSource(s.attribution, s.isGoogleAds) === "google_ads" ? "Identificator Google Ads" : "Fără referrer / UTM"; }
+}
+function Metric({ label, value, hint, accent = false }: { label: string; value: React.ReactNode; hint: string; accent?: boolean }) {
+  return <div className={`lv-metric ${accent ? "lv-metric-accent" : ""}`}><p>{label}</p><strong>{value}</strong><span>{hint}</span></div>;
+}
+function Fact({ label, value }: { label: string; value: string }) {
+  return <div><dt>{label}</dt><dd title={value}>{value}</dd></div>;
 }

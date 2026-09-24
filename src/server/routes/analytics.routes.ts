@@ -138,12 +138,13 @@ function isAdminRequest(req: Request): boolean {
 // POST /api/analytics/pageview — record a page visit
 analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
   try {
-    const { page, referrer, sessionId, visitorId, isNew, utmSource, utmMedium, utmCampaign } = req.body as {
+    const { page, referrer, sessionId, visitorId, isNew, isBounce, utmSource, utmMedium, utmCampaign } = req.body as {
       page?: string;
       referrer?: string;
       sessionId?: string;
       visitorId?: string;
       isNew?: boolean;
+      isBounce?: boolean;
       utmSource?: string;
       utmMedium?: string;
       utmCampaign?: string;
@@ -165,6 +166,7 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
       sessionId,
       visitorId: visitorId ?? "",
       isNew: isNew ?? true,
+      isBounce: isBounce ?? true,
       page,
       referrer: referrer ?? "",
       utmSource: utmSource ?? "",
@@ -191,10 +193,11 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
 // PATCH /api/analytics/engagement — update time spent + scroll depth for a visit
 analyticsPublicRouter.patch("/engagement", async (req: Request, res: Response) => {
   try {
-    const { id, timeSpent, scrollDepth } = req.body as {
+    const { id, timeSpent, scrollDepth, isBounce } = req.body as {
       id?: string;
       timeSpent?: number;
       scrollDepth?: number;
+      isBounce?: boolean;
     };
     if (!id || typeof timeSpent !== "number") return res.status(400).json({ error: "Missing fields" });
 
@@ -202,6 +205,7 @@ analyticsPublicRouter.patch("/engagement", async (req: Request, res: Response) =
     await db.collection("siteVisits").doc(id).update({
       timeSpent: Math.min(Math.round(timeSpent), 7200),
       scrollDepth: typeof scrollDepth === "number" ? Math.min(100, Math.max(0, Math.round(scrollDepth))) : 0,
+      ...(typeof isBounce === "boolean" ? { isBounce } : {}),
     });
 
     res.json({ ok: true });
@@ -232,6 +236,7 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
           sessionId: d.sessionId,
           visitorId: d.visitorId ?? "",
           isNew: d.isNew ?? true,
+          isBounce: d.isBounce ?? false,
           page: d.page,
           referrer: d.referrer,
           timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,

@@ -29,6 +29,8 @@ async function loadRouter() {
 
   vi.doMock("src/server/services/liveVisitors.service", () => ({
     recordEvent,
+    restoreSession: vi.fn().mockResolvedValue(undefined),
+    setSessionArchived: vi.fn(),
     ping,
     endSession,
     getActiveSnapshot: vi.fn().mockReturnValue([]),
@@ -49,19 +51,35 @@ async function loadRouter() {
     requireFirebaseAuth: (_req: any, _res: any, next: any) => next(),
     requireSupremeAdmin: (_req: any, _res: any, next: any) => next(),
   }));
-  vi.doMock("src/server/firestore", () => ({ firestore: () => ({}) }));
+  const historyGet = vi.fn().mockResolvedValue({ docs: [], size: 0 });
+  const numberingGet = vi.fn().mockResolvedValue({ docs: [], size: 0 });
+  const cursorGet = vi.fn().mockResolvedValue({ exists: true, id: "cursor" });
+  const makeQuery = (get: ReturnType<typeof vi.fn>) => {
+    const q: any = { orderBy: vi.fn(), where: vi.fn(), startAfter: vi.fn(), limit: vi.fn(), get };
+    for (const fn of [q.orderBy, q.where, q.startAfter, q.limit]) fn.mockReturnValue(q);
+    return q;
+  };
+  const query = makeQuery(historyGet);
+  const numberingQuery = makeQuery(numberingGet);
+  const collection = {
+    orderBy: vi.fn((_field: string, direction: string) => direction === "asc" ? numberingQuery : query),
+    doc: vi.fn(() => ({ get: cursorGet })),
+  };
+  vi.doMock("src/server/firestore", () => ({ firestore: () => ({ collection: () => collection }) }));
 
   const mod = await import("src/server/routes/liveVisitors.routes");
   const router = mod.liveVisitorsPublicRouter as any;
 
   const getHandler = (method: string, path: string): Handler => {
-    const layer = router.stack.find((e: any) => e.route?.path === path && e.route.methods?.[method]);
+    const layer = [...router.stack, ...(mod.liveVisitorsAdminRouter as any).stack].find((e: any) => e.route?.path === path && e.route.methods?.[method]);
     if (!layer) throw new Error(`Missing ${method} ${path}`);
     return layer.route.stack[layer.route.stack.length - 1].handle;
   };
 
   return {
     recordEvent, ping, endSession, logActivity, sendEmail,
+    query, historyGet, numberingGet, cursorGet,
+    getHistory: getHandler("get", "/analytics/live/history"),
     postEvent: getHandler("post", "/live/event"),
     postPing: getHandler("post", "/live/ping"),
     postEnd: getHandler("post", "/live/end"),
@@ -74,6 +92,33 @@ describe("liveVisitors.routes", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+  });
+
+  test("history queries exactly one Romanian calendar day", async () => {
+    const { getHistory, query } = await loadRouter();
+    const res = createMockResponse();
+    await getHistory({ query: { date: "2026-09-23" } }, res);
+    expect(query.where).toHaveBeenCalledWith("startedAtMs", ">=", Date.parse("2026-09-22T21:00:00Z"));
+    expect(query.where).toHaveBeenCalledWith("startedAtMs", "<", Date.parse("2026-09-23T21:00:00Z"));
+    expect(res.json).toHaveBeenCalledWith({ sessions: [], visitorNumbers: {}, nextCursor: null, date: "2026-09-23" });
+  });
+
+  test("history advances cursor even when the page contains only archived records", async () => {
+    const { getHistory, historyGet } = await loadRouter();
+    historyGet.mockResolvedValue({ size: 1, docs: [{ id: "archived-id", data: () => ({ archived: true }) }] });
+    const res = createMockResponse();
+    await getHistory({ query: { limit: "1", date: "2026-09-23" } }, res);
+    expect(res.json).toHaveBeenCalledWith({ sessions: [], visitorNumbers: {}, nextCursor: "archived-id", date: "2026-09-23" });
+  });
+
+  test("history rejects malformed days and limits before querying", async () => {
+    const { getHistory, historyGet } = await loadRouter();
+    for (const query of [{ date: "2026-02-30" }, { limit: "-2" }, { limit: "NaN" }]) {
+      const res = createMockResponse();
+      await getHistory({ query }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    }
+    expect(historyGet).not.toHaveBeenCalled();
   });
 
   describe("POST /live/event", () => {

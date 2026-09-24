@@ -104,7 +104,7 @@ function isPricingPath(path: string): boolean {
   return /^\/(oferta|pricing|preturi)(\/|$)/.test(path);
 }
 function isGalleryPath(path: string): boolean {
-  return /^\/(portfolio|videos|fotografii|galerie)(\/|$)/.test(path);
+  return /^\/(portfolio|portofoliu|videos|fotografii|galerie)(\/|$)/.test(path);
 }
 
 export function useLiveVisitor() {
@@ -113,16 +113,19 @@ export function useLiveVisitor() {
   const scrollHitRef = useRef<Set<number>>(new Set());
 
   // ── Session-scoped listeners, heartbeat, session start & end ──────────────
+  const skipRoute = SKIP_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
   useEffect(() => {
-    if (!isBrowser()) return;
+    if (!isBrowser() || skipRoute) return;
     if (shouldSkipVisitor(location.pathname)) return;
 
     captureLandingMeta();
     const sessionId = getSessionId();
     const { visitorId, isNew } = getVisitorId();
-    const startedAt = Date.now();
+    let hasInteracted = false;
 
     const send = (event: string, extra: EventExtra = {}) => {
+      if (shouldSkipVisitor(window.location.pathname)) return;
+      hasInteracted = true;
       try {
         fetch("/api/analytics/live/event", {
           method: "POST",
@@ -139,7 +142,7 @@ export function useLiveVisitor() {
             priority: extra.priority,
             meta: extra.meta,
             scrollDepth: extra.scrollDepth,
-            landingMeta: extra.landingMeta,
+            landingMeta: extra.landingMeta ?? getLandingMeta(),
           }),
         }).catch(() => {});
       } catch {
@@ -150,6 +153,7 @@ export function useLiveVisitor() {
     sendRef.current = send;
 
     const stopSessionStartWatch = whenVisitorInteracts(() => {
+      hasInteracted = true;
       if (firedOnceThisSession("session_started")) return;
       const meta = getLandingMeta();
       send("session_started", {
@@ -159,11 +163,12 @@ export function useLiveVisitor() {
 
     // Heartbeat
     const hb = window.setInterval(() => {
+      if (!hasInteracted || shouldSkipVisitor(window.location.pathname)) return;
       fetch("/api/analytics/live/ping", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         keepalive: true,
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionId, visibility: document.visibilityState }),
       }).catch(() => {});
     }, HEARTBEAT_MS);
 
@@ -243,7 +248,7 @@ export function useLiveVisitor() {
       const form = e.target as HTMLFormElement | null;
       if (form && form.tagName === "FORM" && isSelfReported(form)) return;
       const c = classifyForm(form && form.tagName === "FORM" ? form : null, window.location.pathname);
-      send("form_submitted", { priority: c.priority, label: c.label, meta: { kind: c.kind } });
+      send("form_submit_attempted", { priority: "normal", label: "Încercare de trimitere formular", meta: { kind: c.kind } });
     };
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("submit", onSubmit, true);
@@ -263,8 +268,8 @@ export function useLiveVisitor() {
     // does NOT — the owner keeps a monitoring tab open next to the site, and
     // the server's heartbeat timeout covers an abrupt close/crash.
     const end = () => {
-      const durationSeconds = Math.round((Date.now() - startedAt) / 1000);
-      const payload = JSON.stringify({ sessionId, durationSeconds });
+      if (!hasInteracted) return;
+      const payload = JSON.stringify({ sessionId });
       if (navigator.sendBeacon) {
         navigator.sendBeacon("/api/analytics/live/end", new Blob([payload], { type: "application/json" }));
       } else {
@@ -272,12 +277,13 @@ export function useLiveVisitor() {
       }
     };
     const ping = () => {
+      if (!hasInteracted || shouldSkipVisitor(window.location.pathname)) return;
       fetch("/api/analytics/live/ping", {
         method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true,
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionId, visibility: document.visibilityState }),
       }).catch(() => {});
     };
-    const onVisibility = () => { if (document.visibilityState === "visible") ping(); };
+    const onVisibility = () => ping();
     window.addEventListener("pagehide", end);
     document.addEventListener("visibilitychange", onVisibility);
 
@@ -293,7 +299,7 @@ export function useLiveVisitor() {
       sendRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [skipRoute]);
 
   // ── Per-route: page_view + scroll milestones + route-based events ─────────
   useEffect(() => {
@@ -304,9 +310,10 @@ export function useLiveVisitor() {
     const send = sendRef.current;
     if (!send) return;
 
+    let pageTimer: number | undefined;
     const stopPageViewWatch = whenVisitorInteracts(() => {
       // small delay so document.title reflects the new route (Helmet updates async)
-      window.setTimeout(() => {
+      pageTimer = window.setTimeout(() => {
         send("page_view", { page: path, pageTitle: document.title, meta: { name: friendlyPageName(path) } });
         if (isPricingPath(path)) send("pricing_viewed", { page: path, priority: "high", label: friendlyPageName(path) });
         if (isGalleryPath(path)) send("gallery_viewed", { page: path, label: friendlyPageName(path) });
@@ -352,6 +359,7 @@ export function useLiveVisitor() {
 
     return () => {
       stopPageViewWatch();
+      window.clearTimeout(pageTimer);
       window.removeEventListener("scroll", onScroll);
       dwellTimers.forEach((id) => window.clearTimeout(id));
       io.disconnect();

@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import { firestore } from "../firestore.js";
+import { LIVE_TIMEOUT_MS, LIVE_IDLE_MS, visitSource, type VisitSource } from "../../shared/liveVisits";
 import { FieldValue } from "firebase-admin/firestore";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ export interface LiveSession {
   scrollByPage: Record<string, number>;
   attribution: LiveAttribution;
   isGoogleAds: boolean;
-  source: "google_ads" | "organic" | "ai" | "direct" | "referral";
+  source: VisitSource;
   ip: string;
   city: string;
   region: string;
@@ -59,6 +60,11 @@ export interface LiveSession {
   deviceType: "mobile" | "tablet" | "desktop";
   idle: boolean;
   geoResolved: boolean;
+  visibility: "visible" | "hidden";
+  archived?: boolean;
+  audience?: "client" | "prospect";
+  hasContactIntent?: boolean;
+  hasConfirmedLead?: boolean;
 }
 
 export interface RecordEventInput {
@@ -85,18 +91,12 @@ export interface SessionContext {
 
 const EVENTS_CAP = 200;
 const PATH_CAP = 60;
-const HEARTBEAT_TIMEOUT_MS = 75_000; // tolerate background-tab timer throttling
-const IDLE_AFTER_MS = 60_000;
+const HEARTBEAT_TIMEOUT_MS = LIVE_TIMEOUT_MS; // tolerate background-tab timer throttling
+const IDLE_AFTER_MS = LIVE_IDLE_MS;
 const KEEP_ENDED_MS = 10 * 60_000;
 const PERSIST_DEBOUNCE_MS = 5_000;
 const SWEEP_INTERVAL_MS = 5_000;
 const LIVE_SESSIONS_COLLECTION = "live_sessions";
-
-const AI_HOSTS: Record<string, string> = {
-  "chatgpt.com": "ai", "chat.openai.com": "ai", "claude.ai": "ai",
-  "gemini.google.com": "ai", "perplexity.ai": "ai", "grok.com": "ai", "copilot.microsoft.com": "ai",
-};
-const SEARCH_HOSTS = /(^|\.)(google|bing|yahoo|duckduckgo|yandex|ecosia|startpage)\./i;
 
 // ── Store ────────────────────────────────────────────────────────────────────
 
@@ -118,19 +118,8 @@ function deviceFromUa(ua: string): LiveSession["deviceType"] {
   return "desktop";
 }
 
-function classifySource(attr: LiveAttribution, isGoogleAds: boolean): LiveSession["source"] {
-  if (isGoogleAds) return "google_ads";
-  const ref = attr.referrer ?? "";
-  try {
-    const host = new URL(ref).hostname.replace(/^www\./, "").toLowerCase();
-    if (AI_HOSTS[host]) return "ai";
-    if (SEARCH_HOSTS.test(host)) return "organic";
-    if (host && !host.includes("ancavisuals.ro")) return "referral";
-  } catch { /* no / invalid referrer */ }
-  const src = (attr.utmSource ?? "").toLowerCase();
-  if (AI_HOSTS[src] || ["chatgpt", "claude", "gemini", "perplexity", "grok"].includes(src)) return "ai";
-  if (src === "google" || src === "bing") return "organic";
-  return "direct";
+function classifySource(attr: LiveAttribution, isGoogleAds: boolean): VisitSource {
+  return visitSource(attr, isGoogleAds);
 }
 
 function computeIsGoogleAds(attr: LiveAttribution, hint?: boolean): boolean {
@@ -176,9 +165,42 @@ function createSession(input: RecordEventInput, ctx: SessionContext): LiveSessio
     deviceType: deviceFromUa(ctx.ua),
     idle: false,
     geoResolved: Boolean(ctx.geo),
+    visibility: "visible",
   };
   sessions.set(session.sessionId, session);
   return session;
+}
+
+// Restore before ingestion so a process restart cannot overwrite the recorded journey.
+const restoring = new Map<string, Promise<void>>();
+export async function restoreSession(sessionId: string): Promise<void> {
+  if (sessions.has(sessionId)) return;
+  const pending = restoring.get(sessionId);
+  if (pending) return pending;
+  const task = (async () => {
+    const doc = await firestore().collection(LIVE_SESSIONS_COLLECTION).doc(sessionId).get();
+    if (!doc.exists || sessions.has(sessionId)) return;
+    const d = doc.data();
+    if (!d || !Number.isFinite(d.firstSeenAt ?? d.startedAtMs)) return;
+    const restored: LiveSession = {
+      ...d, sessionId,
+      visitorId: d.visitorId ?? "", isNew: Boolean(d.isNew), visitorNumber: d.visitorNumber ?? 0,
+      firstSeenAt: d.firstSeenAt ?? d.startedAtMs, lastSeenAt: d.lastSeenAt ?? d.startedAtMs,
+      lastEventAt: d.lastEventAt ?? d.lastSeenAt ?? d.startedAtMs,
+      endedAt: d.endedAt ?? null, endReason: d.endReason ?? null,
+      endDurationSeconds: d.endedAt ? d.durationSeconds ?? null : null,
+      currentPage: d.currentPage ?? "/", currentPageTitle: d.currentPageTitle ?? "",
+      pageCount: d.pageCount ?? 1, path: d.path ?? [], events: d.events ?? [],
+      scrollByPage: d.scrollByPage ?? {}, attribution: d.attribution ?? {},
+      isGoogleAds: Boolean(d.isGoogleAds), source: visitSource(d.attribution ?? {}, Boolean(d.isGoogleAds)),
+      ip: d.ip ?? "", ua: d.ua ?? "", city: d.city ?? "", region: d.region ?? "",
+      country: d.country ?? "", org: d.org ?? "", deviceType: d.deviceType ?? "desktop",
+      idle: Boolean(d.idle), geoResolved: Boolean(d.country), visibility: d.visibility ?? "visible",
+    };
+    sessions.set(sessionId, restored);
+  })();
+  restoring.set(sessionId, task);
+  try { await task; } finally { restoring.delete(sessionId); }
 }
 
 /** Whether geo still needs resolving for this session (avoids repeat ipinfo calls). */
@@ -206,14 +228,23 @@ export function recordEvent(input: RecordEventInput, ctx: SessionContext): { ses
       // A ping/event arrived after we timed the session out — revive it.
       session.endedAt = null;
       session.endReason = null;
+      session.endDurationSeconds = null;
     }
   }
 
+  if (input.landingMeta) {
+    session.attribution = { ...input.landingMeta, ...session.attribution };
+    session.isGoogleAds = computeIsGoogleAds(session.attribution, input.landingMeta.isGoogleAds);
+    session.source = classifySource(session.attribution, session.isGoogleAds);
+  }
   session.lastSeenAt = now;
   session.lastEventAt = now;
   session.idle = false;
 
   const page = input.page ?? session.currentPage;
+  if (/^\/media(?:\/|\?|$)/.test(page)) session.audience = "client";
+  if (["whatsapp_clicked", "phone_revealed", "contact_clicked", "availability_checked"].includes(input.event)) session.hasContactIntent = true;
+  if (input.event === "form_submitted" && input.meta?.kind === "contact" && input.meta?.confirmed === true) session.hasConfirmedLead = true;
   if (input.event === "page_view" && page !== session.currentPage) {
     session.currentPage = page;
     session.currentPageTitle = input.pageTitle ?? "";
@@ -225,8 +256,8 @@ export function recordEvent(input: RecordEventInput, ctx: SessionContext): { ses
   }
 
   let meta = input.meta;
-  if (typeof input.scrollDepth === "number") {
-    const depth = Math.round(input.scrollDepth);
+  if (typeof input.scrollDepth === "number" && Number.isFinite(input.scrollDepth)) {
+    const depth = Math.min(100, Math.max(0, Math.round(input.scrollDepth)));
     session.scrollByPage[page] = Math.max(session.scrollByPage[page] ?? 0, depth);
     if (input.event === "scroll_depth") meta = { depth, ...(meta ?? {}) };
   }
@@ -254,28 +285,31 @@ export function recordEvent(input: RecordEventInput, ctx: SessionContext): { ses
   return { session, event };
 }
 
-export function ping(sessionId: string): void {
+export function ping(sessionId: string, visibility?: "visible" | "hidden"): void {
   const session = sessions.get(sessionId);
   if (!session) return;
-  const now = Date.now();
-  session.lastSeenAt = now;
-  if (session.endedAt) { session.endedAt = null; session.endReason = null; }
-  if (session.idle) {
-    session.idle = false;
-    liveVisitorsEmitter.emit("update", { type: "idle_changed", sessionId, idle: false, session: serializeSession(session) });
+  session.lastSeenAt = Date.now();
+  if (visibility) session.visibility = visibility;
+  if (session.endedAt) {
+    session.endedAt = null;
+    session.endReason = null;
+    session.endDurationSeconds = null;
   }
-  liveVisitorsEmitter.emit("update", { type: "ping", sessionId, lastSeenAt: now });
+  // Connectivity is not interaction. A heartbeat must never clear inactivity.
+  session.idle = session.lastSeenAt - session.lastEventAt > IDLE_AFTER_MS;
+  liveVisitorsEmitter.emit("update", { type: "ping", sessionId, session: serializeSession(session) });
+  schedulePersist(session);
 }
 
 export function endSession(sessionId: string, reason: string, durationSeconds?: number): void {
   const session = sessions.get(sessionId);
   if (!session || session.endedAt) return;
   const now = Date.now();
-  session.endedAt = now;
+  session.endedAt = reason === "timeout" ? session.lastSeenAt : now;
   session.endReason = reason;
-  const duration = typeof durationSeconds === "number" && durationSeconds >= 0
+  const duration = typeof durationSeconds === "number" && Number.isFinite(durationSeconds) && durationSeconds >= 0
     ? Math.round(durationSeconds)
-    : Math.round((now - session.firstSeenAt) / 1000);
+    : Math.max(0, Math.round((session.endedAt - session.firstSeenAt) / 1000));
   session.endDurationSeconds = duration;
 
   const event: LiveEvent = {
@@ -300,6 +334,13 @@ export function endSession(sessionId: string, reason: string, durationSeconds?: 
   flushPersist(session);
 }
 
+export function setSessionArchived(sessionId: string, archived: boolean): void {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  session.archived = archived;
+  liveVisitorsEmitter.emit("update", { type: "archived", session: serializeSession(session) });
+}
+
 // ── Serialization ────────────────────────────────────────────────────────────
 
 export function serializeSession(s: LiveSession) {
@@ -313,7 +354,7 @@ export function serializeSession(s: LiveSession) {
     lastEventAt: s.lastEventAt,
     endedAt: s.endedAt,
     endReason: s.endReason,
-    durationSeconds: s.endDurationSeconds ?? Math.round(((s.endedAt ?? Date.now()) - s.firstSeenAt) / 1000),
+    durationSeconds: s.endDurationSeconds ?? Math.round(((s.endedAt ?? s.lastSeenAt) - s.firstSeenAt) / 1000),
     currentPage: s.currentPage,
     currentPageTitle: s.currentPageTitle,
     pageCount: s.pageCount,
@@ -329,6 +370,11 @@ export function serializeSession(s: LiveSession) {
     org: s.org,
     deviceType: s.deviceType,
     idle: s.idle,
+    visibility: s.visibility,
+    archived: s.archived ?? false,
+    audience: s.audience ?? "prospect",
+    hasContactIntent: s.hasContactIntent ?? false,
+    hasConfirmedLead: s.hasConfirmedLead ?? false,
   };
 }
 
@@ -402,6 +448,8 @@ export function startLiveVisitorsSweeper(): void {
           priority: "low",
         };
         session.events.push(event);
+        if (session.events.length > EVENTS_CAP) session.events.shift();
+        schedulePersist(session);
         liveVisitorsEmitter.emit("update", {
           type: "event",
           sessionId: session.sessionId,
@@ -422,6 +470,8 @@ export function startLiveVisitorsSweeper(): void {
 
 // Test helper — reset in-memory state between tests.
 export function __resetLiveVisitors(): void {
+  if (sweeper) clearInterval(sweeper);
+  sweeper = null;
   sessions.clear();
   persistTimers.forEach((t) => clearTimeout(t));
   persistTimers.clear();
