@@ -30,6 +30,11 @@ interface ContractData {
   clientEntityType?: string;
   clientName?: string;
   clientAddress?: string;
+  clientCity?: string;
+  clientCounty?: string;
+  clientRegistrationNumber?: string;
+  clientBankName?: string;
+  clientIBAN?: string;
   clientCIF?: string;
   clientRepresentativeName?: string;
   clientRepresentativeRole?: string;
@@ -47,7 +52,13 @@ const ContractSignPage: React.FC = () => {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientAddress, setClientAddress] = useState("");
+  const [clientCity, setClientCity] = useState("");
+  const [clientCounty, setClientCounty] = useState("");
   const [clientCIF, setClientCIF] = useState("");
+  const [clientEntityType, setClientEntityType] = useState("");
+  const [clientRegistrationNumber, setClientRegistrationNumber] = useState("");
+  const [clientBankName, setClientBankName] = useState("");
+  const [clientIBAN, setClientIBAN] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
   const [clientRepresentativeName, setClientRepresentativeName] = useState("");
@@ -84,7 +95,13 @@ const ContractSignPage: React.FC = () => {
         if (data.clientEmail) setClientEmail(data.clientEmail);
         if (data.clientPhone) setClientPhone(data.clientPhone);
         if (data.clientAddress) setClientAddress(data.clientAddress);
+        if (data.clientCity) setClientCity(data.clientCity);
+        if (data.clientCounty) setClientCounty(data.clientCounty);
         if (data.clientCIF) setClientCIF(data.clientCIF);
+        if (data.clientEntityType) setClientEntityType(data.clientEntityType);
+        if (data.clientRegistrationNumber) setClientRegistrationNumber(data.clientRegistrationNumber);
+        if (data.clientBankName) setClientBankName(data.clientBankName);
+        if (data.clientIBAN) setClientIBAN(data.clientIBAN);
         if (data.clientIdSeries) setClientIdSeries(data.clientIdSeries);
         if (data.clientRepresentativeName) setClientRepresentativeName(data.clientRepresentativeName);
         if (data.clientRepresentativeRole) setClientRepresentativeRole(data.clientRepresentativeRole);
@@ -164,7 +181,7 @@ const ContractSignPage: React.FC = () => {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     const isCompany = contract?.clientType === "PJ";
-    if (!isCompany && !clientName.trim()) errors.clientName = "Numele complet este obligatoriu.";
+    if (!clientName.trim()) errors.clientName = isCompany ? "Denumirea entității este obligatorie." : "Numele complet este obligatoriu.";
     if (!clientEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) errors.clientEmail = "Emailul este obligatoriu și trebuie să fie valid.";
     const signerId = isCompany ? clientRepresentativeIdSeries : clientIdSeries;
     if (!signerId.trim()) {
@@ -173,6 +190,16 @@ const ContractSignPage: React.FC = () => {
       errors.clientIdSeries = "Format incorect. Exemplu: AB123456";
     }
     if (isCompany && !clientRepresentativeName.trim()) errors.clientRepresentativeName = "Numele delegatului este obligatoriu.";
+    if (isCompany && !clientEntityType.trim()) errors.clientEntityType = "Tipul entității este obligatoriu.";
+    if (isCompany && !clientCIF.trim()) errors.clientCIF = "CIF / CUI-ul firmei este obligatoriu.";
+    if (isCompany && !clientRegistrationNumber.trim()) errors.clientRegistrationNumber = "Numărul de înregistrare este obligatoriu.";
+    if (isCompany && !clientRepresentativeRole.trim()) errors.clientRepresentativeRole = "Calitatea reprezentantului este obligatorie.";
+    if (isCompany && !clientAddress.trim()) errors.clientAddress = "Sediul social este obligatoriu.";
+    if (isCompany && !clientCity.trim()) errors.clientCity = "Orașul este obligatoriu.";
+    if (isCompany && !clientCounty.trim()) errors.clientCounty = "Județul este obligatoriu.";
+    if (isCompany && !clientPhone.trim()) errors.clientPhone = "Telefonul este obligatoriu.";
+    if (isCompany && !clientBankName.trim()) errors.clientBankName = "Banca este obligatorie.";
+    if (isCompany && !clientIBAN.trim()) errors.clientIBAN = "IBAN-ul este obligatoriu.";
     if (!hasSignature.current) errors.signature = "Semnătura este obligatorie.";
     if (!agreed) errors.agreed = "Trebuie să fiți de acord cu contractul.";
     if (!gdprAccepted) errors.gdpr = "Acordul GDPR este obligatoriu.";
@@ -196,7 +223,15 @@ const ContractSignPage: React.FC = () => {
           clientName: clientName.trim(),
           clientEmail: clientEmail.trim(),
           clientAddress: clientAddress.trim(),
-          ...(contract?.clientType === "PJ" ? { clientCIF: clientCIF.trim() } : {}),
+          ...(contract?.clientType === "PJ" ? {
+            clientCIF: clientCIF.trim(),
+            clientEntityType: clientEntityType.trim(),
+            clientRegistrationNumber: clientRegistrationNumber.trim(),
+            clientCity: clientCity.trim(),
+            clientCounty: clientCounty.trim(),
+            clientBankName: clientBankName.trim(),
+            clientIBAN: clientIBAN.trim(),
+          } : {}),
           clientPhone: clientPhone.trim(),
           clientIdSeries: clientIdSeries.trim(),
           ...(contract?.clientType === "PJ" ? {
@@ -410,18 +445,27 @@ const ContractSignPage: React.FC = () => {
             <p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>
               Completați datele de mai jos; informațiile lipsă din draft pot fi completate aici. Apoi apăsați <strong>Salvează datele</strong> pentru a le vedea incluse în contract.
             </p>
-            <Field label={contract.clientType === "PJ" ? "Denumire entitate (opțional)" : "Nume și prenume *"} error={fieldErrors.clientName}>
+            <Field label={contract.clientType === "PJ" ? "Denumire entitate *" : "Nume și prenume *"} error={fieldErrors.clientName}>
               <input style={{ ...pg.input, ...(fieldErrors.clientName ? pg.inputErr : {}) }}
                 type="text" value={clientName} onChange={(e) => { setClientName(e.target.value); setDataSaved(false); }}
                 placeholder={contract.clientType === "PJ" ? "Denumirea legală completă" : "Ex: Popescu Ion"} autoComplete="name" />
             </Field>
             {contract.clientType === "PJ" && (
               <>
-                <Field label="CIF / CUI (opțional)" error={undefined}><input style={pg.input} type="text" value={clientCIF} onChange={(e) => { setClientCIF(e.target.value.toUpperCase()); setDataSaved(false); }} placeholder="Ex: RO12345678" /></Field>
+                <Field label="Tip entitate *" error={fieldErrors.clientEntityType}>
+                  <select style={{ ...pg.input, ...(fieldErrors.clientEntityType ? pg.inputErr : {}) }} value={clientEntityType} onChange={(e) => { setClientEntityType(e.target.value); setDataSaved(false); }}>
+                    <option value="">Selectează...</option>
+                    <option value="Firma">Firmă</option>
+                    <option value="Asociație">Asociație</option>
+                    <option value="Altă persoană juridică">Altă persoană juridică</option>
+                  </select>
+                </Field>
+                <Field label="CIF / CUI *" error={fieldErrors.clientCIF}><input style={{ ...pg.input, ...(fieldErrors.clientCIF ? pg.inputErr : {}) }} type="text" value={clientCIF} onChange={(e) => { setClientCIF(e.target.value.toUpperCase()); setDataSaved(false); }} placeholder="Ex: RO12345678" /></Field>
+                <Field label="Nr. registru / înregistrare *" error={fieldErrors.clientRegistrationNumber}><input style={{ ...pg.input, ...(fieldErrors.clientRegistrationNumber ? pg.inputErr : {}) }} type="text" value={clientRegistrationNumber} onChange={(e) => { setClientRegistrationNumber(e.target.value); setDataSaved(false); }} placeholder="Ex. J04/123/2020 sau nr. registru asociații" /></Field>
                 <Field label="Nume delegat / reprezentant *" error={fieldErrors.clientRepresentativeName}>
                   <input style={{ ...pg.input, ...(fieldErrors.clientRepresentativeName ? pg.inputErr : {}) }} type="text" value={clientRepresentativeName} onChange={(e) => { setClientRepresentativeName(e.target.value); setDataSaved(false); }} placeholder="Ex: Toma Victor-Cătălin" />
                 </Field>
-                <Field label="Calitate" error={undefined}><input style={pg.input} type="text" value={clientRepresentativeRole} onChange={(e) => { setClientRepresentativeRole(e.target.value); setDataSaved(false); }} placeholder="delegat / administrator / președinte" /></Field>
+                <Field label="Calitate *" error={fieldErrors.clientRepresentativeRole}><input style={{ ...pg.input, ...(fieldErrors.clientRepresentativeRole ? pg.inputErr : {}) }} type="text" value={clientRepresentativeRole} onChange={(e) => { setClientRepresentativeRole(e.target.value); setDataSaved(false); }} placeholder="delegat / administrator / președinte" /></Field>
               </>
             )}
             <Field label="Email *" error={fieldErrors.clientEmail}>
@@ -429,16 +473,28 @@ const ContractSignPage: React.FC = () => {
                 type="email" value={clientEmail} onChange={(e) => { setClientEmail(e.target.value); setDataSaved(false); }}
                 placeholder="Ex: maria@email.com" autoComplete="email" />
             </Field>
-            <Field label={contract.clientType === "PJ" ? "Sediu social (opțional)" : "Adresă domiciliu"} error={undefined}>
-              <input style={pg.input} type="text" value={clientAddress}
+            <Field label={contract.clientType === "PJ" ? "Sediu social *" : "Adresă domiciliu"} error={fieldErrors.clientAddress}>
+              <input style={{ ...pg.input, ...(fieldErrors.clientAddress ? pg.inputErr : {}) }} type="text" value={clientAddress}
                 onChange={(e) => { setClientAddress(e.target.value); setDataSaved(false); }}
                 placeholder="Str. Exemplu nr. 1, Oraș, Județ" autoComplete="street-address" />
             </Field>
-            <Field label="Telefon" error={undefined}>
-              <input style={pg.input} type="tel" value={clientPhone}
+            {contract.clientType === "PJ" && (
+              <>
+                <Field label="Oraș *" error={fieldErrors.clientCity}><input style={{ ...pg.input, ...(fieldErrors.clientCity ? pg.inputErr : {}) }} type="text" value={clientCity} onChange={(e) => { setClientCity(e.target.value); setDataSaved(false); }} placeholder="Sibiu" /></Field>
+                <Field label="Județ *" error={fieldErrors.clientCounty}><input style={{ ...pg.input, ...(fieldErrors.clientCounty ? pg.inputErr : {}) }} type="text" value={clientCounty} onChange={(e) => { setClientCounty(e.target.value); setDataSaved(false); }} placeholder="Sibiu" /></Field>
+              </>
+            )}
+            <Field label={contract.clientType === "PJ" ? "Telefon *" : "Telefon"} error={fieldErrors.clientPhone}>
+              <input style={{ ...pg.input, ...(fieldErrors.clientPhone ? pg.inputErr : {}) }} type="tel" value={clientPhone}
                 onChange={(e) => { setClientPhone(e.target.value); setDataSaved(false); }}
                 placeholder="07xxxxxxxx" autoComplete="tel" />
             </Field>
+            {contract.clientType === "PJ" && (
+              <>
+                <Field label="Banca *" error={fieldErrors.clientBankName}><input style={{ ...pg.input, ...(fieldErrors.clientBankName ? pg.inputErr : {}) }} type="text" value={clientBankName} onChange={(e) => { setClientBankName(e.target.value); setDataSaved(false); }} placeholder="Raiffeisen Bank" /></Field>
+                <Field label="IBAN *" error={fieldErrors.clientIBAN}><input style={{ ...pg.input, ...(fieldErrors.clientIBAN ? pg.inputErr : {}) }} type="text" value={clientIBAN} onChange={(e) => { setClientIBAN(e.target.value.toUpperCase()); setDataSaved(false); }} placeholder="RO..." /></Field>
+              </>
+            )}
             <Field label={contract.clientType === "PJ" ? "CI delegat / reprezentant *" : "Serie și nr. buletin *"} error={fieldErrors.clientIdSeries}>
               <input style={{ ...pg.input, ...(fieldErrors.clientIdSeries ? pg.inputErr : {}) }}
                 type="text" value={contract.clientType === "PJ" ? clientRepresentativeIdSeries : clientIdSeries}
@@ -466,6 +522,12 @@ const ContractSignPage: React.FC = () => {
                   clientName: clientName.trim(),
                   clientCIF: clientCIF.trim(),
                   clientAddress: clientAddress.trim(),
+                  clientCity: clientCity.trim(),
+                  clientCounty: clientCounty.trim(),
+                  clientEntityType: clientEntityType.trim(),
+                  clientRegistrationNumber: clientRegistrationNumber.trim(),
+                  clientBankName: clientBankName.trim(),
+                  clientIBAN: clientIBAN.trim(),
                   clientPhone: clientPhone.trim(),
                   clientIdSeries: clientIdSeries.trim(),
                   clientRepresentativeName: clientRepresentativeName.trim(),

@@ -326,10 +326,17 @@ describe("contracts.routes", () => {
         body: {
           clientName: "Firma Client SRL",
           clientCIF: "ro12345678",
+          clientEntityType: "Firma",
+          clientRegistrationNumber: "J32/123/2020",
           clientAddress: "Strada Exemplu 1, Cluj",
+          clientCity: "Cluj-Napoca",
+          clientCounty: "Cluj",
           clientEmail: "client@example.com",
           clientPhone: "0712345678",
+          clientBankName: "Raiffeisen Bank",
+          clientIBAN: "ro49aaaa1b31007593840000",
           clientRepresentativeName: "Ion Popescu",
+          clientRepresentativeRole: "administrator",
           clientRepresentativeIdSeries: "AB123456",
           clientSignatureBase64: "data:image/png;base64,abc",
         },
@@ -340,14 +347,21 @@ describe("contracts.routes", () => {
         status: "signed",
         clientName: "Firma Client SRL",
         clientCIF: "RO12345678",
+        clientEntityType: "Firma",
+        clientRegistrationNumber: "J32/123/2020",
         clientAddress: "Strada Exemplu 1, Cluj",
+        clientCity: "Cluj-Napoca",
+        clientCounty: "Cluj",
         clientEmail: "client@example.com",
+        clientBankName: "Raiffeisen Bank",
+        clientIBAN: "RO49AAAA1B31007593840000",
         clientRepresentativeName: "Ion Popescu",
+        clientRepresentativeRole: "administrator",
       });
       expect(res.json).toHaveBeenCalledWith({ ok: true, message: "Contractul a fost semnat cu succes!" });
     });
 
-    test("POST /sign/:token allows company name, CIF, and address to stay blank", async () => {
+    test("POST /sign/:token rejects incomplete company details before signing", async () => {
       const { postPublicSign, whereGetMock, updateMock } = await loadContractsRouter();
       const res = createMockResponse();
       whereGetMock.mockResolvedValue({
@@ -371,9 +385,9 @@ describe("contracts.routes", () => {
         },
       }, res);
 
-      const [, updatePayload] = updateMock.mock.calls[0];
-      expect(updatePayload).toMatchObject({ status: "signed", clientName: "", clientCIF: "", clientAddress: "" });
-      expect(res.json).toHaveBeenCalledWith({ ok: true, message: "Contractul a fost semnat cu succes!" });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: "Denumirea entității este obligatorie." });
+      expect(updateMock).not.toHaveBeenCalled();
     });
 
     test("POST /:id/send updates status and uses APP_BASE_URL in the email link", async () => {

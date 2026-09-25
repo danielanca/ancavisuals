@@ -174,22 +174,38 @@ describe("ContractSignPage", () => {
 
       const companyName = screen.getByPlaceholderText("Denumirea legală completă") as HTMLInputElement;
       const companyCif = screen.getByPlaceholderText("Ex: RO12345678") as HTMLInputElement;
+      const registration = screen.getByPlaceholderText("Ex. J04/123/2020 sau nr. registru asociații") as HTMLInputElement;
       const companyAddress = screen.getByPlaceholderText("Str. Exemplu nr. 1, Oraș, Județ") as HTMLInputElement;
+      const cityCounty = screen.getAllByPlaceholderText("Sibiu") as HTMLInputElement[];
+      const companyPhone = screen.getByPlaceholderText("07xxxxxxxx") as HTMLInputElement;
+      const bank = screen.getByPlaceholderText("Raiffeisen Bank") as HTMLInputElement;
+      const iban = screen.getByPlaceholderText("RO...") as HTMLInputElement;
       expect(companyName.readOnly).toBe(false);
       expect(companyCif.readOnly).toBe(false);
       expect(companyAddress.readOnly).toBe(false);
 
       fireEvent.change(companyName, { target: { value: "Firma Client SRL" } });
       fireEvent.change(companyCif, { target: { value: "RO12345678" } });
+      fireEvent.change(registration, { target: { value: "J32/123/2020" } });
       fireEvent.change(companyAddress, { target: { value: "Strada Exemplu 1, Cluj" } });
+      fireEvent.change(cityCounty[0], { target: { value: "Sibiu" } });
+      fireEvent.change(cityCounty[1], { target: { value: "Sibiu" } });
+      fireEvent.change(companyPhone, { target: { value: "0745469907" } });
+      fireEvent.change(bank, { target: { value: "Raiffeisen Bank" } });
+      fireEvent.change(iban, { target: { value: "RO49AAAA1B31007593840000" } });
       expect(companyName.value).toBe("Firma Client SRL");
       expect(companyCif.value).toBe("RO12345678");
+      expect(registration.value).toBe("J32/123/2020");
       expect(companyAddress.value).toBe("Strada Exemplu 1, Cluj");
+      expect(cityCounty).toHaveLength(2);
+      expect(companyPhone.value).toBe("0745469907");
+      expect(bank.value).toBe("Raiffeisen Bank");
+      expect(iban.value).toBe("RO49AAAA1B31007593840000");
     });
   });
 
   describe("error states", () => {
-    test("does not require company name, CIF, or registered office to sign", async () => {
+    test("requires company details on the public signing form", async () => {
       const companyContract = {
         ...contractFixture,
         clientType: "PJ",
@@ -209,9 +225,11 @@ describe("ContractSignPage", () => {
       await screen.findByText("Contract de Prestări Servicii Foto-Video");
       fireEvent.click(screen.getByRole("button", { name: "SEMNEZ CONTRACTUL" }));
 
-      expect(screen.queryByText("Denumirea entității este obligatorie.")).not.toBeInTheDocument();
-      expect(screen.queryByText("CIF / CUI-ul firmei este obligatoriu.")).not.toBeInTheDocument();
-      expect(screen.queryByText("Sediul social este obligatoriu.")).not.toBeInTheDocument();
+      expect(screen.getByText("Denumirea entității este obligatorie.")).toBeInTheDocument();
+      expect(screen.getByText("CIF / CUI-ul firmei este obligatoriu.")).toBeInTheDocument();
+      expect(screen.getByText("Sediul social este obligatoriu.")).toBeInTheDocument();
+      expect(screen.getByText("Tipul entității este obligatoriu.")).toBeInTheDocument();
+      expect(screen.getByText("Numărul de înregistrare este obligatoriu.")).toBeInTheDocument();
       expect(screen.getByText("Emailul este obligatoriu și trebuie să fie valid.")).toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
