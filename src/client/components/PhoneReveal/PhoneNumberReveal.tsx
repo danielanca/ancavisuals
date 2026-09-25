@@ -2,6 +2,7 @@ import { useState, useCallback, type CSSProperties, type ReactNode, type MouseEv
 import { isBrowser } from "../../utils/functions";
 import { getLandingMeta } from "../../utils/sessionAttribution";
 import { sendTriggerEmail } from "../../utils/triggers";
+import { fireAdsPhoneRevealMicroConversion } from "../../utils/googleAds";
 
 interface PhoneNumberRevealProps {
   /** Digits only, e.g. "0745469907" — used to build the tel: link. */
@@ -62,6 +63,7 @@ export default function PhoneNumberReveal({
   const handleReveal = useCallback(() => {
     setRevealed(true);
     notifyPhoneReveal(context);
+    fireAdsPhoneRevealMicroConversion();
     onRevealed?.();
   }, [context, onRevealed]);
 

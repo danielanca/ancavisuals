@@ -3,7 +3,11 @@ import { Link } from "react-router-dom";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
-import { fireAdsLeadConversion, fireAdsContactClickConversion } from "../../utils/googleAds";
+import {
+  fireAdsAvailabilityMicroConversion,
+  fireAdsContactClickConversion,
+  fireAdsLeadConversion,
+} from "../../utils/googleAds";
 import { getLandingMeta } from "../../utils/sessionAttribution";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
@@ -269,16 +273,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => {
     measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
     fireAdsContactClickConversion();
-    // Server-side backup for the same conversion — only worth a round trip
-    // when there's a click id to key it on.
-    const landing = getLandingMeta();
-    if (landing?.gclid || landing?.wbraid || landing?.gbraid) {
-      fetch(`/api/campaign/${page.slug}/contact-click`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gclid: landing.gclid, wbraid: landing.wbraid, gbraid: landing.gbraid }),
-      }).catch(() => {});
-    }
   };
 
   const msLeft = Math.max(0, PROMO_DEADLINE - now);
@@ -295,6 +289,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     trackFormAction();
     setAvailStatus("checking");
     const available = !bookedDates.includes(form.eventDate);
+    fireAdsAvailabilityMicroConversion();
     window.setTimeout(() => setAvailStatus(available ? "available" : "unavailable"), 400);
     reportAvailabilityCheck(formatDateRo(form.eventDate), form.eventDate, available, form.eventType);
     measureOaiq("availability_checked", { page_path: `/oferta/${page.slug}` });

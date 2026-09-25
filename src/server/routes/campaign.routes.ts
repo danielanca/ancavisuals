@@ -6,7 +6,7 @@ import { firestore } from "../firestore";
 import { getBunnyStorageKey, buildBunnyStorageUrl, BUNNY_ACCESS_KEY_HEADER } from "../constants/bunny";
 import { getNotificationSettings, logActivity } from "../services/activity.service";
 import { sendOfferViewNotification } from "../notifications/offerViewNotification";
-import { reportLeadConversion, reportContactClickConversion } from "../services/googleAdsConversion.service";
+import { reportLeadConversion } from "../services/googleAdsConversion.service";
 import { geolocateIp } from "../utils/geolocateIp";
 
 const router = Router();
@@ -119,17 +119,6 @@ router.post("/:slug/view", async (req: Request, res: Response) => {
 // call (which ignores the response) doesn't error in the console.
 router.post("/:slug/interaction", (_req: Request, res: Response) => {
   res.json({ ok: true });
-});
-
-// POST /api/campaign/:slug/contact-click — WhatsApp/phone click-out signal.
-// Server-side backup for the fireAdsContactClickConversion() fired client-side
-// on the same click — no email, no Firestore write, just the conversion
-// upload (see live-notification email policy: click-outs stay live-panel-only).
-router.post("/:slug/contact-click", (req: Request, res: Response) => {
-  const { gclid, wbraid, gbraid } = req.body as { gclid?: string; wbraid?: string; gbraid?: string };
-  reportContactClickConversion({ gclid, wbraid, gbraid })
-    .catch((err) => console.error("[googleAdsConversion] campaign contact-click report failed:", err));
-  res.status(204).send();
 });
 
 // POST /api/campaign/:slug/contact — form submission from landing page
