@@ -153,9 +153,69 @@ describe("ContractSignPage", () => {
       expect(await screen.findByText("Contract semnat cu succes!")).toBeInTheDocument();
       expect(screen.getByText("Mulțumim! Contractul a fost semnat și veți primi în scurt timp o copie PDF pe email.")).toBeInTheDocument();
     });
+
+    test("lets the client complete missing company details from the signing link", async () => {
+      const companyContract = {
+        ...contractFixture,
+        clientType: "PJ",
+        clientName: "",
+        clientCIF: "",
+        clientAddress: "",
+        clientRepresentativeName: "",
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => companyContract,
+      }));
+
+      renderPage();
+      await screen.findByText("Contract de Prestări Servicii Foto-Video");
+
+      const companyName = screen.getByPlaceholderText("Denumirea legală completă") as HTMLInputElement;
+      const companyCif = screen.getByPlaceholderText("Ex: RO12345678") as HTMLInputElement;
+      const companyAddress = screen.getByPlaceholderText("Str. Exemplu nr. 1, Oraș, Județ") as HTMLInputElement;
+      expect(companyName.readOnly).toBe(false);
+      expect(companyCif.readOnly).toBe(false);
+      expect(companyAddress.readOnly).toBe(false);
+
+      fireEvent.change(companyName, { target: { value: "Firma Client SRL" } });
+      fireEvent.change(companyCif, { target: { value: "RO12345678" } });
+      fireEvent.change(companyAddress, { target: { value: "Strada Exemplu 1, Cluj" } });
+      expect(companyName.value).toBe("Firma Client SRL");
+      expect(companyCif.value).toBe("RO12345678");
+      expect(companyAddress.value).toBe("Strada Exemplu 1, Cluj");
+    });
   });
 
   describe("error states", () => {
+    test("does not require company name, CIF, or registered office to sign", async () => {
+      const companyContract = {
+        ...contractFixture,
+        clientType: "PJ",
+        clientName: "",
+        clientCIF: "",
+        clientAddress: "",
+        clientRepresentativeName: "",
+      };
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => companyContract,
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderPage();
+      await screen.findByText("Contract de Prestări Servicii Foto-Video");
+      fireEvent.click(screen.getByRole("button", { name: "SEMNEZ CONTRACTUL" }));
+
+      expect(screen.queryByText("Denumirea entității este obligatorie.")).not.toBeInTheDocument();
+      expect(screen.queryByText("CIF / CUI-ul firmei este obligatoriu.")).not.toBeInTheDocument();
+      expect(screen.queryByText("Sediul social este obligatoriu.")).not.toBeInTheDocument();
+      expect(screen.getByText("Emailul este obligatoriu și trebuie să fie valid.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     test("shows the already-signed state when the API returns 410 signed", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
         ok: false,

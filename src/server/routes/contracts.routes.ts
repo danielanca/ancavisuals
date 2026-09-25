@@ -64,9 +64,6 @@ router.post("/", async (req: Request, res: Response) => {
     if (!body.eventType || !body.eventDate) {
       return res.status(400).json({ error: "Câmpuri obligatorii: eventType, eventDate" });
     }
-    if (body.clientType === "PJ" && (!body.clientName?.trim() || !body.clientCIF?.trim() || !body.clientAddress?.trim())) {
-      return res.status(400).json({ error: "Pentru persoana juridică sunt obligatorii denumirea, CIF/CUI și sediul." });
-    }
     const clientEmail = typeof body.clientEmail === "string" ? body.clientEmail.trim() : "";
     if (clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
       return res.status(400).json({ error: "Email-ul clientului nu este valid." });
@@ -213,7 +210,7 @@ router.get("/latest-signed", async (_req: Request, res: Response) => {
 // NOTE: /sign/:token routes must come BEFORE /:id to avoid route collision
 
 // GET /api/contracts/sign/:token/pdf — PDF contract for public preview
-// Optional query params: clientName, clientAddress, clientPhone, clientIdSeries
+// Optional query params: clientName, clientCIF, clientAddress, clientPhone, clientIdSeries
 router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -229,6 +226,7 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
       ...publicData,           // contract-stored bank details take precedence
       createdAt: tsToISO(data.createdAt),
       ...(req.query.clientName !== undefined ? { clientName: String(req.query.clientName) } : {}),
+      ...(req.query.clientCIF !== undefined ? { clientCIF: String(req.query.clientCIF) } : {}),
       ...(req.query.clientAddress !== undefined ? { clientAddress: String(req.query.clientAddress) } : {}),
       ...(req.query.clientPhone !== undefined ? { clientPhone: String(req.query.clientPhone) } : {}),
       ...(req.query.clientIdSeries !== undefined ? { clientIdSeries: String(req.query.clientIdSeries) } : {}),
@@ -328,11 +326,8 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { token } = req.params;
-    const { clientName, clientEmail, clientAddress, clientPhone, clientIdSeries, clientSignatureBase64, clientRepresentativeName, clientRepresentativeRole, clientRepresentativeIdSeries } = req.body;
+    const { clientName, clientEmail, clientAddress, clientPhone, clientIdSeries, clientSignatureBase64, clientCIF, clientRepresentativeName, clientRepresentativeRole, clientRepresentativeIdSeries } = req.body;
 
-    if (!clientName?.trim()) {
-      return res.status(400).json({ error: "Numele complet este obligatoriu." });
-    }
     if (!clientEmail?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
       return res.status(400).json({ error: "Emailul este obligatoriu și trebuie să fie valid." });
     }
@@ -352,6 +347,9 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
     const doc = snapshot.docs[0];
     const contract = doc.data();
     const isCompany = contract.clientType === "PJ";
+    if (!isCompany && !clientName?.trim()) {
+      return res.status(400).json({ error: "Numele complet este obligatoriu." });
+    }
     const signerName = isCompany ? clientRepresentativeName : clientName;
     const signerIdSeries = isCompany ? clientRepresentativeIdSeries : clientIdSeries;
 
@@ -378,13 +376,15 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       status: "signed",
       signedAt,
       ...(isCompany ? {
+        clientName: String(clientName ?? "").trim(),
+        clientCIF: String(clientCIF ?? "").trim().toUpperCase(),
         clientRepresentativeName: signerName.trim(),
         clientRepresentativeRole: clientRepresentativeRole?.trim() || contract.clientRepresentativeRole || "delegat",
         clientRepresentativeIdSeries: signerIdSeries.trim(),
       } : { clientName: clientName.trim() }),
       clientEmail: clientEmail.trim(),
       ...(isCompany ? { clientRepresentativeIdSeries: signerIdSeries.trim() } : { clientIdSeries: signerIdSeries.trim() }),
-      clientAddress: isCompany ? String(contract.clientAddress ?? "") : (clientAddress?.trim() ?? ""),
+      clientAddress: String(clientAddress ?? "").trim(),
       clientPhone: clientPhone?.trim() ?? "",
       clientSignatureBase64,
       clientIp,
@@ -402,13 +402,15 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       ...contract,
       id: doc.id,
       ...(isCompany ? {
+        clientName: String(clientName ?? "").trim(),
+        clientCIF: String(clientCIF ?? "").trim().toUpperCase(),
         clientRepresentativeName: signerName.trim(),
         clientRepresentativeRole: clientRepresentativeRole?.trim() || contract.clientRepresentativeRole || "delegat",
         clientRepresentativeIdSeries: signerIdSeries.trim(),
       } : { clientName: clientName.trim() }),
       clientEmail: clientEmail.trim(),
       ...(isCompany ? { clientRepresentativeIdSeries: signerIdSeries.trim() } : { clientIdSeries: signerIdSeries.trim() }),
-      clientAddress: isCompany ? String(contract.clientAddress ?? "") : (clientAddress?.trim() ?? ""),
+      clientAddress: String(clientAddress ?? "").trim(),
       clientPhone: clientPhone?.trim() ?? "",
       clientSignatureBase64,
       clientIp,

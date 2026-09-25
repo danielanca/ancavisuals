@@ -28,6 +28,8 @@ interface ContractData {
   bankIban?: string;
   clientType?: "PF" | "PJ";
   clientEntityType?: string;
+  clientName?: string;
+  clientAddress?: string;
   clientCIF?: string;
   clientRepresentativeName?: string;
   clientRepresentativeRole?: string;
@@ -45,6 +47,7 @@ const ContractSignPage: React.FC = () => {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientAddress, setClientAddress] = useState("");
+  const [clientCIF, setClientCIF] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientIdSeries, setClientIdSeries] = useState("");
   const [clientRepresentativeName, setClientRepresentativeName] = useState("");
@@ -81,6 +84,7 @@ const ContractSignPage: React.FC = () => {
         if (data.clientEmail) setClientEmail(data.clientEmail);
         if (data.clientPhone) setClientPhone(data.clientPhone);
         if (data.clientAddress) setClientAddress(data.clientAddress);
+        if (data.clientCIF) setClientCIF(data.clientCIF);
         if (data.clientIdSeries) setClientIdSeries(data.clientIdSeries);
         if (data.clientRepresentativeName) setClientRepresentativeName(data.clientRepresentativeName);
         if (data.clientRepresentativeRole) setClientRepresentativeRole(data.clientRepresentativeRole);
@@ -160,7 +164,7 @@ const ContractSignPage: React.FC = () => {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     const isCompany = contract?.clientType === "PJ";
-    if (!clientName.trim()) errors.clientName = isCompany ? "Denumirea entității este obligatorie." : "Numele complet este obligatoriu.";
+    if (!isCompany && !clientName.trim()) errors.clientName = "Numele complet este obligatoriu.";
     if (!clientEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) errors.clientEmail = "Emailul este obligatoriu și trebuie să fie valid.";
     const signerId = isCompany ? clientRepresentativeIdSeries : clientIdSeries;
     if (!signerId.trim()) {
@@ -192,6 +196,7 @@ const ContractSignPage: React.FC = () => {
           clientName: clientName.trim(),
           clientEmail: clientEmail.trim(),
           clientAddress: clientAddress.trim(),
+          ...(contract?.clientType === "PJ" ? { clientCIF: clientCIF.trim() } : {}),
           clientPhone: clientPhone.trim(),
           clientIdSeries: clientIdSeries.trim(),
           ...(contract?.clientType === "PJ" ? {
@@ -403,16 +408,16 @@ const ContractSignPage: React.FC = () => {
         <form onSubmit={handleSubmit}>
           <Section title="Datele Dumneavoastră (Beneficiar)">
             <p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>
-              Completați datele de mai jos, apoi apăsați <strong>Salvează datele</strong> pentru a le vedea incluse în contract.
+              Completați datele de mai jos; informațiile lipsă din draft pot fi completate aici. Apoi apăsați <strong>Salvează datele</strong> pentru a le vedea incluse în contract.
             </p>
-            <Field label={contract.clientType === "PJ" ? "Denumire entitate *" : "Nume și prenume *"} error={fieldErrors.clientName}>
+            <Field label={contract.clientType === "PJ" ? "Denumire entitate (opțional)" : "Nume și prenume *"} error={fieldErrors.clientName}>
               <input style={{ ...pg.input, ...(fieldErrors.clientName ? pg.inputErr : {}) }}
-                type="text" value={clientName} readOnly={contract.clientType === "PJ"} onChange={(e) => { setClientName(e.target.value); setDataSaved(false); }}
+                type="text" value={clientName} onChange={(e) => { setClientName(e.target.value); setDataSaved(false); }}
                 placeholder={contract.clientType === "PJ" ? "Denumirea legală completă" : "Ex: Popescu Ion"} autoComplete="name" />
             </Field>
             {contract.clientType === "PJ" && (
               <>
-                <Field label="CIF / CUI" error={undefined}><input style={pg.input} type="text" value={contract.clientCIF ?? ""} readOnly /></Field>
+                <Field label="CIF / CUI (opțional)" error={undefined}><input style={pg.input} type="text" value={clientCIF} onChange={(e) => { setClientCIF(e.target.value.toUpperCase()); setDataSaved(false); }} placeholder="Ex: RO12345678" /></Field>
                 <Field label="Nume delegat / reprezentant *" error={fieldErrors.clientRepresentativeName}>
                   <input style={{ ...pg.input, ...(fieldErrors.clientRepresentativeName ? pg.inputErr : {}) }} type="text" value={clientRepresentativeName} onChange={(e) => { setClientRepresentativeName(e.target.value); setDataSaved(false); }} placeholder="Ex: Toma Victor-Cătălin" />
                 </Field>
@@ -424,9 +429,9 @@ const ContractSignPage: React.FC = () => {
                 type="email" value={clientEmail} onChange={(e) => { setClientEmail(e.target.value); setDataSaved(false); }}
                 placeholder="Ex: maria@email.com" autoComplete="email" />
             </Field>
-            <Field label={contract.clientType === "PJ" ? "Sediu social" : "Adresă domiciliu"} error={undefined}>
+            <Field label={contract.clientType === "PJ" ? "Sediu social (opțional)" : "Adresă domiciliu"} error={undefined}>
               <input style={pg.input} type="text" value={clientAddress}
-                readOnly={contract.clientType === "PJ"} onChange={(e) => { setClientAddress(e.target.value); setDataSaved(false); }}
+                onChange={(e) => { setClientAddress(e.target.value); setDataSaved(false); }}
                 placeholder="Str. Exemplu nr. 1, Oraș, Județ" autoComplete="street-address" />
             </Field>
             <Field label="Telefon" error={undefined}>
@@ -459,6 +464,7 @@ const ContractSignPage: React.FC = () => {
               onClick={() => {
                 const params = new URLSearchParams({
                   clientName: clientName.trim(),
+                  clientCIF: clientCIF.trim(),
                   clientAddress: clientAddress.trim(),
                   clientPhone: clientPhone.trim(),
                   clientIdSeries: clientIdSeries.trim(),

@@ -307,6 +307,75 @@ describe("contracts.routes", () => {
       });
     });
 
+    test("POST /sign/:token stores company details completed by the client", async () => {
+      const { postPublicSign, whereGetMock, updateMock } = await loadContractsRouter();
+      const res = createMockResponse();
+      whereGetMock.mockResolvedValue({
+        empty: false,
+        docs: [{
+          id: "company-contract",
+          data: () => ({ token: "company-token", status: "draft", clientType: "PJ", eventType: "Nuntă", eventDate: "2026-09-12" }),
+        }],
+      });
+
+      await postPublicSign({
+        params: { token: "company-token" },
+        ip: "10.0.0.1",
+        headers: {},
+        socket: { remoteAddress: "10.0.0.2" },
+        body: {
+          clientName: "Firma Client SRL",
+          clientCIF: "ro12345678",
+          clientAddress: "Strada Exemplu 1, Cluj",
+          clientEmail: "client@example.com",
+          clientPhone: "0712345678",
+          clientRepresentativeName: "Ion Popescu",
+          clientRepresentativeIdSeries: "AB123456",
+          clientSignatureBase64: "data:image/png;base64,abc",
+        },
+      }, res);
+
+      const [, updatePayload] = updateMock.mock.calls[0];
+      expect(updatePayload).toMatchObject({
+        status: "signed",
+        clientName: "Firma Client SRL",
+        clientCIF: "RO12345678",
+        clientAddress: "Strada Exemplu 1, Cluj",
+        clientEmail: "client@example.com",
+        clientRepresentativeName: "Ion Popescu",
+      });
+      expect(res.json).toHaveBeenCalledWith({ ok: true, message: "Contractul a fost semnat cu succes!" });
+    });
+
+    test("POST /sign/:token allows company name, CIF, and address to stay blank", async () => {
+      const { postPublicSign, whereGetMock, updateMock } = await loadContractsRouter();
+      const res = createMockResponse();
+      whereGetMock.mockResolvedValue({
+        empty: false,
+        docs: [{
+          id: "company-contract",
+          data: () => ({ token: "company-token", status: "draft", clientType: "PJ", eventType: "Nuntă", eventDate: "2026-09-12" }),
+        }],
+      });
+
+      await postPublicSign({
+        params: { token: "company-token" },
+        ip: "10.0.0.1",
+        headers: {},
+        socket: { remoteAddress: "10.0.0.2" },
+        body: {
+          clientEmail: "client@example.com",
+          clientRepresentativeName: "Ion Popescu",
+          clientRepresentativeIdSeries: "AB123456",
+          clientSignatureBase64: "data:image/png;base64,abc",
+        },
+      }, res);
+
+      const [, updatePayload] = updateMock.mock.calls[0];
+      expect(updatePayload).toMatchObject({ status: "signed", clientName: "", clientCIF: "", clientAddress: "" });
+      expect(res.json).toHaveBeenCalledWith({ ok: true, message: "Contractul a fost semnat cu succes!" });
+    });
+
     test("POST /:id/send updates status and uses APP_BASE_URL in the email link", async () => {
       process.env.APP_BASE_URL = "https://staging.ancavisuals.ro";
       const { postSend, docGetMock, updateMock, sendContractLinkEmailMock } = await loadContractsRouter();
@@ -358,10 +427,12 @@ describe("contracts.routes", () => {
       const res = createMockResponse();
       addMock.mockResolvedValue({ id: "contract-draft" });
 
-      await postCreate({ body: { eventType: "Nuntă", eventDate: "2026-09-12" } }, res);
+      await postCreate({ body: { eventType: "Nuntă", eventDate: "2026-09-12", clientType: "PJ" } }, res);
 
       expect(addMock).toHaveBeenCalledTimes(1);
-      expect(addMock.mock.calls[0][0]).toMatchObject({ status: "draft", clientEmail: "" });
+      expect(addMock.mock.calls[0][0]).toMatchObject({
+        status: "draft", clientType: "PJ", clientEmail: "", clientName: "", clientCIF: "", clientAddress: "",
+      });
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
