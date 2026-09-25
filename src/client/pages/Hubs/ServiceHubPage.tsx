@@ -5,7 +5,7 @@ import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import Breadcrumbs from "../../components/SEO/Breadcrumbs";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
-import { CITIES, getServiceBySlug, type ServiceType } from "../LocationSEO/locationData";
+import { CITIES, allowedServices, getServiceBySlug, type ServiceType } from "../LocationSEO/locationData";
 
 interface Props {
   serviceSlug: ServiceType;
@@ -67,7 +67,7 @@ const ServiceHubPage: React.FC<Props> = ({ serviceSlug }) => {
 
       <section className="mx-auto max-w-6xl px-6 pb-16">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {CITIES.map(city => (
+          {CITIES.filter(city => allowedServices(city).some(entry => entry.slug === service.slug)).map(city => (
             <Link
               key={city.slug}
               to={`/foto-video-${service.slug}-${city.slug}`}

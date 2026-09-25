@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 interface ContractItem {
   id: string;
   status: "draft" | "sent" | "signed" | "expired" | "anulat";
+  clientEmail?: string;
   eventId?: string;
 }
 
@@ -45,7 +46,7 @@ const ContractActionMenu: React.FC<Props> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const canSend = contract.status === "draft" || contract.status === "sent";
+  const canSend = (contract.status === "draft" || contract.status === "sent") && Boolean(contract.clientEmail?.trim());
   const canEdit = true; // allow editing all contracts, including signed ones
   // A contract can still need the provider's signature after the client signed it.
   // Expired and cancelled contracts remain intentionally locked.

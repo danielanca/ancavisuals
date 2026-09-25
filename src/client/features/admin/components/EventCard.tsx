@@ -102,6 +102,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     : false;
   const isLead = event.status === "lead" || event.status === "tentativ";
   const isFiscalized = event.fiscalized === true;
+  const isCalendarExcluded = event.excludeFromCalendar === true;
+  const [calendarError, setCalendarError] = useState<string | null>(null);
   const postEventBackupConfirmedAt = event.postEventBackupConfirmedAt ? new Date(event.postEventBackupConfirmedAt) : null;
   const backupPending = !isLead && event.status !== "anulat" && isPast && !postEventBackupConfirmedAt;
   const backupPageUrl = event.postEventBackupConfirmationToken
@@ -566,6 +568,25 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     }
   };
 
+  const toggleCalendarExclusion = async () => {
+    setQuickSaving(true);
+    setCalendarError(null);
+    try {
+      const excludeFromCalendar = !isCalendarExcluded;
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excludeFromCalendar }),
+      });
+      if (!res.ok) throw new Error();
+      onUpdated?.({ excludeFromCalendar });
+    } catch {
+      setCalendarError("Nu s-a putut modifica disponibilitatea. Încearcă din nou.");
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -777,6 +798,18 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 <span>{isFiscalized ? "🧾" : "🏠"}</span>
                 <Redacted>{isFiscalized ? "Fiscalizat" : "NEF"}</Redacted>
               </button>
+              <button
+                type="button"
+                onClick={toggleCalendarExclusion}
+                disabled={quickSaving}
+                aria-pressed={isCalendarExcluded}
+                title={isCalendarExcluded ? "Evenimentul nu blochează disponibilitatea datei" : "Exclude evenimentul din verificarea disponibilității"}
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+              >
+                {isCalendarExcluded ? "Include Calendar" : "Exclude Calendar"}
+              </button>
+              {isCalendarExcluded && <span className="text-amber-300 text-xs">Exclus din disponibilitate</span>}
+              {calendarError && <span role="alert" className="text-red-400 text-xs">{calendarError}</span>}
               {event.client.phone && (
                 <span className="flex items-center gap-1.5">
                   <span>📞</span>

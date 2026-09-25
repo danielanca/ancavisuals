@@ -54,7 +54,7 @@ async function getBookedDates(): Promise<string[]> {
 
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      if (!confirmed.has(data.status)) continue;
+      if (data.excludeFromCalendar === true || !confirmed.has(data.status)) continue;
       dates.push(...expandEventDates(data));
     }
 

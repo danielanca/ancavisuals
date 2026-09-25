@@ -1,5 +1,7 @@
 import { useRef, useState, type ImgHTMLAttributes } from "react";
 
+import { recordImageFailure } from "../../utils/imageFailureRecovery";
+
 // Fires a single retry a few seconds after a failed load (CDN hiccup /
 // propagation delay), and only reports+gives up if the retry also fails —
 // avoids flooding monitoring with one-off network blips.
@@ -7,6 +9,7 @@ export function reportBrokenImage(url: string, context?: string) {
   try {
     fetch("/api/monitoring/client-error", {
       method: "POST",
+      keepalive: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: `[IMAGE LOAD FAILED] ${url}`,
@@ -17,6 +20,7 @@ export function reportBrokenImage(url: string, context?: string) {
   } catch {
     // ignore — best-effort reporting only
   }
+  recordImageFailure(url);
 }
 
 interface RetryImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, "onError"> {
@@ -39,6 +43,7 @@ export default function RetryImage({ src, retryDelayMs = 3500, context, onGiveUp
     <img
       {...imgProps}
       src={effectiveSrc}
+      data-retry-managed="true"
       onError={() => {
         if (!retriedRef.current) {
           retriedRef.current = true;

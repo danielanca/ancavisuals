@@ -5,6 +5,8 @@ import ContractActionMenu from "./ContractActionMenu";
 import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 
+import { listWorkDrafts, migrateLegacyWorkDraft, removeWorkDraft, type ContractWorkDraft } from "./contractWorkDrafts";
+
 interface ContractItem {
   id: string;
   token: string;
@@ -12,7 +14,7 @@ interface ContractItem {
   eventType: string;
   eventDate: string;
   eventDates?: string[];
-  clientEmail: string;
+  clientEmail?: string;
   clientName?: string;
   clientAddress?: string;
   clientCity?: string;
@@ -41,6 +43,9 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 const ContractListPage: React.FC = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
+  const [workDrafts, setWorkDrafts] = useState<ContractWorkDraft[]>([]);
+  const [draftListError, setDraftListError] = useState<string | null>(null);
+  const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [contracts, setContracts] = useState<ContractItem[]>([]);
   const [bookedDates, setBookedDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -80,6 +85,19 @@ const ContractListPage: React.FC = () => {
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => {
+      try {
+        migrateLegacyWorkDraft();
+        setWorkDrafts(listWorkDrafts());
+        setDraftListError(null);
+      } catch { setDraftListError("Drafturile din acest browser nu au putut fi încărcate."); }
+    };
+    refresh();
+    window.addEventListener("storage", refresh);
+    return () => window.removeEventListener("storage", refresh);
   }, []);
 
   // Initialize canvas when the modal opens
@@ -348,6 +366,9 @@ const ContractListPage: React.FC = () => {
     return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" });
   };
 
+  const serverDrafts = contracts.filter((contract) => contract.status === "draft");
+  const draftCount = workDrafts.length + serverDrafts.length;
+
   const normalizeDate = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr.slice(0, 10);
@@ -385,6 +406,48 @@ const ContractListPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        <section className="mb-8 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+          <h2 className="text-lg text-white">Drafturi de lucru ({loading ? "…" : draftCount})</h2>
+          <p className="text-xs text-neutral-400 mt-1 mb-4">Contracte draft salvate în cont și formulare începute în acest browser. Le poți relua separat.</p>
+          {draftListError && <p role="alert" className="text-sm text-red-400">{draftListError}</p>}
+          {!loading && !error && !draftListError && draftCount === 0 && <p className="text-sm text-neutral-500">Începe cu „Contract nou” pentru a pregăti un draft.</p>}
+          <div className="space-y-3">
+            {serverDrafts.map((draft) => (
+              <div key={`server-${draft.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
+                <div>
+                  <p className="text-white text-sm">{draft.eventDate ? formatDate(draft.eventDate) : "Dată nesetată"} — {draft.clientName?.trim() || "Draft necunoscut"}</p>
+                  <p className="text-xs text-neutral-400 mt-1">Salvat în cont · {draft.clientEmail || "Email necompletat"}</p>
+                </div>
+                <button type="button" className="text-sm text-sky-300" onClick={() => navigate(`/admin/contracts/${draft.id}/edit`)}>Continuă draftul</button>
+              </div>
+            ))}
+            {workDrafts.map((draft) => (
+              <div key={draft.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
+                <div>
+                  <p className="text-white text-sm">{draft.eventDate ? formatDate(draft.eventDate) : "Dată nesetată"} — {draft.title}</p>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    {draft.progress === "working" ? "În lucru" : "De făcut"} · Modificat {new Date(draft.updatedAt).toLocaleString("ro-RO")}
+                  </p>
+                </div>
+                <div className="flex gap-3 text-sm">
+                  <button type="button" className="text-sky-300" onClick={() => navigate(`/admin/contracts/create?draft=${encodeURIComponent(draft.id)}`)}>Continuă draftul</button>
+                  <button type="button" className="text-neutral-400" onClick={() => setDraftToDelete(draft.id)}>Șterge</button>
+                  {draftToDelete === draft.id && <>
+                    <button type="button" className="text-red-400" onClick={() => {
+                      try {
+                        removeWorkDraft(draft.id);
+                        setWorkDrafts(listWorkDrafts());
+                        setDraftToDelete(null);
+                      } catch { setDraftListError("Draftul nu a putut fi șters."); }
+                    }}>Confirmă ștergerea</button>
+                    <button type="button" className="text-neutral-400" onClick={() => setDraftToDelete(null)}>Renunță</button>
+                  </>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {loading && (
           <div className="text-center py-20 text-neutral-500 text-sm">Se încarcă...</div>
@@ -452,7 +515,7 @@ const ContractListPage: React.FC = () => {
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-neutral-400 text-xs">
                         <span>{contractDates.length > 1 ? "Perioadă" : "Data"}: {contractDates.map(formatDate).join(", ")}</span>
-                        <span>Client: {contract.clientEmail}</span>
+                        <span>Client: {contract.clientEmail || "Email necompletat — clientul îl introduce la semnare"}</span>
                         {contract.clientName && <span>Semnat de: {contract.clientName}</span>}
                         <span>Preț: {contract.priceTotal} {contract.currency ?? "RON"}</span>
                         <span>Creat: {formatDate(contract.createdAt)}</span>
@@ -486,7 +549,7 @@ const ContractListPage: React.FC = () => {
                       onSign={() => { setSigError(null); setSigningId(contract.id); }}
                       onPreview={() => window.open(`/api/contracts/${contract.id}/preview`, "_blank")}
                       onCreateEvent={() => handleCreateEvent(contract.id)}
-                      onSend={() => confirmAction("send", contract.id, `${contract.eventType} — ${contract.clientEmail}`)}
+                      onSend={() => confirmAction("send", contract.id, `${contract.eventType} — ${contract.clientEmail ?? ""}`)}
                       onCopyLink={() => {
                         const url = `${window.location.origin}/contract/${contract.token}`;
                         navigator.clipboard.writeText(url);

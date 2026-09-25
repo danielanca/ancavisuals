@@ -12,6 +12,10 @@ import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { App } from "./App";
 import "./index.css";
+import { installImageFailureRecovery } from "./utils/imageFailureRecovery";
+
+const stopImageFailureRecovery = installImageFailureRecovery();
+if (import.meta.hot) import.meta.hot.dispose(stopImageFailureRecovery);
 
 const USERCENTRICS_SCRIPT_ID = "usercentrics-cmp";
 const USERCENTRICS_SETTINGS_ID = "g4Hy0STeVeDNJo";

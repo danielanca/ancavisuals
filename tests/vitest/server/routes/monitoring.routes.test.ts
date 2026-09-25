@@ -118,6 +118,22 @@ describe("monitoring.routes", () => {
   });
 
   describe("POST /client-error", () => {
+    test("sends one email for 30 concurrent image failures and allows the next after six hours", async () => {
+      const { postClientError, captureClientError, sendEmailMock } = await loadMonitoringRouter();
+      const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+      await Promise.all(Array.from({ length: 30 }, (_, index) => postClientError({
+        body: { message: `[IMAGE LOAD FAILED] https://cdn.test/album-${index}/photo.webp?token=${index}`, page: `/page-${index}` },
+      }, createMockResponse())));
+      expect(sendEmailMock).toHaveBeenCalledTimes(1);
+      expect(captureClientError).toHaveBeenCalledTimes(30);
+      now.mockReturnValue(1000 + 6 * 60 * 60_000 - 1);
+      await postClientError({ body: { message: "[IMAGE LOAD FAILED] another-photo" } }, createMockResponse());
+      expect(sendEmailMock).toHaveBeenCalledTimes(1);
+      now.mockReturnValue(1000 + 6 * 60 * 60_000);
+      await postClientError({ body: { message: "[IMAGE LOAD FAILED] another-photo" } }, createMockResponse());
+      expect(sendEmailMock).toHaveBeenCalledTimes(2);
+    });
+
     test("forwards valid error to captureClientError", async () => {
       const { postClientError, captureClientError } = await loadMonitoringRouter();
       const res = createMockResponse();

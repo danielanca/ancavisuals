@@ -36,6 +36,7 @@ export interface ClientEvent {
   type: EventType;
   status: EventStatus;
   fiscalized: boolean;
+  excludeFromCalendar?: boolean;
   createdAt: Date;
   eventDate: Date | null;
   client: {

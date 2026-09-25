@@ -11,8 +11,11 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import sharp from "sharp";
 import { invalidateAlbumCache } from "../services/album.service.js";
 import {
-  createJob, getJob, getAllJobs, serializeJob,
+  getJob, getAllJobs, serializeJob,
   appendJobLog, setJobProgress, finishJob, errorJob,
+  beginJobRun, endJobRun, enqueueDurableJob, getDurableJob, listDurableJobs,
+  updateDurableJob, completeDurablePhoto, removeDurableJob, restoreJobFromQueue,
+  type DurableAlbumJob,
 } from "../services/albumProcessingJobs.js";
 import { getBnrRate, getBnrYearRates, BnrRateError } from "../services/bnrExchangeRate.service.js";
 import { sendEmail } from "../notifications/mailer";
@@ -299,6 +302,9 @@ router.patch("/events/:id", async (req: Request, res: Response) => {
     const db = firestore();
     const { id } = req.params;
     const updates = req.body;
+    if ("excludeFromCalendar" in updates && typeof updates.excludeFromCalendar !== "boolean") {
+      return res.status(400).json({ error: "excludeFromCalendar trebuie să fie boolean." });
+    }
 
     if (updates.eventDate) {
       updates.eventDate = Timestamp.fromDate(new Date(updates.eventDate));
@@ -863,14 +869,16 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
     const slug = doc.data()?.albumSlug as string | undefined;
     if (!slug) return res.status(400).json({ error: "Evenimentul nu are albumSlug setat." });
 
-    const existing = getJob(slug);
-    if (existing?.status === "running") {
-      return res.json({ ok: true, slug, status: "already_running" });
+    const queued = await enqueueDurableJob(slug, 0);
+    if (!queued) {
+      const record = await getDurableJob(slug);
+      const current = getJob(slug);
+      if (record && (!current || current.status !== "running")) {
+        restoreJobFromQueue(record, `🔄 Job salvat: ${record.pendingPhotos.length} poze rămase.`);
+      }
     }
-
-    createJob(slug, 0);
-    runAlbumProcessing(slug).catch(() => {});
-    res.json({ ok: true, slug, status: "started" });
+    const started = launchAlbumProcessing(slug);
+    res.json({ ok: true, slug, status: started ? "started" : "already_running" });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -1042,20 +1050,21 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
   }
 });
 
-// Background processing function — runs independently of any HTTP connection
+// Background processing function — Firestore keeps pending filenames so interrupted
+// jobs can be reconciled against Bunny and resumed after server startup.
 async function runAlbumProcessing(slug: string): Promise<void> {
   const storageKey = getBunnyStorageKey();
 
   try {
+    const queuedJob = await getDurableJob(slug);
+    if (!queuedJob) throw new Error("Jobul nu mai există în coada persistentă.");
+    await updateDurableJob(slug, { status: "running", nextAttemptAt: 0 });
+
     const listRes = await nodeFetch(buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
       agent: bunnyAgent,
     });
-    if (!listRes.ok) {
-      appendJobLog(slug, "❌ Nu pot lista folderul photos din Bunny.");
-      errorJob(slug, "Nu pot lista folderul photos din Bunny.");
-      return;
-    }
+    if (!listRes.ok) throw new Error("Nu pot lista folderul photos din Bunny.");
 
     const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
     const photos = entries
@@ -1063,7 +1072,6 @@ async function runAlbumProcessing(slug: string): Promise<void> {
       .map((e) => e.ObjectName);
 
     appendJobLog(slug, `📂 ${photos.length} poze găsite`);
-    setJobProgress(slug, 0, photos.length);
 
     const previewListRes = await nodeFetch(buildBunnyDirectoryUrl(slug, "photos_preview"), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
@@ -1075,20 +1083,34 @@ async function runAlbumProcessing(slug: string): Promise<void> {
       previewEntries.forEach((e) => existingPreviews.add(e.ObjectName.replace(/\.[^.]+$/, "")));
     }
 
-    appendJobLog(slug, "🖼 Generez previzualizări WebP...");
-    let done = 0;
-    let skipped = 0;
+    const previousPending = queuedJob.initialized ? queuedJob.pendingPhotos : [];
+    const photosToGenerate = photos.filter((filename) => !existingPreviews.has(filename.replace(/\.[^.]+$/, "")));
+    const recovered = previousPending.filter((filename) =>
+      photos.includes(filename) && existingPreviews.has(filename.replace(/\.[^.]+$/, ""))
+    ).length;
+    const generated = queuedJob.progress.done + recovered;
+    const totalToGenerate = generated + photosToGenerate.length;
+    const skipped = queuedJob.initialized ? queuedJob.alreadyExisting : photos.length - photosToGenerate.length;
+    const progress = { done: generated, total: totalToGenerate };
+    await updateDurableJob(slug, {
+      status: "running", initialized: true, pendingPhotos: photosToGenerate, progress,
+      initialWithPreview: queuedJob.initialWithPreview, alreadyExisting: skipped, nextAttemptAt: 0,
+    });
+    setJobProgress(slug, generated, totalToGenerate);
+    if (recovered) appendJobLog(slug, `🔁 Recuperate ${recovered} poze deja încărcate înainte de întrerupere.`);
+    appendJobLog(slug, `🖼 ${photosToGenerate.length} previzualizări WebP de generat${skipped ? `, ${skipped} există deja` : ""}...`);
+    let failedThisAttempt = 0;
 
-    for (const filename of photos) {
+    for (const filename of photosToGenerate) {
       const baseName = filename.replace(/\.[^.]+$/, "");
-      if (existingPreviews.has(baseName)) { skipped++; continue; }
 
       const dlRes = await nodeFetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename), {
         headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
         agent: bunnyAgent,
       });
       if (!dlRes.ok || !dlRes.body) {
-        appendJobLog(slug, `⚠️ Skip ${filename}: download failed`);
+        appendJobLog(slug, `⚠️ ${filename}: descărcarea a eșuat; va fi reîncercată automat.`);
+        failedThisAttempt++;
         continue;
       }
 
@@ -1107,39 +1129,99 @@ async function runAlbumProcessing(slug: string): Promise<void> {
       });
 
       if (upRes.ok) {
-        done++;
-        setJobProgress(slug, done, photos.length);
-        appendJobLog(slug, `✅ ${previewName} (${done}/${photos.length})`);
+        const completed = await completeDurablePhoto(slug, filename);
+        const done = completed?.progress.done ?? generated;
+        const total = completed?.progress.total ?? totalToGenerate;
+        setJobProgress(slug, done, total);
+        appendJobLog(slug, `✅ ${previewName} (${done}/${total})`);
       } else {
-        appendJobLog(slug, `⚠️ Upload failed for ${previewName}`);
+        appendJobLog(slug, `⚠️ ${previewName}: încărcarea a eșuat; va fi reîncercată automat.`);
+        failedThisAttempt++;
       }
     }
 
-    appendJobLog(slug, `🎉 Gata! ${done} generate, ${skipped} sărite`);
+    const latest = await getDurableJob(slug);
+    if (!latest) throw new Error("Jobul a dispărut din coadă înainte de finalizare.");
+    if (latest.pendingPhotos.length > 0) {
+      const retryCount = latest.retryCount + 1;
+      const retryDelayMs = Math.min(15 * 60_000, 30_000 * (2 ** Math.min(retryCount - 1, 5)));
+      const reason = `${latest.pendingPhotos.length} poze rămase; reîncercare automată în ${Math.round(retryDelayMs / 1000)} secunde.`;
+      appendJobLog(slug, `⏳ ${reason}`);
+      await updateDurableJob(slug, {
+        status: "queued", failedAttempts: latest.failedAttempts + failedThisAttempt,
+        retryCount, nextAttemptAt: Date.now() + retryDelayMs,
+      });
+      errorJob(slug, reason);
+      return;
+    }
+
+    const done = latest.progress.done;
+    appendJobLog(slug, `🎉 Gata! ${done} generate, ${latest.alreadyExisting} existau deja, ${latest.failedAttempts + failedThisAttempt} încercări eșuate temporar`);
     invalidateAlbumCache(slug);
-    finishJob(slug);
-    sendEmail({
+    await sendEmail({
       to: ADMIN_EMAIL,
       subject: `✅ Preview procesat: ${slug}`,
       html: `<p>Folderul <strong>photos_preview</strong> pentru albumul <strong>${slug}</strong> a fost procesat.</p>
-             <p>${done} previzualizări generate, ${skipped} sărite (deja existente).</p>
+             <p>${done} previzualizări generate, ${latest.alreadyExisting} deja existente${latest.failedAttempts + failedThisAttempt ? `, ${latest.failedAttempts + failedThisAttempt} încercări temporare au eșuat și au fost reluate` : ""}.</p>
              <p><a href="${APP_BASE_URL}/media/${slug}">Vezi galeria</a></p>`,
-    }).catch((err) => console.error("[album-processing] email notify failed:", err));
+    });
+    await removeDurableJob(slug);
+    finishJob(slug);
   } catch (err) {
     const message = String(err);
-    appendJobLog(slug, `❌ Eroare: ${message}`);
+    appendJobLog(slug, `⚠️ ${message} Jobul rămâne în coadă și va fi reîncercat automat.`);
+    const queuedJob = await getDurableJob(slug).catch(() => undefined);
+    if (queuedJob) {
+      const retryCount = queuedJob.retryCount + 1;
+      const retryDelayMs = Math.min(15 * 60_000, 30_000 * (2 ** Math.min(retryCount - 1, 5)));
+      await updateDurableJob(slug, {
+        status: "queued", retryCount, failedAttempts: queuedJob.failedAttempts + 1,
+        nextAttemptAt: Date.now() + retryDelayMs,
+      }).catch((persistError) => console.error("[album-processing] failed to schedule retry:", persistError));
+    }
     errorJob(slug, message);
-    sendEmail({
-      to: ADMIN_EMAIL,
-      subject: `❌ Eroare la procesarea albumului: ${slug}`,
-      html: `<p>Procesarea folderului <strong>photos_preview</strong> pentru albumul <strong>${slug}</strong> a eșuat.</p>
-             <p>Eroare: ${message}</p>`,
-    }).catch((err) => console.error("[album-processing] email notify failed:", err));
+    if (!queuedJob || queuedJob.failedAttempts === 0) {
+      sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `❌ Eroare la procesarea albumului: ${slug}`,
+        html: `<p>Procesarea folderului <strong>photos_preview</strong> pentru albumul <strong>${slug}</strong> a eșuat.</p>
+               <p>Eroare: ${message}</p>`,
+      }).catch((err) => console.error("[album-processing] email notify failed:", err));
+    }
   }
 }
 
+function launchAlbumProcessing(slug: string): boolean {
+  if (!beginJobRun(slug)) return false;
+  void runAlbumProcessing(slug).finally(() => endJobRun(slug));
+  return true;
+}
+
+let albumQueueTimer: ReturnType<typeof setInterval> | undefined;
+export function startAlbumProcessingQueue(): void {
+  if (albumQueueTimer) return;
+  const recover = async () => {
+    try {
+      const now = Date.now();
+      for (const record of await listDurableJobs()) {
+        if (record.nextAttemptAt > now || !beginJobRun(record.slug)) continue;
+        restoreJobFromQueue(record, `🔄 Reiau coada persistentă: ${record.pendingPhotos.length} poze rămase.`);
+        void runAlbumProcessing(record.slug).finally(() => endJobRun(record.slug));
+      }
+    } catch (error) {
+      console.error("[album-processing] queue recovery failed:", error);
+    }
+  };
+  void recover();
+  albumQueueTimer = setInterval(() => void recover(), 15_000);
+  albumQueueTimer.unref?.();
+}
+
 // GET /api/admin/album-health/jobs — all in-memory jobs (must be before /:slug routes)
-router.get("/album-health/jobs", requireFirebaseAuth, requireSupremeAdmin, (_req: Request, res: Response) => {
+router.get("/album-health/jobs", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  for (const record of await listDurableJobs()) {
+    if (!getJob(record.slug)) restoreJobFromQueue(record, `🔄 Job salvat: ${record.pendingPhotos.length} poze rămase.`);
+  }
   res.json({ jobs: getAllJobs() });
 });
 
@@ -1187,7 +1269,7 @@ router.delete("/album-health/:slug/zip", requireFirebaseAuth, requireSupremeAdmi
 });
 
 // GET /api/admin/album-health/:slug/live — SSE stream, replays history then streams live updates
-router.get("/album-health/:slug/live", requireFirebaseAuth, requireSupremeAdmin, (req: Request, res: Response) => {
+router.get("/album-health/:slug/live", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const slug = String(req.params.slug);
 
   res.setHeader("Content-Type", "text/event-stream");
@@ -1197,7 +1279,11 @@ router.get("/album-health/:slug/live", requireFirebaseAuth, requireSupremeAdmin,
 
   const send = (data: object) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`); };
 
-  const job = getJob(slug);
+  let job = getJob(slug);
+  const queuedJob = await getDurableJob(slug);
+  if (queuedJob && (!job || job.status !== "running")) {
+    job = restoreJobFromQueue(queuedJob, `🔄 Job salvat: ${queuedJob.pendingPhotos.length} poze rămase.`);
+  }
   if (!job) { send({ type: "error", error: "Job negăsit." }); return res.end(); }
 
   send({ type: "init", ...serializeJob(job) });
@@ -1214,19 +1300,24 @@ router.get("/album-health/:slug/live", requireFirebaseAuth, requireSupremeAdmin,
 });
 
 // POST /api/admin/album-health/:slug/process — start background job, returns immediately
-router.post("/album-health/:slug/process", requireFirebaseAuth, requireSupremeAdmin, (req: Request, res: Response) => {
+router.post("/album-health/:slug/process", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const slug = String(req.params.slug);
   const initialWithPreview = Number((req.body as { initialWithPreview?: number }).initialWithPreview ?? 0);
 
-  const existing = getJob(slug);
-  if (existing?.status === "running") {
-    return res.json({ ok: true, status: "already_running" });
+  try {
+    const queued = await enqueueDurableJob(slug, initialWithPreview);
+    if (!queued) {
+      const record = await getDurableJob(slug);
+      const current = getJob(slug);
+      if (record && (!current || current.status !== "running")) {
+        restoreJobFromQueue(record, `🔄 Job salvat: ${record.pendingPhotos.length} poze rămase.`);
+      }
+    }
+    const started = launchAlbumProcessing(slug);
+    res.json({ ok: true, status: started ? "started" : "already_running" });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
   }
-
-  createJob(slug, initialWithPreview);
-  runAlbumProcessing(slug).catch(() => {});
-
-  res.json({ ok: true, status: "started" });
 });
 
 // ─── GET /api/admin/storage-stats — scan every file in Bunny Storage and report totals ───

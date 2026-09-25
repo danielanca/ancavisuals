@@ -8,6 +8,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import CreateContractPage from "src/client/features/admin/components/Contracts/CreateContractPage";
 
+import { readWorkDraft, saveWorkDraft } from "src/client/features/admin/components/Contracts/contractWorkDrafts";
+
 const mockNavigate = vi.fn();
 
 vi.mock("src/client/features/admin/auth/useAuth", () => ({
@@ -22,9 +24,9 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-function renderPage() {
+function renderPage(entry = "/admin/contracts/create?draft=test-draft") {
   return render(
-    <MemoryRouter initialEntries={["/admin/contracts/create"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/admin/contracts/create" element={<CreateContractPage />} />
       </Routes>
@@ -47,7 +49,7 @@ function makeFetchMock(contractResponse: { ok: boolean; status?: number; json: (
 }
 
 function getEventTypeSelect() {
-  const select = screen.getAllByRole("combobox")[0];
+  const select = screen.getAllByRole("combobox").find((element) => element.textContent?.includes("Nuntă"));
   if (!select) throw new Error("Event type select not found");
   return select;
 }
@@ -73,8 +75,34 @@ function getPriceTotalInput() {
 
 describe("CreateContractPage", () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.restoreAllMocks();
     mockNavigate.mockReset();
+  });
+
+  test("saves an incomplete unnamed draft by date and resumes it without replacing another draft", async () => {
+    vi.stubGlobal("fetch", makeFetchMock({ ok: true, json: async () => ({}) }));
+    saveWorkDraft({ id: "other", title: "Alt client", eventDate: "2027-01-01", updatedAt: "2026-09-25", progress: "todo", payload: "{}" });
+    const first = renderPage();
+    fireEvent.change(getEventDateInput(), { target: { value: "2027-02-03" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Stare de lucru" }), { target: { value: "working" } });
+    await waitFor(() => expect(readWorkDraft("test-draft")).toMatchObject({ title: "Draft necunoscut", eventDate: "2027-02-03", progress: "working" }));
+    first.unmount();
+    renderPage();
+    await waitFor(() => expect(getEventDateInput()).toHaveValue("2027-02-03"));
+    expect(readWorkDraft("other")?.title).toBe("Alt client");
+  });
+
+  test("opens the pre-existing draft for editing when entering the form directly", async () => {
+    vi.stubGlobal("fetch", makeFetchMock({ ok: true, json: async () => ({}) }));
+    localStorage.setItem("contract-create-draft", JSON.stringify({ eventType: "Altul", eventDate: "2027-04-05", clientName: "", clientCity: "Turda" }));
+    renderPage("/admin/contracts/create");
+    await screen.findByText(/Draft recuperat/);
+    expect(getEventTypeSelect()).toHaveValue("Altul");
+    expect(readWorkDraft("legacy")).toMatchObject({ eventDate: "2027-04-05", title: "Draft necunoscut" });
+    fireEvent.change(screen.getByRole("combobox", { name: "Stare de lucru" }), { target: { value: "working" } });
+    await waitFor(() => expect(readWorkDraft("legacy")?.progress).toBe("working"));
+    expect(JSON.parse(readWorkDraft("legacy")!.payload).clientCity).toBe("Turda");
   });
 
   describe("happy path", () => {
@@ -108,12 +136,12 @@ describe("CreateContractPage", () => {
         target: { value: "250" },
       });
 
-      fireEvent.change(screen.getByPlaceholderText("client@email.com"), {
+      fireEvent.change(screen.getByPlaceholderText("Îl poate completa clientul la semnare"), {
         target: { value: "client@example.com" },
       });
       fireEvent.change(getAdvanceInput(), { target: { value: "100" } });
 
-      fireEvent.click(screen.getByRole("button", { name: "Salvează contractul" }));
+      fireEvent.click(screen.getByRole("button", { name: "Salvează ca draft" }));
 
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith("/admin/contracts");
@@ -175,16 +203,35 @@ describe("CreateContractPage", () => {
   });
 
   describe("validation and error states", () => {
+    test("saves a draft without requiring client email", async () => {
+      const fetchMock = makeFetchMock({
+        ok: true,
+        status: 201,
+        json: async () => ({ id: "contract-draft", token: "token-draft" }),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      renderPage();
+
+      fireEvent.change(getEventTypeSelect(), { target: { value: "Altul" } });
+      const futureDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+      fireEvent.change(getEventDateInput(), { target: { value: futureDate } });
+      fireEvent.click(screen.getByRole("button", { name: "Salvează ca draft" }));
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/admin/contracts"));
+      const request = fetchMock.mock.calls.find(([url]) => url === "/api/contracts")?.[1];
+      expect(JSON.parse(request.body as string).clientEmail).toBe("");
+    });
+
     test("rejects missing event type", async () => {
       renderPage();
 
       const futureDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
       fireEvent.change(getEventDateInput(), { target: { value: futureDate } });
-      fireEvent.change(screen.getByPlaceholderText("client@email.com"), {
+      fireEvent.change(screen.getByPlaceholderText("Îl poate completa clientul la semnare"), {
         target: { value: "client@example.com" },
       });
 
-      fireEvent.click(screen.getByRole("button", { name: "Salvează contractul" }));
+      fireEvent.click(screen.getByRole("button", { name: "Salvează ca draft" }));
 
       expect(await screen.findByText("Selectează tipul evenimentului.")).toBeInTheDocument();
     });
@@ -198,7 +245,7 @@ describe("CreateContractPage", () => {
       const futureDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
       fireEvent.change(getEventDateInput(), { target: { value: futureDate } });
 
-      fireEvent.change(screen.getByPlaceholderText("client@email.com"), {
+      fireEvent.change(screen.getByPlaceholderText("Îl poate completa clientul la semnare"), {
         target: { value: "client@example.com" },
       });
 
@@ -207,7 +254,7 @@ describe("CreateContractPage", () => {
         target: { value: "" },
       });
 
-      fireEvent.click(screen.getByRole("button", { name: "Salvează contractul" }));
+      fireEvent.click(screen.getByRole("button", { name: "Salvează ca draft" }));
 
       expect(await screen.findByText("Completează prețul (sau scrie GRATUIT) pentru serviciile bifate marcate în roșu.")).toBeInTheDocument();
     });
@@ -226,7 +273,7 @@ describe("CreateContractPage", () => {
       fireEvent.change(getEventTypeSelect(), { target: { value: "Altul" } });
       const futureDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
       fireEvent.change(getEventDateInput(), { target: { value: futureDate } });
-      fireEvent.change(screen.getByPlaceholderText("client@email.com"), {
+      fireEvent.change(screen.getByPlaceholderText("Îl poate completa clientul la semnare"), {
         target: { value: "client@example.com" },
       });
 
@@ -235,7 +282,7 @@ describe("CreateContractPage", () => {
         target: { value: "500" },
       });
 
-      fireEvent.click(screen.getByRole("button", { name: "Salvează contractul" }));
+      fireEvent.click(screen.getByRole("button", { name: "Salvează ca draft" }));
 
       expect(await screen.findByText("Nu s-a putut crea contractul.")).toBeInTheDocument();
       expect(mockNavigate).not.toHaveBeenCalled();

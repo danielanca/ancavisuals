@@ -47,6 +47,7 @@ function renderPage() {
 
 describe("ContractListPage", () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.restoreAllMocks();
     mockNavigate.mockReset();
     vi.stubGlobal("confirm", vi.fn(() => true));
@@ -63,6 +64,18 @@ describe("ContractListPage", () => {
   });
 
   describe("happy path", () => {
+    test("includes existing server drafts without local drafts and opens their editor", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ contracts: [{ ...contractsFixture[0], eventDate: "2027-09-18" }] }),
+      }));
+      renderPage();
+      expect(await screen.findByText("Drafturi de lucru (1)")).toBeInTheDocument();
+      expect(screen.getByText(/18 sept.*2027 — Draft necunoscut/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Continuă draftul" }));
+      expect(mockNavigate).toHaveBeenCalledWith("/admin/contracts/contract-1/edit");
+    });
+
     test("loads and renders the contract list", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
         ok: true,

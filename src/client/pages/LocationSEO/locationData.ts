@@ -1049,6 +1049,9 @@ export const SERVICES: ServiceData[] = [
   },
 ];
 
+// Only these services have a public overview page; local pages support more services.
+export const SERVICE_HUB_SLUGS: ServiceType[] = ["nunta", "botez", "majorat", "evenimente"];
+
 const PRIMARY_KEYWORDS = [
   { template: (service: ServiceData, city: CityData) => `/foto-video-${service.slug}-${city.slug}`, label: "foto video" },
 ];

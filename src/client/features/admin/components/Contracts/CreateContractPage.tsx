@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { BankProfile } from "../../types";
 import ClauseChecklistEditor, { type ClauseSnapshot } from "./ClauseChecklistEditor";
 import Checkbox from "./Checkbox";
+
+import { readWorkDraft, saveWorkDraft, removeWorkDraft, migrateLegacyWorkDraft } from "./contractWorkDrafts";
 
 interface CreateContractState {
   eventId?: string;
@@ -75,7 +77,7 @@ const REVOLUT = "Revolut";
 const PAYMENT_METHODS = [BANK_TRANSFER, CASH, CARD, REVOLUT];
 const DEFAULT_EUR_RATE = 5;
 const DEFAULT_TRANSPORT_FUEL_PRICE = "10";
-const DRAFT_KEY = "contract-create-draft";
+
 
 function parseDecimal(raw: string): number {
   const normalized = raw.replace(/\s/g, "").replace(",", ".");
@@ -173,7 +175,28 @@ function convertAmount(amount: number, currency: string, eurRate: number): strin
 const CreateContractPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const fromEvent = (location.state as CreateContractState | null) ?? {};
+  const [draftId] = useState(() => {
+    const requestedId = new URLSearchParams(location.search).get("draft");
+    if (requestedId) return requestedId;
+    try {
+      const recoveredId = migrateLegacyWorkDraft();
+      if (recoveredId && !location.state) return recoveredId;
+    } catch { /* Preserve the original draft if migration fails. */ }
+    return crypto.randomUUID();
+  });
+  const [storedDraft] = useState(() => {
+    try { return readWorkDraft(draftId); } catch { return null; }
+  });
+  const [fromEvent] = useState<CreateContractState>(() => {
+    if (storedDraft) {
+      try { return JSON.parse(storedDraft.payload).fromEvent ?? {}; } catch { /* use navigation context */ }
+    }
+    return (location.state as CreateContractState | null) ?? {};
+  });
+  const draftCompleted = useRef(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftProgress, setDraftProgress] = useState<"todo" | "working">(storedDraft?.progress ?? "todo");
 
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -264,15 +287,23 @@ const CreateContractPage: React.FC = () => {
 
   const [draftRestored, setDraftRestored] = useState(false);
 
+  useEffect(() => {
+    if (!new URLSearchParams(location.search).has("draft")) {
+      navigate(`/admin/contracts/create?draft=${encodeURIComponent(draftId)}`, { replace: true, state: location.state });
+    }
+  }, [draftId, location.search, location.state, navigate]);
+
   // Restore draft from localStorage on mount
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = storedDraft?.payload;
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (draft.eventType !== undefined) setEventType(draft.eventType);
       if (draft.eventDate !== undefined) setEventDate(draft.eventDate);
       if (draft.eventDates !== undefined) setEventDates(draft.eventDates);
+      else if (draft.eventDate) setEventDates([draft.eventDate]);
+      if (draft.dateToAdd !== undefined) setDateToAdd(draft.dateToAdd);
       if (draft.eventLocation !== undefined) setEventLocation(draft.eventLocation);
       if (draft.eventStartTime !== undefined) setEventStartTime(draft.eventStartTime);
       if (draft.eventEndTime !== undefined) setEventEndTime(draft.eventEndTime);
@@ -305,28 +336,37 @@ const CreateContractPage: React.FC = () => {
       if (draft.clientRepresentativeIdSeries !== undefined) setClientRepresentativeIdSeries(draft.clientRepresentativeIdSeries);
       if (draft.privateClient !== undefined) setPrivateClient(draft.privateClient);
       if (draft.selectedBankProfileId !== undefined) setSelectedBankProfileId(draft.selectedBankProfileId);
+      if (draft.clientCity !== undefined) setClientCity(draft.clientCity);
+      if (draft.clientCounty !== undefined) setClientCounty(draft.clientCounty);
+      if (draft.clientCNP !== undefined) setClientCNP(draft.clientCNP);
+      if (draft.clauses !== undefined) setClauses(draft.clauses);
       setDraftRestored(true);
-    } catch { /* ignore corrupt draft */ }
+    } catch { setDraftError("Draftul nu a putut fi recuperat."); }
+    finally { setDraftReady(true); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-save draft to localStorage
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (!draftReady || draftCompleted.current) return;
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({
-          eventType, eventDate, eventDates, eventLocation, eventStartTime, eventEndTime, eventDetails,
+        saveWorkDraft({
+          id: draftId,
+          title: clientName.trim() || "Draft necunoscut",
+          eventDate: eventDate || dateToAdd, updatedAt: new Date().toISOString(), progress: draftProgress,
+          payload: JSON.stringify({
+          eventType, eventDate, eventDates, dateToAdd, eventLocation, eventStartTime, eventEndTime, eventDetails,
           services, customServices,
           currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
           transportKm, transportFuelPrice,
           clientEmail, clientName, clientPhone, clientAddress, clientCity, clientCounty, clientIdSeries, clientType, clientEntityType, clientCIF,
           clientRegistrationNumber, clientBankName, clientIBAN, clientRepresentativeName, clientRepresentativeRole, clientRepresentativeIdSeries, clientCNP, privateClient,
-          selectedBankProfileId,
-        }));
-      } catch { /* quota exceeded, ignore */ }
-    }, 600);
-    return () => clearTimeout(timer);
+          selectedBankProfileId, clauses, fromEvent,
+        }) });
+        setDraftError(null);
+      } catch { setDraftError("Draftul nu s-a putut salva în browser. Nu închide pagina înainte de salvarea contractului."); }
   }, [
+    draftReady, draftId, draftProgress, clauses, fromEvent, dateToAdd,
     eventType, eventDate, eventDates, eventLocation, eventStartTime, eventEndTime, eventDetails,
     services, customServices,
     currency, manualTotal, priceTotal, noAdvance, priceAdvance, advancePaidAt, restPaidAt, paymentMethod,
@@ -429,8 +469,8 @@ const CreateContractPage: React.FC = () => {
     setEventDate(selectedEventDates[0]);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     if (selectedEventDates.some((date) => new Date(`${date}T00:00:00`) < today)) { setSubmitError("Zilele evenimentului nu pot fi în trecut."); return; }
-    if (!clientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
-      setSubmitError("Email-ul clientului este obligatoriu și trebuie să fie valid."); return;
+    if (clientEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
+      setSubmitError("Email-ul clientului nu este valid."); return;
     }
 
     // Validate prices for checked services — must be filled in or GRATUIT
@@ -497,7 +537,8 @@ const CreateContractPage: React.FC = () => {
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error ?? "Eroare la creare");
-      localStorage.removeItem(DRAFT_KEY);
+      draftCompleted.current = true;
+      try { removeWorkDraft(draftId); } catch { /* Contract is already saved on server. */ }
       navigate(fromEvent.eventId ? "/admin" : "/admin/contracts");
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Eroare necunoscută");
@@ -512,13 +553,21 @@ const CreateContractPage: React.FC = () => {
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-2xl mx-auto">
 
-        {draftRestored && (
-          <div className="mb-4 flex items-center justify-between gap-3 bg-sky-500/10 border border-sky-500/30 rounded-xl px-4 py-2.5">
-            <p className="text-sky-300 text-sm">Draft recuperat — continuă de unde ai rămas.</p>
-            <button onClick={() => { localStorage.removeItem(DRAFT_KEY); window.location.reload(); }}
-              className="text-xs text-sky-400/60 hover:text-sky-300 shrink-0">Șterge draft</button>
+        <div className="mb-4 space-y-3 bg-sky-500/10 border border-sky-500/30 rounded-xl px-4 py-3">
+          <p className="text-sky-300 text-sm">{draftRestored ? "Draft recuperat" : "Draft de lucru"} — salvat automat în acest browser.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-sm text-neutral-300">Stare de lucru
+              <select aria-label="Stare de lucru" value={draftProgress} onChange={(e) => setDraftProgress(e.target.value as "todo" | "working")}
+                className="ml-2 rounded bg-neutral-900 px-2 py-1 text-white">
+                <option value="todo">De făcut</option>
+                <option value="working">În lucru</option>
+              </select>
+            </label>
+            <button type="button" disabled={!!draftError} onClick={() => navigate("/admin/contracts")}
+              className="text-sm text-sky-300 disabled:opacity-50">Păstrează draftul și revino la listă</button>
           </div>
-        )}
+          {draftError && <p role="alert" className="text-red-400 text-sm">{draftError}</p>}
+        </div>
 
         <div className="flex items-center gap-3 mb-8">
           <button type="button" onClick={() => navigate("/admin/contracts")}
@@ -932,11 +981,11 @@ const CreateContractPage: React.FC = () => {
               </select>
             </div>
             <div>
-              <Label>Email client *</Label>
+              <Label>Email client (opțional)</Label>
               <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
-                placeholder="client@email.com" className={inp} />
+                placeholder="Îl poate completa clientul la semnare" className={inp} />
               <span className="text-neutral-500 text-xs mt-1 block">
-                Link-ul de semnare va fi trimis la această adresă.
+                Poți trimite linkul direct; clientul își va introduce emailul înainte de semnare.
               </span>
             </div>
 
@@ -1064,7 +1113,7 @@ const CreateContractPage: React.FC = () => {
             </button>
             <button type="submit" disabled={loading}
               className="flex-[2] py-3 bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-semibold hover:bg-emerald-500/30 hover:text-emerald-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? "Se salvează..." : "Salvează contractul"}
+              {loading ? "Se salvează..." : "Salvează ca draft"}
             </button>
           </div>
 

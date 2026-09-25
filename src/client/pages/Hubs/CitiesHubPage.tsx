@@ -5,7 +5,7 @@ import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 import Breadcrumbs from "../../components/SEO/Breadcrumbs";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
-import { CITIES, SERVICES } from "../LocationSEO/locationData";
+import { CITIES, SERVICES, SERVICE_HUB_SLUGS, allowedServices } from "../LocationSEO/locationData";
 
 const CitiesHubPage: React.FC = () => {
   const breadcrumbs = [
@@ -59,7 +59,7 @@ const CitiesHubPage: React.FC = () => {
                 {city.description}. Zone apropiate: {city.nearbyAreas.slice(0, 3).join(", ")}.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                {SERVICES.map(service => (
+                {allowedServices(city).map(service => (
                   <Link
                     key={`${city.slug}-${service.slug}`}
                     to={`/foto-video-${service.slug}-${city.slug}`}
@@ -78,7 +78,7 @@ const CitiesHubPage: React.FC = () => {
         <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8">
           <h2 className="text-2xl font-light">Hub-uri pe servicii</h2>
           <div className="mt-6 flex flex-wrap gap-3">
-            {SERVICES.map(service => (
+            {SERVICES.filter(service => SERVICE_HUB_SLUGS.includes(service.slug)).map(service => (
               <Link
                 key={service.slug}
                 to={`/foto-video-${service.slug}`}

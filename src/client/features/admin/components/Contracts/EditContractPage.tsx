@@ -335,8 +335,8 @@ const EditContractPage: React.FC = () => {
 
     if (!eventType) { setSubmitError("Selectează tipul evenimentului."); return; }
     if (eventDates.length === 0) { setSubmitError("Selectează cel puțin o zi pentru eveniment."); return; }
-    if (!clientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
-      setSubmitError("Email-ul clientului este obligatoriu și trebuie să fie valid."); return;
+    if (clientEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
+      setSubmitError("Email-ul clientului nu este valid."); return;
     }
 
     const missing = new Set<string>();
@@ -726,9 +726,9 @@ const EditContractPage: React.FC = () => {
               </select>
             </div>
             <div>
-              <Label>Email client *</Label>
+              <Label>Email client (opțional)</Label>
               <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
-                placeholder="client@email.com" className={inp} />
+                placeholder="Îl poate completa clientul la semnare" className={inp} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

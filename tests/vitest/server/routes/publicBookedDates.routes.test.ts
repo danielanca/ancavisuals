@@ -67,6 +67,18 @@ describe("publicBookedDates.routes — GET /api/booked-dates", () => {
     });
   });
 
+  test("excludes all days of hidden events but keeps another booking on the same day", async () => {
+    const { handler } = await loadRouter([
+      { status: "confirmat", eventDate: "2026-10-01", eventEndDate: "2026-10-03", excludeFromCalendar: true },
+      { status: "finalizat", eventDates: ["2026-10-04", "2026-10-06"], excludeFromCalendar: true },
+      { status: "confirmat", eventDate: "2026-10-02", excludeFromCalendar: false },
+      { status: "confirmat", eventDate: "2026-10-08" },
+    ]);
+    const res = createMockResponse();
+    await handler({}, res);
+    expect(res.json).toHaveBeenCalledWith({ dates: ["2026-10-02", "2026-10-08"] });
+  });
+
   test("returns an empty list when there are no events", async () => {
     const { handler } = await loadRouter([]);
     const res = createMockResponse();

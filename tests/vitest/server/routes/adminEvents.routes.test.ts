@@ -61,6 +61,10 @@ async function loadRouter() {
   const getAllJobsMock = vi.fn().mockReturnValue([]);
   const getJobMock = vi.fn().mockReturnValue(null);
   const createJobMock = vi.fn();
+  const enqueueDurableJobMock = vi.fn().mockResolvedValue(true);
+  const getDurableJobMock = vi.fn().mockResolvedValue(null);
+  const listDurableJobsMock = vi.fn().mockResolvedValue([]);
+  const beginJobRunMock = vi.fn().mockReturnValue(true);
   const anthropicCreateMock = vi.fn().mockResolvedValue({
     content: [{ type: "text", text: '{"phone":"+40700123456","fullName":"Maria Ionescu","eventDate":"2026-09-20","eventTypeGuess":"Nuntă"}' }],
   });
@@ -122,6 +126,15 @@ async function loadRouter() {
   }));
 
   vi.doMock("src/server/services/albumProcessingJobs", () => ({
+    enqueueDurableJob: enqueueDurableJobMock,
+    getDurableJob: getDurableJobMock,
+    listDurableJobs: listDurableJobsMock,
+    updateDurableJob: vi.fn().mockResolvedValue(undefined),
+    completeDurablePhoto: vi.fn().mockResolvedValue(undefined),
+    removeDurableJob: vi.fn().mockResolvedValue(undefined),
+    beginJobRun: beginJobRunMock,
+    endJobRun: vi.fn(),
+    restoreJobFromQueue: vi.fn(),
     createJob: createJobMock,
     getJob: getJobMock,
     getAllJobs: getAllJobsMock,
@@ -182,6 +195,9 @@ async function loadRouter() {
     getAllJobsMock,
     getJobMock,
     createJobMock,
+    enqueueDurableJobMock,
+    listDurableJobsMock,
+    beginJobRunMock,
     anthropicCreateMock,
     getEvents: getHandler("get", "/events"),
     postEvents: getHandler("post", "/events"),
@@ -724,8 +740,9 @@ describe("adminEvents routes", () => {
   // ───────────────── GET /album-health/jobs ─────────────────
   describe("GET /album-health/jobs", () => {
     test("returns all jobs", async () => {
-      const { getAlbumHealthJobs, getAllJobsMock } = await loadRouter();
+      const { getAlbumHealthJobs, getAllJobsMock, listDurableJobsMock } = await loadRouter();
       getAllJobsMock.mockReturnValueOnce([{ slug: "nunta-test", status: "done" }]);
+      listDurableJobsMock.mockResolvedValueOnce([]);
       const res = createMockResponse();
       await getAlbumHealthJobs({}, res);
       const data = (res.json as any).mock.calls[0][0];
@@ -1069,19 +1086,21 @@ describe("adminEvents routes", () => {
   // ───────────────── POST /album-health/:slug/process ─────────────────
   describe("POST /album-health/:slug/process", () => {
     test("starts a new job and returns started status", async () => {
-      const { postAlbumHealthProcess, getJobMock, createJobMock } = await loadRouter();
+      const { postAlbumHealthProcess, getJobMock, enqueueDurableJobMock } = await loadRouter();
       getJobMock.mockReturnValueOnce(null);
       const res = createMockResponse();
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
       await postAlbumHealthProcess({ params: { slug: "nunta-test" }, body: {} }, res);
-      expect(createJobMock).toHaveBeenCalledWith("nunta-test", 0);
+      expect(enqueueDurableJobMock).toHaveBeenCalledWith("nunta-test", 0);
       expect(res.json).toHaveBeenCalledWith({ ok: true, status: "started" });
       vi.unstubAllGlobals();
     });
 
     test("returns already_running when job is running", async () => {
-      const { postAlbumHealthProcess, getJobMock } = await loadRouter();
+      const { postAlbumHealthProcess, getJobMock, enqueueDurableJobMock, beginJobRunMock } = await loadRouter();
+      enqueueDurableJobMock.mockResolvedValueOnce(false);
       getJobMock.mockReturnValueOnce({ status: "running" });
+      beginJobRunMock.mockReturnValueOnce(false);
       const res = createMockResponse();
       await postAlbumHealthProcess({ params: { slug: "nunta-test" }, body: {} }, res);
       expect(res.json).toHaveBeenCalledWith({ ok: true, status: "already_running" });

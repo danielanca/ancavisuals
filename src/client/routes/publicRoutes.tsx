@@ -1,6 +1,6 @@
 import loadable from "@loadable/component";
 import React from "react";
-import { ALL_LOCATION_ROUTES } from "../pages/LocationSEO/locationData";
+import { ALL_LOCATION_ROUTES, SERVICE_HUB_SLUGS } from "../pages/LocationSEO/locationData";
 import { LocationPageWrapper } from "../pages/LocationSEO/LocationPage";
 import CitiesHubPage from "../pages/Hubs/CitiesHubPage";
 import ServiceHubPage from "../pages/Hubs/ServiceHubPage";
@@ -107,26 +107,11 @@ const publicRoutes: publicRoutesType[] = [
     component: BlogPost,
   },
 
-  {
-    path: "/foto-video-nunta",
+  ...SERVICE_HUB_SLUGS.map(serviceSlug => ({
+    path: `/foto-video-${serviceSlug}`,
     layout: null,
-    component: () => React.createElement(ServiceHubPage, { serviceSlug: "nunta" }),
-  },
-  {
-    path: "/foto-video-botez",
-    layout: null,
-    component: () => React.createElement(ServiceHubPage, { serviceSlug: "botez" }),
-  },
-  {
-    path: "/foto-video-majorat",
-    layout: null,
-    component: () => React.createElement(ServiceHubPage, { serviceSlug: "majorat" }),
-  },
-  {
-    path: "/foto-video-evenimente",
-    layout: null,
-    component: () => React.createElement(ServiceHubPage, { serviceSlug: "evenimente" }),
-  },
+    component: () => React.createElement(ServiceHubPage, { serviceSlug }),
+  })),
 
   /** ============================================================
    *  CLIENȚI & EVENIMENTE — rute cu parametri dinamici

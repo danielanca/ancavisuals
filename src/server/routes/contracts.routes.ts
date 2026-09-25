@@ -61,11 +61,15 @@ router.post("/", async (req: Request, res: Response) => {
     const db = firestore();
     const body = req.body;
 
-    if (!body.eventType || !body.eventDate || !body.clientEmail) {
-      return res.status(400).json({ error: "Câmpuri obligatorii: eventType, eventDate, clientEmail" });
+    if (!body.eventType || !body.eventDate) {
+      return res.status(400).json({ error: "Câmpuri obligatorii: eventType, eventDate" });
     }
     if (body.clientType === "PJ" && (!body.clientName?.trim() || !body.clientCIF?.trim() || !body.clientAddress?.trim())) {
       return res.status(400).json({ error: "Pentru persoana juridică sunt obligatorii denumirea, CIF/CUI și sediul." });
+    }
+    const clientEmail = typeof body.clientEmail === "string" ? body.clientEmail.trim() : "";
+    if (clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
+      return res.status(400).json({ error: "Email-ul clientului nu este valid." });
     }
 
     const priceTotal = Number(body.priceTotal) || 0;
@@ -108,7 +112,7 @@ router.post("/", async (req: Request, res: Response) => {
       transportKm: body.transportKm ?? "",
       transportFuelPrice: body.transportFuelPrice ?? "10",
 
-      clientEmail: body.clientEmail,
+      clientEmail,
       clientName: body.clientName?.trim() ?? "",
       clientPhone: body.clientPhone?.trim() ?? "",
       clientAddress: body.clientAddress?.trim() ?? "",
@@ -467,6 +471,9 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const data = doc.data()!;
     const body = req.body;
     const has = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
+    if (has("clientEmail") && body.clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(body.clientEmail).trim())) {
+      return res.status(400).json({ error: "Email-ul clientului nu este valid." });
+    }
 
     // Only fields actually present in the request body are written — a caller
     // sending a partial payload (e.g. just toggling "fiscalized") must never
@@ -505,7 +512,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       ...(has("advancePaidAt") ? { advancePaidAt: body.advancePaidAt ?? "" } : {}),
       ...(has("restPaidAt") ? { restPaidAt: body.restPaidAt ?? "" } : {}),
       ...(has("paymentMethod") ? { paymentMethod: body.paymentMethod ?? BANK_TRANSFER } : {}),
-      ...(has("clientEmail") ? { clientEmail: body.clientEmail } : {}),
+      ...(has("clientEmail") ? { clientEmail: String(body.clientEmail ?? "").trim() } : {}),
       ...(has("clientName") ? { clientName: body.clientName?.trim() ?? "" } : {}),
       ...(has("clientPhone") ? { clientPhone: body.clientPhone?.trim() ?? "" } : {}),
       ...(has("clientAddress") ? { clientAddress: body.clientAddress?.trim() ?? "" } : {}),
@@ -812,6 +819,9 @@ router.post("/:id/send", async (req: Request, res: Response) => {
 
     if (contract.status === "signed") {
       return res.status(400).json({ error: "Contractul a fost deja semnat." });
+    }
+    if (typeof contract.clientEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contract.clientEmail.trim())) {
+      return res.status(400).json({ error: "Completează un email valid sau copiază linkul și trimite-l direct clientului." });
     }
 
     await db.collection("contracts").doc(req.params.id).update({ status: "sent", sentAt: Timestamp.now() });

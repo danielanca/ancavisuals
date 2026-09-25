@@ -54,19 +54,16 @@ function isImageLoadError(message: string): boolean {
   return message.startsWith("[IMAGE LOAD FAILED]");
 }
 
-// Same broken photo can be hit by many visitors loading the same page — one
-// email per unique image URL per window is enough to flag it for a fix.
+// One alert for all failed images in a six-hour window, regardless of URL,
+// signed token, page or visitor. Individual errors remain in the dashboard.
 const IMAGE_LOAD_EMAIL_COOLDOWN_MS = 6 * 60 * 60_000;
-const imageLoadEmailLastSent = new Map<string, number>();
+let imageLoadEmailLastSent: number | null = null;
 
-function shouldSendImageLoadEmail(url: string): boolean {
+function shouldSendImageLoadEmail(): boolean {
   const now = Date.now();
-  const last = imageLoadEmailLastSent.get(url);
-  if (last && now - last < IMAGE_LOAD_EMAIL_COOLDOWN_MS) return false;
-  imageLoadEmailLastSent.set(url, now);
-  for (const [storedKey, timestamp] of imageLoadEmailLastSent) {
-    if (now - timestamp > IMAGE_LOAD_EMAIL_COOLDOWN_MS) imageLoadEmailLastSent.delete(storedKey);
-  }
+  if (imageLoadEmailLastSent !== null && now - imageLoadEmailLastSent < IMAGE_LOAD_EMAIL_COOLDOWN_MS) return false;
+  // Reserve before sending so simultaneous requests cannot send duplicates.
+  imageLoadEmailLastSent = now;
   return true;
 }
 
@@ -159,7 +156,7 @@ async function sendImageLoadFailedEmail(message: string, stack: string, page: st
           <tr><td style="padding:6px 0;color:#737373;">Context</td><td style="color:#a3a3a3;font-size:11px;word-break:break-all;">${safe(stack || "-")}</td></tr>
           <tr><td style="padding:6px 0;color:#737373;">Ora</td><td style="color:#f5f5f5;">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
         </table>
-        <p style="color:#444;font-size:11px;margin:20px 0 0;">Trimis automat de AncaVisuals monitoring · max. 1 email / 6h pentru aceeași poză</p>
+        <p style="color:#444;font-size:11px;margin:20px 0 0;">Trimis automat de AncaVisuals monitoring · max. 1 email / 6h pentru toate pozele. Alte erori sunt păstrate în dashboard.</p>
       </div>
     `,
   });
@@ -223,7 +220,7 @@ router.post("/client-error", async (req: Request, res: Response) => {
     if (isSlowLoadError(message)) {
       sendSlowLoadEmail(message, page, ip || undefined).catch(() => {});
     }
-    if (isImageLoadError(message) && shouldSendImageLoadEmail(message)) {
+    if (isImageLoadError(message) && shouldSendImageLoadEmail()) {
       sendImageLoadFailedEmail(message, stack, page, ip || undefined).catch(() => {});
     }
     res.json({ ok: true });

@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { firestore } from "../firestore";
 
 export type JobStatus = "running" | "done" | "error";
 
@@ -14,7 +15,118 @@ export interface ProcessingJob {
   emitter: EventEmitter;
 }
 
+export interface DurableAlbumJob {
+  slug: string;
+  status: "queued" | "running";
+  pendingPhotos: string[];
+  initialized: boolean;
+  progress: { done: number; total: number };
+  initialWithPreview: number;
+  alreadyExisting: number;
+  failedAttempts: number;
+  retryCount: number;
+  nextAttemptAt: number;
+  startedAt: number;
+}
+
 const jobs = new Map<string, ProcessingJob>();
+const activeRuns = new Set<string>();
+const QUEUE_COLLECTION = "albumPhotoProcessingQueue";
+
+const queueRef = (slug: string) => firestore().collection(QUEUE_COLLECTION).doc(encodeURIComponent(slug));
+
+export async function enqueueDurableJob(slug: string, initialWithPreview: number): Promise<boolean> {
+  const now = Date.now();
+  const ref = queueRef(slug);
+  const created = await firestore().runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (snapshot.exists) return false;
+    tx.set(ref, {
+      slug,
+      status: "queued",
+      pendingPhotos: [],
+      initialized: false,
+      progress: { done: 0, total: 0 },
+      initialWithPreview,
+      alreadyExisting: 0,
+      failedAttempts: 0,
+      retryCount: 0,
+      nextAttemptAt: now,
+      startedAt: now,
+      updatedAt: now,
+    });
+    return true;
+  });
+  if (created) createJob(slug, initialWithPreview);
+  return created;
+}
+
+export async function getDurableJob(slug: string): Promise<DurableAlbumJob | undefined> {
+  const snapshot = await queueRef(slug).get();
+  return snapshot.exists ? snapshot.data() as DurableAlbumJob : undefined;
+}
+
+export async function listDurableJobs(): Promise<DurableAlbumJob[]> {
+  const snapshot = await firestore().collection(QUEUE_COLLECTION).get();
+  return snapshot.docs.map((doc) => doc.data() as DurableAlbumJob);
+}
+
+export async function updateDurableJob(slug: string, update: Partial<DurableAlbumJob>): Promise<void> {
+  await queueRef(slug).set({ ...update, updatedAt: Date.now() }, { merge: true });
+}
+
+export async function completeDurablePhoto(slug: string, filename: string): Promise<DurableAlbumJob | undefined> {
+  const ref = queueRef(slug);
+  return firestore().runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) return undefined;
+    const job = snapshot.data() as DurableAlbumJob;
+    if (!job.pendingPhotos.includes(filename)) return job;
+    const pendingPhotos = job.pendingPhotos.filter((photo) => photo !== filename);
+    const progress = { done: job.progress.done + 1, total: job.progress.total };
+    tx.update(ref, { pendingPhotos, progress, updatedAt: Date.now() });
+    return { ...job, pendingPhotos, progress };
+  });
+}
+
+export async function removeDurableJob(slug: string): Promise<void> {
+  await queueRef(slug).delete();
+}
+
+export function beginJobRun(slug: string): boolean {
+  if (activeRuns.has(slug)) return false;
+  activeRuns.add(slug);
+  return true;
+}
+
+export function endJobRun(slug: string): void {
+  activeRuns.delete(slug);
+}
+
+export function restoreJobFromQueue(record: DurableAlbumJob, message: string): ProcessingJob {
+  let job = jobs.get(record.slug);
+  if (!job) {
+    const emitter = new EventEmitter();
+    emitter.setMaxListeners(50);
+    job = {
+      slug: record.slug,
+      status: "running",
+      log: [],
+      progress: record.progress,
+      initialWithPreview: record.initialWithPreview,
+      startedAt: record.startedAt,
+      emitter,
+    };
+    jobs.set(record.slug, job);
+  } else {
+    job.status = "running";
+    job.progress = record.progress;
+    job.error = undefined;
+    job.finishedAt = undefined;
+  }
+  appendJobLog(record.slug, message);
+  return job;
+}
 
 export function getJob(slug: string): ProcessingJob | undefined {
   return jobs.get(slug);

@@ -16,7 +16,7 @@ router.get("/", async (_req: Request, res: Response) => {
     const dates: string[] = [];
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      if (!CONFIRMED_STATUSES.has(data.status)) continue;
+      if (data.excludeFromCalendar === true || !CONFIRMED_STATUSES.has(data.status)) continue;
       dates.push(...expandEventDates(data));
     }
 

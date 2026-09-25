@@ -349,8 +349,20 @@ describe("contracts.routes", () => {
       await postCreate({ body: { eventType: "Nunta" } }, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: "Câmpuri obligatorii: eventType, eventDate, clientEmail" });
+      expect(res.json).toHaveBeenCalledWith({ error: "Câmpuri obligatorii: eventType, eventDate" });
       expect(addMock).not.toHaveBeenCalled();
+    });
+
+    test("POST / saves a draft without client email", async () => {
+      const { postCreate, addMock } = await loadContractsRouter();
+      const res = createMockResponse();
+      addMock.mockResolvedValue({ id: "contract-draft" });
+
+      await postCreate({ body: { eventType: "Nuntă", eventDate: "2026-09-12" } }, res);
+
+      expect(addMock).toHaveBeenCalledTimes(1);
+      expect(addMock.mock.calls[0][0]).toMatchObject({ status: "draft", clientEmail: "" });
+      expect(res.status).toHaveBeenCalledWith(201);
     });
 
     test("POST /sign/:token validates CI format before touching Firestore", async () => {
@@ -473,6 +485,18 @@ describe("contracts.routes", () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ error: "Contractul a fost deja semnat." });
+      expect(updateMock).not.toHaveBeenCalled();
+      expect(sendContractLinkEmailMock).not.toHaveBeenCalled();
+    });
+
+    test("POST /:id/send refuses to send when the draft has no client email", async () => {
+      const { postSend, docGetMock, updateMock, sendContractLinkEmailMock } = await loadContractsRouter();
+      const res = createMockResponse();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ status: "draft", clientEmail: "" }) });
+
+      await postSend({ params: { id: "contract-1" } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
       expect(updateMock).not.toHaveBeenCalled();
       expect(sendContractLinkEmailMock).not.toHaveBeenCalled();
     });
