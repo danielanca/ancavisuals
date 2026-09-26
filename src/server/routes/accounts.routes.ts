@@ -95,6 +95,7 @@ router.get("/account-invitations", async (_req: Request, res: Response) => {
 // POST /api/admin/account-invitations — send/re-send collaborator invite
 router.post("/account-invitations", async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
+  let stage: "user" | "storage" | "email" = "user";
   try {
     const { email, albumSlug, inviteInstagram, inviteModeration } = req.body as {
       email?: string;
@@ -115,6 +116,7 @@ router.post("/account-invitations", async (req: Request, res: Response) => {
 
     const user = await getAuth().getUserByEmail(normalizedEmail);
     const passwordSetupUrl = await getAuth().generatePasswordResetLink(normalizedEmail).catch(() => null);
+    stage = "storage";
     const invite = await upsertCollaboratorInvite({
       email: normalizedEmail,
       albumSlug: normalizedSlug,
@@ -123,6 +125,7 @@ router.post("/account-invitations", async (req: Request, res: Response) => {
       createdByEmail: authReq.firebaseEmail,
     });
 
+    stage = "email";
     await sendEmail({
       to: normalizedEmail,
       subject: buildCollaboratorInviteSubject({
@@ -147,8 +150,13 @@ router.post("/account-invitations", async (req: Request, res: Response) => {
 
     res.json({ ok: true });
   } catch (error) {
-    console.error("[accounts] POST /account-invitations failed:", error);
-    res.status(500).json({ error: "Invitația nu a putut fi trimisă." });
+    console.error("[accounts] POST /account-invitations failed:", { stage, error });
+    const messages = {
+      user: "Nu s-a putut verifica contul colaboratorului în Firebase Auth.",
+      storage: "Invitația nu a putut fi salvată în Firestore. Emailul nu a fost trimis.",
+      email: "Invitația a fost salvată, dar emailul nu a putut fi trimis. Verifică serviciul SMTP.",
+    };
+    res.status(500).json({ error: messages[stage] });
   }
 });
 

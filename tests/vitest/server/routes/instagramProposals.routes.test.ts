@@ -36,6 +36,7 @@ async function loadInstagramProposalsRouter() {
     add: addMock,
     doc: docMock,
     where: vi.fn(() => ({
+      get: whereMock,
       where: vi.fn(() => ({
         where: vi.fn(() => ({
           get: getMock,
@@ -187,6 +188,7 @@ describe("instagramProposals.routes", () => {
 
       whereMock.mockResolvedValue({
         docs: [
+          { id: "older", data: () => ({ proposedAt: { toDate: () => new Date("2026-04-27T10:00:00.000Z") } }) },
           {
             id: "prop-1",
             data: () => ({
@@ -212,6 +214,7 @@ describe("instagramProposals.routes", () => {
             status: "pending",
             proposedAt: new Date("2026-04-28T10:00:00.000Z").toISOString(),
           }),
+          expect.objectContaining({ id: "older" }),
         ],
       });
     });

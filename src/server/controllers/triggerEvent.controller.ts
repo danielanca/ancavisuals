@@ -4,7 +4,7 @@ import { adminUser } from "../constants/credentials";
 import { sendEmail } from "../notifications/mailer";
 import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
 import { renderTriggerTemplate } from "../notifications/templates/triggerTemplate";
-import { logActivity, getNotificationSettings } from "../services/activity.service.js";
+import { logActivity, getNotificationSettings, markActivityEmailSent } from "../services/activity.service.js";
 import { isNotifiableCountry } from "../utils/geoFilter.js";
 import { reportLeadConversion, reportContactClickConversion } from "../services/googleAdsConversion.service.js";
 
@@ -130,7 +130,14 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const clientIp = getClientIp(request);
     const isPhoneReveal = triggerData.typeEvent?.startsWith("📞") ?? false;
     const aiSource = detectAiSource(triggerData.utmSource, triggerData.referrer);
-    const cooldownSource = isPhoneReveal ? "phone_reveal" : (aiSource ?? "generic");
+    const isBookingSubmission = !!triggerData.html && !!triggerData.subject;
+    // Visitor notifications are disabled by owner request, including AI referrals.
+    // Analytics has its own ingestion and is unaffected.
+    if (!isPhoneReveal && !isBookingSubmission) {
+      response.status(204).send();
+      return;
+    }
+    const cooldownSource = isBookingSubmission ? "booking" : isPhoneReveal ? "phone_reveal" : (aiSource ?? "generic");
 
     if (isLocalIp(clientIp)) {
       response.status(204).send();
@@ -156,7 +163,6 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     const isNew = triggerData.isNewVisitor !== false;
     const visitorLabel = isNew ? "🆕 Vizitator NOU" : "🔁 Vizitator cunoscut";
-    const isBookingSubmission = !!triggerData.html && !!triggerData.subject;
 
     // Server-side Google Ads conversion backup — fires alongside (not instead
     // of) the client-side gtag conversion, so a blocked/failed browser fire
@@ -198,10 +204,10 @@ export const triggerEvent = async (request: Request, response: Response) => {
     })();
 
     // Always log to activity inbox
-    const activityType = isBookingSubmission ? "lead" : "visitor";
+    const activityType = isBookingSubmission ? "lead" : "contact";
     const activityTitle = isBookingSubmission
       ? (triggerData.subject ?? "Lead Rapid")
-      : `${isNew ? "🆕 Vizitator nou" : "🔁 Vizitator"} — ${triggerData.url}`;
+      : `📞 Telefon afișat — ${triggerData.url}`;
     const activityDesc = [city, device, source].filter(Boolean).join(" · ");
 
     const settings = await getNotificationSettings().catch(() => null);
@@ -217,8 +223,8 @@ export const triggerEvent = async (request: Request, response: Response) => {
       shouldEmail = settings?.email.returningVisitor ?? false;
     }
 
-    // Log to Firestore (fire-and-forget, don't block response)
-    logActivity({
+    // Record the activity before sending, but mark it sent only after SMTP acceptance.
+    const activityId = await logActivity({
       type: activityType,
       title: activityTitle,
       description: activityDesc,
@@ -237,8 +243,8 @@ export const triggerEvent = async (request: Request, response: Response) => {
         landingPath: triggerData.landingPath ?? "",
         keyword: triggerData.keyword ?? "",
       },
-      emailSent: shouldEmail,
-    }).catch((err) => console.error("[activity] log failed:", err));
+      emailSent: false,
+    }).catch((err) => { console.error("[activity] log failed:", err); return null; });
 
     if (!shouldEmail) {
       recordSent(clientIp, cooldownSource);
@@ -266,7 +272,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
           keyword: triggerData.keyword,
         });
 
-    const subjectPrefix = aiSource
+    const subjectPrefix = isPhoneReveal ? "📞 Telefon afișat" : aiSource
       ? `🤖 ${aiSource}`
       : isGoogleAds
         ? `💰 ${visitorLabel} (Google Ads)`
@@ -277,6 +283,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     await sendEmail({ to: adminUser.email, subject: emailSubject, html: emailHtml });
 
+    if (activityId) await markActivityEmailSent(activityId).catch(() => console.error("[activity] Could not update email status"));
     recordSent(clientIp, cooldownSource);
     console.log("Trigger email sent successfully.");
     response.status(200).send("Email sent successfully.");

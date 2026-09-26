@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import EmailDiagnostics from "./EmailDiagnostics";
 import useAuth from "../auth/useAuth";
 
-type ActivityType = "visitor" | "subscribe" | "lead" | "offer_viewed";
+type ActivityType = "contact" | "visitor" | "subscribe" | "lead" | "offer_viewed";
 
 interface Activity {
   id: string;
@@ -26,6 +27,7 @@ interface NotificationSettings {
 }
 
 const TYPE_ICON: Record<ActivityType, string> = {
+  contact: "📞",
   visitor: "👤",
   subscribe: "🔔",
   lead: "📝",
@@ -33,6 +35,7 @@ const TYPE_ICON: Record<ActivityType, string> = {
 };
 
 const TYPE_COLOR: Record<ActivityType, string> = {
+  contact: "#fbbf24",
   visitor: "#3b82f6",
   subscribe: "#f59e0b",
   lead: "#10b981",
@@ -40,6 +43,7 @@ const TYPE_COLOR: Record<ActivityType, string> = {
 };
 
 const TYPE_LABEL: Record<ActivityType, string> = {
+  contact: "Contact",
   visitor: "Vizitator",
   subscribe: "Abonat",
   lead: "Lead",
@@ -47,7 +51,7 @@ const TYPE_LABEL: Record<ActivityType, string> = {
 };
 
 const SETTING_LABELS: (keyof NotificationSettings["email"])[] = [
-  "newVisitor", "returningVisitor", "subscribe", "lead", "offerViewed",
+  "subscribe", "lead", "offerViewed",
 ];
 
 const SETTING_DISPLAY: Record<keyof NotificationSettings["email"], string> = {
@@ -95,12 +99,15 @@ export default function ActivityInbox() {
   const fetchActivities = useCallback(async () => {
     if (!auth.accessToken) return;
     try {
+      await fetch("/api/admin/activity/visitors", {
+        method: "DELETE", headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
       const res = await fetch("/api/admin/activity", {
         headers: { Authorization: `Bearer ${auth.accessToken}` },
       });
       if (!res.ok) return;
       const data = await res.json() as { activities: Activity[] };
-      setActivities(data.activities ?? []);
+      setActivities((data.activities ?? []).filter(a => a.type !== "visitor"));
     } catch { /* silent */ } finally {
       setLoading(false);
     }
@@ -197,6 +204,8 @@ export default function ActivityInbox() {
         </div>
       </div>
 
+      <EmailDiagnostics accessToken={auth.accessToken ?? ""} expanded={showSettings} />
+
       {/* Email settings panel */}
       {showSettings && settings && (
         <div style={{ padding: "14px 18px", borderBottom: "1px solid #1a1a1a", background: "#0a0a0a" }}>
@@ -234,7 +243,7 @@ export default function ActivityInbox() {
 
       {/* Filter tabs */}
       <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #1a1a1a", overflowX: "auto" }}>
-        {(["all", "visitor", "lead", "subscribe", "offer_viewed"] as const).map((f) => (
+        {(["all", "contact", "lead", "subscribe", "offer_viewed"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

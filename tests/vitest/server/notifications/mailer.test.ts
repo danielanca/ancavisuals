@@ -5,8 +5,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const buildMailer = async (senderEmail = "sender@example.com") => {
-  const sendMailMock = vi.fn().mockResolvedValue({ messageId: "test-id" });
-  const transportMock = { sendMail: sendMailMock };
+  const sendMailMock = vi.fn().mockResolvedValue({ messageId: "test-id", accepted: ["client@example.com"], rejected: [] });
+  const setMock = vi.fn().mockResolvedValue(undefined);
+  vi.doMock("src/server/firestore", () => ({ firestore: () => ({ collection: () => ({ doc: () => ({ set: setMock }) }) }) }));
+  const transportMock = { sendMail: sendMailMock, verify: vi.fn().mockResolvedValue(true) };
   const createTransportMock = vi.fn(() => transportMock);
 
   vi.doMock("nodemailer", () => ({ default: { createTransport: createTransportMock } }));
@@ -16,12 +18,12 @@ const buildMailer = async (senderEmail = "sender@example.com") => {
   }));
 
   const { sendEmail } = await import("src/server/notifications/mailer");
-  return { sendEmail, sendMailMock, createTransportMock };
+  return { sendEmail, sendMailMock, createTransportMock, setMock };
 };
 
 describe("sendEmail", () => {
   beforeEach(() => { vi.resetModules(); });
-  afterEach(() => { vi.clearAllMocks(); });
+  afterEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); });
 
   describe("happy path", () => {
     test("calls sendMail with the correct to, subject and html", async () => {
@@ -66,6 +68,47 @@ describe("sendEmail", () => {
       await expect(sendEmail({ to: "x@x.com", subject: "S", html: "<p>x</p>" }))
         .rejects.toThrow("SMTP error");
     });
+  });
+
+  test("records accepted only after SMTP and excludes message bodies", async () => {
+    const { sendEmail, setMock } = await buildMailer();
+    await sendEmail({ to: "client@example.com", subject: "Test", html: "private body" });
+    expect(setMock).toHaveBeenLastCalledWith(expect.objectContaining({ status: "accepted", messageId: "test-id" }), { merge: true });
+    expect(JSON.stringify(setMock.mock.calls)).not.toContain("private body");
+  });
+
+  test("authentication failures are not retried and do not expose secrets", async () => {
+    const { sendEmail, sendMailMock, setMock } = await buildMailer();
+    vi.stubEnv("SMTP_APP_PASSWORD", "private password");
+    sendMailMock.mockRejectedValue({ code: "EAUTH", responseCode: 535, message: "Invalid login private password" });
+    await expect(sendEmail({ to: "client@example.com", subject: "Test", html: "x" })).rejects.toBeDefined();
+    expect(sendMailMock).toHaveBeenCalledOnce();
+    expect(setMock).toHaveBeenLastCalledWith(expect.objectContaining({ status: "failed", error: expect.stringContaining("Autentificare") }), { merge: true });
+    expect(JSON.stringify(setMock.mock.calls)).not.toContain("private password");
+  });
+
+  test("retries explicit transient rejection then records acceptance", async () => {
+    const { sendEmail, sendMailMock } = await buildMailer();
+    sendMailMock.mockRejectedValueOnce({ responseCode: 451 });
+    await sendEmail({ to: "client@example.com", subject: "Test", html: "x" });
+    expect(sendMailMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("does not retry an ambiguous timeout or partial acceptance", async () => {
+    const { sendEmail, sendMailMock } = await buildMailer();
+    sendMailMock.mockRejectedValueOnce({ code: "ETIMEDOUT" });
+    await expect(sendEmail({ to: "client@example.com", subject: "Test", html: "x" })).rejects.toBeDefined();
+    expect(sendMailMock).toHaveBeenCalledOnce();
+    sendMailMock.mockResolvedValueOnce({ accepted: ["a@example.com"], rejected: ["b@example.com"] });
+    await expect(sendEmail({ to: "a@example.com,b@example.com", subject: "Test", html: "x" })).rejects.toThrow("incomplete");
+    expect(sendMailMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("history outage never retries an accepted message", async () => {
+    const { sendEmail, sendMailMock, setMock } = await buildMailer();
+    setMock.mockRejectedValue(new Error("Firestore down"));
+    await sendEmail({ to: "client@example.com", subject: "Test", html: "x" });
+    expect(sendMailMock).toHaveBeenCalledOnce();
   });
 
   describe("contact footer", () => {

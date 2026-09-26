@@ -9,6 +9,7 @@ import useAuth from "../../auth/useAuth";
 import AncaLoader from "../../../../components/UI/AncaLoader";
 import PostEventFollowUp from "../PostEventFollowUp";
 import MementosWidget from "../MementosWidget";
+import EmailFailureBanner from "../EmailFailureBanner";
 import ActivityInbox from "../ActivityInbox";
 import NextEventCountdown from "../NextEventCountdown";
 import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
@@ -373,11 +374,12 @@ const DashboardInner: React.FC = () => {
 
   if (auth.role === "moderator") return <ModeratorAlbumsPage />;
 
-  if (loading) return <AncaLoader />;
+  if (loading) return <><EmailFailureBanner accessToken={auth.accessToken ?? ""} /><AncaLoader /></>;
 
   if (error) {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <EmailFailureBanner accessToken={auth.accessToken ?? ""} />
         <p className="text-red-400 text-sm">Eroare: {error}</p>
       </div>
     );
@@ -411,6 +413,7 @@ const DashboardInner: React.FC = () => {
     <>
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-4xl mx-auto space-y-8">
+        <EmailFailureBanner accessToken={auth.accessToken ?? ""} />
 
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

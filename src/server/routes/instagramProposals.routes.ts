@@ -240,14 +240,14 @@ router.get("/album/:slug", requireFirebaseAuth, async (req: Request, res: Respon
     const db = firestore();
     const snapshot = await db.collection(COLLECTION)
       .where("albumSlug", "==", slug)
-      .orderBy("proposedAt", "desc")
       .get();
 
+    // Sort this album locally to avoid requiring a composite Firestore index.
     const proposals = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
       proposedAt: (doc.data().proposedAt as Timestamp).toDate().toISOString(),
-    }));
+    })).sort((a, b) => b.proposedAt.localeCompare(a.proposedAt));
 
     res.json({ proposals });
   } catch (error) {

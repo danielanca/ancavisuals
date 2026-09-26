@@ -24,8 +24,13 @@ async function loadRouter() {
   const getNotificationSettings = vi.fn().mockResolvedValue({ email: {} });
   const saveNotificationSettings = vi.fn().mockResolvedValue(undefined);
 
+  const verifyEmailTransport = vi.fn().mockResolvedValue(undefined);
+  const sendEmail = vi.fn().mockResolvedValue(undefined);
+  const deleteVisitorActivities = vi.fn().mockResolvedValue(undefined);
+  vi.doMock("src/server/notifications/mailer", () => ({ verifyEmailTransport, sendEmail, getTestEmailMode: () => false }));
+  vi.doMock("src/server/constants/credentials", () => ({ adminUser: { email: "admin@example.com" } }));
   vi.doMock("src/server/services/activity.service.js", () => ({
-    getActivities, markAllRead, markRead, deleteActivity, getNotificationSettings, saveNotificationSettings,
+    getActivities, markAllRead, markRead, deleteActivity, getNotificationSettings, saveNotificationSettings, deleteVisitorActivities,
   }));
   vi.doMock("src/server/middleware/requireFirebaseAuth.js", () => ({
     requireFirebaseAuth: (_req: any, _res: any, next: any) => next(),
@@ -43,6 +48,9 @@ async function loadRouter() {
 
   return {
     getActivities, markAllRead, markRead, deleteActivity,
+    diagnostic: getHandler("post", "/email-diagnostic"),
+    cleanup: getHandler("delete", "/activity/visitors"),
+    verifyEmailTransport, sendEmail, deleteVisitorActivities,
     getList: getHandler("get", "/activity"),
     patchReadAll: getHandler("patch", "/activity/read-all"),
     patchRead: getHandler("patch", "/activity/:id/read"),
@@ -54,6 +62,39 @@ describe("activity.routes", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
+  });
+
+  test("SMTP verification never sends an email", async () => {
+    const { diagnostic, verifyEmailTransport, sendEmail } = await loadRouter();
+    await diagnostic({ body: { action: "verify" } }, createMockResponse());
+    expect(verifyEmailTransport).toHaveBeenCalledOnce();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  test("test email is fixed to the configured admin, with throttling", async () => {
+    const { diagnostic, sendEmail } = await loadRouter();
+    await diagnostic({ body: { action: "send", to: "other@example.com" } }, createMockResponse());
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "admin@example.com" }));
+    const res = createMockResponse();
+    await diagnostic({ body: { action: "send" } }, res);
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(sendEmail).toHaveBeenCalledOnce();
+  });
+
+  test("SMTP diagnostic reports authentication errors safely", async () => {
+    const { diagnostic, verifyEmailTransport } = await loadRouter();
+    verifyEmailTransport.mockRejectedValue({ code: "EAUTH", responseCode: 535, message: "private password" });
+    const res = createMockResponse();
+    await diagnostic({ body: { action: "verify" } }, res);
+    expect(res.status).toHaveBeenCalledWith(502);
+    expect(res.json).toHaveBeenCalledWith({ error: expect.stringContaining("Autentificare") });
+    expect(JSON.stringify(res.json.mock.calls)).not.toContain("private password");
+  });
+
+  test("cleanup deletes visitor activity", async () => {
+    const { cleanup, deleteVisitorActivities } = await loadRouter();
+    await cleanup({}, createMockResponse());
+    expect(deleteVisitorActivities).toHaveBeenCalledOnce();
   });
 
   test("GET /activity returns the activity list", async () => {

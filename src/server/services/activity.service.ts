@@ -2,7 +2,7 @@ import type { Timestamp } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
 import { firestore } from "../firestore.js";
 
-export type ActivityType = "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit";
+export type ActivityType = "contact" | "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit";
 
 export interface ActivityRecord {
   id?: string;
@@ -28,7 +28,7 @@ export interface NotificationSettings {
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   email: {
-    newVisitor: true,
+    newVisitor: false,
     returningVisitor: false,
     subscribe: true,
     lead: true,
@@ -84,7 +84,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings> {
   if (!snap.exists) return DEFAULT_SETTINGS;
   const data = snap.data() as Partial<NotificationSettings>;
   return {
-    email: { ...DEFAULT_SETTINGS.email, ...(data.email ?? {}) },
+    email: { ...DEFAULT_SETTINGS.email, ...(data.email ?? {}), newVisitor: false, returningVisitor: false },
   };
 }
 
@@ -92,4 +92,18 @@ export async function saveNotificationSettings(settings: NotificationSettings): 
   const db = firestore();
   const [collection, docId] = SETTINGS_DOC.split("/");
   await db.collection(collection).doc(docId).set(settings, { merge: true });
+}
+
+export async function markActivityEmailSent(id: string): Promise<void> {
+  await firestore().collection(COLLECTION).doc(id).update({ emailSent: true });
+}
+
+export async function deleteVisitorActivities(): Promise<void> {
+  const db = firestore();
+  // Bounded batches; the admin repeats this request until the backlog is gone.
+  const snapshot = await db.collection(COLLECTION).where("type", "==", "visitor").limit(400).get();
+  if (snapshot.empty) return;
+  const batch = db.batch();
+  snapshot.docs.forEach(doc => batch.delete(doc.ref));
+  await batch.commit();
 }

@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import { randomUUID } from "node:crypto";
+import { canRetryEmail, describeEmailError, recordEmailDelivery, raiseEmailAlert, emailErrorDiagnostic } from "../services/emailDelivery.service";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { emailAuth } from "../constants/credentials";
 
@@ -9,6 +11,9 @@ const productionTransport = nodemailer.createTransport({
   host: "smtppro.zoho.eu",
   port: 465,
   secure: true,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 20000,
   auth: { user: emailAuth.email, pass: emailAuth.password },
 } as SMTPTransport.Options);
 
@@ -22,6 +27,9 @@ const testTransport = testHost
       host: testHost,
       port: testPort,
       secure: testPort === 465,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
       auth: { user: testUser, pass: testPass },
     } as SMTPTransport.Options)
   : null;
@@ -40,7 +48,15 @@ export function isTestTransportAvailable(): boolean {
   return testTransport !== null;
 }
 
-export const mailer = productionTransport;
+export async function verifyEmailTransport(): Promise<void> {
+  const transport = testEmailMode && testTransport ? testTransport : productionTransport;
+  try { await transport.verify(); }
+  catch (error) {
+    await raiseEmailAlert({ id: randomUUID(), error: describeEmailError(error), diagnostic: emailErrorDiagnostic(error), subject: "Verificare SMTP", to: "" });
+    throw error;
+  }
+}
+
 
 interface SendEmailOptions {
   to: string;
@@ -74,5 +90,38 @@ export async function sendEmail({ to, subject, html, from }: SendEmailOptions): 
   const activeTransport = testEmailMode && testTransport ? testTransport : productionTransport;
   const activeAddress = testEmailMode && testUser ? testUser : emailAuth.email;
   const activeFrom = from ?? `"${SENDER_DISPLAY_NAME}" <${activeAddress}>`;
-  await activeTransport.sendMail({ from: activeFrom, to, subject, html: wrapHtml(html) });
+  const id = randomUUID();
+  await recordEmailDelivery(id, { to, subject, status: "pending", attempts: 0,
+    transport: testEmailMode && testTransport ? "test" : "production", createdAt: new Date().toISOString() });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await recordEmailDelivery(id, { attempts: attempt });
+    let info: SMTPTransport.SentMessageInfo;
+    try {
+      info = await activeTransport.sendMail({ from: activeFrom, to, subject, html: wrapHtml(html) });
+    } catch (error) {
+      await raiseEmailAlert({ id: randomUUID(), error: describeEmailError(error), diagnostic: emailErrorDiagnostic(error), subject, to });
+      if (canRetryEmail(error) && attempt < 3) {
+        await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        continue;
+      }
+      const e = error as { responseCode?: number; code?: string };
+      await recordEmailDelivery(id, { status: e.responseCode || e.code === "EAUTH" ? "failed" : "unknown",
+        error: describeEmailError(error) });
+      throw error;
+    }
+    // Partial acceptance must not be retried: accepted recipients would get duplicates.
+    const accepted = Array.isArray(info.accepted) && info.accepted.length > 0;
+    const rejected = Array.isArray(info.rejected) && info.rejected.length > 0;
+    if (!accepted || rejected) {
+      await raiseEmailAlert({ id: randomUUID(), error: "Unul sau mai mulți destinatari nu au fost acceptați de SMTP.", subject, to });
+      await recordEmailDelivery(id, { status: accepted ? "unknown" : "failed",
+        error: accepted ? "Doar o parte dintre destinatari a fost acceptată. Nu s-a reîncercat automat." : "Niciun destinatar nu a fost acceptat de SMTP." });
+      throw new Error("SMTP recipient acceptance incomplete");
+    }
+    await recordEmailDelivery(id, { status: "accepted", messageId: String(info.messageId ?? ""), error: null });
+    return;
+  }
 }
+
+// Legacy templates use the same tracked delivery path.
+export const mailer = { sendMail: (options: SendEmailOptions) => sendEmail(options) };
