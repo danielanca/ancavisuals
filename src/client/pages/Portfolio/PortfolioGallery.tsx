@@ -5,7 +5,7 @@ import "yet-another-react-lightbox/styles.css";
 import { buildSeoImageAlt, getCatalogImageAlt } from "../../utils/imageAlt";
 import "./PortfolioGallery.scss";
 
-type PortfolioGalleryProps = { altBase?: string };
+type PortfolioGalleryProps = { altBase?: string; minTotalImages?: number };
 
 const INITIAL_VISIBLE = 40;
 const LOAD_MORE_STEP = 20;
@@ -19,6 +19,7 @@ function getColumnCount(width: number) {
 
 export default function PortfolioGallery({
   altBase = "fotograf videograf eveniment Anca Visuals",
+  minTotalImages = 0,
 }: PortfolioGalleryProps) {
   const [zoneData, setZoneData] = useState<{ desktop: string[]; mobile: string[] }>({ desktop: [], mobile: [] });
   const [loading, setLoading] = useState(true);
@@ -45,8 +46,9 @@ export default function PortfolioGallery({
         const desktop = data.desktop ?? [];
         const mobile = data.mobile ?? [];
         // Zona nu a fost curatoriata inca din admin — pastram vechiul pool
-        // de poze in loc sa aratam o galerie goala.
-        if (desktop.length === 0 && mobile.length === 0) {
+        // de poze in loc sa aratam o galerie goala (sau prea subtire, daca
+        // pagina cere un minim explicit prin minTotalImages).
+        if (desktop.length + mobile.length <= minTotalImages) {
           const fallback = await fetch("/api/oferte/portfolio-images").then((r) => r.json());
           setZoneData({ desktop: Array.isArray(fallback.urls) ? fallback.urls : [], mobile: [] });
           return;
@@ -55,7 +57,7 @@ export default function PortfolioGallery({
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [minTotalImages]);
 
   // A device without its own curated set falls back to the other device's set.
   const images = useMemo(() => {

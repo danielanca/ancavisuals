@@ -107,6 +107,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #BLOG  Adaugă articol: 1) data/blog/<slug>.md cu frontmatter  2) intrare în blogManifest.ts
 #BLOG  Editor admin: `/admin/blog` importă articolele `.md` în Firestore `blogPosts`, permite Markdown + draft/publicare; API-ul public preferă versiunile publicate din Firestore și păstrează `.md` ca fallback. #BLOG #ADMIN
 #BLOG  Filtrare oraș: editorul Admin și lista publică `/blog` au filtru după `city`; articolele pot fi organizate pe oraș fără a pierde categoriile de serviciu/intentie. #BLOG
+#BLOG  Categorii curente: nunta, botez, majorat, inmormantare, acte, general — vezi CATEGORY_LABELS în BlogPost.tsx și BlogList.tsx (trebuie ținute în sincron manual). `/blog` are acum și tab-uri de categorie, nu doar filtru de oraș. #BLOG
 
 ---
 
@@ -130,6 +131,9 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## NOTIFICĂRI / TRIGGER EVENTS #NOTIFY
+
+#NOTIFY  Diagnostic 2026-09-27: SMTP Zoho a refuzat autentificarea în producție (535); verificarea directă cu `.env` de pe server a trecut, iar comparația PM2/.env a arătat expeditor și parolă diferite. Procesul a fost restartat cu valorile SMTP din `.env` și `--update-env`; confirmarea livrării rămâne necesară. #PITFALL
+#RECENT  2026-09-27: Butoanele din EmailDiagnostics au fundal amber, text negru, contur focus și înălțime minimă 44px pentru vizibilitate în dashboard; anterior erau butoane fără stil explicit. Panoul se deschide prin „⚙ Email” din Activitate site. #NOTIFY #ADMIN
 
 #NOTIFY  Template email:  src/server/notifications/templates/triggerTemplate.ts
 #NOTIFY  Mailer:          src/server/notifications/mailer.ts
@@ -324,6 +328,13 @@ Același principiu se aplică și pentru căutări în codul sursă:
 ---
 
 ## RECENT CHANGES #RECENT
+
+#RECENT  2026-09-28: Strategie SEO/AEO pentru "înmormântări" (pivot de la Google Ads, care nu are volum de căutare deloc pe acest subiect — vezi #PITFALL mai jos). Decizie: nu se investește în Ads pentru acest serviciu; se investește în conținut SEO/AI-citabil, pentru că userul are deja 2 clienți veniți 100% din SEO. Pași făcuți: 1) Redescoperit că `/blog` (BlogList.tsx) fusese ȘTERS accidental în commit 073d0d6 ("Fixes.") deși documentat ca existent în această memorie — recuperat din `git show 073d0d6^:src/client/pages/Blog/BlogList.tsx`, re-adăugat tab-uri de categorie (Nuntă/Botez/Majorat/Înmormântare/Acte/General) pe lângă filtrul de oraș existent, rewired în `publicRoutes.tsx` înaintea lui `/blog/:slug`. 2) Categoria `inmormantare` (și `majorat`, pt viitor) adăugată în `CATEGORY_LABELS` din `BlogPost.tsx` și `BlogList.tsx`. 3) Generate 44 articole de blog noi, câte unul pentru fiecare oraș din `CITIES` (locationData.ts) care NU are restricția `services: ["nunta"]` — adică exact orașele care au deja pagini LocationSEO pentru `inmormantare` (fotograf-inmormantare-{oras} etc., vezi #LOCATION). Slug pattern: `fotograf-cameraman-inmormantare-{oras-slug}`, categorie `inmormantare`, ton discret/respectuos aliniat cu `FuneralOfferPage.tsx` (fără prețuri inventate, familia decide limitele, focus pe motivul real: diaspora — rude plecate în străinătate care nu ajung la timp și vor măcar fotografii/filmare a slujbei). Fișiere: `data/blog/fotograf-cameraman-inmormantare-*.md` (44) + intrări corespunzătoare în `data/blogManifest.ts`. Majorat rămas neatins la cererea explicită a userului ("doar înmormântări acum"). Validat cu `npm run typecheck` (clean) și ESLint țintit pe fișierele modificate (clean). #BLOG #LOCATION #CAMPAIGN
+#RECENT  2026-09-28: **Important — pas de deploy manual rămas**: cele 44 `.md` noi NU intră automat în sitemap. Fluxul existent: server pornește → `generateSitemapFromDb()` citește Firestore `sitemapEntries` + colecția `blogPosts` (nu citește direct `data/blog/*.md`). Articolele `.md` trebuie IMPORTATE în Firestore prin `/admin/blog` (buton "Importă articole", apelează `POST /api/blog/admin/import` → `importMarkdownPosts()` din `blogUtils.ts`) — abia după import apar automat în sitemap la următoarea generare (fără cod suplimentar, pentru că `generateSitemapFromDb` adaugă orice `blogPosts` cu `status="published"`). Nu am atins direct Firestore de producție din acest scaun — userul (sau eu, cu acces admin în UI) trebuie să apese acel buton după deploy. #BLOG #PITFALL
+
+#RECENT  2026-09-28: Cercetare Keyword Planner (Google Ads) pentru "înmormântare/fotograf/foto video/filmare + variante": **zero volum de căutare măsurabil** pe orice combinație foto/video/filmare + înmormântare, inclusiv pe cele 354 cuvinte cheie hiper-locale deja din campania de Ads (toate ineligibile — vezi AI_ADS_Memory.md). Singurele căutări reale din zona "înmormântare" sunt despre preț/cost, flori, ținută, mesaje de condoleanțe, acte, firmă de pompe funebre — NU despre angajarea unui fotograf/videograf. Concluzie strategică: cererea pentru acest serviciu nu se manifestă ca și căutare Google, ci vine prin recomandare/cunoștințe (userul a confirmat clienți reali găsiți așa). De-aici pivotul spre SEO/conținut narativ (citabil de AI) în loc de Search Ads pentru acest serviciu. #PITFALL #CAMPAIGN
+
+#RECENT  2026-09-28: Landing dedicat `/oferta/inmormantari` în `FuneralOfferPage.tsx` + CSS izolat, rută statică înainte de `/oferta/:slug`, SEO și contact telefon/WhatsApp. Conținut sobru pentru foto/video funerare, fără prețuri inventate; disponibilitatea se confirmă direct, fără dependență de documente Firestore de campanie. Validat cu typecheck, lint pe fișierele TSX modificate și build. #CAMPAIGN
 
 #RECENT  2026-09-27: Validare monitorizare email: typecheck, build complet, 32 teste țintite trecute; ESLint țintit fără erori (warning existent useNavigate în Dashboard). Suita completă: 703 trecute, 15 eșuate în campaign.routes.contact.test.ts deoarece helperul caută POST /:slug/contact-click absent din routerul nemodificat. #NOTIFY #CMD
 

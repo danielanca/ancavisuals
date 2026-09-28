@@ -108,12 +108,13 @@ export default function MediaPromoFooter() {
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 padding: "13px 16px",
-                background: "transparent",
-                border: "1px solid #222",
-                color: "#666",
+                background: "#25d366",
+                border: "1px solid #25d366",
+                color: "#06210f",
                 borderRadius: "3px",
                 textDecoration: "none",
                 fontSize: "11px",
+                fontWeight: 700,
                 letterSpacing: "2px",
                 textTransform: "uppercase",
               }}
@@ -128,12 +129,13 @@ export default function MediaPromoFooter() {
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 padding: "13px 16px",
-                background: "transparent",
-                border: "1px solid #222",
-                color: "#666",
+                background: "linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)",
+                border: "1px solid transparent",
+                color: "#fff",
                 borderRadius: "3px",
                 textDecoration: "none",
                 fontSize: "11px",
+                fontWeight: 700,
                 letterSpacing: "2px",
                 textTransform: "uppercase",
               }}

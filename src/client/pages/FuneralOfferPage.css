@@ -1,0 +1,64 @@
+.funeral-page { background: #171a18; color: #f0eee7; font-family: Arial, sans-serif; line-height: 1.7; }
+.funeral-page * { box-sizing: border-box; }
+.funeral-container { width: min(1120px, calc(100% - 48px)); margin-inline: auto; }
+.funeral-page a { color: inherit; text-decoration: none; }
+.funeral-page a:focus-visible, .funeral-page button:focus-visible, .funeral-page summary:focus-visible { outline: 2px solid #d8c69f; outline-offset: 5px; }
+.funeral-header { display: flex; justify-content: space-between; align-items: center; padding-block: 28px; border-bottom: 1px solid #ffffff15; font-size: 13px; }
+.funeral-brand { font-size: 23px; letter-spacing: -1px; font-weight: 700; }
+.funeral-brand span { font-weight: 400; color: #d8c69f; }
+.funeral-hero { display: grid; grid-template-columns: 1.4fr 1fr; align-items: center; gap: 70px; padding-block: 90px; }
+.funeral-eyebrow { color: #d8c69f; font-size: 11px; letter-spacing: 2.5px; margin: 0 0 24px; font-weight: 600; }
+.funeral-page h1, .funeral-page h2 { font-family: Georgia, serif; font-weight: 400; line-height: 1.12; letter-spacing: -1.5px; }
+.funeral-page h1 { font-size: clamp(48px, 5.5vw, 76px); margin: 0 0 28px; }
+.funeral-page h2 { font-size: clamp(32px, 3.5vw, 46px); margin: 0 0 24px; }
+.funeral-page em { color: #d8c69f; font-weight: 400; }
+.funeral-intro, .funeral-section-intro { max-width: 620px; color: #bec2bb; font-size: 16px; }
+.funeral-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.funeral-button { display: inline-flex; justify-content: center; align-items: center; gap: 10px; min-height: 50px; padding: 13px 20px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.funeral-page .funeral-button-primary { background: #ded0af; color: #20241f; border: 1px solid #ded0af; }
+.funeral-button-secondary { background: transparent; border: 1px solid #697065; }
+.funeral-button:hover { filter: brightness(1.1); }
+.funeral-note { color: #a5aba2; font-size: 12px; margin-top: 17px; }
+.funeral-hero-aside { text-align: center; padding: 54px 25px; border: 1px solid #d8c69f25; border-radius: 180px 180px 5px 5px; background: radial-gradient(ellipse at 50% 35%, #d8c69f10, transparent 65%); }
+.funeral-hero-aside p { font-family: Georgia, serif; font-size: 26px; line-height: 1.4; margin: 32px 0 14px; }
+.funeral-hero-aside > span { font-size: 12px; color: #a5aba2; }
+.funeral-motif { width: 150px; height: 180px; margin: auto; border: 1px solid #d8c69f50; border-radius: 80px 80px 0 0; display: grid; place-items: center; }
+.funeral-motif span { width: 1px; height: 90px; background: linear-gradient(transparent, #d8c69f, transparent); }
+.funeral-principles { border-block: 1px solid #ffffff15; }
+.funeral-principles > div { display: flex; justify-content: space-between; gap: 20px; padding-block: 22px; color: #bec2bb; font-size: 13px; }
+.funeral-section { padding-block: 85px; }
+.funeral-services { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 40px; }
+.funeral-services article { padding: 30px; border: 1px solid #ffffff20; border-radius: 5px; background: #1c201c; }
+.funeral-service-number { color: #d8c69f; font-size: 12px; }
+.funeral-page h3 { font-size: 19px; font-weight: 500; margin: 18px 0 14px; }
+.funeral-services p, .funeral-steps p, .funeral-faq p { color: #bec2bb; font-size: 14px; }
+.funeral-services .funeral-service-detail { border-top: 1px solid #ffffff15; padding-top: 20px; margin-top: 24px; font-size: 12px; }
+.funeral-care { background: #20251f; padding-block: 75px; }
+.funeral-care-grid, .funeral-faq { display: grid; grid-template-columns: 1fr 1.1fr; gap: 70px; }
+.funeral-steps article + article { border-top: 1px solid #ffffff15; margin-top: 25px; padding-top: 10px; }
+.funeral-steps article:first-child h3 { margin-top: 0; }
+.funeral-faq details { padding: 20px 0; border-bottom: 1px solid #ffffff20; }
+.funeral-faq details:first-child { padding-top: 0; }
+.funeral-faq summary { cursor: pointer; font-size: 15px; padding-block: 5px; }
+.funeral-contact { border: 1px solid #d8c69f40; border-radius: 5px; padding: 55px 30px; text-align: center; scroll-margin-top: 24px; }
+.funeral-contact > p:not(.funeral-eyebrow) { max-width: 590px; margin-inline: auto; color: #bec2bb; }
+.funeral-contact .funeral-actions { justify-content: center; }
+.funeral-footer { display: flex; justify-content: space-between; gap: 20px; padding-block: 35px; color: #a5aba2; font-size: 12px; }
+.funeral-footer nav { display: flex; gap: 20px; }
+.funeral-mobile-contact { display: none; }
+@media (max-width: 760px) {
+  .funeral-container { width: calc(100% - 36px); }
+  .funeral-hero { grid-template-columns: 1fr; padding-block: 50px; gap: 40px; }
+  .funeral-hero-aside { padding: 30px 20px; border-radius: 100px 100px 5px 5px; }
+  .funeral-motif { width: 90px; height: 100px; }
+  .funeral-motif span { height: 55px; }
+  .funeral-hero-aside p { margin-top: 22px; font-size: 23px; }
+  .funeral-principles > div { flex-wrap: wrap; justify-content: center; gap: 8px 22px; font-size: 12px; }
+  .funeral-services, .funeral-care-grid, .funeral-faq { grid-template-columns: 1fr; gap: 24px; }
+  .funeral-section, .funeral-care { padding-block: 50px; }
+  .funeral-actions { flex-direction: column; }
+  .funeral-button { width: 100%; }
+  .funeral-contact { padding: 35px 22px; }
+  .funeral-footer { flex-direction: column; padding-bottom: calc(105px + env(safe-area-inset-bottom)); }
+  .funeral-mobile-contact { display: block; position: fixed; bottom: 0; inset-inline: 0; background: #171a18f5; border-top: 1px solid #ffffff20; padding: 10px 18px calc(10px + env(safe-area-inset-bottom)); z-index: 30; }
+}

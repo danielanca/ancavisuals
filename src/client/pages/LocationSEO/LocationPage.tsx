@@ -59,6 +59,8 @@ const LocationPage: React.FC<Props> = ({
 
   if (!city || !service) return <Navigate to="/" replace />;
 
+  const isFuneral = service.slug === "inmormantare";
+
   const title = `Foto video ${service.accusative} ${city.name} | Fotograf și videograf | Anca Visuals`;
   const metaDescription = `Anca Visuals oferă foto, video și pachete foto-video pentru ${service.accusative} în ${city.name}. Vezi portofoliu, review-uri Google, prețuri orientative și cere o ofertă personalizată.`;
   const canonicalUrl = `${WWW_ORIGIN}${canonicalPath}`;
@@ -80,8 +82,9 @@ const LocationPage: React.FC<Props> = ({
     },
     {
       question: `Cum cer o ofertă pentru ${service.accusative} în ${city.name}?`,
-      answer:
-        "Intră în configuratorul de ofertă, alege data, tipul evenimentului și opțiunile dorite. Revenim rapid cu disponibilitatea și propunerea potrivită.",
+      answer: isFuneral
+        ? "Sunați-ne sau scrieți-ne pe WhatsApp cu data și localitatea. Revenim rapid cu disponibilitatea și costul, cu discreție."
+        : "Intră în configuratorul de ofertă, alege data, tipul evenimentului și opțiunile dorite. Revenim rapid cu disponibilitatea și propunerea potrivită.",
     },
   ];
 
@@ -178,17 +181,19 @@ const LocationPage: React.FC<Props> = ({
             <span className="rounded-full border border-white/15 px-4 py-2">
               Acoperire în {city.name} și împrejurimi
             </span>
-            <span className="rounded-full border border-white/15 px-4 py-2">
-              Fotocabină și Video Booth 360 disponibile
-            </span>
+            {!isFuneral && (
+              <span className="rounded-full border border-white/15 px-4 py-2">
+                Fotocabină și Video Booth 360 disponibile
+              </span>
+            )}
           </div>
 
           <div className="mt-10 flex flex-wrap gap-4">
             <Link
-              to="/contact"
+              to={isFuneral ? "/oferta/inmormantari" : "/contact"}
               className="rounded-full bg-white px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-black transition-transform hover:-translate-y-0.5"
             >
-              Configurează oferta
+              {isFuneral ? "Cere disponibilitate" : "Configurează oferta"}
             </Link>
             <Link
               to="/portofoliu"
@@ -278,7 +283,7 @@ const LocationPage: React.FC<Props> = ({
       <ReviewsGrid
         category="wedding"
         title="Recenzii de la clienți"
-        subtitle="Recenzii reale de la clienți care au lucrat cu noi pentru nunți, botezuri și alte evenimente."
+        subtitle={`Recenzii reale de la clienți care au lucrat cu noi pentru ${service.plural} și alte evenimente.`}
       />
 
       <section className="max-w-4xl mx-auto px-6 pb-16">
@@ -299,35 +304,37 @@ const LocationPage: React.FC<Props> = ({
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 pb-16">
-        <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 md:p-10">
-          <h2 className="text-2xl font-light md:text-3xl">
-            Extra opționale pentru eveniment
-          </h2>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300">
-            Pe lângă fotografia și videografia clasică, putem include și fotocabină sau Video
-            Booth 360 pentru un plus de interacțiune în timpul petrecerii. Sunt opțiuni potrivite
-            mai ales pentru nunți, majorate și evenimente unde vrei conținut rapid și cadre
-            memorabile pentru invitați.
-          </p>
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <article className="rounded-2xl border border-white/10 bg-black/20 p-5">
-              <h3 className="text-base font-medium text-white">Fotocabină / Photo Booth</h3>
-              <p className="mt-2 text-sm leading-7 text-gray-300">
-                Ideală pentru printuri rapide și pentru invitați care vor amintiri pe loc, fără să
-                întrerupă ritmul petrecerii.
-              </p>
-            </article>
-            <article className="rounded-2xl border border-white/10 bg-black/20 p-5">
-              <h3 className="text-base font-medium text-white">Video Booth 360</h3>
-              <p className="mt-2 text-sm leading-7 text-gray-300">
-                O soluție bună pentru cadre dinamice, scurte și share-uibile, mai ales la intrări,
-                dans și momente cu energie mare.
-              </p>
-            </article>
+      {!isFuneral && (
+        <section className="mx-auto max-w-5xl px-6 pb-16">
+          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 md:p-10">
+            <h2 className="text-2xl font-light md:text-3xl">
+              Extra opționale pentru eveniment
+            </h2>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300">
+              Pe lângă fotografia și videografia clasică, putem include și fotocabină sau Video
+              Booth 360 pentru un plus de interacțiune în timpul petrecerii. Sunt opțiuni potrivite
+              mai ales pentru nunți, majorate și evenimente unde vrei conținut rapid și cadre
+              memorabile pentru invitați.
+            </p>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <article className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                <h3 className="text-base font-medium text-white">Fotocabină / Photo Booth</h3>
+                <p className="mt-2 text-sm leading-7 text-gray-300">
+                  Ideală pentru printuri rapide și pentru invitați care vor amintiri pe loc, fără să
+                  întrerupă ritmul petrecerii.
+                </p>
+              </article>
+              <article className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                <h3 className="text-base font-medium text-white">Video Booth 360</h3>
+                <p className="mt-2 text-sm leading-7 text-gray-300">
+                  O soluție bună pentru cadre dinamice, scurte și share-uibile, mai ales la intrări,
+                  dans și momente cu energie mare.
+                </p>
+              </article>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="mx-auto max-w-6xl px-6 pb-16">
         <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/10 to-transparent p-8 md:p-10">
@@ -364,18 +371,20 @@ const LocationPage: React.FC<Props> = ({
 
       <section className="bg-gray-950 py-16 text-center px-6">
         <h2 className="text-2xl md:text-3xl font-light mb-4">
-          Configurează oferta pentru {service.accusative} în {city.name}
+          {isFuneral
+            ? `Disponibilitate pentru ${service.accusative} în ${city.name}`
+            : `Configurează oferta pentru ${service.accusative} în ${city.name}`}
         </h2>
         <p className="text-gray-400 mb-8 max-w-2xl mx-auto leading-7">
-          Dacă vrei doar fotografie, doar videografie sau pachetul complet foto-video, intră în
-          configurator, alege data și tipul evenimentului și revenim cu disponibilitatea. Putem
-          include și fotocabină sau Video Booth 360 dacă vrei un pachet mai amplu.
+          {isFuneral
+            ? "Sunați-ne sau scrieți-ne pe WhatsApp cu data și localitatea, iar noi revenim cu disponibilitatea, costul și discreția necesară în astfel de momente."
+            : "Dacă vrei doar fotografie, doar videografie sau pachetul complet foto-video, intră în configurator, alege data și tipul evenimentului și revenim cu disponibilitatea. Putem include și fotocabină sau Video Booth 360 dacă vrei un pachet mai amplu."}
         </p>
         <Link
-          to="/contact"
+          to={isFuneral ? "/oferta/inmormantari" : "/contact"}
           className="inline-block rounded-full bg-white px-8 py-3 text-sm uppercase tracking-[0.2em] text-black transition-transform hover:-translate-y-0.5"
         >
-          Deschide configuratorul
+          {isFuneral ? "Vezi detalii și contact" : "Deschide configuratorul"}
         </Link>
       </section>
 

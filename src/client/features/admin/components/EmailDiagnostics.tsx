@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 
 type Delivery = { id: string; to: string; subject: string; status: string; error?: string; createdAt: string; attempts: number };
 const labels: Record<string, string> = { pending: "În curs", accepted: "Acceptat de SMTP", failed: "Eșuat", unknown: "Rezultat neconfirmat" };
+const actionClassName = "min-h-[44px] rounded-lg border border-amber-200 bg-amber-200 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 disabled:cursor-wait disabled:opacity-50";
 
 export default function EmailDiagnostics({ accessToken, expanded }: { accessToken: string; expanded: boolean }) {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -40,9 +41,9 @@ export default function EmailDiagnostics({ accessToken, expanded }: { accessToke
       <h3>Verificare email</h3>
       <p>Destinatar test: {recipient || "neconfigurat"}{testMode ? " · Transport de test activ" : ""}</p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-        <button disabled={busy} onClick={() => void run("verify")}>Verifică SMTP</button>
-        <button disabled={busy || !recipient} onClick={() => void run("send")}>Trimite email de test</button>
-        <button disabled={busy} onClick={() => void reload()}>Actualizează istoricul</button>
+        <button type="button" className={actionClassName} disabled={busy} onClick={() => void run("verify")}>Verifică SMTP</button>
+        <button type="button" className={actionClassName} disabled={busy || !recipient} onClick={() => void run("send")}>Trimite email de test</button>
+        <button type="button" className={actionClassName} disabled={busy} onClick={() => void reload()}>Actualizează istoricul</button>
       </div>
       <p role="status">{busy ? "Verificare în curs…" : result}</p>
       <p>„Acceptat de SMTP” confirmă preluarea pentru expediere. Primirea se verifică în Inbox sau Spam. Un rezultat „În curs” rămas după restart necesită verificare; nu se retrimite automat.</p>

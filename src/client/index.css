@@ -203,6 +203,45 @@ html {
   text-decoration-color: rgba(254, 243, 199, 0.8);
 }
 
+.blog-article a.blog-whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #25d366;
+  color: #06210f;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 0.15rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  vertical-align: middle;
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.blog-article a.blog-whatsapp-btn:hover {
+  background: #1fbf5a;
+  color: #06210f;
+  transform: translateY(-1px);
+}
+
+.blog-article a.blog-phone-link {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.45);
+}
+
+.blog-article .blog-highlight {
+  color: rgb(253 230 138);
+  font-weight: 600;
+}
+
+.blog-article a.blog-phone-link:hover {
+  color: #fff;
+  border-bottom-color: #fff;
+}
+
 .blog-article ul,
 .blog-article ol {
   padding-left: 1.4rem;

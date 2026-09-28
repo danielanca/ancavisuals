@@ -28,10 +28,12 @@ const DeliveryAddressPage = loadable(() => import("../pages/DeliveryAddress/Deli
 const ContractSignPage = loadable(() => import("../pages/Contract/ContractSignPage"), opts(false));
 const HandoverSignPage = loadable(() => import("../pages/Handover/HandoverSignPage"), opts(false));
 const PostEventBackupPage = loadable(() => import("../pages/PostEventBackup/PostEventBackupPage"), opts(false));
+const BlogList = loadable(() => import("../pages/Blog/BlogList"), opts(true));
 const BlogPost = loadable(() => import("../pages/Blog/BlogPost"), opts(true));
 const RevinPage = loadable(() => import("../pages/Revin/RevinPage"), opts(false));
 const GuestInvitationPage = loadable(() => import("../features/wedding-hub/pages/GuestInvitationPage"), opts(false));
 const OfertaPage = loadable(() => import("../pages/OfertaPage"), opts(false));
+const FuneralOfferPage = loadable(() => import("../pages/FuneralOfferPage"), opts(true));
 const EventProgressPage = loadable(() => import("../pages/EventProgress/EventProgressPage"), opts(false));
 const FotocabinaPage = loadable(() => import("../pages/Fotocabina/FotocabinaPage"), opts(false));
 const FotocabinaGalleryPage = loadable(() => import("../pages/Fotocabina/FotocabinaGalleryPage"), opts(false));
@@ -100,6 +102,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/copyright",
     layout: null,
     component: CopyrightPage,
+  },
+  {
+    path: "/blog",
+    layout: null,
+    component: BlogList,
   },
   {
     path: "/blog/:slug",
@@ -181,6 +188,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/invite/:token",
     layout: null,
     component: GuestInvitationPage,
+  },
+  {
+    path: "/oferta/inmormantari",
+    layout: null,
+    component: FuneralOfferPage,
   },
   {
     path: "/oferta/:slug",

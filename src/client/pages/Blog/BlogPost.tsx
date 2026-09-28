@@ -4,7 +4,7 @@ import Navbar from "../../components/Navbar/Navbar";
 import MediaPromoFooter from "../../components/Marketing/MediaPromoFooter";
 import Footer from "../../components/Navbar/Footer";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
-import { BLOG_POSTS, getPostMeta } from "../../../../data/blogManifest";
+import { getPostMeta } from "../../../../data/blogManifest";
 import PortfolioGallery from "../Portfolio/PortfolioGallery";
 import { ACCENT } from "../../utils/theme";
 
@@ -16,12 +16,15 @@ interface BlogPostData {
   category: string;
   tags: string[];
   city?: string;
+  coverImage?: string;
   content: string;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
   nunta: "Nuntă",
   botez: "Botez",
+  majorat: "Majorat",
+  inmormantare: "Înmormântare",
   acte: "Acte & Documente",
   general: "General",
 };
@@ -61,10 +64,6 @@ const BlogPost: React.FC = () => {
     { label: meta?.title ?? slug ?? "", to: `/blog/${slug}` },
   ];
 
-  const relatedPosts = BLOG_POSTS.filter(
-    p => p.slug !== slug && (p.category === meta?.category || p.city === meta?.city),
-  ).slice(0, 3);
-
   return (
     <>
       {meta && (
@@ -74,12 +73,14 @@ const BlogPost: React.FC = () => {
           canonicalPath={`/blog/${slug}`}
           keywords={meta.tags}
           breadcrumbs={breadcrumbs}
+          image={meta.coverImage}
           schema={{
             "@type": "Article",
             headline: meta.title,
             description: meta.description,
             datePublished: meta.date,
             author: { "@type": "Person", name: "Anca Visuals" },
+            ...(meta.coverImage ? { image: meta.coverImage } : {}),
           }}
         />
       )}
@@ -116,10 +117,15 @@ const BlogPost: React.FC = () => {
                   {post.city ? ` · ${post.city.replace(/-/g, " ")}` : ""}
                 </span>
                 <h1 className="text-3xl sm:text-4xl font-bold leading-tight mb-4">{post.title}</h1>
+                {post.coverImage && (
+                  <img
+                    src={post.coverImage}
+                    alt={post.title}
+                    className="w-full rounded-2xl border border-white/10 mb-6 object-cover max-h-[480px]"
+                    loading="eager"
+                  />
+                )}
                 <p className="text-gray-400 text-lg">{post.description}</p>
-                <time className="block mt-3 text-xs text-gray-500">
-                  {new Date(post.date).toLocaleDateString("ro-RO", { year: "numeric", month: "long", day: "numeric" })}
-                </time>
               </header>
 
               {/* Content */}
@@ -129,55 +135,58 @@ const BlogPost: React.FC = () => {
               />
 
               {/* CTA */}
-              <div className={`mt-16 bg-gradient-to-br ${ACCENT.bgSubtle} to-transparent ${ACCENT.border} border rounded-2xl p-8 text-center`}>
-                <h2 className={`text-2xl font-bold mb-3 ${ACCENT.text}`}>Cauți fotograf sau videograf?</h2>
-                <p className="text-gray-300 mb-6 max-w-xl mx-auto">
-                  La <strong className="text-white">Anca Visuals</strong> fotografiem și filmăm nunți, botezuri și majorate în toată Transilvania.
-                  Stil discret, livrare rapidă, imagini pe care le revezi cu plăcere ani la rând.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Link
-                    to="/contact"
-                    className={`${ACCENT.bg} ${ACCENT.bgHover} text-black font-semibold px-6 py-3 rounded-xl transition-colors`}
-                  >
-                    Cere o ofertă gratuită
-                  </Link>
-                  <Link
-                    to="/portofoliu"
-                    className={`border ${ACCENT.borderStrong} ${ACCENT.borderHover} ${ACCENT.text} px-6 py-3 rounded-xl transition-colors`}
-                  >
-                    Vezi portofoliu
-                  </Link>
-                </div>
-              </div>
-
-              {/* Related posts */}
-              {relatedPosts.length > 0 && (
-                <section className="mt-16">
-                  <h2 className="text-xl font-bold mb-6 text-gray-200">Articole similare</h2>
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    {relatedPosts.map(rp => (
-                      <Link
-                        key={rp.slug}
-                        to={`/blog/${rp.slug}`}
-                        className={`group block bg-[#111] border border-white/10 rounded-xl p-4 hover:${ACCENT.border} transition-colors`}
-                      >
-                        <span className={`text-xs ${ACCENT.textMuted} uppercase tracking-widest mb-1 block`}>
-                          {CATEGORY_LABELS[rp.category] ?? rp.category}
-                        </span>
-                        <h3 className={`text-sm font-semibold leading-snug group-hover:${ACCENT.text} transition-colors`}>
-                          {rp.title}
-                        </h3>
-                      </Link>
-                    ))}
+              {post.category === "inmormantare" ? (
+                <div className={`mt-16 bg-gradient-to-br ${ACCENT.bgSubtle} to-transparent ${ACCENT.border} border rounded-2xl p-8 text-center`}>
+                  <h2 className={`text-2xl font-bold mb-3 ${ACCENT.text}`}>Cauți fotograf și/sau videograf?</h2>
+                  <p className="text-gray-300 mb-6 max-w-xl mx-auto">
+                    La <strong className="text-white">Anca Visuals</strong> fotografiem și filmăm evenimentul tău.
+                    Stil discret, livrare rapidă, imagini pe care le revezi cu plăcere ani la rând.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <a
+                      href={`https://wa.me/40745469907?text=${encodeURIComponent("Bună ziua. Aș dori să discut despre servicii foto-video pentru o înmormântare. Data: … Localitatea: …")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-[#25d366] hover:bg-[#1fbf5a] text-black font-semibold px-6 py-3 rounded-xl transition-colors"
+                    >
+                      Scrie-ne pe WhatsApp
+                    </a>
+                    <a
+                      href="tel:+40745469907"
+                      className={`border ${ACCENT.borderStrong} ${ACCENT.borderHover} ${ACCENT.text} px-6 py-3 rounded-xl transition-colors font-semibold`}
+                    >
+                      0745 469 907 (Apelează acum)
+                    </a>
                   </div>
-                </section>
+                </div>
+              ) : (
+                <div className={`mt-16 bg-gradient-to-br ${ACCENT.bgSubtle} to-transparent ${ACCENT.border} border rounded-2xl p-8 text-center`}>
+                  <h2 className={`text-2xl font-bold mb-3 ${ACCENT.text}`}>Cauți fotograf sau videograf?</h2>
+                  <p className="text-gray-300 mb-6 max-w-xl mx-auto">
+                    La <strong className="text-white">Anca Visuals</strong> fotografiem și filmăm nunți, botezuri și majorate în toată Transilvania.
+                    Stil discret, livrare rapidă, imagini pe care le revezi cu plăcere ani la rând.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Link
+                      to="/contact"
+                      className={`${ACCENT.bg} ${ACCENT.bgHover} text-black font-semibold px-6 py-3 rounded-xl transition-colors`}
+                    >
+                      Cere o ofertă gratuită
+                    </Link>
+                    <Link
+                      to="/portofoliu"
+                      className={`border ${ACCENT.borderStrong} ${ACCENT.borderHover} ${ACCENT.text} px-6 py-3 rounded-xl transition-colors`}
+                    >
+                      Vezi portofoliu
+                    </Link>
+                  </div>
+                </div>
               )}
 
               {/* Portfolio gallery */}
               <section className="mt-20">
                 <h2 className="text-xl font-bold mb-6 text-gray-200">Din portofoliul nostru</h2>
-                <PortfolioGallery />
+                <PortfolioGallery minTotalImages={post.category === "inmormantare" ? 20 : 0} />
               </section>
             </>
           )}
