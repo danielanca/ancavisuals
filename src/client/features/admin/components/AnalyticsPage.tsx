@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import useAuth from "../auth/useAuth";
+import ConsentStatsCard from "./ConsentStatsCard";
 
 interface Visit {
   id: string;
@@ -430,6 +431,8 @@ export default function AnalyticsPage() {
             })}
           </div>
         )}
+
+        {!auth.loading && <ConsentStatsCard token={auth.accessToken ?? ""} />}
 
         {/* Top pages + countries + referrers */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

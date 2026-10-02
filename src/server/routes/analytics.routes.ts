@@ -1,13 +1,14 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { firestore } from "../firestore";
-import { Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { isLocalIp } from "../controllers/triggerEvent.controller";
 import { logActivity } from "../services/activity.service";
 import { blockEmail, sendViaFunnel, type BlockCode } from "../notifications/emailFunnel";
 import { adminUser } from "../constants/credentials";
 import { BOT_UA } from "../utils/botUa";
+import { visitDay } from "../../shared/liveVisits";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 
@@ -367,5 +368,71 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
   } catch (error) {
     console.error("[analytics] GET /stats failed:", error);
     res.status(500).json({ error: "Failed to load stats" });
+  }
+});
+
+// ── Cookie banner (Usercentrics) stats ───────────────────────────────────────
+// Only anonymous daily counters: no IP, session id or visitor id is stored.
+// The IP is used in memory just to drop rapid duplicates from the same browser.
+
+const CONSENT_ACTIONS = ["shown", "accept_all", "deny_all", "save"] as const;
+type ConsentAction = (typeof CONSENT_ACTIONS)[number];
+const CONSENT_DEDUPE_MS = 30 * 1000;
+const consentSeen = new Map<string, number>();
+
+// POST /api/analytics/consent — { action, marketing? }
+analyticsPublicRouter.post("/consent", async (req: Request, res: Response) => {
+  try {
+    const { action, marketing } = req.body as { action?: string; marketing?: boolean };
+    if (!CONSENT_ACTIONS.includes(action as ConsentAction)) return res.status(400).json({ error: "Invalid action" });
+    if (isAdminRequest(req)) return res.json({ ok: true });
+    if (BOT_UA.test(req.headers["user-agent"] ?? "")) return res.json({ ok: true });
+
+    const ip = getClientIp(req) ?? "";
+    if (isLocalIp(ip)) return res.json({ ok: true });
+    const now = Date.now();
+    const key = `${ip}|${action}`;
+    if (now - (consentSeen.get(key) ?? 0) < CONSENT_DEDUPE_MS) return res.json({ ok: true });
+    consentSeen.set(key, now);
+    if (consentSeen.size > 5000) {
+      for (const [k, t] of consentSeen) if (now - t > CONSENT_DEDUPE_MS) consentSeen.delete(k);
+    }
+
+    const update: Record<string, unknown> = { [action as string]: FieldValue.increment(1) };
+    if (action === "save" && typeof marketing === "boolean") {
+      update[marketing ? "save_marketing_on" : "save_marketing_off"] = FieldValue.increment(1);
+    }
+    const day = visitDay(now);
+    await firestore().collection("consentStats").doc(day).set({ day, ...update }, { merge: true });
+    res.json({ ok: true });
+  } catch {
+    if (!res.headersSent) res.json({ ok: true });
+  }
+});
+
+// GET /api/admin/analytics/consent?days=30 — daily banner counters
+analyticsAdminRouter.get("/analytics/consent", async (req: Request, res: Response) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+    const since = visitDay(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
+    const snap = await firestore().collection("consentStats").where("day", ">=", since).get();
+    const rows = snap.docs
+      .map((doc) => {
+        const d = doc.data();
+        return {
+          day: String(d.day ?? doc.id),
+          shown: Number(d.shown ?? 0),
+          acceptAll: Number(d.accept_all ?? 0),
+          denyAll: Number(d.deny_all ?? 0),
+          save: Number(d.save ?? 0),
+          saveMarketingOn: Number(d.save_marketing_on ?? 0),
+          saveMarketingOff: Number(d.save_marketing_off ?? 0),
+        };
+      })
+      .sort((a, b) => a.day.localeCompare(b.day));
+    res.json({ days, rows });
+  } catch (error) {
+    console.error("[analytics] GET /consent failed:", error);
+    res.status(500).json({ error: "Failed to load consent stats" });
   }
 });

@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { openCookieSettings } from "../../utils/cookieConsent";
 
 const Footer = () => {
   return (
@@ -62,10 +63,7 @@ const Footer = () => {
               </Link>
               <span className="text-gray-700">•</span>
               <button
-                onClick={() => {
-                  const ucUi = (window as unknown as Record<string, unknown>)["UC_UI"] as { showFirstLayer?: () => void } | undefined;
-                  ucUi?.showFirstLayer?.();
-                }}
+                onClick={openCookieSettings}
                 className="hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0 text-gray-500 text-[11px] uppercase tracking-[0.18em] whitespace-nowrap"
               >
                 Cookie Settings

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
+import { openCookieSettings } from "../../utils/cookieConsent";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
 import {
   fireAdsAvailabilityMicroConversion,
@@ -897,6 +898,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       <div className="py-6 text-center">
         <p className="text-neutral-700 text-xs">© Ancavisuals · ancavisuals.ro</p>
+        <button
+          type="button"
+          onClick={openCookieSettings}
+          className="mt-2 text-neutral-600 hover:text-neutral-400 text-[11px] underline underline-offset-2 transition-colors"
+        >
+          Setări cookie
+        </button>
       </div>
 
       {promoAtPageEnd && <AncaVisualsPromo />}
