@@ -53,3 +53,18 @@ describe("honest presence and duration", () => {
     expect(visitStatus({ ...s, visibility: "hidden" }, 11000)).toBe("hidden");
   });
 });
+
+describe("visitSourceLabel", () => {
+  test("names the exact source for notifications", async () => {
+    const { visitSourceLabel } = await import("src/shared/liveVisits");
+    expect(visitSourceLabel({ gclid: "x" })).toBe("Google Ads");
+    expect(visitSourceLabel({ referrer: "https://www.google.ro/" })).toBe("Google organic");
+    expect(visitSourceLabel({ referrer: "https://www.bing.com/" })).toBe("Căutare organică (bing.com)");
+    expect(visitSourceLabel({ referrer: "https://chatgpt.com/" })).toBe("ChatGPT");
+    expect(visitSourceLabel({ utmSource: "chatgpt.com" })).toBe("ChatGPT");
+    expect(visitSourceLabel({ utmSource: "claude" })).toBe("Claude");
+    expect(visitSourceLabel({ referrer: "https://l.instagram.com/" })).toBe("Instagram");
+    expect(visitSourceLabel({ referrer: "https://nunta-blog.ro/x" })).toBe("Alt site (nunta-blog.ro)");
+    expect(visitSourceLabel({})).toBe("Direct / necunoscut");
+  });
+});

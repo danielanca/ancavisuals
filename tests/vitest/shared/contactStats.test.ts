@@ -41,4 +41,37 @@ describe("summarizeContactStats", () => {
     expect(stats.byDay).toEqual([expect.objectContaining({ day: "2026-09-30" })]);
     expect(stats.byPage[0]).toEqual(expect.objectContaining({ page: "/oferta/nunta" }));
   });
+
+  it("splits availability checks by event type, pairing configurator checks with the type chosen later", () => {
+    const stats = summarizeContactStats([
+      { sessionId: "a", visitorId: "v1", events: [{ name: "availability_checked", at, meta: { eventType: "Nuntă" } }] },
+      { sessionId: "b", visitorId: "v2", events: [{ name: "availability_checked", at, meta: { eventType: "nunta" } }] },
+      {
+        sessionId: "c", visitorId: "v3",
+        events: [
+          { name: "availability_checked", at, page: "/contact" },
+          { name: "event_type_selected", at, meta: { eventType: "botez" } },
+        ],
+      },
+      { sessionId: "d", visitorId: "v4", events: [{ name: "availability_checked", at }] },
+    ]);
+    expect(stats.availabilityByEventType).toEqual([
+      { eventType: "Nuntă", checks: { clicks: 2, visitors: 2 } },
+      { eventType: "Botez", checks: { clicks: 1, visitors: 1 } },
+      { eventType: "Nespecificat", checks: { clicks: 1, visitors: 1 } },
+    ]);
+  });
+});
+
+describe("eventTypeLabel", () => {
+  it("collapses configurator keys and display names to one label", async () => {
+    const { eventTypeLabel } = await import("src/shared/eventTypes");
+    expect(eventTypeLabel("nunta")).toBe("Nuntă");
+    expect(eventTypeLabel("Nuntă")).toBe("Nuntă");
+    expect(eventTypeLabel("logodna")).toBe("Logodnă");
+    expect(eventTypeLabel("Cununie civilă")).toBe("Cununie civilă");
+    expect(eventTypeLabel("Alt eveniment")).toBe("Alt eveniment");
+    expect(eventTypeLabel("")).toBeNull();
+    expect(eventTypeLabel(undefined)).toBeNull();
+  });
 });

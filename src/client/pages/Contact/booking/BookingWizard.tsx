@@ -11,6 +11,7 @@ import { formatDate } from "./utils/time";
 import type { Step, EventType, Errors } from "./types";
 import { fireAdsLeadConversion } from "../../../utils/googleAds";
 import { getLandingMeta } from "../../../utils/sessionAttribution";
+import { sendLiveEvent } from "../../../utils/liveEvent";
 
 
 // Steps
@@ -249,6 +250,9 @@ export default function BookingWizard() {
 
   const goNext = () => {
     if (validateStep(step)) {
+      // The date is checked on step 1, before the type is known — report it here so
+      // /admin/live and the contact stats can pair the check with the event type.
+      if (step === 2) sendLiveEvent("event_type_selected", { label: eventType, meta: { eventType } });
       setStep(s => (s < 5 ? ((s + 1) as Step) : s));
     }
   };

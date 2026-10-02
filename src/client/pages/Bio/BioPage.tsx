@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
+import { useStartingPrices } from "../../hooks/useStartingPrices";
+import { startingPriceFor } from "../../../shared/pricing/startingPrices";
 import { reportAvailabilityCheck } from "../../utils/liveEvent";
 import { destination } from "../../utils/address";
 
@@ -114,6 +116,7 @@ const BioPage: React.FC = () => {
 
   const [dateParts, setDateParts] = useState(defaultDate);
   const [eventType, setEventType] = useState("Nuntă");
+  const startingPrices = useStartingPrices();
   const [eventDate, setEventDate] = useState(toIso(defaultDate.day, defaultDate.month, defaultDate.year));
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [availStatus, setAvailStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
@@ -285,6 +288,7 @@ const BioPage: React.FC = () => {
             {availStatus === "available" && (
               <div className="mt-3 rounded-xl border border-green-700/40 bg-green-900/25 p-3.5">
                 <p className="text-sm font-medium text-green-300">🎉 Suntem disponibili pe {formatDateRo(eventDate)}!</p>
+                <p className="mt-1 text-sm text-white">Pachetele foto-video încep de la <span className="font-semibold text-amber-300">{startingPriceFor(eventType, startingPrices)}</span>.</p>
                 <a
                   href={WHATSAPP_LINK}
                   target="_blank"

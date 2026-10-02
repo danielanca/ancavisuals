@@ -10,8 +10,11 @@ import {
 } from "../../utils/googleAds";
 import { getLandingMeta } from "../../utils/sessionAttribution";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
+import { useStartingPrices } from "../../hooks/useStartingPrices";
+import { startingPriceFor } from "../../../shared/pricing/startingPrices";
 import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
 import PortfolioParallaxGallery from "../Portfolio/PortfolioParallaxGallery";
+import GuideBook from "./GuideBook";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -28,24 +31,18 @@ const daysInMonth = (year: number, monthZeroBased: number) => new Date(year, mon
 const toIso = (day: number, monthZeroBased: number, year: number) =>
   `${year}-${String(monthZeroBased + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-/** "de la 950 €" from package prices like "950 EURO" / "1200 euro"; null when none is numeric. */
-export function lowestPackagePrice(packages: { price: string }[]): string | null {
-  let best: { amount: number; label: string } | null = null;
-  for (const pkg of packages) {
-    const digits = /\d[\d.\s]*/.exec(pkg.price ?? "")?.[0].replace(/[.\s]/g, "");
-    const amount = digits ? Number(digits) : NaN;
-    if (!Number.isFinite(amount) || amount <= 0) continue;
-    const currency = /eur|€/i.test(pkg.price) ? "€" : /lei|ron/i.test(pkg.price) ? "lei" : "";
-    if (!best || amount < best.amount) best = { amount, label: `${amount} ${currency}`.trim() };
-  }
-  return best?.label ?? null;
-}
+// Free wedding guide (Bunny: offers-assets/pdfs) — only on wedding campaigns.
+const WEDDING_GUIDE_URL = "https://ancavisuals.b-cdn.net/offers-assets/pdfs/Ghidul-Mirilor.pdf";
+const WEDDING_GUIDE_SLUGS = new Set(["olx"]);
+const WEDDING_GUIDE_HIGHLIGHTS = [
+  "În ce ordine rezervați furnizorii",
+  "Actele pentru cununia civilă și religioasă",
+  "Calendarul organizării, lună cu lună",
+  "Desfășurătorul zilei nunții",
+  "Sfaturi pentru poze și film frumoase",
+  "Trusa de urgență pentru ziua nunții",
+];
 
-/** Real bookings in the same month — only shown when there is at least one. */
-export function bookedInMonth(bookedDates: string[], isoDate: string): number {
-  const month = isoDate.slice(0, 7);
-  return month.length === 7 ? bookedDates.filter((d) => d.startsWith(month) && d !== isoDate).length : 0;
-}
 
 type DatePick = { day: number | null; month: number | null; year: number | null };
 
@@ -153,7 +150,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const [formStatus, setFormStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [availStatus, setAvailStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
-  const lowestPrice = useMemo(() => lowestPackagePrice(page.packages ?? []), [page.packages]);
+  const startingPrices = useStartingPrices();
 
   const todayForDate = new Date();
   const todayYear = todayForDate.getFullYear();
@@ -287,6 +284,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     formStarted.current = true;
     notifyInteraction("form");
     measureOaiq("form_started", { page_path: `/oferta/${page.slug}` });
+  };
+  const trackGuideDownload = () => {
+    sendLiveEvent("guide_downloaded", { label: "Ghidul Mirilor", meta: { file: "Ghidul-Mirilor.pdf" } });
+    measureOaiq("guide_downloaded", { page_path: `/oferta/${page.slug}` });
   };
   const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => {
     measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
@@ -635,15 +636,14 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               const waText = free
                 ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? ", cu fotocabina gratuită" : ""}.`
                 : `Bună! Am văzut că ${dateLabel} e ocupată. Aveți o soluție pentru ${event}?`;
-              const sameMonth = bookedInMonth(bookedDates, form.eventDate);
-              const monthLabel = `${MONTHS_RO[Number(form.eventDate.slice(5, 7)) - 1]} ${form.eventDate.slice(0, 4)}`;
+              const startingPrice = startingPriceFor(form.eventType, startingPrices);
               return (
                 <div className={`mt-4 rounded-xl border p-4 ${free ? "border-green-700/40 bg-green-900/25" : "border-amber-700/40 bg-amber-900/20"}`}>
                   <p className={`text-sm font-medium ${free ? "text-green-300" : "text-amber-200"}`}>
                     {free ? `🎉 Data ta, ${dateLabel}, e liberă!` : `Data ${dateLabel} pare deja rezervată.`}
                   </p>
-                  {free && lowestPrice && (
-                    <p className="mt-1 text-sm text-white">Pachetele foto-video încep de la <span className="font-semibold text-amber-300">{lowestPrice}</span>.</p>
+                  {free && (
+                    <p className="mt-1 text-sm text-white">Pachetele foto-video încep de la <span className="font-semibold text-amber-300">{startingPrice}</span>.</p>
                   )}
                   {photoboothGift && (
                     <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
@@ -651,10 +651,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                     </p>
                   )}
                   {!free && <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție — scrie-ne.</p>}
-                  {/* Real data from the booking calendar — never an invented scarcity number. */}
-                  {free && sameMonth > 0 && (
-                    <p className="mt-1 text-xs text-amber-200/90">În {monthLabel} avem deja {sameMonth} {sameMonth === 1 ? "eveniment rezervat" : "evenimente rezervate"}.</p>
-                  )}
 
                   <a
                     href={waLink(waText)}
@@ -789,6 +785,46 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </section>
       )}
 
+      {/* ── GHIDUL MIRILOR — PDF gratuit ───────────────────────────── */}
+      {WEDDING_GUIDE_SLUGS.has(page.slug) && (
+        <section className="bg-[#f6f2ea] px-6 py-16 text-[#2f2a24] sm:py-20">
+          <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-14">
+            <GuideBook />
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">PDF gratuit · 15 pagini</p>
+              <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">Ghidul Mirilor</h2>
+              <p className="mt-4 text-base leading-relaxed text-[#5c5348]">
+                Tot ce ne-ar fi plăcut să știe toți mirii de la început, adunat din zecile de nunți la care am fost alături de cupluri.
+              </p>
+              <ul className="mt-6 grid gap-2.5 text-sm sm:grid-cols-2">
+                {WEDDING_GUIDE_HIGHLIGHTS.map((item) => (
+                  <li key={item} className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f2a24] text-[11px] text-[#f6f2ea]">✓</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={WEDDING_GUIDE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={trackGuideDownload}
+                className="mt-8 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2f2a24] px-6 py-4 text-sm font-semibold text-[#f6f2ea] transition-colors hover:bg-black sm:w-auto"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 3v12" />
+                  <path d="m7 10 5 5 5-5" />
+                  <path d="M5 21h14" />
+                </svg>
+                Descarcă ghidul gratuit
+              </a>
+              <p className="mt-3 text-xs text-[#5c5348]/80">Fără email, fără înregistrare — se deschide direct.</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── TESTIMONIALS ───────────────────────────────────────────── */}
       {page.testimonials.length > 0 && (
         <section className="py-24 px-6 max-w-6xl mx-auto">
@@ -906,7 +942,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </button>
       </div>
 
-      {promoAtPageEnd && <AncaVisualsPromo />}
+      {promoAtPageEnd && <AncaVisualsPromo desktopColumns={4} />}
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-neutral-950/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:hidden">
         <div className="mx-auto flex max-w-lg gap-2">

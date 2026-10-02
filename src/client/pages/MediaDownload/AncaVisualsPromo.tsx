@@ -42,12 +42,14 @@ const fullPhoneBtnStyle: CSSProperties = {
 
 interface AncaVisualsPromoProps {
   compact?: boolean;
+  /** Photo grid columns on desktop (mobile always uses 2). 4 widens the grid past the text column. */
+  desktopColumns?: 2 | 4;
 }
 
 const STRIP_SIZE = 18;
 const STRIP_ROTATE_MS = 10000;
 
-export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoProps) {
+export default function AncaVisualsPromo({ compact = false, desktopColumns = 2 }: AncaVisualsPromoProps) {
   const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -115,13 +117,16 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
     );
   }, [showcasePhotos, stripTick]);
 
+  const columnCount = isMobile ? 2 : desktopColumns;
   const galleryColumns = useMemo(() => {
-    const columns: Array<Array<{ url: string; index: number }>> = [[], []];
+    const columns: Array<Array<{ url: string; index: number }>> = Array.from({ length: columnCount }, () => []);
     showcasePhotos.forEach((url, index) => {
-      columns[index % 2].push({ url, index });
+      columns[index % columnCount].push({ url, index });
     });
     return columns;
-  }, [showcasePhotos]);
+  }, [showcasePhotos, columnCount]);
+  // The text column is 680px; four columns break out of it to a wider, still centered band.
+  const wideGallery = columnCount > 2;
 
   if (compact) {
     return (
@@ -224,8 +229,12 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
           <div style={{ width: "36px", height: "1px", background: "#c9a96e", margin: "0 auto 40px", opacity: 0.25 }} />
 
           {showcasePhotos.length > 0 && (
-            <div style={{ margin: "0 0 40px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", alignItems: "start", textAlign: "left" }}>
+            <div
+              style={wideGallery
+                ? { margin: "0 0 40px", width: "min(1200px, calc(100vw - 48px))", position: "relative", left: "50%", transform: "translateX(-50%)" }
+                : { margin: "0 0 40px" }}
+            >
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${columnCount}, 1fr)`, gap: "8px", alignItems: "start", textAlign: "left" }}>
                 {galleryColumns.map((column, columnIndex) => (
                   <div key={columnIndex} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     {column.map(({ url, index }) => (

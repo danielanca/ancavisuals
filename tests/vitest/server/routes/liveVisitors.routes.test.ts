@@ -223,6 +223,23 @@ describe("liveVisitors.routes", () => {
       }));
     });
 
+    test("emails the owner when the wedding guide is downloaded, with the source in the subject", async () => {
+      const { postEvent, sendEmail, logActivity } = await loadRouter();
+      await postEvent(
+        {
+          body: { sessionId: "g1", event: "guide_downloaded", page: "/oferta/olx", label: "Ghidul Mirilor" },
+          headers: { "user-agent": realUa },
+        },
+        createMockResponse(),
+      );
+      expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+        // The mocked session comes from Google Ads; exact labels (ChatGPT, organic…) are covered in liveVisits.test.
+        subject: expect.stringMatching(/^📘 Ghidul Mirilor descărcat · Google Ads — Vizitator #1/),
+        html: expect.stringContaining("Google Ads"),
+      }));
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringContaining("Ghidul Mirilor") }));
+    });
+
     test("only emails once per session+event within the cooldown", async () => {
       const { postEvent, sendEmail } = await loadRouter();
       const req = { body: { sessionId: "s1", event: "phone_revealed", page: "/" }, headers: { "user-agent": realUa } };

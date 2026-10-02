@@ -17,6 +17,7 @@ import qrMomentRouter from "./src/server/routes/QRMoment.routes";
 import assistantChatRouter from "./src/server/routes/assistantChat.routes";
 import adminCalendarRouter from "./src/server/routes/adminCalendar.routes";
 import publicBookedDatesRouter from "./src/server/routes/publicBookedDates.routes";
+import { startingPricesAdminRouter, startingPricesPublicRouter } from "./src/server/routes/startingPrices.routes";
 import adminEventsRouter, { startAlbumProcessingQueue } from "./src/server/routes/adminEvents.routes";
 import chatbotRouter from "./src/server/routes/chatbot.routes";
 import uploadRouter from "./src/server/routes/upload.routes";
@@ -177,6 +178,8 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.assistant, assistantChatRouter);
   app.use(API_ROUTE_PREFIXES.admin, adminCalendarRouter);
   app.use("/api/booked-dates", publicBookedDatesRouter);
+  app.use("/api/starting-prices", startingPricesPublicRouter);
+  app.use("/api/admin/starting-prices", startingPricesAdminRouter);
   app.use(API_ROUTE_PREFIXES.admin, adminEventsRouter);
   app.use(API_ROUTE_PREFIXES.chatbot, chatbotRouter);
   app.use(API_ROUTE_PREFIXES.uploads, uploadRouter);

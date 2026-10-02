@@ -260,6 +260,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Procese Verbale", path: "/admin/handover" },
         { label: "Oferte", path: "/admin/oferte" },
         { label: "Template Oferte", path: "/admin/template-oferte" },
+        { label: "Prețuri de pornire", path: "/admin/preturi" },
       ],
     },
     {

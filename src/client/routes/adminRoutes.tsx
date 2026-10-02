@@ -28,6 +28,7 @@ const AnalyticsPage = loadable(() => import("../features/admin/components/Analyt
 const LiveVisitorsPage = loadable(() => import("../features/admin/components/LiveVisitorsPage"), opts);
 const LeadsPage = loadable(() => import("../features/admin/components/LeadsPage"), opts);
 const ContactStatsPage = loadable(() => import("../features/admin/components/ContactStatsPage"), opts);
+const StartingPricesPage = loadable(() => import("../features/admin/components/StartingPricesPage"), opts);
 const ImageOptimizerPage = loadable(() => import("../features/admin/components/ImageOptimizerPage"), opts);
 const GoalDetailPage = loadable(() => import("../features/admin/components/GoalDetailPage"), opts);
 const ForecastPage = loadable(() => import("../features/admin/components/ForecastPage"), opts);
@@ -91,6 +92,7 @@ export const adminRoutes = [
       <Route path="/admin/live" element={<LiveVisitorsPage />} />
       <Route path="/admin/leads" element={<LeadsPage />} />
       <Route path="/admin/statistici-contact" element={<ContactStatsPage />} />
+      <Route path="/admin/preturi" element={<StartingPricesPage />} />
       <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
       <Route path="/admin/bank-details" element={<BankDetailsPage />} />
       <Route path="/admin/goals/:type" element={<GoalDetailPage />} />

@@ -1,5 +1,6 @@
-import { numberDailyVisitors, visitDayBounds, visitSource } from "../../shared/liveVisits";
+import { numberDailyVisitors, visitDayBounds, visitSource, visitSourceLabel } from "../../shared/liveVisits";
 import { summarizeContactStats, type ContactStatsSession } from "../../shared/contactStats";
+import { eventTypeLabel } from "../../shared/eventTypes";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { firestore } from "../firestore";
@@ -53,6 +54,7 @@ const CRITICAL_LABELS: Record<string, string> = {
 // the inbox. It still shows live in the admin panel and the activity feed
 // (see LOGGED_EVENTS below) — it just doesn't email the owner anymore.
 const EMAIL_EVENTS: Record<string, string> = {
+  guide_downloaded: "📘 Ghidul Mirilor descărcat",
   whatsapp_clicked: "💬 Click WhatsApp",
   phone_revealed: "📞 Număr de telefon afișat",
   contact_clicked: "🖱️ Click Contactează-ne",
@@ -72,7 +74,12 @@ const FORM_KIND_TITLE: Record<string, string> = {
   other: "✅ Formular trimis",
 };
 // Events written to the activity feed (`site_activity`) beyond the critical set.
-const LOGGED_EVENTS = new Set([...CRITICAL_EVENTS, "availability_checked"]);
+// `event_type_selected` comes from the /contact configurator, where the type is chosen after the date check.
+const LOGGED_EVENTS = new Set([...CRITICAL_EVENTS, "availability_checked", "event_type_selected", "guide_downloaded"]);
+const ACTIVITY_TITLES: Record<string, string> = {
+  availability_checked: "📅 Verificare disponibilitate",
+  event_type_selected: "🎉 Tip eveniment ales",
+};
 const EVENT_EMAIL_COOLDOWN_MS = 10 * 60_000;
 const eventEmailLastSent = new Map<string, number>();
 
@@ -88,11 +95,6 @@ function shouldEmailEvent(sessionId: string, eventName: string, discriminator = 
   return true;
 }
 
-const SOURCE_RO: Record<string, string> = {
-  google_ads: "Google Ads", organic: "Căutare organică", ai: "AI (ChatGPT/Claude/…)",
-  referral: "Alt site", direct: "Direct / tastat",
-};
-
 function buildEventEmail(
   eventName: string,
   session: LiveSession,
@@ -104,6 +106,7 @@ function buildEventEmail(
     ? (FORM_KIND_TITLE[formKind] ?? FORM_KIND_TITLE.other)
     : (EMAIL_EVENTS[eventName] ?? eventName);
   const loc = [session.city, session.country].filter(Boolean).join(", ") || "necunoscută";
+  const sourceLabel = visitSourceLabel(session.attribution ?? {}, session.isGoogleAds);
   const attr = session.attribution ?? {};
   const checkedDate = eventName === "availability_checked" ? String(eventBody.date ?? "") : "";
   const dateFree = eventBody.available;
@@ -111,8 +114,9 @@ function buildEventEmail(
     ...(checkedDate
       ? [["Data verificată", `${checkedDate}${dateFree === false ? " — OCUPATĂ" : dateFree === true ? " — liberă ✅" : ""}`] as [string, string]]
       : []),
+    ...(eventTypeLabel(eventBody.eventType) ? [["Eveniment", eventTypeLabel(eventBody.eventType)!] as [string, string]] : []),
     ["Vizitator", `#${session.visitorNumber}`],
-    ["Sursă", `${SOURCE_RO[session.source] ?? session.source}${session.isGoogleAds ? " ✅" : ""}`],
+    ["Sursă", `${sourceLabel}${session.isGoogleAds ? " ✅" : ""}`],
     ["Pagina", session.currentPage || "/"],
     ["Locație IP", loc],
     ["Provider", session.org || "—"],
@@ -138,7 +142,7 @@ function buildEventEmail(
 
   const subject = checkedDate
     ? `📅 Verificare disponibilitate: ${checkedDate}${dateFree === false ? " (ocupată)" : ""} — Vizitator #${session.visitorNumber}`
-    : `${title} — Vizitator #${session.visitorNumber}${session.isGoogleAds ? " · Google Ads" : ""} · ${session.currentPage || "/"}`;
+    : `${title} · ${sourceLabel} — Vizitator #${session.visitorNumber} · ${session.currentPage || "/"}`;
 
   return { subject, html };
 }
@@ -197,6 +201,11 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
 
     const { session, event } = recordEvent(body, { ip, ua, geo });
     const meta = (body.meta ?? {}) as Record<string, unknown>;
+    const eventType = eventTypeLabel(meta.eventType);
+    // The configurator sends the type after the check — name the date it belongs to.
+    const pairedDate = body.event === "event_type_selected"
+      ? String([...session.events].reverse().find((e) => e.name === "availability_checked")?.meta?.date ?? "")
+      : "";
     const checkedDate = body.event === "availability_checked" ? String(meta.date ?? "") : "";
     const formKind = body.event === "form_submitted" ? String(meta.kind ?? "other") : "";
     const emailDiscriminator = checkedDate || formKind;
@@ -211,7 +220,10 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
         type: "lead",
         title: (formKind
           ? (FORM_KIND_TITLE[formKind] ?? FORM_KIND_TITLE.other)
-          : (CRITICAL_LABELS[body.event] ?? EMAIL_EVENTS[body.event] ?? body.event)) + (checkedDate ? `: ${checkedDate}` : ""),
+          : (CRITICAL_LABELS[body.event] ?? EMAIL_EVENTS[body.event] ?? ACTIVITY_TITLES[body.event] ?? body.event))
+          + (checkedDate ? `: ${checkedDate}` : "")
+          + (eventType ? `${checkedDate ? " · " : ": "}${eventType}` : "")
+          + (pairedDate ? ` (pentru ${pairedDate})` : ""),
         description: `${leadContact ? `${leadContact} · ` : ""}${geoLabel} · ${event.page}${session.isGoogleAds ? " · Google Ads" : ""}`,
         metadata: {
           event: body.event,
@@ -219,6 +231,8 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
           source: session.source,
           visitorNumber: String(session.visitorNumber),
           ...(checkedDate ? { checkedDate, available: String(meta.available ?? "") } : {}),
+          ...(eventType ? { eventType } : {}),
+          ...(pairedDate ? { checkedDate: pairedDate } : {}),
           ...(formKind ? { formKind } : {}),
           ...(leadName ? { leadName } : {}),
           ...(leadPhone ? { leadPhone } : {}),
@@ -241,6 +255,7 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
           href: meta.href,
           date: meta.date,
           available: meta.available,
+          eventType: meta.eventType,
           priority: event.priority,
           at: new Date(event.at).toISOString(),
           visitorNumber: session.visitorNumber,

@@ -16,7 +16,8 @@ vi.mock("src/client/utils/googleAds", () => ({
 }));
 vi.mock("src/client/utils/oaiq", () => ({ measureOaiq: vi.fn() }));
 
-import CampaignLandingPage, { bookedInMonth, lowestPackagePrice, type CampaignPage } from "src/client/pages/CampaignLanding/CampaignLandingPage";
+import CampaignLandingPage, { type CampaignPage } from "src/client/pages/CampaignLanding/CampaignLandingPage";
+import { sendLiveEvent } from "src/client/utils/liveEvent";
 
 const nextYear = new Date().getFullYear() + 1;
 const page: CampaignPage = {
@@ -38,12 +39,6 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("availability result", () => {
-  test("helpers: lowest price and real bookings in the month", () => {
-    expect(lowestPackagePrice(page.packages)).toBe("950 €");
-    expect(lowestPackagePrice([{ price: "la cerere" }])).toBeNull();
-    expect(bookedInMonth([`${nextYear}-07-10`, `${nextYear}-07-24`, `${nextYear}-08-01`], `${nextYear}-07-18`)).toBe(2);
-  });
-
   test("no date is preselected and a free date shows price, prefilled WhatsApp and phone field", async () => {
     render(<MemoryRouter><CampaignLandingPage page={page} /></MemoryRouter>);
 
@@ -57,7 +52,9 @@ describe("availability result", () => {
 
     expect(await screen.findByText(`🎉 Data ta, 18 iulie ${nextYear}, e liberă!`)).toBeInTheDocument();
     expect(screen.getByText("950 €")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText(/avem deja 2 evenimente rezervate/)).toBeInTheDocument());
+    // Booked dates load, but the "already N events this month" line is gone — owners found it confusing.
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(screen.queryByText(/evenimente rezervate|eveniment rezervat/)).not.toBeInTheDocument();
 
     // Free-photobooth promo (until 2026-10-30) shows for weddings while it lasts.
     if (Date.now() < new Date("2026-10-30T23:59:59").getTime()) {
@@ -68,5 +65,29 @@ describe("availability result", () => {
     expect(decodeURIComponent(wa.getAttribute("href") ?? "")).toContain(`data de 18 iulie ${nextYear} e liberă`);
     expect(wa.getAttribute("href")).toContain("wa.me/40745469907");
     expect(screen.getByRole("button", { name: "Sunați-mă" })).toBeInTheDocument();
+  });
+
+  test("a christening shows the christening starting price", async () => {
+    render(<MemoryRouter><CampaignLandingPage page={page} /></MemoryRouter>);
+    fireEvent.change(screen.getByDisplayValue("Nuntă"), { target: { value: "Botez" } });
+    fireEvent.change(screen.getByLabelText("Anul"), { target: { value: String(nextYear) } });
+    fireEvent.change(screen.getByLabelText("Luna"), { target: { value: "6" } });
+    fireEvent.change(screen.getByLabelText("Ziua"), { target: { value: "18" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verifică disponibilitatea" }));
+
+    expect(await screen.findByText("350 €")).toBeInTheDocument();
+    expect(screen.queryByText("950 €")).not.toBeInTheDocument();
+  });
+
+  test("the olx landing offers the free wedding guide; other campaigns don't", () => {
+    const { unmount } = render(<MemoryRouter><CampaignLandingPage page={page} /></MemoryRouter>);
+    const guide = screen.getByRole("link", { name: /Descarcă ghidul gratuit/ });
+    expect(guide.getAttribute("href")).toBe("https://ancavisuals.b-cdn.net/offers-assets/pdfs/Ghidul-Mirilor.pdf");
+    fireEvent.click(guide);
+    expect(sendLiveEvent).toHaveBeenCalledWith("guide_downloaded", expect.objectContaining({ label: "Ghidul Mirilor" }));
+    unmount();
+
+    render(<MemoryRouter><CampaignLandingPage page={{ ...page, slug: "botez" }} /></MemoryRouter>);
+    expect(screen.queryByText(/Ghidul Mirilor/)).not.toBeInTheDocument();
   });
 });

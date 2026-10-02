@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
 import { visitDay, visitDayBounds, visitStatus, observedDuration, visitSource, isAlbumVisit, type VisitSource } from "../../../../shared/liveVisits";
+import { eventTypeLabel } from "../../../../shared/eventTypes";
 import "./LiveVisitorsPage.css";
 
 // ── Types (mirror server serializeSession) ───────────────────────────────────
@@ -128,8 +129,13 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
     case "availability_checked": {
       const d = ev.meta?.date;
       const free = ev.meta?.available;
-      return `📅 A verificat disponibilitatea pentru ${d || "o dată"}${free === false ? " — ocupată" : free === true ? " — liberă" : ""}.`;
+      const type = eventTypeLabel(ev.meta?.eventType);
+      return `📅 A verificat disponibilitatea pentru ${d || "o dată"}${type ? ` (${type})` : ""}${free === false ? " — ocupată" : free === true ? " — liberă" : ""}.`;
     }
+    case "guide_downloaded":
+      return `📘 A descărcat ${ev.label || "ghidul PDF"}.`;
+    case "event_type_selected":
+      return `🎉 A ales tipul evenimentului: ${eventTypeLabel(ev.meta?.eventType) ?? "nespecificat"}.`;
     case "form_started": {
       const kind = ev.meta?.kind;
       if (kind === "delivery") return `Completează adresa de livrare…`;

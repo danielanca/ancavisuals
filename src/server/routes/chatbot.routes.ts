@@ -5,6 +5,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { getStartingPrices } from "./startingPrices.routes";
+import { STARTING_PRICE_TYPES } from "../../shared/pricing/startingPrices";
 
 type PricePackage = {
   id: string;
@@ -61,6 +63,11 @@ CONTACT ȘI REZERVARE:
 Dacă nu știi răspunsul la o întrebare specifică, îndrumă clientul să contacteze direct echipa prin pagina de contact.
 Nu inventa prețuri sau servicii care nu sunt menționate mai sus.`;
 
+async function startingPricesText(): Promise<string> {
+  const prices = await getStartingPrices();
+  return `PREȚURI DE PORNIRE PE TIP DE EVENIMENT (pachete foto-video):\n${STARTING_PRICE_TYPES.map((t) => `- ${t.label}: de la ${prices[t.key]} EUR`).join("\n")}`;
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -77,7 +84,7 @@ router.post("/", async (req: Request, res: Response) => {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 500,
-      system: SYSTEM_PROMPT,
+      system: `${SYSTEM_PROMPT}\n\n${await startingPricesText()}`,
       messages,
     });
 

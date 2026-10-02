@@ -111,3 +111,28 @@ export function numberDailyVisitors(records: DailyVisitorRecord[]): Record<strin
   }
   return result;
 }
+
+const AI_NAMES: Record<string, string> = {
+  chatgpt: "ChatGPT", "chatgpt.com": "ChatGPT", "chat.openai.com": "ChatGPT", openai: "ChatGPT",
+  claude: "Claude", "claude.ai": "Claude", gemini: "Gemini", "gemini.google.com": "Gemini",
+  perplexity: "Perplexity", "perplexity.ai": "Perplexity", grok: "Grok", "grok.com": "Grok",
+  copilot: "Copilot", "copilot.microsoft.com": "Copilot",
+};
+
+/** Human source for notifications: "Google Ads", "Google organic", "ChatGPT", "Instagram", "Alt site (x.ro)"… */
+export function visitSourceLabel(attr: VisitAttribution, legacyGoogleAds = false): string {
+  const source = visitSource(attr, legacyGoogleAds);
+  let host = "";
+  try { host = new URL(attr.referrer ?? "").hostname.toLowerCase().replace(/^www\./, ""); } catch { /* none */ }
+  const utm = (attr.utmSource ?? "").trim().toLowerCase();
+  switch (source) {
+    case "google_ads": return "Google Ads";
+    case "organic": return /(^|\.)google\./.test(host) || utm === "google" ? "Google organic" : `Căutare organică${host ? ` (${host})` : ""}`;
+    case "ai": return AI_NAMES[utm] ?? AI_NAMES[host] ?? "AI / LLM";
+    case "instagram": return "Instagram";
+    case "facebook": return "Facebook";
+    case "tiktok": return "TikTok";
+    case "referral": return `Alt site${host || utm ? ` (${host || utm})` : ""}`;
+    default: return "Direct / necunoscut";
+  }
+}

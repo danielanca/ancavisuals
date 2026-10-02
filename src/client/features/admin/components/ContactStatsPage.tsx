@@ -152,6 +152,24 @@ export default function ContactStatsPage() {
               {data.truncated && " Atenție: intervalul are prea multe sesiuni, rezultatul e parțial."}
             </p>
 
+            {data.availabilityByEventType.length > 0 && (
+              <section className="space-y-2">
+                <h2 className="text-neutral-400 text-xs uppercase tracking-wider">Verificări disponibilitate pe tip de eveniment</h2>
+                <div className="flex flex-wrap gap-2">
+                  {data.availabilityByEventType.map((row) => (
+                    <div key={row.eventType} className="rounded-xl border border-neutral-800 bg-neutral-900/50 px-4 py-3 min-w-[120px]">
+                      <p className="text-neutral-500 text-xs">{row.eventType}</p>
+                      <p className="text-white text-2xl font-light tabular-nums">{row.checks.visitors}</p>
+                      <p className="text-neutral-600 text-xs">persoane · {row.checks.clicks} verificări</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-neutral-600 text-xs">
+                  „Nespecificat” = verificări din configuratorul /contact unde omul n-a ajuns la pasul cu tipul evenimentului, sau verificări mai vechi de această schimbare.
+                </p>
+              </section>
+            )}
+
             <CountsTable
               title="Pe sursă de trafic"
               rows={sources.map(([key, v]) => ({ key, label: SOURCE_LABEL[key] ?? key, extra: `${v.visitors} vizitatori`, counts: v.counts }))}
