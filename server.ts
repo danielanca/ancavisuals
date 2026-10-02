@@ -40,6 +40,7 @@ import contractClauseTemplatesRouter from "./src/server/routes/contractClauseTem
 import loginEventsRouter from "./src/server/routes/loginEvents.routes";
 import landingRouter from "./src/server/routes/landing.routes";
 import instagramProposalsRouter from "./src/server/routes/instagramProposals.routes";
+import proposalLinksRouter from "./src/server/routes/proposalLinks.routes";
 import showcaseZonesRouter from "./src/server/routes/showcase-zones.routes";
 import albumSubscriptionsRouter from "./src/server/routes/albumSubscriptions.routes";
 import qrMomentsRouter from "./src/server/routes/qrMoments.routes";
@@ -69,7 +70,6 @@ import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
-import { startCollaboratorInviteReminderCron } from "./src/server/cron/collaboratorInviteReminder.cron";
 import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
 import { startReverseChargeVatCron } from "./src/server/cron/reverseChargeVat.cron";
 // import { startHealthStepsReminderCron } from "./src/server/cron/healthStepsReminder.cron"; // dezactivat — health tracker nu mai e folosit
@@ -214,6 +214,7 @@ async function createServer() {
   app.use("/api/admin/landing", landingRouter);
   app.use("/api/admin/health", healthRouter);
   app.use("/api/instagram-proposals", instagramProposalsRouter);
+  app.use("/api/proposal-links", proposalLinksRouter);
   app.use("/api/showcase-zones", showcaseZonesRouter);
   app.use("/api/album-subscriptions", albumSubscriptionsRouter);
   app.use("/api/qr-moments", qrMomentsRouter);
@@ -239,7 +240,6 @@ async function createServer() {
   startPostEventBackupCron();
   startErrorsCron();
   startRemindersCron();
-  startCollaboratorInviteReminderCron();
   startAlbumZipCheckCron();
   // startHealthStepsReminderCron(); // dezactivat — health tracker nu mai e folosit
   startPhotoboothNotifyCron();

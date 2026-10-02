@@ -7,7 +7,7 @@ import { isLocalIp } from "../controllers/triggerEvent.controller";
 import { logActivity } from "../services/activity.service";
 import { blockEmail, sendViaFunnel, type BlockCode } from "../notifications/emailFunnel";
 import { adminUser } from "../constants/credentials";
-import { BOT_UA } from "../utils/botUa";
+import { BOT_UA, isCrawlerIp } from "../utils/botUa";
 import { visitDay } from "../../shared/liveVisits";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
@@ -86,7 +86,7 @@ analyticsPublicRouter.post("/contact-click", async (req: Request, res: Response)
 
     const ip = getClientIp(req) ?? "";
     const ua = req.headers["user-agent"] ?? "";
-    const gate: BlockCode | null = isLocalIp(ip) ? "local-ip" : isAdminRequest(req) ? "admin" : BOT_UA.test(ua) ? "bot" : null;
+    const gate: BlockCode | null = isLocalIp(ip) ? "local-ip" : isAdminRequest(req) ? "admin" : BOT_UA.test(ua) || isCrawlerIp(ip) ? "bot" : null;
     if (gate) {
       void blockEmail(funnelBase, gate, `${page || "/"} · ${ua.slice(0, 80)}`);
       return res.json({ ok: true });
@@ -169,7 +169,7 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
     if (BOT_UA.test(ua)) return res.json({ ok: true });
 
     const ip = getClientIp(req);
-    if (isLocalIp(ip ?? "")) return res.json({ ok: true });
+    if (isLocalIp(ip ?? "") || isCrawlerIp(ip ?? "")) return res.json({ ok: true });
     const ipInfo = await fetchIpInfo(ip).catch(() => null);
 
     const db = firestore();

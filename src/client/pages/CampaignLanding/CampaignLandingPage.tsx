@@ -5,7 +5,6 @@ import { getCookie } from "../../utils/functions";
 import { openCookieSettings } from "../../utils/cookieConsent";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
 import {
-  fireAdsAvailabilityMicroConversion,
   fireAdsContactClickConversion,
   fireAdsLeadConversion,
 } from "../../utils/googleAds";
@@ -291,7 +290,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   };
   const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => {
     measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
-    fireAdsContactClickConversion();
+    // WhatsApp links are counted by the site-wide listener; the phone reveal is a button, not a link.
+    if (eventName === "click_phone") fireAdsContactClickConversion();
   };
 
   const msLeft = Math.max(0, PROMO_DEADLINE - now);
@@ -308,7 +308,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     trackFormAction();
     setAvailStatus("checking");
     const available = !bookedDates.includes(form.eventDate);
-    fireAdsAvailabilityMicroConversion();
     window.setTimeout(() => setAvailStatus(available ? "available" : "unavailable"), 400);
     reportAvailabilityCheck(formatDateRo(form.eventDate), form.eventDate, available, form.eventType);
     measureOaiq("availability_checked", { page_path: `/oferta/${page.slug}` });

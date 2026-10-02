@@ -55,11 +55,22 @@ export function fireAdsLeadConversion(
   fireAdsConversion(AW_LEAD_SEND_TO, params);
 }
 
+// One person tapping WhatsApp three times is still one contact: these signals
+// fire at most once per browser session so repeats never inflate the count.
+function firstThisSession(key: string): boolean {
+  try {
+    const storageKey = `ads-conv:${key}`;
+    if (sessionStorage.getItem(storageKey)) return false;
+    sessionStorage.setItem(storageKey, "1");
+  } catch { /* storage blocked — fall back to firing every time */ }
+  return true;
+}
+
 // WhatsApp click / "Afișează numărul" reveal — a lighter-weight signal than a
 // full lead submission, so it's its own conversion action rather than reusing
 // fireAdsLeadConversion.
 export function fireAdsContactClickConversion(params: { phone?: string } = {}): void {
-  fireAdsConversion(AW_CONTACT_CLICK_SEND_TO, params);
+  if (firstThisSession("contact")) fireAdsConversion(AW_CONTACT_CLICK_SEND_TO, params);
 }
 
 export function fireAdsPhoneRevealMicroConversion(): void {
@@ -67,5 +78,26 @@ export function fireAdsPhoneRevealMicroConversion(): void {
 }
 
 export function fireAdsAvailabilityMicroConversion(): void {
-  fireAdsConversion(AW_AVAILABILITY_MICRO_SEND_TO, { value: 0 });
+  if (firstThisSession("availability")) fireAdsConversion(AW_AVAILABILITY_MICRO_SEND_TO, { value: 0 });
+}
+
+export const isWhatsAppHref = (href: string) => /wa\.me|wa\.link|whatsapp\.com|api\.whatsapp/i.test(href);
+
+// Album clients (/media) and admin are existing customers, not ad leads.
+const CONTACT_TRACKING_EXCLUDED = /^\/(media|admin)(\/|$)/;
+
+/**
+ * Site-wide: any WhatsApp or tel: link click counts as "Persoană de contact",
+ * not just the buttons on /oferta/:slug — ad visitors often reach the footer
+ * or homepage before writing.
+ */
+export function installAdsContactClickTracking(): () => void {
+  const onClick = (e: MouseEvent) => {
+    if (CONTACT_TRACKING_EXCLUDED.test(window.location.pathname)) return;
+    const link = (e.target as Element | null)?.closest?.("a[href]");
+    const href = link?.getAttribute("href") ?? "";
+    if (isWhatsAppHref(href) || href.toLowerCase().startsWith("tel:")) fireAdsContactClickConversion();
+  };
+  document.addEventListener("click", onClick, true);
+  return () => document.removeEventListener("click", onClick, true);
 }

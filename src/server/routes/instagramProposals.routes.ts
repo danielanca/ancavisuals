@@ -6,7 +6,6 @@ import { OFFER_SERVICES, normalizeOfferServiceIds } from "../../shared/offers/of
 import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
-import { markCollaboratorInviteCompleted } from "../services/collaboratorInvite.service";
 import { generateRomanianAlt } from "../lib/imageAlt";
 
 const router = express.Router();
@@ -170,12 +169,6 @@ router.post("/", requireFirebaseAuth, async (req: Request, res: Response) => {
       status: "pending",
       destinations: normalizedDestinations,
       mediaAssetServiceIds: normalizedServiceIds,
-    });
-
-    await markCollaboratorInviteCompleted({
-      email: authReq.firebaseEmail,
-      albumSlug,
-      actionType: "instagram",
     });
 
     res.status(201).json({ ok: true, id: docRef.id });

@@ -67,6 +67,7 @@ import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
 import { useVisitorNotification } from "./hooks/useVisitorNotification";
 import { useLiveVisitor } from "./hooks/useLiveVisitor";
 import { captureLandingMeta } from "./utils/sessionAttribution";
+import { installAdsContactClickTracking } from "./utils/googleAds";
 import publicRoutes from "./routes/publicRoutes";
 import { adminRoutes } from "./routes/adminRoutes";
 import { weddingHubRoutes } from "./routes/weddingHubRoutes";
@@ -80,7 +81,7 @@ const NotFoundPage = loadable(() => import("./pages/NotFoundPage"), { fallback: 
 // QR moments, photobooth & invitation pages, contracts, admin.
 const HIDE_LIVE_CHAT_PREFIXES = [
   "/admin", "/login", "/colaborator",
-  "/media", "/album", "/backup", "/share", "/delivery-address",
+  "/media", "/album", "/backup", "/share", "/propune", "/delivery-address",
   "/qr-moments", "/qr-code",
   "/fotocabina", "/galerie-fotocabina",
   "/invitatie", "/invite", "/wedding-hub",
@@ -104,6 +105,8 @@ export const App = () => {
   useEffect(() => {
     captureLandingMeta();
   }, []);
+
+  useEffect(() => installAdsContactClickTracking(), []);
 
   const suppressCookieBot = location.pathname.startsWith("/media") || location.pathname.startsWith("/admin") || location.pathname.startsWith("/bio");
 

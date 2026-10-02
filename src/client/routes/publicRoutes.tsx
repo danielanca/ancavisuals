@@ -21,6 +21,7 @@ function OfertaIndexRedirect() {
 const ContactPage = loadable(() => import("../pages/Contact/ContactPage"), opts(true));
 const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), opts(true));
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), opts(true));
+const ProposalLinkPage = loadable(() => import("../pages/MediaDownload/ProposalLinkPage"), opts(false));
 const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerificationPage"), opts(true));
 const InvitationLandingPage = loadable(() => import("../pages/InvitationLanding/InvitationLandingPage"), opts(true));
 const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMomentsPage"), opts(true));
@@ -140,6 +141,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/share/:id",
     layout: null,
     component: SharePage,
+  },
+  {
+    path: "/propune/:token",
+    layout: null,
+    component: ProposalLinkPage,
   },
   {
     path: "/invitatie/:slug",

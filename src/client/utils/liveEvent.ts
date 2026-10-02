@@ -1,5 +1,6 @@
 import { captureLandingMeta, getLandingMeta } from "./sessionAttribution";
 import { isBrowser } from "./functions";
+import { fireAdsAvailabilityMicroConversion } from "./googleAds";
 import { getSessionId, getVisitorId } from "./visitorSession";
 
 type Priority = "low" | "normal" | "high" | "critical";
@@ -38,13 +39,18 @@ export function sendLiveEvent(event: string, extra: LiveEventExtra = {}): void {
   }
 }
 
-/** Someone checked whether a date is free — the owner gets an email with the date. */
+/**
+ * Someone checked whether a date is free: shows in /admin/live and sends the
+ * Google Ads "Verificare disponibilitate" micro-conversion from every checker
+ * (landing, /contact configurator, /bio).
+ */
 export function reportAvailabilityCheck(
   humanDate: string,
   dateKey: string,
   available: boolean,
   eventType?: string,
 ): void {
+  fireAdsAvailabilityMicroConversion();
   sendLiveEvent("availability_checked", {
     priority: "high",
     label: humanDate,

@@ -1,10 +1,11 @@
 import { numberDailyVisitors, visitDayBounds, visitSource } from "../../shared/liveVisits";
+import { summarizeContactStats, type ContactStatsSession } from "../../shared/contactStats";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { firestore } from "../firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { isLocalIp } from "../controllers/triggerEvent.controller";
-import { BOT_UA } from "../utils/botUa";
+import { BOT_UA, isCrawlerIp } from "../utils/botUa";
 import { logActivity } from "../services/activity.service";
 import { blockEmail, sendViaFunnel, type BlockCode, type FunnelEmail } from "../notifications/emailFunnel";
 import { adminUser } from "../constants/credentials";
@@ -153,7 +154,7 @@ function untrackedReason(req: Request, page?: string): BlockCode | "skip-page" |
   // localhost IP, or the panel can never be exercised. Production still does.
   if (IS_PROD && isAdminRequest(req)) return "admin";
   const ua = String(req.headers["user-agent"] ?? "");
-  if (!ua || BOT_UA.test(ua)) return "bot";
+  if (!ua || BOT_UA.test(ua) || isCrawlerIp(getClientIp(req) ?? "")) return "bot";
   if (IS_PROD && isLocalIp(getClientIp(req) ?? "")) return "local-ip";
   if (page && SKIP_PREFIXES.some((p) => page.startsWith(p))) return "skip-page";
   return null;
@@ -369,7 +370,7 @@ liveVisitorsAdminRouter.get(
       // Paginate the scanned documents, including archived records. No skipped gaps.
       const snap = await query.limit(limit).get();
       const items = snap.docs
-        .filter((doc) => Boolean(doc.data().archived) === wantArchived)
+        .filter((doc) => Boolean(doc.data().archived) === wantArchived && !isCrawlerIp(String(doc.data().ip ?? "")))
         .map((doc) => {
           const d = doc.data();
           delete d.updatedAt;
@@ -386,6 +387,53 @@ liveVisitorsAdminRouter.get(
       res.json({ sessions: items, visitorNumbers, nextCursor: snap.size === limit ? snap.docs[snap.docs.length - 1].id : null, date: day || null });
     } catch (error) {
       console.error("[live-visitors] GET /live/history failed:", error);
+      res.status(500).json({ error: "failed" });
+    }
+  },
+);
+
+// GET /api/admin/analytics/live/contact-stats?from=YYYY-MM-DD&to=YYYY-MM-DD
+// WhatsApp / "Afișează numărul" / tel: / availability clicks, aggregated from live_sessions.
+const CONTACT_STATS_MAX_DAYS = 92;
+const CONTACT_STATS_MAX_SESSIONS = 20_000;
+liveVisitorsAdminRouter.get(
+  "/analytics/live/contact-stats",
+  requireFirebaseAuth,
+  requireSupremeAdmin,
+  async (req: Request, res: Response) => {
+    let start: number;
+    let end: number;
+    try {
+      start = visitDayBounds(String(req.query.from ?? "")).start;
+      end = visitDayBounds(String(req.query.to ?? "")).end;
+    } catch {
+      return res.status(400).json({ error: "Interval invalid." });
+    }
+    if (end <= start || end - start > CONTACT_STATS_MAX_DAYS * 86_400_000 + 7_200_000) {
+      return res.status(400).json({ error: `Intervalul poate avea cel mult ${CONTACT_STATS_MAX_DAYS} de zile.` });
+    }
+    try {
+      const snap = await firestore().collection("live_sessions")
+        .where("startedAtMs", ">=", start)
+        .where("startedAtMs", "<", end)
+        .limit(CONTACT_STATS_MAX_SESSIONS)
+        .get();
+      // Archived sessions are the ones hidden from /admin/live (own visits, noise); Meta crawlers recorded before the IP filter too.
+      const sessions: ContactStatsSession[] = snap.docs
+        .filter((doc) => !doc.data().archived && !isCrawlerIp(String(doc.data().ip ?? "")))
+        .map((doc) => {
+          const d = doc.data();
+          return {
+            sessionId: doc.id,
+            visitorId: typeof d.visitorId === "string" ? d.visitorId : "",
+            startedAtMs: d.startedAtMs, firstSeenAt: d.firstSeenAt,
+            attribution: d.attribution ?? {}, isGoogleAds: Boolean(d.isGoogleAds),
+            events: Array.isArray(d.events) ? d.events : [],
+          };
+        });
+      res.json({ ...summarizeContactStats(sessions), truncated: snap.size === CONTACT_STATS_MAX_SESSIONS });
+    } catch (error) {
+      console.error("[live-visitors] GET /live/contact-stats failed:", error);
       res.status(500).json({ error: "failed" });
     }
   },
