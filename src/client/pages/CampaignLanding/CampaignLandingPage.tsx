@@ -15,6 +15,7 @@ import { startingPriceFor } from "../../../shared/pricing/startingPrices";
 import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
 import PortfolioParallaxGallery from "../Portfolio/PortfolioParallaxGallery";
 import GuideBook from "./GuideBook";
+import CampaignVideoPlayer from "./CampaignVideoPlayer";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -58,6 +59,8 @@ export interface CampaignPackage {
   id: string;
   name: string;
   price: string;
+  /** Previous price, shown struck through next to `price` (a discount). */
+  oldPrice?: string;
   features: string[];
   highlighted?: boolean;
 }
@@ -703,32 +706,27 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
       {(page.videoUrl || page.heroVideoUrl) && (
-        <section className="py-20 sm:py-24 px-6 max-w-5xl mx-auto border-b border-white/10">
-          <div className="mb-8 text-center">
+        <section className="py-20 sm:py-24 border-b border-white/10">
+          <div className="mb-8 px-6 text-center">
             <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
             <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-            <div className="aspect-video w-full">
-              {isEmbedVideoUrl(page.videoUrl ?? "") ? (
-                <iframe
-                  src={page.videoUrl}
-                  className="h-full w-full"
-                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                  allowFullScreen
-                />
-              ) : (
-                <video
-                  src={page.videoUrl || page.heroVideoUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  poster={page.videoThumbnailUrl || undefined}
-                  className="h-full w-full object-contain"
-                />
-              )}
+          {/* Edge to edge: no side padding, no rounded corners, no border. */}
+          {isEmbedVideoUrl(page.videoUrl ?? "") ? (
+            <div className="aspect-video w-full bg-black">
+              <iframe
+                src={page.videoUrl}
+                className="h-full w-full"
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                allowFullScreen
+              />
             </div>
-          </div>
+          ) : (
+            <CampaignVideoPlayer
+              src={(page.videoUrl || page.heroVideoUrl) as string}
+              poster={page.videoThumbnailUrl || undefined}
+            />
+          )}
         </section>
       )}
 
@@ -758,7 +756,17 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                       </span>
                     )}
                     <h3 className="text-white font-semibold text-lg mb-1">{pkg.name}</h3>
-                    <p className={`text-2xl font-light mb-5 ${accent.price}`}>{pkg.price}</p>
+                    {pkg.oldPrice?.trim() ? (
+                      <div className="mb-5">
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <span className="text-lg font-light text-neutral-500 line-through decoration-red-400/80 decoration-2">{pkg.oldPrice}</span>
+                          <span className={`text-2xl font-semibold ${accent.price}`}>{pkg.price}</span>
+                        </div>
+                        <span className="mt-2 inline-block rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-red-300">Preț redus</span>
+                      </div>
+                    ) : (
+                      <p className={`text-2xl font-light mb-5 ${accent.price}`}>{pkg.price}</p>
+                    )}
                     <ul className="space-y-2 flex-1">
                       {pkg.features.map((feature, featureIndex) => (
                         <li key={featureIndex} className="flex items-start gap-2 text-sm text-neutral-300">
@@ -931,6 +939,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </div>
       </section>
 
+      {promoAtPageEnd && <AncaVisualsPromo desktopColumns={4} />}
+
       <div className="py-6 text-center">
         <p className="text-neutral-700 text-xs">© Ancavisuals · ancavisuals.ro</p>
         <button
@@ -940,15 +950,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         >
           Setări cookie
         </button>
-      </div>
-
-      {promoAtPageEnd && <AncaVisualsPromo desktopColumns={4} />}
-
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-neutral-950/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:hidden">
-        <div className="mx-auto flex max-w-lg gap-2">
-          <a href="#verifica-data" className="flex-1 rounded-xl bg-amber-500 px-3 py-3 text-center text-xs font-bold text-neutral-950">Verifică data</a>
-          <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "sticky_mobile")} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-green-500 px-3 py-3 text-xs font-bold text-white"><WhatsAppIcon /> WhatsApp</a>
-        </div>
       </div>
     </div>
   );

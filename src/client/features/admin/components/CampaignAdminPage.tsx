@@ -148,6 +148,39 @@ const initialState: State = {
   creating: false,
 };
 
+// ─── Package price editor (price + optional struck-through old price) ─────────
+
+function PackagePriceEditor({ pkg, onSave }: { pkg: CampaignPackage; onSave: (price: string, oldPrice: string) => Promise<void> }) {
+  const [price, setPrice] = React.useState(pkg.price);
+  const [oldPrice, setOldPrice] = React.useState(pkg.oldPrice ?? "");
+  const [status, setStatus] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
+  const dirty = price.trim() !== pkg.price || oldPrice.trim() !== (pkg.oldPrice ?? "");
+
+  async function save() {
+    setStatus("saving");
+    try {
+      await onSave(price, oldPrice);
+      setStatus("saved");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <input aria-label="Preț" className="w-24 bg-neutral-900 text-amber-400 rounded px-2 py-1 text-xs" value={price} onChange={(e) => { setPrice(e.target.value); setStatus("idle"); }} />
+      <input aria-label="Preț vechi (tăiat)" placeholder="preț vechi" className="w-24 bg-neutral-900 text-neutral-400 line-through rounded px-2 py-1 text-xs placeholder:no-underline placeholder:text-neutral-600" value={oldPrice} onChange={(e) => { setOldPrice(e.target.value); setStatus("idle"); }} />
+      {dirty && price.trim() && (
+        <button type="button" onClick={() => void save()} disabled={status === "saving"} className="text-[11px] text-amber-500 hover:text-amber-400 disabled:opacity-50">
+          {status === "saving" ? "…" : "Salvează"}
+        </button>
+      )}
+      {status === "saved" && !dirty && <span className="text-[11px] text-green-500">Salvat</span>}
+      {status === "error" && <span className="text-[11px] text-red-500">Eroare</span>}
+    </div>
+  );
+}
+
 // ─── Add Package Modal ────────────────────────────────────────────────────────
 
 interface AddPackageModalProps {
@@ -156,7 +189,7 @@ interface AddPackageModalProps {
 }
 
 function AddPackageModal({ onClose, onSaved }: AddPackageModalProps) {
-  const [form, setForm] = React.useState({ name: "", price: "", featuresText: "", highlighted: false });
+  const [form, setForm] = React.useState({ name: "", price: "", oldPrice: "", featuresText: "", highlighted: false });
   const [saving, setSaving] = React.useState(false);
 
   async function handleSubmit(event: React.FormEvent) {
@@ -164,7 +197,10 @@ function AddPackageModal({ onClose, onSaved }: AddPackageModalProps) {
     setSaving(true);
     try {
       const features = form.featuresText.split("\n").map((line) => line.trim()).filter(Boolean);
-      const pkg: CampaignPackage = { id: Date.now().toString(), name: form.name, price: form.price, features, highlighted: form.highlighted };
+      const pkg: CampaignPackage = {
+        id: Date.now().toString(), name: form.name, price: form.price, features, highlighted: form.highlighted,
+        ...(form.oldPrice.trim() ? { oldPrice: form.oldPrice.trim() } : {}),
+      };
       onSaved(pkg);
     } finally {
       setSaving(false);
@@ -178,6 +214,7 @@ function AddPackageModal({ onClose, onSaved }: AddPackageModalProps) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <input className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm" placeholder="Nume pachet (ex: Esențial)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           <input className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm" placeholder="Preț (ex: 1500 EUR)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
+          <input className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm" placeholder="Preț vechi, tăiat (opțional, ex: 1800 EUR)" value={form.oldPrice} onChange={(e) => setForm({ ...form, oldPrice: e.target.value })} />
           <div>
             <label className="text-xs text-neutral-400 mb-1 block">Ce include (câte un item pe rând)</label>
             <textarea className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm resize-none" rows={4} placeholder="Fotografie\nFilmare\nAlbum online" value={form.featuresText} onChange={(e) => setForm({ ...form, featuresText: e.target.value })} />
@@ -501,6 +538,12 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
     }
   }
 
+  async function handleSavePackagePrice(packageId: string, price: string, oldPrice: string) {
+    const patch = { id: packageId, price: price.trim(), oldPrice: oldPrice.trim() };
+    await apiPut(`/api/campaign/${page.slug}/packages`, patch);
+    dispatch({ type: "PATCH_EDITING", patch: { packages: page.packages.map((pkg) => (pkg.id === packageId ? { ...pkg, ...patch } : pkg)) } });
+  }
+
   async function handleDeletePackage(packageId: string) {
     await apiDelete(`/api/campaign/${page.slug}/packages/${packageId}`);
     dispatch({ type: "PATCH_EDITING", patch: { packages: page.packages.filter((pkg) => pkg.id !== packageId) } });
@@ -765,7 +808,7 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
                   <div>
                     <span className="text-white text-xs font-medium">{pkg.name}</span>
                     {pkg.highlighted && <span className="ml-2 text-[10px] text-amber-400">Popular</span>}
-                    <p className="text-amber-400 text-xs mt-0.5">{pkg.price}</p>
+                    <PackagePriceEditor pkg={pkg} onSave={(price, oldPrice) => handleSavePackagePrice(pkg.id, price, oldPrice)} />
                     <p className="text-neutral-500 text-xs mt-1">{pkg.features.length} item-uri</p>
                   </div>
                   <button onClick={() => handleDeletePackage(pkg.id)} className="text-xs text-red-500 hover:text-red-400 flex-shrink-0">Șterge</button>

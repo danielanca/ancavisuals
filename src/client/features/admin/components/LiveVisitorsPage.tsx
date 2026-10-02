@@ -132,6 +132,8 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
       const type = eventTypeLabel(ev.meta?.eventType);
       return `📅 A verificat disponibilitatea pentru ${d || "o dată"}${type ? ` (${type})` : ""}${free === false ? " — ocupată" : free === true ? " — liberă" : ""}.`;
     }
+    case "chat_opened":
+      return `💬 A deschis chatul „Conversați cu noi”.`;
     case "guide_downloaded":
       return `📘 A descărcat ${ev.label || "ghidul PDF"}.`;
     case "event_type_selected":

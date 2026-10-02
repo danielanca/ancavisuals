@@ -72,6 +72,7 @@ import publicRoutes from "./routes/publicRoutes";
 import { adminRoutes } from "./routes/adminRoutes";
 import { weddingHubRoutes } from "./routes/weddingHubRoutes";
 import LiveChat, { isLiveChatConfigured } from "./features/chat/components/LiveChat";
+import ChatWithUs from "./features/chat/components/ChatWithUs";
 
 const AncaChat = loadable(() => import("./features/chat/components/AncaChat"), { fallback: <></> });
 const NotFoundPage = loadable(() => import("./pages/NotFoundPage"), { fallback: <AncaLoader /> });
@@ -93,6 +94,7 @@ const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/contract", "/revin", "/colabor
 export const App = () => {
   const location = useLocation();
   const [mediaPromoVisible, setMediaPromoVisible] = useState(false);
+  const liveChatVisible = !HIDE_LIVE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
   const isMediaPage = location.pathname.startsWith("/media/");
   const baseChatAllowed = !HIDE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
   const showChat = isMediaPage ? mediaPromoVisible : baseChatAllowed;
@@ -164,7 +166,7 @@ export const App = () => {
           {isErrorReportingEnabled && <ClientDebugBadge />}
           <Suspense fallback={<AncaLoader reportSlowLoad />}>
             {isLiveChatConfigured()
-              ? <LiveChat visible={!HIDE_LIVE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix))} />
+              ? <LiveChat visible={liveChatVisible} />
               : showChat && <AncaChat />}
             <Routes>
               {publicRoutes.map((route) => (
@@ -174,6 +176,8 @@ export const App = () => {
               {weddingHubRoutes}
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
+            {/* Replaces Tidio's side tab: an end-of-page invitation that opens the chat. */}
+            {isLiveChatConfigured() && liveChatVisible && <ChatWithUs />}
           </Suspense>
           </ChunkErrorBoundary>
       </AuthProvider>

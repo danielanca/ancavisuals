@@ -51,10 +51,11 @@ export default function GuideBook() {
   // A click opens it right away (no dwell wait) or restarts the walk; it never downloads.
   const [clicks, setClicks] = useState(0);
 
-  // Opens once the visitor lingers on the section (any device), closes when they scroll away.
+  // Desktop: opens once the visitor lingers on the section, closes when they scroll away.
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia?.("(max-width: 767px)").matches) return; // phones: stays closed unless tapped
     let timer: number | undefined;
     const observer = new IntersectionObserver(([entry]) => {
       window.clearTimeout(timer);

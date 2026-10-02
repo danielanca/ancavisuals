@@ -56,4 +56,13 @@ describe("GuideBook", () => {
     act(() => { fireEvent.click(book()); });
     expect(book().className).toContain("guide-book--open");
   });
+
+  test("on phones it stays closed until tapped", () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("max-width") }));
+    render(<GuideBook />);
+    act(() => { fire(true); vi.advanceTimersByTime(5_000); });
+    expect(book().className).not.toContain("guide-book--open");
+    act(() => { fireEvent.click(book()); });
+    expect(book().className).toContain("guide-book--open");
+  });
 });

@@ -90,4 +90,12 @@ describe("availability result", () => {
     render(<MemoryRouter><CampaignLandingPage page={{ ...page, slug: "botez" }} /></MemoryRouter>);
     expect(screen.queryByText(/Ghidul Mirilor/)).not.toBeInTheDocument();
   });
+
+  test("a discounted package shows the old price struck through next to the new one", () => {
+    const discounted = { ...page, packages: [{ id: "f", name: "FULL - Fotocabina", price: "950 EURO", oldPrice: "1200 EURO", features: [] }] };
+    render(<MemoryRouter><CampaignLandingPage page={discounted} /></MemoryRouter>);
+    expect(screen.getByText("1200 EURO").className).toContain("line-through");
+    expect(screen.getByText("950 EURO")).toBeInTheDocument();
+    expect(screen.getByText("Preț redus")).toBeInTheDocument();
+  });
 });
