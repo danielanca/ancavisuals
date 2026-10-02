@@ -25,6 +25,23 @@ interface BankStatementEntry {
   matchedFileUrl: string | null;
   reviewCandidates?: ReviewCandidate[] | null;
   dismissed?: boolean;
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
+}
+
+interface BalanceCheck {
+  currency: string;
+  openingBalance: number;
+  closingBalance: number;
+  expectedNet: number;
+  extractedNet: number;
+  difference: number;
+}
+
+interface Reconciliation {
+  status: "ok" | "mismatch" | "unavailable" | "csv";
+  checks: BalanceCheck[];
+  retried: boolean;
 }
 
 interface BankStatement {
@@ -40,6 +57,8 @@ interface BankStatement {
   entries: BankStatementEntry[];
   unmatchedCount: number;
   reviewCount?: number;
+  source?: "csv" | "ai";
+  reconciliation?: Reconciliation | null;
   createdAt: string;
 }
 
@@ -160,6 +179,39 @@ function EmptyStatementRow({
         </div>
       </div>
     </details>
+  );
+}
+
+function ReconciliationBadge({ statement }: { statement: BankStatement }) {
+  const status = statement.reconciliation?.status;
+  if (status === "csv") {
+    return <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs font-medium text-emerald-400" title="Tranzacțiile au fost citite direct din fișierul CSV">CSV</span>;
+  }
+  if (status === "ok") {
+    return <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs font-medium text-emerald-400" title="Sold inițial + încasări − plăți = sold final">Sold verificat ✓</span>;
+  }
+  if (status === "mismatch") {
+    return <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-medium text-red-400" title="Tranzacțiile extrase nu închid soldul — verifică extrasul">Soldul nu se închide</span>;
+  }
+  if (status === "unavailable") {
+    return <span className="rounded bg-neutral-700/50 px-1.5 py-0.5 text-xs font-medium text-neutral-400" title="Extrasul nu arată soldul inițial/final, deci nu s-a putut verifica">Sold neverificat</span>;
+  }
+  return null;
+}
+
+function ReconciliationWarning({ reconciliation }: { reconciliation?: Reconciliation | null }) {
+  if (reconciliation?.status !== "mismatch") return null;
+  return (
+    <div className="mb-3 space-y-1 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
+      <p className="font-medium">
+        Tranzacțiile extrase nu închid soldul{reconciliation.retried ? " nici după a doua citire" : ""} — probabil lipsește, e dublată sau e citită greșit cel puțin o tranzacție. Compară cu extrasul sau încarcă exportul CSV.
+      </p>
+      {reconciliation.checks.filter((check) => Math.abs(check.difference) >= 0.02).map((check) => (
+        <p key={check.currency}>
+          {check.currency}: sold {fmtCurrency(check.openingBalance, check.currency)} → {fmtCurrency(check.closingBalance, check.currency)} (net {fmtCurrency(check.expectedNet, check.currency)}), tranzacții extrase net {fmtCurrency(check.extractedNet, check.currency)} · diferență <strong>{fmtCurrency(check.difference, check.currency)}</strong>
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -305,13 +357,13 @@ function AddBankStatementModal({ accessToken, selectedYear, knownAccounts, defau
             <input
               type="file"
               multiple
-              accept="image/*,.pdf,application/pdf"
+              accept=".csv,text/csv,image/*,.heic,.heif,.pdf,application/pdf"
               onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
               disabled={processing}
               className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-500 disabled:opacity-50"
             />
             <p className="mt-1 text-xs text-neutral-500">
-              Poți selecta mai multe fișiere deodată (ex. extrasele pe mai multe luni). AI extrage toate tranzacțiile din fiecare și încearcă să le lege automat de facturi și cheltuieli deja existente.
+              Poți selecta mai multe fișiere deodată (ex. extrasele pe mai multe luni). Cel mai exact e exportul <strong className="text-neutral-300">CSV</strong> din aplicația băncii (Revolut, BT, ING…) — sumele se citesc direct din fișier. La PDF/poză, AI extrage tranzacțiile și verifică dacă închid soldul inițial → final.
             </p>
             {files.length > 0 && !processing && (
               <ul className="mt-2 space-y-1">
@@ -1117,6 +1169,7 @@ const BankStatementsPage: React.FC = () => {
                         <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${statement.unmatchedCount > 0 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>
                           {statement.unmatchedCount > 0 ? `${statement.unmatchedCount} nejustificate` : "Totul justificat"}
                         </span>
+                        <ReconciliationBadge statement={statement} />
                         {(statement.reviewCount ?? 0) > 0 && (
                           <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-xs font-medium text-sky-400">
                             {statement.reviewCount} de verificat
@@ -1134,6 +1187,7 @@ const BankStatementsPage: React.FC = () => {
                   </summary>
 
                   <div className="border-t border-neutral-800 px-4 pb-4 pt-3">
+                    <ReconciliationWarning reconciliation={statement.reconciliation} />
                     <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-2">
                         <InfoBadge title="Status extras" description="Verde înseamnă că toate tranzacțiile au fost corelate de AI cu facturi sau cheltuieli. Galben înseamnă că au rămas tranzacții fără justificare." />
@@ -1144,7 +1198,7 @@ const BankStatementsPage: React.FC = () => {
                           className="flex items-center gap-1 rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
                         >
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                          Vezi PDF
+                          {statement.source === "csv" ? "Vezi CSV" : "Vezi PDF"}
                         </a>
                       </div>
 
@@ -1188,7 +1242,12 @@ const BankStatementsPage: React.FC = () => {
                             <td className={`px-2 py-2 text-xs font-medium ${entry.direction === "in" ? "text-emerald-400" : "text-red-400"}`}>
                               {entry.direction === "in" ? "Încasare" : "Plată"}
                             </td>
-                            <td className="px-2 py-2 text-right text-white">{fmtCurrency(entry.amount, entry.currency)}</td>
+                            <td className="px-2 py-2 text-right text-white">
+                              {fmtCurrency(entry.amount, entry.currency)}
+                              {entry.originalAmount && entry.originalCurrency && (
+                                <span className="block text-[11px] text-neutral-500">{fmtCurrency(entry.originalAmount, entry.originalCurrency)}</span>
+                              )}
+                            </td>
                             <td className="px-2 py-2 text-neutral-400">
                               <div>{entry.counterparty ?? "—"}</div>
                               {entry.description && <div className="text-xs text-neutral-500">{entry.description}</div>}

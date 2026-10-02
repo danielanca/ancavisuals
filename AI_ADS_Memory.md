@@ -30,3 +30,13 @@
 - Contul are 22 de campanii în total, majoritatea "Întreruptă" (paused) — multe sunt teste vechi (PMAX, Shopping, remarket) din 2024. #ACCOUNT
 - **"AncaVisuals | Search"** — campanie activă separată (nuntă/foto general), 50 RON/zi, licitare "Maximizați numărul de clicuri", scor optimizare 93,2%, a cheltuit deja 35,53 RON. #ACCOUNT
 - Majoritatea celorlalte campanii sunt axate pe fotografie/videografie de nuntă ("acte cununie", "DinIubire", "Fotograf Videograf Turda/Cluj" etc), nu pe funerare — contul e istoric un brand de nuntă (DinIubire = "din iubire"), iar campania de înmormântări e o extensie mai nouă. #ACCOUNT #PITFALL
+
+## Audit 2026-10-02 (ultimele 7 zile, 25 sept – 1 oct)
+- „AncaVisuals | Search” rulează pe **Căutare Google + Rețeaua de display** (extinderea Display activă). 130 clicuri / 346,77 RON / 0 conversii. #PITFALL
+  - Display: 73 clicuri, 0,83 RON/clic, 60 RON, 151 plasări (site-uri de știri locale, felicitări etc.) → de aici CPC mediu „mic” (2,67 RON).
+  - Căutare: 57 clicuri, ~5 RON/clic, 286 RON (ex. „fotograf nunta pret/sibiu/bistrita”, „foto video nunta alba iulia”).
+- Pagini de destinație: `/oferta/olx` (124 clicuri) și `/oferte/olx` (5; 301 → `/oferta/olx`, OK).
+- Site: `live_sessions` are 88 sesiuni Google Ads în aceeași perioadă (vizitatorii ajung); `siteVisits` pe `/oferta/olx` ≈ 82% bounce, mult trafic cu referrer `googlesyndication`/`doubleclick` (Display). `siteVisits` NU salvează gclid, doar utm. #ATTRIBUTION
+- Alertă cont: „Soldul este aproape epuizat” (facturare preplătită) — când se termină, anunțurile se opresc.
+- **2026-10-02: Rețeaua de display DEZACTIVATĂ** pe „AncaVisuals | Search” (campaignId `24155613782`) la cererea userului → Rețele = doar Rețeaua de căutare Google (parteneri de căutare erau deja debifați). Campania de înmormântări nu a fost verificată pentru Display. #RECENT
+- Funnel „Verifică disponibilitatea” (live_sessions din 20 sept, 391 sesiuni): 32 sesiuni au verificat, TOATE rezultatele `available:true`; 4 WhatsApp, 2–3 formulare trimise, 0 lead confirmat. 8 verificări sunt pe data implicită (1 oct / 1 nov 2026, direct + desktop) — probabil teste sau click fără schimbarea datei. Mediana după verificare ≈ 2 min, apoi idle/plecare. Evenimentele din `live_sessions.events[]` au câmpul `name`, nu `type`. #ANALYTICS #PITFALL

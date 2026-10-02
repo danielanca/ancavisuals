@@ -297,7 +297,11 @@ export function buildInvoiceHTML(d: InvoiceData): string {
     <div>
       <div class="party-label">Client</div>
       <div class="party-name">${escHTML(d.buyerName)}</div>
-      ${d.buyerCIF ? `<div class="party-detail">CIF/CNP: ${escHTML(d.buyerCIF)}</div>` : ""}
+      <div class="party-detail">
+        ${d.buyerCIF ? `CIF/CNP: ${escHTML(d.buyerCIF)}<br>` : ""}
+        ${d.buyerAddress ? `${escHTML(d.buyerAddress)}<br>` : ""}
+        ${escHTML([d.buyerCity, d.buyerCounty].filter(Boolean).join(", "))}
+      </div>
     </div>
   </div>
 

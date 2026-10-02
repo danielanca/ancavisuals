@@ -241,6 +241,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       ),
       items: [
         { label: "Calendar", path: "/admin/calendar" },
+        { label: "Taskuri clienți", path: "/admin/taskuri" },
         { label: "Mementouri", path: "/admin/mementos", badge: urgentMementos },
         { label: "Moderare albume", path: "/admin/moderare", badge: pendingModeration },
         { label: "Livrare preview", path: "/admin/livrare-preview", badge: overduePreviews },
@@ -318,6 +319,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "PDF-uri & Ghiduri", path: "/admin/pdf-resources" },
         { label: "Analytics", path: "/admin/analytics" },
         { label: "Vizitatori live", path: "/admin/live" },
+        { label: "Lead-uri & emailuri", path: "/admin/leads" },
       ],
     },
     {
@@ -340,7 +342,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
     const customPaths = customItems[categoryKey];
     if (!customPaths) return defaultItems;
     const allItems = allCategories.flatMap((c) => c.items);
-    return customPaths.map((path) => allItems.find((item) => item.path === path)).filter((item): item is NavItem => item !== undefined);
+    const placed = customPaths.map((path) => allItems.find((item) => item.path === path)).filter((item): item is NavItem => item !== undefined);
+    // Items added to the defaults after the user customised the sidebar would otherwise never show up.
+    const customised = new Set(Object.values(customItems).flat());
+    return [...placed, ...defaultItems.filter((item) => !customised.has(item.path))];
   };
 
   const ESTERA_PATHS = new Set(["/admin/instagram-proposals", "/admin/sanatate"]);

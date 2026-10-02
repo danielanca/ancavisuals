@@ -14,10 +14,10 @@ function createMockResponse() {
   return res;
 }
 
-function buildReq(body: Record<string, unknown>, ip = "89.40.11.22") {
+function buildReq(body: Record<string, unknown>, ip = "89.40.11.22", headers: Record<string, string> = {}) {
   return {
     body,
-    headers: {},
+    headers,
     connection: { remoteAddress: ip },
     socket: { remoteAddress: ip },
   };
@@ -36,6 +36,14 @@ async function loadController() {
     markActivityEmailSent: markActivityEmailSentMock,
     getNotificationSettings: vi.fn().mockResolvedValue({ email: { newVisitor: true, lead: true } }),
   }));
+  const saveLeadMock = vi.fn().mockResolvedValue("lead-id");
+  const updateLeadEmailStatusMock = vi.fn().mockResolvedValue(undefined);
+  const logEmailMock = vi.fn().mockResolvedValue("log-id");
+  vi.doMock("src/server/services/leads.service.js", () => ({
+    saveLead: saveLeadMock,
+    updateLeadEmailStatus: updateLeadEmailStatusMock,
+  }));
+  vi.doMock("src/server/services/emailLog.service.js", () => ({ logEmail: logEmailMock }));
   vi.doMock("src/server/services/googleAdsConversion.service.js", () => ({
     reportLeadConversion: vi.fn().mockResolvedValue(undefined),
     reportContactClickConversion: vi.fn().mockResolvedValue(undefined),
@@ -58,6 +66,9 @@ async function loadController() {
 
   return {
     triggerEvent: module.triggerEvent as Handler,
+    saveLeadMock,
+    updateLeadEmailStatusMock,
+    logEmailMock,
     sendEmailMock,
     logActivityMock,
     markActivityEmailSentMock,
@@ -95,6 +106,56 @@ describe("triggerEvent controller", () => {
     expect(logActivityMock).toHaveBeenCalledWith(expect.objectContaining({ type: "lead", emailSent: false }));
     expect(markActivityEmailSentMock).toHaveBeenCalledWith("activity-id");
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test("booking lead without browserVersion is accepted via the User-Agent header", async () => {
+    const { triggerEvent, sendEmailMock } = await loadController();
+    const res = createMockResponse();
+    const ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
+    await triggerEvent(buildReq({ typeEvent: "Lead Rapid", subject: "Lead rapid", html: "<p>Lead</p>" }, "89.40.11.22", { "user-agent": ua }), res);
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test("final booking is not swallowed by the partial lead from the same IP", async () => {
+    vi.useFakeTimers();
+    try {
+      const { triggerEvent, sendEmailMock } = await loadController();
+      const ua = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile";
+      await triggerEvent(buildReq({ typeEvent: "Lead Rapid", subject: "Lead rapid", html: "<p>Partial</p>" }, "89.40.11.23", { "user-agent": ua }), createMockResponse());
+      vi.advanceTimersByTime(3 * 60 * 1000);
+      await triggerEvent(buildReq({ typeEvent: "Rezervare", subject: "Rezervare", html: "<p>Final</p>" }, "89.40.11.23", { "user-agent": ua }), createMockResponse());
+      expect(sendEmailMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a lead stopped by a filter is still saved and its email logged as skipped", async () => {
+    const { triggerEvent, sendEmailMock, saveLeadMock, updateLeadEmailStatusMock, logEmailMock } = await loadController();
+    const res = createMockResponse();
+    // No User-Agent at all → bot filter
+    await triggerEvent(buildReq({
+      typeEvent: "Lead Rapid", subject: "Lead rapid", html: "<p>Lead</p>",
+      booking: { fullName: "Ion Pop", phone: "0711111111", eventType: "Nuntă", date: "12 iunie 2027", partial: true },
+    }), res);
+    expect(saveLeadMock).toHaveBeenCalledWith(expect.objectContaining({
+      source: "configurator", name: "Ion Pop", phone: "0711111111", partial: true,
+    }));
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    // A blocked lead is an error in the funnel, never a silent drop.
+    expect(logEmailMock).toHaveBeenCalledWith(expect.objectContaining({
+      status: "skipped", severity: "error", reason: "bot: fără User-Agent", leadId: "lead-id", html: "<p>Lead</p>", source: "lead",
+    }));
+    expect(updateLeadEmailStatusMock).toHaveBeenCalledWith("lead-id", "skipped", "bot: fără User-Agent");
+    expect(res.status).toHaveBeenCalledWith(204);
+  });
+
+  test("a delivered lead is marked sent", async () => {
+    const { triggerEvent, updateLeadEmailStatusMock, sendEmailMock } = await loadController();
+    await triggerEvent(buildReq({ typeEvent: "Rezervare", subject: "Cerere", html: "<p>Lead</p>", browserVersion: "Chrome/120 Mobile Safari" }), createMockResponse());
+    expect(sendEmailMock).toHaveBeenCalledWith(expect.objectContaining({ leadId: "lead-id", source: "lead" }));
+    expect(updateLeadEmailStatusMock).toHaveBeenCalledWith("lead-id", "sent");
   });
 
   test("failed email never marks activity as sent", async () => {

@@ -7,7 +7,10 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 const buildMailer = async (senderEmail = "sender@example.com") => {
   const sendMailMock = vi.fn().mockResolvedValue({ messageId: "test-id", accepted: ["client@example.com"], rejected: [] });
   const setMock = vi.fn().mockResolvedValue(undefined);
-  vi.doMock("src/server/firestore", () => ({ firestore: () => ({ collection: () => ({ doc: () => ({ set: setMock }) }) }) }));
+  const logSetMock = vi.fn().mockResolvedValue(undefined);
+  vi.doMock("src/server/firestore", () => ({
+    firestore: () => ({ collection: (name: string) => ({ doc: () => ({ set: name === "emailLog" ? logSetMock : setMock }) }) }),
+  }));
   const transportMock = { sendMail: sendMailMock, verify: vi.fn().mockResolvedValue(true) };
   const createTransportMock = vi.fn(() => transportMock);
 
@@ -18,7 +21,7 @@ const buildMailer = async (senderEmail = "sender@example.com") => {
   }));
 
   const { sendEmail } = await import("src/server/notifications/mailer");
-  return { sendEmail, sendMailMock, createTransportMock, setMock };
+  return { sendEmail, sendMailMock, createTransportMock, setMock, logSetMock };
 };
 
 describe("sendEmail", () => {
@@ -75,6 +78,22 @@ describe("sendEmail", () => {
     await sendEmail({ to: "client@example.com", subject: "Test", html: "private body" });
     expect(setMock).toHaveBeenLastCalledWith(expect.objectContaining({ status: "accepted", messageId: "test-id" }), { merge: true });
     expect(JSON.stringify(setMock.mock.calls)).not.toContain("private body");
+  });
+
+  test("keeps a full copy of every email in emailLog, marked sent after SMTP", async () => {
+    const { sendEmail, logSetMock } = await buildMailer();
+    await sendEmail({ to: "client@example.com", subject: "Test", html: "private body", source: "lead", leadId: "lead-1" });
+    expect(logSetMock).toHaveBeenCalledWith(expect.objectContaining({
+      to: "client@example.com", subject: "Test", html: "private body", status: "pending", source: "lead", leadId: "lead-1",
+    }), { merge: true });
+    expect(logSetMock).toHaveBeenLastCalledWith(expect.objectContaining({ status: "sent" }), { merge: true });
+  });
+
+  test("a failed email stays in emailLog as failed", async () => {
+    const { sendEmail, sendMailMock, logSetMock } = await buildMailer();
+    sendMailMock.mockRejectedValue({ code: "EAUTH", responseCode: 535 });
+    await expect(sendEmail({ to: "client@example.com", subject: "Test", html: "x" })).rejects.toBeDefined();
+    expect(logSetMock).toHaveBeenLastCalledWith(expect.objectContaining({ status: "failed" }), { merge: true });
   });
 
   test("authentication failures are not retried and do not expose secrets", async () => {

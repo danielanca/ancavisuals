@@ -7,9 +7,16 @@ import multer from "multer";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { BUNNY_ACCESS_KEY_HEADER, BUNNY_STORAGE_BASE_URL, getBunnyStorageZone, getBunnyStoragePassword } from "../constants/bunny";
+import { requestStructured } from "../lib/claudeStructured";
+import { isSupportedImageUpload, prepareImageBlocks } from "../lib/visionImage";
+import { getBnrYearRates } from "../services/bnrExchangeRate.service";
+import { StatementExtractionError, detectCsvMappingWithAi, extractStatementWithAi, type AiStatementEntry, type Reconciliation } from "../services/bankStatementAi";
+import { decodeCsvBuffer, detectCsvMapping, parseCsvRows, rowsToEntries } from "../services/bankStatementCsv";
 
 const router = Router();
 const COLLECTION = "bankStatements";
+// Legături învățate din potrivirile manuale: „PETROM 1234 BUC” din extras = furnizorul „OMV Petrom”.
+const ALIASES_COLLECTION = "bankCounterpartyAliases";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -17,9 +24,12 @@ type ExtractedEntry = {
   date: string;
   direction: "in" | "out";
   amount: number;
-  currency: "RON" | "EUR";
+  currency: string;
   counterparty: string | null;
   description: string | null;
+  // Suma/moneda originală pentru plăți cu cardul în altă monedă decât a contului.
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
 };
 
 type ReviewCandidate = { type: "invoice" | "expense"; id: string; label: string; date: string };
@@ -41,9 +51,15 @@ function normalizeText(value: unknown): string {
   return String(value ?? "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+// Plățile cu cardul includ des numărul magazinului/terminalului („PETROM 1234”,
+// „LIDL 0567”) — fără cifre, același comerciant are aceeași cheie.
+function counterpartyKey(value: unknown): string {
+  return normalizeText(value).replace(/\d+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function includesSoft(haystack: string, needle: string): boolean {
@@ -61,8 +77,12 @@ function safeDirection(value: unknown): "in" | "out" | null {
   return value === "in" || value === "out" ? value : null;
 }
 
-function safeCurrency(value: unknown): "RON" | "EUR" {
-  return String(value ?? "").toUpperCase() === "EUR" ? "EUR" : "RON";
+// Moneda din extras se păstrează așa cum e (RON/EUR/USD/GBP...). Înainte orice
+// altceva decât EUR devenea RON, iar o plată de 20 USD apărea ca 20 RON.
+function normalizeCurrency(value: unknown, fallback = "RON"): string {
+  const text = String(value ?? "").trim().toUpperCase();
+  if (text === "LEI" || text === "RON") return "RON";
+  return /^[A-Z]{3}$/.test(text) ? text : fallback;
 }
 
 function safeAmount(value: unknown): number | null {
@@ -86,77 +106,190 @@ function amountsEqual(a: number, b: number): boolean {
   return Math.abs(a - b) < 0.01;
 }
 
+function docDate(value: unknown): string {
+  return value instanceof Timestamp ? value.toDate().toISOString() : String(value ?? "");
+}
+
+type FxRates = (date: string, currency: string) => number | null;
+
+// Cursuri BNR pentru anul extrasului (RON pentru 1 EUR/USD). Dacă BNR nu
+// răspunde, potrivirea merge mai departe doar pe sume exacte.
+async function loadFxRates(year: number): Promise<FxRates> {
+  const tables: Record<string, Record<string, number>> = {};
+  await Promise.all(
+    (["EUR", "USD"] as const).map(async (currency) => {
+      try {
+        const [previous, current] = await Promise.all([getBnrYearRates(year - 1, currency).catch(() => ({})), getBnrYearRates(year, currency)]);
+        tables[currency] = { ...previous, ...current };
+      } catch (error) {
+        console.warn(`[bank-statements] BNR ${currency} rates unavailable, FX matching disabled for it:`, error);
+      }
+    })
+  );
+  return (date, currency) => {
+    if (currency === "RON") return 1;
+    const table = tables[currency];
+    if (!table) return null;
+    const cursor = new Date(`${date.slice(0, 10)}T00:00:00Z`);
+    for (let i = 0; i < 10; i++) {
+      const rate = table[cursor.toISOString().slice(0, 10)];
+      if (rate) return rate;
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
+    }
+    return null;
+  };
+}
+
+type Money = { amount: number; currency: string };
+
+// Toleranța pentru plăți în altă monedă: diferența de curs bancă vs BNR +
+// comisionul de conversie (Revolut/carduri: de obicei sub 2-3%).
+const FX_TOLERANCE = 0.03;
+
+/**
+ * "exact" = aceeași sumă în aceeași monedă (inclusiv suma originală a unei
+ * plăți în valută sau suma originală USD a unei cheltuieli salvate în RON);
+ * "fx" = monede diferite, dar sumele convertite la cursul BNR din ziua
+ * tranzacției sunt la cel mult 3% una de alta.
+ */
+function amountMatch(entry: ExtractedEntry, documentAmounts: Money[], fx: FxRates): "exact" | "fx" | null {
+  const entryAmounts: Money[] = [{ amount: entry.amount, currency: entry.currency }];
+  if (entry.originalAmount && entry.originalCurrency) entryAmounts.push({ amount: entry.originalAmount, currency: normalizeCurrency(entry.originalCurrency) });
+
+  for (const a of entryAmounts) {
+    for (const b of documentAmounts) {
+      if (a.currency === b.currency && amountsEqual(a.amount, b.amount)) return "exact";
+    }
+  }
+
+  const entryRate = fx(entry.date, entry.currency);
+  if (entryRate == null) return null;
+  const entryRon = entry.amount * entryRate;
+  for (const b of documentAmounts) {
+    if (b.currency === entry.currency) continue;
+    const rate = fx(entry.date, b.currency);
+    if (rate == null || b.amount <= 0) continue;
+    const documentRon = b.amount * rate;
+    if (Math.abs(entryRon - documentRon) / documentRon <= FX_TOLERANCE) return "fx";
+  }
+  return null;
+}
+
+function invoiceAmounts(invoice: Record<string, unknown>): Money[] {
+  return [{ amount: Number(invoice.totalAmount ?? 0), currency: normalizeCurrency(invoice.currency) }];
+}
+
+function expenseAmounts(expense: Record<string, unknown>): Money[] {
+  const amounts: Money[] = [{ amount: Number(expense.amount ?? 0), currency: normalizeCurrency(expense.currency) }];
+  const originalAmount = Number(expense.originalAmount ?? 0);
+  if (originalAmount > 0 && expense.originalCurrency) amounts.push({ amount: originalAmount, currency: normalizeCurrency(expense.originalCurrency) });
+  return amounts;
+}
+
+type Aliases = Map<string, Set<string>>; // `${type}:${counterpartyKey}` -> chei normalizate de furnizor/client
+
+async function loadAliases(): Promise<Aliases> {
+  const aliases: Aliases = new Map();
+  try {
+    const snapshot = await firestore().collection(ALIASES_COLLECTION).get();
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const key = `${String(data.type)}:${String(data.counterpartyKey)}`;
+      if (!aliases.has(key)) aliases.set(key, new Set());
+      aliases.get(key)!.add(String(data.targetKey));
+    }
+  } catch (error) {
+    console.warn("[bank-statements] could not load counterparty aliases:", error);
+  }
+  return aliases;
+}
+
+function aliasHit(aliases: Aliases, type: "invoice" | "expense", entry: ExtractedEntry, targetName: string): boolean {
+  const target = normalizeText(targetName);
+  if (!target) return false;
+  for (const source of [entry.counterparty, entry.description]) {
+    const key = counterpartyKey(source);
+    if (key && aliases.get(`${type}:${key}`)?.has(target)) return true;
+  }
+  return false;
+}
+
+type MatchContext = { fx: FxRates; aliases: Aliases };
+
 type Candidate = { entryIndex: number; id: string; label: string; fileUrl: string | null; score: number };
 
-function invoiceCandidatesForEntry(entryIndex: number, entry: ExtractedEntry, invoices: Array<Record<string, unknown>>): Candidate[] {
+function invoiceLabel(invoice: Record<string, unknown>): string {
+  const clientName = String(invoice.clientName ?? "");
+  return `Factură ${String(invoice.series ?? "")}-${String(invoice.invoiceNumber ?? "")} · ${clientName || "client necunoscut"}`;
+}
+
+function expenseLabel(expense: Record<string, unknown>): string {
+  return `Cheltuială · ${String(expense.supplier ?? "") || String(expense.description ?? "") || "fără descriere"}`;
+}
+
+function expenseFileUrl(expense: Record<string, unknown> | undefined): string | null {
+  const factura = expense?.factura as { url?: string } | null;
+  const chitanta = expense?.chitanta as { url?: string } | null;
+  return factura?.url ?? chitanta?.url ?? null;
+}
+
+function invoiceCandidatesForEntry(entryIndex: number, entry: ExtractedEntry, invoices: Array<Record<string, unknown>>, context: MatchContext): Candidate[] {
   const counterparty = normalizeText(entry.counterparty);
   const description = normalizeText(entry.description);
   const candidates: Candidate[] = [];
 
   for (const invoice of invoices) {
     const id = String(invoice.id ?? "");
-
-    const totalAmount = Number(invoice.totalAmount ?? 0);
-    const currency = safeCurrency(invoice.currency);
-    const date = invoice.date instanceof Timestamp ? invoice.date.toDate().toISOString() : String(invoice.date ?? "");
-    if (!amountsEqual(entry.amount, totalAmount) || currency !== entry.currency || !date) continue;
+    const date = docDate(invoice.date);
+    const match = date ? amountMatch(entry, invoiceAmounts(invoice), context.fx) : null;
+    if (!match) continue;
 
     const clientName = String(invoice.clientName ?? "");
     const scoreDate = daysBetween(entry.date, date) <= 7 ? (daysBetween(entry.date, date) <= 2 ? 4 : 2) : 0;
-    const scoreText = includesSoft(counterparty, normalizeText(clientName)) || includesSoft(description, normalizeText(clientName)) ? 3 : 0;
+    const scoreText = aliasHit(context.aliases, "invoice", entry, clientName)
+      ? 4
+      : includesSoft(counterparty, normalizeText(clientName)) || includesSoft(description, normalizeText(clientName)) ? 3 : 0;
     // Suma+moneda identice nu sunt suficiente — fără proximitate de dată SAU
     // asemănare de nume, e prea probabil o coincidență (ex. transfer către un
-    // cont/pocket personal cu aceeași sumă ca o factură nelegată).
+    // cont/pocket personal cu aceeași sumă ca o factură nelegată). La sume
+    // apropiate doar prin conversie valutară cerem obligatoriu și numele.
     if (scoreDate === 0 && scoreText === 0) continue;
+    if (match === "fx" && scoreText === 0) continue;
 
-    candidates.push({
-      entryIndex,
-      id,
-      label: `Factură ${String(invoice.series ?? "")}-${String(invoice.invoiceNumber ?? "")} · ${clientName || "client necunoscut"}`,
-      fileUrl: null,
-      score: 5 + scoreDate + scoreText,
-    });
+    candidates.push({ entryIndex, id, label: invoiceLabel(invoice), fileUrl: null, score: (match === "exact" ? 5 : 3) + scoreDate + scoreText });
   }
 
   return candidates;
 }
 
-function expenseCandidatesForEntry(entryIndex: number, entry: ExtractedEntry, expenses: Array<Record<string, unknown>>): Candidate[] {
+function expenseCandidatesForEntry(entryIndex: number, entry: ExtractedEntry, expenses: Array<Record<string, unknown>>, context: MatchContext): Candidate[] {
   const counterparty = normalizeText(entry.counterparty);
   const description = normalizeText(entry.description);
   const candidates: Candidate[] = [];
 
   for (const expense of expenses) {
     const id = String(expense.id ?? "");
-
-    const amount = Number(expense.amount ?? 0);
-    const currency = safeCurrency(expense.currency);
-    const date = expense.date instanceof Timestamp ? expense.date.toDate().toISOString() : String(expense.date ?? "");
-    if (!amountsEqual(entry.amount, amount) || currency !== entry.currency || !date) continue;
+    const date = docDate(expense.date);
+    const match = date ? amountMatch(entry, expenseAmounts(expense), context.fx) : null;
+    if (!match) continue;
 
     const supplier = String(expense.supplier ?? "");
     const expDescription = String(expense.description ?? "");
     const scoreDate = daysBetween(entry.date, date) <= 10 ? (daysBetween(entry.date, date) <= 3 ? 4 : 2) : 0;
-    const scoreText =
-      includesSoft(counterparty, normalizeText(supplier)) ||
-      includesSoft(description, normalizeText(supplier)) ||
-      includesSoft(description, normalizeText(expDescription))
+    const scoreText = aliasHit(context.aliases, "expense", entry, supplier)
+      ? 4
+      : includesSoft(counterparty, normalizeText(supplier)) ||
+        includesSoft(description, normalizeText(supplier)) ||
+        includesSoft(description, normalizeText(expDescription))
         ? 3
         : 0;
     // Suma+moneda identice nu sunt suficiente — fără proximitate de dată SAU
     // asemănare de nume, e prea probabil o coincidență (ex. transfer către un
     // cont/pocket personal cu aceeași sumă ca o cheltuială nelegată).
     if (scoreDate === 0 && scoreText === 0) continue;
+    if (match === "fx" && scoreText === 0) continue;
 
-    const factura = expense.factura as { url?: string } | null;
-    const chitanta = expense.chitanta as { url?: string } | null;
-    candidates.push({
-      entryIndex,
-      id,
-      label: `Cheltuială · ${supplier || expDescription || "fără descriere"}`,
-      fileUrl: factura?.url ?? chitanta?.url ?? null,
-      score: 5 + scoreDate + scoreText,
-    });
+    candidates.push({ entryIndex, id, label: expenseLabel(expense), fileUrl: expenseFileUrl(expense), score: (match === "exact" ? 5 : 3) + scoreDate + scoreText });
   }
 
   return candidates;
@@ -198,7 +331,8 @@ async function resolveAmbiguousMatches(
   assignedInvoices: Map<number, Candidate>,
   assignedExpenses: Map<number, Candidate>,
   usedInvoiceIds: Set<string>,
-  usedExpenseIds: Set<string>
+  usedExpenseIds: Set<string>,
+  context: MatchContext
 ): Promise<Map<number, ReviewCandidate[]>> {
   const reviewByEntry = new Map<number, ReviewCandidate[]>();
 
@@ -206,7 +340,7 @@ async function resolveAmbiguousMatches(
     entryIndex: number;
     entry: MatchableEntry;
     direction: "in" | "out";
-    candidates: Array<{ id: string; label: string; date: string }>;
+    candidates: Array<{ id: string; label: string; date: string; amount: string }>;
   };
   const pending: Pending[] = [];
 
@@ -215,22 +349,24 @@ async function resolveAmbiguousMatches(
 
     if (entry.direction === "in" && !assignedInvoices.has(entryIndex)) {
       const candidates = invoices
-        .filter((inv) => !usedInvoiceIds.has(String(inv.id)) && amountsEqual(entry.amount, Number(inv.totalAmount ?? 0)) && safeCurrency(inv.currency) === entry.currency)
+        .filter((inv) => !usedInvoiceIds.has(String(inv.id)) && amountMatch(entry, invoiceAmounts(inv), context.fx) === "exact")
         .map((inv) => ({
           id: String(inv.id),
           label: String(inv.clientName ?? "") || "client necunoscut",
-          date: inv.date instanceof Timestamp ? inv.date.toDate().toISOString().slice(0, 10) : String(inv.date ?? ""),
+          date: docDate(inv.date).slice(0, 10),
+          amount: `${Number(inv.totalAmount ?? 0).toFixed(2)} ${normalizeCurrency(inv.currency)}`,
         }));
       if (candidates.length) pending.push({ entryIndex, entry, direction: "in", candidates });
     }
 
     if (entry.direction === "out" && !assignedExpenses.has(entryIndex)) {
       const candidates = expenses
-        .filter((exp) => !usedExpenseIds.has(String(exp.id)) && amountsEqual(entry.amount, Number(exp.amount ?? 0)) && safeCurrency(exp.currency) === entry.currency)
+        .filter((exp) => !usedExpenseIds.has(String(exp.id)) && amountMatch(entry, expenseAmounts(exp), context.fx) === "exact")
         .map((exp) => ({
           id: String(exp.id),
           label: String(exp.supplier ?? exp.description ?? "") || "furnizor necunoscut",
-          date: exp.date instanceof Timestamp ? exp.date.toDate().toISOString().slice(0, 10) : String(exp.date ?? ""),
+          date: docDate(exp.date).slice(0, 10),
+          amount: expenseAmounts(exp).map((m) => `${m.amount.toFixed(2)} ${m.currency}`).join(" / "),
         }));
       if (candidates.length) pending.push({ entryIndex, entry, direction: "out", candidates });
     }
@@ -240,36 +376,40 @@ async function resolveAmbiguousMatches(
 
   const payload = pending.map((p) => ({
     entryIndex: p.entryIndex,
-    tranzactie: { data: p.entry.date, suma: p.entry.amount, moneda: p.entry.currency, parte: p.entry.counterparty, descriere: p.entry.description },
+    tranzactie: {
+      data: p.entry.date,
+      suma: p.entry.amount,
+      moneda: p.entry.currency,
+      sumaOriginala: p.entry.originalAmount && p.entry.originalCurrency ? `${p.entry.originalAmount} ${p.entry.originalCurrency}` : null,
+      parte: p.entry.counterparty,
+      descriere: p.entry.description,
+    },
     candidati: p.candidates,
   }));
 
-  let decisions: Array<{ entryIndex: number; decision: "match" | "no_match" | "uncertain"; candidateId?: string | null }> = [];
+  let decisions: Array<{ entryIndex: number; decision: "match" | "no_match" | "uncertain"; candidateId: string | null }> = [];
   try {
-    const message = await anthropic.messages.create({
-      model: "claude-opus-4-7",
-      max_tokens: 4000,
+    const result = await requestStructured<{ decisions: typeof decisions }>(anthropic, {
+      schema: MATCH_DECISIONS_SCHEMA,
+      maxTokens: 16000,
+      effort: "medium",
       messages: [
         {
           role: "user",
-          content: `Ești un contabil care reconciliază un extras de cont cu registrul de facturi/cheltuieli al firmei. Pentru fiecare caz de mai jos, suma și moneda tranzacției sunt DEJA identice cu fiecare candidat listat — decizia ta se bazează exclusiv pe cât de plauzibil e că "parte"/"descriere" din tranzacție și candidatul reprezintă aceeași operațiune reală.
+          content: `Ești un contabil care reconciliază un extras de cont cu registrul de facturi/cheltuieli al firmei. Pentru fiecare caz de mai jos, suma tranzacției (sau suma ei originală, la plăți în valută) este DEJA identică cu fiecare candidat listat — decizia ta se bazează exclusiv pe cât de plauzibil e că "parte"/"descriere" din tranzacție și candidatul reprezintă aceeași operațiune reală.
 
 Reguli:
-- Tolerează diferențe mici de scriere (diacritice, erori OCR, formă juridică lipsă/prezentă — ex. "SRL").
+- Tolerează diferențe mici de scriere (diacritice, erori OCR, formă juridică lipsă/prezentă — ex. "SRL"), prescurtări de procesator de plăți (ex. "PAYPAL *ADOBE", "SQ *", "GOOGLE*") și numere de magazin/terminal.
 - O dată contabilă diferită de data plății (până la câteva săptămâni) e normală pentru facturi/abonamente și NU exclude o potrivire, dacă numele se potrivesc rezonabil.
 - NU asocia doar pentru că suma coincide dacă numele/descrierea sunt complet diferite sau lipsesc (ex. un transfer personal generic cu o sumă rotundă nu e automat o factură reală) — în acel caz răspunde "no_match".
 - Dacă nu ești sigur, răspunde "uncertain" — un om va decide manual. Nu ghici.
+- candidateId e obligatoriu la "match" și null altfel.
 
-Cazuri: ${JSON.stringify(payload)}
-
-Răspunde DOAR cu JSON valid, fără explicații: {"decisions": [{"entryIndex": number, "decision": "match" | "no_match" | "uncertain", "candidateId": string sau null}]}`,
+Cazuri: ${JSON.stringify(payload)}`,
         },
       ],
     });
-    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "{}";
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    const parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as { decisions?: typeof decisions }) : {};
-    decisions = parsed.decisions ?? [];
+    decisions = result.data?.decisions ?? [];
   } catch (error) {
     console.error("[bank-statements] AI match resolution failed, sending cases to manual review:", error);
     decisions = [];
@@ -289,9 +429,7 @@ Răspunde DOAR cu JSON valid, fără explicații: {"decisions": [{"entryIndex": 
           usedInvoiceIds.add(candidate.id);
         } else {
           const expense = expenses.find((exp) => String(exp.id) === candidate.id);
-          const factura = expense?.factura as { url?: string } | null;
-          const chitanta = expense?.chitanta as { url?: string } | null;
-          assignedExpenses.set(p.entryIndex, { entryIndex: p.entryIndex, id: candidate.id, label: `Cheltuială · ${candidate.label}`, fileUrl: factura?.url ?? chitanta?.url ?? null, score: Infinity });
+          assignedExpenses.set(p.entryIndex, { entryIndex: p.entryIndex, id: candidate.id, label: `Cheltuială · ${candidate.label}`, fileUrl: expenseFileUrl(expense), score: Infinity });
           usedExpenseIds.add(candidate.id);
         }
         continue;
@@ -310,11 +448,32 @@ Răspunde DOAR cu JSON valid, fără explicații: {"decisions": [{"entryIndex": 
   return reviewByEntry;
 }
 
+const MATCH_DECISIONS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["decisions"],
+  properties: {
+    decisions: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["entryIndex", "decision", "candidateId"],
+        properties: {
+          entryIndex: { type: "integer" },
+          decision: { type: "string", enum: ["match", "no_match", "uncertain"] },
+          candidateId: { anyOf: [{ type: "string" }, { type: "null" }] },
+        },
+      },
+    },
+  },
+} as const;
+
 async function matchStatementEntries(entries: MatchableEntry[], year: number, excludeStatementId?: string): Promise<StoredEntry[]> {
   const startDate = new Date(year, 0, 1);
   const endDate = new Date(year + 1, 0, 1);
   const db = firestore();
-  const [invoicesSnapshot, expensesSnapshot] = await Promise.all([
+  const [invoicesSnapshot, expensesSnapshot, fx, aliases] = await Promise.all([
     db.collection("invoices")
       .where("date", ">=", Timestamp.fromDate(startDate))
       .where("date", "<", Timestamp.fromDate(endDate))
@@ -323,7 +482,10 @@ async function matchStatementEntries(entries: MatchableEntry[], year: number, ex
       .where("date", ">=", Timestamp.fromDate(startDate))
       .where("date", "<", Timestamp.fromDate(endDate))
       .get(),
+    loadFxRates(year),
+    loadAliases(),
   ]);
+  const context: MatchContext = { fx, aliases };
 
   const invoices: Array<Record<string, unknown>> = invoicesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   const expenses: Array<Record<string, unknown>> = expensesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -356,55 +518,34 @@ async function matchStatementEntries(entries: MatchableEntry[], year: number, ex
   entries.forEach((entry, entryIndex) => {
     if (entry.direction === "in" && entry.matchedType === "invoice" && entry.matchedId) {
       const invoice = invoices.find((inv) => String(inv.id) === entry.matchedId);
-      if (!invoice) return;
-      const totalAmount = Number(invoice.totalAmount ?? 0);
-      const currency = safeCurrency(invoice.currency);
-      if (!amountsEqual(entry.amount, totalAmount) || currency !== entry.currency) return;
-      const clientName = String(invoice.clientName ?? "");
-      keptInvoiceMatches.set(entryIndex, {
-        entryIndex,
-        id: entry.matchedId,
-        label: `Factură ${String(invoice.series ?? "")}-${String(invoice.invoiceNumber ?? "")} · ${clientName || "client necunoscut"}`,
-        fileUrl: null,
-        score: Infinity,
-      });
+      if (!invoice || !amountMatch(entry, invoiceAmounts(invoice), fx)) return;
+      keptInvoiceMatches.set(entryIndex, { entryIndex, id: entry.matchedId, label: invoiceLabel(invoice), fileUrl: null, score: Infinity });
       usedInvoiceIds.add(entry.matchedId);
     }
 
     if (entry.direction === "out" && entry.matchedType === "expense" && entry.matchedId) {
       const expense = expenses.find((exp) => String(exp.id) === entry.matchedId);
-      if (!expense) return;
-      const amount = Number(expense.amount ?? 0);
-      const currency = safeCurrency(expense.currency);
-      if (!amountsEqual(entry.amount, amount) || currency !== entry.currency) return;
-      const supplier = String(expense.supplier ?? "");
-      const expDescription = String(expense.description ?? "");
-      const factura = expense.factura as { url?: string } | null;
-      const chitanta = expense.chitanta as { url?: string } | null;
-      keptExpenseMatches.set(entryIndex, {
-        entryIndex,
-        id: entry.matchedId,
-        label: `Cheltuială · ${supplier || expDescription || "fără descriere"}`,
-        fileUrl: factura?.url ?? chitanta?.url ?? null,
-        score: Infinity,
-      });
+      if (!expense || !amountMatch(entry, expenseAmounts(expense), fx)) return;
+      keptExpenseMatches.set(entryIndex, { entryIndex, id: entry.matchedId, label: expenseLabel(expense), fileUrl: expenseFileUrl(expense), score: Infinity });
       usedExpenseIds.add(entry.matchedId);
     }
   });
 
   const invoiceCandidates = entries.flatMap((entry, entryIndex) =>
-    entry.direction === "in" && !keptInvoiceMatches.has(entryIndex) ? invoiceCandidatesForEntry(entryIndex, entry, invoices) : []
+    entry.direction === "in" && !keptInvoiceMatches.has(entryIndex) ? invoiceCandidatesForEntry(entryIndex, entry, invoices, context) : []
   );
   const expenseCandidates = entries.flatMap((entry, entryIndex) =>
-    entry.direction === "out" && !keptExpenseMatches.has(entryIndex) ? expenseCandidatesForEntry(entryIndex, entry, expenses) : []
+    entry.direction === "out" && !keptExpenseMatches.has(entryIndex) ? expenseCandidatesForEntry(entryIndex, entry, expenses, context) : []
   );
 
   const assignedInvoices = assignBestCandidates(invoiceCandidates, usedInvoiceIds);
   const assignedExpenses = assignBestCandidates(expenseCandidates, usedExpenseIds);
   for (const [entryIndex, candidate] of keptInvoiceMatches) assignedInvoices.set(entryIndex, candidate);
   for (const [entryIndex, candidate] of keptExpenseMatches) assignedExpenses.set(entryIndex, candidate);
+  for (const candidate of assignedInvoices.values()) usedInvoiceIds.add(candidate.id);
+  for (const candidate of assignedExpenses.values()) usedExpenseIds.add(candidate.id);
 
-  const reviewByEntry = await resolveAmbiguousMatches(entries, invoices, expenses, assignedInvoices, assignedExpenses, usedInvoiceIds, usedExpenseIds);
+  const reviewByEntry = await resolveAmbiguousMatches(entries, invoices, expenses, assignedInvoices, assignedExpenses, usedInvoiceIds, usedExpenseIds, context);
 
   return entries.map((entry, entryIndex) => {
     const match = entry.direction === "in" ? assignedInvoices.get(entryIndex) : assignedExpenses.get(entryIndex);
@@ -486,6 +627,70 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, r
   }
 });
 
+function isCsvUpload(file: Express.Multer.File): boolean {
+  return /\.csv$/i.test(file.originalname) || /text\/csv|application\/vnd\.ms-excel|text\/plain/.test(file.mimetype);
+}
+
+type AnalyzedStatement = {
+  source: "csv" | "ai";
+  statementDate: string | null;
+  entries: ExtractedEntry[];
+  reconciliation: Reconciliation;
+  skippedRows?: number;
+};
+
+async function analyzeCsvStatement(file: Express.Multer.File): Promise<AnalyzedStatement> {
+  const rows = parseCsvRows(decodeCsvBuffer(file.buffer));
+  if (rows.length < 2) throw new StatementExtractionError("Fișierul CSV e gol.", 422);
+
+  const mapping = detectCsvMapping(rows) ?? (await detectCsvMappingWithAi(anthropic, rows));
+  if (!mapping) throw new StatementExtractionError("Nu am recunoscut coloanele din CSV (dată / sumă). Exportă extrasul în format CSV standard sau încarcă PDF-ul.", 422);
+
+  const { entries, skipped } = rowsToEntries(rows, mapping);
+  if (!entries.length) throw new StatementExtractionError("CSV-ul nu conține tranzacții finalizate.", 422);
+
+  const sortedDates = entries.map((entry) => entry.date).sort();
+  return {
+    source: "csv",
+    statementDate: sortedDates[sortedDates.length - 1],
+    entries: entries.map(({ balanceAfter: _balanceAfter, ...entry }) => ({ ...entry, originalAmount: null, originalCurrency: null })),
+    reconciliation: { status: "csv", checks: [], retried: false },
+    skippedRows: skipped,
+  };
+}
+
+function normalizeAiEntries(entries: AiStatementEntry[]): AiStatementEntry[] {
+  return entries
+    .map((entry) => {
+      const date = safeDate(entry.date);
+      const direction = safeDirection(entry.direction);
+      const amount = safeAmount(entry.amount);
+      if (!date || !direction || amount == null) return null;
+      const originalAmount = safeAmount(entry.originalAmount);
+      const currency = normalizeCurrency(entry.currency);
+      const originalCurrency = originalAmount != null && entry.originalCurrency ? normalizeCurrency(entry.originalCurrency) : null;
+      return {
+        date,
+        direction,
+        amount,
+        currency,
+        counterparty: safeOptionalText(entry.counterparty),
+        description: safeOptionalText(entry.description),
+        originalAmount: originalCurrency && originalCurrency !== currency ? originalAmount : null,
+        originalCurrency: originalCurrency && originalCurrency !== currency ? originalCurrency : null,
+      };
+    })
+    .filter((entry): entry is AiStatementEntry => Boolean(entry));
+}
+
+async function analyzeDocumentStatement(file: Express.Multer.File, isPdf: boolean): Promise<AnalyzedStatement> {
+  const documentBlocks: Anthropic.ContentBlockParam[] = isPdf
+    ? [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: file.buffer.toString("base64") } }]
+    : await prepareImageBlocks(file.buffer, file.mimetype || "");
+  const result = await extractStatementWithAi(anthropic, documentBlocks, normalizeAiEntries);
+  return { source: "ai", statementDate: safeDate(result.statementDate), entries: result.entries, reconciliation: result.reconciliation };
+}
+
 router.post("/upload-analyze", requireFirebaseAuth, requireSupremeAdmin, upload.single("file"), async (req: Request, res: Response) => {
   const file = req.file;
   const { year, account: rawAccount } = req.body as { year?: string; account?: string };
@@ -497,10 +702,11 @@ router.post("/upload-analyze", requireFirebaseAuth, requireSupremeAdmin, upload.
   }
 
   const mediaType = file.mimetype || "application/octet-stream";
-  const isImage = mediaType.startsWith("image/");
-  const isPdf = mediaType === "application/pdf";
-  if (!isImage && !isPdf) {
-    res.status(400).json({ error: "Sunt acceptate doar imagini sau PDF." });
+  const isPdf = mediaType === "application/pdf" || file.buffer.subarray(0, 4).toString("latin1") === "%PDF";
+  const isCsv = !isPdf && isCsvUpload(file);
+  const isImage = !isPdf && !isCsv && isSupportedImageUpload(file.buffer, mediaType);
+  if (!isImage && !isPdf && !isCsv) {
+    res.status(400).json({ error: "Sunt acceptate doar CSV, PDF sau imagini." });
     return;
   }
 
@@ -522,112 +728,13 @@ router.post("/upload-analyze", requireFirebaseAuth, requireSupremeAdmin, upload.
       return;
     }
 
+    const analyzed = isCsv ? await analyzeCsvStatement(file) : await analyzeDocumentStatement(file, isPdf);
     const uploaded = await uploadStatementFile(file, year);
-    const contentBlock = isImage
-      ? ({
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
-            data: file.buffer.toString("base64"),
-          },
-        } as const)
-      : ({
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: "application/pdf",
-            data: file.buffer.toString("base64"),
-          },
-        } as const);
-
-    const message = await anthropic.messages.create({
-      model: "claude-opus-4-7",
-      max_tokens: 16000,
-      messages: [
-        {
-          role: "user",
-          content: [
-            contentBlock,
-            {
-              type: "text",
-              text: `Analizezi un extras de cont bancar din România. Extrage TOATE tranzacțiile lizibile din document.
-
-Returnează DOAR JSON valid, fără explicații:
-{
-  "statementDate": "YYYY-MM-DD sau prima zi din lună dacă nu este clară",
-  "entries": [
-    {
-      "date": "YYYY-MM-DD",
-      "direction": "in" sau "out",
-      "amount": 123.45,
-      "currency": "RON" sau "EUR",
-      "counterparty": "numele persoanei/firmei dacă apare, altfel null",
-      "description": "descrierea tranzacției dacă apare, altfel null"
-    }
-  ]
-}
-
-Reguli:
-1. Extrage toate entry-urile, nu doar un eșantion.
-2. Pentru încasări folosește "in", pentru plăți folosește "out".
-3. Nu inventa. Dacă lipsesc detalii, pune null.
-4. Dacă documentul are mai multe pagini, combină toate entry-urile într-o singură listă.
-5. Păstrează sumele cu 2 zecimale.
-6. Ignoră soldurile zilnice/intermediare și antetele; extrage doar tranzacțiile reale.`,
-            },
-          ],
-        },
-      ],
-    });
-
-    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "{}";
-
-    if (message.stop_reason === "max_tokens") {
-      res.status(422).json({
-        error: "Extrasul are prea multe tranzacții pentru a fi procesat într-un singur pas. Împarte fișierul PDF în două și reîncearcă.",
-      });
-      return;
-    }
-
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    let parsed: { statementDate?: unknown; entries?: unknown[] };
-    try {
-      parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as { statementDate?: unknown; entries?: unknown[] }) : {};
-    } catch (parseError) {
-      console.error("[bank-statements] JSON parse failed:", parseError, raw.slice(0, 500));
-      res.status(422).json({ error: "AI a răspuns cu JSON invalid. Reîncearcă, sau împarte extrasul în fișiere mai mici." });
-      return;
-    }
-
-    const extractedEntries: ExtractedEntry[] = Array.isArray(parsed.entries)
-      ? parsed.entries
-          .map((entry) => {
-            const date = safeDate((entry as Record<string, unknown>).date);
-            const direction = safeDirection((entry as Record<string, unknown>).direction);
-            const amount = safeAmount((entry as Record<string, unknown>).amount);
-            if (!date || !direction || amount == null) return null;
-            return {
-              date,
-              direction,
-              amount,
-              currency: safeCurrency((entry as Record<string, unknown>).currency),
-              counterparty: safeOptionalText((entry as Record<string, unknown>).counterparty),
-              description: safeOptionalText((entry as Record<string, unknown>).description),
-            };
-          })
-          .filter((entry): entry is ExtractedEntry => Boolean(entry))
-      : [];
-
-    if (!Array.isArray(parsed.entries)) {
-      res.status(422).json({ error: "AI nu a reușit să extragă tranzacții din extras." });
-      return;
-    }
 
     const inferredYear = Number(year) || new Date().getFullYear();
-    const entries: StoredEntry[] = await matchStatementEntries(extractedEntries, inferredYear);
+    const entries: StoredEntry[] = await matchStatementEntries(analyzed.entries, inferredYear);
 
-    const statementDate = safeDate(parsed.statementDate) ?? `${inferredYear}-01-01`;
+    const statementDate = analyzed.statementDate ?? `${inferredYear}-01-01`;
     const unmatchedCount = entries.filter((entry) => entry.justificationStatus === "unmatched").length;
     const reviewCount = entries.filter((entry) => entry.justificationStatus === "review").length;
     const docRef = await db.collection(COLLECTION).add({
@@ -636,6 +743,8 @@ Reguli:
       account,
       file: uploaded,
       fileHash,
+      source: analyzed.source,
+      reconciliation: analyzed.reconciliation,
       entries,
       unmatchedCount,
       reviewCount,
@@ -649,6 +758,8 @@ Reguli:
         year: Number(statementDate.slice(0, 4)),
         account,
         file: uploaded,
+        source: analyzed.source,
+        reconciliation: analyzed.reconciliation,
         entries,
         unmatchedCount,
         reviewCount,
@@ -656,6 +767,10 @@ Reguli:
       },
     });
   } catch (error) {
+    if (error instanceof StatementExtractionError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
     console.error("[bank-statements] POST /upload-analyze failed:", error);
     res.status(500).json({ error: String(error) });
   }
@@ -684,6 +799,8 @@ router.post("/:id/rematch", requireFirebaseAuth, requireSupremeAdmin, async (req
         year,
         account: (data.account as string | undefined) || DEFAULT_ACCOUNT,
         file: data.file,
+        source: data.source ?? "ai",
+        reconciliation: data.reconciliation ?? null,
         entries,
         unmatchedCount,
         reviewCount,
@@ -695,6 +812,28 @@ router.post("/:id/rematch", requireFirebaseAuth, requireSupremeAdmin, async (req
     res.status(500).json({ error: String(error) });
   }
 });
+
+// Ține minte că numele din extras corespunde acestui furnizor/client, ca la
+// următoarele extrase potrivirea să se facă automat (vezi aliasHit).
+async function rememberCounterpartyAlias(type: "invoice" | "expense", entry: ExtractedEntry, targetName: string) {
+  const targetKey = normalizeText(targetName);
+  const source = entry.counterparty ?? entry.description;
+  const key = counterpartyKey(source);
+  if (!targetKey || !key) return;
+  try {
+    const docId = createHash("sha1").update(`${type}:${key}:${targetKey}`).digest("hex");
+    await firestore().collection(ALIASES_COLLECTION).doc(docId).set({
+      type,
+      counterpartyKey: key,
+      counterpartyRaw: source,
+      targetKey,
+      targetName,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.warn("[bank-statements] could not save counterparty alias:", error);
+  }
+}
 
 // POST /:id/entries/:entryIndex/link — leagă manual o tranzacție de o factură/cheltuială aleasă de utilizator
 router.post("/:id/entries/:entryIndex/link", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
@@ -724,20 +863,8 @@ router.post("/:id/entries/:entryIndex/link", requireFirebaseAuth, requireSupreme
     if (!targetDoc.exists) { res.status(404).json({ error: "Documentul ales nu mai există." }); return; }
     const target = targetDoc.data()!;
 
-    let label: string;
-    let fileUrl: string | null;
-    if (type === "invoice") {
-      const clientName = String(target.clientName ?? "");
-      label = `Factură ${String(target.series ?? "")}-${String(target.invoiceNumber ?? "")} · ${clientName || "client necunoscut"}`;
-      fileUrl = null;
-    } else {
-      const supplier = String(target.supplier ?? "");
-      const expDescription = String(target.description ?? "");
-      const factura = target.factura as { url?: string } | null;
-      const chitanta = target.chitanta as { url?: string } | null;
-      label = `Cheltuială · ${supplier || expDescription || "fără descriere"}`;
-      fileUrl = factura?.url ?? chitanta?.url ?? null;
-    }
+    const label = type === "invoice" ? invoiceLabel(target) : expenseLabel(target);
+    const fileUrl = type === "invoice" ? null : expenseFileUrl(target);
 
     entries[entryIndex] = {
       ...entry,
@@ -753,6 +880,7 @@ router.post("/:id/entries/:entryIndex/link", requireFirebaseAuth, requireSupreme
     const unmatchedCount = entries.filter((e) => e.justificationStatus === "unmatched").length;
     const reviewCount = entries.filter((e) => e.justificationStatus === "review").length;
     await db.collection(COLLECTION).doc(req.params.id).update({ entries, unmatchedCount, reviewCount });
+    await rememberCounterpartyAlias(type, entry, type === "invoice" ? String(target.clientName ?? "") : String(target.supplier ?? ""));
 
     res.json({
       statement: {
@@ -761,6 +889,8 @@ router.post("/:id/entries/:entryIndex/link", requireFirebaseAuth, requireSupreme
         year: Number(data.year) || new Date().getFullYear(),
         account: (data.account as string | undefined) || DEFAULT_ACCOUNT,
         file: data.file,
+        source: data.source ?? "ai",
+        reconciliation: data.reconciliation ?? null,
         entries,
         unmatchedCount,
         reviewCount,
@@ -813,6 +943,8 @@ router.post("/:id/entries/:entryIndex/dismiss", requireFirebaseAuth, requireSupr
         year: Number(data.year) || new Date().getFullYear(),
         account: (data.account as string | undefined) || DEFAULT_ACCOUNT,
         file: data.file,
+        source: data.source ?? "ai",
+        reconciliation: data.reconciliation ?? null,
         entries,
         unmatchedCount,
         reviewCount,

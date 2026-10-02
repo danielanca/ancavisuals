@@ -32,14 +32,14 @@
     <!-- Hotjar + Google Analytics — skip on localhost -->
     <script>
       if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        // Hotjar — nu porni recording-uri pe paginile media sau admin.
+        // Hotjar — nu porni recording-uri pe admin, albume (/media), QR Moments (/qr-moments, /qr-code) și blog.
         // Pentru excluderea permanentă a acestui browser: localStorage.setItem('av_ignore_hotjar', '1').
         var isHotjarIgnored = false;
         try { isHotjarIgnored = localStorage.getItem('av_ignore_hotjar') === '1'; } catch (_) {}
-        var isPrivateHotjarPath = location.pathname === '/admin'
-          || location.pathname.startsWith('/admin/')
-          || location.pathname === '/media'
-          || location.pathname.startsWith('/media/');
+        var hotjarExcludedPrefixes = ['/admin', '/media', '/qr-moments', '/qr-code', '/blog'];
+        var isPrivateHotjarPath = hotjarExcludedPrefixes.some(function (prefix) {
+          return location.pathname === prefix || location.pathname.startsWith(prefix + '/');
+        });
         var isAdminPath = location.pathname === '/admin'
           || location.pathname.startsWith('/admin/');
         if (!isPrivateHotjarPath && !isHotjarIgnored) {

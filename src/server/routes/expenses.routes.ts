@@ -7,6 +7,9 @@ import multer from "multer";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { BUNNY_ACCESS_KEY_HEADER, BUNNY_STORAGE_BASE_URL, getBunnyStorageZone, getBunnyStoragePassword } from "../constants/bunny";
+import { requestStructured } from "../lib/claudeStructured";
+import { isSupportedImageUpload, prepareImageBlocks } from "../lib/visionImage";
+import { RECEIPT_SCHEMA, buildReceiptPrompt, validateScannedReceipt, type ScannedReceipt } from "../services/receiptScan";
 
 const router = Router();
 const COLLECTION = "expenses";
@@ -80,70 +83,50 @@ router.post("/upload-doc", requireFirebaseAuth, requireSupremeAdmin, upload.sing
 
 // POST /scan-receipt — AI extraction from image or PDF
 router.post("/scan-receipt", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
-  const { fileBase64, mediaType } = req.body as { fileBase64: string; mediaType: string };
+  const { fileBase64, mediaType: rawMediaType } = req.body as { fileBase64: string; mediaType: string };
 
-  if (!fileBase64 || !mediaType) {
-    res.status(400).json({ error: "fileBase64 și mediaType sunt obligatorii." });
+  if (!fileBase64) {
+    res.status(400).json({ error: "fileBase64 este obligatoriu." });
     return;
   }
 
   try {
-    const isImage = mediaType.startsWith("image/");
-    const isPdf = mediaType === "application/pdf";
+    const buffer = Buffer.from(fileBase64, "base64");
+    const mediaType = String(rawMediaType ?? "");
+    const isPdf = mediaType === "application/pdf" || buffer.subarray(0, 4).toString("latin1") === "%PDF";
+    const isImage = !isPdf && isSupportedImageUpload(buffer, mediaType);
 
     if (!isImage && !isPdf) {
-      res.status(400).json({ error: "Tip fișier nesuportat. Folosiți JPG, PNG sau PDF." });
+      res.status(400).json({ error: "Tip fișier nesuportat. Folosiți JPG, PNG, HEIC sau PDF." });
       return;
     }
 
-    const contentBlock = isImage
-      ? ({
-          type: "image",
-          source: { type: "base64", media_type: mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: fileBase64 },
-        } as const)
-      : ({
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: fileBase64 },
-        } as const);
+    const documentBlocks: Anthropic.ContentBlockParam[] = isPdf
+      ? [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: fileBase64 } }]
+      : await prepareImageBlocks(buffer, mediaType);
 
-    const message = await anthropic.messages.create({
-      model: "claude-opus-4-7",
-      max_tokens: 512,
+    const { data, stopReason } = await requestStructured<ScannedReceipt>(anthropic, {
+      maxTokens: 16000,
+      effort: "high",
+      timeoutMs: 80_000,
+      schema: RECEIPT_SCHEMA,
       messages: [
         {
           role: "user",
           content: [
-            contentBlock,
-            {
-              type: "text",
-              text: `Ești un asistent care extrage date din bonuri fiscale și facturi românești.
-Extrage din documentul de mai sus următoarele informații și returnează DOAR un JSON valid, fără text suplimentar:
-{
-  "date": "YYYY-MM-DD sau null dacă nu găsești",
-  "supplier": "Numele furnizorului/magazinului sau null",
-  "amount": număr cu 2 zecimale sau null,
-  "currency": "RON sau EUR sau null",
-  "description": "Descriere scurtă a ce s-a cumpărat sau null",
-  "category": "una din: combustibil, echipament, transport, software, cazare, alimentatie, marketing, altele",
-  "invoiceNumber": "Seria și numărul facturii exact cum apare pe document (ex: FA-2024-001, RO 1234) sau null"
-}`,
-            },
+            ...documentBlocks,
+            { type: "text", text: buildReceiptPrompt(documentBlocks.length) },
           ],
         },
       ],
-    }, { timeout: 25_000 });
+    });
 
-    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "{}";
-
-    let extracted: Record<string, unknown> = {};
-    try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      extracted = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-    } catch {
-      extracted = {};
+    if (!data) {
+      res.status(422).json({ error: stopReason === "refusal" ? "AI a refuzat documentul. Completează manual." : "AI nu a putut citi documentul. Încearcă o poză mai clară." });
+      return;
     }
 
-    res.json({ extracted });
+    res.json(validateScannedReceipt(data));
   } catch (error) {
     console.error("[expenses] POST /scan-receipt failed:", error);
     let message = "Eroare necunoscută";

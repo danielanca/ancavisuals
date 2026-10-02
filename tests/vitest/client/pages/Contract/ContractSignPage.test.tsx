@@ -145,6 +145,8 @@ describe("ContractSignPage", () => {
         clientName: "Ion Popescu",
         clientEmail: "ion@example.com",
         clientAddress: "Cluj",
+        clientCity: "",
+        clientCounty: "",
         clientPhone: "0712345678",
         clientIdSeries: "AB123456",
         clientSignatureBase64: "data:image/png;base64,signature",

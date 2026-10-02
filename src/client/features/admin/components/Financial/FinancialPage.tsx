@@ -503,7 +503,7 @@ function DocUploadRow({
           </>
         )}
       </div>
-      <input ref={inputRef} type="file" accept="image/*,.pdf" className="hidden"
+      <input ref={inputRef} type="file" accept="image/*,.heic,.heif,.pdf" className="hidden"
         onChange={(e) => onFileChange(e.target.files?.[0] ?? null)} />
     </div>
   );
@@ -528,6 +528,19 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [scanError, setScanError] = React.useState<string | null>(null);
+  // Câmpurile pe care AI-ul nu le-a putut citi sigur (sau care nu trec
+  // verificarea total = subtotal + TVA) — marcate cu chenar galben până le editezi.
+  const [uncertainFields, setUncertainFields] = React.useState<string[]>([]);
+  const [scanWarnings, setScanWarnings] = React.useState<string[]>([]);
+
+  function fieldClass(field: string): string {
+    const border = uncertainFields.includes(field) ? "border-amber-500 focus:border-amber-400" : "border-neutral-700 focus:border-neutral-500";
+    return `w-full bg-neutral-800 border ${border} text-white text-sm rounded-lg px-3 py-2 focus:outline-none`;
+  }
+
+  function markVerified(field: string) {
+    setUncertainFields((prev) => (prev.includes(field) ? prev.filter((f) => f !== field) : prev));
+  }
   const [duplicateWarning, setDuplicateWarning] = React.useState<string | null>(null);
 
   function handleCategoryChange(value: string) {
@@ -544,7 +557,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     setSlot((prev) => ({ ...prev, scanning: true }));
     setError(null);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    const timeoutId = setTimeout(() => controller.abort(), 90_000);
     try {
       const base64 = await fileToBase64(slot.file);
       const response = await fetch("/api/admin/expenses/scan-receipt", {
@@ -553,9 +566,11 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
         body: JSON.stringify({ fileBase64: base64, mediaType: slot.file.type }),
         signal: controller.signal,
       });
-      const data = await response.json() as { extracted?: Record<string, unknown>; error?: string };
+      const data = await response.json() as { extracted?: Record<string, unknown>; uncertainFields?: string[]; warnings?: string[]; error?: string };
       if (!response.ok) throw new Error(data.error ?? `Eroare server (${response.status})`);
       if (!data.extracted) throw new Error("AI-ul nu a putut extrage date din imagine. Încearcă cu o poză mai clară.");
+      setUncertainFields(data.uncertainFields ?? []);
+      setScanWarnings(data.warnings ?? []);
       if (data.extracted) {
         const extracted = data.extracted as Record<string, unknown>;
         if (extracted.date) setDate(String(extracted.date));
@@ -580,7 +595,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
       }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
-        setScanError("Extragerea a depășit 30 de secunde. Încearcă din nou sau completează manual.");
+        setScanError("Extragerea a depășit 90 de secunde. Încearcă din nou sau completează manual.");
       } else {
         setScanError(err instanceof Error ? err.message : "Scanare eșuată. Completează manual.");
       }
@@ -752,18 +767,28 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
             {(facturaSlot.file || chitantaSlot.file) && (
               <p className="text-xs text-neutral-500">"Extrage AI" completează automat câmpurile de mai jos din documentul ales.</p>
             )}
+            {(uncertainFields.length > 0 || scanWarnings.length > 0) && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-1">
+                {uncertainFields.length > 0 && (
+                  <p className="text-xs text-amber-300">Câmpurile cu chenar galben nu au putut fi citite sigur — verifică-le cu documentul.</p>
+                )}
+                {scanWarnings.map((warning) => (
+                  <p key={warning} className="text-xs text-amber-300">⚠️ {warning}</p>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
             <label className="block text-xs text-neutral-400 mb-1">Data *</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required
-              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+            <input type="date" value={date} onChange={(e) => { setDate(e.target.value); markVerified("date"); }} required
+              className={fieldClass("date")} />
           </div>
 
           <div>
             <label className="block text-xs text-neutral-400 mb-1">Categorie *</label>
-            <select value={category} onChange={(e) => handleCategoryChange(e.target.value)} required
-              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500">
+            <select value={category} onChange={(e) => { handleCategoryChange(e.target.value); markVerified("category"); }} required
+              className={fieldClass("category")}>
               {EXPENSE_CATEGORIES.map((cat) => (
                 <option key={cat.value} value={cat.value}>{cat.label}</option>
               ))}
@@ -772,8 +797,8 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
 
           <div>
             <label className="block text-xs text-neutral-400 mb-1">Furnizor</label>
-            <input type="text" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="ex: Petrom, Dedeman..."
-              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+            <input type="text" value={supplier} onChange={(e) => { setSupplier(e.target.value); markVerified("supplier"); }} placeholder="ex: Petrom, Dedeman..."
+              className={fieldClass("supplier")} />
             {isReverseChargeSupplier(supplier) && (
               <p className="mt-1.5 text-xs text-sky-400 leading-relaxed">
                 ⚠️ Furnizor din străinătate — factura vine fără TVA românesc. Ai obligația de autotaxare (taxare inversă): Decontul special de TVA (formular 301), până pe 25 ale lunii următoare. Verifică cu un contabil.
@@ -783,27 +808,27 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
 
           <div>
             <label className="block text-xs text-neutral-400 mb-1">Descriere</label>
-            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ce s-a cumpărat..."
-              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+            <input type="text" value={description} onChange={(e) => { setDescription(e.target.value); markVerified("description"); }} placeholder="Ce s-a cumpărat..."
+              className={fieldClass("description")} />
           </div>
 
           <div>
             <label className="block text-xs text-neutral-400 mb-1">Număr factură</label>
-            <input type="text" value={invoiceNumber} onChange={(e) => { setInvoiceNumber(e.target.value); setDuplicateWarning(null); }}
+            <input type="text" value={invoiceNumber} onChange={(e) => { setInvoiceNumber(e.target.value); setDuplicateWarning(null); markVerified("invoiceNumber"); }}
               placeholder="ex: FA-2024-001"
-              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+              className={fieldClass("invoiceNumber")} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-neutral-400 mb-1">Sumă *</label>
-              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} min="0" step="0.01" required
-                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+              <input type="number" value={amount} onChange={(e) => { setAmount(e.target.value); markVerified("amount"); }} min="0" step="0.01" required
+                className={fieldClass("amount")} />
             </div>
             <div>
               <label className="block text-xs text-neutral-400 mb-1">Monedă</label>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)}
-                className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500">
+              <select value={currency} onChange={(e) => { setCurrency(e.target.value); markVerified("currency"); }}
+                className={fieldClass("currency")}>
                 <option value="RON">RON</option>
                 <option value="EUR">EUR</option>
                 <option value="USD">USD</option>

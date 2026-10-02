@@ -29,6 +29,9 @@ export interface FiscalSettings {
   ownerName?: string;
   cif?: string;
   address?: string;
+  city?: string;
+  county?: string;
+  postalCode?: string;
   iban?: string;
   bank?: string;
   invoiceSeries?: string;
@@ -42,11 +45,18 @@ export interface InvoiceData {
   type: "B2C" | "B2B";
   clientName: string;
   clientAddress?: string;
+  clientCity?: string;
+  clientCounty?: string;
   clientCIF?: string;
   items: InvoiceItem[];
   totalAmount: number;
   currency: string;
   notes?: string;
+}
+
+function joinLocality(city?: string, county?: string, postalCode?: string): string {
+  const place = [city?.trim(), county?.trim() ? `jud. ${county.trim()}` : ""].filter(Boolean).join(", ");
+  return postalCode?.trim() ? `${place} ${postalCode.trim()}` : place;
 }
 
 const CSS = `
@@ -118,6 +128,7 @@ export async function generateInvoicePDF({
     <div class="party-detail">
       CIF: ${esc(fiscal.cif ?? "—")}<br/>
       ${esc(fiscal.address ?? "")}<br/>
+      ${fiscal.city || fiscal.county ? `${esc(joinLocality(fiscal.city, fiscal.county, fiscal.postalCode))}<br/>` : ""}
       IBAN: ${esc(fiscal.iban ?? "—")}${fiscal.bank ? `<br/>${esc(fiscal.bank)}` : ""}
     </div>
   </div>
@@ -127,6 +138,7 @@ export async function generateInvoicePDF({
     <div class="party-detail">
       ${invoice.type === "B2B" && invoice.clientCIF ? `CIF: ${esc(invoice.clientCIF)}<br/>` : ""}
       ${invoice.clientAddress ? esc(invoice.clientAddress) : "&nbsp;"}
+      ${invoice.clientCity || invoice.clientCounty ? `<br/>${esc(joinLocality(invoice.clientCity, invoice.clientCounty))}` : ""}
     </div>
   </div>
 </div>

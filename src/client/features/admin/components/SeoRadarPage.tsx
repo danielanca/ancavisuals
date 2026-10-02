@@ -421,6 +421,7 @@ const SeoRadarPage: React.FC = () => {
   const [planStatus, setPlanStatus] = useState<"idle" | "saving" | "saved">("idle");
   const scanQueueRef = useRef<ScanJob[]>([]);
   const scanPumpingRef = useRef(false);
+  const scanAbortRef = useRef<AbortController | null>(null);
   const planSkipSaveRef = useRef(false);
   const planSaveTimerRef = useRef<number | null>(null);
   const creatorRef = useRef<HTMLElement>(null);
@@ -492,11 +493,15 @@ const SeoRadarPage: React.FC = () => {
       .catch(err => setStatsError(err instanceof Error ? err.message : "Statisticile nu sunt disponibile."));
   }, [auth.accessToken, provider]);
 
-  const runScanRequest = async (payload: { keyword: string; city: string; provider: "serpapi" | "dataforseo" }): Promise<SearchResult> => {
+  const runScanRequest = async (
+    payload: { keyword: string; city: string; provider: "serpapi" | "dataforseo" },
+    signal?: AbortSignal,
+  ): Promise<SearchResult> => {
     const response = await fetch("/api/admin/seo-radar/search", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
       body: JSON.stringify(payload),
+      signal,
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Căutarea a eșuat.");
@@ -689,14 +694,21 @@ const SeoRadarPage: React.FC = () => {
     try {
       while (scanQueueRef.current.length > 0) {
         const job = scanQueueRef.current[0];
+        const controller = new AbortController();
+        scanAbortRef.current = controller;
         setActiveScanKey(job.key);
         setScanResults(prev => { const { [job.key]: _omit, ...rest } = prev; return rest; });
         try {
-          const data = await runScanRequest({ keyword: job.keyword, city: job.city, provider: job.provider });
+          const data = await runScanRequest({ keyword: job.keyword, city: job.city, provider: job.provider }, controller.signal);
           setScanResults(prev => ({ ...prev, [job.key]: { position: data.ownDomainPosition ?? null } }));
         } catch (err) {
-          setScanResults(prev => ({ ...prev, [job.key]: { error: true, message: err instanceof Error ? err.message : "Scanarea a eșuat." } }));
+          if (!controller.signal.aborted) {
+            setScanResults(prev => ({ ...prev, [job.key]: { error: true, message: err instanceof Error ? err.message : "Scanarea a eșuat." } }));
+          }
         }
+        scanAbortRef.current = null;
+        // La oprire, stopScanQueue a golit deja coada; joburile puse între timp nu trebuie scoase.
+        if (controller.signal.aborted) continue;
         scanQueueRef.current = scanQueueRef.current.slice(1);
         syncScanQueue();
         setActiveScanKey(null);
@@ -715,7 +727,13 @@ const SeoRadarPage: React.FC = () => {
     syncScanQueue();
     void pumpScanQueue();
   };
-  const stopScanQueue = () => { scanQueueRef.current = []; syncScanQueue(); };
+  const stopScanQueue = () => {
+    scanQueueRef.current = [];
+    scanAbortRef.current?.abort();
+    scanAbortRef.current = null;
+    setActiveScanKey(null);
+    syncScanQueue();
+  };
   const clearScanResult = (key: string) => setScanResults(prev => { const { [key]: _omit, ...rest } = prev; return rest; });
 
   const providerName = (value: "serpapi" | "dataforseo") => (value === "dataforseo" ? "DataForSEO" : "SerpApi");

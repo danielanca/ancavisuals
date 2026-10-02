@@ -15,6 +15,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Eveniment nou", path: "/admin/create-event", category: "Evenimente", icon: "➕", keywords: "adauga programare rezervare booking creeaza" },
   { label: "Invitație nuntă", path: "/admin/create-event-wedding", category: "Evenimente", icon: "💌", keywords: "nunta invitatie wedding creeaza" },
   { label: "Mementouri", path: "/admin/mementos", category: "Evenimente", icon: "🔔", keywords: "remindere notificari" },
+  { label: "Taskuri clienți", path: "/admin/taskuri", category: "Evenimente", icon: "✅", keywords: "todo de facut azi progres organizator" },
   { label: "Moderare albume", path: "/admin/moderare", category: "Evenimente", icon: "🖼️", keywords: "album moderat aprobare" },
   // Contracte & Oferte
   { label: "Contracte", path: "/admin/contracts", category: "Contracte & Oferte", icon: "📝", keywords: "semnat client acord" },

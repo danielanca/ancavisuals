@@ -70,10 +70,23 @@ import { captureLandingMeta } from "./utils/sessionAttribution";
 import publicRoutes from "./routes/publicRoutes";
 import { adminRoutes } from "./routes/adminRoutes";
 import { weddingHubRoutes } from "./routes/weddingHubRoutes";
+import LiveChat, { isLiveChatConfigured } from "./features/chat/components/LiveChat";
 
 const AncaChat = loadable(() => import("./features/chat/components/AncaChat"), { fallback: <></> });
 const NotFoundPage = loadable(() => import("./pages/NotFoundPage"), { fallback: <AncaLoader /> });
 
+// Live chat (Tidio) runs on the homepage and the normal public pages — including
+// /oferta (ad traffic) and /blog — but never on client/guest areas: albums,
+// QR moments, photobooth & invitation pages, contracts, admin.
+const HIDE_LIVE_CHAT_PREFIXES = [
+  "/admin", "/login", "/colaborator",
+  "/media", "/album", "/backup", "/share", "/delivery-address",
+  "/qr-moments", "/qr-code",
+  "/fotocabina", "/galerie-fotocabina",
+  "/invitatie", "/invite", "/wedding-hub",
+  "/contract", "/proces-verbal", "/revin",
+  "/bio",
+];
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup", "/bio"];
 
 export const App = () => {
@@ -147,7 +160,9 @@ export const App = () => {
           {isErrorReportingEnabled && <ErrorMonitorPanel />}
           {isErrorReportingEnabled && <ClientDebugBadge />}
           <Suspense fallback={<AncaLoader reportSlowLoad />}>
-            {showChat && <AncaChat />}
+            {isLiveChatConfigured()
+              ? <LiveChat visible={!HIDE_LIVE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix))} />
+              : showChat && <AncaChat />}
             <Routes>
               {publicRoutes.map((route) => (
                 <Route key={route.path} path={route.path} element={<route.component />} />

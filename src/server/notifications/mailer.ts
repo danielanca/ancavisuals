@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { randomUUID } from "node:crypto";
 import { canRetryEmail, describeEmailError, recordEmailDelivery, raiseEmailAlert, emailErrorDiagnostic } from "../services/emailDelivery.service";
+import { logEmail, updateEmailLog } from "../services/emailLog.service";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { emailAuth } from "../constants/credentials";
 
@@ -63,6 +64,9 @@ interface SendEmailOptions {
   subject: string;
   html: string;
   from?: string;
+  /** Shown in /admin/leads → Jurnal emailuri. */
+  source?: string;
+  leadId?: string;
 }
 
 const CONTACT_EMAIL = "info@ancavisuals.ro";
@@ -86,13 +90,14 @@ function wrapHtml(html: string): string {
 // fall back to the local part of the address ("info") as the sender name.
 const SENDER_DISPLAY_NAME = "AncaVisuals";
 
-export async function sendEmail({ to, subject, html, from }: SendEmailOptions): Promise<void> {
+export async function sendEmail({ to, subject, html, from, source, leadId }: SendEmailOptions): Promise<void> {
   const activeTransport = testEmailMode && testTransport ? testTransport : productionTransport;
   const activeAddress = testEmailMode && testUser ? testUser : emailAuth.email;
   const activeFrom = from ?? `"${SENDER_DISPLAY_NAME}" <${activeAddress}>`;
   const id = randomUUID();
   await recordEmailDelivery(id, { to, subject, status: "pending", attempts: 0,
     transport: testEmailMode && testTransport ? "test" : "production", createdAt: new Date().toISOString() });
+  const logId = await logEmail({ to, subject, html, status: "pending", deliveryId: id, ...(source ? { source } : {}), ...(leadId ? { leadId } : {}) });
   for (let attempt = 1; attempt <= 3; attempt++) {
     await recordEmailDelivery(id, { attempts: attempt });
     let info: SMTPTransport.SentMessageInfo;
@@ -107,6 +112,8 @@ export async function sendEmail({ to, subject, html, from }: SendEmailOptions): 
       const e = error as { responseCode?: number; code?: string };
       await recordEmailDelivery(id, { status: e.responseCode || e.code === "EAUTH" ? "failed" : "unknown",
         error: describeEmailError(error) });
+      await updateEmailLog(logId, { status: "failed", severity: "error", error: describeEmailError(error) });
+      console.error(`[email-funnel] EȘUAT (SMTP) — ${source ?? "email"} · ${subject}`);
       throw error;
     }
     // Partial acceptance must not be retried: accepted recipients would get duplicates.
@@ -116,9 +123,12 @@ export async function sendEmail({ to, subject, html, from }: SendEmailOptions): 
       await raiseEmailAlert({ id: randomUUID(), error: "Unul sau mai mulți destinatari nu au fost acceptați de SMTP.", subject, to });
       await recordEmailDelivery(id, { status: accepted ? "unknown" : "failed",
         error: accepted ? "Doar o parte dintre destinatari a fost acceptată. Nu s-a reîncercat automat." : "Niciun destinatar nu a fost acceptat de SMTP." });
+      await updateEmailLog(logId, { status: "failed", severity: "error", error: "Destinatar neacceptat de SMTP." });
+      console.error(`[email-funnel] EȘUAT (destinatar refuzat) — ${source ?? "email"} · ${subject}`);
       throw new Error("SMTP recipient acceptance incomplete");
     }
     await recordEmailDelivery(id, { status: "accepted", messageId: String(info.messageId ?? ""), error: null });
+    await updateEmailLog(logId, { status: "sent", severity: "ok" });
     return;
   }
 }

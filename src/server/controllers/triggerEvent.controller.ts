@@ -1,12 +1,13 @@
 import type { Request, Response } from "express";
 import { applyCORSpolicy } from "../constants/cors";
 import { adminUser } from "../constants/credentials";
-import { sendEmail } from "../notifications/mailer";
 import { fetchIpInfo, getClientIp } from "../utils/ipinfo";
 import { renderTriggerTemplate } from "../notifications/templates/triggerTemplate";
 import { logActivity, getNotificationSettings, markActivityEmailSent } from "../services/activity.service.js";
 import { isNotifiableCountry } from "../utils/geoFilter.js";
 import { reportLeadConversion, reportContactClickConversion } from "../services/googleAdsConversion.service.js";
+import { saveLead, updateLeadEmailStatus } from "../services/leads.service.js";
+import { blockEmail, sendViaFunnel, type BlockCode } from "../notifications/emailFunnel.js";
 
 interface TypeEvent {
   typeEvent: string;
@@ -32,6 +33,13 @@ interface TypeEvent {
   booking?: {
     phone?: string;
     price?: number;
+    fullName?: string;
+    name?: string;
+    eventType?: string;
+    date?: string;
+    location?: string;
+    partial?: boolean;
+    [key: string]: unknown;
   };
 }
 
@@ -138,26 +146,67 @@ export const triggerEvent = async (request: Request, response: Response) => {
       return;
     }
     const cooldownSource = isBookingSubmission ? "booking" : isPhoneReveal ? "phone_reveal" : (aiSource ?? "generic");
+    const requestUa = String(request.headers["user-agent"] ?? triggerData.browserVersion ?? "");
+
+    // Persist the lead before ANY filter below, so a wrong bot/cooldown/country
+    // decision can never lose a client's phone number again.
+    const booking = triggerData.booking ?? {};
+    const leadId = isBookingSubmission
+      ? await saveLead({
+          source: triggerData.typeEvent === "Lead Rapid" ? "configurator" : triggerData.url === "/bio" ? "bio" : "contact-form",
+          name: String(booking.fullName ?? booking.name ?? ""),
+          phone: String(booking.phone ?? ""),
+          eventType: String(booking.eventType ?? ""),
+          eventDate: String(booking.date ?? ""),
+          location: String(booking.location ?? ""),
+          partial: booking.partial === true,
+          subject: triggerData.subject,
+          details: booking,
+          ip: clientIp ?? "",
+          userAgent: requestUa,
+          gclid: triggerData.gclid ?? triggerData.wbraid ?? triggerData.gbraid ?? "",
+        })
+      : null;
+
+    // Every email a gate stops goes through the funnel: logged, and an error when a real lead/contact is lost.
+    const skip = async (code: BlockCode, detail = "") => {
+      if (isBookingSubmission || isPhoneReveal) {
+        await blockEmail({
+          kind: isBookingSubmission ? "lead" : "contact",
+          to: adminUser.email,
+          subject: triggerData.subject ?? `${triggerData.typeEvent} — ${triggerData.url ?? ""}`,
+          html: triggerData.html ?? "",
+          source: isBookingSubmission ? "lead" : "phone-reveal",
+          ...(leadId ? { leadId } : {}),
+        }, code, detail);
+      }
+      await updateLeadEmailStatus(leadId, "skipped", detail ? `${code}: ${detail}` : code);
+      response.status(204).send();
+    };
 
     if (isLocalIp(clientIp)) {
-      response.status(204).send();
+      await skip("local-ip");
       return;
     }
 
-    if (isOnCooldown(clientIp, cooldownSource, isPhoneReveal ? PHONE_REVEAL_COOLDOWN_MS : COOLDOWN_MS)) {
-      response.status(204).send();
+    // Leads only debounce double-submits: the 18h visitor cooldown would swallow the
+    // final booking right after the configurator's partial lead from the same IP.
+    if (isOnCooldown(clientIp, cooldownSource, isPhoneReveal || isBookingSubmission ? PHONE_REVEAL_COOLDOWN_MS : COOLDOWN_MS)) {
+      await skip("duplicate", "trimis deja în ultimul minut de la același IP");
       return;
     }
 
-    if (isBot(triggerData.browserVersion ?? "")) {
-      response.status(204).send();
+    // The real User-Agent header first: booking forms don't send `browserVersion`,
+    // and an empty value counted as a bot, silently dropping every configurator lead.
+    if (isBot(requestUa)) {
+      await skip("bot", requestUa.slice(0, 120) || "fără User-Agent");
       return;
     }
 
     const ipInfo = await fetchIpInfo(clientIp);
 
     if (!isNotifiableCountry(ipInfo?.country)) {
-      response.status(204).send();
+      await skip("country", ipInfo?.country ?? "?");
       return;
     }
 
@@ -179,7 +228,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     // Detect source for activity metadata
     const referrer = triggerData.referrer ?? "direct";
-    const ua = triggerData.browserVersion ?? "";
+    const ua = requestUa;
     const uaLower = ua.toLowerCase();
     const device = /mobile|android|iphone|ipad/.test(uaLower) ? "Mobil" : "Desktop";
     const city = ipInfo?.city ?? "";
@@ -248,7 +297,7 @@ export const triggerEvent = async (request: Request, response: Response) => {
 
     if (!shouldEmail) {
       recordSent(clientIp, cooldownSource);
-      response.status(204).send();
+      await skip("settings", "notificare dezactivată din setări");
       return;
     }
 
@@ -281,7 +330,20 @@ export const triggerEvent = async (request: Request, response: Response) => {
       ? triggerData.subject!
       : `${subjectPrefix} — ${triggerData.url} — ${todayString} - ${source}`;
 
-    await sendEmail({ to: adminUser.email, subject: emailSubject, html: emailHtml });
+    try {
+      await sendViaFunnel({
+        kind: isBookingSubmission ? "lead" : "contact",
+        to: adminUser.email,
+        subject: emailSubject,
+        html: emailHtml,
+        source: isBookingSubmission ? "lead" : "phone-reveal",
+        ...(leadId ? { leadId } : {}),
+      });
+    } catch (error) {
+      await updateLeadEmailStatus(leadId, "failed", "eroare SMTP");
+      throw error;
+    }
+    await updateLeadEmailStatus(leadId, "sent");
 
     if (activityId) await markActivityEmailSent(activityId).catch(() => console.error("[activity] Could not update email status"));
     recordSent(clientIp, cooldownSource);

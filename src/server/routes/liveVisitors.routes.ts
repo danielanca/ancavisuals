@@ -6,7 +6,7 @@ import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { isLocalIp } from "../controllers/triggerEvent.controller";
 import { BOT_UA } from "../utils/botUa";
 import { logActivity } from "../services/activity.service";
-import { sendEmail } from "../notifications/mailer";
+import { blockEmail, sendViaFunnel, type BlockCode, type FunnelEmail } from "../notifications/emailFunnel";
 import { adminUser } from "../constants/credentials";
 import { isNotifiableCountry } from "../utils/geoFilter";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
@@ -47,11 +47,14 @@ const CRITICAL_LABELS: Record<string, string> = {
 // live panel and the activity feed. Real leads are emailed by their own routes
 // (/api/campaign/:slug/contact, /triggerEvent) — see `formSubmittedShouldEmail`
 // for the delivery/subscribe exceptions that have no dedicated route.
+// `availability_checked` is intentionally NOT here: with high ad traffic, most
+// availability checks never turn into a lead, and one email per check flooded
+// the inbox. It still shows live in the admin panel and the activity feed
+// (see LOGGED_EVENTS below) — it just doesn't email the owner anymore.
 const EMAIL_EVENTS: Record<string, string> = {
   whatsapp_clicked: "💬 Click WhatsApp",
   phone_revealed: "📞 Număr de telefon afișat",
   contact_clicked: "🖱️ Click Contactează-ne",
-  availability_checked: "📅 A verificat disponibilitatea",
 };
 
 // `form_submitted` still emails for these intents — they have no other route
@@ -89,11 +92,11 @@ const SOURCE_RO: Record<string, string> = {
   referral: "Alt site", direct: "Direct / tastat",
 };
 
-function sendEventEmail(
+function buildEventEmail(
   eventName: string,
   session: LiveSession,
   eventBody: Record<string, unknown>,
-): void {
+): { subject: string; html: string } {
   const safe = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const formKind = eventName === "form_submitted" ? String(eventBody.kind ?? "other") : "";
   const title = formKind
@@ -136,7 +139,7 @@ function sendEventEmail(
     ? `📅 Verificare disponibilitate: ${checkedDate}${dateFree === false ? " (ocupată)" : ""} — Vizitator #${session.visitorNumber}`
     : `${title} — Vizitator #${session.visitorNumber}${session.isGoogleAds ? " · Google Ads" : ""} · ${session.currentPage || "/"}`;
 
-  sendEmail({ to: adminUser.email, subject, html }).catch(() => {});
+  return { subject, html };
 }
 
 function isAdminRequest(req: Request): boolean {
@@ -144,15 +147,21 @@ function isAdminRequest(req: Request): boolean {
   return cookies.split(";").some((c) => c.trim() === `${ADMIN_COOKIE}=1`);
 }
 
-function isTrackableRequest(req: Request, page?: string): boolean {
+/** Why a request isn't tracked (null = tracked). `skip-page` = admin/album pages, never emailed. */
+function untrackedReason(req: Request, page?: string): BlockCode | "skip-page" | null {
   // In dev the owner IS the only tester — don't exclude their admin cookie or
   // localhost IP, or the panel can never be exercised. Production still does.
-  if (IS_PROD && isAdminRequest(req)) return false;
+  if (IS_PROD && isAdminRequest(req)) return "admin";
   const ua = String(req.headers["user-agent"] ?? "");
-  if (!ua || BOT_UA.test(ua)) return false;
-  if (IS_PROD && isLocalIp(getClientIp(req) ?? "")) return false;
-  if (page && SKIP_PREFIXES.some((p) => page.startsWith(p))) return false;
-  return true;
+  if (!ua || BOT_UA.test(ua)) return "bot";
+  if (IS_PROD && isLocalIp(getClientIp(req) ?? "")) return "local-ip";
+  if (page && SKIP_PREFIXES.some((p) => page.startsWith(p))) return "skip-page";
+  return null;
+}
+
+/** Events that should email the owner (see EMAIL_EVENTS / formSubmittedShouldEmail). */
+function isEmailWorthy(eventName: string, formKind: string): boolean {
+  return Boolean(EMAIL_EVENTS[eventName]) || (eventName === "form_submitted" && formSubmittedShouldEmail(formKind));
 }
 
 // POST /api/analytics/live/event
@@ -162,7 +171,19 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
     if (!body?.sessionId || !body?.event || typeof body.sessionId !== "string" || body.sessionId.length > 256 || body.sessionId.includes("/") || typeof body.event !== "string") {
       return res.status(400).json({ error: "invalid_payload" });
     }
-    if (!isTrackableRequest(req, body.page)) return res.json({ ok: true, ignored: true });
+    const untracked = untrackedReason(req, body.page);
+    if (untracked) {
+      const kind = body.event === "form_submitted" ? String((body.meta as Record<string, unknown> | undefined)?.kind ?? "other") : "";
+      if (untracked !== "skip-page" && isEmailWorthy(body.event, kind)) {
+        void blockEmail({
+          kind: "contact",
+          to: adminUser.email,
+          subject: `${EMAIL_EVENTS[body.event] ?? FORM_KIND_TITLE[kind] ?? body.event} — ${body.page ?? "/"}`,
+          source: `live:${body.event}`,
+        }, untracked, String(req.headers["user-agent"] ?? "").slice(0, 120));
+      }
+      return res.json({ ok: true, ignored: true });
+    }
 
     await restoreSession(body.sessionId);
     const ip = getClientIp(req) ?? "";
@@ -205,28 +226,32 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
       }).catch(() => {});
     }
 
-    // Non-European traffic is near-never a real lead for a local RO business —
-    // same policy as the "visitor entered the site" / offer-view / 404 emails.
-    const wantEmail =
-      (Boolean(EMAIL_EVENTS[body.event]) ||
-        (body.event === "form_submitted" && formSubmittedShouldEmail(formKind))) &&
-      isNotifiableCountry(session.country);
-    if (wantEmail && shouldEmailEvent(body.sessionId, body.event, emailDiscriminator)) {
-      sendEventEmail(body.event, session, {
-        event: body.event,
-        page: event.page,
-        label: body.label ?? event.label,
-        kind: formKind || undefined,
-        text: meta.text,
-        href: meta.href,
-        date: meta.date,
-        available: meta.available,
-        priority: event.priority,
-        at: new Date(event.at).toISOString(),
-        visitorNumber: session.visitorNumber,
-        source: session.source,
-        isGoogleAds: session.isGoogleAds,
-      });
+    if (isEmailWorthy(body.event, formKind)) {
+      const email: FunnelEmail = {
+        kind: "contact",
+        to: adminUser.email,
+        source: `live:${body.event}`,
+        ...buildEventEmail(body.event, session, {
+          event: body.event,
+          page: event.page,
+          label: body.label ?? event.label,
+          kind: formKind || undefined,
+          text: meta.text,
+          href: meta.href,
+          date: meta.date,
+          available: meta.available,
+          priority: event.priority,
+          at: new Date(event.at).toISOString(),
+          visitorNumber: session.visitorNumber,
+          source: session.source,
+          isGoogleAds: session.isGoogleAds,
+        }),
+      };
+      // Non-European traffic is near-never a real lead for a local RO business —
+      // same policy as the "visitor entered the site" / offer-view / 404 emails.
+      if (!isNotifiableCountry(session.country)) void blockEmail(email, "country", session.country ?? "?");
+      else if (!shouldEmailEvent(body.sessionId, body.event, emailDiscriminator)) void blockEmail(email, "duplicate", "aceeași sesiune, în ultimele 10 minute");
+      else sendViaFunnel(email).catch(() => {});
     }
 
     res.json({ ok: true });

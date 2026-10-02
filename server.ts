@@ -46,6 +46,7 @@ import qrMomentsRouter from "./src/server/routes/qrMoments.routes";
 import referralRouter from "./src/server/routes/referral.routes";
 import contactsRouter from "./src/server/routes/contacts.routes";
 import equipmentRouter from "./src/server/routes/equipment.routes";
+import tasksRouter from "./src/server/routes/tasks.routes";
 import accountsRouter from "./src/server/routes/accounts.routes";
 import weddingHubRouter from "./src/server/routes/weddingHub.routes";
 import weddingHubMockRouter from "./src/server/routes/weddingHubMock.routes";
@@ -58,6 +59,7 @@ import seoRadarRouter from "./src/server/routes/seoRadar.routes";
 import adsRadarRouter from "./src/server/routes/adsRadar.routes";
 import campaignRouter from "./src/server/routes/campaign.routes";
 import activityRouter from "./src/server/routes/activity.routes";
+import leadsRouter from "./src/server/routes/leads.routes";
 import searchConsoleRouter from "./src/server/routes/searchConsole.routes";
 import photoCollectionsRouter from "./src/server/routes/photoCollections.routes";
 import photoboothRouter from "./src/server/routes/photobooth.routes";
@@ -194,6 +196,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.admin, liveVisitorsAdminRouter);
   app.use(API_ROUTE_PREFIXES.admin, searchConsoleRouter);
   app.use(API_ROUTE_PREFIXES.admin, activityRouter);
+  app.use(API_ROUTE_PREFIXES.admin, leadsRouter);
   app.use(API_ROUTE_PREFIXES.admin, photoCollectionsRouter);
   app.use("/api/moderare", moderationRouter);
   app.use("/api/inspiration-proposals", inspirationProposalsRouter);
@@ -224,6 +227,7 @@ async function createServer() {
   app.use("/api/referral", referralRouter);
   app.use("/api/admin/contacts", contactsRouter);
   app.use("/api/admin/equipment", equipmentRouter);
+  app.use("/api/admin/tasks", tasksRouter);
 
   if (showProgress) devLogger.step("Rute API", "29 rute înregistrate");
 
@@ -286,12 +290,20 @@ async function createServer() {
   }
 
   // --- Legacy path redirects ---
+  const DEFAULT_OFFER_PATH = "/oferta/olx";
   // The offer pages live under the singular /oferta/:slug. Links that use the
   // plural /oferte/:slug (e.g. shared by mistake) get permanently redirected.
   app.get(/^\/oferte(\/.*)?$/, (req: Request, res: Response) => {
     const slug = req.path.replace(/^\/oferte\/?/, "").replace(/\/+$/, "");
     const query = req.originalUrl.slice(req.path.length); // preserves ?gclid=… etc.
-    res.redirect(301, slug ? `/oferta/${slug}${query}` : `/${query}`);
+    res.redirect(301, slug ? `/oferta/${slug}${query}` : `${DEFAULT_OFFER_PATH}${query}`);
+  });
+
+  // /oferta with no slug has no page of its own — send it to the main offer.
+  // 302, not 301: the default offer may change and browsers cache 301s forever.
+  app.get(/^\/oferta\/?$/, (req: Request, res: Response) => {
+    const query = req.originalUrl.slice(req.path.length);
+    res.redirect(302, `${DEFAULT_OFFER_PATH}${query}`);
   });
 
   // --- SSR handler ---

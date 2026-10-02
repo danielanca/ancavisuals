@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { ClientEvent, AdminSettings } from "../../types";
 import GoalCard from "../GoalCard";
@@ -11,6 +11,7 @@ import PostEventFollowUp from "../PostEventFollowUp";
 import MementosWidget from "../MementosWidget";
 import EmailFailureBanner from "../EmailFailureBanner";
 import ActivityInbox from "../ActivityInbox";
+import LeadsWidget from "../LeadsWidget";
 import NextEventCountdown from "../NextEventCountdown";
 import ModeratorAlbumsPage from "../Moderation/ModeratorAlbumsPage";
 import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeContext";
@@ -20,7 +21,7 @@ import DashboardSearch from "../DashboardSearch";
 
 // ── Widget Order ──────────────────────────────────────────────────────────
 
-const DEFAULT_WIDGET_ORDER = ["activity", "goals", "financial", "countdown", "albumHealth", "mementos", "events"];
+const DEFAULT_WIDGET_ORDER = ["leads", "activity", "goals", "financial", "countdown", "albumHealth", "mementos", "events", "deadlines"];
 const WIDGET_ORDER_KEY = "dashboard_widget_order";
 
 function useDashboardWidgetOrder() {
@@ -29,168 +30,60 @@ function useDashboardWidgetOrder() {
       const saved = localStorage.getItem(WIDGET_ORDER_KEY);
       if (saved) {
         const parsed: string[] = JSON.parse(saved);
-        const valid = parsed.filter(id => DEFAULT_WIDGET_ORDER.includes(id));
-        const missing = DEFAULT_WIDGET_ORDER.filter(id => !valid.includes(id));
-        return [...valid, ...missing];
+        const merged = parsed.filter(id => DEFAULT_WIDGET_ORDER.includes(id));
+        // A widget added after the order was saved goes to its default slot, not the bottom.
+        DEFAULT_WIDGET_ORDER.forEach((id, index) => {
+          if (!merged.includes(id)) merged.splice(Math.min(index, merged.length), 0, id);
+        });
+        return merged;
       }
     } catch {}
     return [...DEFAULT_WIDGET_ORDER];
   });
 
-  const reorder = useCallback((sourceId: string, targetId: string) => {
-    if (sourceId === targetId) return;
+  const move = useCallback((id: string, direction: -1 | 1) => {
     setOrder(prev => {
+      const from = prev.indexOf(id);
+      const to = from + direction;
+      if (from === -1 || to < 0 || to >= prev.length) return prev;
       const next = [...prev];
-      const from = next.indexOf(sourceId);
-      const to = next.indexOf(targetId);
-      if (from === -1 || to === -1) return prev;
-      next.splice(from, 1);
-      next.splice(to, 0, sourceId);
+      [next[from], next[to]] = [next[to], next[from]];
       try { localStorage.setItem(WIDGET_ORDER_KEY, JSON.stringify(next)); } catch {}
       return next;
     });
   }, []);
 
-  return { order, reorder };
+  return { order, move };
 }
 
-// ── Grip Icon ──────────────────────────────────────────────────────────
+// ── Reorderable Widget ──────────────────────────────────────────────────────────
 
-function GripIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
-      <circle cx="4" cy="3" r="1.3" />
-      <circle cx="10" cy="3" r="1.3" />
-      <circle cx="4" cy="7" r="1.3" />
-      <circle cx="10" cy="7" r="1.3" />
-      <circle cx="4" cy="11" r="1.3" />
-      <circle cx="10" cy="11" r="1.3" />
-    </svg>
-  );
-}
-
-// ── Draggable Widget ──────────────────────────────────────────────────────────
-
-interface DraggableWidgetProps {
+interface ReorderableWidgetProps {
   id: string;
-  isDragging: boolean;
-  isAnyDragging: boolean;
-  isDragOver: boolean;
-  onDragStart: (id: string) => void;
-  onDragEnd: () => void;
-  onDragOver: (id: string) => void;
-  onDrop: (sourceId: string, targetId: string) => void;
+  isFirst: boolean;
+  isLast: boolean;
+  editing: boolean;
+  onMove: (id: string, direction: -1 | 1) => void;
   children: React.ReactNode;
 }
 
-function DraggableWidget({ id, isDragging, isAnyDragging, isDragOver, onDragStart, onDragEnd, onDragOver, onDrop, children }: DraggableWidgetProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+const MOVE_BUTTON_CLASS =
+  "flex h-7 w-7 items-center justify-center rounded-md text-amber-400 transition-colors hover:bg-amber-500/15 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-25";
 
-  const handleHandleTouchStart = useCallback((e: React.TouchEvent) => {
-    e.stopPropagation();
-    onDragStart(id);
-
-    let currentOverId: string | null = null;
-
-    const handleTouchMove = (moveEvent: TouchEvent) => {
-      moveEvent.preventDefault();
-      const touch = moveEvent.touches[0];
-
-      if (containerRef.current) containerRef.current.style.pointerEvents = "none";
-      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (containerRef.current) containerRef.current.style.pointerEvents = "";
-
-      const widgetEl = elementBelow?.closest("[data-widget-id]") as HTMLElement | null;
-      const overId = widgetEl?.getAttribute("data-widget-id") ?? null;
-      if (overId !== currentOverId) {
-        currentOverId = overId;
-        if (overId) onDragOver(overId);
-      }
-    };
-
-    const handleTouchEnd = () => {
-      if (currentOverId && currentOverId !== id) onDrop(id, currentOverId);
-      else onDragEnd();
-      document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleTouchEnd);
-    };
-
-    document.addEventListener("touchmove", handleTouchMove, { passive: false });
-    document.addEventListener("touchend", handleTouchEnd);
-  }, [id, onDragStart, onDragEnd, onDragOver, onDrop]);
-
+// Arrows only show in "Ordine" mode — several widgets keep their own buttons in
+// the top-right corner, which permanent arrows would cover.
+function ReorderableWidget({ id, isFirst, isLast, editing, onMove, children }: ReorderableWidgetProps) {
+  if (!editing) return <div data-widget-id={id}>{children}</div>;
   return (
-    <div
-      ref={containerRef}
-      data-widget-id={id}
-      style={{
-        position: "relative",
-        opacity: isDragging ? 0.35 : 1,
-        outline: isDragOver && !isDragging ? "2px solid rgba(255,255,255,0.18)" : "2px solid transparent",
-        outlineOffset: "3px",
-        borderRadius: "12px",
-        transition: "opacity 0.18s, outline-color 0.15s",
-      }}
-      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; onDragOver(id); }}
-      onDragLeave={(e) => {
-        // Only clear dragOver if leaving the widget entirely (not entering a child)
-        if (!containerRef.current?.contains(e.relatedTarget as Node)) {
-          onDragOver("");
-        }
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        const sourceId = e.dataTransfer.getData("text/plain");
-        if (sourceId && sourceId !== id) onDrop(sourceId, id);
-        else onDragEnd();
-      }}
-    >
-      {/* Drag handle */}
-      <div
-        draggable
-        title="Trage pentru a reordona"
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", id);
-          if (containerRef.current) {
-            e.dataTransfer.setDragImage(containerRef.current, Math.min(containerRef.current.offsetWidth / 2, 100), 24);
-          }
-          onDragStart(id);
-        }}
-        onDragEnd={onDragEnd}
-        onTouchStart={handleHandleTouchStart}
-        style={{
-          position: "absolute",
-          top: "10px",
-          right: "10px",
-          cursor: "grab",
-          color: "#444",
-          padding: "6px",
-          zIndex: 10,
-          borderRadius: "6px",
-          userSelect: "none",
-          touchAction: "none",
-          lineHeight: 0,
-          transition: "color 0.15s, background-color 0.15s",
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.color = "#888";
-          el.style.backgroundColor = "rgba(255,255,255,0.08)";
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.color = "#444";
-          el.style.backgroundColor = "transparent";
-        }}
-      >
-        <GripIcon />
+    <div data-widget-id={id} className="relative rounded-2xl outline-dashed outline-1 outline-offset-4 outline-amber-500/40">
+      <div className="absolute right-2.5 top-2.5 z-20 flex gap-0.5 rounded-lg border border-amber-500/40 bg-neutral-950/95 p-0.5 shadow-lg">
+        <button type="button" className={MOVE_BUTTON_CLASS} disabled={isFirst} onClick={() => onMove(id, -1)} title="Mută mai sus" aria-label="Mută mai sus">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M6 2.5 11 9H1z" /></svg>
+        </button>
+        <button type="button" className={MOVE_BUTTON_CLASS} disabled={isLast} onClick={() => onMove(id, 1)} title="Mută mai jos" aria-label="Mută mai jos">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M6 9.5 1 3h10z" /></svg>
+        </button>
       </div>
-
-      {/* Transparent overlay during any drag so child elements don't intercept drop events */}
-      {isAnyDragging && !isDragging && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 5, borderRadius: "12px" }} />
-      )}
       {children}
     </div>
   );
@@ -269,33 +162,8 @@ const DashboardInner: React.FC = () => {
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
 
-  // Widget drag-and-drop state
-  const { order: widgetOrder, reorder } = useDashboardWidgetOrder();
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const draggingIdRef = useRef<string | null>(null);
-
-  const handleDragStart = useCallback((id: string) => {
-    draggingIdRef.current = id;
-    setDraggingId(id);
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    draggingIdRef.current = null;
-    setDraggingId(null);
-    setDragOverId(null);
-  }, []);
-
-  const handleDragOver = useCallback((id: string) => {
-    if (id) setDragOverId(id);
-  }, []);
-
-  const handleDrop = useCallback((sourceId: string, targetId: string) => {
-    reorder(sourceId, targetId);
-    draggingIdRef.current = null;
-    setDraggingId(null);
-    setDragOverId(null);
-  }, [reorder]);
+  const { order: widgetOrder, move: moveWidget } = useDashboardWidgetOrder();
+  const [reorderMode, setReorderMode] = useState(false);
 
   useEffect(() => {
     const meta = document.createElement("meta");
@@ -394,9 +262,11 @@ const DashboardInner: React.FC = () => {
     ),
     financial: <FinancialSummary events={events} />,
     countdown: <NextEventCountdown events={events} />,
+    leads: <LeadsWidget />,
     activity: <ActivityInbox />,
     albumHealth: <AlbumHealthWidget />,
     mementos: <MementosWidget />,
+    deadlines: <DeliveryDeadlineOverview events={events} onEventUpdated={handleEventUpdated} />,
     events: (
       <EventList
         events={events}
@@ -449,6 +319,21 @@ const DashboardInner: React.FC = () => {
               )}
               {privacyMode ? "Arată" : "Ascunde"}
             </button>
+            <button
+              type="button"
+              onClick={() => setReorderMode(value => !value)}
+              title={reorderMode ? "Gata cu reordonarea" : "Schimbă ordinea blocurilor"}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors sm:flex-none ${
+                reorderMode
+                  ? "border-amber-500/60 text-amber-400 bg-amber-500/10"
+                  : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-white"
+              }`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4" />
+              </svg>
+              {reorderMode ? "Gata" : "Ordine"}
+            </button>
           </div>
         </div>
 
@@ -458,24 +343,19 @@ const DashboardInner: React.FC = () => {
         {/* Post-event follow-up notifications */}
         <PostEventFollowUp events={events} onEventUpdated={handleEventUpdated} />
 
-        {/* Draggable Widgets */}
-        {widgetOrder.map(widgetId => (
-          <DraggableWidget
+        {/* Reorderable Widgets */}
+        {widgetOrder.map((widgetId, index) => (
+          <ReorderableWidget
             key={widgetId}
             id={widgetId}
-            isDragging={draggingId === widgetId}
-            isAnyDragging={draggingId !== null}
-            isDragOver={dragOverId === widgetId && draggingId !== widgetId}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
+            isFirst={index === 0}
+            isLast={index === widgetOrder.length - 1}
+            editing={reorderMode}
+            onMove={moveWidget}
           >
             {widgetMap[widgetId]}
-          </DraggableWidget>
+          </ReorderableWidget>
         ))}
-
-        <DeliveryDeadlineOverview events={events} onEventUpdated={handleEventUpdated} />
 
       </div>
     </div>

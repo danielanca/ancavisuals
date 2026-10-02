@@ -231,27 +231,25 @@ describe("liveVisitors.routes", () => {
       expect(sendEmail).toHaveBeenCalledTimes(1);
     });
 
-    test("emails with the checked date when someone verifies availability", async () => {
+    // Verificările de disponibilitate apar doar în panoul live și în feed-ul de
+    // activitate: la trafic mare din Ads, un email per verificare umplea inboxul.
+    test("logs availability checks with the checked date, without emailing", async () => {
       const { postEvent, sendEmail, logActivity } = await loadRouter();
       const res = createMockResponse();
       await postEvent(
         { body: { sessionId: "s1", event: "availability_checked", page: "/contact", meta: { date: "15 August 2026", dateKey: "2026-08-15", available: true } }, headers: { "user-agent": realUa } },
         res,
       );
-      expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
-        subject: expect.stringContaining("15 August 2026"),
-        html: expect.stringContaining("15 August 2026"),
-      }));
+      expect(sendEmail).not.toHaveBeenCalled();
       expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringContaining("15 August 2026") }));
     });
 
-    test("emails once per distinct checked date (not once per session)", async () => {
+    test("never emails for availability checks, even for several distinct dates", async () => {
       const { postEvent, sendEmail } = await loadRouter();
       const mk = (date: string) => ({ body: { sessionId: "s1", event: "availability_checked", page: "/contact", meta: { date, dateKey: date, available: true } }, headers: { "user-agent": realUa } });
       await postEvent(mk("15 August 2026"), createMockResponse());
-      await postEvent(mk("15 August 2026"), createMockResponse()); // same date → deduped
-      await postEvent(mk("20 August 2026"), createMockResponse()); // new date → emails
-      expect(sendEmail).toHaveBeenCalledTimes(2);
+      await postEvent(mk("20 August 2026"), createMockResponse());
+      expect(sendEmail).not.toHaveBeenCalled();
     });
 
     test("form_submitted logs every kind, but only emails delivery/subscribe (not contact)", async () => {

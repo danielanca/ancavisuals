@@ -108,8 +108,31 @@ function formatSeconds(s: number): string {
   return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
 }
 
-function formatDuration(first: string, last: string): string {
-  const ms = new Date(last).getTime() - new Date(first).getTime();
+// Standard analytics inactivity cut-off: a longer gap between two page views is
+// a new visit / a forgotten tab, not time spent reading.
+const MAX_GAP_MS = 30 * 60_000;
+
+/**
+ * Real time on site across all of a visitor's visits — NOT first-to-last visit,
+ * which turned someone who came back over 3 days into "75h on the site".
+ * Per visit: gaps between page views (each capped at 30 min) + the last page's
+ * tracked time, or the tracked page times if those add up to more.
+ */
+export function visitorTimeOnSiteMs(sessions: { pages: { timestamp: string; timeSpent?: number }[] }[]): number {
+  return sessions.reduce((total, session) => {
+    const pages = [...session.pages].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const tracked = pages.reduce((sum, p) => sum + (p.timeSpent ?? 0) * 1000, 0);
+    let gaps = 0;
+    for (let i = 1; i < pages.length; i++) {
+      const gap = new Date(pages[i].timestamp).getTime() - new Date(pages[i - 1].timestamp).getTime();
+      gaps += Math.min(Math.max(gap, 0), MAX_GAP_MS);
+    }
+    const last = Math.min((pages[pages.length - 1]?.timeSpent ?? 0) * 1000, MAX_GAP_MS);
+    return total + Math.max(tracked, gaps + last);
+  }, 0);
+}
+
+function formatMs(ms: number): string {
   if (ms < 60000) return "< 1 min";
   const m = Math.floor(ms / 60000);
   if (m < 60) return `${m} min`;
@@ -571,7 +594,7 @@ export default function AnalyticsPage() {
                 const device = parseDevice(visitor.userAgent);
                 const totalPages = visitor.sessions.reduce((acc, s) => acc + s.pages.length, 0);
                 const totalDuration = visitor.sessions.length > 0
-                  ? formatDuration(visitor.firstSeen, visitor.lastSeen)
+                  ? formatMs(visitorTimeOnSiteMs(visitor.sessions))
                   : null;
 
                 return (
@@ -638,7 +661,7 @@ export default function AnalyticsPage() {
                             {visitor.sessions.length > 1 && (
                               <p className="text-neutral-600 text-[10px] uppercase tracking-wider mb-2">
                                 Vizita {si + 1} · {formatTime(session.firstSeen)}
-                                {session.pages.length > 1 && ` · ${formatDuration(session.firstSeen, session.lastSeen)}`}
+                                {session.pages.length > 1 && ` · ${formatMs(visitorTimeOnSiteMs([session]))}`}
                               </p>
                             )}
                             <div className="relative pl-4">

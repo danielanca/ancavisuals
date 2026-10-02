@@ -26,6 +26,7 @@ const MediaActivityPage = loadable(() => import("../features/admin/components/Me
 const QRMomentsAdminPage = loadable(() => import("../features/admin/components/QRMomentsAdminPage"), opts);
 const AnalyticsPage = loadable(() => import("../features/admin/components/AnalyticsPage"), opts);
 const LiveVisitorsPage = loadable(() => import("../features/admin/components/LiveVisitorsPage"), opts);
+const LeadsPage = loadable(() => import("../features/admin/components/LeadsPage"), opts);
 const ImageOptimizerPage = loadable(() => import("../features/admin/components/ImageOptimizerPage"), opts);
 const GoalDetailPage = loadable(() => import("../features/admin/components/GoalDetailPage"), opts);
 const ForecastPage = loadable(() => import("../features/admin/components/ForecastPage"), opts);
@@ -64,6 +65,7 @@ const EquipmentAdminPage = loadable(() => import("../features/admin/components/E
 const AdminSettingsPage = loadable(() => import("../features/admin/components/AdminSettingsPage"), opts);
 const CompanyDocumentsPage = loadable(() => import("../features/admin/components/CompanyDocumentsPage"), opts);
 const PdfResourcesPage = loadable(() => import("../features/admin/components/PdfResourcesPage"), opts);
+const TasksPage = loadable(() => import("../features/admin/components/Tasks/TasksPage"), opts);
 
 
 export const adminRoutes = [
@@ -71,6 +73,7 @@ export const adminRoutes = [
     <Route element={<AdminLayout />}>
       <Route path="/admin" element={<Dashboard />} />
       <Route path="/admin/calendar" element={<BookedCalendar />} />
+      <Route path="/admin/taskuri" element={<TasksPage />} />
       <Route path="/admin/create-event" element={<AdminBook />} />
       <Route path="/admin/create-event-wedding" element={<CreateEventWedding />} />
       <Route path="/admin/contracts" element={<ContractListPage />} />
@@ -85,6 +88,7 @@ export const adminRoutes = [
       <Route path="/admin/qr-moments" element={<QRMomentsAdminPage />} />
       <Route path="/admin/analytics" element={<AnalyticsPage />} />
       <Route path="/admin/live" element={<LiveVisitorsPage />} />
+      <Route path="/admin/leads" element={<LeadsPage />} />
       <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
       <Route path="/admin/bank-details" element={<BankDetailsPage />} />
       <Route path="/admin/goals/:type" element={<GoalDetailPage />} />

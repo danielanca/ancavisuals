@@ -8,6 +8,8 @@ import { getNotificationSettings, logActivity } from "../services/activity.servi
 import { sendOfferViewNotification } from "../notifications/offerViewNotification";
 import { reportLeadConversion } from "../services/googleAdsConversion.service";
 import { geolocateIp } from "../utils/geolocateIp";
+import { saveLead, updateLeadEmailStatus } from "../services/leads.service";
+import { getClientIp } from "../utils/ipinfo";
 
 const router = Router();
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -131,6 +133,14 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
     };
     if (!phone) { res.status(400).json({ error: "Telefonul este obligatoriu." }); return; }
 
+    const leadId = await saveLead({
+      source: `campaign:${slug}`,
+      name, phone, eventType, eventDate, location, message,
+      ip: getClientIp(req) ?? "",
+      userAgent: String(req.headers["user-agent"] ?? ""),
+      gclid: gclid ?? wbraid ?? gbraid ?? "",
+    });
+
     reportLeadConversion({ gclid, wbraid, gbraid, phone })
       .catch((err) => console.error("[googleAdsConversion] campaign lead report failed:", err));
 
@@ -155,6 +165,8 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
       const { adminUser } = await import("../constants/credentials.js");
 
       await sendEmail({
+        source: "lead",
+        ...(leadId ? { leadId } : {}),
         to: adminUser.email,
         subject: `📩 Cerere nouă de pe landing "${pageTitle}" — ${subjectTime}`,
         html: `
@@ -176,6 +188,7 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
     } catch (emailError) {
       console.error("[campaign] email for /:slug/contact lead failed (lead is still saved):", emailError);
     }
+    await updateLeadEmailStatus(leadId, emailSent ? "sent" : "failed", emailSent ? undefined : "eroare SMTP");
 
     await logActivity({
       type: "lead",

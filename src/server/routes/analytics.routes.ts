@@ -5,7 +5,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { isLocalIp } from "../controllers/triggerEvent.controller";
 import { logActivity } from "../services/activity.service";
-import { sendEmail } from "../notifications/mailer";
+import { blockEmail, sendViaFunnel, type BlockCode } from "../notifications/emailFunnel";
 import { adminUser } from "../constants/credentials";
 import { BOT_UA } from "../utils/botUa";
 
@@ -79,16 +79,20 @@ analyticsPublicRouter.post("/contact-click", async (req: Request, res: Response)
     const { type, page } = req.body as { type?: string; page?: string };
     if (!type || !CONTACT_CLICK_LABELS[type]) return res.json({ ok: true });
 
-    const ip = getClientIp(req) ?? "";
-    if (isLocalIp(ip)) return res.json({ ok: true });
-    if (isAdminRequest(req)) return res.json({ ok: true });
+    const title = CONTACT_CLICK_LABELS[type];
+    const subject = `${title} — ancavisuals.ro`;
+    const funnelBase = { kind: "contact" as const, to: adminUser.email, subject, source: `contact-click:${type}` };
 
+    const ip = getClientIp(req) ?? "";
     const ua = req.headers["user-agent"] ?? "";
-    if (BOT_UA.test(ua)) return res.json({ ok: true });
+    const gate: BlockCode | null = isLocalIp(ip) ? "local-ip" : isAdminRequest(req) ? "admin" : BOT_UA.test(ua) ? "bot" : null;
+    if (gate) {
+      void blockEmail(funnelBase, gate, `${page || "/"} · ${ua.slice(0, 80)}`);
+      return res.json({ ok: true });
+    }
 
     res.json({ ok: true });
 
-    const title = CONTACT_CLICK_LABELS[type];
     const ipInfo = await fetchIpInfo(ip).catch(() => null);
     const locationLabel = [ipInfo?.city, ipInfo?.country].filter(Boolean).join(", ") || "locație necunoscută";
 
@@ -102,15 +106,6 @@ analyticsPublicRouter.post("/contact-click", async (req: Request, res: Response)
     }).catch(() => {});
 
     // Send email with cooldown — phone clicks are high-intent, always notify
-    const lastClick = contactClickByIp.get(ip);
-    if (lastClick && Date.now() - lastClick < CONTACT_CLICK_COOLDOWN_MS) return;
-
-    contactClickByIp.set(ip, Date.now());
-    for (const [storedIp, timestamp] of contactClickByIp) {
-      if (Date.now() - timestamp >= CONTACT_CLICK_COOLDOWN_MS) contactClickByIp.delete(storedIp);
-    }
-
-    const subject = `${title} — ancavisuals.ro`;
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#e5e5e5;padding:24px;border-radius:12px">
         <h2 style="margin:0 0 16px;font-size:20px;color:#fff">${title}</h2>
@@ -122,9 +117,20 @@ analyticsPublicRouter.post("/contact-click", async (req: Request, res: Response)
         </table>
       </div>`;
 
-    sendEmail({ to: adminUser.email, subject, html }).catch(() => {});
+    const lastClick = contactClickByIp.get(ip);
+    if (lastClick && Date.now() - lastClick < CONTACT_CLICK_COOLDOWN_MS) {
+      void blockEmail({ ...funnelBase, html }, "duplicate", "același IP, în ultimele 20 de minute");
+      return;
+    }
+
+    contactClickByIp.set(ip, Date.now());
+    for (const [storedIp, timestamp] of contactClickByIp) {
+      if (Date.now() - timestamp >= CONTACT_CLICK_COOLDOWN_MS) contactClickByIp.delete(storedIp);
+    }
+
+    sendViaFunnel({ ...funnelBase, html }).catch(() => {});
   } catch {
-    res.json({ ok: true });
+    if (!res.headersSent) res.json({ ok: true });
   }
 });
 
@@ -138,7 +144,7 @@ function isAdminRequest(req: Request): boolean {
 // POST /api/analytics/pageview — record a page visit
 analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
   try {
-    const { page, referrer, sessionId, visitorId, isNew, isBounce, utmSource, utmMedium, utmCampaign } = req.body as {
+    const { page, referrer, sessionId, visitorId, isNew, isBounce, utmSource, utmMedium, utmCampaign, gclid, wbraid, gbraid, gadSource } = req.body as {
       page?: string;
       referrer?: string;
       sessionId?: string;
@@ -148,6 +154,10 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
       utmSource?: string;
       utmMedium?: string;
       utmCampaign?: string;
+      gclid?: string;
+      wbraid?: string;
+      gbraid?: string;
+      gadSource?: string;
     };
 
     if (!page || !sessionId) return res.status(400).json({ error: "Missing fields" });
@@ -172,6 +182,10 @@ analyticsPublicRouter.post("/pageview", async (req: Request, res: Response) => {
       utmSource: utmSource ?? "",
       utmMedium: utmMedium ?? "",
       utmCampaign: utmCampaign ?? "",
+      gclid: gclid ?? "",
+      wbraid: wbraid ?? "",
+      gbraid: gbraid ?? "",
+      gadSource: gadSource ?? "",
       timestamp: Timestamp.now(),
       ip: ip ?? "",
       userAgent: ua,

@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { adminUser } from "../constants/credentials";
 import { APP_BASE_URL } from "../constants/domain";
-import { sendEmail } from "./mailer";
+import { blockEmail, sendViaFunnel, type FunnelEmail } from "./emailFunnel";
 import { fetchIpInfo, getClientIp, type IpInfo } from "../utils/ipinfo";
 import { isNotifiableCountry } from "../utils/geoFilter";
 
@@ -150,8 +150,11 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
   // business — same policy as the "visitor entered the site" / 404 emails
   // (see geoFilter.ts). The view still counts and still lands in the
   // activity feed below; it just doesn't email the owner.
-  if (isNotifiableCountry(ipInfo?.country)) {
-    await sendEmail({
+  const notifiable = isNotifiableCountry(ipInfo?.country);
+  {
+    const email: FunnelEmail = {
+      kind: "notification",
+      source: "offer-view",
       to: adminUser.email,
       subject: `${redirectedFrom ? "🔀" : "👁"} ${kindLabel} · ${traffic.label} — /${input.slug} — ${subjectTime}`,
       html: `
@@ -193,7 +196,9 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
         <p style="margin:14px 0 0;text-align:center;color:#a3a3a3;font-size:11px;">Notificare automată · ancavisuals.ro</p>
       </div>
     `,
-    });
+    };
+    if (notifiable) await sendViaFunnel(email);
+    else await blockEmail(email, "country", ipInfo?.country ?? "?");
   }
 
   return { ip, ipInfo, userAgent, pageUrl, referrer, time };

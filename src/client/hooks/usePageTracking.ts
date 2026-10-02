@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { getCookie, isBrowser } from "../utils/functions";
 import { getSessionId, getVisitorId, looksLikeBot } from "../utils/visitorSession";
+import { captureLandingMeta, getLandingMeta } from "../utils/sessionAttribution";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 const ADMIN_COOKIE = "av_admin";
@@ -88,6 +89,10 @@ export function usePageTracking() {
     const { visitorId, isNew } = getVisitorId();
     const params = new URLSearchParams(window.location.search);
     const attribution = getAttribution();
+    // Child effects run before App's, so snapshot the landing click ids here
+    // rather than relying on App to have captured them already.
+    captureLandingMeta();
+    const landing = getLandingMeta();
 
     // Record the landing immediately. A Google Ads click can load the page
     // without producing a click/scroll; that is still a visit and must be
@@ -106,6 +111,10 @@ export function usePageTracking() {
         utmSource: attribution.source || params.get("utm_source") || undefined,
         utmMedium: attribution.medium || params.get("utm_medium") || undefined,
         utmCampaign: attribution.campaign || params.get("utm_campaign") || undefined,
+        gclid: landing?.gclid,
+        wbraid: landing?.wbraid,
+        gbraid: landing?.gbraid,
+        gadSource: landing?.gadSource,
       }),
     })
       .then((r) => r.ok ? r.json() : null)

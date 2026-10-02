@@ -28,6 +28,27 @@ const daysInMonth = (year: number, monthZeroBased: number) => new Date(year, mon
 const toIso = (day: number, monthZeroBased: number, year: number) =>
   `${year}-${String(monthZeroBased + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
+/** "de la 950 €" from package prices like "950 EURO" / "1200 euro"; null when none is numeric. */
+export function lowestPackagePrice(packages: { price: string }[]): string | null {
+  let best: { amount: number; label: string } | null = null;
+  for (const pkg of packages) {
+    const digits = /\d[\d.\s]*/.exec(pkg.price ?? "")?.[0].replace(/[.\s]/g, "");
+    const amount = digits ? Number(digits) : NaN;
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const currency = /eur|€/i.test(pkg.price) ? "€" : /lei|ron/i.test(pkg.price) ? "lei" : "";
+    if (!best || amount < best.amount) best = { amount, label: `${amount} ${currency}`.trim() };
+  }
+  return best?.label ?? null;
+}
+
+/** Real bookings in the same month — only shown when there is at least one. */
+export function bookedInMonth(bookedDates: string[], isoDate: string): number {
+  const month = isoDate.slice(0, 7);
+  return month.length === 7 ? bookedDates.filter((d) => d.startsWith(month) && d !== isoDate).length : 0;
+}
+
+type DatePick = { day: number | null; month: number | null; year: number | null };
+
 // Fiecare pachet primește un accent de culoare diferit (ciclic), ca să nu mai pară 3 carduri identice
 // cu doar textul schimbat — indiferent câte pachete sunt sau care e marcat "highlighted".
 const PACKAGE_ACCENTS = [
@@ -121,43 +142,40 @@ function ArrowIcon() {
 
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
-  const defaultDate = (() => {
-    const now = new Date();
-    let month = now.getMonth() + 1; // next month
-    let year = now.getFullYear();
-    if (month > 11) { month = 0; year += 1; }
-    return { day: 1, month, year };
-  })();
-  const [dateParts, setDateParts] = useState(defaultDate);
+  const waLink = (text: string) => `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
+  // No preselected date: a default (1st of next month) made "Verifică" one tap
+  // away and filled the inbox with checks nobody actually chose.
+  const [dateParts, setDateParts] = useState<DatePick>({ day: null, month: null, year: null });
   const [form, setForm] = useState({
     name: "", phone: "", eventType: "Nuntă", location: "",
-    eventDate: toIso(defaultDate.day, defaultDate.month, defaultDate.year),
+    eventDate: "",
   });
   const [formStatus, setFormStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [availStatus, setAvailStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
-  const [leaveNumber, setLeaveNumber] = useState(false);
+  const lowestPrice = useMemo(() => lowestPackagePrice(page.packages ?? []), [page.packages]);
 
   const todayForDate = new Date();
   const todayYear = todayForDate.getFullYear();
   const todayMonth = todayForDate.getMonth();
   const todayDay = todayForDate.getDate();
 
-  const setDatePart = (patch: Partial<typeof dateParts>) => {
+  const setDatePart = (patch: Partial<DatePick>) => {
     setDateParts((prev) => {
       const next = { ...prev, ...patch };
       // Never let the picker land on an already-passed date.
-      if (next.year < todayYear) { next.year = todayYear; next.month = todayMonth; }
-      if (next.year === todayYear && next.month < todayMonth) next.month = todayMonth;
-      const maxDay = daysInMonth(next.year, next.month);
-      const minDay = next.year === todayYear && next.month === todayMonth ? todayDay : 1;
-      if (next.day > maxDay) next.day = maxDay;
-      if (next.day < minDay) next.day = minDay;
-      setForm((f) => ({ ...f, eventDate: toIso(next.day, next.month, next.year) }));
+      if (next.year !== null && next.month !== null && next.year === todayYear && next.month < todayMonth) next.month = null;
+      if (next.year !== null && next.month !== null && next.day !== null) {
+        const maxDay = daysInMonth(next.year, next.month);
+        const minDay = next.year === todayYear && next.month === todayMonth ? todayDay : 1;
+        if (next.day > maxDay) next.day = maxDay;
+        if (next.day < minDay) next.day = minDay;
+      }
+      const complete = next.day !== null && next.month !== null && next.year !== null;
+      setForm((f) => ({ ...f, eventDate: complete ? toIso(next.day!, next.month!, next.year!) : "" }));
       return next;
     });
     setAvailStatus("idle");
-    setLeaveNumber(false);
   };
 
   useEffect(() => {
@@ -536,13 +554,15 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               <div className="grid grid-cols-[80px_1fr_100px] gap-2">
                 <select
                   aria-label="Ziua"
-                  value={dateParts.day}
-                  onChange={(e) => setDatePart({ day: Number(e.target.value) })}
+                  value={dateParts.day ?? ""}
+                  onChange={(e) => setDatePart({ day: e.target.value === "" ? null : Number(e.target.value) })}
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
                 >
+                  <option value="">Zi</option>
                   {(() => {
-                    const maxDay = daysInMonth(dateParts.year, dateParts.month);
-                    const minDay = dateParts.year === todayYear && dateParts.month === todayMonth ? todayDay : 1;
+                    const known = dateParts.year !== null && dateParts.month !== null;
+                    const maxDay = known ? daysInMonth(dateParts.year!, dateParts.month!) : 31;
+                    const minDay = known && dateParts.year === todayYear && dateParts.month === todayMonth ? todayDay : 1;
                     return Array.from({ length: maxDay - minDay + 1 }, (_, i) => minDay + i).map((d) => (
                       <option key={d} value={d}>{d}</option>
                     ));
@@ -550,22 +570,24 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 </select>
                 <select
                   aria-label="Luna"
-                  value={dateParts.month}
-                  onChange={(e) => setDatePart({ month: Number(e.target.value) })}
+                  value={dateParts.month ?? ""}
+                  onChange={(e) => setDatePart({ month: e.target.value === "" ? null : Number(e.target.value) })}
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
                 >
+                  <option value="">Luna</option>
                   {MONTHS_RO_CAP.map((label, index) => (
-                    (dateParts.year > todayYear || index >= todayMonth) && (
+                    (dateParts.year === null || dateParts.year > todayYear || index >= todayMonth) && (
                       <option key={label} value={index}>{label}</option>
                     )
                   ))}
                 </select>
                 <select
                   aria-label="Anul"
-                  value={dateParts.year}
-                  onChange={(e) => setDatePart({ year: Number(e.target.value) })}
+                  value={dateParts.year ?? ""}
+                  onChange={(e) => setDatePart({ year: e.target.value === "" ? null : Number(e.target.value) })}
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
                 >
+                  <option value="">An</option>
                   {Array.from({ length: 4 }, (_, i) => todayYear + i).map((y) => (
                     <option key={y} value={y}>{y}</option>
                   ))}
@@ -576,7 +598,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 disabled={availStatus === "checking" || !form.eventDate}
                 className="w-full rounded-xl bg-amber-600 py-4 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
               >
-                {availStatus === "checking" ? "Se verifică…" : "Verifică disponibilitatea"}
+                {availStatus === "checking" ? "Se verifică…" : form.eventDate ? "Verifică disponibilitatea" : "Alege data evenimentului"}
               </button>
             </form>
 
@@ -604,79 +626,73 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               </div>
             </div>
 
-            {availStatus === "available" && formStatus !== "sent" && (
-              <div className="mt-4 rounded-xl border border-green-700/40 bg-green-900/25 p-4">
-                <p className="text-sm font-medium text-green-300">🎉 Suntem disponibili pe {formatDateRo(form.eventDate)}!</p>
-                <p className="mt-1 text-xs text-neutral-400">Alege cum continuăm:</p>
-                <div className="mt-3 flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setLeaveNumber((v) => !v); trackFormAction(); }}
-                    className="rounded-xl border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-500/20"
-                  >
-                    Lasă-ne numărul — te sunăm noi
-                  </button>
+            {(availStatus === "available" || availStatus === "unavailable") && formStatus !== "sent" && (() => {
+              const free = availStatus === "available";
+              const dateLabel = formatDateRo(form.eventDate);
+              const event = form.eventType.toLowerCase();
+              // Same terms as the "Ofertă limitată" section: first 4 weddings, until PROMO_DEADLINE.
+              const photoboothGift = free && !promoExpired && form.eventType === "Nuntă";
+              const waText = free
+                ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? ", cu fotocabina gratuită" : ""}.`
+                : `Bună! Am văzut că ${dateLabel} e ocupată. Aveți o soluție pentru ${event}?`;
+              const sameMonth = bookedInMonth(bookedDates, form.eventDate);
+              const monthLabel = `${MONTHS_RO[Number(form.eventDate.slice(5, 7)) - 1]} ${form.eventDate.slice(0, 4)}`;
+              return (
+                <div className={`mt-4 rounded-xl border p-4 ${free ? "border-green-700/40 bg-green-900/25" : "border-amber-700/40 bg-amber-900/20"}`}>
+                  <p className={`text-sm font-medium ${free ? "text-green-300" : "text-amber-200"}`}>
+                    {free ? `🎉 Data ta, ${dateLabel}, e liberă!` : `Data ${dateLabel} pare deja rezervată.`}
+                  </p>
+                  {free && lowestPrice && (
+                    <p className="mt-1 text-sm text-white">Pachetele foto-video încep de la <span className="font-semibold text-amber-300">{lowestPrice}</span>.</p>
+                  )}
+                  {photoboothGift && (
+                    <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                      🎁 <span className="font-semibold">+ Fotocabina e gratuită</span> dacă rezervi până pe 30 octombrie — doar pentru primele 4 nunți.
+                    </p>
+                  )}
+                  {!free && <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție — scrie-ne.</p>}
+                  {/* Real data from the booking calendar — never an invented scarcity number. */}
+                  {free && sameMonth > 0 && (
+                    <p className="mt-1 text-xs text-amber-200/90">În {monthLabel} avem deja {sameMonth} {sameMonth === 1 ? "eveniment rezervat" : "evenimente rezervate"}.</p>
+                  )}
+
                   <a
-                    href={whatsappLink}
+                    href={waLink(waText)}
                     target="_blank"
                     rel="noreferrer"
-                    onClick={() => trackClick("click_whatsapp", "avail_ok")}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"
+                    onClick={() => trackClick("click_whatsapp", free ? "avail_ok" : "avail_no")}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-green-400"
                   >
-                    <WhatsAppIcon /> Scrie-ne pe WhatsApp
+                    <WhatsAppIcon /> {free ? "Primește oferta pe WhatsApp" : "Întreabă pe WhatsApp"}
                   </a>
-                </div>
-              </div>
-            )}
+                  <p className="mt-1 text-center text-[11px] text-neutral-500">Mesajul cu data ta e deja scris — doar apeși Trimite.</p>
 
-            {availStatus === "unavailable" && formStatus !== "sent" && (
-              <div className="mt-4 rounded-xl border border-amber-700/40 bg-amber-900/20 p-4">
-                <p className="text-sm font-medium text-amber-200">Data {formatDateRo(form.eventDate)} pare deja rezervată.</p>
-                <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție. Lasă-ne numărul sau scrie-ne.</p>
-                <div className="mt-3 flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setLeaveNumber((v) => !v); trackFormAction(); }}
-                    className="rounded-xl border border-neutral-600 bg-neutral-800 px-4 py-3 text-sm font-semibold text-white transition-colors hover:border-neutral-400"
-                  >
-                    Lasă-ne numărul — revenim dacă se poate
-                  </button>
-                  <a
-                    href={whatsappLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => trackClick("click_whatsapp", "avail_no")}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"
-                  >
-                    <WhatsAppIcon /> Scrie-ne pe WhatsApp
-                  </a>
+                  {/* Phone field shown right away — one tap less than the old "Lasă-ne numărul" toggle. */}
+                  <form onSubmit={handleFormSubmit} onFocus={trackFormStart} data-live-track="off" className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
+                    <p className="text-xs text-neutral-400">sau lasă numărul și te sunăm noi:</p>
+                    <input
+                      type="tel"
+                      required
+                      autoComplete="tel"
+                      inputMode="tel"
+                      name="phone"
+                      placeholder="Telefon sau WhatsApp"
+                      value={form.phone}
+                      onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
+                      className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
+                    />
+                    {formStatus === "error" && <p className="text-sm text-red-400">A apărut o eroare. Încearcă din nou sau scrie-ne pe WhatsApp.</p>}
+                    <button
+                      type="submit"
+                      disabled={formStatus === "sending" || !form.phone}
+                      className="w-full rounded-xl border border-amber-500/50 bg-amber-500/10 py-3 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-500/20 disabled:opacity-50"
+                    >
+                      {formStatus === "sending" ? "Se trimite…" : "Sunați-mă"}
+                    </button>
+                  </form>
                 </div>
-              </div>
-            )}
-
-            {leaveNumber && formStatus !== "sent" && (
-              <form onSubmit={handleFormSubmit} onFocus={trackFormStart} data-live-track="off" className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
-                <input
-                  type="tel"
-                  required
-                  autoComplete="tel"
-                  inputMode="tel"
-                  name="phone"
-                  placeholder="Telefon sau WhatsApp"
-                  value={form.phone}
-                  onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
-                />
-                {formStatus === "error" && <p className="text-sm text-red-400">A apărut o eroare. Încearcă din nou.</p>}
-                <button
-                  type="submit"
-                  disabled={formStatus === "sending" || !form.phone}
-                  className="w-full rounded-xl bg-amber-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
-                >
-                  {formStatus === "sending" ? "Se trimite…" : "Trimite numărul"}
-                </button>
-              </form>
-            )}
+              );
+            })()}
 
             {formStatus === "sent" && (
               <div className="mt-4 rounded-xl border border-green-700/40 bg-green-900/30 p-6 text-center">

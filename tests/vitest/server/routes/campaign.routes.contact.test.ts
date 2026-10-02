@@ -1,6 +1,6 @@
 /*
  * Purpose: verifies the public landing-page routes that feed the "verifică
- * disponibilitatea" / "lasă-ne numărul" flow — /contact, /contact-click,
+ * disponibilitatea" / "lasă-ne numărul" flow — /contact,
  * /interaction, /geo-city — with Firestore, mailer, and Google Ads
  * conversion reporting mocked out. The quick "leave your phone" form only
  * ever collects a phone number (no name field), so /contact must accept
@@ -37,6 +37,12 @@ async function loadRouter() {
     reportContactClickConversion,
   }));
   vi.doMock("src/server/utils/geolocateIp", () => ({ geolocateIp }));
+  // /contact salvează lead-ul în `leads` înainte de email; aici doar îl simulăm.
+  vi.doMock("src/server/services/leads.service", () => ({
+    saveLead: vi.fn().mockResolvedValue("lead-1"),
+    updateLeadEmailStatus: vi.fn().mockResolvedValue(undefined),
+  }));
+  vi.doMock("src/server/utils/ipinfo", () => ({ getClientIp: () => "1.2.3.4" }));
   const logActivity = vi.fn().mockResolvedValue("activity-1");
   vi.doMock("src/server/services/activity.service", () => ({
     getNotificationSettings: vi.fn().mockResolvedValue({ email: { offerViewed: true } }),
@@ -71,8 +77,9 @@ async function loadRouter() {
     geolocateIp,
     docGetMock,
     logActivity,
-    postContact: getHandler("post", "/:slug/contact"),
-    postContactClick: getHandler("post", "/:slug/contact-click"),
+    // Express dă mereu `headers`; ruta citește user-agent-ul pentru lead.
+    postContact: ((handler: Handler) => (req: any, res: any) => handler({ headers: {}, ...req }, res))(getHandler("post", "/:slug/contact")),
+    router,
     postInteraction: getHandler("post", "/:slug/interaction"),
     getGeoCity: getHandler("get", "/geo-city"),
   };
@@ -216,29 +223,14 @@ describe("campaign.routes — public landing-page flow", () => {
   });
 
   describe("POST /:slug/contact-click", () => {
-    test("reports the conversion and responds 204", async () => {
-      const { postContactClick, reportContactClickConversion } = await loadRouter();
-      const res = createMockResponse();
-
-      await postContactClick(
-        { params: { slug: "oferta-nunti" }, body: { gclid: "abc123" } },
-        res,
-      );
-
-      expect(reportContactClickConversion).toHaveBeenCalledWith(
-        expect.objectContaining({ gclid: "abc123" }),
-      );
-      expect(res.status).toHaveBeenCalledWith(204);
-    });
-
-    test("never throws / never surfaces an error to the visitor when reporting fails", async () => {
-      const { postContactClick, reportContactClickConversion } = await loadRouter();
-      reportContactClickConversion.mockRejectedValueOnce(new Error("ads down"));
-      const res = createMockResponse();
-
-      expect(() => postContactClick({ params: { slug: "oferta-nunti" }, body: {} }, res)).not.toThrow();
-
-      expect(res.status).toHaveBeenCalledWith(204);
+    // Clickurile WhatsApp/telefon trimit conversia doar prin Google tag; uploadul
+    // server-side paralel a fost scos pe 2026-09-24 pentru că dubla semnalul
+    // folosit de Smart Bidding. Testul împiedică readăugarea lui din greșeală.
+    test("no longer exists (conversion is sent only by the client-side Google tag)", async () => {
+      const { router, reportContactClickConversion } = await loadRouter();
+      const route = router.stack.find((e: any) => e.route?.path === "/:slug/contact-click");
+      expect(route).toBeUndefined();
+      expect(reportContactClickConversion).not.toHaveBeenCalled();
     });
   });
 

@@ -223,12 +223,12 @@ const ContractSignPage: React.FC = () => {
           clientName: clientName.trim(),
           clientEmail: clientEmail.trim(),
           clientAddress: clientAddress.trim(),
+          clientCity: clientCity.trim(),
+          clientCounty: clientCounty.trim(),
           ...(contract?.clientType === "PJ" ? {
             clientCIF: clientCIF.trim(),
             clientEntityType: clientEntityType.trim(),
             clientRegistrationNumber: clientRegistrationNumber.trim(),
-            clientCity: clientCity.trim(),
-            clientCounty: clientCounty.trim(),
             clientBankName: clientBankName.trim(),
             clientIBAN: clientIBAN.trim(),
           } : {}),
@@ -478,12 +478,8 @@ const ContractSignPage: React.FC = () => {
                 onChange={(e) => { setClientAddress(e.target.value); setDataSaved(false); }}
                 placeholder="Str. Exemplu nr. 1, Oraș, Județ" autoComplete="street-address" />
             </Field>
-            {contract.clientType === "PJ" && (
-              <>
-                <Field label="Oraș *" error={fieldErrors.clientCity}><input style={{ ...pg.input, ...(fieldErrors.clientCity ? pg.inputErr : {}) }} type="text" value={clientCity} onChange={(e) => { setClientCity(e.target.value); setDataSaved(false); }} placeholder="Sibiu" /></Field>
-                <Field label="Județ *" error={fieldErrors.clientCounty}><input style={{ ...pg.input, ...(fieldErrors.clientCounty ? pg.inputErr : {}) }} type="text" value={clientCounty} onChange={(e) => { setClientCounty(e.target.value); setDataSaved(false); }} placeholder="Sibiu" /></Field>
-              </>
-            )}
+            <Field label={contract.clientType === "PJ" ? "Oraș *" : "Oraș"} error={fieldErrors.clientCity}><input style={{ ...pg.input, ...(fieldErrors.clientCity ? pg.inputErr : {}) }} type="text" value={clientCity} onChange={(e) => { setClientCity(e.target.value); setDataSaved(false); }} placeholder="Sibiu" autoComplete="address-level2" /></Field>
+            <Field label={contract.clientType === "PJ" ? "Județ *" : "Județ"} error={fieldErrors.clientCounty}><input style={{ ...pg.input, ...(fieldErrors.clientCounty ? pg.inputErr : {}) }} type="text" value={clientCounty} onChange={(e) => { setClientCounty(e.target.value); setDataSaved(false); }} placeholder="Sibiu" autoComplete="address-level1" /></Field>
             <Field label={contract.clientType === "PJ" ? "Telefon *" : "Telefon"} error={fieldErrors.clientPhone}>
               <input style={{ ...pg.input, ...(fieldErrors.clientPhone ? pg.inputErr : {}) }} type="tel" value={clientPhone}
                 onChange={(e) => { setClientPhone(e.target.value); setDataSaved(false); }}

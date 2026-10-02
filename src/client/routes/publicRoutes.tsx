@@ -1,5 +1,6 @@
 import loadable from "@loadable/component";
 import React from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { ALL_LOCATION_ROUTES, SERVICE_HUB_SLUGS } from "../pages/LocationSEO/locationData";
 import { LocationPageWrapper } from "../pages/LocationSEO/LocationPage";
 import CitiesHubPage from "../pages/Hubs/CitiesHubPage";
@@ -12,6 +13,11 @@ const opts = (ssr: boolean) => ({ ssr, fallback: loader });
 const HomePage = loadable(() => import("../pages/Homepage/HomePage"), opts(true));
 const AboutPage = loadable(() => import("../pages/About/AboutPage"), opts(true));
 const Portfolio = loadable(() => import("../pages/Portfolio/Portfolio"), opts(true));
+function OfertaIndexRedirect() {
+  const { search, hash } = useLocation(); // keep ?gclid=… / #verifica-data
+  return <Navigate to={`/oferta/olx${search}${hash}`} replace />;
+}
+
 const ContactPage = loadable(() => import("../pages/Contact/ContactPage"), opts(true));
 const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), opts(true));
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), opts(true));
@@ -79,9 +85,10 @@ const publicRoutes: publicRoutesType[] = [
     component: ContactPage,
   },
   {
+    // Server answers /oferta with a 302 too; this covers in-app links (Bio, Fotocabină).
     path: "/oferta",
     layout: null,
-    component: ContactPage,
+    component: OfertaIndexRedirect,
   },
   {
     path: "/bio",

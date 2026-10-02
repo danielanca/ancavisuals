@@ -414,7 +414,12 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
         clientRepresentativeName: signerName.trim(),
         clientRepresentativeRole: clientRepresentativeRole?.trim() || contract.clientRepresentativeRole || "delegat",
         clientRepresentativeIdSeries: signerIdSeries.trim(),
-      } : { clientName: clientName.trim() }),
+      } : {
+        clientName: clientName.trim(),
+        // PF: keep admin-entered locality when the signer leaves it blank.
+        ...(String(clientCity ?? "").trim() ? { clientCity: String(clientCity).trim() } : {}),
+        ...(String(clientCounty ?? "").trim() ? { clientCounty: String(clientCounty).trim() } : {}),
+      }),
       clientEmail: clientEmail.trim(),
       ...(isCompany ? { clientRepresentativeIdSeries: signerIdSeries.trim() } : { clientIdSeries: signerIdSeries.trim() }),
       clientAddress: String(clientAddress ?? "").trim(),
@@ -446,7 +451,12 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
         clientRepresentativeName: signerName.trim(),
         clientRepresentativeRole: clientRepresentativeRole?.trim() || contract.clientRepresentativeRole || "delegat",
         clientRepresentativeIdSeries: signerIdSeries.trim(),
-      } : { clientName: clientName.trim() }),
+      } : {
+        clientName: clientName.trim(),
+        // PF: keep admin-entered locality when the signer leaves it blank.
+        ...(String(clientCity ?? "").trim() ? { clientCity: String(clientCity).trim() } : {}),
+        ...(String(clientCounty ?? "").trim() ? { clientCounty: String(clientCounty).trim() } : {}),
+      }),
       clientEmail: clientEmail.trim(),
       ...(isCompany ? { clientRepresentativeIdSeries: signerIdSeries.trim() } : { clientIdSeries: signerIdSeries.trim() }),
       clientAddress: String(clientAddress ?? "").trim(),
