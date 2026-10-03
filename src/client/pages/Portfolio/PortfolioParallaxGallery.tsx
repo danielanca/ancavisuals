@@ -5,6 +5,7 @@ import { SplitText } from "gsap/SplitText";
 import { buildSeoImageAlt } from "../../utils/imageAltLabel";
 import { sendLiveEvent } from "../../utils/liveEvent";
 import { heavyPhotoNote } from "../../../shared/media/photoWeight";
+import { installGalleryScrollRefresh, refreshGalleryScroll } from "../../utils/galleryScrollRefresh";
 import "./PortfolioParallaxGallery.scss";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -55,6 +56,8 @@ export default function PortfolioParallaxGallery({
   const endRef = useRef<HTMLDivElement>(null);
   // The alt-text catalog (127 KB) loads after the gallery; until then photos use the generated alt.
   const [catalogAlt, setCatalogAlt] = useState<((src: string, fallback: string) => string) | null>(null);
+  useEffect(installGalleryScrollRefresh, []);
+
   useEffect(() => {
     let active = true;
     import("../../utils/imageAlt")
@@ -148,7 +151,7 @@ export default function PortfolioParallaxGallery({
   useEffect(() => {
     if (!batchSize || !containerRef.current) return;
     const count = visible.length;
-    const settled = () => { ScrollTrigger.refresh(); setLoadedCount(count); };
+    const settled = () => { refreshGalleryScroll(); setLoadedCount(count); };
     const pending = [...containerRef.current.querySelectorAll("img")].filter((img) => !img.complete);
     if (!pending.length) { settled(); return; }
     let remaining = pending.length;
@@ -231,9 +234,9 @@ export default function PortfolioParallaxGallery({
       let remaining = imgs.length;
       const onDone = () => {
         remaining -= 1;
-        if (remaining <= 0) ScrollTrigger.refresh();
+        if (remaining <= 0) refreshGalleryScroll();
       };
-      if (remaining === 0) ScrollTrigger.refresh();
+      if (remaining === 0) refreshGalleryScroll();
       imgs.forEach((img) => {
         if (img.complete) {
           onDone();

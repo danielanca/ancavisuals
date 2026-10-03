@@ -290,6 +290,9 @@ export default function LocationField({
 
   async function handleSelect(sug: AutocompleteSuggestionResult) {
     try {
+      ++requestIdRef.current;
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+      setLoading(false);
       setOpen(false);
       const places = await ensurePlaces(apiKey, language);
 
@@ -351,6 +354,12 @@ export default function LocationField({
           setWanted(true);
           if ((value ?? "").length >= 3 && Array.isArray(suggestions) && suggestions.length > 0) setOpen(true);
         }}
+        onBlur={() => {
+          ++requestIdRef.current;
+          if (debounceRef.current) window.clearTimeout(debounceRef.current);
+          setLoading(false);
+          setOpen(false);
+        }}
         onKeyDown={e => {
           if (!open || !Array.isArray(suggestions) || suggestions.length === 0) return;
           if (e.key === "ArrowDown") {
@@ -393,7 +402,7 @@ export default function LocationField({
             maxHeight: 280,
             overflowY: "auto",
           }}
-          onMouseDown={e => e.preventDefault()}
+          onPointerDown={e => e.preventDefault()}
         >
           {loading && <AncaLoader variant="inline" />}
           {err && <div style={{ padding: 10, color: "#ff8080" }}>{err}</div>}

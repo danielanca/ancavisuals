@@ -1,4 +1,5 @@
 # AI_MEMORY — ancavisuals
+#RECENT  2026-10-04: Salt la completarea Locație/Județ pe mobil în `/oferta/olx`: cauza suspectată = refresh GSAP la tastatură (refresh rescrie scroll-ul), încă de confirmat pe telefonul ownerului. `utils/galleryScrollRefresh.ts` gestionează refresh-urile cât galeria parallax e montată: ignoră resize doar pe înălțime pe touch, amână refresh explicit cât input/select/textarea are focus, reia după blur; cleanup restabilește evenimentele GSAP. CSS oprește smooth scroll cât configuratorul are un câmp focalizat. LocationField invalidează căutările la blur/select și păstrează focusul cu pointerdown pe sugestii (inclusiv touch). Câmpuri configurator 16px mobil. Teste: galleryScrollRefresh.test.ts, LocationField.test.tsx. Nu pretinde reproducere pe dispozitiv real din testele jsdom. #PITFALL #CAMPAIGN #UX
 # Context operațional shared între Claude, Codex și orice alt agent AI.
 # NU este documentație pentru useri.
 # Actualizează după orice schimbare structurală.

@@ -85,10 +85,10 @@ function formatDate(iso: string): string {
 }
 
 const INPUT_CLASS =
-  "w-full rounded-xl border border-neutral-950/15 bg-white px-3.5 py-3.5 text-sm text-neutral-950 outline-none transition-colors placeholder:text-neutral-500 hover:border-neutral-300 focus:border-neutral-950";
+  "w-full rounded-xl border border-neutral-950/15 bg-white px-3.5 py-3.5 text-base sm:text-sm text-neutral-950 outline-none transition-colors placeholder:text-neutral-500 hover:border-neutral-300 focus:border-neutral-950";
 
 const SELECT_CLASS =
-  "w-full appearance-none rounded-xl border border-neutral-950/15 bg-white bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='m1 1 4 4 4-4' stroke='%23737373' stroke-width='1.5'/%3E%3C/svg%3E\")] bg-[length:10px_6px] bg-[right_0.9rem_center] bg-no-repeat px-3.5 py-3.5 pr-8 text-sm text-neutral-950 outline-none transition-colors hover:border-neutral-300/60 focus:border-neutral-950";
+  "w-full appearance-none rounded-xl border border-neutral-950/15 bg-white bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='m1 1 4 4 4-4' stroke='%23737373' stroke-width='1.5'/%3E%3C/svg%3E\")] bg-[length:10px_6px] bg-[right_0.9rem_center] bg-no-repeat px-3.5 py-3.5 pr-8 text-base sm:text-sm text-neutral-950 outline-none transition-colors hover:border-neutral-300/60 focus:border-neutral-950";
 
 /** Counts from the old total to the new one; jumps straight there with reduced motion. */
 function useCountUp(target: number, ms = 450): number {
