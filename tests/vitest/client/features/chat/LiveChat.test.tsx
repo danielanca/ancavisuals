@@ -4,12 +4,47 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { afterEach, describe, expect, test, vi } from "vitest";
-import LiveChat, { LIVE_CHAT_COLOR, openLiveChat, subscribeToLiveChatStatus, TIDIO_PUBLIC_KEY } from "src/client/features/chat/components/LiveChat";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import LiveChat, { isTidioBlockedForThisDevice, LIVE_CHAT_COLOR, loadTidio, openLiveChat, subscribeToLiveChatStatus, TIDIO_PUBLIC_KEY } from "src/client/features/chat/components/LiveChat";
+
+const realLocation = window.location;
+const setLocation = (hostname: string, search = "") =>
+  Object.defineProperty(window, "location", { value: { ...realLocation, hostname, search }, configurable: true });
+
+// jsdom runs on localhost, where Tidio is deliberately off — pretend to be the live site.
+beforeEach(() => setLocation("ancavisuals.ro"));
 
 afterEach(() => {
+  Object.defineProperty(window, "location", { value: realLocation, configurable: true });
   document.getElementById("tidio-script")?.remove();
+  document.cookie = "av_admin=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+  localStorage.removeItem("av_admin_device");
   delete window.tidioChatApi;
+});
+
+describe("Tidio stays off for the owner's own visits", () => {
+  test.each(["localhost", "127.0.0.1", "192.168.1.20", "macbook.local"])("never loads on %s", (host) => {
+    setLocation(host);
+    expect(isTidioBlockedForThisDevice()).toBe(true);
+    loadTidio();
+    void openLiveChat();
+    expect(document.getElementById("tidio-script")).toBeNull();
+  });
+
+  test("never loads on the device logged in as admin (cookie or persistent marker)", () => {
+    document.cookie = "av_admin=1; path=/";
+    expect(isTidioBlockedForThisDevice()).toBe(true);
+    document.cookie = "av_admin=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    localStorage.setItem("av_admin_device", "1");
+    loadTidio();
+    expect(document.getElementById("tidio-script")).toBeNull();
+  });
+
+  test("?tidio=1 forces it on for testing", () => {
+    setLocation("localhost", "?tidio=1");
+    loadTidio();
+    expect(document.getElementById("tidio-script")).not.toBeNull();
+  });
 });
 
 describe("LiveChat (Tidio)", () => {

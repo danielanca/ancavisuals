@@ -26,9 +26,30 @@ declare global {
   }
 }
 
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|::1|0\.0\.0\.0|.+\.local|.+\.localhost|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i;
+
+/**
+ * The owner's own visits (dev on localhost / LAN, or the device logged in as admin —
+ * cookie `av_admin` or the persistent `av_admin_device` marker) must not show up in
+ * Tidio as visitors, so Tidio is never loaded there. `?tidio=1` forces it for testing.
+ */
+export function isTidioBlockedForThisDevice(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    if (new URLSearchParams(window.location.search).get("tidio") === "1") return false;
+  } catch { /* ignore */ }
+  if (LOCAL_HOST.test(window.location.hostname)) return true;
+  if (/(?:^|;\s*)av_admin=1(?:;|$)/.test(document.cookie)) return true;
+  try {
+    return localStorage.getItem("av_admin_device") === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** Loads the Tidio script (hidden — nothing opens). Safe to call many times. */
 export function loadTidio(): void {
-  if (!isLiveChatConfigured() || document.getElementById("tidio-script")) return;
+  if (!isLiveChatConfigured() || isTidioBlockedForThisDevice() || document.getElementById("tidio-script")) return;
   const script = document.createElement("script");
   script.id = "tidio-script";
   script.async = true;
@@ -143,6 +164,10 @@ let openRequested = false;
  * on close. Resolves once the chat is open, so the button can show a loading state.
  */
 export function openLiveChat(): Promise<void> {
+  if (isTidioBlockedForThisDevice()) {
+    console.info("[LiveChat] Tidio dezactivat pe acest dispozitiv (localhost/admin). Adaugă ?tidio=1 în URL ca să-l testezi.");
+    return Promise.resolve();
+  }
   openRequested = true;
   loadTidio();
   return new Promise((resolve) => {

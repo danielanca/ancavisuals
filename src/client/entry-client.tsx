@@ -13,6 +13,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { App } from "./App";
 import "./index.css";
 import { installImageFailureRecovery } from "./utils/imageFailureRecovery";
+import { LOAD_USERCENTRICS_EVENT } from "./utils/cookieConsent";
 
 const stopImageFailureRecovery = installImageFailureRecovery();
 if (import.meta.hot) import.meta.hot.dispose(stopImageFailureRecovery);
@@ -167,6 +168,8 @@ const scheduleUsercentrics = () => {
   };
 
   INTERACTION_EVENTS.forEach((evt) => window.addEventListener(evt, start, { once: true, passive: true }));
+  // "Setări cookie" clicked before any interaction loaded the CMP (typical on phones).
+  window.addEventListener(LOAD_USERCENTRICS_EVENT, start, { once: true });
 };
 
 scheduleUsercentrics();

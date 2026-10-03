@@ -16,6 +16,9 @@ import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
 import PortfolioParallaxGallery from "../Portfolio/PortfolioParallaxGallery";
 import GuideBook from "./GuideBook";
 import CampaignVideoPlayer from "./CampaignVideoPlayer";
+import CampaignPackages from "./CampaignPackages";
+import ChatWithUs from "../../features/chat/components/ChatWithUs";
+import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -46,14 +49,6 @@ const WEDDING_GUIDE_HIGHLIGHTS = [
 
 
 type DatePick = { day: number | null; month: number | null; year: number | null };
-
-// Fiecare pachet primește un accent de culoare diferit (ciclic), ca să nu mai pară 3 carduri identice
-// cu doar textul schimbat — indiferent câte pachete sunt sau care e marcat "highlighted".
-const PACKAGE_ACCENTS = [
-  { border: "border-amber-700/40", bg: "bg-gradient-to-b from-amber-950/25 via-neutral-900 to-neutral-900", bar: "bg-amber-500", price: "text-amber-400" },
-  { border: "border-sky-700/40", bg: "bg-gradient-to-b from-sky-950/25 via-neutral-900 to-neutral-900", bar: "bg-sky-400", price: "text-sky-400" },
-  { border: "border-violet-700/40", bg: "bg-gradient-to-b from-violet-950/25 via-neutral-900 to-neutral-900", bar: "bg-violet-400", price: "text-violet-400" },
-];
 
 export interface CampaignPackage {
   id: string;
@@ -484,7 +479,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         <PortfolioParallaxGallery
           images={galleryImageUrls}
           altBase="fotografie și videografie Anca Visuals"
-          rotate
         />
       )}
 
@@ -711,7 +705,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
             <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
           </div>
-          {/* Edge to edge: no side padding, no rounded corners, no border. */}
+          {/* Phones: edge to edge (no padding, corners or border). Desktop: a framed, narrower player — full width was too wide. */}
+          <div className="md:mx-auto md:max-w-5xl md:px-6">
+          <div className="md:overflow-hidden md:rounded-2xl md:shadow-2xl md:shadow-black/60 md:ring-1 md:ring-white/10">
           {isEmbedVideoUrl(page.videoUrl ?? "") ? (
             <div className="aspect-video w-full bg-black">
               <iframe
@@ -727,110 +723,18 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               poster={page.videoThumbnailUrl || undefined}
             />
           )}
+          </div>
+          </div>
         </section>
       )}
 
       {/* ── PACKAGES ───────────────────────────────────────────────── */}
       {page.packages.length > 0 && (
-        <section id="pachete" className="py-24 px-6 bg-[#151515]">
-          <div className="max-w-6xl mx-auto">
-            <div className="max-w-2xl mb-10">
-              <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Pachete</p>
-              <h2 className="text-3xl sm:text-4xl font-light text-white mb-3">Alege experiența care vi se potrivește.</h2>
-              <p className="text-sm text-neutral-400 leading-relaxed">Fiecare pachet este un punct de plecare. Ne adaptăm poveștii, ritmului și oamenilor care fac ziua voastră unică.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {page.packages.map((pkg, index) => {
-                const accent = PACKAGE_ACCENTS[index % PACKAGE_ACCENTS.length];
-                return (
-                  <div
-                    key={pkg.id}
-                    className={`relative overflow-hidden rounded-2xl border p-6 flex flex-col transition-transform ${accent.border} ${accent.bg} ${
-                      pkg.highlighted ? "shadow-xl shadow-black/40 ring-1 ring-white/15 sm:-translate-y-2" : ""
-                    }`}
-                  >
-                    <span className={`absolute inset-x-0 top-0 h-1 ${accent.bar}`} />
-                    {pkg.highlighted && (
-                      <span className="self-start text-[10px] font-bold tracking-widest uppercase text-black bg-white px-2.5 py-1 rounded-full mb-3">
-                        ★ Popular
-                      </span>
-                    )}
-                    <h3 className="text-white font-semibold text-lg mb-1">{pkg.name}</h3>
-                    {pkg.oldPrice?.trim() ? (
-                      <div className="mb-5">
-                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                          <span className="text-lg font-light text-neutral-500 line-through decoration-red-400/80 decoration-2">{pkg.oldPrice}</span>
-                          <span className={`text-2xl font-semibold ${accent.price}`}>{pkg.price}</span>
-                        </div>
-                        <span className="mt-2 inline-block rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-red-300">Preț redus</span>
-                      </div>
-                    ) : (
-                      <p className={`text-2xl font-light mb-5 ${accent.price}`}>{pkg.price}</p>
-                    )}
-                    <ul className="space-y-2 flex-1">
-                      {pkg.features.map((feature, featureIndex) => (
-                        <li key={featureIndex} className="flex items-start gap-2 text-sm text-neutral-300">
-                          <span className="text-green-400 mt-0.5 flex-shrink-0">✓</span>
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                    <a
-                      href={whatsappLink}
-                      onClick={() => trackClick("click_whatsapp", "package")}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-6 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-medium py-3 px-4 rounded-xl transition-colors"
-                    >
-                      <WhatsAppIcon />
-                      Alege pachetul
-                    </a>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── GHIDUL MIRILOR — PDF gratuit ───────────────────────────── */}
-      {WEDDING_GUIDE_SLUGS.has(page.slug) && (
-        <section className="bg-[#f6f2ea] px-6 py-16 text-[#2f2a24] sm:py-20">
-          <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-14">
-            <GuideBook />
-
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">PDF gratuit · 15 pagini</p>
-              <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">Ghidul Mirilor</h2>
-              <p className="mt-4 text-base leading-relaxed text-[#5c5348]">
-                Tot ce ne-ar fi plăcut să știe toți mirii de la început, adunat din zecile de nunți la care am fost alături de cupluri.
-              </p>
-              <ul className="mt-6 grid gap-2.5 text-sm sm:grid-cols-2">
-                {WEDDING_GUIDE_HIGHLIGHTS.map((item) => (
-                  <li key={item} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f2a24] text-[11px] text-[#f6f2ea]">✓</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <a
-                href={WEDDING_GUIDE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={trackGuideDownload}
-                className="mt-8 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2f2a24] px-6 py-4 text-sm font-semibold text-[#f6f2ea] transition-colors hover:bg-black sm:w-auto"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 3v12" />
-                  <path d="m7 10 5 5 5-5" />
-                  <path d="M5 21h14" />
-                </svg>
-                Descarcă ghidul gratuit
-              </a>
-              <p className="mt-3 text-xs text-[#5c5348]/80">Fără email, fără înregistrare — se deschide direct.</p>
-            </div>
-          </div>
-        </section>
+        <CampaignPackages
+          packages={page.packages}
+          waLink={waLink}
+          onWhatsAppClick={(position) => trackClick("click_whatsapp", position)}
+        />
       )}
 
       {/* ── TESTIMONIALS ───────────────────────────────────────────── */}
@@ -939,7 +843,49 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </div>
       </section>
 
+      {/* ── GHIDUL MIRILOR — PDF gratuit ───────────────────────────── */}
+      {WEDDING_GUIDE_SLUGS.has(page.slug) && (
+        <section className="bg-[#f6f2ea] px-6 py-16 text-[#2f2a24] sm:py-20">
+          <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-14">
+            <GuideBook />
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">PDF gratuit · 15 pagini</p>
+              <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">Ghidul Mirilor</h2>
+              <p className="mt-4 text-base leading-relaxed text-[#5c5348]">
+                Tot ce ne-ar fi plăcut să știe toți mirii de la început, adunat din zecile de nunți la care am fost alături de cupluri.
+              </p>
+              <ul className="mt-6 grid gap-2.5 text-sm sm:grid-cols-2">
+                {WEDDING_GUIDE_HIGHLIGHTS.map((item) => (
+                  <li key={item} className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f2a24] text-[11px] text-[#f6f2ea]">✓</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={WEDDING_GUIDE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={trackGuideDownload}
+                className="mt-8 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2f2a24] px-6 py-4 text-sm font-semibold text-[#f6f2ea] transition-colors hover:bg-black sm:w-auto"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 3v12" />
+                  <path d="m7 10 5 5 5-5" />
+                  <path d="M5 21h14" />
+                </svg>
+                Descarcă ghidul gratuit
+              </a>
+              <p className="mt-3 text-xs text-[#5c5348]/80">Fără email, fără înregistrare — se deschide direct.</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {promoAtPageEnd && <AncaVisualsPromo desktopColumns={4} />}
+
+      {isLiveChatConfigured() && <ChatWithUs />}
 
       <div className="py-6 text-center">
         <p className="text-neutral-700 text-xs">© Ancavisuals · ancavisuals.ro</p>

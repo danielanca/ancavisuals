@@ -46,22 +46,28 @@
 .ppg-item {
   overflow: hidden;
   border-radius: 6px;
+  // Soft placeholder while a lazy photo loads, instead of an empty black hole.
+  background: rgba(255, 255, 255, 0.04);
 }
 
+// Photos fade in once loaded — no blur, no zoom.
 .ppg-img {
   display: block;
   margin: 0;
   width: 100%;
   height: auto;
+  opacity: 0;
+  transition: opacity 700ms ease-out;
+
+  &.is-shown {
+    opacity: 1;
+  }
 }
 
-// Reveal folosit doar cât timp galeria se rotește (prop "rotate") — fiecare
-// poză reapare cu propria întârziere, ca la fâșia din footer, în loc de un
-// fade uniform.
-@keyframes ppg-mosaic-in {
-  0% { opacity: 0; transform: scale(1.12); filter: blur(6px); }
-  60% { opacity: 1; filter: blur(0); }
-  100% { opacity: 1; transform: scale(1); filter: blur(0); }
+@media (prefers-reduced-motion: reduce) {
+  .ppg-img {
+    transition: none;
+  }
 }
 
 .ppg-spacer {

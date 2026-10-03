@@ -95,6 +95,9 @@ export const App = () => {
   const location = useLocation();
   const [mediaPromoVisible, setMediaPromoVisible] = useState(false);
   const liveChatVisible = !HIDE_LIVE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
+  // Campaign landings (/oferta/:slug) render <ChatWithUs /> themselves, above their
+  // footer, so "Setări cookie" stays the last thing on the page.
+  const chatWithUsInPage = location.pathname.startsWith("/oferta/") && location.pathname !== "/oferta/inmormantari";
   const isMediaPage = location.pathname.startsWith("/media/");
   const baseChatAllowed = !HIDE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
   const showChat = isMediaPage ? mediaPromoVisible : baseChatAllowed;
@@ -177,7 +180,7 @@ export const App = () => {
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
             {/* Replaces Tidio's side tab: an end-of-page invitation that opens the chat. */}
-            {isLiveChatConfigured() && liveChatVisible && <ChatWithUs />}
+            {isLiveChatConfigured() && liveChatVisible && !chatWithUsInPage && <ChatWithUs />}
           </Suspense>
           </ChunkErrorBoundary>
       </AuthProvider>

@@ -14,14 +14,9 @@ type PortfolioParallaxGalleryProps = {
   // din Bibliotecă Media. Folosit de paginile de campanie, care au propria
   // lor galerie curatoriată per-campanie, distinctă de pool-ul global.
   images?: string[];
-  // Când e true, toată galeria vizibilă se reînnoiește periodic (aceleași
-  // poze, reordonate), cu efect de mozaic — ca fâșia din footer. Implicit
-  // false, ca /portofoliu să rămână static (doar parallax la scroll).
-  rotate?: boolean;
 };
 
 const MAX_IMAGES = 60;
-const ROTATE_INTERVAL_MS = 10000;
 // Max drift, in pixels, between two adjacent columns — small and fixed
 // regardless of gallery length, so no column can visually "run out" before
 // the others (see the effect below for why yPercent broke this on long
@@ -40,7 +35,6 @@ function getColumnCount(width: number) {
 export default function PortfolioParallaxGallery({
   altBase = "fotograf videograf eveniment Anca Visuals",
   images: imagesProp,
-  rotate = false,
 }: PortfolioParallaxGalleryProps) {
   const [zoneData, setZoneData] = useState<{ desktop: string[]; mobile: string[] }>({ desktop: [], mobile: [] });
   const [loading, setLoading] = useState(!imagesProp);
@@ -48,7 +42,6 @@ export default function PortfolioParallaxGallery({
     getColumnCount(typeof window !== "undefined" ? window.innerWidth : 1280)
   );
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
-  const [rotateTick, setRotateTick] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -75,16 +68,6 @@ export default function PortfolioParallaxGallery({
       .finally(() => setLoading(false));
   }, [imagesProp]);
 
-  // La fiecare ROTATE_INTERVAL_MS, rotim ordinea pozelor cu o poziție — fiecare
-  // loc din grilă ajunge să arate altă poză, "una câte una", fără să schimbăm
-  // efectiv poolul (toate pozele curatoriate sunt deja vizibile în galerie,
-  // nu există o rezervă ascunsă de unde să aducem altele complet noi).
-  useEffect(() => {
-    if (!rotate) return;
-    const interval = window.setInterval(() => setRotateTick((tick) => tick + 1), ROTATE_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [rotate]);
-
   // A device without its own curated set falls back to the other device's set.
   const pool = useMemo(() => {
     if (imagesProp) return Array.from(new Set(imagesProp)).slice(0, MAX_IMAGES);
@@ -94,11 +77,6 @@ export default function PortfolioParallaxGallery({
     return Array.from(new Set(list)).slice(0, MAX_IMAGES);
   }, [imagesProp, zoneData, isMobile]);
 
-  const images = useMemo(() => {
-    if (!rotate || pool.length === 0) return pool;
-    const offset = rotateTick % pool.length;
-    return [...pool.slice(offset), ...pool.slice(0, offset)];
-  }, [pool, rotate, rotateTick]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -111,9 +89,9 @@ export default function PortfolioParallaxGallery({
 
   const columns = useMemo(() => {
     const groups: string[][] = Array.from({ length: columnCount }, () => []);
-    images.forEach((src, index) => groups[index % columnCount].push(src));
+    pool.forEach((src, index) => groups[index % columnCount].push(src));
     return groups;
-  }, [images, columnCount]);
+  }, [pool, columnCount]);
 
   useEffect(() => {
     if (!titleRef.current) return;
@@ -194,15 +172,6 @@ export default function PortfolioParallaxGallery({
     return () => ctx.revert();
   }, [columnCount, isMobile]);
 
-  // O rotație poate schimba ușor înălțimea fiecărei coloane (poze cu proporții
-  // diferite) — doar recalculăm pozițiile de start/final ale trigger-elor deja
-  // existente, fără să le distrugem.
-  useEffect(() => {
-    if (!rotate) return;
-    const id = window.requestAnimationFrame(() => ScrollTrigger.refresh());
-    return () => window.cancelAnimationFrame(id);
-  }, [images, rotate]);
-
   return (
     <section ref={containerRef} className="ppg-section bg-neutral-950 text-white">
       <div className="ppg-intro">
@@ -220,7 +189,7 @@ export default function PortfolioParallaxGallery({
             ))}
           </div>
         </div>
-      ) : !images.length ? (
+      ) : !pool.length ? (
         <div className="ppg-wrap text-neutral-500 text-sm text-center py-16">
           Nu sunt imagini disponibile momentan.
         </div>
@@ -231,15 +200,11 @@ export default function PortfolioParallaxGallery({
               {columns.map((col, colIndex) => (
                 <div key={colIndex} className="ppg-col">
                   {col.map((src, index) => (
-                    <div key={rotate ? `${colIndex}-${index}-${rotateTick}` : src} className="ppg-item">
-                      <img
+                    <div key={src} className="ppg-item">
+                      <FadeInImage
                         src={src}
-                        alt={getCatalogImageAlt(src, buildSeoImageAlt(altBase, colIndex * col.length + index))}
-                        loading="lazy"
-                        className="ppg-img"
-                        style={rotate ? {
-                          animation: `ppg-mosaic-in 700ms ease ${(colIndex * 173 + index * 97) % 650}ms 1 normal both`,
-                        } : undefined}
+                        // Images are dealt round-robin into columns: this is the photo's index in the gallery.
+                        alt={getCatalogImageAlt(src, buildSeoImageAlt(altBase, index * columnCount + colIndex))}
                       />
                     </div>
                   ))}
@@ -251,5 +216,30 @@ export default function PortfolioParallaxGallery({
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Photos fade in once loaded instead of popping in (no blur, no zoom). One already in
+ * the browser cache just shows up. No requestAnimationFrame: it is paused in background
+ * tabs and the photos would stay invisible.
+ */
+function FadeInImage({ src, alt }: { src: string; alt: string }) {
+  const [shown, setShown] = useState(false);
+  const show = () => setShown(true);
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className={`ppg-img ${shown ? "is-shown" : ""}`}
+      ref={(img) => {
+        // Cached images can finish before React attaches onLoad.
+        if (img?.complete && img.naturalWidth && !shown) show();
+      }}
+      onLoad={show}
+      onError={show}
+    />
   );
 }

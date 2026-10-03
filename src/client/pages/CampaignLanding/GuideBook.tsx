@@ -22,6 +22,13 @@ const STYLES = `
     0%, 100% { transform: translateY(0) rotate(-2deg); }
     50% { transform: translateY(-8px) rotate(-1deg); }
   }
+  /* Phones/tablets: the book stays shut and does a full 3D turn every 6s. 360deg = 0deg, so the loop is seamless. */
+  @keyframes guideBookSpin {
+    0% { transform: translateY(0) rotate(-2deg) rotateY(0deg); }
+    12% { transform: translateY(-6px) rotate(-2deg) rotateY(-12deg); }
+    32% { transform: translateY(-12px) rotate(0deg) rotateY(360deg); }
+    40%, 100% { transform: translateY(0) rotate(-2deg) rotateY(360deg); }
+  }
   .guide-book { perspective: 1400px; }
   .guide-book__body {
     position: relative; transform-style: preserve-3d;
@@ -34,6 +41,11 @@ const STYLES = `
     transition: transform 1100ms cubic-bezier(.2,.8,.2,1);
   }
   .guide-book--open .guide-book__cover { transform: rotateY(-158deg); }
+  /* Pushed just behind the cover so a full turn shows the inside cover as the back, not the page. */
+  .guide-book__page { transform: translateZ(-2px); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  @media (max-width: 1024px), (hover: none), (pointer: coarse) {
+    .guide-book__body { animation: guideBookSpin 6s cubic-bezier(.45,.05,.25,1) infinite; }
+  }
   .guide-book__face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   .guide-book__inside { transform: rotateY(180deg); }
   .guide-book__page li { opacity: 0; transform: translateX(-6px); transition: opacity 400ms ease, transform 400ms ease; }
@@ -43,19 +55,22 @@ const STYLES = `
   }
 `;
 
-/** Decorative book: opens on its own while in view (or on hover/click), walks its contents, closes, repeats every 15s. Downloading happens only from the section's button. */
+// Phones, tablets and any touch-first device: the book never opens (not even on tap) — it only spins (CSS). Keep in sync with the @media in STYLES.
+const STATIC_BOOK_QUERY = "(max-width: 1024px), (hover: none), (pointer: coarse)";
+
+/** Decorative book: on desktop opens on its own while in view (or on hover), walks its contents, closes, repeats every 15s. On desktop a click opens it right away or restarts the walk; it never downloads (only the section's button does). */
 export default function GuideBook() {
   const ref = useRef<HTMLButtonElement>(null);
   const [hovered, setHovered] = useState(false);
   const [inView, setInView] = useState(false);
-  // A click opens it right away (no dwell wait) or restarts the walk; it never downloads.
   const [clicks, setClicks] = useState(0);
+  const isStatic = () => Boolean(window.matchMedia?.(STATIC_BOOK_QUERY).matches);
 
   // Desktop: opens once the visitor lingers on the section, closes when they scroll away.
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
-    if (window.matchMedia?.("(max-width: 767px)").matches) return; // phones: stays closed unless tapped
+    if (isStatic()) return;
     let timer: number | undefined;
     const observer = new IntersectionObserver(([entry]) => {
       window.clearTimeout(timer);
@@ -99,11 +114,12 @@ export default function GuideBook() {
     <button
       ref={ref}
       type="button"
-      onClick={() => setClicks((n) => n + 1)}
-      onMouseEnter={() => setHovered(true)}
+      // A tap on touch screens fires click + mouseenter — ignore both there so the book stays shut.
+      onClick={() => { if (!isStatic()) setClicks((n) => n + 1); }}
+      onMouseEnter={() => { if (!isStatic()) setHovered(true); }}
       onMouseLeave={() => setHovered(false)}
       aria-label="Răsfoiește Ghidul Mirilor"
-      className={`guide-book mx-auto block w-full max-w-[250px] cursor-pointer text-left ${open ? "guide-book--open" : ""}`}
+      className={`guide-book mx-auto block w-full max-w-[250px] text-left md:cursor-pointer ${open ? "guide-book--open" : ""}`}
     >
       <style>{STYLES}</style>
       <div className="guide-book__body aspect-[3/4]">
