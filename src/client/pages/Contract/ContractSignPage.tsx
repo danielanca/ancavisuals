@@ -678,7 +678,7 @@ const Field: React.FC<{ label: string; error?: string; children: React.ReactNode
 );
 
 const pg: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100vh", background: "#f9f7f4", padding: "24px 16px 48px" },
+  page: { minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#f9f7f4", padding: "24px 16px 48px" },
   container: { maxWidth: 680, margin: "0 auto", background: "#fff", borderRadius: 8, boxShadow: "0 2px 20px rgba(0,0,0,0.08)", overflow: "hidden" },
   header: { textAlign: "center", padding: "32px 24px 24px", borderBottom: "2px solid #c9a96e" },
   logoText: { fontSize: 22, fontWeight: 300, letterSpacing: 4, color: "#c9a96e", fontFamily: "Georgia, serif" },
@@ -705,7 +705,7 @@ const pg: Record<string, React.CSSProperties> = {
   saveBtn: { marginTop: 4, padding: "10px 20px", background: "#1a1a1a", color: "#fff", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 6, cursor: "pointer", letterSpacing: 0.5 },
   pdfBtn: { display: "block", width: "100%", padding: "14px 20px", background: "#c9a96e", color: "#fff", fontSize: 14, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" as const, border: "none", borderRadius: 6, cursor: "pointer" },
   footer: { textAlign: "center", padding: "14px", fontSize: 11, color: "#bbb", borderTop: "1px solid #f0ede8" },
-  fullCenter: { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, background: "#f9f7f4" },
+  fullCenter: { minHeight: "calc(var(--stable-vh, 1vh) * 100)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, background: "#f9f7f4" },
   iconBig: { fontSize: 52, marginBottom: 14 },
   stateH2: { color: "#1a1a1a", fontWeight: 700, fontSize: 20, marginBottom: 8 },
   stateP: { color: "#666", textAlign: "center", maxWidth: 380, lineHeight: 1.6 },

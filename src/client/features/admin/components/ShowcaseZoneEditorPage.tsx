@@ -248,14 +248,14 @@ export default function ShowcaseZoneEditorPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <span style={{ color: "#555", fontSize: 14 }}>Se încarcă...</span>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", padding: "20px 24px 80px" }}>
+    <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#0a0a0a", color: "#fff", padding: "20px 24px 80px" }}>
       <Breadcrumb />
 
       {/* Taburi — o singură pagină pentru toate destinațiile de media */}

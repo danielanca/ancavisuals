@@ -9,7 +9,7 @@ $text-dark: #1f2937;
 $text-muted: #6b7280;
 
 .page {
-  min-height: 100vh;
+  min-height: calc(var(--stable-vh, 1vh) * 100);
   background: $page-bg;
   padding: 40px 20px;
   font-family: system-ui, -apple-system, sans-serif;

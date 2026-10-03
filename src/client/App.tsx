@@ -40,7 +40,7 @@ class ChunkErrorBoundary extends Component<
   render() {
     if (this.state.crashed) {
       return (
-        <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+        <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
           <p style={{ color: "#555", fontSize: 14 }}>Se actualizează aplicația...</p>
           <button
             onClick={() => { sessionStorage.removeItem(CHUNK_RELOAD_KEY); window.location.reload(); }}

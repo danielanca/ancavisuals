@@ -74,7 +74,7 @@ export default function AncaLoader({ variant = "full", subtitle, reportSlowLoad 
     return (
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "center",
-        minHeight: "100vh", width: "100%", background: "#111111",
+        minHeight: "calc(var(--stable-vh, 1vh) * 100)", width: "100%", background: "#111111",
       }}>
         {inner}
       </div>

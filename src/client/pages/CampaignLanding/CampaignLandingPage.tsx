@@ -21,6 +21,7 @@ import ChatWithUs from "../../features/chat/components/ChatWithUs";
 import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
 import { heavyPhotoNote, isHeavyPhoto } from "../../../shared/media/photoWeight";
 import { whenLandingSettled } from "../../utils/whenLandingSettled";
+import { stableVh } from "../../utils/stableViewport";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -465,7 +466,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       </header>
 
       {/* ── HERO ───────────────────────────────────────────────────── */}
-      <section id="acasa" className="relative min-h-[85vh] flex items-end overflow-hidden">
+      <section id="acasa" className="relative min-h-[calc(var(--stable-vh,1vh)*85)] flex items-end overflow-hidden">
         {/* A photo, not the video: the hero video is hundreds of MB and autoplayed on phones.
             The video stays the fallback for a landing without a hero photo. */}
         {page.heroImageUrl ? (
@@ -566,9 +567,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── PORTFOLIO — rămâne sus, imediat după hero ── */}
       {galleryItems.length > 0 && (
-        <LazySection height="100vh" onShow={() => preloadGroup(1)}>
+        <LazySection height={stableVh(100)} onShow={() => preloadGroup(1)}>
         <PortfolioParallaxGallery
-          fallback={<SectionSkeleton height="100vh" />}
+          fallback={<SectionSkeleton height={stableVh(100)} />}
           images={galleryImageUrls}
           batchSize={12}
           warnings={galleryWarnings}
@@ -580,7 +581,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {/* ── FILM — same full-bleed look as the hero: a photo, then the clip once it has
           downloaded (only while this section is on screen) ── */}
       {(page.heroClipUrl || galleryImageUrls.length > 1) && (
-        <section className="relative flex min-h-[90vh] items-end overflow-hidden bg-neutral-950 text-white">
+        <section className="relative flex min-h-[calc(var(--stable-vh,1vh)*90)] items-end overflow-hidden bg-neutral-950 text-white">
           {(galleryImageUrls[1] || page.heroImageUrl) && (
             <img
               src={galleryImageUrls[1] || page.heroImageUrl}
@@ -601,7 +602,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       )}
 
       {/* ── MEDIA PROMO FOOTER (a doua galerie rămâne sus pe celelalte campanii) ── */}
-      {!promoAtPageEnd && <LazySection height="100vh"><AncaVisualsPromo fallback={<SectionSkeleton height="100vh" />} /></LazySection>}
+      {!promoAtPageEnd && <LazySection height={stableVh(100)}><AncaVisualsPromo fallback={<SectionSkeleton height={stableVh(100)} />} /></LazySection>}
 
       {/* ── OFERTĂ FOTOCABINĂ — short: what, for whom, until when (no countdown) ── */}
       <section className="bg-white px-6 py-16 text-neutral-950 sm:py-20">
@@ -635,7 +636,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
       {(page.videoUrl || page.heroVideoUrl) && (
-        <LazySection height="60vh" onShow={() => preloadGroup(1)}>
+        <LazySection height={stableVh(60)} onShow={() => preloadGroup(1)}>
         <section id="film" className="scroll-mt-6 py-20 sm:py-24 border-b border-white/10">
           <div className="mb-8 px-6 text-center">
             <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
@@ -987,7 +988,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── GHIDUL MIRILOR — PDF gratuit ───────────────────────────── */}
       {WEDDING_GUIDE_SLUGS.has(page.slug) && (
-        <LazySection height="70vh">
+        <LazySection height={stableVh(70)}>
         <section className="bg-[#f6f2ea] px-6 py-16 text-[#2f2a24] sm:py-20">
           <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-14">
             <GuideBook />
@@ -1027,7 +1028,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </LazySection>
       )}
 
-      {promoAtPageEnd && <LazySection height="100vh"><AncaVisualsPromo desktopColumns={4} fallback={<SectionSkeleton height="100vh" />} /></LazySection>}
+      {promoAtPageEnd && <LazySection height={stableVh(100)}><AncaVisualsPromo desktopColumns={4} fallback={<SectionSkeleton height={stableVh(100)} />} /></LazySection>}
 
       {isLiveChatConfigured() && <ChatWithUs />}
 

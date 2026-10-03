@@ -168,7 +168,7 @@ export default function MediaLibraryHubPage() {
   }, [auth.loading, auth.accessToken]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", padding: "20px 24px 80px" }}>
+    <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#0a0a0a", color: "#fff", padding: "20px 24px 80px" }}>
       <Breadcrumb />
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Bibliotecă Media</h1>

@@ -7,7 +7,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 46vh;
+  min-height: calc(var(--stable-vh, 1vh) * 46);
   padding: 4rem 6vw 2rem;
   text-align: center;
 }
@@ -90,7 +90,7 @@
 }
 
 .ppg-spacer {
-  height: 28vh;
+  height: calc(var(--stable-vh, 1vh) * 28);
 }
 
 .ppg-loading {
@@ -100,7 +100,7 @@
 }
 
 .ppg-loading-col {
-  height: 60vh;
+  height: calc(var(--stable-vh, 1vh) * 60);
   border-radius: 6px;
   background: linear-gradient(100deg, rgba(255, 255, 255, 0.04) 20%, rgba(255, 255, 255, 0.09) 40%, rgba(255, 255, 255, 0.04) 60%);
   background-size: 200% 100%;
@@ -124,15 +124,15 @@
 
 @media (max-width: 639px) {
   .ppg-intro {
-    min-height: 32vh;
+    min-height: calc(var(--stable-vh, 1vh) * 32);
     padding: 3rem 6vw 1.5rem;
   }
 
   .ppg-spacer {
-    height: 14vh;
+    height: calc(var(--stable-vh, 1vh) * 14);
   }
 
   .ppg-loading-col {
-    height: 40vh;
+    height: calc(var(--stable-vh, 1vh) * 40);
   }
 }

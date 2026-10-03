@@ -2376,13 +2376,13 @@ export default function HealthTrackerPage() {
   const t = isLight ? LIGHT : DARK;
 
   if (auth.loading) return (
-    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <span style={{ color: t.t4, fontSize: 14 }}>Se încarcă...</span>
     </div>
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, color: t.t1, padding: "20px 24px 80px" }}>
+    <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: t.bg, color: t.t1, padding: "20px 24px 80px" }}>
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
         <Breadcrumb />
         <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>

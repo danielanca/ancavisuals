@@ -1065,7 +1065,7 @@ export default function MediaAlbumPage() {
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
+    <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#0a0a0a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
       <AncaLoader />
       {loadingSlow && (
         <div style={{ textAlign: "center", padding: "0 24px" }}>

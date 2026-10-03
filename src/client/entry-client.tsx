@@ -13,6 +13,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { App } from "./App";
 import "./index.css";
 import { installImageFailureRecovery } from "./utils/imageFailureRecovery";
+import { installStableViewport } from "./utils/stableViewport";
 import { LOAD_USERCENTRICS_EVENT } from "./utils/cookieConsent";
 import { InitialDataContext, readInitialData } from "./ssr/initialData";
 import { preloadSsrLazy } from "./routes/ssrLazy";
@@ -20,6 +21,8 @@ import { whenLandingSettled } from "./utils/whenLandingSettled";
 
 const stopImageFailureRecovery = installImageFailureRecovery();
 if (import.meta.hot) import.meta.hot.dispose(stopImageFailureRecovery);
+const stopStableViewport = installStableViewport();
+if (import.meta.hot) import.meta.hot.dispose(stopStableViewport);
 
 const USERCENTRICS_SCRIPT_ID = "usercentrics-cmp";
 const USERCENTRICS_SETTINGS_ID = "g4Hy0STeVeDNJo";

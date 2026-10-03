@@ -1,5 +1,5 @@
 .page {
-  min-height: 100dvh;
+  min-height: calc(var(--stable-vh, 1vh) * 100);
   display: grid;
   place-items: center;
   padding: 2rem 1.25rem;

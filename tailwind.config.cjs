@@ -11,6 +11,14 @@ module.exports = {
       animation: {
         "fade-in": "fade-in 0.2s ease-out",
       },
+      // h-screen / min-h-screen: a height the phone keyboard and browser bars cannot change
+      // (`--stable-vh`, utils/stableViewport.ts) — otherwise everything below them jumps while typing.
+      height: {
+        screen: "calc(var(--stable-vh, 1vh) * 100)",
+      },
+      minHeight: {
+        screen: "calc(var(--stable-vh, 1vh) * 100)",
+      },
       minWidth: {
         40: "10rem",
         60: "15rem",

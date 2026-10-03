@@ -241,13 +241,13 @@ export default function PhotoCollectionsPage() {
   });
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <span style={{ color: "#555", fontSize: 14 }}>Se încarcă...</span>
     </div>
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", padding: "20px 24px 80px" }}>
+    <div style={{ minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#0a0a0a", color: "#fff", padding: "20px 24px 80px" }}>
       <Breadcrumb />
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>

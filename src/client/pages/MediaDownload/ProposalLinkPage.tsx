@@ -225,7 +225,7 @@ export default function ProposalLinkPage() {
   const shown = useMemo(() => photos.slice(0, visibleCount), [photos, visibleCount]);
   const previewPhoto = preview !== null ? photos[preview] : null;
 
-  const page: React.CSSProperties = { minHeight: "100vh", background: "#0a0a0a", color: "#eee", fontFamily: "inherit" };
+  const page: React.CSSProperties = { minHeight: "calc(var(--stable-vh, 1vh) * 100)", background: "#0a0a0a", color: "#eee", fontFamily: "inherit" };
 
   if (loadError) {
     return (

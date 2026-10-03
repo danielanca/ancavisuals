@@ -20,7 +20,7 @@ $transition: all 0.35s ease;
 }
 
 .qr-moments-page {
-  min-height: 100vh;
+  min-height: calc(var(--stable-vh, 1vh) * 100);
   background: $bg-light;
   color: $text-dark;
   font-family: 'Cairo', system-ui, sans-serif;
@@ -602,7 +602,7 @@ $transition: all 0.35s ease;
 
 /* ── 404 Page ──────────────────────────────────────────────────────────────── */
 .not-found-container {
-  min-height: 100vh;
+  min-height: calc(var(--stable-vh, 1vh) * 100);
   background: $bg-light;
   display: flex;
   flex-direction: column;

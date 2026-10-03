@@ -133,7 +133,7 @@ html {
 }
 /* Native keyboard positioning must not compete with animated anchor scrolling.
    Override the inline scrollBehavior GSAP restores after refreshing, too. */
-html:has(#configurator input:focus, #configurator select:focus, #configurator textarea:focus) {
+html:has(input:focus, select:focus, textarea:focus) {
   scroll-behavior: auto !important;
 }
 .fingerprint#uc-privacy-button {
