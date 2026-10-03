@@ -117,6 +117,21 @@ describe("campaign.routes — public landing-page flow", () => {
       expect(html).toContain("+40745469907");
     });
 
+    test("escapes visitor text and keeps the configurator message's line breaks", async () => {
+      const { postContact, sendEmail } = await loadRouter();
+      const res = createMockResponse();
+
+      await postContact({
+        params: { slug: "olx" },
+        body: { phone: "0745469907", location: "<b>Sala</b>", message: "• Foto — 250 €\nEstimare: 250 €" },
+      }, res);
+
+      const html = sendEmail.mock.calls[0][0].html as string;
+      expect(html).toContain("&lt;b&gt;Sala&lt;/b&gt;");
+      expect(html).not.toContain("<b>Sala</b>");
+      expect(html).toContain("• Foto — 250 €<br>Estimare: 250 €");
+    });
+
     test("accepts a full submission with name and phone", async () => {
       const { postContact, sendEmail } = await loadRouter();
       const res = createMockResponse();

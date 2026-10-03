@@ -17,6 +17,7 @@ import PortfolioParallaxGallery from "../Portfolio/PortfolioParallaxGallery";
 import GuideBook from "./GuideBook";
 import CampaignVideoPlayer from "./CampaignVideoPlayer";
 import CampaignPackages from "./CampaignPackages";
+import PriceConfigurator, { type DatePick } from "./PriceConfigurator";
 import ChatWithUs from "../../features/chat/components/ChatWithUs";
 import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
 
@@ -38,6 +39,13 @@ const toIso = (day: number, monthZeroBased: number, year: number) =>
 // Free wedding guide (Bunny: offers-assets/pdfs) — only on wedding campaigns.
 const WEDDING_GUIDE_URL = "https://ancavisuals.b-cdn.net/offers-assets/pdfs/Ghidul-Mirilor.pdf";
 const WEDDING_GUIDE_SLUGS = new Set(["olx"]);
+// Price configurator (Nuntă / Botez / Majorat / Corporate) — Ads traffic also asks for christenings.
+const CONFIGURATOR_SLUGS = new Set(["olx"]);
+// "Verifică disponibilitatea" (#verifica-data) is switched off for now (owner, 2026-10-03):
+// the configurator checks the date itself. Set to true to bring the section back.
+const SHOW_AVAILABILITY_SECTION = false;
+// "Pachete" is switched off for now too (owner, 2026-10-03) — the configurator shows the prices.
+const SHOW_PACKAGES_SECTION = false;
 const WEDDING_GUIDE_HIGHLIGHTS = [
   "În ce ordine rezervați furnizorii",
   "Actele pentru cununia civilă și religioasă",
@@ -48,7 +56,6 @@ const WEDDING_GUIDE_HIGHLIGHTS = [
 ];
 
 
-type DatePick = { day: number | null; month: number | null; year: number | null };
 
 export interface CampaignPackage {
   id: string;
@@ -149,6 +156,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [availStatus, setAvailStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
   const startingPrices = useStartingPrices();
+  // With the availability section off, "check the date" links go to the configurator's date step.
+  const availabilityHref = SHOW_AVAILABILITY_SECTION || !CONFIGURATOR_SLUGS.has(page.slug) ? "#verifica-data" : "#configurator-data";
 
   const todayForDate = new Date();
   const todayYear = todayForDate.getFullYear();
@@ -239,7 +248,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    // Only decides whether the promo is still on (no countdown on screen) — once a minute is enough.
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
   const [isAdmin, setIsAdmin] = useState(() => {
@@ -293,12 +303,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     if (eventName === "click_phone") fireAdsContactClickConversion();
   };
 
-  const msLeft = Math.max(0, PROMO_DEADLINE - now);
-  const promoExpired = msLeft <= 0;
-  const daysLeft = Math.floor(msLeft / (1000 * 60 * 60 * 24));
-  const hoursLeft = Math.floor((msLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutesLeft = Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60));
-  const secondsLeft = Math.floor((msLeft % (1000 * 60)) / 1000);
+  const promoExpired = PROMO_DEADLINE - now <= 0;
 
   const checkAvailability = (e: React.FormEvent) => {
     e.preventDefault();
@@ -312,10 +317,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     measureOaiq("availability_checked", { page_path: `/oferta/${page.slug}` });
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.phone.trim()) return;
-    setFormStatus("sending");
+  /** Saves the lead (email + Ads + live panel). The configurator sends its own name/phone/message. */
+  const submitLead = async (contact: { name: string; phone: string; message?: string }, kind: "contact" | "configurator"): Promise<boolean> => {
     try {
       const landing = getLandingMeta();
       const res = await fetch(`/api/campaign/${page.slug}/contact`, {
@@ -323,34 +326,44 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          ...contact,
           gclid: landing?.gclid,
           wbraid: landing?.wbraid,
           gbraid: landing?.gbraid,
         }),
       });
-      setFormStatus(res.ok ? "sent" : "error");
       if (res.ok) {
         measureOaiq("lead_created", { type: "customer_action", page_path: `/oferta/${page.slug}` });
         // Google Ads conversion — this is a paid-campaign landing page, so a
         // submitted lead here needs to reach Ads just like the /contact wizard does.
-        fireAdsLeadConversion({ phone: form.phone });
+        fireAdsLeadConversion({ phone: contact.phone });
         // Panel live only — the lead email is sent by /api/campaign/:slug/contact.
         sendLiveEvent("form_submitted", {
           priority: "critical",
-          label: "🎯 Un client a trimis formularul de contact — vrea să-l suni",
+          label: kind === "configurator"
+            ? "🎯 Un client și-a trimis configurația — vrea să-l suni"
+            : "🎯 Un client a trimis formularul de contact — vrea să-l suni",
           meta: {
-            kind: "contact",
-            name: form.name.trim(),
-            phone: form.phone.trim(),
+            kind,
+            name: contact.name.trim(),
+            phone: contact.phone.trim(),
             eventType: form.eventType,
             eventDate: form.eventDate,
             emailedElsewhere: true,
           },
         });
       }
+      return res.ok;
     } catch {
-      setFormStatus("error");
+      return false;
     }
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.phone.trim()) return;
+    setFormStatus("sending");
+    setFormStatus((await submitLead({ name: form.name, phone: form.phone }, "contact")) ? "sent" : "error");
   };
 
   return (
@@ -383,7 +396,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
           <Link to="/" className="text-xs tracking-[0.28em] uppercase font-bold sm:font-medium text-white">Anca Visuals</Link>
           <a
-            href="#verifica-data"
+            href={availabilityHref}
             className="hidden sm:inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold tracking-wide text-black transition-colors hover:bg-neutral-100"
           >
             Verifică disponibilitatea <ArrowIcon />
@@ -452,7 +465,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               butoanele astea două ar dubla acțiunea și aglomerau hero-ul. */}
           <div className="hidden sm:flex flex-col sm:flex-row gap-3">
             <a
-              href="#verifica-data"
+              href={availabilityHref}
               className="inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-7 py-4 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-green-900/40"
             >
               Verifică dacă data ta este disponibilă <ArrowIcon />
@@ -485,45 +498,95 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {/* ── MEDIA PROMO FOOTER (a doua galerie rămâne sus pe celelalte campanii) ── */}
       {!promoAtPageEnd && <AncaVisualsPromo />}
 
-      {/* ── OFERTĂ FOTOCABINĂ ──────────────────────────────────────── */}
-      <section className="bg-[#f6f2ea] px-6 py-16 sm:py-20 text-[#2f2a24]">
+      {/* ── OFERTĂ FOTOCABINĂ — short: what, for whom, until when (no countdown) ── */}
+      <section className="bg-white px-6 py-16 text-neutral-950 sm:py-20">
         <div className="mx-auto max-w-lg text-center">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.32em] text-[#a98d5f]">Ofertă limitată</p>
-          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">Fotocabină gratuită pentru următoarele 4 evenimente</h2>
-          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#6b6154]">Inclusă în pachet, fără costuri suplimentare — valabilă pentru primele 4 nunți rezervate până la termen.</p>
-
-          <div className="mx-auto mt-8 rounded-[28px] border border-[#e3d8c4] bg-[#fbf8f2] p-6 shadow-[0_20px_50px_-24px_rgba(120,95,55,0.35)] sm:p-8">
-            {promoExpired ? (
-              <p className="text-sm text-[#6b6154]">Oferta s-a încheiat.</p>
-            ) : (
-              <>
-                <div className="flex items-center justify-center gap-3 sm:gap-5">
-                  {[
-                    { label: "zile", value: daysLeft },
-                    { label: "ore", value: hoursLeft },
-                    { label: "min", value: minutesLeft },
-                    { label: "sec", value: secondsLeft },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="flex flex-col items-center">
-                      <span className="font-serif text-3xl tabular-nums text-[#2f2a24] sm:text-4xl">{String(value).padStart(2, "0")}</span>
-                      <span className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[#8a7c67]">{label}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-5 text-xs font-medium text-[#8a7c67]">Valabil până pe 30 octombrie 2026</p>
-              </>
-            )}
-            <a
-              href="#verifica-data"
-              className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#2b2b2b] px-6 py-3 text-xs font-bold uppercase tracking-[0.18em] text-white transition-transform hover:scale-105"
-            >
-              Verifică disponibilitatea
-            </a>
-          </div>
+          <p className="flex items-center justify-center gap-4 text-[11px] uppercase tracking-[0.35em] text-neutral-500">
+            <span className="h-px w-10 bg-neutral-300/60" />
+            Ofertă limitată
+            <span className="h-px w-10 bg-neutral-300/60" />
+          </p>
+          <h2 className="mt-5 text-4xl font-normal uppercase leading-tight tracking-[0.05em] sm:text-5xl">🎁 Fotocabina e gratuită</h2>
+          {promoExpired ? (
+            <p className="mt-4 text-sm text-neutral-600">Oferta s-a încheiat.</p>
+          ) : (
+            <>
+              <p className="mx-auto mt-4 max-w-sm text-sm font-medium leading-relaxed text-neutral-700 sm:text-base">Doar pentru următoarele 2 nunți rezervate.</p>
+              <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-neutral-950/15 bg-neutral-100 px-5 py-2.5 text-sm text-neutral-950">
+                Până pe <strong className="font-semibold">30 octombrie 2026</strong>
+              </p>
+              <div>
+                <a
+                  href={availabilityHref}
+                  className="mt-7 inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-6 py-3.5 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-neutral-800"
+                >
+                  Verifică disponibilitatea
+                </a>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
-      {/* ── AVAILABILITY CHECK ─────────────────────────────────────── */}
+      {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
+      {(page.videoUrl || page.heroVideoUrl) && (
+        <section className="py-20 sm:py-24 border-b border-white/10">
+          <div className="mb-8 px-6 text-center">
+            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
+            <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
+          </div>
+          {/* Phones: edge to edge (no padding, corners or border). Desktop: a framed, narrower player — full width was too wide. */}
+          <div className="md:mx-auto md:max-w-5xl md:px-6">
+          <div className="md:overflow-hidden md:rounded-2xl md:shadow-2xl md:shadow-black/60 md:ring-1 md:ring-white/10">
+          {isEmbedVideoUrl(page.videoUrl ?? "") ? (
+            <div className="aspect-video w-full bg-black">
+              <iframe
+                src={page.videoUrl}
+                className="h-full w-full"
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                allowFullScreen
+              />
+            </div>
+          ) : (
+            <CampaignVideoPlayer
+              src={(page.videoUrl || page.heroVideoUrl) as string}
+              poster={page.videoThumbnailUrl || undefined}
+            />
+          )}
+          </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── CONFIGURATOR — preț pe loc, apoi verificarea datei ───────── */}
+      {CONFIGURATOR_SLUGS.has(page.slug) && (
+        <PriceConfigurator
+          waLink={waLink}
+          onWhatsAppClick={(position) => trackClick("click_whatsapp", position)}
+          photoboothFree={!promoExpired}
+          dateParts={dateParts}
+          onDatePart={setDatePart}
+          eventDate={form.eventDate}
+          bookedDates={bookedDates}
+          onEventChange={(eventType) => setForm((c) => (c.eventType === eventType ? c : { ...c, eventType }))}
+          onDateChecked={(eventDate, available, eventType) => {
+            trackFormStart();
+            trackFormAction();
+            reportAvailabilityCheck(formatDateRo(eventDate), eventDate, available, eventType);
+            measureOaiq("availability_checked", { page_path: `/oferta/${page.slug}` });
+          }}
+          onSubmitLead={(contact) => submitLead(contact, "configurator")}
+          onLocationChange={(location) => setForm((c) => (c.location === location ? c : { ...c, location }))}
+          onBook={() => {
+            setAvailStatus(bookedDates.includes(form.eventDate) ? "unavailable" : "available");
+            // Phone form: the availability section, or the configurator's own step 5 while it is off.
+            document.getElementById(SHOW_AVAILABILITY_SECTION ? "verifica-data" : "configurator-contact")?.scrollIntoView({ behavior: "smooth" });
+          }}
+        />
+      )}
+
+      {/* ── AVAILABILITY CHECK — off for now, see SHOW_AVAILABILITY_SECTION ── */}
+      {(SHOW_AVAILABILITY_SECTION || !CONFIGURATOR_SLUGS.has(page.slug)) && (
       <section id="verifica-data" className="scroll-mt-6 border-b border-white/10 bg-neutral-900 px-6 py-16 sm:py-20">
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:items-center">
           <div>
@@ -628,7 +691,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               const free = availStatus === "available";
               const dateLabel = formatDateRo(form.eventDate);
               const event = form.eventType.toLowerCase();
-              // Same terms as the "Ofertă limitată" section: first 4 weddings, until PROMO_DEADLINE.
+              // Same terms as the "Ofertă limitată" section: first 2 weddings, until PROMO_DEADLINE.
               const photoboothGift = free && !promoExpired && form.eventType === "Nuntă";
               const waText = free
                 ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? ", cu fotocabina gratuită" : ""}.`
@@ -644,7 +707,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   )}
                   {photoboothGift && (
                     <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                      🎁 <span className="font-semibold">+ Fotocabina e gratuită</span> dacă rezervi până pe 30 octombrie — doar pentru primele 4 nunți.
+                      🎁 <span className="font-semibold">+ Fotocabina e gratuită</span> dacă rezervi până pe 30 octombrie — doar pentru următoarele 2 nunți.
                     </p>
                   )}
                   {!free && <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție — scrie-ne.</p>}
@@ -697,39 +760,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           </div>
         </div>
       </section>
-
-      {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
-      {(page.videoUrl || page.heroVideoUrl) && (
-        <section className="py-20 sm:py-24 border-b border-white/10">
-          <div className="mb-8 px-6 text-center">
-            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
-            <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
-          </div>
-          {/* Phones: edge to edge (no padding, corners or border). Desktop: a framed, narrower player — full width was too wide. */}
-          <div className="md:mx-auto md:max-w-5xl md:px-6">
-          <div className="md:overflow-hidden md:rounded-2xl md:shadow-2xl md:shadow-black/60 md:ring-1 md:ring-white/10">
-          {isEmbedVideoUrl(page.videoUrl ?? "") ? (
-            <div className="aspect-video w-full bg-black">
-              <iframe
-                src={page.videoUrl}
-                className="h-full w-full"
-                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                allowFullScreen
-              />
-            </div>
-          ) : (
-            <CampaignVideoPlayer
-              src={(page.videoUrl || page.heroVideoUrl) as string}
-              poster={page.videoThumbnailUrl || undefined}
-            />
-          )}
-          </div>
-          </div>
-        </section>
       )}
 
       {/* ── PACKAGES ───────────────────────────────────────────────── */}
-      {page.packages.length > 0 && (
+      {page.packages.length > 0 && (SHOW_PACKAGES_SECTION || !CONFIGURATOR_SLUGS.has(page.slug)) && (
         <CampaignPackages
           packages={page.packages}
           waLink={waLink}
@@ -764,7 +798,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           <p className="text-neutral-400 text-sm mb-8 leading-relaxed">Verifică disponibilitatea în 5 secunde sau scrie-ne direct.</p>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <a href="#verifica-data"
+            <a href={availabilityHref}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
               Verifică disponibilitatea <ArrowIcon />

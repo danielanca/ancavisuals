@@ -1,19 +1,30 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_STARTING_PRICES, normalizeStartingPrices, type StartingPrices } from "../../shared/pricing/startingPrices";
+import { DEFAULT_PRICE_BOOK, toPriceBook, type PriceBook } from "../../shared/pricing/configuratorPrices";
 
-let shared: Promise<StartingPrices> | null = null;
+let shared: Promise<PriceBook> | null = null;
 
-/** Starting prices from /admin/preturi; the defaults show until (or if) the request fails. */
-export function useStartingPrices(): StartingPrices {
-  const [prices, setPrices] = useState<StartingPrices>(DEFAULT_STARTING_PRICES);
+/** One request per page for everything /admin/preturi edits; the defaults show until (or if) it fails. */
+function usePrices<T>(pick: (book: PriceBook) => T, fallback: T): T {
+  const [value, setValue] = useState<T>(fallback);
   useEffect(() => {
     let active = true;
     shared ??= fetch("/api/starting-prices")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => normalizeStartingPrices(d?.prices))
-      .catch(() => { shared = null; return DEFAULT_STARTING_PRICES; });
-    shared.then((p) => { if (active) setPrices(p); });
+      .then((d) => toPriceBook(d?.prices, d?.configurator))
+      .catch(() => { shared = null; return DEFAULT_PRICE_BOOK; });
+    shared.then((book) => { if (active) setValue(pick(book)); });
     return () => { active = false; };
-  }, []);
-  return prices;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return value;
+}
+
+/** Starting prices from /admin/preturi. */
+export function useStartingPrices(): StartingPrices {
+  return usePrices((book) => normalizeStartingPrices(book), DEFAULT_STARTING_PRICES);
+}
+
+/** Starting prices + the configurator's prices (/oferta/olx), all from /admin/preturi. */
+export function usePriceBook(): PriceBook {
+  return usePrices((book) => book, DEFAULT_PRICE_BOOK);
 }

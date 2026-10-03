@@ -4,7 +4,7 @@
  * visible right away — and no date is preselected for them.
  */
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -38,9 +38,13 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
+// /oferta/olx checks the date in the price configurator (its availability section is off),
+// so the availability form is tested on a campaign without the configurator.
+const availabilityPage: CampaignPage = { ...page, slug: "campanie-test" };
+
 describe("availability result", () => {
   test("no date is preselected and a free date shows price, prefilled WhatsApp and phone field", async () => {
-    render(<MemoryRouter><CampaignLandingPage page={page} /></MemoryRouter>);
+    render(<MemoryRouter><CampaignLandingPage page={availabilityPage} /></MemoryRouter>);
 
     const check = screen.getByRole("button", { name: "Alege data evenimentului" });
     expect(check).toBeDisabled();
@@ -51,7 +55,9 @@ describe("availability result", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verifică disponibilitatea" }));
 
     expect(await screen.findByText(`🎉 Data ta, 18 iulie ${nextYear}, e liberă!`)).toBeInTheDocument();
-    expect(screen.getByText("950 €")).toBeInTheDocument();
+    // The price configurator above shows prices too — look only at the availability result.
+    const availability = within(document.getElementById("verifica-data")!);
+    expect(availability.getByText("950 €")).toBeInTheDocument();
     // Booked dates load, but the "already N events this month" line is gone — owners found it confusing.
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(screen.queryByText(/evenimente rezervate|eveniment rezervat/)).not.toBeInTheDocument();
@@ -68,15 +74,16 @@ describe("availability result", () => {
   });
 
   test("a christening shows the christening starting price", async () => {
-    render(<MemoryRouter><CampaignLandingPage page={page} /></MemoryRouter>);
+    render(<MemoryRouter><CampaignLandingPage page={availabilityPage} /></MemoryRouter>);
     fireEvent.change(screen.getByDisplayValue("Nuntă"), { target: { value: "Botez" } });
     fireEvent.change(screen.getByLabelText("Anul"), { target: { value: String(nextYear) } });
     fireEvent.change(screen.getByLabelText("Luna"), { target: { value: "6" } });
     fireEvent.change(screen.getByLabelText("Ziua"), { target: { value: "18" } });
     fireEvent.click(screen.getByRole("button", { name: "Verifică disponibilitatea" }));
 
-    expect(await screen.findByText("350 €")).toBeInTheDocument();
-    expect(screen.queryByText("950 €")).not.toBeInTheDocument();
+    const availability = within(document.getElementById("verifica-data")!);
+    expect(await availability.findByText("250 €")).toBeInTheDocument();
+    expect(availability.queryByText("950 €")).not.toBeInTheDocument();
   });
 
   test("the olx landing offers the free wedding guide; other campaigns don't", () => {
@@ -92,10 +99,12 @@ describe("availability result", () => {
   });
 
   test("a discounted package shows the old price struck through next to the new one", () => {
-    const discounted = { ...page, packages: [{ id: "f", name: "FULL - Fotocabina", price: "950 EURO", oldPrice: "1200 EURO", features: [] }] };
+    // Packages are hidden on /oferta/olx (the configurator shows prices) — test them on another campaign.
+    // CampaignPackages formats "1200 EURO" as "1.200 €" and splits the new price into amount + currency.
+    const discounted = { ...availabilityPage, packages: [{ id: "f", name: "FULL - Fotocabina", price: "950 EURO", oldPrice: "1200 EURO", features: [] }] };
     render(<MemoryRouter><CampaignLandingPage page={discounted} /></MemoryRouter>);
-    expect(screen.getByText("1200 EURO").className).toContain("line-through");
-    expect(screen.getByText("950 EURO")).toBeInTheDocument();
+    expect(screen.getByText("1.200 €").className).toContain("line-through");
+    expect(within(document.getElementById("pachete")!).getByText("950")).toBeInTheDocument();
     expect(screen.getByText("Preț redus")).toBeInTheDocument();
   });
 });

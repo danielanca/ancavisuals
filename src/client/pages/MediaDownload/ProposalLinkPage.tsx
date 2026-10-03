@@ -15,6 +15,10 @@ type StoredVisitor = { visitorId: string; name: string };
 const PAGE_SIZE = 60;
 const PROGRESS_INTERVAL_MS = 5000;
 const GOLD = "#c9a96e";
+// Rânduri justificate: fiecare poză își păstrează aspect ratio-ul real (citit la încărcare),
+// iar rândul se întinde pe toată lățimea. Până se încarcă, presupunem 3:2.
+const ROW_HEIGHT = 180;
+const DEFAULT_RATIO = 3 / 2;
 
 const mediaKey = (fileName: string) => {
   const dot = fileName.lastIndexOf(".");
@@ -64,7 +68,7 @@ export default function ProposalLinkPage() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [proposed, setProposed] = useState<Set<string>>(new Set());
-  const [destinations, setDestinations] = useState<Set<Destination>>(new Set(["instagram"]));
+  const [destinations, setDestinations] = useState<Set<Destination>>(new Set(["instagram", "media_assets"]));
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
@@ -74,6 +78,7 @@ export default function ProposalLinkPage() {
   const reportedRef = useRef(-1);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const [ratios, setRatios] = useState<Record<string, number>>({});
   const gridRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -279,13 +284,14 @@ export default function ProposalLinkPage() {
         )}
       </header>
 
-      <div ref={gridRef} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "6px", padding: "0 6px", maxWidth: "1200px", margin: "0 auto" }}>
+      <div ref={gridRef} style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "0 6px", maxWidth: "1200px", margin: "0 auto" }}>
         {shown.map((photo, index) => {
           const key = mediaKey(photo.fileName);
           const isProposed = proposed.has(key);
           const isSelected = selected.has(key);
+          const ratio = ratios[photo.fileName] ?? DEFAULT_RATIO;
           return (
-            <div key={photo.fileName} ref={observe} data-index={index} style={{ position: "relative", aspectRatio: "1 / 1", background: "#151515", borderRadius: "4px", overflow: "hidden" }}>
+            <div key={photo.fileName} ref={observe} data-index={index} style={{ position: "relative", flexGrow: ratio, flexBasis: `${ratio * ROW_HEIGHT}px`, aspectRatio: String(ratio), background: "#151515", borderRadius: "4px", overflow: "hidden" }}>
               <button
                 type="button"
                 onClick={() => toggle(photo.fileName)}
@@ -298,6 +304,10 @@ export default function ProposalLinkPage() {
                   alt=""
                   loading="lazy"
                   decoding="async"
+                  onLoad={event => {
+                    const { naturalWidth, naturalHeight } = event.currentTarget;
+                    if (naturalWidth && naturalHeight) setRatios(prev => ({ ...prev, [photo.fileName]: naturalWidth / naturalHeight }));
+                  }}
                   style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: isProposed ? 0.55 : 1, outline: isSelected ? `3px solid ${GOLD}` : "none", outlineOffset: "-3px" }}
                 />
               </button>
@@ -317,6 +327,8 @@ export default function ProposalLinkPage() {
             </div>
           );
         })}
+        {/* Ultimul rând nu se întinde: spațiul rămas îl ia acest spacer. */}
+        <div aria-hidden="true" style={{ flexGrow: 1e6, flexBasis: 0, height: 0 }} />
       </div>
       {visibleCount < photos.length && <div ref={sentinelRef} style={{ height: "1px" }} />}
 
@@ -324,15 +336,18 @@ export default function ProposalLinkPage() {
         {message && <p style={{ margin: 0, fontSize: "12px", color: message.kind === "ok" ? "#4ade80" : "#f87171", textAlign: "center" }}>{message.text}</p>}
         <div style={{ display: "flex", gap: "8px", alignItems: "center", justifyContent: "center", flexWrap: "wrap", maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
           {(["instagram", "media_assets"] as Destination[]).map(destination => (
-            <button
+            <label
               key={destination}
-              type="button"
-              onClick={() => toggleDestination(destination)}
-              aria-pressed={destinations.has(destination)}
-              style={{ padding: "7px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: `1px solid ${destinations.has(destination) ? GOLD : "#333"}`, background: destinations.has(destination) ? "rgba(201,169,110,0.15)" : "transparent", color: destinations.has(destination) ? GOLD : "#888" }}
+              style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: `1px solid ${destinations.has(destination) ? GOLD : "#333"}`, background: destinations.has(destination) ? "rgba(201,169,110,0.15)" : "transparent", color: destinations.has(destination) ? GOLD : "#888" }}
             >
+              <input
+                type="checkbox"
+                checked={destinations.has(destination)}
+                onChange={() => toggleDestination(destination)}
+                style={{ margin: 0, width: "15px", height: "15px", accentColor: GOLD, cursor: "pointer" }}
+              />
               {destination === "instagram" ? "Instagram" : "Media Assets"}
-            </button>
+            </label>
           ))}
           <button
             type="button"

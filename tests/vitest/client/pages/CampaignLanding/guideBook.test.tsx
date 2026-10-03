@@ -57,12 +57,13 @@ describe("GuideBook", () => {
     expect(book().className).toContain("guide-book--open");
   });
 
-  test("on phones it stays closed until tapped", () => {
+  // Owner's rule: on phones there is no room for the open book — it never opens, it only spins.
+  test("on phones it never opens — not on screen, not on tap, not on hover", () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("max-width") }));
     render(<GuideBook />);
     act(() => { fire(true); vi.advanceTimersByTime(5_000); });
     expect(book().className).not.toContain("guide-book--open");
-    act(() => { fireEvent.click(book()); });
-    expect(book().className).toContain("guide-book--open");
+    act(() => { fireEvent.click(book()); fireEvent.mouseEnter(book()); vi.advanceTimersByTime(5_000); });
+    expect(book().className).not.toContain("guide-book--open");
   });
 });

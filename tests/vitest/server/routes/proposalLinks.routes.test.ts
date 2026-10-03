@@ -111,6 +111,9 @@ async function loadRouter() {
     loadAlbum: vi.fn(async (slug: string) => (slug === ALBUM.slug ? ALBUM : null)),
     resolveAlbumSlug: vi.fn(async (slug: string) => slug.replace(/^0/, "")),
   }));
+  const sendViaFunnel = vi.fn(async () => {});
+  vi.doMock("src/server/notifications/emailFunnel", () => ({ sendViaFunnel }));
+  vi.doMock("src/server/constants/credentials", () => ({ adminUser: { email: "owner@test.com" } }));
   vi.doMock("firebase-admin/firestore", () => ({
     Timestamp: { now: () => ({ toDate: () => new Date("2026-10-02T10:00:00.000Z") }) },
     FieldValue: { increment: (n: number) => ({ [INCREMENT]: n }) },
@@ -129,7 +132,7 @@ async function loadRouter() {
     return res.json.mock.calls[0][0].link as { token: string; url: string; taskId: string };
   };
 
-  return { fake, handler, createLink };
+  return { fake, handler, createLink, sendViaFunnel };
 }
 
 describe("proposal links", () => {
@@ -216,7 +219,7 @@ describe("proposal links", () => {
   });
 
   test("progress keeps the furthest photo seen and completion marks link + task done", async () => {
-    const { fake, handler, createLink } = await loadRouter();
+    const { fake, handler, createLink, sendViaFunnel } = await loadRouter();
     const link = await createLink();
     const progress = (viewedCount: number) => handler("post", "/:token/progress")({
       params: { token: link.token },
@@ -230,6 +233,15 @@ describe("proposal links", () => {
     await handler("post", "/:token/complete")({ params: { token: link.token }, body: { name: "Ana", visitorId: "visitor-123" } }, createMockResponse());
     expect(fake.col("proposalLinks").get(link.token)!.completedAt).toBeTruthy();
     expect(fake.col("clientTasks").get(link.taskId)!.status).toBe("done");
+    // The owner is told by email who finished and how far they got.
+    expect(sendViaFunnel).toHaveBeenCalledTimes(1);
+    expect(sendViaFunnel).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "notification",
+      to: "owner@test.com",
+      source: "proposal-link:complete",
+      subject: expect.stringContaining("Ana a terminat"),
+      html: expect.stringContaining("40"),
+    }));
 
     // Later activity never reopens a finished task.
     await progress(60);

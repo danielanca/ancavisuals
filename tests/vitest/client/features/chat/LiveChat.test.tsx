@@ -1,6 +1,6 @@
 /*
  * Purpose: the Tidio live chat script is injected once on public pages, its own
- * launcher stays hidden, and our "Conversați cu noi" block opens it on demand.
+ * launcher stays hidden, and our end-of-page chat block opens it on demand.
  */
 import React from "react";
 import { render } from "@testing-library/react";

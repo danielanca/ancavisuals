@@ -123,6 +123,11 @@ router.post("/:slug/interaction", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// Visitor text goes into the owner's email as HTML: escape it, keep the message's line breaks.
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
 // POST /api/campaign/:slug/contact — form submission from landing page
 router.post("/:slug/contact", async (req: Request, res: Response) => {
   try {
@@ -173,12 +178,12 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
             <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>
             <table style="width:100%;border-collapse:collapse;font-size:14px;">
-              ${name ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${name}</td></tr>` : ""}
-              <tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${phone}</td></tr>
-              ${eventType ? `<tr><td style="padding:8px 0;color:#666;">Tip eveniment</td><td style="color:#111;">${eventType}</td></tr>` : ""}
-              ${eventDate ? `<tr><td style="padding:8px 0;color:#666;">Dată eveniment</td><td style="color:#111;">${eventDate}</td></tr>` : ""}
-              ${location ? `<tr><td style="padding:8px 0;color:#666;">Localitate</td><td style="color:#111;">${location}</td></tr>` : ""}
-              ${message ? `<tr><td style="padding:8px 0;color:#666;">Mesaj</td><td style="color:#111;">${message}</td></tr>` : ""}
+              ${name ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${escapeHtml(name)}</td></tr>` : ""}
+              <tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${escapeHtml(phone)}</td></tr>
+              ${eventType ? `<tr><td style="padding:8px 0;color:#666;">Tip eveniment</td><td style="color:#111;">${escapeHtml(eventType)}</td></tr>` : ""}
+              ${eventDate ? `<tr><td style="padding:8px 0;color:#666;">Dată eveniment</td><td style="color:#111;">${escapeHtml(eventDate)}</td></tr>` : ""}
+              ${location ? `<tr><td style="padding:8px 0;color:#666;">Localitate</td><td style="color:#111;">${escapeHtml(location)}</td></tr>` : ""}
+              ${message ? `<tr><td style="padding:8px 0;color:#666;">Mesaj</td><td style="color:#111;">${escapeHtml(message).replace(/\n/g, "<br>")}</td></tr>` : ""}
               <tr><td style="padding:8px 0;color:#666;">Landing</td><td style="color:#6d28d9;">/oferta/${slug}</td></tr>
             </table>
           </div>

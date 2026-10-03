@@ -5,7 +5,7 @@ describe("starting prices", () => {
   test("maps landing names and configurator keys to the same price", () => {
     expect(startingPriceFor("Nuntă")).toBe("950 €");
     expect(startingPriceFor("nunta")).toBe("950 €");
-    expect(startingPriceFor("Botez")).toBe("350 €");
+    expect(startingPriceFor("Botez")).toBe("250 €");
     expect(startingPriceFor("Majorat")).toBe("200 €");
     expect(startingPriceFor("Cununie civilă")).toBe("150 €");
     expect(startingPriceFor("Alt eveniment")).toBe("150 €");

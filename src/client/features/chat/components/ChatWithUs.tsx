@@ -22,7 +22,7 @@ const STYLES = `
   }
 `;
 
-/** "Conversați cu noi" — end-of-page invitation that opens the Tidio chat (its own launcher is hidden). */
+/** "Povestiți-ne despre ziua voastră" — end-of-page invitation that opens the Tidio chat (its own launcher is hidden). */
 export default function ChatWithUs() {
   // Tidio's operator status (online when the Tidio app on the phone is active). Tidio is
   // loaded hidden only when this card is about to scroll into view — not with the page —
@@ -84,7 +84,7 @@ export default function ChatWithUs() {
             </div>
 
             <h2 id="cwu-title" className="mt-6 text-3xl font-light leading-tight text-white sm:text-4xl">
-              Conversați cu <span className="bg-gradient-to-r from-[#e8c97a] to-[#c9a96e] bg-clip-text font-normal text-transparent">noi</span>
+              Povestiți-ne despre <span className="bg-gradient-to-r from-[#e8c97a] to-[#c9a96e] bg-clip-text font-normal text-transparent">ziua voastră</span>
             </h2>
             <p className="mt-2 text-sm text-neutral-400 sm:text-base">
               {isOffline

@@ -865,7 +865,9 @@ function TaskEditor({
     priority: task.priority,
   });
 
-  function save() {
+  function save(event: React.FormEvent) {
+    event.preventDefault();
+    if (!form.title.trim()) return;
     const match = events.find((option) => option.label === form.clientName || option.clientName === form.clientName);
     onSave({
       title: form.title,
@@ -879,7 +881,8 @@ function TaskEditor({
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-neutral-800 space-y-2">
+    // <form> ca Enter în titlu să salveze (ca la adăugare), nu să piardă modificarea la „Închide”.
+    <form onSubmit={save} className="mt-3 pt-3 border-t border-neutral-800 space-y-2">
       <DictateField value={form.title} onChange={(title) => setForm((prev) => ({ ...prev, title }))}>
         <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} aria-label="Titlu" className={`${inputClass} w-full`} />
       </DictateField>
@@ -919,14 +922,13 @@ function TaskEditor({
           Șterge
         </button>
         <button
-          type="button"
-          onClick={save}
+          type="submit"
           disabled={!form.title.trim()}
           className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-sm font-medium"
         >
           Salvează
         </button>
       </div>
-    </div>
+    </form>
   );
 }

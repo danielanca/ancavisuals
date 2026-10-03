@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import AncaLoader from "../../components/UI/AncaLoader";
+import { matchCounty } from "../../data/romaniaLocations";
 
 export type PlaceLite = {
   id: string;
   displayName?: string;
   formattedAddress?: string;
   location?: google.maps.LatLngLiteral;
+  /** Romanian county ("Cluj", "București") when Google returns one we know. */
+  county?: string;
 };
 
 type Props = {
@@ -18,6 +21,16 @@ type Props = {
   region?: string; // ex: "RO"
   includedPrimaryTypes?: string[]; // ex: ["street_address","establishment"]
   className?: string;
+  /** Classes for the <input> (unstyled by default — the /contact form styles it via CSS). */
+  inputClassName?: string;
+  inputId?: string;
+  /** Dropdown colors: "dark" (default, /contact) or "light" (white pages). */
+  variant?: "dark" | "light";
+};
+
+const DROPDOWN_THEME = {
+  dark: { background: "#1f1f1f", border: "1px solid #2a2a2a", active: "#2a2a2a", color: undefined, shadow: "0 6px 24px rgba(0,0,0,0.4)" },
+  light: { background: "#fff", border: "1px solid #e5e5e5", active: "#f5f5f5", color: "#0a0a0a", shadow: "0 12px 32px rgba(0,0,0,0.12)" },
 };
 
 type PlaceLocation = google.maps.LatLngLiteral | { toJSON?: () => google.maps.LatLngLiteral };
@@ -27,6 +40,7 @@ type PlaceDetails = {
   displayName?: { text?: string };
   formattedAddress?: string;
   location?: PlaceLocation;
+  addressComponents?: { longText?: string; types?: string[] }[];
   fetchFields?: (input: { fields: string[] }) => Promise<void>;
 };
 
@@ -174,7 +188,11 @@ export default function LocationField({
   region = "RO",
   includedPrimaryTypes,
   className,
+  inputClassName,
+  inputId,
+  variant = "dark",
 }: Props) {
+  const theme = DROPDOWN_THEME[variant];
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<AutocompleteSuggestionResult[]>([]);
@@ -184,6 +202,10 @@ export default function LocationField({
   const tokenRef = useRef<AutocompleteSessionToken | null>(null);
   const debounceRef = useRef<number | null>(null);
   const activeIndex = useRef<number>(-1);
+  // A pick rewrites the input; that new text must not search (and reopen the list) again.
+  const skipQueryRef = useRef<string | null>(null);
+  // Only the latest search may fill the list — a slow older one must not reopen it.
+  const requestIdRef = useRef(0);
 
   // init
   useEffect(() => {
@@ -211,12 +233,19 @@ export default function LocationField({
   // fetch predictions
   useEffect(() => {
     if (!ready) return;
+    const requestId = ++requestIdRef.current;
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
     if (!query) {
       setSuggestions([]);
       setOpen(false);
+      setLoading(false);
       return;
     }
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (skipQueryRef.current !== null) {
+      // The parent may shorten the picked text (e.g. to the venue name) — skip that too.
+      skipQueryRef.current = null;
+      return;
+    }
 
     debounceRef.current = window.setTimeout(async () => {
       try {
@@ -234,6 +263,7 @@ export default function LocationField({
             ...(includedPrimaryTypes?.length ? { includedPrimaryTypes } : {}),
           };
           const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
+          if (requestId !== requestIdRef.current) return;
           setSuggestions(suggestions || []);
           setOpen(!!(suggestions && suggestions.length));
         } else {
@@ -247,7 +277,7 @@ export default function LocationField({
         setErr("Autocomplete a eșuat.");
         setOpen(false);
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) setLoading(false);
       }
     }, 200);
   }, [query, ready, apiKey, language, region, includedPrimaryTypes]);
@@ -263,7 +293,7 @@ export default function LocationField({
       const place = prediction.toPlace();
       if (place.fetchFields) {
         await place.fetchFields({
-          fields: ["id", "displayName", "formattedAddress", "location"],
+          fields: ["id", "displayName", "formattedAddress", "location", "addressComponents"],
         });
       }
 
@@ -272,9 +302,12 @@ export default function LocationField({
       const formattedAddress = place.formattedAddress;
       const loc = place.location;
       const latlng = isLatLngWithToJSON(loc) ? loc.toJSON() : isLatLngLiteral(loc) ? loc : undefined;
+      const countyText = place.addressComponents?.find((c) => c.types?.includes("administrative_area_level_1"))?.longText;
+      const county = matchCounty(countyText) ?? matchCounty(formattedAddress);
 
       // also update the input value via onChange
       const selectedText = formattedAddress || displayName || prediction?.text?.text || "";
+      skipQueryRef.current = selectedText;
       onChange(selectedText);
 
       onSelect({
@@ -282,6 +315,7 @@ export default function LocationField({
         displayName,
         formattedAddress,
         location: latlng,
+        county,
       });
 
       // reset session after selection
@@ -297,10 +331,13 @@ export default function LocationField({
       <input
         type="text"
         placeholder={placeholder}
+        id={inputId}
+        className={inputClassName}
         value={value}
         onChange={e => {
+          skipQueryRef.current = null;
           onChange(e.target.value);
-          setOpen(true);
+          setOpen(e.target.value.trim().length > 0);
           activeIndex.current = -1;
         }}
         onFocus={() =>
@@ -341,9 +378,10 @@ export default function LocationField({
             top: "100%",
             marginTop: 4,
             borderRadius: 8,
-            background: "#1f1f1f",
-            border: "1px solid #2a2a2a",
-            boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
+            background: theme.background,
+            color: theme.color,
+            border: theme.border,
+            boxShadow: theme.shadow,
             maxHeight: 280,
             overflowY: "auto",
           }}
@@ -367,7 +405,7 @@ export default function LocationField({
                   style={{
                     padding: "10px 12px",
                     cursor: "pointer",
-                    background: isActive ? "#2a2a2a" : "transparent",
+                    background: isActive ? theme.active : "transparent",
                   }}
                 >
                   <div style={{ fontWeight: 600 }}>{t}</div>

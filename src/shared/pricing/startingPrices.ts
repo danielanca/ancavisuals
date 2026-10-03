@@ -13,7 +13,7 @@ export const STARTING_PRICE_TYPES = [
 export type StartingPriceKey = (typeof STARTING_PRICE_TYPES)[number]["key"];
 export type StartingPrices = Record<StartingPriceKey, number>;
 
-export const DEFAULT_STARTING_PRICES: StartingPrices = { nunta: 950, botez: 350, majorat: 200, cununie: 150, alt: 150 };
+export const DEFAULT_STARTING_PRICES: StartingPrices = { nunta: 950, botez: 250, majorat: 200, cununie: 150, alt: 150 };
 
 const KEY_BY_LABEL = new Map<string, StartingPriceKey>(STARTING_PRICE_TYPES.map((t) => [t.label, t.key]));
 

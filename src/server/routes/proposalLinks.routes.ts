@@ -11,6 +11,8 @@ import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
 import { loadAlbum, resolveAlbumSlug } from "../services/album.service";
 import { normalizeOfferServiceIds } from "../../shared/offers/offerServices";
+import { sendViaFunnel } from "../notifications/emailFunnel";
+import { adminUser } from "../constants/credentials";
 
 const router = express.Router();
 const LINKS_COLLECTION = "proposalLinks";
@@ -77,6 +79,26 @@ async function readActiveLink(token: string): Promise<ProposalLink | null> {
   if (!snap.exists) return null;
   const link = snap.data() as ProposalLink;
   return link.active ? link : null;
+}
+
+const escapeHtml = (value: string) =>
+  value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Email to the owner when a visitor presses „Am terminat” on a proposal link. */
+export function buildCompletionEmail(link: Pick<ProposalLink, "albumSlug" | "label" | "totalPhotos">, visitor: VisitorProgress & { name: string }) {
+  const where = link.label || link.albumSlug;
+  const proposed = visitor.proposedCount ?? 0;
+  const viewed = visitor.viewedCount ?? 0;
+  const seen = link.totalPhotos ? `${viewed} / ${link.totalPhotos}` : String(viewed);
+  return {
+    subject: `✅ ${visitor.name} a terminat de ales poze — ${where}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;font-size:14px;color:#111;">
+        <p><strong>${escapeHtml(visitor.name)}</strong> a apăsat „Am terminat” pe linkul de propuneri pentru <strong>${escapeHtml(where)}</strong>.</p>
+        <p>Poze propuse: <strong>${proposed}</strong><br>Poze răsfoite: ${seen}</p>
+        <p style="margin:18px 0 0;"><a href="https://ancavisuals.ro/admin/instagram-proposals" style="color:#c9a96e;">Vezi propunerile →</a></p>
+      </div>`,
+  };
 }
 
 const toIso = (value?: Timestamp | null) => value?.toDate?.().toISOString() ?? null;
@@ -463,6 +485,10 @@ router.post("/:token/complete", async (req: Request, res: Response) => {
     }, { merge: true });
     await advanceLinkTask(link.taskId, "done");
     res.json({ ok: true });
+    const visitor = { ...link.visitors?.[cleanVisitorId], name: cleanName };
+    const email = buildCompletionEmail(link, visitor);
+    sendViaFunnel({ kind: "notification", to: adminUser.email, ...email, source: "proposal-link:complete" })
+      .catch(error => console.error("[proposal-links] completion email failed:", error));
   } catch (error) {
     console.error("[proposal-links] POST /:token/complete failed:", error);
     res.status(500).json({ error: "Nu am putut marca selecția ca finalizată." });

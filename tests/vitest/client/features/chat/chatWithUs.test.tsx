@@ -1,5 +1,5 @@
 /*
- * Purpose: the end-of-page "Conversați cu noi" block opens the Tidio chat (whose own
+ * Purpose: the end-of-page "Povestiți-ne despre ziua voastră" block opens the Tidio chat (whose own
  * launcher is hidden) and logs the intent in the live panel.
  */
 import React from "react";
@@ -23,7 +23,7 @@ describe("ChatWithUs", () => {
 
   test("opens the live chat and offers WhatsApp as a fallback", () => {
     render(<ChatWithUs />);
-    expect(screen.getByRole("heading", { name: /Conversați cu/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Povestiți-ne despre ziua voastră/ })).toBeInTheDocument();
     expect(screen.getByText("Suntem online")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Scrie-ne acum/ }));
