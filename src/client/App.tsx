@@ -171,8 +171,6 @@ export const App = () => {
           <ErrorMonitorPanel />
           <ClientDebugBadge />
           <ChunkErrorBoundary>
-          {isErrorReportingEnabled && <ErrorMonitorPanel />}
-          {isErrorReportingEnabled && <ClientDebugBadge />}
           <Suspense fallback={<AncaLoader reportSlowLoad />}>
             {isLiveChatConfigured()
               ? <LiveChat visible={liveChatVisible} />
