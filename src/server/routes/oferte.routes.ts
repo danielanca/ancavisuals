@@ -18,11 +18,13 @@ import {
   normalizeOfferPackages,
   normalizeOfferTemplateAssets,
   normalizeOfferDeviceShowcase,
+  normalizeOfferHeroVideo,
 } from "../../shared/offers/offerServices";
 import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { loadAlbum } from "../services/album.service";
 import { generateRomanianAlt } from "../lib/imageAlt";
+import { remoteFileSizes } from "../utils/remoteFileSize";
 
 const router = Router();
 const mediaAssetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
@@ -231,42 +233,103 @@ router.get("/portfolio-images", async (_req: Request, res: Response) => {
 });
 
 // GET /api/oferte/:slug
+/**
+ * The public offer as GET /api/oferte/:slug returns it (null = no active offer).
+ * Also used by the server render of /oferta/:slug — `sizeWaitMs` caps how long a cold
+ * photo-size cache may hold the response back.
+ */
+export async function getPublicOffer(slug: string, sizeWaitMs?: number): Promise<Record<string, unknown> | null> {
+  const db = firestore();
+  const snapshot = await db
+    .collection("offers")
+    .where("slug", "==", slug)
+    .where("active", "==", true)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) return null;
+
+  const doc = snapshot.docs[0];
+  const data = doc.data();
+  const showcase = await readTemplateShowcase();
+  const selectedServices = normalizeOfferServiceIds(data.selectedServices);
+  // Reuse the album preview URL for public offers as well. This keeps the
+  // category galleries on the landing page on the same optimized WebP path
+  // shown in the admin library, while retaining the Bunny URL as fallback.
+  const allAssets = await enrichMediaAssetDisplayUrls(await listMediaAssets());
+  const resolvedAssets = resolveTemplateAssets(selectedServices, showcase, allAssets);
+  const serviceSections = mergeOfferShowcase(
+    {},
+    resolvedAssets,
+  ).filter(service => selectedServices.includes(service.id));
+
+  // Each photo's size: the landing hides heavy ones (> 1 MB) from visitors and flags them for the admin.
+  type SectionAsset = (typeof serviceSections)[number]["assets"][number];
+  const shownUrl = (asset: SectionAsset) => asset.displayUrl ?? asset.url;
+  const imageUrls = serviceSections.flatMap(section =>
+    [...section.assets, ...(section.assetsMobile ?? [])].filter(asset => asset.kind === "image").map(shownUrl));
+  const sizes = await remoteFileSizes(imageUrls, sizeWaitMs);
+  const withSize = (asset: SectionAsset) =>
+    asset.kind === "image" ? { ...asset, sizeBytes: sizes.get(shownUrl(asset)) } : asset;
+  const sizedSections = serviceSections.map(section => ({
+    ...section,
+    assets: section.assets.map(withSize),
+    ...(section.assetsMobile ? { assetsMobile: section.assetsMobile.map(withSize) } : {}),
+  }));
+
+  // never expose internal counts to public
+  const { viewCount: _viewCount, downloadCount: _downloadCount, ...publicData } = data;
+  return {
+    id: doc.id,
+    ...publicData,
+    packages: normalizeOfferPackages(data.packages),
+    selectedServices,
+    serviceSections: sizedSections,
+  };
+}
+
+// The public offer takes ~0.5 s to assemble (offer, media library, albums, photo sizes)
+// and every landing visit needs it before the first byte. Kept in memory: served at
+// once, rebuilt in the background once it is a minute old, dropped on any admin change.
+const OFFER_CACHE_MS = 60_000;
+const offerCache = new Map<string, { at: number; value: Promise<Record<string, unknown> | null> }>();
+
+export function clearPublicOfferCache(): void {
+  offerCache.clear();
+}
+
+export function getPublicOfferCached(slug: string): Promise<Record<string, unknown> | null> {
+  const hit = offerCache.get(slug);
+  const rebuild = () => {
+    const value = getPublicOffer(slug);
+    const entry = { at: Date.now(), value };
+    offerCache.set(slug, entry);
+    // A failed build is not kept: the next visit tries again.
+    value.catch(() => { if (offerCache.get(slug) === entry) offerCache.delete(slug); });
+    return value;
+  };
+  if (!hit) return rebuild();
+  if (Date.now() - hit.at > OFFER_CACHE_MS) {
+    // Stale: answer with what we have, refresh for the next visit.
+    const stale = hit.value;
+    rebuild().catch(() => {});
+    return stale;
+  }
+  return hit.value;
+}
+
+// Any change made in the admin (offers, media library, showcase) shows on the next visit.
+// (Cleared once the change is saved, so a visit in between can't cache the old data.)
+router.use("/admin", (req, res, next) => {
+  if (req.method !== "GET") res.on("finish", clearPublicOfferCache);
+  next();
+});
+
 router.get("/:slug", async (req: Request, res: Response) => {
   try {
-    const { slug } = req.params;
-    const db = firestore();
-    const snapshot = await db
-      .collection("offers")
-      .where("slug", "==", slug)
-      .where("active", "==", true)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) return res.status(404).json({ error: "Ofertă negăsită." });
-
-    const doc = snapshot.docs[0];
-    const data = doc.data();
-    const showcase = await readTemplateShowcase();
-    const selectedServices = normalizeOfferServiceIds(data.selectedServices);
-    // Reuse the album preview URL for public offers as well. This keeps the
-    // category galleries on the landing page on the same optimized WebP path
-    // shown in the admin library, while retaining the Bunny URL as fallback.
-    const allAssets = await enrichMediaAssetDisplayUrls(await listMediaAssets());
-    const resolvedAssets = resolveTemplateAssets(selectedServices, showcase, allAssets);
-    const serviceSections = mergeOfferShowcase(
-      {},
-      resolvedAssets,
-    ).filter(service => selectedServices.includes(service.id));
-
-    // never expose internal counts to public
-    const { viewCount, downloadCount, ...publicData } = data;
-    res.json({
-      id: doc.id,
-      ...publicData,
-      packages: normalizeOfferPackages(data.packages),
-      selectedServices,
-      serviceSections,
-    });
+    const offer = await getPublicOfferCached(req.params.slug);
+    if (!offer) return res.status(404).json({ error: "Ofertă negăsită." });
+    res.json(offer);
   } catch (error) {
     console.error("[oferte] GET /:slug failed:", error);
     res.status(500).json({ error: "Eroare server." });
@@ -785,6 +848,9 @@ router.patch("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, async (req:
     }
     if ("selectedServices" in req.body) {
       updates.selectedServices = normalizeOfferServiceIds(req.body.selectedServices);
+    }
+    if ("heroVideo" in req.body) {
+      updates.heroVideo = normalizeOfferHeroVideo(req.body.heroVideo);
     }
     if ("packages" in req.body) {
       const packages = normalizeOfferPackages(req.body.packages);

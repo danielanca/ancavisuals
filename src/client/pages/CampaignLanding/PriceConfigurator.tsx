@@ -125,6 +125,16 @@ function WhatsAppIcon() {
   );
 }
 
+/** Reports a typed value once it settles (2 s without changes): one feed line per answer, not per key. */
+function useSettledTrack(value: string, send: (value: string) => void) {
+  const last = useRef(value);
+  useEffect(() => {
+    if (!value || value === last.current) return;
+    const id = window.setTimeout(() => { last.current = value; send(value); }, 2000);
+    return () => window.clearTimeout(id);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 function StepTitle({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <h3 className="flex items-center gap-3 text-lg font-normal uppercase tracking-[0.08em] sm:text-xl">
@@ -207,8 +217,56 @@ export default function PriceConfigurator({
     sendLiveEvent("event_type_selected", { label: next.label, meta: { eventType: next.label, source: "configurator" } });
   };
 
-  const toggleExtra = (key: ExtraKey) =>
+  // Funnel steps for /admin/live (panel only, never emailed) — shows where visitors stop.
+  const track = (name: string, label: string, meta: Record<string, unknown> = {}) =>
+    sendLiveEvent(name, { label, meta: { ...meta, eventType: event.label, source: "configurator" } });
+
+  const pickService = (key: ServiceKey) => {
+    if (key === service) return;
+    setService(key);
+    track("configurator_service_selected", servicesFor(event).find((s) => s.key === key)?.label ?? key, { service: key });
+  };
+
+  const toggleExtra = (key: ExtraKey) => {
+    const on = !extras.includes(key);
     setExtras((current) => (current.includes(key) ? current.filter((x) => x !== key) : [...current, key]));
+    track("configurator_extra_toggled", EXTRAS[key].label, { extra: key, on });
+  };
+
+  // Once per page view: the configurator came into view, then the price card did.
+  const sectionRef = useRef<HTMLElement>(null);
+  const priceRef = useRef<HTMLDivElement>(null);
+  const totalRef = useRef(quote.total);
+  totalRef.current = quote.total;
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const seen = new Set<Element>();
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting || seen.has(entry.target)) continue;
+        seen.add(entry.target);
+        observer.unobserve(entry.target);
+        if (entry.target === sectionRef.current) sendLiveEvent("configurator_viewed", { label: "Configurator", meta: { source: "configurator" } });
+        else sendLiveEvent("configurator_price_seen", { label: `${totalRef.current} €`, meta: { total: totalRef.current, source: "configurator" } });
+      }
+    }, { threshold: 0.4 });
+    if (sectionRef.current) observer.observe(sectionRef.current);
+    if (priceRef.current) observer.observe(priceRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // The first keystroke, not the focus: tapping the field by accident isn't "started typing".
+  const phoneStarted = useRef(false);
+  const onPhoneTyped = () => {
+    if (phoneStarted.current) return;
+    phoneStarted.current = true;
+    track("configurator_phone_started", "Date de contact", { total: quote.total });
+  };
+
+  useSettledTrack(place, (value) => track("configurator_location_entered", value, { location: value }));
+  // Only hours the visitor picked with − / + (switching to Corporate sets the minimum on its own).
+  const hoursTouched = useRef(false);
+  useSettledTrack(rates && hoursTouched.current ? String(hours) : "", (value) => track("configurator_hours_selected", `${value} ore`, { hours: Number(value) }));
 
   const whatsappMessage = [
     `Bună! Mi-am făcut configurația pe site pentru ${event.label.toLocaleLowerCase("ro-RO")}${eventDate ? `, pe ${formatDate(eventDate)}` : ""}${place ? ` (locația: ${place})` : ""}:`,
@@ -242,7 +300,7 @@ export default function PriceConfigurator({
   const eventIndex = CONFIGURATOR_EVENTS.findIndex((e) => e.key === eventKey);
 
   return (
-    <section id="configurator" className="scroll-mt-6 bg-white px-6 py-20 text-neutral-950 sm:py-24">
+    <section ref={sectionRef} id="configurator" data-live-clicks="off" className="scroll-mt-6 bg-white px-6 py-20 text-neutral-950 sm:py-24">
       <style>{STYLES}</style>
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto mb-12 max-w-2xl text-center sm:mb-14">
@@ -334,6 +392,7 @@ export default function PriceConfigurator({
                     <LocationField
                       apiKey={MAPS_KEY}
                       variant="light"
+                      loadOnFocus
                       value={venue}
                       onChange={setVenue}
                       onSelect={(p) => {
@@ -397,7 +456,7 @@ export default function PriceConfigurator({
                       key={s.key}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => setService(s.key)}
+                      onClick={() => pickService(s.key)}
                       className={`relative flex flex-col rounded-2xl border bg-white p-4 text-left transition-all duration-300 sm:p-5 ${
                         active
                           ? "border-neutral-950 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.6)] ring-1 ring-neutral-950"
@@ -434,7 +493,7 @@ export default function PriceConfigurator({
                       type="button"
                       aria-label="Mai puține ore"
                       disabled={hours <= rates.includedHours}
-                      onClick={() => setHours((h) => clampHours(event, h - 1))}
+                      onClick={() => { hoursTouched.current = true; setHours((h) => clampHours(event, h - 1)); }}
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-950/20 text-lg transition-colors hover:border-neutral-950 disabled:cursor-not-allowed disabled:opacity-30"
                     >
                       −
@@ -446,7 +505,7 @@ export default function PriceConfigurator({
                       type="button"
                       aria-label="Mai multe ore"
                       disabled={hours >= rates.maxHours}
-                      onClick={() => setHours((h) => clampHours(event, h + 1))}
+                      onClick={() => { hoursTouched.current = true; setHours((h) => clampHours(event, h + 1)); }}
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-950/20 text-lg transition-colors hover:border-neutral-950 disabled:cursor-not-allowed disabled:opacity-30"
                     >
                       +
@@ -514,7 +573,7 @@ export default function PriceConfigurator({
                                 key={variant.label}
                                 type="button"
                                 aria-pressed={albumVariant === i}
-                                onClick={() => setAlbumVariant(i)}
+                                onClick={() => { if (albumVariant !== i) track("configurator_option_selected", `${extra.label} · ${variant.label}`); setAlbumVariant(i); }}
                                 className={`rounded-full border px-3.5 py-1.5 text-xs transition-colors ${
                                   albumVariant === i ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-950/20 text-neutral-600 hover:border-neutral-950/50"
                                 }`}
@@ -534,7 +593,7 @@ export default function PriceConfigurator({
                                 key={tier.label}
                                 type="button"
                                 aria-pressed={guestTier === i}
-                                onClick={() => setGuestTier(i)}
+                                onClick={() => { if (guestTier !== i) track("configurator_option_selected", `Fotocabină · ${tier.label}`); setGuestTier(i); }}
                                 className={`rounded-full border px-3.5 py-1.5 text-xs transition-colors ${
                                   guestTier === i ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-950/20 text-neutral-600 hover:border-neutral-950/50"
                                 }`}
@@ -578,7 +637,7 @@ export default function PriceConfigurator({
                       autoComplete="tel"
                       required
                       value={phone}
-                      onChange={(e) => { setPhone(e.target.value); if (leadStatus === "error") setLeadStatus("idle"); }}
+                      onChange={(e) => { onPhoneTyped(); setPhone(e.target.value); if (leadStatus === "error") setLeadStatus("idle"); }}
                       placeholder="07xx xxx xxx"
                       className={`${INPUT_CLASS} sm:flex-1`}
                     />
@@ -612,7 +671,7 @@ export default function PriceConfigurator({
 
           {/* Summary — a receipt that follows the visitor on desktop */}
           <aside className="lg:sticky lg:top-6">
-            <div className="relative bg-neutral-950 p-2.5 text-white shadow-[0_40px_80px_-30px_rgba(0,0,0,0.6)]">
+            <div ref={priceRef} className="relative bg-neutral-950 p-2.5 text-white shadow-[0_40px_80px_-30px_rgba(0,0,0,0.6)]">
               <div className="border border-neutral-400/30 px-5 py-8 sm:px-7">
                 <p className="text-center text-[10px] uppercase tracking-[0.4em] text-neutral-400">Configurația voastră</p>
                 <p className="mt-3 text-center text-3xl font-normal uppercase tracking-[0.08em]">{event.label}</p>

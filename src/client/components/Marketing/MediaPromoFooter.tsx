@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import { measureOaiq } from "../../utils/oaiq";
 import PhoneNumberReveal from "../PhoneReveal/PhoneNumberReveal";
+import HeavyPhotoFlag from "../UI/HeavyPhotoFlag";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
@@ -33,6 +34,8 @@ function trackContactClick(type: "phone" | "whatsapp" | "instagram") {
 
 export default function MediaPromoFooter() {
   const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
+  // Admin only: photos over the weight limit, flagged (visitors don't get them).
+  const [heavy, setHeavy] = useState<Record<string, number>>({});
 
   const handlePhoneClick = useCallback(() => trackContactClick("phone"), []);
   const handleWhatsAppClick = useCallback(() => trackContactClick("whatsapp"), []);
@@ -41,8 +44,9 @@ export default function MediaPromoFooter() {
   useEffect(() => {
     fetch("/api/showcase-zones/media_footer")
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { photos?: string[] } | null) => {
+      .then((data: { photos?: string[]; heavy?: Record<string, number> } | null) => {
         if (data?.photos?.length) setShowcasePhotos(data.photos);
+        if (data?.heavy) setHeavy(data.heavy);
       })
       .catch(() => {});
   }, []);
@@ -57,7 +61,8 @@ export default function MediaPromoFooter() {
       {showcasePhotos.length > 0 && (
         <div style={{ display: "flex", height: "180px", overflow: "hidden", gap: "2px" }}>
           {showcasePhotos.slice(0, 8).map((url, index) => (
-            <div key={`${url}-${index}`} style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+            <div key={`${url}-${index}`} style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}>
+              <HeavyPhotoFlag bytes={heavy[url]} />
               <img
                 src={url}
                 alt=""

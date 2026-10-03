@@ -81,6 +81,8 @@ import reviewsRouter from "./src/server/routes/reviews.routes";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
 import healthRouter from "./src/server/routes/health.routes";
+import { initialDataScript, loadInitialData } from "./src/server/ssr/initialData";
+import type { InitialData } from "./src/client/ssr/initialData";
 
 // Shared HTTP defaults used by both local development and the production server.
 const BODY_PAYLOAD_LIMIT = "20mb";
@@ -254,7 +256,7 @@ async function createServer() {
 
   let vite: ViteDevServer | undefined;
   let template: string;
-  let render: (url: string) => Promise<{ appHtml: string; head: string; redirect?: string }>;
+  let render: (url: string, initialData?: InitialData | null) => Promise<{ appHtml: string; head: string; bodyEnd?: string; redirect?: string }>;
 
   const stylesheetsPromise = getStyleSheets();
 
@@ -328,16 +330,20 @@ async function createServer() {
       let appHtml = "";
       let head = "";
       let redirect: string | undefined;
+      let bodyEnd = "";
+      // /oferta/:slug: the page renders with its data instead of a loader.
+      // Not req.path: under app.use('*') Express reports it as "/".
+      const initialData = await loadInitialData(new URL(url, "http://localhost").pathname);
       if (!isProd && vite) {
         // dev: transform html + load entry via Vite
         htmlTemplate = await vite.transformIndexHtml(url, htmlTemplate);
         const devModule = await vite.ssrLoadModule(
           '/src/client/entry-server.tsx',
         );
-        ({ appHtml, head, redirect } = await devModule.render(url));
+        ({ appHtml, head, redirect, bodyEnd = "" } = await devModule.render(url, initialData));
       } else {
         // prod: use prebuilt server bundle
-        ({ appHtml, head, redirect } = await render(url));
+        ({ appHtml, head, redirect, bodyEnd = "" } = await render(url, initialData));
       }
 
       if (redirect) {
@@ -345,10 +351,27 @@ async function createServer() {
         return;
       }
 
+      // Dev only: Vite adds styles from JavaScript, after the server HTML has already
+      // painted unstyled. Link the stylesheets of every module the render used instead.
+      // (In production the built index.html links the main CSS itself.)
+      let devStyles = "";
+      if (!isProd && vite) {
+        const links = new Set<string>();
+        for (const mod of vite.moduleGraph.idToModuleMap.values()) {
+          const file = mod.url?.split("?")[0] ?? "";
+          if (/\.(css|scss|sass)$/.test(file) && mod.ssrTransformResult) {
+            links.add(`<link rel="stylesheet" href="${file}?direct" />`);
+          }
+        }
+        devStyles = [...links].join("\n");
+      }
+
       const cssAssets = await stylesheetsPromise;
       const html = htmlTemplate
         .replace(`<!--app-html-->`, appHtml)
-        .replace(`<!--head-->`, head + "\n" + cssAssets);
+        .replace(`<!--head-->`, head + "\n" + cssAssets)
+        .replace(`</head>`, `${devStyles}</head>`)
+        .replace(`</body>`, `${initialDataScript(initialData)}${bodyEnd}</body>`);
 
       res
         .status(200)
@@ -374,6 +397,8 @@ async function createServer() {
 
   const port = process.env.PORT || DEFAULT_APP_PORT;
   const httpServer = app.listen(Number(port), '127.0.0.1', () => {
+    // The ad landing's data, ready before the first visitor asks for it.
+    void loadInitialData("/oferta/olx");
     if (!isTest) startAlbumProcessingQueue();
     if (showProgress) {
       devLogger.ready(Number(port), Date.now() - startTime);

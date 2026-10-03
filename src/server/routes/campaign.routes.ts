@@ -39,13 +39,39 @@ async function deleteFromBunny(bunnyPath: string): Promise<void> {
 
 // ─── PUBLIC ──────────────────────────────────────────────────────────────────
 
+// Every /oferta/:slug render asks for the campaign first (for /oferta/olx the answer is
+// "none"): remembered for a minute, forgotten once any change to campaigns is saved.
+const CAMPAIGN_CACHE_MS = 60_000;
+const campaignCache = new Map<string, { at: number; value: Promise<Record<string, unknown> | null> }>();
+
+export function getPublicCampaignCached(slug: string): Promise<Record<string, unknown> | null> {
+  const hit = campaignCache.get(slug);
+  if (hit && Date.now() - hit.at < CAMPAIGN_CACHE_MS) return hit.value;
+  const entry = { at: Date.now(), value: getPublicCampaign(slug) };
+  campaignCache.set(slug, entry);
+  entry.value.catch(() => { if (campaignCache.get(slug) === entry) campaignCache.delete(slug); });
+  return entry.value;
+}
+
+/** An active campaign as GET /api/campaign/public/:slug returns it (null = none). Also used by the server render. */
+export async function getPublicCampaign(slug: string): Promise<Record<string, unknown> | null> {
+  const doc = await firestore().collection(COLLECTION).doc(slug).get();
+  if (!doc.exists) return null;
+  const data = doc.data()!;
+  if (!data.active) return null;
+  return { slug: doc.id, ...data };
+}
+
+router.use((req, res, next) => {
+  if (req.method !== "GET") res.on("finish", () => campaignCache.clear());
+  next();
+});
+
 router.get("/public/:slug", async (req: Request, res: Response) => {
   try {
-    const doc = await firestore().collection(COLLECTION).doc(req.params.slug).get();
-    if (!doc.exists) { res.status(404).json({ error: "Not found" }); return; }
-    const data = doc.data()!;
-    if (!data.active) { res.status(404).json({ error: "Not found" }); return; }
-    res.json({ slug: doc.id, ...data });
+    const campaign = await getPublicCampaign(req.params.slug);
+    if (!campaign) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(campaign);
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }

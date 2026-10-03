@@ -16,20 +16,9 @@ function catalogKey(value: string): string {
   }
 }
 
-export function normalizeAltLabel(value: string): string {
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function buildSeoImageAlt(baseLabel: string, index?: number): string {
-  const normalized = normalizeAltLabel(baseLabel);
-  if (typeof index === "number") {
-    return `${normalized} ${index + 1}`;
-  }
-  return normalized;
-}
+// The label helpers live apart from the catalog (127 KB) so a page can use them
+// without pulling it in; re-exported here for existing imports.
+export { buildSeoImageAlt, normalizeAltLabel } from "./imageAltLabel";
 
 export function getCatalogImageAlt(src: string, fallback: string): string {
   const record = catalogByKey.get(catalogKey(src));

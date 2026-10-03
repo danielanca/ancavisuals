@@ -12,14 +12,15 @@ import { getLandingMeta } from "../../utils/sessionAttribution";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 import { useStartingPrices } from "../../hooks/useStartingPrices";
 import { startingPriceFor } from "../../../shared/pricing/startingPrices";
-import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
-import PortfolioParallaxGallery from "../Portfolio/PortfolioParallaxGallery";
-import GuideBook from "./GuideBook";
-import CampaignVideoPlayer from "./CampaignVideoPlayer";
-import CampaignPackages from "./CampaignPackages";
 import PriceConfigurator, { type DatePick } from "./PriceConfigurator";
+import LazySection from "./LazySection";
+import SectionSkeleton from "./SectionSkeleton";
+import HeroVideo from "./HeroVideo";
+import { AncaVisualsPromo, CampaignPackages, CampaignVideoPlayer, GuideBook, PortfolioParallaxGallery, preloadGroup } from "./lazyParts";
 import ChatWithUs from "../../features/chat/components/ChatWithUs";
 import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
+import { heavyPhotoNote, isHeavyPhoto } from "../../../shared/media/photoWeight";
+import { whenLandingSettled } from "../../utils/whenLandingSettled";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -77,7 +78,11 @@ export interface CampaignTestimonial {
 export interface CampaignGalleryItem {
   url: string;
   bunnyPath: string;
+  /** Known only for offer photos (sent by /api/oferte/:slug). */
+  sizeBytes?: number;
 }
+
+export { isHeavyPhoto } from "../../../shared/media/photoWeight";
 
 export interface CampaignPage {
   slug: string;
@@ -88,6 +93,10 @@ export interface CampaignPage {
   phoneNumber: string;
   heroImageUrl: string;
   heroVideoUrl: string;
+  /** Short looping hero clip over `heroImageUrl` (offers: set in /admin/oferte) — light version… */
+  heroClipUrl?: string;
+  /** …and the sharper one, for good connections. */
+  heroClipHdUrl?: string;
   videoUrl?: string;
   gallery: CampaignGalleryItem[];
   // Liste separate desktop/mobil, administrate din CampaignAdminPage. Campaniile
@@ -142,6 +151,8 @@ function ArrowIcon() {
   );
 }
 
+const CONFIGURATOR_SEEN_KEY = "configurator-seen";
+
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
   const waLink = (text: string) => `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
@@ -158,6 +169,44 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const startingPrices = useStartingPrices();
   // With the availability section off, "check the date" links go to the configurator's date step.
   const availabilityHref = SHOW_AVAILABILITY_SECTION || !CONFIGURATOR_SLUGS.has(page.slug) ? "#verifica-data" : "#configurator-data";
+
+  // The first group of below-the-fold parts (gallery + video) downloads once the page itself is up.
+  useEffect(() => {
+    const start = () => preloadGroup(0);
+    if (document.readyState === "complete") { start(); return; }
+    window.addEventListener("load", start, { once: true });
+    return () => window.removeEventListener("load", start);
+  }, []);
+
+  // "Află prețul" shows in the hero only for someone who scrolled down, never got the
+  // configurator on screen (on any visit — remembered in this browser), and came back
+  // up to the top. Once shown, it stays.
+  const [showPriceCta, setShowPriceCta] = useState(false);
+  useEffect(() => {
+    if (!CONFIGURATOR_SLUGS.has(page.slug)) return;
+    const configurator = document.getElementById("configurator");
+    if (!configurator || typeof IntersectionObserver === "undefined") return;
+    try { if (localStorage.getItem(CONFIGURATOR_SEEN_KEY)) return; } catch { /* storage blocked: decide per visit */ }
+    let wentDown = false;
+    const stop = () => { observer.disconnect(); window.removeEventListener("scroll", onScroll); };
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      try { localStorage.setItem(CONFIGURATOR_SEEN_KEY, "1"); } catch { /* storage blocked */ }
+      stop();
+    }, { threshold: 0.15 });
+    const onScroll = () => {
+      const top = window.scrollY;
+      if (top > window.innerHeight) wentDown = true;
+      else if (wentDown && top < window.innerHeight * 0.4) {
+        setShowPriceCta(true);
+        sendLiveEvent("configurator_cta_shown", { label: "Află prețul în 30 de secunde", meta: { source: "hero" } });
+        stop();
+      }
+    };
+    observer.observe(configurator);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return stop;
+  }, [page.slug]);
 
   const todayForDate = new Date();
   const todayYear = todayForDate.getFullYear();
@@ -182,12 +231,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     setAvailStatus("idle");
   };
 
-  useEffect(() => {
+  // Not needed for the first screen (only once a date is picked): asked after the page has loaded.
+  useEffect(() => whenLandingSettled(() => {
     fetch("/api/booked-dates")
       .then((r) => r.json())
       .then((d: { dates?: string[] }) => setBookedDates(d.dates ?? []))
       .catch(() => setBookedDates([]));
-  }, []);
+  }), []);
   // Real social-proof note: most recently signed contract, name masked
   // server-side. Shown once per page load after a short delay, dismissible —
   // not a repeating/fake "someone just booked" spam pattern.
@@ -198,7 +248,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     setLatestContractVisible(false);
     window.setTimeout(() => setShowLatestContract(false), 300);
   };
-  useEffect(() => {
+  useEffect(() => whenLandingSettled(() => {
     fetch("/api/contracts/latest-signed")
       .then((r) => r.json())
       .then((d: { contract?: { maskedName: string; signedAt: string } | null }) => {
@@ -210,7 +260,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         }, 3000);
       })
       .catch(() => {});
-  }, []);
+  }), []);
   useEffect(() => {
     if (!latestContractVisible) return;
     const timer = window.setTimeout(() => dismissLatestContract(), 10000);
@@ -234,14 +284,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   }, []);
 
   // Campanii nemigrate au doar `gallery` — o folosim ca fallback pe ambele device-uri.
-  const galleryItems = isMobile
+  const deviceGalleryItems = isMobile
     ? (page.galleryMobile?.length ? page.galleryMobile : page.gallery)
     : (page.galleryDesktop?.length ? page.galleryDesktop : page.gallery);
-  // Referință stabilă — fără asta, ticăitul din secundă în secundă al
-  // cronometrului de mai jos ar recrea acest array la fiecare render, ceea
-  // ce distruge și reface în buclă animația GSAP din galerie (rămâne blocată
-  // la opacitate 0, vezi PortfolioParallaxGallery's useEffect(..., [columns])).
-  const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
   const promoAtPageEnd = page.slug === "olx";
   // Real, fixed promo deadline — does not reset per visit/session, unlike the
   // old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
@@ -260,6 +305,21 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     } catch { return hasAdminCookie; }
   });
   const [adminNotice, setAdminNotice] = useState(false);
+  // Heavy photos (> 1 MB) are left out for visitors; the admin still sees them, flagged.
+  // Referință stabilă (useMemo) — fără asta, ticăitul cronometrului de mai jos ar
+  // recrea aceste array-uri la fiecare render, ceea ce distruge și reface în buclă
+  // animația GSAP din galerie (vezi PortfolioParallaxGallery's useEffect(..., [columns])).
+  const galleryItems = useMemo(
+    () => (isAdmin ? deviceGalleryItems : deviceGalleryItems.filter((item) => !isHeavyPhoto(item.sizeBytes))),
+    [deviceGalleryItems, isAdmin],
+  );
+  const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
+  const galleryWarnings = useMemo(() => {
+    const heavy = isAdmin ? galleryItems.filter((item) => isHeavyPhoto(item.sizeBytes)) : [];
+    return heavy.length
+      ? Object.fromEntries(heavy.map((item) => [item.url, heavyPhotoNote(item.sizeBytes!)]))
+      : undefined;
+  }, [galleryItems, isAdmin]);
   useEffect(() => {
     if (getCookie("av_admin") !== "1") return;
     try { localStorage.setItem("av_admin_device", "1"); } catch { /* storage indisponibil */ }
@@ -406,7 +466,18 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── HERO ───────────────────────────────────────────────────── */}
       <section id="acasa" className="relative min-h-[85vh] flex items-end overflow-hidden">
-        {page.heroVideoUrl ? (
+        {/* A photo, not the video: the hero video is hundreds of MB and autoplayed on phones.
+            The video stays the fallback for a landing without a hero photo. */}
+        {page.heroImageUrl ? (
+          <img
+            src={page.heroImageUrl}
+            alt={page.title}
+            // Lowercase attribute: React 18's types don't know fetchPriority yet.
+            {...{ fetchpriority: "high" }}
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : page.heroVideoUrl && !page.heroClipUrl ? (
           <video
             src={page.heroVideoUrl}
             autoPlay
@@ -437,15 +508,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             }}
             className="absolute inset-0 w-full h-full object-cover"
           />
-        ) : page.heroImageUrl ? (
-          <img
-            src={page.heroImageUrl}
-            alt={page.title}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 to-neutral-900" />
         )}
+
+        {page.heroClipUrl && <HeroVideo src={page.heroClipUrl} hdSrc={page.heroClipHdUrl} />}
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
 
@@ -460,6 +527,16 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <p className="text-neutral-300 text-lg font-light max-w-xl mb-10 leading-relaxed">
               {page.subtitle}
             </p>
+          )}
+          {showPriceCta && (
+            <a
+              href="#configurator"
+              onClick={() => sendLiveEvent("configurator_cta_clicked", { label: "Află prețul în 30 de secunde", meta: { source: "hero" } })}
+              className="price-cta-in mb-3 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-white px-7 py-4 text-sm font-bold uppercase tracking-[0.1em] text-neutral-950 shadow-lg shadow-black/40 transition-colors hover:bg-neutral-100 active:scale-[0.98] sm:w-auto"
+            >
+              Află prețul în 30 de secunde <ArrowIcon />
+              <style>{"@keyframes priceCtaIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}.price-cta-in{animation:priceCtaIn .45s ease-out both}@media (prefers-reduced-motion:reduce){.price-cta-in{animation:none}}"}</style>
+            </a>
           )}
           {/* Pe mobil, bara fixă de jos are deja "Verifică data" + WhatsApp —
               butoanele astea două ar dubla acțiunea și aglomerau hero-ul. */}
@@ -489,14 +566,42 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── PORTFOLIO — rămâne sus, imediat după hero ── */}
       {galleryItems.length > 0 && (
+        <LazySection height="100vh" onShow={() => preloadGroup(1)}>
         <PortfolioParallaxGallery
+          fallback={<SectionSkeleton height="100vh" />}
           images={galleryImageUrls}
+          batchSize={12}
+          warnings={galleryWarnings}
           altBase="fotografie și videografie Anca Visuals"
         />
+        </LazySection>
+      )}
+
+      {/* ── FILM — same full-bleed look as the hero: a photo, then the clip once it has
+          downloaded (only while this section is on screen) ── */}
+      {(page.heroClipUrl || galleryImageUrls.length > 1) && (
+        <section className="relative flex min-h-[90vh] items-end overflow-hidden bg-neutral-950 text-white">
+          {(galleryImageUrls[1] || page.heroImageUrl) && (
+            <img
+              src={galleryImageUrls[1] || page.heroImageUrl}
+              alt="Cuplu fotografiat de Anca Visuals în ziua nunții"
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
+          {page.heroClipUrl && <HeroVideo src={page.heroClipUrl} hdSrc={page.heroClipHdUrl} />}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          <div className="relative mx-auto w-full max-w-6xl px-6 pb-16 pt-32 sm:pb-20">
+            <h2 className="max-w-2xl text-3xl font-light leading-tight sm:text-5xl">
+              Momente reale. Așa cum le trăiți.
+            </h2>
+          </div>
+        </section>
       )}
 
       {/* ── MEDIA PROMO FOOTER (a doua galerie rămâne sus pe celelalte campanii) ── */}
-      {!promoAtPageEnd && <AncaVisualsPromo />}
+      {!promoAtPageEnd && <LazySection height="100vh"><AncaVisualsPromo fallback={<SectionSkeleton height="100vh" />} /></LazySection>}
 
       {/* ── OFERTĂ FOTOCABINĂ — short: what, for whom, until when (no countdown) ── */}
       <section className="bg-white px-6 py-16 text-neutral-950 sm:py-20">
@@ -530,7 +635,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
       {(page.videoUrl || page.heroVideoUrl) && (
-        <section className="py-20 sm:py-24 border-b border-white/10">
+        <LazySection height="60vh" onShow={() => preloadGroup(1)}>
+        <section id="film" className="scroll-mt-6 py-20 sm:py-24 border-b border-white/10">
           <div className="mb-8 px-6 text-center">
             <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
             <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
@@ -549,6 +655,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             </div>
           ) : (
             <CampaignVideoPlayer
+              fallback={<div aria-hidden="true" className="aspect-video w-full animate-pulse bg-white/[0.06] motion-reduce:animate-none" />}
               src={(page.videoUrl || page.heroVideoUrl) as string}
               poster={page.videoThumbnailUrl || undefined}
             />
@@ -556,6 +663,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           </div>
           </div>
         </section>
+        </LazySection>
       )}
 
       {/* ── CONFIGURATOR — preț pe loc, apoi verificarea datei ───────── */}
@@ -879,6 +987,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {/* ── GHIDUL MIRILOR — PDF gratuit ───────────────────────────── */}
       {WEDDING_GUIDE_SLUGS.has(page.slug) && (
+        <LazySection height="70vh">
         <section className="bg-[#f6f2ea] px-6 py-16 text-[#2f2a24] sm:py-20">
           <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-14">
             <GuideBook />
@@ -915,9 +1024,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             </div>
           </div>
         </section>
+        </LazySection>
       )}
 
-      {promoAtPageEnd && <AncaVisualsPromo desktopColumns={4} />}
+      {promoAtPageEnd && <LazySection height="100vh"><AncaVisualsPromo desktopColumns={4} fallback={<SectionSkeleton height="100vh" />} /></LazySection>}
 
       {isLiveChatConfigured() && <ChatWithUs />}
 

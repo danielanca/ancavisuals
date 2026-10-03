@@ -1,7 +1,5 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, getIdTokenResult } from "firebase/auth";
-import { getAnalytics, isSupported as analyticsIsSupported } from "firebase/analytics";
-import type { Analytics } from "firebase/analytics";
 import { getStorage } from "firebase/storage";
 import { getFirestore } from "firebase/firestore";
 import { firebaseConfig } from "./firebaseConfig";
@@ -11,12 +9,8 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-let analytics: Analytics | null = null;
-if (typeof window !== "undefined") {
-  analyticsIsSupported().then((isSupported) => {
-    if (isSupported) analytics = getAnalytics(app);
-  });
-}
+// No Firebase Analytics: it was never used, and it loaded a second gtag.js for
+// G-SXPFYH4Q3X — that GA4 property is already sent by GTM (double page views).
 
 export const monitorAuthState = (onLogout: () => void) => {
   onAuthStateChanged(auth, async (user) => {

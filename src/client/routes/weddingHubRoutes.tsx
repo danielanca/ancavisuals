@@ -2,11 +2,13 @@ import React from "react";
 import { Route } from "react-router-dom";
 import loadable from "@loadable/component";
 import AncaLoader from "../components/UI/AncaLoader";
-import WeddingHubAuthWrapper from "../features/wedding-hub/WeddingHubAuthWrapper";
-import RequireWeddingAuth from "../features/wedding-hub/components/RequireWeddingAuth";
-import CheckWeddingAuth from "../features/wedding-hub/components/CheckWeddingAuth";
 
 const opts = { fallback: <AncaLoader /> };
+
+// The Wedding Hub sign-in (Firebase) loads with the hub, not with every page of the site.
+const WeddingHubAuthWrapper = loadable(() => import("../features/wedding-hub/WeddingHubAuthWrapper"), opts);
+const RequireWeddingAuth = loadable(() => import("../features/wedding-hub/components/RequireWeddingAuth"), opts);
+const CheckWeddingAuth = loadable(() => import("../features/wedding-hub/components/CheckWeddingAuth"), opts);
 
 const WeddingHubLayout = loadable(() => import("../features/wedding-hub/WeddingHubLayout"), opts);
 const WeddingLoginPage = loadable(() => import("../features/wedding-hub/pages/WeddingLogin"), opts);

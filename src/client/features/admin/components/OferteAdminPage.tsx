@@ -2,7 +2,7 @@ import { useEffect, useReducer } from "react";
 import { Link } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
-import { OFFER_SERVICES, normalizeOfferPackages, type OfferPackage, type OfferPackageItem } from "../../../../shared/offers/offerServices";
+import { OFFER_SERVICES, normalizeOfferPackages, type OfferHeroVideo, type OfferPackage, type OfferPackageItem } from "../../../../shared/offers/offerServices";
 
 type Offer = {
   id: string;
@@ -16,6 +16,7 @@ type Offer = {
   packages?: OfferPackage[];
   validUntil: string;
   selectedServices: string[];
+  heroVideo?: OfferHeroVideo;
   active: boolean;
   viewCount: number;
   downloadCount: number;
@@ -33,9 +34,16 @@ type FormData = {
   packages: OfferPackage[];
   validUntil: string;
   selectedServices: string[];
+  heroVideo: OfferHeroVideo;
 };
 
 type PackageField = Exclude<keyof OfferPackage, "id">;
+
+const HERO_VIDEO_INPUTS: { field: keyof OfferHeroVideo; label: string; placeholder: string }[] = [
+  { field: "clipUrl", label: "Clip hero — internet slăbuț (ex. 540p, ideal sub 10 MB)", placeholder: "https://ancavisuals.b-cdn.net/…/hero-540p-mobil.mp4" },
+  { field: "clipHdUrl", label: "Clip hero — internet bun (ex. 720p, opțional)", placeholder: "https://ancavisuals.b-cdn.net/…/hero-720p.mp4" },
+  { field: "filmUrl", label: "Film pentru player „Vezi-ne la lucru” (pornește la play)", placeholder: "https://ancavisuals.b-cdn.net/…/film-1080p.mp4" },
+];
 
 function newPackage(id = "package-1"): OfferPackage {
   return {
@@ -69,6 +77,7 @@ function createEmptyForm(): FormData {
   packages: [newPackage()],
   validUntil: "",
   selectedServices: [],
+  heroVideo: {},
   };
 }
 
@@ -97,6 +106,7 @@ function offerToForm(offer: Offer): FormData {
     packages,
     validUntil: offer.validUntil,
     selectedServices: Array.isArray(offer.selectedServices) ? offer.selectedServices : [],
+    heroVideo: offer.heroVideo ?? {},
   };
 }
 
@@ -140,6 +150,7 @@ type Action =
   | { type: "OPEN_EDIT"; offer: Offer }
   | { type: "CLOSE_EDIT" }
   | { type: "EDIT_FIELD"; field: keyof FormData; value: string }
+  | { type: "EDIT_HERO_VIDEO"; field: keyof OfferHeroVideo; value: string }
   | { type: "EDIT_TOGGLE_SERVICE"; serviceId: string }
   | { type: "EDIT_SAVING" }
   | { type: "EDIT_OK"; offer: Offer }
@@ -274,6 +285,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, editingId: null, editForm: emptyForm, editError: null };
     case "EDIT_FIELD":
       return { ...state, editForm: { ...state.editForm, [action.field]: action.value } };
+    case "EDIT_HERO_VIDEO":
+      return { ...state, editForm: { ...state.editForm, heroVideo: { ...state.editForm.heroVideo, [action.field]: action.value } } };
     case "EDIT_TOGGLE_SERVICE":
       return {
         ...state,
@@ -927,6 +940,25 @@ export default function OferteAdminPage() {
                           onChange={(e) => dispatch({ type: "EDIT_FIELD", field: "validUntil", value: e.target.value })}
                           className={inputClass}
                         />
+                      </div>
+
+                      <div className="space-y-2 sm:col-span-2">
+                        <label className="text-neutral-400 text-xs uppercase tracking-wide">Video landing <span className="normal-case text-neutral-600">(opțional — linkuri Bunny)</span></label>
+                        <p className="text-xs text-neutral-500">
+                          Clipul din hero se descarcă în fundal după ce s-a încărcat pagina (doar pe internet bun) și pornește abia când e descărcat complet; până atunci (și pe internet foarte slab) rămâne poza din hero. Internet slăbuț → clipul ușor, internet bun → clipul HD. Fără film, player-ul folosește primul video din Template Oferte → Videografie.
+                        </p>
+                        {HERO_VIDEO_INPUTS.map(({ field, label, placeholder }) => (
+                          <div key={field} className="space-y-1">
+                            <span className="text-xs text-neutral-400">{label}</span>
+                            <input
+                              type="url"
+                              value={state.editForm.heroVideo[field] ?? ""}
+                              onChange={(e) => dispatch({ type: "EDIT_HERO_VIDEO", field, value: e.target.value })}
+                              placeholder={placeholder}
+                              className={inputClass}
+                            />
+                          </div>
+                        ))}
                       </div>
 
                       <div className="space-y-1 sm:col-span-2">

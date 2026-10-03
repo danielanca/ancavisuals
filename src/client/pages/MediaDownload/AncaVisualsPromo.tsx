@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import PhotoLightbox from "./PhotoLightbox";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 import RetryImage from "../../components/UI/RetryImage";
+import HeavyPhotoFlag from "../../components/UI/HeavyPhotoFlag";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
@@ -40,7 +41,7 @@ const fullPhoneBtnStyle: CSSProperties = {
   fontFamily: "inherit",
 };
 
-interface AncaVisualsPromoProps {
+export interface AncaVisualsPromoProps {
   compact?: boolean;
   /** Photo grid columns on desktop (mobile always uses 2). 4 widens the grid past the text column. */
   desktopColumns?: 2 | 4;
@@ -51,6 +52,8 @@ const STRIP_ROTATE_MS = 10000;
 
 export default function AncaVisualsPromo({ compact = false, desktopColumns = 2 }: AncaVisualsPromoProps) {
   const [showcasePhotos, setShowcasePhotos] = useState<string[]>([]);
+  // Admin only: photos over the weight limit, flagged (visitors don't get them).
+  const [heavy, setHeavy] = useState<Record<string, number>>({});
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   // La fiecare 10s, fâșia de sus arată alte 18 poze din pool — cu efect de
@@ -69,8 +72,9 @@ export default function AncaVisualsPromo({ compact = false, desktopColumns = 2 }
     if (compact) return;
     fetch("/api/showcase-zones/media_footer")
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { photos?: string[] } | null) => {
+      .then((data: { photos?: string[]; heavy?: Record<string, number> } | null) => {
         if (data?.photos?.length) setShowcasePhotos(data.photos);
+        if (data?.heavy) setHeavy(data.heavy);
       })
       .catch(() => {});
   }, [compact]);
@@ -181,7 +185,8 @@ export default function AncaVisualsPromo({ compact = false, desktopColumns = 2 }
             `}</style>
             <div style={{ display: "flex", gap: "3px", flexWrap: "nowrap", padding: 0, overflow: "hidden" }}>
               {stripPhotos.map((url, i) => (
-                <div key={`${i}-${stripTick}`} style={{ flex: "1 1 0", minWidth: 0, aspectRatio: "1 / 1", overflow: "hidden" }}>
+                <div key={`${i}-${stripTick}`} style={{ flex: "1 1 0", minWidth: 0, aspectRatio: "1 / 1", overflow: "hidden", position: "relative" }}>
+                  <HeavyPhotoFlag bytes={heavy[url]} />
                   <RetryImage
                     src={url}
                     alt=""
@@ -238,7 +243,8 @@ export default function AncaVisualsPromo({ compact = false, desktopColumns = 2 }
                 {galleryColumns.map((column, columnIndex) => (
                   <div key={columnIndex} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     {column.map(({ url, index }) => (
-                      <div key={url} style={{ overflow: "hidden", borderRadius: "6px", background: "#111" }}>
+                      <div key={url} style={{ overflow: "hidden", borderRadius: "6px", background: "#111", position: "relative" }}>
+                        <HeavyPhotoFlag bytes={heavy[url]} />
                         <RetryImage
                           src={url}
                           alt=""

@@ -68,14 +68,20 @@ import { useVisitorNotification } from "./hooks/useVisitorNotification";
 import { useLiveVisitor } from "./hooks/useLiveVisitor";
 import { captureLandingMeta } from "./utils/sessionAttribution";
 import { installAdsContactClickTracking } from "./utils/googleAds";
+// City pages load on demand, but the server sends them fully rendered — their gallery's
+// styles must already be in the main CSS, not arrive with the page's code a moment later.
+import "./pages/Portfolio/PortfolioGallery.scss";
 import publicRoutes from "./routes/publicRoutes";
+import { ssrLazy } from "./routes/ssrLazy";
 import { adminRoutes } from "./routes/adminRoutes";
 import { weddingHubRoutes } from "./routes/weddingHubRoutes";
 import LiveChat, { isLiveChatConfigured } from "./features/chat/components/LiveChat";
 import ChatWithUs from "./features/chat/components/ChatWithUs";
 
 const AncaChat = loadable(() => import("./features/chat/components/AncaChat"), { fallback: <></> });
-const NotFoundPage = loadable(() => import("./pages/NotFoundPage"), { fallback: <AncaLoader /> });
+// Unknown paths: a city page (/foto-video-nunta-cluj …) or the 404 page. Its code and the
+// city content load only then; on the server it renders in full (ssrLazy).
+const LocationRoute = ssrLazy("location", () => import("./pages/LocationSEO/LocationRoute"));
 
 // Live chat (Tidio) runs on the homepage and the normal public pages — including
 // /oferta (ad traffic) and /blog — but never on client/guest areas: albums,
@@ -177,7 +183,7 @@ export const App = () => {
               ))}
               {adminRoutes}
               {weddingHubRoutes}
-              <Route path="*" element={<NotFoundPage />} />
+              <Route path="*" element={<LocationRoute />} />
             </Routes>
             {/* Replaces Tidio's side tab: an end-of-page invitation that opens the chat. */}
             {isLiveChatConfigured() && liveChatVisible && !chatWithUsInPage && <ChatWithUs />}

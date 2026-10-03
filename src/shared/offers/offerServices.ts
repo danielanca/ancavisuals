@@ -270,3 +270,24 @@ export function mergeOfferShowcase(
     return { ...service, assets, assetsMobile };
   });
 }
+
+/**
+ * Landing videos of an offer (/oferta/:slug), set in /admin/oferte as file links:
+ * the hero clip replaces the hero photo once fully downloaded — `clipUrl` (light, e.g.
+ * 540p) on a modest connection, `clipHdUrl` (e.g. 720p) on a good one, none on a very
+ * weak one — and `filmUrl` plays in "Vezi-ne la lucru" (on tap).
+ */
+export type OfferHeroVideo = { clipUrl?: string; clipHdUrl?: string; filmUrl?: string };
+
+const HERO_VIDEO_FIELDS = ["clipUrl", "clipHdUrl", "filmUrl"] as const;
+
+/** Keeps only https links; an empty field is left out. */
+export function normalizeOfferHeroVideo(raw: unknown): OfferHeroVideo {
+  const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const result: OfferHeroVideo = {};
+  for (const field of HERO_VIDEO_FIELDS) {
+    const value = String(source[field] ?? "").trim();
+    if (/^https:\/\/\S+$/.test(value)) result[field] = value;
+  }
+  return result;
+}

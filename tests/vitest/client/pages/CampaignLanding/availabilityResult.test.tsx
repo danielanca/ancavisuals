@@ -34,7 +34,13 @@ beforeEach(() => {
     ok: true,
     json: async () => (String(url).includes("booked-dates") ? { dates: [`${nextYear}-07-10`, `${nextYear}-07-24`] } : {}),
   })));
-  vi.stubGlobal("IntersectionObserver", class { observe() {} unobserve() {} disconnect() {} });
+  // Everything counts as on screen, so the sections that render on scroll (LazySection) render.
+  vi.stubGlobal("IntersectionObserver", class {
+    constructor(private cb: (entries: { isIntersecting: boolean; target: Element }[]) => void) {}
+    observe(target: Element) { this.cb([{ isIntersecting: true, target }]); }
+    unobserve() {}
+    disconnect() {}
+  });
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -98,12 +104,13 @@ describe("availability result", () => {
     expect(screen.queryByText(/Ghidul Mirilor/)).not.toBeInTheDocument();
   });
 
-  test("a discounted package shows the old price struck through next to the new one", () => {
+  test("a discounted package shows the old price struck through next to the new one", async () => {
     // Packages are hidden on /oferta/olx (the configurator shows prices) — test them on another campaign.
     // CampaignPackages formats "1200 EURO" as "1.200 €" and splits the new price into amount + currency.
     const discounted = { ...availabilityPage, packages: [{ id: "f", name: "FULL - Fotocabina", price: "950 EURO", oldPrice: "1200 EURO", features: [] }] };
     render(<MemoryRouter><CampaignLandingPage page={discounted} /></MemoryRouter>);
-    expect(screen.getByText("1.200 €").className).toContain("line-through");
+    // CampaignPackages is its own chunk (lazyParts) — it appears once its code has loaded.
+    expect((await screen.findByText("1.200 €")).className).toContain("line-through");
     expect(within(document.getElementById("pachete")!).getByText("950")).toBeInTheDocument();
     expect(screen.getByText("Preț redus")).toBeInTheDocument();
   });

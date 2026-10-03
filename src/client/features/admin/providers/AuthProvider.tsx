@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
-import { auth } from "../../../firebase";
 import type { User } from "firebase/auth";
-import { onIdTokenChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { getCookie, isBrowser, setJWT } from "../../../utils/functions";
+import { whenLandingSettled } from "../../../utils/whenLandingSettled";
+import { loadFirebaseAuth } from "./loadFirebaseAuth";
 
 const JWT_COOKIE = "jwt";
 const JWT_TTL_HOURS = 24;
@@ -50,8 +50,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   // Single listener: covers login, logout, and silent token refresh.
   // onIdTokenChanged is a superset of onAuthStateChanged.
+  // On an ad landing it starts only once the page has loaded (the sign-in check is not
+  // what the visitor came for); the admin cookie already tells the landing who is admin.
   useEffect(() => {
-    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+    const onUser = async (user: User | null) => {
       if (!user) {
         await setJWT(JWT_COOKIE, "", -1);
         await setJWT(ADMIN_COOKIE, "", -1);
@@ -64,16 +66,25 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       try { localStorage.setItem("av_admin_device", "1"); } catch { /* storage indisponibil */ }
       const role: UserRole = user.email === SUPREME_ADMIN_EMAIL ? "admin" : user.email === ESTERA_EMAIL ? "estera" : "moderator";
       setState({ user, accessToken: token, authorise: true, loading: false, role });
+    };
+    let unsubscribe = () => {};
+    let stopped = false;
+    const cancel = whenLandingSettled(() => {
+      loadFirebaseAuth()
+        .then(({ auth, onIdTokenChanged }) => { if (!stopped) unsubscribe = onIdTokenChanged(auth, onUser); })
+        .catch((error) => console.error("[auth] Firebase failed to load:", error));
     });
-    return () => unsubscribe();
+    return () => { stopped = true; cancel(); unsubscribe(); };
   }, []);
 
   // signIn delegates state update entirely to the listener above.
   const signIn = useCallback(async (email: string, password: string) => {
+    const { auth, signInWithEmailAndPassword } = await loadFirebaseAuth();
     await signInWithEmailAndPassword(auth, email, password);
   }, []);
 
   const logOut = useCallback(async () => {
+    const { auth, signOut } = await loadFirebaseAuth();
     await signOut(auth);
     await setJWT(JWT_COOKIE, "", -1);
     await setJWT(ADMIN_COOKIE, "", -1);

@@ -1,14 +1,16 @@
 import loadable from "@loadable/component";
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { ALL_LOCATION_ROUTES, SERVICE_HUB_SLUGS } from "../pages/LocationSEO/locationData";
-import { LocationPageWrapper } from "../pages/LocationSEO/LocationPage";
-import CitiesHubPage from "../pages/Hubs/CitiesHubPage";
-import ServiceHubPage from "../pages/Hubs/ServiceHubPage";
+import { SERVICE_HUB_SLUGS } from "../pages/LocationSEO/serviceHubSlugs";
+import { ssrLazy } from "./ssrLazy";
 import AncaLoader from "../components/UI/AncaLoader";
 
 const loader = <AncaLoader />;
 const opts = (ssr: boolean) => ({ ssr, fallback: loader });
+
+// The city hubs render on the server for Google but download only when opened (ssrLazy).
+const CitiesHubPage = ssrLazy("cities-hub", () => import("../pages/Hubs/CitiesHubPage"));
+const ServiceHubPage = ssrLazy("service-hub", () => import("../pages/Hubs/ServiceHubPage"));
 
 const HomePage = loadable(() => import("../pages/Homepage/HomePage"), opts(true));
 const AboutPage = loadable(() => import("../pages/About/AboutPage"), opts(true));
@@ -39,7 +41,9 @@ const BlogList = loadable(() => import("../pages/Blog/BlogList"), opts(true));
 const BlogPost = loadable(() => import("../pages/Blog/BlogPost"), opts(true));
 const RevinPage = loadable(() => import("../pages/Revin/RevinPage"), opts(false));
 const GuestInvitationPage = loadable(() => import("../features/wedding-hub/pages/GuestInvitationPage"), opts(false));
-const OfertaPage = loadable(() => import("../pages/OfertaPage"), opts(false));
+// Imported directly, not loadable: the ad landing (/oferta/olx) renders on the server
+// with its data (src/server/ssr/initialData.ts) — loadable would render its loader there.
+import OfertaPage from "../pages/OfertaPage";
 const FuneralOfferPage = loadable(() => import("../pages/FuneralOfferPage"), opts(true));
 const EventProgressPage = loadable(() => import("../pages/EventProgress/EventProgressPage"), opts(false));
 const FotocabinaPage = loadable(() => import("../pages/Fotocabina/FotocabinaPage"), opts(false));
@@ -243,17 +247,8 @@ const publicRoutes: publicRoutesType[] = [
    *  Contact admin booking
    * ============================================================ */
 
-  ...ALL_LOCATION_ROUTES.map(({ path, citySlug, serviceSlug, canonicalPath, keywordLabel }) => {
-    const Component: React.FC = () =>
-      React.createElement(LocationPageWrapper, {
-        citySlug,
-        serviceSlug,
-        canonicalPath,
-        keywordLabel,
-      });
-    Component.displayName = `LocationPage_${serviceSlug}_${citySlug}`;
-    return { path, layout: null, component: Component };
-  }),
+  // City pages (/foto-video-nunta-cluj …) are one catch-all route in App.tsx (LocationRoute),
+  // so their content loads only when one is opened.
 
 ];
 

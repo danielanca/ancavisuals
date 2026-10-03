@@ -1,7 +1,7 @@
 import React from "react";
 import type { CampaignPackage } from "./CampaignLandingPage";
 
-interface CampaignPackagesProps {
+export interface CampaignPackagesProps {
   packages: CampaignPackage[];
   waLink: (text: string) => string;
   onWhatsAppClick: (position: string) => void;

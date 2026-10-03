@@ -26,6 +26,8 @@ type Props = {
   inputId?: string;
   /** Dropdown colors: "dark" (default, /contact) or "light" (white pages). */
   variant?: "dark" | "light";
+  /** Load Google Maps only once the visitor touches the field (not with the page). */
+  loadOnFocus?: boolean;
 };
 
 const DROPDOWN_THEME = {
@@ -191,9 +193,12 @@ export default function LocationField({
   inputClassName,
   inputId,
   variant = "dark",
+  loadOnFocus = false,
 }: Props) {
   const theme = DROPDOWN_THEME[variant];
   const [ready, setReady] = useState(false);
+  // Maps + Places are several hundred KB: with loadOnFocus they wait for the first touch.
+  const [wanted, setWanted] = useState(!loadOnFocus);
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<AutocompleteSuggestionResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -209,6 +214,7 @@ export default function LocationField({
 
   // init
   useEffect(() => {
+    if (!wanted) return;
     let mounted = true;
     ensurePlaces(apiKey, language)
       .then(places => {
@@ -226,7 +232,7 @@ export default function LocationField({
       mounted = false;
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [apiKey, language]);
+  }, [apiKey, language, wanted]);
 
   const query = useMemo(() => (value ?? "").toString().trim(), [value]);
 
@@ -340,9 +346,11 @@ export default function LocationField({
           setOpen(e.target.value.trim().length > 0);
           activeIndex.current = -1;
         }}
-        onFocus={() =>
-          (value ?? "").length >= 3 && Array.isArray(suggestions) && suggestions.length > 0 && setOpen(true)
-        }
+        onPointerDown={() => setWanted(true)}
+        onFocus={() => {
+          setWanted(true);
+          if ((value ?? "").length >= 3 && Array.isArray(suggestions) && suggestions.length > 0) setOpen(true);
+        }}
         onKeyDown={e => {
           if (!open || !Array.isArray(suggestions) || suggestions.length === 0) return;
           if (e.key === "ArrowDown") {

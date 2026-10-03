@@ -50,7 +50,19 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-// Photos fade in once loaded — no blur, no zoom.
+// A photo of a later batch: same width as the others, a typical portrait height.
+.ppg-slot {
+  aspect-ratio: 2 / 3;
+  animation: ppgSlotPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes ppgSlotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+// Photos fade in once loaded — no blur, no zoom. Until then they keep a typical
+// portrait height instead of 0, then take their own.
 .ppg-img {
   display: block;
   margin: 0;
@@ -58,6 +70,10 @@
   height: auto;
   opacity: 0;
   transition: opacity 700ms ease-out;
+
+  &:not(.is-shown) {
+    aspect-ratio: 2 / 3;
+  }
 
   &.is-shown {
     opacity: 1;
@@ -67,6 +83,9 @@
 @media (prefers-reduced-motion: reduce) {
   .ppg-img {
     transition: none;
+  }
+  .ppg-slot {
+    animation: none;
   }
 }
 

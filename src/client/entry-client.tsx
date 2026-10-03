@@ -14,6 +14,9 @@ import { App } from "./App";
 import "./index.css";
 import { installImageFailureRecovery } from "./utils/imageFailureRecovery";
 import { LOAD_USERCENTRICS_EVENT } from "./utils/cookieConsent";
+import { InitialDataContext, readInitialData } from "./ssr/initialData";
+import { preloadSsrLazy } from "./routes/ssrLazy";
+import { whenLandingSettled } from "./utils/whenLandingSettled";
 
 const stopImageFailureRecovery = installImageFailureRecovery();
 if (import.meta.hot) import.meta.hot.dispose(stopImageFailureRecovery);
@@ -174,7 +177,7 @@ const scheduleUsercentrics = () => {
 
 scheduleUsercentrics();
 
-if (!LOCAL_HOSTS.has(window.location.hostname)) {
+if (!LOCAL_HOSTS.has(window.location.hostname)) whenLandingSettled(() => {
   import("./firebase").then(({ auth }) => {
     import("firebase/auth").then(({ onAuthStateChanged }) => {
       onAuthStateChanged(auth, (user) => {
@@ -184,15 +187,19 @@ if (!LOCAL_HOSTS.has(window.location.hostname)) {
       });
     });
   });
-}
+});
 
 const container = document.getElementById("app");
+
+const initialData = readInitialData();
 
 const FullApp = () => (
   <React.StrictMode>
     <HelmetProvider>
       <BrowserRouter>
-        <App />
+        <InitialDataContext.Provider value={initialData}>
+          <App />
+        </InitialDataContext.Provider>
       </BrowserRouter>
     </HelmetProvider>
   </React.StrictMode>
@@ -202,5 +209,7 @@ if (import.meta.hot || !container?.innerText) {
   const root = createRoot(container!);
   root.render(<FullApp />);
 } else {
-  hydrateRoot(container!, <FullApp />);
+  // Pages the server rendered that download only when opened (ssrLazy): load them
+  // first, so the first render matches the server's HTML.
+  void preloadSsrLazy(window.__SSR_LAZY__ ?? []).then(() => hydrateRoot(container!, <FullApp />));
 }

@@ -1,6 +1,6 @@
 /*
- * Purpose: validates Firebase client bootstrap behavior, analytics initialization
- * and auth-state monitoring without talking to real Firebase services.
+ * Purpose: validates Firebase client bootstrap behavior (no Analytics) and
+ * auth-state monitoring without talking to real Firebase services.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -94,25 +94,14 @@ describe("client/firebase", () => {
     expect(module.db).toBe(dbMock);
   });
 
-  test("initializes analytics when the browser runtime supports it", async () => {
+  test("never starts Firebase Analytics (GTM already sends G-SXPFYH4Q3X; a second gtag.js doubled page views)", async () => {
     const { getAnalyticsMock, analyticsSupportedMock } = await loadFirebaseModule({
       analyticsSupported: true,
     });
 
     await Promise.resolve();
 
-    expect(analyticsSupportedMock).toHaveBeenCalledOnce();
-    expect(getAnalyticsMock).toHaveBeenCalledOnce();
-  });
-
-  test("skips analytics initialization when unsupported", async () => {
-    const { getAnalyticsMock, analyticsSupportedMock } = await loadFirebaseModule({
-      analyticsSupported: false,
-    });
-
-    await Promise.resolve();
-
-    expect(analyticsSupportedMock).toHaveBeenCalledOnce();
+    expect(analyticsSupportedMock).not.toHaveBeenCalled();
     expect(getAnalyticsMock).not.toHaveBeenCalled();
   });
 

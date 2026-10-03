@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import Lightbox from "yet-another-react-lightbox";
 import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
 import "yet-another-react-lightbox/styles.css";
-import { buildSeoImageAlt, getCatalogImageAlt } from "../../utils/imageAlt";
+import { buildSeoImageAlt } from "../../utils/imageAltLabel";
 import "./PortfolioGallery.scss";
+import HeavyPhotoFlag from "../../components/UI/HeavyPhotoFlag";
 
 type PortfolioGalleryProps = { altBase?: string; minTotalImages?: number };
 
@@ -22,6 +23,17 @@ export default function PortfolioGallery({
   minTotalImages = 0,
 }: PortfolioGalleryProps) {
   const [zoneData, setZoneData] = useState<{ desktop: string[]; mobile: string[] }>({ desktop: [], mobile: [] });
+  // Admin only: photos over the weight limit, flagged (visitors don't get them).
+  const [heavy, setHeavy] = useState<Record<string, number>>({});
+  // The alt-text catalog (127 KB) loads after the gallery; until then photos use the generated alt.
+  const [catalogAlt, setCatalogAlt] = useState<((src: string, fallback: string) => string) | null>(null);
+  useEffect(() => {
+    let active = true;
+    import("../../utils/imageAlt")
+      .then(({ getCatalogImageAlt }) => { if (active) setCatalogAlt(() => getCatalogImageAlt); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   const [lightboxIndex, setLightboxIndex] = useState(-1);
@@ -42,7 +54,8 @@ export default function PortfolioGallery({
   useEffect(() => {
     fetch("/api/showcase-zones/homepage_gallery")
       .then((response) => response.json())
-      .then(async (data: { desktop?: string[]; mobile?: string[] }) => {
+      .then(async (data: { desktop?: string[]; mobile?: string[]; heavy?: Record<string, number> }) => {
+        if (data.heavy) setHeavy(data.heavy);
         const desktop = data.desktop ?? [];
         const mobile = data.mobile ?? [];
         // Zona nu a fost curatoriata inca din admin — pastram vechiul pool
@@ -110,7 +123,8 @@ export default function PortfolioGallery({
             {columns.map((col, colIndex) => (
               <div key={colIndex} className="pg-col">
                 {col.map(({ src, index }) => (
-                  <div key={src + index} className="pg-item">
+                  <div key={src + index} className="pg-item" style={heavy[src] ? { position: "relative" } : undefined}>
+                    <HeavyPhotoFlag bytes={heavy[src]} />
                     <button
                       type="button"
                       className="pg-img-trigger"
@@ -119,7 +133,7 @@ export default function PortfolioGallery({
                     >
                       <img
                         src={src}
-                        alt={getCatalogImageAlt(src, buildSeoImageAlt(altBase, index))}
+                        alt={catalogAlt ? catalogAlt(src, buildSeoImageAlt(altBase, index)) : buildSeoImageAlt(altBase, index)}
                         loading="lazy"
                         className="pg-img"
                       />

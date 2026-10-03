@@ -3,6 +3,8 @@ import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
+import { remoteFileSizes } from "../utils/remoteFileSize";
+import { MAX_PHOTO_BYTES } from "../../shared/media/photoWeight";
 
 const router = express.Router();
 const COLLECTION = "showcase_zones";
@@ -20,6 +22,48 @@ function refreshBunnyUrl(url: string): string {
   }
 }
 
+// A photo picked from an album may be the full-resolution original (/<album>/photos/X.jpg,
+// often 2–4 MB). Every album also has its optimized copy at /<album>/photos_preview/X.webp.
+const ALBUM_ORIGINAL = /^\/([^/]+)\/photos\/([^/]+)\.(?:jpe?g|png|webp)$/i;
+// Zones can hold videos too (homepage_videos) — those are always large and stay.
+const VIDEO_FILE = /\.(?:mp4|mov|webm|m4v)$/i;
+
+/**
+ * Swaps album originals for their optimized copy and drops photos still over
+ * MAX_PHOTO_BYTES — for the admin they stay, listed in `heavy` (URL → bytes) to flag them.
+ */
+async function lightPhotoUrls(storedUrls: string[], keepHeavy: boolean): Promise<{ urls: string[]; heavy: Record<string, number> }> {
+  const cdnBase = process.env.BUNNY_CDN_DOMAIN ?? "";
+  // Sizes are looked up on the token-less URL: tokens change on every read, the file doesn't.
+  const plain = (url: string) => {
+    try { return cdnBase && url.startsWith(cdnBase) ? cdnBase + new URL(url).pathname : url; } catch { return url; }
+  };
+  const previewOf = (url: string) => {
+    try {
+      const match = cdnBase && url.startsWith(cdnBase) ? ALBUM_ORIGINAL.exec(new URL(url).pathname) : null;
+      return match ? `${cdnBase}/${match[1]}/photos_preview/${match[2]}.webp` : null;
+    } catch { return null; }
+  };
+  const previews = storedUrls.map(previewOf);
+  const sizes = await remoteFileSizes(
+    [...storedUrls.map(plain).filter((url) => !VIDEO_FILE.test(url)), ...previews.filter((url): url is string => Boolean(url))],
+    800,
+  );
+  const heavy: Record<string, number> = {};
+  const urls = storedUrls.flatMap((url, i) => {
+    const preview = previews[i];
+    const source = preview && sizes.get(preview) ? preview : url;
+    const size = sizes.get(plain(source));
+    const signed = refreshBunnyUrl(source);
+    if (!VIDEO_FILE.test(plain(source)) && size !== undefined && size > MAX_PHOTO_BYTES) {
+      if (!keepHeavy) return [];
+      heavy[signed] = size;
+    }
+    return [signed];
+  });
+  return { urls, heavy };
+}
+
 router.get("/:id/sources", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
@@ -34,17 +78,19 @@ router.get("/:id/sources", requireFirebaseAuth, requireSupremeAdmin, async (req:
       db.collection("offer_media_assets").get(),
     ]);
 
-    const proposals = proposalsSnap
-      ? proposalsSnap.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            photoUrl: refreshBunnyUrl(String(data.photoUrl ?? "")),
-            albumSlug: String(data.albumSlug ?? ""),
-            fileName: String(data.fileName ?? ""),
-          };
-        })
-      : [];
+    // Accepted proposals point at the album original (2–4 MB): offer its optimized copy to
+    // pick instead, so new picks are light from the start.
+    const proposalDocs = proposalsSnap?.docs ?? [];
+    const { urls: proposalUrls } = await lightPhotoUrls(proposalDocs.map((doc) => String(doc.data().photoUrl ?? "")), true);
+    const proposals = proposalDocs.map((doc, i) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        photoUrl: proposalUrls[i] ?? refreshBunnyUrl(String(data.photoUrl ?? "")),
+        albumSlug: String(data.albumSlug ?? ""),
+        fileName: String(data.fileName ?? ""),
+      };
+    });
 
     const assets = assetsSnap.docs
       .map((doc) => {
@@ -75,14 +121,19 @@ router.get("/:id", async (req: Request, res: Response) => {
       return;
     }
     const data = doc.data();
+    const isAdmin = String(req.headers.cookie ?? "").includes("av_admin=1");
     const toUrls = (list: unknown) =>
-      Array.isArray(list)
-        ? (list as Array<{ url?: unknown }>).map((p) => refreshBunnyUrl(String(p.url ?? ""))).filter(Boolean)
-        : [];
+      lightPhotoUrls(
+        Array.isArray(list) ? (list as Array<{ url?: unknown }>).map((p) => String(p.url ?? "")).filter(Boolean) : [],
+        isAdmin,
+      );
+    const [photos, desktop, mobile] = await Promise.all([toUrls(data?.photos), toUrls(data?.desktop), toUrls(data?.mobile)]);
     res.json({
-      photos: toUrls(data?.photos),
-      desktop: toUrls(data?.desktop),
-      mobile: toUrls(data?.mobile),
+      photos: photos.urls,
+      desktop: desktop.urls,
+      mobile: mobile.urls,
+      // Admin only: photos over the limit, to flag on the page.
+      ...(isAdmin ? { heavy: { ...photos.heavy, ...desktop.heavy, ...mobile.heavy } } : {}),
     });
   } catch (error) {
     res.status(500).json({ error: String(error) });

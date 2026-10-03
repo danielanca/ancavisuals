@@ -138,6 +138,30 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
       return `📘 A descărcat ${ev.label || "ghidul PDF"}.`;
     case "event_type_selected":
       return `🎉 A ales tipul evenimentului: ${eventTypeLabel(ev.meta?.eventType) ?? "nespecificat"}.`;
+    case "configurator_cta_shown":
+      return `👀 A coborât, n-a ajuns la configurator și a urcat înapoi — i-am arătat butonul „Află prețul”.`;
+    case "configurator_cta_clicked":
+      return `🧮 A apăsat „Află prețul în 30 de secunde”.`;
+    case "configurator_viewed":
+      return `🧮 A ajuns la configuratorul de preț.`;
+    case "configurator_location_entered":
+      return `📍 Configurator: a introdus locația — ${ev.label || "—"}.`;
+    case "configurator_hours_selected":
+      return `⏱️ Configurator: a ales ${ev.label || "numărul de ore"}.`;
+    case "configurator_option_selected":
+      return `🧮 Configurator: a selectat ${ev.label || "o variantă"}.`;
+    case "gallery_seen_all":
+      return `🖼️ S-a uitat la toate pozele din galerie${ev.label ? ` (${ev.label})` : ""}.`;
+    case "video_played":
+      return `▶️ A dat play pe video${ev.label ? ` „${ev.label}”` : ""}.`;
+    case "configurator_service_selected":
+      return `🧮 Configurator: a ales ${ev.label || "un serviciu"}${ev.meta?.eventType ? ` (${ev.meta.eventType})` : ""}.`;
+    case "configurator_extra_toggled":
+      return `🧮 Configurator: ${ev.meta?.on === false ? "a scos" : "a adăugat"} ${ev.label || "un extra"}.`;
+    case "configurator_price_seen":
+      return `💶 A văzut estimarea de preț: ${ev.label || "—"}.`;
+    case "configurator_phone_started":
+      return `📱 A început să-și tasteze numărul de telefon în configurator${ev.meta?.total ? ` (estimare ${ev.meta.total} €)` : ""}.`;
     case "form_started": {
       const kind = ev.meta?.kind;
       if (kind === "delivery") return `Completează adresa de livrare…`;

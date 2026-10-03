@@ -3,9 +3,7 @@ import { Route, Navigate } from "react-router-dom";
 import loadable from "@loadable/component";
 import AncaLoader from "../components/UI/AncaLoader";
 import RequireAuth from "../features/admin/components/RequireAuth";
-import AdminLayout from "../features/admin/components/AdminLayout";
 import CheckAuth from "../features/admin/components/CheckAuth";
-import WeddingHubAuthWrapper from "../features/wedding-hub/WeddingHubAuthWrapper";
 
 const opts = { fallback: <AncaLoader /> };
 
@@ -42,7 +40,11 @@ const CollaboratorPage = loadable(() => import("../features/collaborator/Collabo
 const AccountsPage = loadable(() => import("../features/admin/components/AccountsPage"), opts);
 const InstagramProposalsAdminPage = loadable(() => import("../features/admin/components/InstagramProposalsAdminPage"), opts);
 const OferteAdminPage = loadable(() => import("../features/admin/components/OferteAdminPage"), opts);
+// The admin shell (sidebar, search) loads with the admin, not with every public page.
+const AdminLayout = loadable(() => import("../features/admin/components/AdminLayout"), opts);
 const WeddingHubAdminPage = loadable(() => import("../features/admin/components/WeddingHub/WeddingHubAdminPage"), opts);
+// Loaded with the page that needs it — its Firebase sign-in must not ship with every page.
+const WeddingHubAuthWrapper = loadable(() => import("../features/wedding-hub/WeddingHubAuthWrapper"), opts);
 const OfferTemplateAdminPage = loadable(() => import("../features/admin/components/OfferTemplateAdminPage"), opts);
 const OfferTemplateOrganizerPage = loadable(() => import("../features/admin/components/OfferTemplateOrganizerPage"), opts);
 const MediaAssetsAdminPage = loadable(() => import("../features/admin/components/MediaAssetsAdminPage"), opts);

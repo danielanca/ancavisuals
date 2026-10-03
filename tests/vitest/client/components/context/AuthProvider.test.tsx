@@ -15,14 +15,14 @@ const mockGetCookie = vi.fn();
 const mockIsBrowser = vi.fn();
 const mockSetJWT = vi.fn();
 
-vi.mock("src/client/firebase", () => ({
-  auth: { app: "mock-auth" },
-}));
-
-vi.mock("firebase/auth", () => ({
-  onIdTokenChanged: (...args: unknown[]) => mockOnIdTokenChanged(...args),
-  signInWithEmailAndPassword: (...args: unknown[]) => mockSignInWithEmailAndPassword(...args),
-  signOut: (...args: unknown[]) => mockSignOut(...args),
+// AuthProvider loads Firebase on demand through this module.
+vi.mock("src/client/features/admin/providers/loadFirebaseAuth", () => ({
+  loadFirebaseAuth: async () => ({
+    auth: { app: "mock-auth" },
+    onIdTokenChanged: (...args: unknown[]) => mockOnIdTokenChanged(...args),
+    signInWithEmailAndPassword: (...args: unknown[]) => mockSignInWithEmailAndPassword(...args),
+    signOut: (...args: unknown[]) => mockSignOut(...args),
+  }),
 }));
 
 vi.mock("src/client/utils/functions", () => ({
@@ -126,17 +126,18 @@ describe("AuthProvider", () => {
       screen.getByRole("button", { name: "sign in" }).click();
     });
 
-    expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith(
+    // Firebase is imported on demand, so the call lands a tick after the click.
+    await waitFor(() => expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith(
       { app: "mock-auth" },
       "admin@example.com",
       "secret",
-    );
+    ));
 
     await act(async () => {
       screen.getByRole("button", { name: "sign out" }).click();
     });
 
-    expect(mockSignOut).toHaveBeenCalledWith({ app: "mock-auth" });
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ app: "mock-auth" }));
     expect(mockSetJWT).toHaveBeenCalledWith("jwt", "", -1);
   });
 });

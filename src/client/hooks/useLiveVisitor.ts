@@ -208,6 +208,10 @@ export function useLiveVisitor() {
         name = "gallery_load_more";
       }
 
+      // A zone marked [data-live-clicks="off"] (the price configurator) reports its own
+      // readable steps; only its contact clicks (WhatsApp, phone) still go through here.
+      if (name === "element_clicked" && el.closest("[data-live-clicks=\"off\"]")) return;
+
       // collapse repeated identical clicks (double-tap, re-render) within 1.5s
       const key = `${name}|${label}|${href}`;
       const now = Date.now();

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
-import { buildSeoImageAlt, getCatalogImageAlt } from "../../utils/imageAlt";
+import { buildSeoImageAlt } from "../../utils/imageAltLabel";
+import { sendLiveEvent } from "../../utils/liveEvent";
+import { heavyPhotoNote } from "../../../shared/media/photoWeight";
 import "./PortfolioParallaxGallery.scss";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -14,6 +16,10 @@ type PortfolioParallaxGalleryProps = {
   // din Bibliotecă Media. Folosit de paginile de campanie, care au propria
   // lor galerie curatoriată per-campanie, distinctă de pool-ul global.
   images?: string[];
+  /** Render this many photos first and add as many more each time the visitor nears the end (default: all at once). */
+  batchSize?: number;
+  /** Admin-only notes shown over a photo (e.g. "too large"), keyed by its URL. */
+  warnings?: Record<string, string>;
 };
 
 const MAX_IMAGES = 60;
@@ -35,6 +41,8 @@ function getColumnCount(width: number) {
 export default function PortfolioParallaxGallery({
   altBase = "fotograf videograf eveniment Anca Visuals",
   images: imagesProp,
+  batchSize,
+  warnings: warningsProp,
 }: PortfolioParallaxGalleryProps) {
   const [zoneData, setZoneData] = useState<{ desktop: string[]; mobile: string[] }>({ desktop: [], mobile: [] });
   const [loading, setLoading] = useState(!imagesProp);
@@ -44,12 +52,29 @@ export default function PortfolioParallaxGallery({
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
   const containerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  // The alt-text catalog (127 KB) loads after the gallery; until then photos use the generated alt.
+  const [catalogAlt, setCatalogAlt] = useState<((src: string, fallback: string) => string) | null>(null);
+  useEffect(() => {
+    let active = true;
+    import("../../utils/imageAlt")
+      .then(({ getCatalogImageAlt }) => { if (active) setCatalogAlt(() => getCatalogImageAlt); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+  // Admin only, in fetch mode: photos over the weight limit sent by the zone, flagged.
+  const [zoneHeavy, setZoneHeavy] = useState<Record<string, number>>({});
+  const warnings = useMemo(() => {
+    const fromZone = Object.fromEntries(Object.entries(zoneHeavy).map(([url, bytes]) => [url, heavyPhotoNote(bytes)]));
+    return Object.keys(fromZone).length || warningsProp ? { ...fromZone, ...warningsProp } : undefined;
+  }, [zoneHeavy, warningsProp]);
 
   useEffect(() => {
     if (imagesProp) return;
     fetch("/api/showcase-zones/portfolio_gallery")
       .then((response) => response.json())
-      .then(async (data: { desktop?: string[]; mobile?: string[] }) => {
+      .then(async (data: { desktop?: string[]; mobile?: string[]; heavy?: Record<string, number> }) => {
+        if (data.heavy) setZoneHeavy(data.heavy);
         const desktop = data.desktop ?? [];
         const mobile = data.mobile ?? [];
         // Zona nu a fost curatoriata inca din admin pentru dispozitivul curent —
@@ -87,9 +112,59 @@ export default function PortfolioParallaxGallery({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Photos arrive in batches: only the first ones download with the page.
+  const [shown, setShown] = useState(batchSize ?? Number.POSITIVE_INFINITY);
+  const visible = useMemo(() => pool.slice(0, shown), [pool, shown]);
+  const allShown = visible.length >= pool.length;
+  const moreRef = useRef<HTMLDivElement>(null);
+  // The next batch waits until this one has loaded: unloaded photos have no height yet,
+  // so the end of the gallery would look "near" and every batch would load at once.
+  const [loadedCount, setLoadedCount] = useState(0);
+  useEffect(() => {
+    const more = moreRef.current;
+    if (!batchSize || allShown || loadedCount < visible.length || !more || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) setShown((n) => n + batchSize);
+    }, { rootMargin: "600px 0px" });
+    observer.observe(more);
+    return () => observer.disconnect();
+  }, [batchSize, allShown, visible.length, loadedCount]);
+
+  // /admin/live: the visitor scrolled to the end of the gallery (once per page view).
+  const imageCount = pool.length;
+  useEffect(() => {
+    const end = endRef.current;
+    if (!end || !imageCount || !allShown || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      observer.disconnect();
+      sendLiveEvent("gallery_seen_all", { label: `${imageCount} poze`, meta: { count: imageCount } });
+    });
+    observer.observe(end);
+    return () => observer.disconnect();
+  }, [imageCount, loading, allShown]);
+
+  // New photos make the columns taller: re-measure the parallax once they have loaded.
+  useEffect(() => {
+    if (!batchSize || !containerRef.current) return;
+    const count = visible.length;
+    const settled = () => { ScrollTrigger.refresh(); setLoadedCount(count); };
+    const pending = [...containerRef.current.querySelectorAll("img")].filter((img) => !img.complete);
+    if (!pending.length) { settled(); return; }
+    let remaining = pending.length;
+    const onDone = () => { remaining -= 1; if (remaining <= 0) settled(); };
+    pending.forEach((img) => {
+      img.addEventListener("load", onDone, { once: true });
+      img.addEventListener("error", onDone, { once: true });
+    });
+  }, [batchSize, visible.length]);
+
+  // Every photo gets its slot from the start; photos of later batches show as skeleton
+  // tiles until their batch comes, so the gallery doesn't grow (and the scrollbar
+  // doesn't jump) with every batch.
   const columns = useMemo(() => {
-    const groups: string[][] = Array.from({ length: columnCount }, () => []);
-    pool.forEach((src, index) => groups[index % columnCount].push(src));
+    const groups: { src: string; index: number }[][] = Array.from({ length: columnCount }, () => []);
+    pool.forEach((src, index) => groups[index % columnCount].push({ src, index }));
     return groups;
   }, [pool, columnCount]);
 
@@ -199,12 +274,20 @@ export default function PortfolioParallaxGallery({
             <div className="ppg-grid" style={{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }}>
               {columns.map((col, colIndex) => (
                 <div key={colIndex} className="ppg-col">
-                  {col.map((src, index) => (
-                    <div key={src} className="ppg-item">
+                  {col.map(({ src, index }) => index >= visible.length ? (
+                    // The first skeleton tile is the "load the next batch" trigger.
+                    <div key={src} ref={index === visible.length ? moreRef : undefined} className="ppg-item ppg-slot" aria-hidden="true" />
+                  ) : (
+                    <div key={src} className="ppg-item" style={warnings?.[src] ? { position: "relative", outline: "3px solid #dc2626" } : undefined}>
+                      {warnings?.[src] && (
+                        <span className="absolute left-2 right-2 top-2 z-10 rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold leading-snug text-white shadow-lg">
+                          {warnings[src]}
+                        </span>
+                      )}
                       <FadeInImage
                         src={src}
                         // Images are dealt round-robin into columns: this is the photo's index in the gallery.
-                        alt={getCatalogImageAlt(src, buildSeoImageAlt(altBase, index * columnCount + colIndex))}
+                        alt={catalogAlt ? catalogAlt(src, buildSeoImageAlt(altBase, index)) : buildSeoImageAlt(altBase, index)}
                       />
                     </div>
                   ))}
@@ -212,7 +295,7 @@ export default function PortfolioParallaxGallery({
               ))}
             </div>
           </div>
-          <div className="ppg-spacer" aria-hidden="true" />
+          <div ref={endRef} className="ppg-spacer" aria-hidden="true" />
         </>
       )}
     </section>

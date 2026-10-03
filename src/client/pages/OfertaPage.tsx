@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import { remoteAddress } from "../utils/address";
 import { useParams } from "react-router-dom";
-import CampaignLandingPage, { type CampaignPage } from "./CampaignLanding/CampaignLandingPage";
+import CampaignLandingPage, { isHeavyPhoto, type CampaignPage } from "./CampaignLanding/CampaignLandingPage";
+import type { OfferHeroVideo } from "../../shared/offers/offerServices";
 import type { OfferPackage } from "../../shared/offers/offerServices";
 import { measureOaiq } from "../utils/oaiq";
 import PhoneNumberReveal from "../components/PhoneReveal/PhoneNumberReveal";
 import { whenVisitorInteracts } from "../utils/visitorInteraction";
 import ReviewsGrid from "../components/Reviews/ReviewsGrid";
+import { useInitialData } from "../ssr/initialData";
 
 const INITIAL_PHOTO_COUNT = 12;
 
@@ -17,6 +19,8 @@ type OfferAsset = {
   label: string;
   displayUrl?: string;
   alt?: string;
+  /** Size of the shown file, from the server (unknown = undefined). */
+  sizeBytes?: number;
 };
 
 type OfferServiceSection = {
@@ -41,6 +45,7 @@ type Offer = {
   validUntil: string;
   selectedServices: string[];
   serviceSections: OfferServiceSection[];
+  heroVideo?: OfferHeroVideo;
 };
 
 function offerToCampaign(offer: Offer): CampaignPage {
@@ -54,9 +59,18 @@ function offerToCampaign(offer: Offer): CampaignPage {
     ctaText: "Scrie-ne pe WhatsApp",
     whatsappNumber: "+40745469907",
     phoneNumber: "+40745469907",
-    heroImageUrl: images[0]?.displayUrl ?? images[0]?.url ?? "",
-    heroVideoUrl: videos[0]?.displayUrl ?? videos[0]?.url ?? "",
-    gallery: images.map((asset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id })),
+    // The hero photo (also what stays while the hero clip downloads): the first light photo —
+    // never one over 1 MB, it is the first thing a phone downloads.
+    heroImageUrl: (() => {
+      const hero = images.find((asset) => !isHeavyPhoto(asset.sizeBytes)) ?? images[0];
+      return hero?.displayUrl ?? hero?.url ?? "";
+    })(),
+    // The film plays in "Vezi-ne la lucru" (on tap); the hero only ever gets the short clip.
+    heroVideoUrl: "",
+    videoUrl: offer.heroVideo?.filmUrl || videos[0]?.displayUrl || videos[0]?.url || "",
+    heroClipUrl: offer.heroVideo?.clipUrl,
+    heroClipHdUrl: offer.heroVideo?.clipHdUrl,
+    gallery: images.map((asset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id, sizeBytes: asset.sizeBytes })),
     packages: (offer.packages ?? []).map((pkg) => ({
       id: pkg.id,
       name: pkg.name,
@@ -130,9 +144,15 @@ function packageIncludeItems(pkg: OfferPackage): string[] {
 
 export default function OfertaPage() {
   const { slug = "" } = useParams<{ slug?: string }>();
-  const [offer, setOffer] = useState<Offer | null>(null);
-  const [campaign, setCampaign] = useState<CampaignPage | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Data the server already loaded for this slug: the page renders at once, no request.
+  const initialData = useInitialData();
+  const initial = initialData && initialData.slug === slug ? initialData : null;
+  const [offer, setOffer] = useState<Offer | null>(() =>
+    initial?.offer && slug !== "olx" ? initial.offer as unknown as Offer : null);
+  const [campaign, setCampaign] = useState<CampaignPage | null>(() =>
+    initial?.campaign ? initial.campaign as unknown as CampaignPage
+      : initial?.offer && slug === "olx" ? offerToCampaign(initial.offer as unknown as Offer) : null);
+  const [loading, setLoading] = useState(!initial);
   const [notFound, setNotFound] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [expandedPhotoServices, setExpandedPhotoServices] = useState<Set<string>>(() => new Set());
@@ -160,6 +180,7 @@ export default function OfertaPage() {
       setLoading(false);
       return;
     }
+    if (initial) return;
 
     fetch(`/api/campaign/public/${slug}`)
       .then(async (campaignResponse) => {
@@ -178,7 +199,7 @@ export default function OfertaPage() {
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug, initial]);
 
   // Track view once per browser session — offer
   useEffect(() => {

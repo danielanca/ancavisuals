@@ -58,7 +58,9 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
           <span className="relative flex h-20 w-20 items-center justify-center sm:h-24 sm:w-24">
             <span className="cvp-ping absolute inset-0 rounded-full bg-[#c9a96e]" />
             <span className="relative flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-[#e8c97a] to-[#a8823f] shadow-2xl shadow-black/50 ring-1 ring-white/30 transition-transform duration-300 group-hover:scale-110 group-active:scale-95">
-              <svg viewBox="0 0 24 24" className="ml-1 h-8 w-8 fill-neutral-950 sm:h-10 sm:w-10" aria-hidden="true">
+              {/* The triangle spans x 8–20.5: the viewBox shifts it back to centre, keeping
+                  ~1 unit to the right so it looks centred (a triangle's weight sits left). */}
+              <svg viewBox="1.25 0 24 24" className="h-8 w-8 fill-neutral-950 sm:h-10 sm:w-10" aria-hidden="true">
                 <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11.04-6.86a1 1 0 0 0 0-1.72L9.5 4.28A1 1 0 0 0 8 5.14z" />
               </svg>
             </span>
