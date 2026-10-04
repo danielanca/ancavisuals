@@ -184,6 +184,11 @@ router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
     const previous = doc.data() ?? {};
     const now = Timestamp.now();
     const update: Record<string, unknown> = { ...result.patch, updatedAt: now };
+    if (["status", "plannedFor", "scheduledStart", "durationMin"].some(key => key in result.patch)) {
+      update.timelineActionTokenHash = null;
+      update.timelineActionExpiresAt = null;
+      update.timelineReminderSnoozedUntil = null;
+    }
     // completedAt drives the progress stats: set it on the transition to done, clear it on reopen.
     if (result.patch.status === "done" && previous.status !== "done") update.completedAt = now;
     if (result.patch.status && result.patch.status !== "done") update.completedAt = null;

@@ -49,6 +49,7 @@ import referralRouter from "./src/server/routes/referral.routes";
 import contactsRouter from "./src/server/routes/contacts.routes";
 import equipmentRouter from "./src/server/routes/equipment.routes";
 import tasksRouter from "./src/server/routes/tasks.routes";
+import taskEmailActionsRouter from "./src/server/routes/taskEmailActions.routes";
 import accountsRouter from "./src/server/routes/accounts.routes";
 import weddingHubRouter from "./src/server/routes/weddingHub.routes";
 import weddingHubMockRouter from "./src/server/routes/weddingHubMock.routes";
@@ -66,6 +67,7 @@ import searchConsoleRouter from "./src/server/routes/searchConsole.routes";
 import photoCollectionsRouter from "./src/server/routes/photoCollections.routes";
 import photoboothRouter from "./src/server/routes/photobooth.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
+import { startClientTasksCron } from "./src/server/cron/clientTasks.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
@@ -234,12 +236,14 @@ async function createServer() {
   app.use("/api/admin/contacts", contactsRouter);
   app.use("/api/admin/equipment", equipmentRouter);
   app.use("/api/admin/tasks", tasksRouter);
+  app.use("/api/task-email-actions", taskEmailActionsRouter);
 
   if (showProgress) devLogger.step("Rute API", "29 rute înregistrate");
 
   startServerMonitor();
   generateSitemapFromDb().catch(error => console.error("[sitemap] Startup generation failed:", error));
   startMementosCron();
+  startClientTasksCron();
   startAnalyticsCron();
   startAlbumRetentionCron();
   startPostEventBackupCron();
