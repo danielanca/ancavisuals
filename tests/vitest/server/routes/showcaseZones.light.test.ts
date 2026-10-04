@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- reaches into Express router internals and mock req/res */
 /*
  * Purpose: public showcase zones never send full-resolution album originals (they get the
- * album's optimized preview) nor photos over 250 KB — the admin gets those, flagged; videos stay.
+ * album's optimized preview) nor photos over 350 KB — the admin gets those, flagged; videos stay.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -12,14 +12,18 @@ const SIZES: Record<string, number> = {
   [`${CDN}/album/photos/B.jpg`]: 3_000_000, // no preview
   [`${CDN}/offers-assets/photo/big.jpg`]: 2_500_000,
   [`${CDN}/offers-assets/photo/small.jpg`]: 200_000,
-  [`${CDN}/offers-assets/photo/medium.jpg`]: 300_000, // over 250 KB
+  [`${CDN}/offers-assets/photo/medium.jpg`]: 400_000, // over 350 KB
 };
 
-async function load(urls: string[]) {
+// HEADs that finished without a size: B has no preview.
+const MISSING = new Set([`${CDN}/album/photos_preview/B.webp`]);
+
+async function load(urls: string[], sizes: Record<string, number> = SIZES) {
   vi.stubEnv("BUNNY_CDN_DOMAIN", CDN);
   vi.doMock("src/server/utils/signBunnyUrl", () => ({ signBunnyUrl: (path: string) => `${CDN}${path}?token=t` }));
   vi.doMock("src/server/utils/remoteFileSize", () => ({
-    remoteFileSizes: async (list: string[]) => new Map(list.map((url) => [url, SIZES[url]])),
+    remoteFileSizes: async (list: string[]) => new Map(list.map((url) => [url, sizes[url]])),
+    isKnownMissing: (url: string) => MISSING.has(url),
   }));
   vi.doMock("src/server/middleware/requireFirebaseAuth", () => ({ requireFirebaseAuth: vi.fn(), requireSupremeAdmin: vi.fn() }));
   const get = vi.fn().mockResolvedValue({ exists: true, data: () => ({ photos: urls.map((url) => ({ url })) }) });
@@ -48,7 +52,7 @@ const stored = [
 describe("showcase zones: light photos", () => {
   beforeEach(() => { vi.resetModules(); });
 
-  test("visitors get previews instead of originals and nothing over 250 KB; videos stay", async () => {
+  test("visitors get previews instead of originals and nothing over 350 KB; videos stay", async () => {
     const { photos, heavy } = await call(await load(stored));
     expect(heavy).toBeUndefined();
     expect(photos).toEqual([
@@ -65,7 +69,12 @@ describe("showcase zones: light photos", () => {
     expect(heavy).toEqual({
       [`${CDN}/album/photos/B.jpg?token=t`]: 3_000_000,
       [`${CDN}/offers-assets/photo/big.jpg?token=t`]: 2_500_000,
-      [`${CDN}/offers-assets/photo/medium.jpg?token=t`]: 300_000,
+      [`${CDN}/offers-assets/photo/medium.jpg?token=t`]: 400_000,
     });
+  });
+
+  test("cold cache (sizes still loading): the album preview is sent, never the original", async () => {
+    const { photos } = await call(await load([`${CDN}/27iunie2026/photos/Picture-0566.jpg?token=x`], {}));
+    expect(photos).toEqual([`${CDN}/27iunie2026/photos_preview/Picture-0566.webp?token=t`]);
   });
 });

@@ -3,7 +3,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
-import { remoteFileSizes } from "../utils/remoteFileSize";
+import { isKnownMissing, remoteFileSizes } from "../utils/remoteFileSize";
 import { MAX_PHOTO_BYTES } from "../../shared/media/photoWeight";
 
 const router = express.Router();
@@ -52,7 +52,10 @@ async function lightPhotoUrls(storedUrls: string[], keepHeavy: boolean): Promise
   const heavy: Record<string, number> = {};
   const urls = storedUrls.flatMap((url, i) => {
     const preview = previews[i];
-    const source = preview && sizes.get(preview) ? preview : url;
+    // The album preview wins unless it is known to be missing: a size still loading (cold
+    // cache) must not fall back to the multi-MB original — its size is unknown too, so the
+    // weight filter would let it through.
+    const source = preview && !isKnownMissing(preview) ? preview : url;
     const size = sizes.get(plain(source));
     const signed = refreshBunnyUrl(source);
     if (!VIDEO_FILE.test(plain(source)) && size !== undefined && size > MAX_PHOTO_BYTES) {

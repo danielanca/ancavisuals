@@ -51,3 +51,9 @@ export async function remoteFileSizes(urls: string[], waitMs = 1500): Promise<Ma
   await Promise.race([job, new Promise((resolve) => setTimeout(resolve, waitMs))]);
   return new Map(urls.map((url) => [url, fresh(url)?.bytes]));
 }
+
+/** True only once a HEAD for this URL finished without a size (missing / unreadable file). */
+export function isKnownMissing(url: string): boolean {
+  const hit = fresh(url);
+  return Boolean(hit) && hit!.bytes === undefined;
+}

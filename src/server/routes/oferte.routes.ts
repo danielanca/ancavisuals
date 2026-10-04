@@ -25,6 +25,7 @@ import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { loadAlbum } from "../services/album.service";
 import { generateRomanianAlt } from "../lib/imageAlt";
 import { remoteFileSizes } from "../utils/remoteFileSize";
+import { shrinkPhoto, webpName } from "../utils/shrinkPhoto";
 
 const router = Router();
 const mediaAssetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
@@ -514,9 +515,12 @@ router.post(
 
     try {
       const uploaded = await Promise.all(files.map(async file => {
-        const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.originalname.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+        // Camera originals (2–4 MB) are stored as a light WebP — never too heavy for the site.
+        const photo = await shrinkPhoto(file.buffer, file.mimetype || "application/octet-stream");
+        const name = file.originalname.replace(/[^a-zA-Z0-9.]/g, "_");
+        const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${photo.shrunk ? webpName(name) : name}`;
         const bunnyPath = `offers-assets/${serviceId}/${safeFileName}`;
-        await uploadToBunny(file.buffer, bunnyPath, file.mimetype || "application/octet-stream");
+        await uploadToBunny(photo.buffer, bunnyPath, photo.contentType);
         const asset: Omit<OfferMediaAsset, "id"> = {
           serviceId,
           kind: detectAssetKind(file),
@@ -553,12 +557,15 @@ router.post("/admin/media-assets/import-from-url", requireFirebaseAuth, requireS
     const imported = await Promise.all(items.map(async ({ url, fileName }) => {
       // Imaginile alese dintr-un album sunt deja `photos_preview` (WebP). Le
       // descărcăm direct, fără utilitarul care le convertește intenționat la original.
-      const { buffer, contentType } = sourceAlbumSlug && isPreviewUrl(url)
+      const downloaded = sourceAlbumSlug && isPreviewUrl(url)
         ? await downloadRemoteAsset(url)
         : await downloadOriginal(url);
-      const kind: OfferAssetKind = contentType.startsWith("video/") ? "video" : "image";
+      const kind: OfferAssetKind = downloaded.contentType.startsWith("video/") ? "video" : "image";
+      // An original (Instagram proposal, link, album without preview) is stored as a light WebP.
+      const { buffer, contentType, shrunk } = await shrinkPhoto(downloaded.buffer, downloaded.contentType);
 
-      const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+      const name = fileName.replace(/[^a-zA-Z0-9.]/g, "_");
+      const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${shrunk ? webpName(name) : name}`;
       const bunnyPath = `offers-assets/${serviceId}/${safeFileName}`;
       await uploadToBunny(buffer, bunnyPath, contentType);
 
