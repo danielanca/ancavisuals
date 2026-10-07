@@ -14,7 +14,7 @@ test("uses existing Claude integration and strictly limits rewriting to client's
   answer({ variants });
   expect(await generateFeedbackVariants("Poze bune, livrare lentă")).toEqual(variants);
   const request = state.create.mock.calls[0][0];
-  expect(request.model).toBe("claude-sonnet-4-6");
+  expect(request.model).toBe("claude-haiku-4-5-20251001");
   expect(JSON.parse(request.messages[0].content)).toEqual({ ideileClientului: "Poze bune, livrare lentă" });
   expect(request.system).toContain("exact 7");
   expect(request.system).toContain("Păstrează criticile");

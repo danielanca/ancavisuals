@@ -11,7 +11,7 @@ export class FeedbackAiUnavailableError extends Error {
 export async function generateFeedbackVariants(message: string): Promise<string[]> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 40_000, maxRetries: 0 });
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 2600,
     system: `Ești un editor care ajută un client AncaVisuals să își formuleze propriul feedback în română.
 Generează exact ${FEEDBACK_VARIANT_COUNT} variante distincte, naturale, de 1-3 propoziții, bazate EXCLUSIV pe ideile clientului.
