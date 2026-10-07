@@ -5,6 +5,7 @@ import Redacted from "./Redacted";
 
 interface Lead {
   id: string;
+  archived?: boolean;
   source: string;
   name?: string;
   phone?: string;
@@ -41,12 +42,28 @@ export default function LeadsWidget() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [emailErrors, setEmailErrors] = useState(0);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+
+  async function archive(lead: Lead) {
+    if (busyId) return;
+    setBusyId(lead.id); setActionError("");
+    try {
+      const res = await fetch(`/api/admin/leads/${encodeURIComponent(lead.id)}/archive`, {
+        method: "PATCH", headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: true }),
+      });
+      if (!res.ok) throw new Error("Nu s-a putut arhiva lead-ul.");
+      setLeads(prev => prev?.filter(item => item.id !== lead.id) ?? []);
+    } catch (error) { setActionError(error instanceof Error ? error.message : "Nu s-a putut arhiva lead-ul."); }
+    finally { setBusyId(null); }
+  }
 
   useEffect(() => {
     if (!auth.accessToken) return;
     fetch("/api/admin/leads", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
       .then((r) => r.json())
-      .then((d) => setLeads(d.leads ?? []))
+      .then((d) => setLeads((d.leads ?? []).filter((lead: Lead) => !lead.archived)))
       .catch(() => setFailed(true));
     // Funnel errors: an email that failed, or a lead/contact blocked by a filter.
     fetch("/api/admin/email-log", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
@@ -92,6 +109,7 @@ export default function LeadsWidget() {
         </button>
       </div>
 
+      {actionError && <p role="alert" className="px-5 py-2 text-red-400 text-xs">{actionError}</p>}
       {leads.length === 0 ? (
         <p className="px-5 py-6 text-neutral-500 text-sm">Niciun lead încă. Cererile noi apar aici imediat ce sunt trimise.</p>
       ) : (
@@ -116,6 +134,10 @@ export default function LeadsWidget() {
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-neutral-400 text-xs">{timeAgo(lead.createdAt)}</p>
+                <button onClick={() => void archive(lead)} disabled={busyId !== null}
+                  className="mt-2 text-xs text-amber-200 hover:text-amber-100 disabled:opacity-50">
+                  {busyId === lead.id ? "Se arhivează…" : "Arhivează"}
+                </button>
                 {lead.emailStatus !== "sent" && lead.emailStatus !== "pending" && (
                   <p className="text-amber-300 text-[11px] mt-1" title={lead.emailReason ?? undefined}>
                     {lead.emailStatus === "failed" ? "email eșuat" : "email netrimis"}

@@ -38,6 +38,7 @@ const ErrorsPage = loadable(() => import("../features/admin/components/ErrorsPag
 const FinancialPage = loadable(() => import("../features/admin/components/Financial/FinancialPage"), opts);
 const BankStatementsPage = loadable(() => import("../features/admin/components/Financial/BankStatementsPage"), opts);
 const ReviewsAdminPage = loadable(() => import("../features/admin/components/ReviewsAdminPage"), opts);
+const FeedbackAdminPage = loadable(() => import("../features/feedback/FeedbackAdminPage"), opts);
 const CollaboratorPage = loadable(() => import("../features/collaborator/CollaboratorPage"), opts);
 const AccountsPage = loadable(() => import("../features/admin/components/AccountsPage"), opts);
 const PhotoConsensusAdminPage = loadable(() => import("../features/admin/components/PhotoConsensusAdminPage"), opts);
@@ -109,6 +110,7 @@ export const adminRoutes = [
       <Route path="/admin/financial" element={<FinancialPage />} />
       <Route path="/admin/bank-statements" element={<BankStatementsPage />} />
       <Route path="/admin/recenzii" element={<ReviewsAdminPage />} />
+      <Route path="/admin/feedback" element={<FeedbackAdminPage />} />
       <Route path="/colaborator" element={<CollaboratorPage />} />
       <Route path="/admin/accounts" element={<AccountsPage />} />
       <Route path="/admin/instagram-proposals/selectie-comuna" element={<PhotoConsensusAdminPage />} />

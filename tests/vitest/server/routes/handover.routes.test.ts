@@ -33,6 +33,8 @@ async function loadHandoverRouter() {
   const updateMock = vi.fn().mockResolvedValue(undefined);
   const deleteMock = vi.fn().mockResolvedValue(undefined);
   const docGetMock = vi.fn().mockResolvedValue({ exists: false });
+  const transactionGet = vi.fn();
+  const transactionUpdate = vi.fn();
   const generateHandoverPDFMock = vi.fn().mockResolvedValue(Buffer.from("pdf"));
   const sendHandoverLinkEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendSignedHandoverEmailMock = vi.fn().mockResolvedValue(undefined);
@@ -63,6 +65,7 @@ async function loadHandoverRouter() {
   vi.doMock("src/server/firestore", () => ({
     firestore: () => ({
       collection: collectionMock,
+      runTransaction: async (callback: any) => callback({ get: transactionGet, update: transactionUpdate }),
     }),
   }));
 
@@ -119,6 +122,10 @@ async function loadHandoverRouter() {
     postPublicSign: getHandler("post", "/sign/:token"),
     postSend: getHandler("post", "/:id/send"),
     deleteOne: getHandler("delete", "/:id"),
+    associateEvent: getHandler("post", "/:id/event"),
+    associationStack: router.stack.find((entry: any) => entry.route?.path === "/:id/event").route.stack,
+    transactionGet,
+    transactionUpdate,
   };
 }
 
@@ -127,6 +134,43 @@ describe("handover.routes", () => {
     vi.resetModules();
     vi.restoreAllMocks();
     delete process.env.APP_BASE_URL;
+  });
+
+  describe("event association", () => {
+    test("links a signed protocol and its event atomically without changing signed contents", async () => {
+      const { associateEvent, transactionGet, transactionUpdate, associationStack } = await loadHandoverRouter();
+      expect(associationStack).toHaveLength(3);
+      transactionGet.mockResolvedValueOnce({ exists: true, data: () => ({ status: "signed", clientName: "Client" }) })
+        .mockResolvedValueOnce({ exists: true, data: () => ({}) });
+      const res = createMockResponse();
+      await associateEvent({ params: { id: "pv-1" }, body: { eventId: "event-1" } }, res);
+      expect(transactionUpdate.mock.calls.map(call => call[1])).toEqual([{ eventId: "event-1" }, { handoverId: "pv-1" }]);
+      expect(res.json).toHaveBeenCalledWith({ ok: true, eventId: "event-1" });
+    });
+    test("rejects conflicting associations without writing", async () => {
+      const { associateEvent, transactionGet, transactionUpdate } = await loadHandoverRouter();
+      transactionGet.mockResolvedValueOnce({ exists: true, data: () => ({}) })
+        .mockResolvedValueOnce({ exists: true, data: () => ({ handoverId: "another-pv" }) });
+      const res = createMockResponse();
+      await associateEvent({ params: { id: "pv-1" }, body: { eventId: "event-1" } }, res);
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(transactionUpdate).not.toHaveBeenCalled();
+    });
+    test("returns 404 for a deleted event without writing", async () => {
+      const { associateEvent, transactionGet, transactionUpdate } = await loadHandoverRouter();
+      transactionGet.mockResolvedValueOnce({ exists: true, data: () => ({}) }).mockResolvedValueOnce({ exists: false });
+      const res = createMockResponse();
+      await associateEvent({ params: { id: "pv-1" }, body: { eventId: "missing" } }, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(transactionUpdate).not.toHaveBeenCalled();
+    });
+    test("rejects invalid event ids", async () => {
+      const { associateEvent, transactionGet } = await loadHandoverRouter();
+      const res = createMockResponse();
+      await associateEvent({ params: { id: "pv-1" }, body: { eventId: "a/b" } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(transactionGet).not.toHaveBeenCalled();
+    });
   });
 
   describe("happy path", () => {

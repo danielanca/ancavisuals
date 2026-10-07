@@ -316,6 +316,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Pagini SEO", path: "/admin/seo-pages" },
         { label: "Blog", path: "/admin/blog" },
         { label: "Recenzii", path: "/admin/recenzii" },
+        { label: "Feedback clienți", path: "/admin/feedback" },
         { label: "Inspirație", path: "/admin/inspiration" },
         { label: "Bibliotecă Media", path: "/admin/showcase" },
         { label: "PDF-uri & Ghiduri", path: "/admin/pdf-resources" },

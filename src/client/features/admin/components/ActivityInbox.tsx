@@ -13,7 +13,7 @@ interface Activity {
   metadata: Record<string, string>;
   read: boolean;
   emailSent: boolean;
-  createdAt?: { seconds: number };
+  createdAt?: { seconds?: number; _seconds?: number };
 }
 
 interface NotificationSettings {
@@ -63,7 +63,7 @@ const SETTING_DISPLAY: Record<keyof NotificationSettings["email"], string> = {
 };
 
 function timeAgo(seconds?: number): string {
-  if (!seconds) return "";
+  if (seconds === undefined || !Number.isFinite(seconds)) return "";
   const diff = Math.floor(Date.now() / 1000) - seconds;
   if (diff < 60) return "acum";
   if (diff < 3600) return `${Math.floor(diff / 60)}m`;
@@ -72,16 +72,12 @@ function timeAgo(seconds?: number): string {
 }
 
 function formatTime(seconds?: number): string {
-  if (!seconds) return "";
+  if (seconds === undefined || !Number.isFinite(seconds)) return "—";
   const date = new Date(seconds * 1000);
-  const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  if (isToday) return `${hh}:${mm}`;
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${day}/${month} ${hh}:${mm}`;
+  return date.toLocaleString("ro-RO", {
+    timeZone: "Europe/Bucharest", day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
 }
 
 export default function ActivityInbox() {
@@ -348,8 +344,8 @@ export default function ActivityInbox() {
 
               {/* Right side */}
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: "#ccc", fontVariantNumeric: "tabular-nums" }}>{formatTime(activity.createdAt?.seconds)}</span>
-                <span style={{ fontSize: 10, color: "#444" }}>{timeAgo(activity.createdAt?.seconds)}</span>
+                <span style={{ fontSize: 11, color: "#ccc", fontVariantNumeric: "tabular-nums" }}>{formatTime(activity.createdAt?.seconds ?? activity.createdAt?._seconds)}</span>
+                <span style={{ fontSize: 10, color: "#444" }}>{timeAgo(activity.createdAt?.seconds ?? activity.createdAt?._seconds)}</span>
                 {activity.emailSent && (
                   <span style={{ fontSize: 9, color: "#374151", background: "#1f2937", borderRadius: 4, padding: "1px 5px" }}>email</span>
                 )}

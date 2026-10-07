@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { ClientEvent, EventDelivery, EventExpense, EventStatus } from "../types";
 import Redacted from "./Redacted";
 import CreateClientBriefLink from "../../client-brief/CreateClientBriefLink";
+import FeedbackLink from "../../feedback/FeedbackLink";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
@@ -98,6 +99,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
 
   const eventDate = fallbackDate;
   const effectiveEventDate = event.eventEndDate ? new Date(event.eventEndDate) : eventDate;
+  const briefCutoff = new Date();
+  briefCutoff.setHours(0, 0, 0, 0);
+  briefCutoff.setDate(briefCutoff.getDate() - 3);
+  const showClientBrief = !effectiveEventDate || effectiveEventDate >= briefCutoff;
   const isPast = effectiveEventDate
     ? new Date(new Date(effectiveEventDate).setHours(23, 59, 59, 999)) < new Date()
     : false;
@@ -770,7 +775,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         {/* Body */}
         {!collapsed && (
           <div className="px-4 pb-4 border-t border-neutral-800 pt-3 space-y-3">
-            <CreateClientBriefLink eventId={event.id} />
+            {showClientBrief && <CreateClientBriefLink eventId={event.id} />}
 
             {/* Info row */}
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-neutral-400">
@@ -1049,6 +1054,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 {albumSlug ? (
                   <div className="space-y-2">
                     <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Album media</p>
+                    <FeedbackLink key={albumSlug} albumSlug={albumSlug} />
                     <div className="flex flex-wrap items-center gap-2">
                       <a
                         href={`/media/${albumSlug}`}

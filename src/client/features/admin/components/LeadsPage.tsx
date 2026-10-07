@@ -7,6 +7,7 @@ type EmailStatus = "pending" | "sent" | "failed" | "skipped";
 
 interface Lead {
   id: string;
+  archived?: boolean;
   source: string;
   name?: string;
   phone?: string;
@@ -73,7 +74,7 @@ function StatusBadge({ status, reason, severity }: { status: EmailStatus; reason
 
 export default function LeadsPage() {
   const { auth } = useAuth();
-  const [tab, setTab] = useState<"leads" | "emails">("leads");
+  const [tab, setTab] = useState<"leads" | "archived" | "emails">("leads");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [emails, setEmails] = useState<EmailLogRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +82,7 @@ export default function LeadsPage() {
   const [openEmail, setOpenEmail] = useState<EmailLogRow | null>(null);
   const [onlyErrors, setOnlyErrors] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!auth.accessToken) return;
@@ -110,6 +112,8 @@ export default function LeadsPage() {
   };
 
   const deleteLead = async (lead: Lead) => {
+    if (busyId) return;
+    setBusyId(lead.id);
     setLeadToDelete(null);
     try {
       const res = await fetch(`/api/admin/leads/${lead.id}`, {
@@ -121,8 +125,27 @@ export default function LeadsPage() {
       setLeads((prev) => prev.filter((l) => l.id !== lead.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Nu s-a putut șterge lead-ul.");
-    }
+    } finally { setBusyId(null); }
   };
+
+  const archiveLead = async (lead: Lead, archived: boolean) => {
+    if (busyId) return;
+    setBusyId(lead.id); setError(null);
+    try {
+      const res = await fetch(`/api/admin/leads/${encodeURIComponent(lead.id)}/archive`, {
+        method: "PATCH", headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ archived }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Nu s-a putut actualiza arhivarea lead-ului.");
+      setLeads(prev => prev.map(item => item.id === lead.id ? { ...item, archived } : item));
+    } catch (error) { setError(error instanceof Error ? error.message : "Nu s-a putut actualiza arhivarea lead-ului."); }
+    finally { setBusyId(null); }
+  };
+
+  const activeLeads = leads.filter(lead => !lead.archived);
+  const archivedLeads = leads.filter(lead => lead.archived);
+  const visibleLeads = tab === "archived" ? archivedLeads : activeLeads;
 
   const errorCount = emails.filter(isEmailError).length;
   const visibleEmails = onlyErrors ? emails.filter(isEmailError) : emails;
@@ -147,8 +170,8 @@ export default function LeadsPage() {
           </button>
         </div>
 
-        <div className="flex gap-2">
-          {([["leads", `Lead-uri (${leads.length})`], ["emails", `Jurnal emailuri (${emails.length})${errorCount ? ` · ${errorCount} erori` : ""}`]] as const).map(([key, label]) => (
+        <div className="flex gap-2 flex-wrap">
+          {([["leads", `Lead-uri (${activeLeads.length})`], ["archived", `Arhivate (${archivedLeads.length})`], ["emails", `Jurnal emailuri (${emails.length})${errorCount ? ` · ${errorCount} erori` : ""}`]] as const).map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -162,12 +185,12 @@ export default function LeadsPage() {
         {error && <p className="text-red-400 text-sm">{error}</p>}
         {loading && <p className="text-neutral-500 text-sm">Se încarcă…</p>}
 
-        {!loading && tab === "leads" && (
-          leads.length === 0 ? (
-            <p className="text-neutral-500 text-sm text-center py-16">Niciun lead salvat încă.</p>
+        {!loading && tab !== "emails" && (
+          visibleLeads.length === 0 ? (
+            <p className="text-neutral-500 text-sm text-center py-16">{tab === "archived" ? "Niciun lead arhivat." : "Niciun lead activ."}</p>
           ) : (
             <div className="space-y-2">
-              {leads.map((lead) => (
+              {visibleLeads.map((lead) => (
                 <div key={lead.id} className="p-4 rounded-xl bg-neutral-900 border border-neutral-800">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0">
@@ -184,7 +207,12 @@ export default function LeadsPage() {
                     <div className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <p className="text-neutral-400 text-xs">{formatTime(lead.createdAt)}</p>
-                        <button
+                        <button disabled={busyId !== null} onClick={() => void archiveLead(lead, !lead.archived)}
+                          className="text-xs text-amber-200 hover:text-amber-100 disabled:opacity-50">
+                          {lead.archived ? "Restaurează" : "Arhivează"}
+                        </button>
+                        {lead.archived && <button
+                          disabled={busyId !== null}
                           onClick={() => setLeadToDelete(lead)}
                           className="text-neutral-600 hover:text-red-400 transition-colors"
                           title="Șterge lead-ul"
@@ -193,7 +221,7 @@ export default function LeadsPage() {
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
                           </svg>
-                        </button>
+                        </button>}
                       </div>
                       <div className="mt-1"><StatusBadge status={lead.emailStatus} reason={lead.emailReason} /></div>
                     </div>

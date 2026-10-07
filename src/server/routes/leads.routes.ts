@@ -1,6 +1,6 @@
 import express, { type Request, type Response } from "express";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth.js";
-import { deleteLead, getLeads } from "../services/leads.service.js";
+import { archiveLead, deleteLead, getLeads } from "../services/leads.service.js";
 import { getEmailLog, getEmailLogEntry } from "../services/emailLog.service.js";
 
 const router = express.Router();
@@ -12,6 +12,17 @@ router.get("/leads", requireFirebaseAuth, requireSupremeAdmin, async (_req: Requ
   } catch (error) {
     console.error("[leads] GET /leads failed:", error);
     res.status(500).json({ error: "Nu s-au putut încărca lead-urile." });
+  }
+});
+
+router.patch("/leads/:id/archive", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  if (typeof req.body?.archived !== "boolean") return res.status(400).json({ error: "Starea arhivării este invalidă." });
+  try {
+    if (!await archiveLead(req.params.id, req.body.archived)) return res.status(404).json({ error: "Lead-ul nu a fost găsit." });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[leads] archive failed:", error);
+    res.status(500).json({ error: "Nu s-a putut actualiza arhivarea lead-ului." });
   }
 });
 

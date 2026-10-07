@@ -81,6 +81,7 @@ import { startPhotoboothNotifyCron } from "./src/server/cron/photoboothNotify.cr
 import { startSeoRadarWeeklyScanCron } from "./src/server/cron/seoRadarWeeklyScan.cron";
 import adminAiAssistantRouter from "./src/server/routes/adminAiAssistant.routes";
 import reviewsRouter from "./src/server/routes/reviews.routes";
+import feedbackRouter from "./src/server/routes/feedback.routes";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
 import healthRouter from "./src/server/routes/health.routes";
@@ -154,7 +155,7 @@ async function createServer() {
   app.use(express.urlencoded({ extended: true, limit: BODY_PAYLOAD_LIMIT }));
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
-  app.use(["/brief-client", "/azi"], (_req, res, next) => {
+  app.use(["/brief-client", "/azi", /^\/media\/[^/]+\/feedback\/?$/], (_req, res, next) => {
     res.set("X-Robots-Tag", "noindex, nofollow, noarchive");
     res.set("Cache-Control", "no-store");
     res.set("Referrer-Policy", "no-referrer");
@@ -222,6 +223,7 @@ async function createServer() {
   app.use("/api/admin/bank-statements", bankStatementsRouter);
   app.use("/api/admin/ai-assistant", adminAiAssistantRouter);
   app.use("/api/reviews", reviewsRouter);
+  app.use("/api/feedback", feedbackRouter);
   app.use("/api/admin/company-documents", companyDocumentsRouter);
   app.use("/api/pdf-resources", pdfResourcesRouter);
   app.use("/api/admin/contract-clause-templates", contractClauseTemplatesRouter);

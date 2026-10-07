@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState, useCallback, type PointerEvent as ReactPointerEvent } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { feedbackPath } from "../../../shared/feedback/feedback";
 import useAuth from "../../features/admin/auth/useAuth";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import ProposalLinksPanel from "./ProposalLinksPanel";
@@ -2088,6 +2089,11 @@ export default function MediaAlbumPage() {
       </div>
     </div>
 
+    {slug && <section className="bg-neutral-950 px-6 py-10 text-center text-white">
+      <h2 className="text-xl font-light">Cum a fost experiența cu noi?</h2>
+      <p className="mt-3 text-sm text-neutral-400">Ne-ar bucura să ne lași câteva cuvinte.</p>
+      <Link to={feedbackPath(slug)} className="inline-block mt-5 rounded-xl border border-amber-200/50 px-6 py-3 text-amber-200 hover:bg-amber-200/10">Lasă-ne feedback</Link>
+    </section>}
     <AncaVisualsPromo />
 
 

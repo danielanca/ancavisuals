@@ -8,6 +8,7 @@ import EditHandoverModal from "./EditHandoverModal";
 
 interface HandoverItem {
   id: string;
+  eventId?: string | null;
   token: string;
   status: "draft" | "sent" | "signed" | "expired";
   eventType: string;
@@ -27,6 +28,15 @@ interface HandoverItem {
   signedAt?: string;
 }
 
+interface LinkedEvent {
+  id: string;
+  type: string;
+  typeLabel?: string;
+  eventDate?: string | null;
+  handoverId?: string;
+  client?: { fullName?: string };
+}
+
 const DeliveryBadge: React.FC<{ label: string }> = ({ label }) => (
   <span className="text-[10px] px-1.5 py-0.5 rounded border border-neutral-700 text-neutral-400">{label}</span>
 );
@@ -42,6 +52,10 @@ const HandoverListPage: React.FC = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
   const [items, setItems] = useState<HandoverItem[]>([]);
+  const [events, setEvents] = useState<LinkedEvent[]>([]);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [selectedEvents, setSelectedEvents] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -66,6 +80,42 @@ const HandoverListPage: React.FC = () => {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!auth.accessToken) return;
+    let active = true;
+    fetch("/api/admin/events", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error ?? "Nu s-au putut încărca evenimentele.");
+        if (active) setEvents(data.events ?? []);
+      })
+      .catch((error: Error) => { if (active) setEventsError(error.message); });
+    return () => { active = false; };
+  }, [auth.accessToken]);
+
+  const linkedEvent = (item: HandoverItem) => {
+    if (item.eventId) return events.find(event => event.id === item.eventId);
+    const matches = events.filter(event => event.handoverId === item.id);
+    return matches.length === 1 ? matches[0] : undefined;
+  };
+
+  const associateEvent = async (item: HandoverItem) => {
+    const eventId = selectedEvents[item.id];
+    if (!eventId || linkingId) return;
+    setLinkingId(item.id); setActionError(null);
+    try {
+      const res = await fetch(`/api/handover/${encodeURIComponent(item.id)}/event`, {
+        method: "POST", headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Nu s-a putut asocia evenimentul.");
+      setItems(prev => prev.map(protocol => protocol.id === item.id ? { ...protocol, eventId } : protocol));
+      setEvents(prev => prev.map(event => event.id === eventId ? { ...event, handoverId: item.id } : event));
+    } catch (error) { setActionError(error instanceof Error ? error.message : "Nu s-a putut asocia evenimentul."); }
+    finally { setLinkingId(null); }
+  };
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -199,6 +249,7 @@ const HandoverListPage: React.FC = () => {
 
         {loading && <div className="text-center py-20 text-neutral-500 text-sm">Se încarcă...</div>}
         {error && <div className="text-center py-20 text-red-400 text-sm">Eroare: {error}</div>}
+        {eventsError && <p role="alert" className="mb-4 text-red-400 text-sm">{eventsError}</p>}
 
         {!loading && !error && items.length === 0 && (
           <div className="text-center py-20 text-neutral-500 text-sm">
@@ -216,6 +267,7 @@ const HandoverListPage: React.FC = () => {
           <div className="space-y-3">
             {items.map((item) => {
               const statusInfo = STATUS_LABELS[item.status] ?? STATUS_LABELS.draft;
+              const event = linkedEvent(item);
               return (
                 <div key={item.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -233,6 +285,33 @@ const HandoverListPage: React.FC = () => {
                         {item.includeDigitalLink !== false && <DeliveryBadge label="Link digital" />}
                         {item.includeCourier !== false && <DeliveryBadge label="Curier" />}
                         {item.includePersonalHandover && <DeliveryBadge label="Predare personală" />}
+                      </div>
+                      <div className="mb-3 text-xs">
+                        {event ? <>
+                          <button type="button" onClick={() => navigate("/admin", { state: { scrollToEvent: event.id } })}
+                            className="text-amber-200 hover:text-amber-100 underline underline-offset-4 text-left">
+                            Eveniment: {event.client?.fullName || "Fără nume"} · {event.typeLabel || event.type} · {event.eventDate ? formatDate(event.eventDate) : "Fără dată"}
+                          </button>
+                          <p className={`mt-1 ${item.status === "signed" ? "text-emerald-400" : "text-neutral-500"}`}>
+                            {item.status === "signed" ? "Proces verbal semnat pentru acest eveniment" : "Proces verbal încă nesemnat pentru acest eveniment"}
+                          </p>
+                        </> : item.eventId ? <p className="text-neutral-500">Eveniment asociat indisponibil</p> : <>
+                          <p className="text-neutral-500 mb-2">Fără eveniment asociat</p>
+                          <div className="flex gap-2 flex-wrap">
+                            <select aria-label={`Eveniment pentru ${item.id}`} value={selectedEvents[item.id] ?? ""}
+                              onChange={e => setSelectedEvents(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              className="min-w-0 max-w-full rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-200 p-2">
+                              <option value="">Selectează evenimentul</option>
+                              {events.filter(candidate => !candidate.handoverId || candidate.handoverId === item.id).map(candidate => <option key={candidate.id} value={candidate.id}>
+                                {candidate.client?.fullName || "Fără nume"} · {candidate.typeLabel || candidate.type} · {candidate.eventDate ? formatDate(candidate.eventDate) : "Fără dată"}
+                              </option>)}
+                            </select>
+                            <button type="button" disabled={!selectedEvents[item.id] || linkingId !== null} onClick={() => void associateEvent(item)}
+                              className="rounded-lg border border-amber-200/30 px-3 py-2 text-amber-200 hover:bg-amber-200/10 disabled:opacity-50">
+                              {linkingId === item.id ? "Se asociază…" : "Asociază eveniment"}
+                            </button>
+                          </div>
+                        </>}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-neutral-400 text-xs">
                         <span>Data: {formatDate(item.eventDate)}</span>

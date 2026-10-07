@@ -116,6 +116,36 @@ router.get("/", async (_req: Request, res: Response) => {
   }
 });
 
+// Link existing protocols, including signed ones, without changing their signed contents.
+router.post("/:id/event", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const eventId = req.body?.eventId;
+  if (typeof eventId !== "string" || !eventId.trim() || eventId.includes("/") || eventId.length > 1500) {
+    return res.status(400).json({ error: "Selectează un eveniment valid." });
+  }
+  try {
+    const db = firestore();
+    const handoverRef = db.collection("materialsHandover").doc(req.params.id);
+    const eventRef = db.collection("adminEvents").doc(eventId);
+    const result = await db.runTransaction(async transaction => {
+      const [handover, event] = await Promise.all([transaction.get(handoverRef), transaction.get(eventRef)]);
+      if (!handover.exists || !event.exists) return { status: 404, error: "Procesul verbal sau evenimentul nu mai există." };
+      const existingEventId = handover.data()?.eventId;
+      const existingHandoverId = event.data()?.handoverId;
+      if ((existingEventId && existingEventId !== eventId) || (existingHandoverId && existingHandoverId !== req.params.id)) {
+        return { status: 409, error: "Procesul verbal sau evenimentul are deja o altă asociere." };
+      }
+      transaction.update(handoverRef, { eventId });
+      transaction.update(eventRef, { handoverId: req.params.id });
+      return { status: 200 };
+    });
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json({ ok: true, eventId });
+  } catch (error) {
+    console.error("[handover] event association failed:", error);
+    res.status(500).json({ error: "Nu s-a putut asocia evenimentul." });
+  }
+});
+
 // NOTE: /sign/:token routes must come BEFORE /:id to avoid route collision
 
 // GET /api/handover/sign/:token/pdf — PDF preview

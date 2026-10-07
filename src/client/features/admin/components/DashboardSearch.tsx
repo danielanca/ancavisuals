@@ -53,6 +53,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Ads Radar", path: "/admin/ads-radar", category: "Marketing & Web", icon: "📡", keywords: "reclame ads radar campanii publicitate google facebook" },
   { label: "Blog", path: "/admin/blog", category: "Marketing & Web", icon: "✍️", keywords: "articole markdown continut publicare draft" },
   { label: "Recenzii", path: "/admin/recenzii", category: "Marketing & Web", icon: "⭐", keywords: "recenzii review testimoniale oferta olx nunta" },
+  { label: "Feedback clienți", path: "/admin/feedback", category: "Marketing & Web", icon: "💬", keywords: "feedback clienti pareri mesaje album" },
   { label: "Campanii", path: "/admin/campanii", category: "Marketing & Web", icon: "📣", keywords: "campanie marketing email newsletter" },
   { label: "Colecții foto", path: "/admin/colectii", category: "Media", icon: "🗃️", keywords: "colectie galerie foto organizare" },
   { label: "Propuneri Swipe", path: "/admin/swipe-proposals", category: "Media", icon: "👆", keywords: "swipe propuneri selectie" },

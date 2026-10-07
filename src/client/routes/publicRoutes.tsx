@@ -22,6 +22,7 @@ function OfertaIndexRedirect() {
 
 const ContactPage = loadable(() => import("../pages/Contact/ContactPage"), opts(true));
 const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), opts(true));
+const FeedbackPage = loadable(() => import("../features/feedback/FeedbackPage"), opts(false));
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), opts(true));
 const ProposalLinkPage = loadable(() => import("../pages/MediaDownload/ProposalLinkPage"), opts(false));
 const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerificationPage"), opts(true));
@@ -60,6 +61,7 @@ interface publicRoutesType {
 }
 
 const publicRoutes: publicRoutesType[] = [
+  { path: "/media/:slug/feedback", layout: null, component: FeedbackPage },
   { path: "/brief-client/:token", layout: null, component: ClientBriefPage },
 
   /** ============================================================

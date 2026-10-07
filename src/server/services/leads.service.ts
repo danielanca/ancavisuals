@@ -54,6 +54,15 @@ export async function getLeads(limit = 200) {
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
 
+/** Keeps archived leads available for restoration or deletion. */
+export async function archiveLead(id: string, archived: boolean): Promise<boolean> {
+  const ref = firestore().collection(LEADS).doc(id);
+  const doc = await ref.get();
+  if (!doc.exists) return false;
+  await ref.update({ archived, archivedAt: archived ? new Date().toISOString() : null });
+  return true;
+}
+
 /** Removes the lead only; its entries in `emailLog` stay as the audit trail. */
 export async function deleteLead(id: string): Promise<boolean> {
   const ref = firestore().collection(LEADS).doc(id);
