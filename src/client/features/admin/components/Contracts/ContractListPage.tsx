@@ -389,7 +389,7 @@ const ContractListPage: React.FC = () => {
           : [draft.eventDate];
       } catch { return [draft.eventDate]; }
     }),
-  ].map((date) => date?.match(/^(\d{4})/)?.[1]).filter((year): year is string => !!year))
+  ].map((date) => date?.match(/^(\d{4})/)?.[1]).filter((year): year is string => !!year)))
     .sort((a, b) => Number(a) - Number(b));
   const filteredContracts = contracts.filter((contract) => matchesFilters(datesForContract(contract)));
   const filteredWorkDrafts = workDrafts.filter((draft) => {
