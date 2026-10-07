@@ -28,12 +28,13 @@ vi.mock("src/server/firestore", () => ({ firestore: () => ({
   },
 }) }));
 vi.mock("src/server/services/album.service", () => ({ loadAlbum: state.album, resolveAlbumSlug: async (slug: string) => slug === "8august2026" ? "08august2026" : slug }));
-vi.mock("src/server/services/feedbackAi.service", () => ({ generateFeedbackVariants: state.ai }));
+vi.mock("src/server/services/feedbackAi.service", async importOriginal => ({ ...await importOriginal<any>(), generateFeedbackVariants: state.ai }));
 vi.mock("src/server/middleware/requireFirebaseAuth", () => ({
   requireFirebaseAuth: (req: any, res: any, next: any) => req.headers?.authorization ? next() : res.status(401).json({ error: "Token lipsă" }),
   requireSupremeAdmin: (req: any, res: any, next: any) => req.admin ? next() : res.status(403).json({ error: "Acces interzis" }),
 }));
 import router from "src/server/routes/feedback.routes";
+import { FeedbackAiUnavailableError } from "src/server/services/feedbackAi.service";
 async function call(method: string, path: string, request: any = {}) {
   const layer = (router as any).stack.find((entry: any) => entry.route?.path === path && entry.route.methods[method]);
   const req = { params: { slug: "2026" }, body: {}, query: {}, ip: "127.0.0.1", ...request };
@@ -107,6 +108,14 @@ describe("album feedback", () => {
     expect((await call("post", "/:slug/variants", { body: { message: "Text client" } })).statusCode).toBe(503);
     vi.stubEnv("ANTHROPIC_API_KEY", "fake-test-key"); state.ai.mockRejectedValue(new Error("upstream failure"));
     expect((await call("post", "/:slug/variants", { body: { message: "Text client" } })).statusCode).toBe(500);
+    expect((await call("post", "/:slug", { body: payload })).statusCode).toBe(201);
+  });
+  test("credit exhaustion returns useful 503 and leaves manual submission available", async () => {
+    state.ai.mockRejectedValue(new FeedbackAiUnavailableError("insufficient_credits"));
+    const result = await call("post", "/:slug/variants", { body: { message: "Text client" } });
+    expect(result.statusCode).toBe(503);
+    expect(result.body.error).toContain("Poți scrie și trimite feedback-ul direct");
+    expect(JSON.stringify(result.body)).not.toMatch(/insufficient_credits|request_id|api_key/);
     expect((await call("post", "/:slug", { body: payload })).statusCode).toBe(201);
   });
   test("only owner can read/mark feedback; no public read route exists", async () => {

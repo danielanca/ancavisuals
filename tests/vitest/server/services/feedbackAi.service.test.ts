@@ -4,7 +4,7 @@ vi.mock("@anthropic-ai/sdk", () => ({ default: class {
   constructor(config: unknown) { state.config(config); }
   messages = { create: state.create };
 } }));
-import { generateFeedbackVariants } from "src/server/services/feedbackAi.service";
+import { FeedbackAiUnavailableError, generateFeedbackVariants } from "src/server/services/feedbackAi.service";
 const variants = Array.from({ length: 7 }, (_, index) => `Formulare distinctă ${index}`);
 beforeEach(() => { state.create.mockReset(); state.config.mockReset(); vi.stubEnv("ANTHROPIC_API_KEY", "fake-test-key"); });
 function answer(value: unknown, stop_reason = "end_turn") {
@@ -33,4 +33,12 @@ test("requires 7 distinct nonempty bounded variants", async () => {
     answer({ variants: invalid });
     await expect(generateFeedbackVariants("Text client")).rejects.toThrow();
   }
+});
+test("recognises Anthropic credit exhaustion as unavailable AI, without leaking provider details", async () => {
+  state.create.mockRejectedValue(new Error('400 {"error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}'));
+  const error = await generateFeedbackVariants("Text client").catch(error => error);
+  expect(error).toBeInstanceOf(FeedbackAiUnavailableError);
+  expect(error.reason).toBe("insufficient_credits");
+  expect(error.message).toContain("Poți scrie și trimite feedback-ul direct");
+  expect(error.message).not.toContain("Anthropic");
 });

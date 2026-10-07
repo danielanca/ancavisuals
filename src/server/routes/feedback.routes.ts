@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { loadAlbum, resolveAlbumSlug } from "../services/album.service";
-import { generateFeedbackVariants } from "../services/feedbackAi.service";
+import { FeedbackAiUnavailableError, generateFeedbackVariants } from "../services/feedbackAi.service";
 import { FEEDBACK_MESSAGE_LIMIT, FEEDBACK_NAME_LIMIT, isFeedbackSlug, type ClientFeedback } from "../../shared/feedback/feedback";
 
 const router = Router();
@@ -15,7 +15,18 @@ class FeedbackError extends Error {
 }
 function fail(res: Response, error: unknown) {
   if (error instanceof FeedbackError) { res.status(error.status).json({ error: error.message }); return; }
-  console.error("[feedback] request failed", error instanceof Error ? error.name : "Unknown error");
+  if (error instanceof FeedbackAiUnavailableError) {
+    console.error("[feedback] AI unavailable", { reason: error.reason });
+    res.status(503).json({ error: error.message });
+    return;
+  }
+  const details = error && typeof error === "object" ? error as { code?: unknown; status?: unknown; request_id?: unknown } : {};
+  console.error("[feedback] request failed", {
+    name: error instanceof Error ? error.name : "Unknown error",
+    code: typeof details.code === "number" || typeof details.code === "string" ? details.code : undefined,
+    status: typeof details.status === "number" ? details.status : undefined,
+    requestId: typeof details.request_id === "string" ? details.request_id : undefined,
+  });
   res.status(500).json({ error: "Nu am putut procesa cererea. Încearcă din nou." });
 }
 function getMessage(body: unknown) {
