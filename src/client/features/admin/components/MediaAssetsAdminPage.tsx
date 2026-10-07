@@ -316,7 +316,7 @@ export default function MediaAssetsAdminPage() {
       });
       const data = await readJsonResponse<{ fixed?: number; skipped?: number; total?: number; error?: string }>(response);
       if (!response.ok) throw new Error(data.error ?? "Nu am putut optimiza importurile.");
-      setReprocessSummary(`${data.fixed ?? 0} din ${data.total ?? 0} asset-uri importate au fost actualizate la preview WebP.${data.skipped ? ` ${data.skipped} au fost sarite.` : ""}`);
+      setReprocessSummary(`${data.fixed ?? 0} din ${data.total ?? 0} asset-uri au primit o copie WebP separata.${data.skipped ? ` ${data.skipped} au fost sarite.` : ""}`);
       await loadAssets();
     } catch (reprocessError) {
       setError(reprocessError instanceof Error ? reprocessError.message : String(reprocessError));
@@ -375,6 +375,9 @@ export default function MediaAssetsAdminPage() {
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
+            <a href="/admin/instagram-proposals/selectie-comuna?destination=media_assets" className="rounded-lg border border-emerald-800 px-4 py-2 text-sm text-emerald-300 hover:border-emerald-600">
+              Selecția comună de poze
+            </a>
             <button
               type="button"
               onClick={() => void generateMissingAlts()}
@@ -391,7 +394,7 @@ export default function MediaAssetsAdminPage() {
               disabled={reprocessing}
               className="rounded-lg border border-teal-800 px-4 py-2 text-sm text-teal-300 transition-colors hover:border-teal-600 hover:text-teal-200 disabled:border-neutral-800 disabled:text-neutral-600"
             >
-              {reprocessing ? "Se optimizeaza..." : "Optimizeaza importurile din albume"}
+              {reprocessing ? "Se optimizeaza..." : "Genereaza copii WebP"}
             </button>
           </div>
         </div>

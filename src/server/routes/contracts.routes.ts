@@ -55,6 +55,76 @@ async function getAdminBankDetails() {
   };
 }
 
+class ContractCalendarError extends Error {
+  constructor(public statusCode: number, message: string) {
+    super(message);
+  }
+}
+
+// Save the signature and calendar reservation together: neither can be left half-saved.
+async function saveContractCalendar(contractId: string, signature?: Record<string, unknown>) {
+  const db = firestore();
+  const contractRef = db.collection("contracts").doc(contractId);
+  return db.runTransaction(async (transaction) => {
+    const doc = await transaction.get(contractRef);
+    if (!doc.exists) throw new ContractCalendarError(404, "Contract negăsit.");
+    const stored = doc.data()!;
+    if (signature && !["draft", "sent"].includes(stored.status)) {
+      throw new ContractCalendarError(410, "Contractul nu mai poate fi semnat.");
+    }
+    if (!signature && stored.status !== "signed") {
+      throw new ContractCalendarError(400, "Evenimentul se poate adăuga în calendar doar după semnarea clientului.");
+    }
+    if (!signature && stored.eventId) {
+      throw new ContractCalendarError(409, "Contractul este deja legat de un eveniment.");
+    }
+    const contract = { ...stored, ...signature };
+    const dates = expandEventDates(contract);
+    if (!dates.length) throw new ContractCalendarError(400, "Data contractului este invalidă.");
+    const events = await transaction.get(db.collection("adminEvents"));
+    const linked = events.docs.find((event) => event.id === stored.eventId || event.data().contractId === contractId);
+    const occupied = events.docs.some((event) => event.id !== linked?.id &&
+      BOOKED_EVENT_STATUSES.has(String(event.data().status)) &&
+      expandEventDates(event.data()).some((date) => dates.includes(date)));
+    if (occupied) throw new ContractCalendarError(409, "Data contractului este deja ocupată de un eveniment confirmat.");
+
+    const eventRef = linked?.ref ?? db.collection("adminEvents").doc();
+    const existing = linked?.data();
+    const { type, typeLabel } = mapContractEventType(contract.eventType);
+    const total = Number(contract.priceTotal) || 0;
+    const advanceAmount = Number(contract.priceAdvance) || 0;
+    transaction.set(eventRef, {
+      type,
+      typeLabel: typeLabel ?? "",
+      status: existing?.status === "finalizat" ? "finalizat" : "confirmat",
+      ...(!existing ? { fiscalized: contract.fiscalized === true, createdAt: Timestamp.now() } : {}),
+      eventDate: Timestamp.fromDate(new Date(dates[0])),
+      eventDates: dates,
+      eventEndDate: dates[dates.length - 1],
+      client: {
+        ...existing?.client,
+        fullName: contract.clientName?.trim() || contract.clientEmail || "Client contract",
+        phone: contract.clientPhone?.trim() ?? "",
+        email: contract.clientEmail ?? "",
+      },
+      services: Array.isArray(contract.services) ? contract.services : [],
+      pricing: {
+        ...existing?.pricing,
+        total,
+        advanceAmount,
+        advancePaid: Boolean(contract.advancePaidAt) || existing?.pricing?.advancePaid === true,
+        remainingAmount: contract.priceRest !== undefined
+          ? Number(contract.priceRest) || 0
+          : Math.max(0, total - advanceAmount),
+      },
+      contractId,
+      notes: contract.eventDetails || existing?.notes || "",
+    }, { merge: true });
+    transaction.update(contractRef, { ...signature, eventId: eventRef.id });
+    return { ...contract, eventId: eventRef.id };
+  });
+}
+
 // POST /api/contracts — create new contract (admin)
 router.post("/", async (req: Request, res: Response) => {
   try {
@@ -390,8 +460,8 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
     if (contract.status === "signed") {
       return res.status(410).json({ error: "Contractul a fost deja semnat.", status: "signed" });
     }
-    if (contract.status === "expired") {
-      return res.status(410).json({ error: "Contractul a expirat.", status: "expired" });
+    if (contract.status === "expired" || contract.status === "anulat") {
+      return res.status(410).json({ error: "Contractul a expirat sau a fost anulat.", status: contract.status });
     }
 
     const clientIp = getClientIp(req) ?? "unknown";
@@ -399,7 +469,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
     const ipInfo = await fetchIpInfo(clientIp).catch(() => null);
     const signedAt = Timestamp.now();
 
-    await db.collection("contracts").doc(doc.id).update({
+    const signedContract = await saveContractCalendar(doc.id, {
       status: "signed",
       signedAt,
       ...(isCompany ? {
@@ -437,7 +507,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
 
     // Generate PDF and send email in background — don't block the response
     const fullContract = {
-      ...contract,
+      ...signedContract,
       id: doc.id,
       ...(isCompany ? {
         clientName: String(clientName ?? "").trim(),
@@ -479,6 +549,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
 
     res.json({ ok: true, message: "Contractul a fost semnat cu succes!" });
   } catch (error) {
+    if (error instanceof ContractCalendarError) return res.status(error.statusCode).json({ error: error.message });
     console.error("[contracts] POST /sign/:token failed:", error);
     res.status(500).json({ error: "Eroare server la semnare." });
   }
@@ -631,76 +702,10 @@ router.get("/:id", async (req: Request, res: Response) => {
 // POST /api/contracts/:id/create-event — generate adminEvent from contract
 router.post("/:id/create-event", async (req: Request, res: Response) => {
   try {
-    const db = firestore();
-    const contractRef = db.collection("contracts").doc(req.params.id);
-    const doc = await contractRef.get();
-
-    if (!doc.exists) {
-      return res.status(404).json({ error: "Contract negăsit." });
-    }
-
-    const contract = doc.data()!;
-    if (contract.eventId) {
-      return res.status(409).json({ error: "Contractul este deja legat de un eveniment.", eventId: contract.eventId });
-    }
-
-    if (!contract.eventDate) {
-      return res.status(400).json({ error: "Contractul nu are dată de eveniment." });
-    }
-
-    const contractDate = new Date(String(contract.eventDate));
-    if (isNaN(contractDate.getTime())) {
-      return res.status(400).json({ error: "Data contractului este invalidă." });
-    }
-
-    const contractDateIsos = Array.isArray(contract.eventDates) && contract.eventDates.length > 0
-      ? contract.eventDates.map((date: unknown) => String(date)).filter((date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date))
-      : [contractDate.toISOString().slice(0, 10)];
-    const eventsSnapshot = await db.collection("adminEvents").get();
-    const occupied = eventsSnapshot.docs.some((eventDoc) => {
-      const eventData = eventDoc.data();
-      if (!BOOKED_EVENT_STATUSES.has(String(eventData.status ?? ""))) return false;
-      return contractDateIsos.some((date: string) => expandEventDates(eventData).includes(date));
-    });
-
-    if (occupied) {
-      return res.status(409).json({ error: "Data contractului este deja ocupată de un eveniment confirmat." });
-    }
-
-    const { type, typeLabel } = mapContractEventType(contract.eventType);
-    const total = Number(contract.priceTotal) || 0;
-    const advanceAmount = Number(contract.priceAdvance) || 0;
-    const eventRef = await db.collection("adminEvents").add({
-      type,
-      ...(typeLabel ? { typeLabel } : {}),
-      status: "confirmat",
-      fiscalized: false,
-      createdAt: Timestamp.now(),
-      eventDate: Timestamp.fromDate(contractDate),
-      eventDates: contractDateIsos,
-      eventEndDate: contractDateIsos[contractDateIsos.length - 1],
-      client: {
-        fullName: contract.clientName?.trim() || contract.clientEmail || "Client contract",
-        phone: contract.clientPhone?.trim() ?? "",
-        email: contract.clientEmail ?? "",
-      },
-      services: Array.isArray(contract.services) ? contract.services : [],
-      pricing: {
-        total,
-        advanceAmount,
-        advancePaid: advanceAmount > 0,
-        remainingAmount: contract.priceRest !== undefined
-          ? Number(contract.priceRest) || Math.max(0, total - advanceAmount)
-          : Math.max(0, total - advanceAmount),
-      },
-      contractId: doc.id,
-      notes: contract.eventDetails ?? "",
-    });
-
-    await contractRef.update({ eventId: eventRef.id });
-
-    res.status(201).json({ ok: true, eventId: eventRef.id });
+    const contract = await saveContractCalendar(req.params.id);
+    res.status(201).json({ ok: true, eventId: contract.eventId });
   } catch (error) {
+    if (error instanceof ContractCalendarError) return res.status(error.statusCode).json({ error: error.message });
     console.error("[contracts] POST /:id/create-event failed:", error);
     res.status(500).json({ error: "Nu s-a putut genera evenimentul din contract." });
   }

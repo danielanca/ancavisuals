@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import useAuth from "../auth/useAuth";
+import { loginDestination } from "../auth/loginDestination";
 
 const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -11,6 +12,7 @@ const Login = () => {
 
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const getErrorMessage = (error: unknown): string => {
     if (error instanceof Error) return error.message;
@@ -41,7 +43,7 @@ const Login = () => {
     setLoading(true);
     try {
       await signIn(form.email, form.password);
-      navigate("/admin", { replace: true });
+      navigate(loginDestination(location.state), { replace: true });
     } catch (err: unknown) {
       const code = getErrorCode(err);
       if (code === "auth/invalid-credential" || code === "auth/wrong-password") {

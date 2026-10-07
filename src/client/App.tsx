@@ -87,6 +87,8 @@ const LocationRoute = ssrLazy("location", () => import("./pages/LocationSEO/Loca
 // /oferta (ad traffic) and /blog — but never on client/guest areas: albums,
 // QR moments, photobooth & invitation pages, contracts, admin.
 const HIDE_LIVE_CHAT_PREFIXES = [
+  "/azi",
+  "/brief-client",
   "/admin", "/login", "/colaborator",
   "/media", "/album", "/backup", "/share", "/propune", "/delivery-address",
   "/qr-moments", "/qr-code",
@@ -95,7 +97,7 @@ const HIDE_LIVE_CHAT_PREFIXES = [
   "/contract", "/proces-verbal", "/revin",
   "/bio",
 ];
-const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup", "/bio"];
+const HIDE_CHAT_PREFIXES = ["/azi", "/brief-client", "/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup", "/bio"];
 
 export const App = () => {
   const location = useLocation();

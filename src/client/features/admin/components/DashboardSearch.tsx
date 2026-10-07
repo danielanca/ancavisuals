@@ -26,6 +26,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Oferte", path: "/admin/oferte", category: "Contracte & Oferte", icon: "💼", keywords: "pret pachet propunere" },
   { label: "Template Oferte", path: "/admin/template-oferte", category: "Contracte & Oferte", icon: "📋", keywords: "sablon model oferta" },
   // Media
+  { label: "Selecție comună de poze", path: "/admin/instagram-proposals/selectie-comuna", category: "Media", icon: "📸", keywords: "poze comune similare voturi daniel estera salomeea" },
   { label: "Propuneri Media", path: "/admin/instagram-proposals", category: "Media", icon: "📸", keywords: "instagram propuneri poze social" },
   { label: "Media Assets", path: "/admin/media-assets", category: "Media", icon: "🗂️", keywords: "assets imagini fisiere resurse" },
   { label: "QR Moments", path: "/admin/qr-moments", category: "Media", icon: "🔲", keywords: "qr cod scanare moment" },

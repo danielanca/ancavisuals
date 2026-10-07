@@ -8,14 +8,16 @@ const QUALITIES = [78, 68, 58];
 /**
  * A photo over MAX_PHOTO_BYTES (a camera original, 2–4 MB) becomes a 1600 px WebP, usually
  * 100–250 KB, so it is never too heavy for the public site. Anything else — videos, light
- * photos, files sharp cannot read — comes back unchanged.
+ * photos, files sharp cannot read — comes back unchanged. forceWebp also converts light
+ * photos when creating a separate preview; unsupported formats still remain unchanged.
  */
 export async function shrinkPhoto(
   buffer: Buffer,
   contentType: string,
+  forceWebp = false,
 ): Promise<{ buffer: Buffer; contentType: string; shrunk: boolean }> {
   const unchanged = { buffer, contentType, shrunk: false };
-  if (!contentType.toLowerCase().startsWith("image/") || /gif|svg/i.test(contentType) || buffer.length <= MAX_PHOTO_BYTES) {
+  if (!contentType.toLowerCase().startsWith("image/") || /gif|svg/i.test(contentType) || (!forceWebp && buffer.length <= MAX_PHOTO_BYTES)) {
     return unchanged;
   }
   try {
@@ -29,7 +31,7 @@ export async function shrinkPhoto(
       if (!smallest || out.length < smallest.length) smallest = out;
       if (out.length <= MAX_PHOTO_BYTES) break;
     }
-    return smallest && smallest.length < buffer.length
+    return smallest && (forceWebp || smallest.length < buffer.length)
       ? { buffer: smallest, contentType: "image/webp", shrunk: true }
       : unchanged;
   } catch (error) {

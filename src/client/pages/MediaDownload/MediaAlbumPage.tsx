@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import useAuth from "../../features/admin/auth/useAuth";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import ProposalLinksPanel from "./ProposalLinksPanel";
+import type { PhotoVote } from "../../../shared/media/proposalConsensus";
 import styles from "./MediaAlbumPage.module.scss";
 import type { Album } from "./AlbumTypes";
 import AlbumNotFound from "./AlbumNotFound";
@@ -270,7 +271,7 @@ export default function MediaAlbumPage() {
   const [submittingModeration, setSubmittingModeration] = useState(false);
   const [moderationSubmitResult, setModerationSubmitResult] = useState<string | null>(null);
 
-  type InstagramProposal = {
+  type InstagramProposal = Omit<PhotoVote, "albumSlug"> & {
     id: string;
     photoUrl: string;
     fileName: string;
@@ -284,7 +285,7 @@ export default function MediaAlbumPage() {
   const [igProposals, setIgProposals] = useState<InstagramProposal[]>([]);
   const [igProposeMode, setIgProposeMode] = useState(false);
   const [selectedIgPropose, setSelectedIgPropose] = useState<Set<string>>(new Set());
-  const [proposalDestinations, setProposalDestinations] = useState<Set<"instagram" | "media_assets">>(new Set(["instagram"]));
+  const [proposalDestinations, setProposalDestinations] = useState<Set<"instagram" | "media_assets">>(new Set(["instagram", "media_assets"]));
   const [proposalMediaServices, setProposalMediaServices] = useState<Set<string>>(new Set(["photo"]));
   const [submittingIgPropose, setSubmittingIgPropose] = useState(false);
   const [igProposeResult, setIgProposeResult] = useState<string | null>(null);
@@ -911,30 +912,25 @@ export default function MediaAlbumPage() {
           }).then((r) => r.json())
         )
       );
-      const added = results.filter((r) => r.ok && !r.alreadyProposed);
-      setIgProposals((prev) => [
-        ...added.map((r, i) => ({
-          id: r.id,
-          photoUrl: toPropose[i],
-          fileName: fileNameFromUrl(toPropose[i]),
-          proposedBy: auth.user?.email ?? "",
-          proposedAt: new Date().toISOString(),
-          status: "pending" as const,
-          destinations: Array.from(proposalDestinations),
-          mediaAssetServiceIds: Array.from(proposalMediaServices),
-        })),
-        ...prev,
-      ]);
+      const failed = results.filter(result => !result.ok);
+      const refreshed = await fetch(`/api/instagram-proposals/album/${encodeURIComponent(slug)}`, {
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      if (!refreshed.ok) throw new Error("Nu am putut actualiza voturile. Reîncarcă pagina.");
+      const refreshedData = await refreshed.json();
+      setIgProposals(refreshedData.proposals ?? []);
+      if (failed.length) throw new Error(`${failed.length} propuneri nu au fost salvate. Încearcă din nou.`);
       const destinationLabel =
         proposalDestinations.size === 2
           ? "Instagram + Media Assets"
           : proposalDestinations.has("media_assets")
             ? "Media Assets"
             : "Instagram";
-      setIgProposeResult(`${added.length} ${added.length === 1 ? "poză propusă" : "poze propuse"} pentru ${destinationLabel}.`);
+      setIgProposeResult(`${results.length} ${results.length === 1 ? "poză propusă" : "poze propuse"} pentru ${destinationLabel}.`);
       setSelectedIgPropose(new Set());
       setIgProposeMode(false);
-    } catch {
+    } catch (error) {
+      setIgProposeResult(error instanceof Error ? error.message : "Nu am putut salva propunerile.");
     } finally {
       setSubmittingIgPropose(false);
     }
@@ -1436,7 +1432,7 @@ export default function MediaAlbumPage() {
               🖼️ Optimizare Poze
             </button>
             <button
-              onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
+              onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setProposalDestinations(new Set(["instagram", "media_assets"])); setProposalMediaServices(new Set(["photo"])); }}
               style={{ padding: "7px 16px", background: "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
             >
               📸 Propune Instagram / Media Assets
@@ -1499,7 +1495,7 @@ export default function MediaAlbumPage() {
               >
                 {submittingIgPropose ? "Se trimite..." : `Trimite propunere (${selectedIgPropose.size})`}
               </button>
-              <button onClick={() => { setIgProposeMode(false); setSelectedIgPropose(new Set()); setProposalDestinations(new Set(["instagram"])); setProposalMediaServices(new Set(["photo"])); }}
+              <button onClick={() => { setIgProposeMode(false); setSelectedIgPropose(new Set()); setProposalDestinations(new Set(["instagram", "media_assets"])); setProposalMediaServices(new Set(["photo"])); }}
                 style={{ padding: "6px 12px", background: "none", border: "1px solid #3730a3", borderRadius: "6px", color: "#6366f1", fontSize: "13px", cursor: "pointer" }}
               >
                 Anulează

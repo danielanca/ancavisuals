@@ -18,6 +18,7 @@ import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeCo
 import AlbumHealthWidget from "../AlbumHealthWidget";
 import DeliveryDeadlineOverview from "../DeliveryDeadlineOverview";
 import DashboardSearch from "../DashboardSearch";
+import { fetchGetWithRetry } from "../../../../utils/fetchGetWithRetry";
 
 // ── Widget Order ──────────────────────────────────────────────────────────
 
@@ -176,11 +177,21 @@ const DashboardInner: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
     Promise.all([
-      fetch("/api/admin/events").then((r) => r.json()),
-      fetch("/api/admin/settings").then((r) => r.json()),
+      fetchGetWithRetry("/api/admin/events", { signal: controller.signal }).then((r) => {
+        if (!r.ok) throw new Error(`Nu am putut încărca evenimentele (${r.status}).`);
+        return r.json();
+      }),
+      fetchGetWithRetry("/api/admin/settings", { signal: controller.signal }).then((r) => {
+        if (!r.ok) throw new Error(`Nu am putut încărca setările (${r.status}).`);
+        return r.json();
+      }),
     ])
       .then(([eventsData, settingsData]) => {
+        if (controller.signal.aborted) return;
         if (eventsData.error) throw new Error(eventsData.error);
         setEvents(
           (eventsData.events ?? []).map((event: ClientEvent & {
@@ -203,9 +214,10 @@ const DashboardInner: React.FC = () => {
         );
         if (!settingsData.error) setSettings(normalizeSettings(settingsData));
       })
-      .catch((fetchError: Error) => setError(fetchError.message))
-      .finally(() => setLoading(false));
+      .catch((fetchError: Error) => { if (!controller.signal.aborted) setError(fetchError.message); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
 
+    return () => controller.abort();
   }, [auth.accessToken]);
 
   const handleAddEvent = () => setShowLeadModal(true);

@@ -34,6 +34,7 @@ const CopyrightPage = loadable(() => import("../pages/Copyright/Copyright"), opt
 const PrivacyPage = loadable(() => import("../pages/Privacy/Privacy"), opts(true));
 const TermsPage = loadable(() => import("../pages/Terms/Terms"), opts(true));
 const DeliveryAddressPage = loadable(() => import("../pages/DeliveryAddress/DeliveryAddressPage"), opts(false));
+const ClientBriefPage = loadable(() => import("../features/client-brief/ClientBriefPage"), opts(false));
 const ContractSignPage = loadable(() => import("../pages/Contract/ContractSignPage"), opts(false));
 const HandoverSignPage = loadable(() => import("../pages/Handover/HandoverSignPage"), opts(false));
 const PostEventBackupPage = loadable(() => import("../pages/PostEventBackup/PostEventBackupPage"), opts(false));
@@ -59,6 +60,7 @@ interface publicRoutesType {
 }
 
 const publicRoutes: publicRoutesType[] = [
+  { path: "/brief-client/:token", layout: null, component: ClientBriefPage },
 
   /** ============================================================
    *  PAGINI PUBLICE — site principal

@@ -22,6 +22,7 @@ import adminEventsRouter, { startAlbumProcessingQueue } from "./src/server/route
 import chatbotRouter from "./src/server/routes/chatbot.routes";
 import uploadRouter from "./src/server/routes/upload.routes";
 import blogRouter from "./src/server/routes/blog.routes";
+import clientBriefRouter from "./src/server/routes/clientBrief.routes";
 import contractsRouter from "./src/server/routes/contracts.routes";
 import handoverRouter from "./src/server/routes/handover.routes";
 import inspirationRouter from "./src/server/routes/inspiration.routes";
@@ -153,6 +154,12 @@ async function createServer() {
   app.use(express.urlencoded({ extended: true, limit: BODY_PAYLOAD_LIMIT }));
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
+  app.use(["/brief-client", "/azi"], (_req, res, next) => {
+    res.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+    res.set("Cache-Control", "no-store");
+    res.set("Referrer-Policy", "no-referrer");
+    next();
+  });
 
   if (showProgress) devLogger.step("Express middleware");
 
@@ -188,6 +195,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.chatbot, chatbotRouter);
   app.use(API_ROUTE_PREFIXES.uploads, uploadRouter);
   app.use(API_ROUTE_PREFIXES.blog, blogRouter);
+  app.use("/api/client-briefs", clientBriefRouter);
   app.use(API_ROUTE_PREFIXES.contracts, contractsRouter);
   app.use(API_ROUTE_PREFIXES.handover, handoverRouter);
   app.use(API_ROUTE_PREFIXES.admin, inspirationRouter);

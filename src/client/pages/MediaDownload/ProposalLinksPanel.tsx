@@ -4,6 +4,7 @@
  * progress (photos browsed / proposed / done) and see the photos they picked.
  */
 import React, { useCallback, useEffect, useState } from "react";
+import { PHOTO_REVIEWERS, type PhotoReviewerId } from "../../../shared/media/proposalConsensus";
 
 type LinkVisitor = {
   id: string;
@@ -17,6 +18,7 @@ type LinkVisitor = {
 type ProposalLink = {
   token: string;
   label: string;
+  reviewerId?: PhotoReviewerId;
   active: boolean;
   url: string;
   createdAt: string | null;
@@ -41,6 +43,7 @@ const formatDate = (value: string | null) =>
 export default function ProposalLinksPanel({ slug, accessToken }: { slug: string; accessToken: string }) {
   const [links, setLinks] = useState<ProposalLink[]>([]);
   const [label, setLabel] = useState("");
+  const [reviewerId, setReviewerId] = useState<PhotoReviewerId | "">("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -76,7 +79,7 @@ export default function ProposalLinksPanel({ slug, accessToken }: { slug: string
       const response = await fetch("/api/proposal-links/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ albumSlug: slug, label }),
+        body: JSON.stringify({ albumSlug: slug, label: reviewerId ? PHOTO_REVIEWERS.find(person => person.id === reviewerId)!.name : label, ...(reviewerId ? { reviewerId } : {}) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Nu am putut genera linkul.");
@@ -102,9 +105,14 @@ export default function ProposalLinksPanel({ slug, accessToken }: { slug: string
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
 
+      <p style={{ color: "#aaa", fontSize: "12px", margin: 0 }}>Pentru selecția comună, generează un link personal pentru fiecare dintre voi. Alegerile din cont și din linkul personal se numără o singură dată.</p>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <select aria-label="Persoana pentru linkul de selecție" value={reviewerId} onChange={event => setReviewerId(event.target.value as PhotoReviewerId | "")} style={{ padding: "8px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ddd", fontSize: "13px" }}>
+          <option value="">Altă persoană</option>{PHOTO_REVIEWERS.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
+        </select>
         <input
-          value={label}
+          disabled={Boolean(reviewerId)}
+          value={reviewerId ? PHOTO_REVIEWERS.find(person => person.id === reviewerId)!.name : label}
           onChange={event => setLabel(event.target.value)}
           maxLength={60}
           placeholder="Pentru cine? (ex: Soția)"
@@ -129,7 +137,7 @@ export default function ProposalLinksPanel({ slug, accessToken }: { slug: string
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
               <div style={{ minWidth: 0 }}>
                 <p style={{ color: "#ddd", fontSize: "12px", fontWeight: 600, margin: 0 }}>
-                  {link.label || "Fără etichetă"}{!link.active && " · dezactivat"}
+                  {link.label || "Fără etichetă"}{link.reviewerId && " · selecție comună"}{!link.active && " · dezactivat"}
                 </p>
                 <p style={{ color: "#666", fontSize: "11px", margin: "3px 0 0" }}>Creat {formatDate(link.createdAt)}</p>
               </div>

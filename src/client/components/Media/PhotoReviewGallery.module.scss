@@ -1,0 +1,27 @@
+.masonry {
+  column-count: 2;
+  column-gap: 12px;
+  > * { break-inside: avoid; margin-bottom: 12px; }
+  @media (min-width: 640px) { column-count: 3; }
+  @media (min-width: 1024px) { column-count: 4; }
+}
+.photo { position: relative; }
+.image { display: block; width: 100%; height: auto; }
+.actions {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: end;
+  gap: 4px;
+  padding: 8px;
+  background: linear-gradient(transparent 25%, rgba(0, 0, 0, .8));
+  transition: opacity .15s;
+  button { padding: 8px 4px; font-size: 11px; border-radius: 6px; color: white; }
+  button:last-child { grid-column: 1 / -1; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .actions { opacity: 0; pointer-events: none; }
+  .photo:hover .actions, .photo:focus-within .actions { opacity: 1; pointer-events: auto; }
+}

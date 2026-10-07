@@ -90,7 +90,7 @@ const ContractActionMenu: React.FC<Props> = ({
           )}
           <Item label="👁  Preview PDF" onClick={onPreview} color="text-purple-400" />
           <Item label="🧾  Generează factură" onClick={onGenerateInvoice} color="text-amber-400" />
-          {canCreateEvent && (
+          {canCreateEvent && contract.status === "signed" && (
             <Item label="📅  Generează eveniment" onClick={onCreateEvent} color="text-violet-400" />
           )}
           {canSend && (

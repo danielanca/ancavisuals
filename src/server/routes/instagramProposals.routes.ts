@@ -7,6 +7,9 @@ import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } fro
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { generateRomanianAlt } from "../lib/imageAlt";
+import { createMediaAssetPreview } from "../utils/mediaAssetPreview";
+
+import { photoVoteKey, reviewerFromEmail } from "../../shared/media/proposalConsensus";
 
 const router = express.Router();
 const COLLECTION = "instagramProposals";
@@ -67,30 +70,41 @@ async function importProposalToMediaAssets(id: string, proposal: Record<string, 
   const serviceIds = normalizeOfferServiceIds(proposal.mediaAssetServiceIds);
   if (serviceIds.length === 0) return [];
 
-  const existing = await firestore().collection("offer_media_assets")
-    .where("sourceProposalId", "==", id)
-    .get();
-  if (!existing.empty) {
-    return existing.docs.map(doc => doc.id);
-  }
-
   const photoUrl = String(proposal.photoUrl ?? "");
   const fileName = String(proposal.fileName ?? "");
-  if (!photoUrl || !fileName) return [];
+  const albumSlug = String(proposal.albumSlug ?? "");
+  if (!photoUrl || !fileName || !albumSlug) return [];
+
+  // One copy per album photo and service, even when several reviewers chose it.
+  const existing = await firestore().collection("offer_media_assets")
+    .where("sourceAlbumSlug", "==", albumSlug).get();
+  const existingByService = new Map<string, string>();
+  for (const doc of existing.docs) {
+    const asset = doc.data();
+    let sourceFileName = "";
+    try { sourceFileName = decodeURIComponent(new URL(String(asset.sourcePhotoUrl)).pathname.split("/").pop() ?? ""); } catch { continue; }
+    if (photoVoteKey(albumSlug, sourceFileName) === photoVoteKey(albumSlug, fileName)) {
+      existingByService.set(String(asset.serviceId), doc.id);
+    }
+  }
+  const missingServiceIds = serviceIds.filter(serviceId => !existingByService.has(serviceId));
+  if (!missingServiceIds.length) return serviceIds.map(serviceId => existingByService.get(serviceId)!);
 
   const { buffer, contentType } = await downloadBunnyOriginal(photoUrl);
   const createdAt = new Date().toISOString();
   const alt = typeof proposal.alt === "string" && proposal.alt.trim() ? proposal.alt.trim() : undefined;
 
-  const createdIds = await Promise.all(serviceIds.map(async serviceId => {
+  const createdIds = await Promise.all(missingServiceIds.map(async serviceId => {
     const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName.replace(/[^a-zA-Z0-9.]/g, "_")}`;
     const bunnyPath = `offers-assets/${serviceId}/${safeFileName}`;
     await uploadToBunny(buffer, bunnyPath, contentType);
+    const preview = await createMediaAssetPreview(buffer, contentType, bunnyPath);
     const docRef = await firestore().collection("offer_media_assets").add({
       serviceId,
       kind: "image",
       url: bunnyPublicUrl(bunnyPath),
       bunnyPath,
+      ...preview,
       label: fileName.replace(/\.[^.]+$/, ""),
       createdAt,
       sourceProposalId: id,
@@ -101,7 +115,7 @@ async function importProposalToMediaAssets(id: string, proposal: Record<string, 
     return docRef.id;
   }));
 
-  return createdIds;
+  return [...serviceIds.flatMap(serviceId => existingByService.get(serviceId) ?? []), ...createdIds];
 }
 
 // POST / — propose a photo (any logged-in user)
@@ -151,6 +165,7 @@ router.post("/", requireFirebaseAuth, async (req: Request, res: Response) => {
         ...normalizedServiceIds,
       ]));
       await doc.ref.update({
+        selectionDestinations: Array.from(new Set([...(current.selectionDestinations ?? current.destinations ?? [INSTAGRAM_DESTINATION]), ...normalizedDestinations])),
         destinations: mergedDestinations,
         mediaAssetServiceIds: mergedServiceIds,
         updatedAt: Timestamp.now(),
@@ -165,9 +180,11 @@ router.post("/", requireFirebaseAuth, async (req: Request, res: Response) => {
       fileName,
       proposedBy: authReq.firebaseEmail,
       proposedByUid: authReq.firebaseUid,
+      ...(reviewerFromEmail(authReq.firebaseEmail) ? { reviewerId: reviewerFromEmail(authReq.firebaseEmail) } : {}),
       proposedAt: Timestamp.now(),
       status: "pending",
       destinations: normalizedDestinations,
+      selectionDestinations: normalizedDestinations,
       mediaAssetServiceIds: normalizedServiceIds,
     });
 
@@ -239,6 +256,8 @@ router.get("/album/:slug", requireFirebaseAuth, async (req: Request, res: Respon
     const proposals = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
+      originalPhotoUrl: originalPhotoUrl(doc.data().photoUrl as string),
+      previewPhotoUrl: previewPhotoUrl(doc.data().photoUrl as string),
       proposedAt: (doc.data().proposedAt as Timestamp).toDate().toISOString(),
     })).sort((a, b) => b.proposedAt.localeCompare(a.proposedAt));
 
@@ -312,7 +331,8 @@ router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
     }
 
     const proposal = doc.data() as Record<string, unknown>;
-    const updates: Record<string, unknown> = { status, updatedAt: Timestamp.now() };
+    const updates: Record<string, unknown> = { status, updatedAt: Timestamp.now(),
+      selectionDestinations: proposal.selectionDestinations ?? normalizeDestinations(proposal.destinations) };
 
     if (status === "accepted") {
       const destinations = normalizeDestinations(destinationsOverride ?? proposal.destinations);

@@ -26,6 +26,7 @@ import { loadAlbum } from "../services/album.service";
 import { generateRomanianAlt } from "../lib/imageAlt";
 import { remoteFileSizes } from "../utils/remoteFileSize";
 import { shrinkPhoto, webpName } from "../utils/shrinkPhoto";
+import { createMediaAssetPreview } from "../utils/mediaAssetPreview";
 
 const router = Router();
 const mediaAssetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
@@ -162,6 +163,7 @@ async function enrichMediaAssetDisplayUrls(assets: StoredOfferMediaAsset[]): Pro
   };
 
   return Promise.all(assets.map(async asset => {
+    if (asset.previewUrl) return { ...asset, displayUrl: asset.previewUrl };
     if (asset.kind !== "image" || !asset.sourceAlbumSlug || !asset.sourcePhotoUrl) return asset;
 
     const album = await getAlbum(asset.sourceAlbumSlug);
@@ -254,7 +256,7 @@ export async function getPublicOffer(slug: string, sizeWaitMs?: number): Promise
   const data = doc.data();
   const showcase = await readTemplateShowcase();
   const selectedServices = normalizeOfferServiceIds(data.selectedServices);
-  // Reuse the album preview URL for public offers as well. This keeps the
+  // Prefer the asset's independent WebP, with album previews for legacy assets. This keeps the
   // category galleries on the landing page on the same optimized WebP path
   // shown in the admin library, while retaining the Bunny URL as fallback.
   const allAssets = await enrichMediaAssetDisplayUrls(await listMediaAssets());
@@ -521,11 +523,13 @@ router.post(
         const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${photo.shrunk ? webpName(name) : name}`;
         const bunnyPath = `offers-assets/${serviceId}/${safeFileName}`;
         await uploadToBunny(photo.buffer, bunnyPath, photo.contentType);
+        const preview = await createMediaAssetPreview(photo.buffer, photo.contentType, bunnyPath);
         const asset: Omit<OfferMediaAsset, "id"> = {
           serviceId,
           kind: detectAssetKind(file),
           url: bunnyPublicUrl(bunnyPath),
           bunnyPath,
+          ...preview,
           label: file.originalname.replace(/\.[^.]+$/, ""),
           createdAt: new Date().toISOString(),
         };
@@ -568,12 +572,14 @@ router.post("/admin/media-assets/import-from-url", requireFirebaseAuth, requireS
       const safeFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${shrunk ? webpName(name) : name}`;
       const bunnyPath = `offers-assets/${serviceId}/${safeFileName}`;
       await uploadToBunny(buffer, bunnyPath, contentType);
+      const preview = await createMediaAssetPreview(buffer, contentType, bunnyPath);
 
       const asset: Record<string, unknown> = {
         serviceId,
         kind,
         url: bunnyPublicUrl(bunnyPath),
         bunnyPath,
+        ...preview,
         label: fileName.replace(/\.[^.]+$/, ""),
         createdAt: new Date().toISOString(),
       };
@@ -593,53 +599,30 @@ router.post("/admin/media-assets/import-from-url", requireFirebaseAuth, requireS
 router.post("/admin/media-assets/reprocess-originals", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const snapshot = await firestore().collection("offer_media_assets").get();
-    type RawAsset = { id: string; sourcePhotoUrl?: string; sourceAlbumSlug?: string; bunnyPath?: string };
     const candidates = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as RawAsset))
-      .filter(asset => (
-        typeof asset.sourcePhotoUrl === "string" && asset.sourcePhotoUrl
-        && typeof asset.sourceAlbumSlug === "string" && asset.sourceAlbumSlug
-        && typeof asset.bunnyPath === "string" && asset.bunnyPath
-      ));
-
-    const albumsBySlug = new Map<string, ReturnType<typeof loadAlbum>>();
-    const getAlbum = (slug: string) => {
-      let album = albumsBySlug.get(slug);
-      if (!album) {
-        album = loadAlbum(slug);
-        albumsBySlug.set(slug, album);
-      }
-      return album;
-    };
+      .map(doc => ({ id: doc.id, ...doc.data() } as StoredOfferMediaAsset))
+      .filter(asset => asset.kind === "image" && asset.bunnyPath && !asset.previewUrl);
 
     let fixed = 0;
     let skipped = 0;
 
-    await Promise.all(candidates.map(async asset => {
-      try {
-        const album = await getAlbum(asset.sourceAlbumSlug!);
-        const previewUrl = album?.photos.find(photo => (
-          isPreviewUrl(photo) && mediaKeyFromUrl(photo) === mediaKeyFromUrl(asset.sourcePhotoUrl!)
-        ));
-        if (!previewUrl) { skipped++; return; }
-
-        const { buffer, contentType } = await downloadRemoteAsset(previewUrl);
-        const previewBunnyPath = asset.bunnyPath!.replace(/\.[^.]+$/, ".webp");
-        await uploadToBunny(buffer, previewBunnyPath, contentType || "image/webp");
-        if (previewBunnyPath !== asset.bunnyPath) await deleteFromBunny(asset.bunnyPath!).catch(() => {});
-        await firestore().collection("offer_media_assets").doc(asset.id).update({
-          kind: "image" as OfferAssetKind,
-          url: bunnyPublicUrl(previewBunnyPath),
-          bunnyPath: previewBunnyPath,
-          sourcePhotoUrl: previewUrl,
-          reprocessedAt: new Date().toISOString(),
-          previewOptimizedAt: new Date().toISOString(),
-        });
-        fixed++;
-      } catch {
-        skipped++;
-      }
-    }));
+    for (let offset = 0; offset < candidates.length; offset += 4) {
+      await Promise.all(candidates.slice(offset, offset + 4).map(async asset => {
+        try {
+          // Read the independent asset copy, so deleted source albums do not matter.
+          const { buffer, contentType } = await downloadRemoteAsset(asset.url);
+          const preview = await createMediaAssetPreview(buffer, contentType, asset.bunnyPath!);
+          if (!preview.previewUrl) { skipped++; return; }
+          await firestore().collection("offer_media_assets").doc(asset.id).update({
+            ...preview,
+            previewOptimizedAt: new Date().toISOString(),
+          });
+          fixed++;
+        } catch {
+          skipped++;
+        }
+      }));
+    }
 
     res.json({ ok: true, fixed, skipped, total: candidates.length });
   } catch (error) {
@@ -665,6 +648,9 @@ router.delete("/admin/media-assets/by-source", requireFirebaseAuth, requireSupre
       const asset = doc.data();
       if (typeof asset.bunnyPath === "string" && asset.bunnyPath) {
         await deleteFromBunny(asset.bunnyPath).catch(() => {});
+      }
+      if (typeof asset.previewBunnyPath === "string" && asset.previewBunnyPath) {
+        await deleteFromBunny(asset.previewBunnyPath).catch(() => {});
       }
       await doc.ref.delete();
     }));
@@ -698,6 +684,7 @@ router.delete("/admin/media-assets/:assetId", requireFirebaseAuth, requireSuprem
 
     const asset = { id: assetDoc.id, ...assetDoc.data() } as OfferMediaAsset;
     if (asset.bunnyPath) await deleteFromBunny(asset.bunnyPath);
+    if (asset.previewBunnyPath) await deleteFromBunny(asset.previewBunnyPath);
     await assetRef.delete();
 
     const showcase = await readTemplateShowcase();

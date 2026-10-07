@@ -14,6 +14,8 @@ export type OfferMediaAsset = {
   kind: OfferAssetKind;
   url: string;
   bunnyPath?: string;
+  previewBunnyPath?: string;
+  previewUrl?: string;
   label: string;
   createdAt?: string;
   sourceAlbumSlug?: string;

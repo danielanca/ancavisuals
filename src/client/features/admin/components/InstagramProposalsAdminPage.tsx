@@ -1,16 +1,20 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
+import PhotoReviewImage from "../../../components/Media/PhotoReviewImage";
+import galleryStyles from "../../../components/Media/PhotoReviewGallery.module.scss";
+import type { PhotoVote } from "../../../../shared/media/proposalConsensus";
 
 type ProposalStatus = "pending" | "accepted" | "archived" | "rejected";
 type Tab = "pending" | "all" | "accepted" | "rejected" | "archived";
 type ProposalDestination = "instagram" | "media_assets";
 
-type InstagramProposal = {
+type InstagramProposal = PhotoVote & {
   id: string;
   albumSlug: string;
   photoUrl: string;
+  previewPhotoUrl?: string;
   originalPhotoUrl?: string;
   fileName: string;
   proposedBy: string;
@@ -26,6 +30,7 @@ type GroupedProposal = {
   albumSlug: string;
   fileName: string;
   photoUrl: string;
+  previewPhotoUrl?: string;
   originalPhotoUrl?: string;
   proposedBy: string[];
   ids: string[];
@@ -46,6 +51,7 @@ function groupByPhoto(proposals: InstagramProposal[]): GroupedProposal[] {
         albumSlug: p.albumSlug,
         fileName: p.fileName,
         photoUrl: p.photoUrl,
+        previewPhotoUrl: p.previewPhotoUrl,
         originalPhotoUrl: p.originalPhotoUrl,
         proposedBy: [],
         ids: [],
@@ -105,6 +111,8 @@ function triggerDownload(url: string, fileName: string): Promise<void> {
 
 function PendingCard({
   group,
+  selectionEnabled,
+  canModerate,
   busy,
   accepted,
   generatingAlt,
@@ -114,6 +122,8 @@ function PendingCard({
   onGenerateAlt,
 }: {
   group: GroupedProposal;
+  selectionEnabled: boolean;
+  canModerate: boolean;
   busy: boolean;
   accepted: boolean;
   generatingAlt: boolean;
@@ -140,15 +150,12 @@ function PendingCard({
 
   return (
     <div className={`bg-neutral-950 border rounded-xl overflow-hidden ${accepted ? "border-cyan-900/60" : "border-neutral-800"}`}>
-      <div className="flex sm:flex-col">
-        <div className="relative flex-shrink-0 w-28 sm:w-full">
-          <img
-            src={group.photoUrl}
-            alt={group.alt || group.fileName}
-            className="w-full h-28 sm:h-auto sm:aspect-square object-cover block"
-            loading="lazy"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+      <div className="flex flex-col">
+        <div className="relative w-full">
+          <PhotoReviewImage src={group.previewPhotoUrl ?? group.photoUrl} original={group.originalPhotoUrl ?? group.photoUrl}
+            alt={group.fileName} enabled={selectionEnabled} busy={busy}
+            onAccept={canModerate && !accepted ? () => setAccepting(true) : undefined} onReject={canModerate && !accepted ? onReject : undefined} />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           {!accepted && (
             <button
               type="button"
@@ -203,7 +210,7 @@ function PendingCard({
                 </span>
               ))}
             </div>
-          ) : accepting ? (
+          ) : selectionEnabled && accepting ? (
             <>
               <div className="flex gap-1.5 flex-wrap">
                 {(["instagram", "media_assets"] as ProposalDestination[]).map(dest => {
@@ -257,20 +264,6 @@ function PendingCard({
               </div>
               <div className="flex gap-2 sm:gap-1.5">
                 <button
-                  onClick={() => setAccepting(true)}
-                  disabled={busy}
-                  className="flex-1 py-2.5 sm:py-2 rounded-lg text-xs font-bold bg-cyan-900/50 text-cyan-300 hover:bg-cyan-800/60 transition-colors disabled:opacity-40 active:scale-95"
-                >
-                  Acceptă
-                </button>
-                <button
-                  onClick={onReject}
-                  disabled={busy}
-                  className="flex-1 py-2.5 sm:py-2 rounded-lg text-xs font-bold bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors disabled:opacity-40 active:scale-95"
-                >
-                  Respinge
-                </button>
-                <button
                   onClick={onDelete}
                   disabled={busy}
                   className="px-3 py-2.5 sm:py-2 rounded-lg text-xs text-neutral-600 hover:text-red-400 hover:bg-neutral-800 transition-colors disabled:opacity-40"
@@ -291,6 +284,8 @@ function PendingCard({
 
 function AcceptedCard({
   proposal,
+  selectionEnabled,
+  onReject,
   wasDownloaded,
   busy,
   generatingAlt,
@@ -300,6 +295,8 @@ function AcceptedCard({
   onGenerateAlt,
 }: {
   proposal: InstagramProposal;
+  selectionEnabled: boolean;
+  onReject?: () => void;
   wasDownloaded: boolean;
   busy: boolean;
   generatingAlt: boolean;
@@ -311,12 +308,8 @@ function AcceptedCard({
   return (
     <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
       <div className="relative">
-        <img
-          src={proposal.photoUrl}
-          alt={proposal.alt || proposal.fileName}
-          className="w-full aspect-square object-cover block"
-          loading="lazy"
-        />
+        <PhotoReviewImage src={proposal.previewPhotoUrl ?? proposal.photoUrl} original={proposal.originalPhotoUrl ?? proposal.photoUrl}
+          alt={proposal.fileName} enabled={selectionEnabled} busy={busy} onReject={onReject} />
         <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-900/70 text-cyan-300">
           Acceptat
         </span>
@@ -431,6 +424,7 @@ export default function InstagramProposalsAdminPage() {
   const navigate = useNavigate();
   const [proposals, setProposals] = useState<InstagramProposal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [tab, setTab] = useState<Tab>("pending");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -467,13 +461,14 @@ export default function InstagramProposalsAdminPage() {
     try {
       const body: Record<string, unknown> = { status };
       if (destinations) body.destinations = destinations;
-      await fetch(`/api/instagram-proposals/${id}`, {
+      const response = await fetch(`/api/instagram-proposals/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
         body: JSON.stringify(body),
       });
-      setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, status, ...(destinations ? { destinations } : {}) } : p)));
-    } catch { } finally { setUpdatingId(null); }
+      if (!response.ok) throw new Error((await response.json()).error ?? "Nu am putut actualiza propunerea.");
+      setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, status, selectionDestinations: p.selectionDestinations ?? p.destinations ?? ["instagram"], ...(destinations ? { destinations } : {}) } : p)));
+    } catch (error) { setFetchError(String(error)); } finally { setUpdatingId(null); }
   };
 
   const updateStatusGroup = async (groupKey: string, ids: string[], status: ProposalStatus, destinations?: ProposalDestination[]) => {
@@ -482,16 +477,18 @@ export default function InstagramProposalsAdminPage() {
     try {
       const body: Record<string, unknown> = { status };
       if (destinations) body.destinations = destinations;
-      await Promise.all(ids.map((id) =>
-        fetch(`/api/instagram-proposals/${id}`, {
+      // Process one photo's votes in order so a Media Assets import can reuse the first copy.
+      for (const id of ids) {
+        const response = await fetch(`/api/instagram-proposals/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
           body: JSON.stringify(body),
-        })
-      ));
-      setProposals((prev) => prev.map((p) => ids.includes(p.id) ? { ...p, status, ...(destinations ? { destinations } : {}) } : p));
+        });
+        if (!response.ok) throw new Error((await response.json()).error ?? "Nu am putut actualiza propunerea.");
+        setProposals(prev => prev.map(p => p.id === id ? { ...p, status, selectionDestinations: p.selectionDestinations ?? p.destinations ?? ["instagram"], ...(destinations ? { destinations } : {}) } : p));
+      }
       if (status === "accepted") setAcceptedInSession((prev) => new Set([...prev, groupKey]));
-    } catch { } finally { setUpdatingId(null); }
+    } catch (error) { setFetchError(String(error)); } finally { setUpdatingId(null); }
   };
 
   const generateAlt = async (key: string, ids: string[], photoUrl: string) => {
@@ -636,6 +633,7 @@ export default function InstagramProposalsAdminPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Link to="/admin/instagram-proposals/selectie-comuna" className="px-3 py-1.5 rounded-lg border border-emerald-800 text-emerald-300 text-xs">Selecție comună</Link>
             <button
               onClick={() => setRefreshKey((k) => k + 1)}
               disabled={loading}
@@ -660,6 +658,11 @@ export default function InstagramProposalsAdminPage() {
             )}
           </div>
         </div>
+
+        <button type="button" role="switch" aria-checked={selectionEnabled} onClick={() => setSelectionEnabled(enabled => !enabled)}
+          className={`px-4 py-2 rounded-lg text-sm border ${selectionEnabled ? "border-emerald-700 bg-emerald-950 text-emerald-300" : "border-neutral-700 text-neutral-300"}`}>
+          {selectionEnabled ? "Dezactivează selectarea" : "Activează selectarea"}
+        </button>
 
         {/* Tabs — scrollable on mobile */}
         <div
@@ -698,7 +701,7 @@ export default function InstagramProposalsAdminPage() {
         )}
 
         {loading && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          <div className={galleryStyles.masonry}>
             {[1, 2, 3, 4].map((n) => (
               <div key={n} className="aspect-square rounded-xl bg-neutral-900 animate-pulse" />
             ))}
@@ -748,10 +751,12 @@ export default function InstagramProposalsAdminPage() {
                       onToggle={() => toggleAlbum(albumSlug)}
                     />
                     {!collapsedAlbums.has(albumSlug) && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-neutral-800">
+                      <div className={`${galleryStyles.masonry} p-3`}>
                         {photoGroups.map((group) => (
                           <div key={group.key} className="bg-neutral-950">
                             <PendingCard
+                              selectionEnabled={selectionEnabled}
+                              canModerate={auth.role === "admin"}
                               group={group}
                               busy={updatingId === group.key}
                               accepted={acceptedInSession.has(group.key)}
@@ -771,6 +776,7 @@ export default function InstagramProposalsAdminPage() {
             </>
           );
         })()}
+
 
         {/* ── ACCEPTATE ── */}
         {!loading && tab === "accepted" && (() => {
@@ -803,10 +809,12 @@ export default function InstagramProposalsAdminPage() {
                     onToggle={() => toggleAlbum(albumSlug)}
                   />
                   {!collapsedAlbums.has(albumSlug) && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3">
+                    <div className={`${galleryStyles.masonry} p-3`}>
                       {albumProposals.map((proposal) => (
                         <AcceptedCard
                           key={proposal.id}
+                          selectionEnabled={selectionEnabled}
+                          onReject={auth.role === "admin" ? () => void updateStatus(proposal.id, "rejected") : undefined}
                           proposal={proposal}
                           wasDownloaded={downloaded.has(proposal.id)}
                           busy={updatingId === proposal.id}
@@ -842,16 +850,14 @@ export default function InstagramProposalsAdminPage() {
                   {deletingAll === "rejected" ? "Se șterge..." : `Șterge tot (${rejected.length})`}
                 </button>
               </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className={galleryStyles.masonry}>
               {rejected.map((proposal) => (
                 <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                   <div className="relative">
-                    <img
-                      src={proposal.photoUrl}
-                      alt={proposal.fileName}
-                      className="w-full aspect-square object-cover block grayscale opacity-50"
-                      loading="lazy"
-                    />
+                    <PhotoReviewImage src={proposal.previewPhotoUrl ?? proposal.photoUrl} original={proposal.originalPhotoUrl ?? proposal.photoUrl}
+                      alt={proposal.fileName} enabled={selectionEnabled} busy={updatingId === proposal.id}
+                      onAccept={auth.role === "admin" && proposal.status !== "accepted" ? () => void updateStatus(proposal.id, "accepted") : undefined}
+                      onReject={auth.role === "admin" && proposal.status !== "rejected" ? () => void updateStatus(proposal.id, "rejected") : undefined} />
                     <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-900/70 text-red-400">
                       Respins
                     </span>
@@ -906,16 +912,14 @@ export default function InstagramProposalsAdminPage() {
                   {deletingAll === "archived" ? "Se șterge..." : `Șterge tot (${archived.length})`}
                 </button>
               </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className={galleryStyles.masonry}>
               {archived.map((proposal) => (
                 <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                   <div className="relative">
-                    <img
-                      src={proposal.photoUrl}
-                      alt={proposal.fileName}
-                      className="w-full aspect-square object-cover block"
-                      loading="lazy"
-                    />
+                    <PhotoReviewImage src={proposal.previewPhotoUrl ?? proposal.photoUrl} original={proposal.originalPhotoUrl ?? proposal.photoUrl}
+                      alt={proposal.fileName} enabled={selectionEnabled} busy={updatingId === proposal.id}
+                      onAccept={auth.role === "admin" && proposal.status !== "accepted" ? () => void updateStatus(proposal.id, "accepted") : undefined}
+                      onReject={auth.role === "admin" && proposal.status !== "rejected" ? () => void updateStatus(proposal.id, "rejected") : undefined} />
                     <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-900/70 text-green-400">
                       Arhivat
                     </span>
@@ -1002,16 +1006,14 @@ export default function InstagramProposalsAdminPage() {
             {allFiltered.length === 0 ? (
               <div className="text-center py-16 text-neutral-600 text-sm">Nicio propunere.</div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              <div className={galleryStyles.masonry}>
                 {allFiltered.map((proposal) => (
                   <div key={proposal.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
                     <div className="relative">
-                      <img
-                        src={proposal.photoUrl}
-                        alt={proposal.fileName}
-                        className="w-full aspect-square object-cover block"
-                        loading="lazy"
-                      />
+                      <PhotoReviewImage src={proposal.previewPhotoUrl ?? proposal.photoUrl} original={proposal.originalPhotoUrl ?? proposal.photoUrl}
+                      alt={proposal.fileName} enabled={selectionEnabled} busy={updatingId === proposal.id}
+                      onAccept={auth.role === "admin" && proposal.status !== "accepted" ? () => void updateStatus(proposal.id, "accepted") : undefined}
+                      onReject={auth.role === "admin" && proposal.status !== "rejected" ? () => void updateStatus(proposal.id, "rejected") : undefined} />
                       <span className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE[proposal.status]}`}>
                         {STATUS_LABEL[proposal.status]}
                       </span>
@@ -1045,15 +1047,6 @@ export default function InstagramProposalsAdminPage() {
                         ))}
                       </div>
                       <div className="flex gap-1.5 flex-wrap">
-                        {proposal.status === "pending" && (
-                          <button
-                            onClick={() => updateStatus(proposal.id, "accepted")}
-                            disabled={updatingId === proposal.id}
-                            className="flex-1 py-2 rounded-lg text-[11px] font-bold bg-cyan-900/40 text-cyan-300 hover:bg-cyan-900/60 transition-colors disabled:opacity-40 active:scale-95"
-                          >
-                            Acceptă
-                          </button>
-                        )}
                         {proposal.status === "accepted" && (
                           <button
                             onClick={() => updateStatus(proposal.id, "archived")}
@@ -1061,15 +1054,6 @@ export default function InstagramProposalsAdminPage() {
                             className="flex-1 py-2 rounded-lg text-[11px] font-bold bg-green-950/60 text-green-400 hover:bg-green-900/40 transition-colors disabled:opacity-40 active:scale-95"
                           >
                             Arhivează
-                          </button>
-                        )}
-                        {(proposal.status === "pending" || proposal.status === "accepted") && (
-                          <button
-                            onClick={() => updateStatus(proposal.id, "rejected")}
-                            disabled={updatingId === proposal.id}
-                            className="flex-1 py-2 rounded-lg text-[11px] font-bold bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors disabled:opacity-40 active:scale-95"
-                          >
-                            Respinge
                           </button>
                         )}
                         <button

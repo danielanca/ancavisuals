@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { fetchGetWithRetry } from "../../../utils/fetchGetWithRetry";
 
 type Alert = { id: string; occurredAt: string; error: string; subject: string; to: string; diagnostic?: string };
 export default function EmailFailureBanner({ accessToken }: { accessToken: string }) {
@@ -6,18 +7,26 @@ export default function EmailFailureBanner({ accessToken }: { accessToken: strin
   const [unavailable, setUnavailable] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+  const pending = useRef<AbortController | null>(null);
   const load = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken || pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
     try {
-      const res = await fetch("/api/admin/email-alert", { headers: { Authorization: `Bearer ${accessToken}` } });
+      const res = await fetchGetWithRetry("/api/admin/email-alert", { signal: controller.signal, headers: { Authorization: `Bearer ${accessToken}` } });
       if (!res.ok) throw new Error();
-      const data = await res.json(); setAlert(data.alert); setUnavailable(false);
-    } catch { setUnavailable(true); }
+      const data = await res.json();
+      if (!controller.signal.aborted) { setAlert(data.alert); setUnavailable(false); }
+    } catch { if (!controller.signal.aborted) setUnavailable(true); }
+    finally { if (pending.current === controller) pending.current = null; }
   }, [accessToken]);
   useEffect(() => {
     void load(); const timer = setInterval(() => void load(), 15000);
     const onFocus = () => void load(); window.addEventListener("focus", onFocus);
-    return () => { clearInterval(timer); window.removeEventListener("focus", onFocus); };
+    return () => {
+      clearInterval(timer); window.removeEventListener("focus", onFocus);
+      pending.current?.abort(); pending.current = null;
+    };
   }, [load]);
   async function acknowledge() {
     if (!alert) return;

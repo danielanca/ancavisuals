@@ -4,6 +4,7 @@ import ConfirmModal from "../ConfirmModal";
 import ContractActionMenu from "./ContractActionMenu";
 import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
+import { matchesEventDateQuery, parseEventDateQuery } from "./contractDateSearch";
 
 import { listWorkDrafts, migrateLegacyWorkDraft, removeWorkDraft, type ContractWorkDraft } from "./contractWorkDrafts";
 
@@ -47,6 +48,8 @@ const ContractListPage: React.FC = () => {
   const [draftListError, setDraftListError] = useState<string | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [contracts, setContracts] = useState<ContractItem[]>([]);
+  const [dateSearch, setDateSearch] = useState("");
+  const [eventYear, setEventYear] = useState("");
   const [bookedDates, setBookedDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState<string | null>(null);
@@ -366,8 +369,41 @@ const ContractListPage: React.FC = () => {
     return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" });
   };
 
-  const serverDrafts = contracts.filter((contract) => contract.status === "draft");
-  const draftCount = workDrafts.length + serverDrafts.length;
+  const isSearching = dateSearch.trim().length > 0;
+  const hasActiveFilter = isSearching || eventYear !== "";
+  const dateQuery = parseEventDateQuery(dateSearch);
+  const datesForContract = (contract: ContractItem) =>
+    contract.eventDates?.length ? contract.eventDates : [contract.eventDate];
+  const matchesFilters = (dates: string[]) => {
+    const matchesYear = !eventYear || dates.some((date) => date?.slice(0, 4) === eventYear);
+    const matchesDate = !isSearching || (!!dateQuery && matchesEventDateQuery(dates, dateQuery));
+    return matchesYear && matchesDate;
+  };
+  const eventYears = Array.from(new Set([
+    ...contracts.flatMap((contract) => datesForContract(contract)),
+    ...workDrafts.flatMap((draft) => {
+      try {
+        const payload = JSON.parse(draft.payload);
+        return Array.isArray(payload.eventDates) && payload.eventDates.length
+          ? payload.eventDates.filter((value: unknown): value is string => typeof value === "string")
+          : [draft.eventDate];
+      } catch { return [draft.eventDate]; }
+    }),
+  ].map((date) => date?.match(/^(\d{4})/)?.[1]).filter((year): year is string => !!year))
+    .sort((a, b) => Number(a) - Number(b));
+  const filteredContracts = contracts.filter((contract) => matchesFilters(datesForContract(contract)));
+  const filteredWorkDrafts = workDrafts.filter((draft) => {
+    let dates = [draft.eventDate];
+    try {
+      const payload = JSON.parse(draft.payload);
+      if (Array.isArray(payload.eventDates) && payload.eventDates.length) {
+        dates = payload.eventDates.filter((value: unknown): value is string => typeof value === "string");
+      }
+    } catch { /* Keep using the draft's saved event date when its payload is unreadable. */ }
+    return matchesFilters(dates);
+  });
+  const serverDrafts = filteredContracts.filter((contract) => contract.status === "draft");
+  const draftCount = filteredWorkDrafts.length + serverDrafts.length;
 
   const normalizeDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -407,11 +443,42 @@ const ContractListPage: React.FC = () => {
           </div>
         </div>
 
+        <div className="mb-6">
+          <label htmlFor="contract-event-year" className="block text-sm text-neutral-300 mb-2">Filtrează după anul evenimentului</label>
+          <select
+            id="contract-event-year"
+            value={eventYear}
+            onChange={(event) => setEventYear(event.target.value)}
+            className="mb-4 w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-base text-white focus:border-neutral-500 focus:outline-none"
+          >
+            <option value="">Toți anii</option>
+            {eventYears.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select>
+          <label htmlFor="contract-event-date-search" className="block text-sm text-neutral-300 mb-2">Caută după data evenimentului</label>
+          <div className="flex gap-2">
+            <input
+              id="contract-event-date-search"
+              type="text"
+              value={dateSearch}
+              onChange={(event) => setDateSearch(event.target.value)}
+              placeholder="Ex: 20 ianuarie sau 20.1.2026"
+              aria-describedby="contract-event-date-search-hint"
+              aria-invalid={isSearching && !dateQuery}
+              className="min-w-0 flex-1 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-base text-white placeholder:text-neutral-500 focus:border-neutral-500 focus:outline-none"
+            />
+            {isSearching && <button type="button" onClick={() => setDateSearch("")} className="rounded-lg border border-neutral-800 px-3 text-sm text-neutral-300 hover:border-neutral-600">Șterge căutarea</button>}
+          </div>
+          <p id="contract-event-date-search-hint" className="mt-2 text-xs text-neutral-500">
+            {isSearching && !dateQuery ? "Scrie o dată validă, de exemplu 20 ianuarie sau 20.1.2026." : "Filtrul și căutarea folosesc data evenimentului. Fără an în căutare, se caută în toți anii disponibili sau în anul selectat."}
+          </p>
+          {!loading && !error && hasActiveFilter && (!isSearching || dateQuery) && <p role="status" className="mt-2 text-sm text-neutral-400">{filteredContracts.length} contracte găsite</p>}
+        </div>
+
         <section className="mb-8 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
           <h2 className="text-lg text-white">Drafturi de lucru ({loading ? "…" : draftCount})</h2>
           <p className="text-xs text-neutral-400 mt-1 mb-4">Contracte draft salvate în cont și formulare începute în acest browser. Le poți relua separat.</p>
           {draftListError && <p role="alert" className="text-sm text-red-400">{draftListError}</p>}
-          {!loading && !error && !draftListError && draftCount === 0 && <p className="text-sm text-neutral-500">Începe cu „Contract nou” pentru a pregăti un draft.</p>}
+          {!loading && !error && !draftListError && draftCount === 0 && <p className="text-sm text-neutral-500">{hasActiveFilter ? "Niciun draft pentru filtrele selectate." : "Începe cu „Contract nou” pentru a pregăti un draft."}</p>}
           <div className="space-y-3">
             {serverDrafts.map((draft) => (
               <div key={`server-${draft.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
@@ -422,7 +489,7 @@ const ContractListPage: React.FC = () => {
                 <button type="button" className="text-sm text-sky-300" onClick={() => navigate(`/admin/contracts/${draft.id}/edit`)}>Continuă draftul</button>
               </div>
             ))}
-            {workDrafts.map((draft) => (
+            {filteredWorkDrafts.map((draft) => (
               <div key={draft.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
                 <div>
                   <p className="text-white text-sm">{draft.eventDate ? formatDate(draft.eventDate) : "Dată nesetată"} — {draft.title}</p>
@@ -469,9 +536,13 @@ const ContractListPage: React.FC = () => {
           </div>
         )}
 
-        {!loading && contracts.length > 0 && (
+        {!loading && !error && contracts.length > 0 && hasActiveFilter && (!isSearching || dateQuery) && filteredContracts.length === 0 && (
+          <p className="text-center py-12 text-neutral-500 text-sm">Niciun contract pentru filtrele selectate.</p>
+        )}
+
+        {!loading && !error && filteredContracts.length > 0 && (
           <div className="space-y-3">
-            {contracts.map((contract) => {
+            {filteredContracts.map((contract) => {
               const statusInfo = STATUS_LABELS[contract.status] ?? STATUS_LABELS.draft;
               const isSigned = !!contract.prestatorSignatureBase64;
               const contractDates = contract.eventDates?.length ? contract.eventDates : [contract.eventDate];

@@ -9,6 +9,7 @@ interface NavItem {
   label: string;
   path: string;
   badge?: number;
+  children?: { label: string; path: string }[];
 }
 
 interface NavCategory {
@@ -272,7 +273,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         </svg>
       ),
       items: [
-        { label: "Propuneri Media", path: "/admin/instagram-proposals", badge: pendingProposals },
+        { label: "Propuneri Media", path: "/admin/instagram-proposals", badge: pendingProposals, children: [{ label: "Selecție comună", path: "/admin/instagram-proposals/selectie-comuna" }] },
         { label: "Swipe Test", path: "/admin/swipe-proposals" },
         { label: "Media Assets", path: "/admin/media-assets" },
         { label: "QR Moments", path: "/admin/qr-moments" },
@@ -564,6 +565,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
                               </button>
                             )}
                           </div>
+                          {item.children?.map(child => (
+                            <button key={child.path} type="button" onClick={() => handleNavItem(child.path)}
+                              aria-current={location.pathname === child.path ? "page" : undefined}
+                              className={`ml-5 w-[calc(100%-1.25rem)] px-2 py-1.5 text-left rounded-md text-xs transition-colors ${location.pathname === child.path ? "bg-emerald-500/15 text-emerald-300" : "text-neutral-500 hover:bg-neutral-800 hover:text-white"}`}>
+                              ↳ {child.label}
+                            </button>
+                          ))}
                         </div>
                       );
                     })}

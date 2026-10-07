@@ -131,6 +131,15 @@ describe("instagramProposals.routes", () => {
       expect(res.json).toHaveBeenCalledWith({ ok: true, id: "prop-1" });
     });
 
+    test("authenticated reviewer identity comes from the account, ignoring the request body", async () => {
+      const { postProposal, addMock, getMock } = await loadInstagramProposalsRouter();
+      getMock.mockResolvedValue({ empty: true });
+      await postProposal({ firebaseUid: "daniel-uid", firebaseEmail: "ancadaniel1994@gmail.com",
+        body: { albumSlug: "album", photoUrl: "https://cdn.test/photo.jpg", fileName: "photo.jpg", reviewerId: "salomeea", destinations: ["instagram", "media_assets"], mediaAssetServiceIds: ["photo"] },
+      }, createMockResponse());
+      expect(addMock).toHaveBeenCalledWith(expect.objectContaining({ reviewerId: "daniel", selectionDestinations: ["instagram", "media_assets"] }));
+    });
+
     test("returns existing proposal id when already proposed", async () => {
       const { postProposal, addMock, getMock } = await loadInstagramProposalsRouter();
       const res = createMockResponse();
@@ -240,6 +249,24 @@ describe("instagramProposals.routes", () => {
 
       expect(docMock).toHaveBeenCalledWith("prop-1");
       expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ status: "accepted" }));
+      expect(res.json).toHaveBeenCalledWith({ ok: true });
+    });
+
+    test("accepting a photo for a different destination preserves the reviewer's original vote", async () => {
+      const { patchStatus, docGetMock, updateMock } = await loadInstagramProposalsRouter();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ destinations: ["media_assets"], selectionDestinations: ["instagram"], mediaAssetServiceIds: [] }) });
+      await patchStatus({ params: { id: "prop-1" }, body: { status: "accepted", destinations: ["instagram"] } }, createMockResponse());
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ selectionDestinations: ["instagram"], destinations: ["instagram"] }));
+    });
+
+    test("accepting another person's vote reuses an existing Media Asset for the same photo and service", async () => {
+      const { patchStatus, docGetMock, whereMock, addMock, updateMock } = await loadInstagramProposalsRouter();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ albumSlug: "album", fileName: "IMG_1.jpg", photoUrl: "https://cdn.test/album/photos/IMG_1.jpg?token=new", destinations: ["media_assets"], mediaAssetServiceIds: ["photo"] }) });
+      whereMock.mockResolvedValue({ docs: [{ id: "asset-existing", data: () => ({ serviceId: "photo", sourcePhotoUrl: "https://cdn.test/album/photos_preview/IMG_1.webp?token=old" }) }] });
+      const res = createMockResponse();
+      await patchStatus({ params: { id: "estera-vote" }, body: { status: "accepted" } }, res);
+      expect(addMock).not.toHaveBeenCalled();
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ mediaAssetIds: ["asset-existing"] }));
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
 

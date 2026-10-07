@@ -1,6 +1,7 @@
 import React from "react";
 import { useLocation, Navigate, Outlet } from "react-router-dom";
 import useAuth from "../auth/useAuth";
+import { loginDestination } from "../auth/loginDestination";
 import Loader from "../../../components/UI/Loader";
 
 const CheckAuth: React.FC = () => {
@@ -12,7 +13,7 @@ const CheckAuth: React.FC = () => {
 
   // If already logged in, skip the login page
   return auth?.authorise ? (
-    <Navigate to="/admin" state={{ from: location }} replace />
+    <Navigate to={loginDestination(location.state)} replace />
   ) : (
     <Outlet />
   );

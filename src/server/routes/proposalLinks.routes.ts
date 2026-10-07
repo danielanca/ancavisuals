@@ -14,6 +14,8 @@ import { normalizeOfferServiceIds } from "../../shared/offers/offerServices";
 import { sendViaFunnel } from "../notifications/emailFunnel";
 import { adminUser } from "../constants/credentials";
 
+import { isPhotoReviewerId, type PhotoReviewerId } from "../../shared/media/proposalConsensus";
+
 const router = express.Router();
 const LINKS_COLLECTION = "proposalLinks";
 const PROPOSALS_COLLECTION = "instagramProposals";
@@ -37,6 +39,7 @@ type ProposalLink = {
   token: string;
   albumSlug: string;
   label: string;
+  reviewerId?: PhotoReviewerId;
   active: boolean;
   mediaAssetServiceIds: string[];
   createdByEmail: string;
@@ -113,6 +116,7 @@ function serializeLink(link: ProposalLink, photos: { fileName: string; previewUr
     token: link.token,
     albumSlug: link.albumSlug,
     label: link.label,
+    reviewerId: link.reviewerId ?? null,
     active: link.active,
     url: buildProposalLinkUrl(link.token),
     createdAt: toIso(link.createdAt),
@@ -198,11 +202,16 @@ router.get("/admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
 // POST /admin — generate a new unique link for an album
 router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
-  const { albumSlug, label, mediaAssetServiceIds } = req.body as {
+  const { albumSlug, label, mediaAssetServiceIds, reviewerId } = req.body as {
     albumSlug?: string;
     label?: string;
     mediaAssetServiceIds?: string[];
+    reviewerId?: PhotoReviewerId;
   };
+  if (reviewerId !== undefined && !isPhotoReviewerId(reviewerId)) {
+    res.status(400).json({ error: "Persoană de selecție invalidă." });
+    return;
+  }
   const requestedSlug = albumSlug?.trim() ?? "";
   if (!requestedSlug) {
     res.status(400).json({ error: "albumSlug este obligatoriu." });
@@ -236,6 +245,7 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Requ
       token,
       albumSlug: canonical,
       label: cleanLabel,
+      ...(reviewerId ? { reviewerId } : {}),
       active: true,
       mediaAssetServiceIds: serviceIds.length > 0 ? serviceIds : ["photo"],
       createdByEmail: authReq.firebaseEmail,
@@ -394,6 +404,8 @@ router.post("/:token/proposals", async (req: Request, res: Response) => {
         const data = current.data();
         batch.update(current.ref, {
           proposedBy: cleanName,
+          ...(link.reviewerId ? { reviewerId: link.reviewerId } : {}),
+          selectionDestinations: Array.from(new Set([...(data.selectionDestinations ?? data.destinations ?? []), ...normalizedDestinations])),
           destinations: Array.from(new Set([...(data.destinations ?? []), ...normalizedDestinations])),
           mediaAssetServiceIds: normalizeOfferServiceIds([...(data.mediaAssetServiceIds ?? []), ...mediaAssetServiceIds]),
           updatedAt: Timestamp.now(),
@@ -410,9 +422,11 @@ router.post("/:token/proposals", async (req: Request, res: Response) => {
         proposedVia: "link",
         proposalLinkToken: link.token,
         proposalLinkLabel: link.label,
+        ...(link.reviewerId ? { reviewerId: link.reviewerId } : {}),
         proposedAt: Timestamp.now(),
         status: "pending",
         destinations: normalizedDestinations,
+        selectionDestinations: normalizedDestinations,
         mediaAssetServiceIds,
       });
       added++;

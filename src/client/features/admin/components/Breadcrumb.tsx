@@ -18,6 +18,7 @@ const LABELS: Record<string, string> = {
   "media-activity": "Activitate Media",
   "qr-moments": "QR Moments",
   "instagram-proposals": "Propuneri Media",
+  "selectie-comuna": "Selecție comună",
   "image-optimizer": "Optimizare Poze",
   moderare: "Moderare",
   "livrare-preview": "Livrare preview",
@@ -48,6 +49,13 @@ const VIRTUAL_PARENTS: Record<string, { path: string; label: string }> = {
 
 export default function Breadcrumb() {
   const { pathname } = useLocation();
+
+  if (/^\/admin\/events\/[^/]+\/brief$/.test(pathname)) {
+    return <nav aria-label="Breadcrumb" className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 mb-6 text-xs text-neutral-500">
+      <Link to="/admin" className="hover:text-neutral-300">Dashboard</Link>
+      <span className="mx-2">›</span><span className="text-neutral-300">Brief client</span>
+    </nav>;
+  }
 
   const segments = pathname.replace(/\/$/, "").split("/").filter(Boolean);
   // segments for /admin/calendar → ["admin", "calendar"]

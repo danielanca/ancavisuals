@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ClientEvent, EventDelivery, EventExpense, EventStatus } from "../types";
 import Redacted from "./Redacted";
+import CreateClientBriefLink from "../../client-brief/CreateClientBriefLink";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
@@ -769,6 +770,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
         {/* Body */}
         {!collapsed && (
           <div className="px-4 pb-4 border-t border-neutral-800 pt-3 space-y-3">
+            <CreateClientBriefLink eventId={event.id} />
 
             {/* Info row */}
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-neutral-400">

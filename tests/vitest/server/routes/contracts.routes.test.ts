@@ -39,7 +39,28 @@ async function loadContractsRouter() {
   const sendContractLinkEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendSignedContractEmailMock = vi.fn().mockResolvedValue(undefined);
 
-  const collectionMock = vi.fn(() => ({
+  const eventsGetMock = vi.fn().mockResolvedValue({ docs: [] });
+  const eventSetMock = vi.fn();
+  const transactionContractMock = vi.fn();
+  const runTransactionMock = vi.fn(async (callback: any) => {
+    const writes: Array<() => void> = [];
+    const result = await callback({
+      get: async (ref: any) => {
+        if (ref.collectionName === "adminEvents") return eventsGetMock();
+        const fresh = transactionContractMock();
+        if (fresh) return fresh;
+        const snapshot = await whereGetMock();
+        const contract = snapshot?.docs?.find((doc: any) => doc.id === ref.id);
+        return contract ? { exists: true, data: contract.data } : docGetMock(ref.id);
+      },
+      set: (ref: any, payload: any, options: any) => writes.push(() => eventSetMock(ref.id, payload, options)),
+      update: (ref: any, payload: any) => writes.push(() => updateMock(ref.id, payload)),
+    });
+    for (const write of writes) write();
+    return result;
+  });
+  const collectionMock = vi.fn((collectionName: string) => ({
+    collectionName,
     add: addMock,
     orderBy: vi.fn(() => ({
       get: orderByGetMock,
@@ -49,7 +70,8 @@ async function loadContractsRouter() {
         get: whereGetMock,
       })),
     })),
-    doc: vi.fn((id: string) => ({
+    doc: vi.fn((id: string = "new-event") => ({
+      id,
       get: () => docGetMock(id),
       update: (payload: Record<string, unknown>) => updateMock(id, payload),
     })),
@@ -63,6 +85,7 @@ async function loadContractsRouter() {
   vi.doMock("src/server/firestore", () => ({
     firestore: () => ({
       collection: collectionMock,
+      runTransaction: runTransactionMock,
     }),
   }));
 
@@ -105,6 +128,10 @@ async function loadContractsRouter() {
 
   return {
     addMock,
+    eventsGetMock,
+    eventSetMock,
+    transactionContractMock,
+    runTransactionMock,
     orderByGetMock,
     whereGetMock,
     docGetMock,
@@ -112,6 +139,7 @@ async function loadContractsRouter() {
     generateContractPDFMock,
     sendContractLinkEmailMock,
     sendSignedContractEmailMock,
+    postCreateEvent: getHandler("post", "/:id/create-event"),
     postCreate: getHandler("post", "/"),
     getList: getHandler("get", "/"),
     getPublicSign: getHandler("get", "/sign/:token"),
@@ -238,6 +266,7 @@ describe("contracts.routes", () => {
     test("POST /sign/:token signs the contract and starts PDF email delivery in background", async () => {
       const {
         postPublicSign,
+        eventSetMock,
         whereGetMock,
         updateMock,
         generateContractPDFMock,
@@ -288,6 +317,11 @@ describe("contracts.routes", () => {
         clientIp: "10.0.0.1",
       });
       expect(updatePayload.signedAt).toBeInstanceOf(Timestamp);
+      expect(updatePayload.eventId).toBe("new-event");
+      expect(eventSetMock).toHaveBeenCalledWith("new-event", expect.objectContaining({
+        status: "confirmat", contractId: "contract-1", eventDates: ["2026-09-12"],
+        client: { fullName: "Ion Popescu", phone: "0712345678", email: "client@example.com" },
+      }), { merge: true });
 
       expect(res.json).toHaveBeenCalledWith({
         ok: true,
@@ -421,6 +455,119 @@ describe("contracts.routes", () => {
         baseUrl: "https://staging.ancavisuals.ro",
       });
       expect(res.json).toHaveBeenCalledWith({ ok: true });
+    });
+  });
+
+  describe("calendar after client signing", () => {
+    const body = {
+      clientName: "Client Complet", clientEmail: "client@example.com", clientIdSeries: "AB123456",
+      clientPhone: "0712345678", clientAddress: "Cluj", clientSignatureBase64: "data:image/png;base64,abc",
+    };
+    const request = { params: { token: "token" }, headers: {}, ip: "127.0.0.1", body };
+    const contract = { status: "sent", eventType: "Nuntă", eventDate: "2027-05-01",
+      eventDates: ["2027-05-01", "2027-05-03"], priceTotal: 1500, priceAdvance: 500, priceRest: 1000 };
+    function snapshot(data: Record<string, unknown>) {
+      return { empty: false, docs: [{ id: "contract-1", data: () => data }] };
+    }
+
+    test("creation and sending do not reserve the calendar", async () => {
+      const { postCreate, postSend, addMock, docGetMock, eventSetMock, eventsGetMock } = await loadContractsRouter();
+      addMock.mockResolvedValue({ id: "contract-1" });
+      await postCreate({ body: contract }, createMockResponse());
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ ...contract, clientEmail: body.clientEmail }) });
+      await postSend({ params: { id: "contract-1" } }, createMockResponse());
+      expect(eventSetMock).not.toHaveBeenCalled();
+      expect(eventsGetMock).not.toHaveBeenCalled();
+    });
+
+    test.each(["draft", "sent", "anulat", "expired"])("manual calendar creation rejects %s contracts", async (status) => {
+      const { postCreateEvent, docGetMock, eventSetMock, updateMock } = await loadContractsRouter();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ ...contract, status }) });
+      const res = createMockResponse();
+      await postCreateEvent({ params: { id: "contract-1" } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(eventSetMock).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      { ...body, clientEmail: "" },
+      { ...body, clientIdSeries: "" },
+      { ...body, clientSignatureBase64: "" },
+      { ...body, clientName: "" },
+    ])("incomplete signing data cannot reserve the calendar", async (incompleteBody) => {
+      const { postPublicSign, whereGetMock, eventSetMock, updateMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot(contract));
+      const res = createMockResponse();
+      await postPublicSign({ ...request, body: incompleteBody }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(eventSetMock).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("manual creation remains available for old signed contracts without an event", async () => {
+      const { postCreateEvent, docGetMock, eventSetMock } = await loadContractsRouter();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ ...contract, ...body, status: "signed" }) });
+      const res = createMockResponse();
+      await postCreateEvent({ params: { id: "contract-1" } }, res);
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(eventSetMock).toHaveBeenCalledTimes(1);
+    });
+
+    test("signing reserves all exact dates and does not imply the advance was paid", async () => {
+      const { postPublicSign, whereGetMock, eventSetMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot(contract));
+      await postPublicSign(request, createMockResponse());
+      expect(eventSetMock).toHaveBeenCalledWith("new-event", expect.objectContaining({
+        eventDates: ["2027-05-01", "2027-05-03"], eventEndDate: "2027-05-03",
+        pricing: { total: 1500, advanceAmount: 500, advancePaid: false, remainingAmount: 1000 },
+      }), { merge: true });
+    });
+
+    test("signing updates a linked lead without duplicating it or losing payment information", async () => {
+      const { postPublicSign, whereGetMock, eventsGetMock, eventSetMock, updateMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot({ ...contract, eventId: "lead-1" }));
+      eventsGetMock.mockResolvedValue({ docs: [{ id: "lead-1", ref: { id: "lead-1" },
+        data: () => ({ status: "tentativ", pricing: { advancePaid: true }, notes: "Notă existentă" }) }] });
+      await postPublicSign(request, createMockResponse());
+      expect(eventSetMock).toHaveBeenCalledWith("lead-1", expect.objectContaining({
+        status: "confirmat", client: expect.objectContaining({ fullName: "Client Complet" }),
+        pricing: expect.objectContaining({ advancePaid: true }), notes: "Notă existentă",
+      }), { merge: true });
+      expect(updateMock.mock.calls[0][1].eventId).toBe("lead-1");
+    });
+
+    test("a conflict on any contract date saves neither signature nor event", async () => {
+      const { postPublicSign, whereGetMock, eventsGetMock, eventSetMock, updateMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot(contract));
+      eventsGetMock.mockResolvedValue({ docs: [{ id: "other-event", data: () => ({ status: "confirmat", eventDate: "2027-05-03" }) }] });
+      const res = createMockResponse();
+      await postPublicSign(request, res);
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(eventSetMock).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("a concurrent signature cannot create a second event", async () => {
+      const { postPublicSign, whereGetMock, transactionContractMock, eventSetMock, updateMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot(contract));
+      transactionContractMock.mockReturnValue({ exists: true, data: () => ({ ...contract, status: "signed", eventId: "existing" }) });
+      const res = createMockResponse();
+      await postPublicSign(request, res);
+      expect(res.status).toHaveBeenCalledWith(410);
+      expect(eventSetMock).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("a failed transaction saves neither signature nor event", async () => {
+      const { postPublicSign, whereGetMock, runTransactionMock, eventSetMock, updateMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot(contract));
+      runTransactionMock.mockRejectedValue(new Error("Firestore unavailable"));
+      const res = createMockResponse();
+      await postPublicSign(request, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(eventSetMock).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
     });
   });
 

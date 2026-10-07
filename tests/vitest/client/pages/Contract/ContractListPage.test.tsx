@@ -5,6 +5,7 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import type * as ReactRouterDom from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import ContractListPage from "src/client/features/admin/components/Contracts/ContractListPage";
 
@@ -15,7 +16,7 @@ vi.mock("src/client/features/admin/auth/useAuth", () => ({
 }));
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  const actual = await vi.importActual<typeof ReactRouterDom>("react-router-dom");
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -64,6 +65,38 @@ describe("ContractListPage", () => {
   });
 
   describe("happy path", () => {
+    test("searches typed event dates across years and all exact days, then clears the search", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ contracts: [
+          { ...contractsFixture[0], eventType: "Nunta 2026", eventDate: "2026-01-20T00:00:00.000Z" },
+          { ...contractsFixture[0], id: "multi", status: "signed", eventType: "Nunta 2027", eventDate: "2027-01-18", eventDates: ["2027-01-18", "2027-01-20"] },
+          { ...contractsFixture[0], id: "other", status: "signed", eventType: "Botez", eventDate: "2026-02-20" },
+        ] }),
+      }));
+      renderPage();
+      await screen.findByText("Botez");
+      const search = screen.getByLabelText("Caută după data evenimentului");
+      expect(search).toHaveAttribute("type", "text");
+      fireEvent.change(search, { target: { value: "20 ianuarie" } });
+      expect(screen.getByText("Nunta 2026")).toBeInTheDocument();
+      expect(screen.getByText("Nunta 2027")).toBeInTheDocument();
+      expect(screen.queryByText("Botez")).not.toBeInTheDocument();
+      expect(screen.getByText("2 contracte găsite")).toBeInTheDocument();
+      fireEvent.change(search, { target: { value: "20.1.2026" } });
+      expect(screen.getByText("Nunta 2026")).toBeInTheDocument();
+      expect(screen.queryByText("Nunta 2027")).not.toBeInTheDocument();
+      expect(screen.getByText("Drafturi de lucru (1)")).toBeInTheDocument();
+      fireEvent.change(search, { target: { value: "21.1.2026" } });
+      expect(screen.getByText("Niciun contract pentru această dată.")).toBeInTheDocument();
+      expect(screen.getByText("Drafturi de lucru (0)")).toBeInTheDocument();
+      fireEvent.change(search, { target: { value: "31 februarie" } });
+      expect(search).toHaveAttribute("aria-invalid", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Șterge căutarea" }));
+      expect(screen.getByText("Botez")).toBeInTheDocument();
+      expect(screen.getByText("Nunta 2027")).toBeInTheDocument();
+    });
+
     test("includes existing server drafts without local drafts and opens their editor", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
         ok: true,

@@ -8,6 +8,8 @@ import CheckAuth from "../features/admin/components/CheckAuth";
 const opts = { fallback: <AncaLoader /> };
 
 const Login = loadable(() => import("../features/admin/components/Login"), opts);
+const TodayBriefPage = loadable(() => import("../features/client-brief/TodayBriefPage"), opts);
+const ClientBriefAdminPage = loadable(() => import("../features/client-brief/ClientBriefAdminPage"), opts);
 const Dashboard = loadable(() => import("../features/admin/components/Dashboard"), opts);
 const AdminBook = loadable(() => import("../pages/Contact/booking/AdminBook"), opts);
 const BookedCalendar = loadable(() => import("../features/admin/components/BookedCalendar"), opts);
@@ -38,6 +40,7 @@ const BankStatementsPage = loadable(() => import("../features/admin/components/F
 const ReviewsAdminPage = loadable(() => import("../features/admin/components/ReviewsAdminPage"), opts);
 const CollaboratorPage = loadable(() => import("../features/collaborator/CollaboratorPage"), opts);
 const AccountsPage = loadable(() => import("../features/admin/components/AccountsPage"), opts);
+const PhotoConsensusAdminPage = loadable(() => import("../features/admin/components/PhotoConsensusAdminPage"), opts);
 const InstagramProposalsAdminPage = loadable(() => import("../features/admin/components/InstagramProposalsAdminPage"), opts);
 const OferteAdminPage = loadable(() => import("../features/admin/components/OferteAdminPage"), opts);
 // The admin shell (sidebar, search) loads with the admin, not with every public page.
@@ -74,8 +77,10 @@ const TasksPage = loadable(() => import("../features/admin/components/Tasks/Task
 
 export const adminRoutes = [
   <Route key="protected" element={<RequireAuth />}>
+    <Route path="/azi" element={<TodayBriefPage />} />
     <Route element={<AdminLayout />}>
       <Route path="/admin" element={<Dashboard />} />
+      <Route path="/admin/events/:eventId/brief" element={<ClientBriefAdminPage />} />
       <Route path="/admin/calendar" element={<BookedCalendar />} />
       <Route path="/admin/taskuri" element={<TasksPage />} />
       <Route path="/admin/create-event" element={<AdminBook />} />
@@ -106,6 +111,7 @@ export const adminRoutes = [
       <Route path="/admin/recenzii" element={<ReviewsAdminPage />} />
       <Route path="/colaborator" element={<CollaboratorPage />} />
       <Route path="/admin/accounts" element={<AccountsPage />} />
+      <Route path="/admin/instagram-proposals/selectie-comuna" element={<PhotoConsensusAdminPage />} />
       <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
       <Route path="/admin/oferte" element={<OferteAdminPage />} />
       <Route path="/admin/media-assets" element={<MediaAssetsAdminPage />} />

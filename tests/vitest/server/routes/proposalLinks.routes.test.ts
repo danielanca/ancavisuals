@@ -151,6 +151,34 @@ describe("proposal links", () => {
     expect(task.title).toContain("8august2026");
   });
 
+  test("personal reviewer identity is assigned by admin and cannot be overridden by a visitor", async () => {
+    const { fake, handler } = await loadRouter();
+    const created = createMockResponse();
+    await handler("post", "/admin")({ body: { albumSlug: ALBUM.slug, label: "Salomeea", reviewerId: "salomeea" }, firebaseEmail: "admin@test.com" }, created);
+    const link = created.json.mock.calls[0][0].link;
+    expect(link.reviewerId).toBe("salomeea");
+    for (const visitorId of ["visitor-123", "visitor-456"]) {
+      await handler("post", "/:token/proposals")({ params: { token: link.token }, body: {
+        name: "Daniel", reviewerId: "daniel", visitorId, fileNames: ["IMG_1.jpg"], destinations: ["instagram", "media_assets"],
+      } }, createMockResponse());
+    }
+    const proposals = [...fake.col("instagramProposals").values()];
+    expect(proposals).toHaveLength(2);
+    for (const proposal of proposals) {
+      expect(proposal.reviewerId).toBe("salomeea");
+      expect(proposal.selectionDestinations).toEqual(["instagram", "media_assets"]);
+    }
+  });
+
+  test("invalid reviewer identity does not create a link or task", async () => {
+    const { fake, handler } = await loadRouter();
+    const res = createMockResponse();
+    await handler("post", "/admin")({ body: { albumSlug: ALBUM.slug, reviewerId: "guest" } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(fake.col("proposalLinks").size).toBe(0);
+    expect(fake.col("clientTasks").size).toBe(0);
+  });
+
   test("visitor proposes photos under their name; unknown files are skipped and the task moves to doing", async () => {
     const { fake, handler, createLink } = await loadRouter();
     const link = await createLink();
