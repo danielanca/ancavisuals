@@ -49,6 +49,22 @@ afterEach(() => { vi.unstubAllGlobals(); });
 const availabilityPage: CampaignPage = { ...page, slug: "campanie-test" };
 
 describe("availability result", () => {
+  test("olx shows managed offer reviews even when campaign testimonials are empty", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) => ({
+      ok: true,
+      json: async () => String(input) === "/api/reviews?category=oferta&offerSlug=olx"
+        ? { reviews: [{ id: "review-olx", author: "Client test", date: "2026-09-01", rating: 5, text: "Mesaj de test pentru recenzia OLX.", photos: [], verified: true }] }
+        : {},
+    } as Response));
+
+    render(<MemoryRouter><CampaignLandingPage page={page} /></MemoryRouter>);
+
+    expect(await screen.findByText("Mesaj de test pentru recenzia OLX.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ce spun clienții noștri" })).toBeInTheDocument();
+    expect(screen.getByText("Client test")).toBeInTheDocument();
+    expect(screen.getByLabelText("5 din 5 stele")).toBeInTheDocument();
+  });
+
   test("no date is preselected and a free date shows price, prefilled WhatsApp and phone field", async () => {
     render(<MemoryRouter><CampaignLandingPage page={availabilityPage} /></MemoryRouter>);
 

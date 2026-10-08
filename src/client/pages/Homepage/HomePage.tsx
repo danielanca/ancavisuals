@@ -10,8 +10,9 @@ import Approach from "./Approach";
 import FAQPage from "../Faq/FAQPage";
 import VideoPreview from "../Videos/VideoPreview";
 import AncaVisualsPromo from "../MediaDownload/AncaVisualsPromo";
-import { Link } from "react-router-dom";
 import { CITIES } from "../LocationSEO/locationData";
+import ReviewsGrid from "../../components/Reviews/ReviewsGrid";
+import WeddingGuideSection from "./WeddingGuideSection";
 
 // Videourile sunt administrate din /admin/showcase/homepage_videos, cu liste
 // separate pentru desktop si mobil.
@@ -113,7 +114,14 @@ const HomePage = () => {
       <HomepageVideos />
       <Philosophy />
       <div data-track-section="servicii"><Approach /></div>
+      <ReviewsGrid
+        category="wedding"
+        layout="horizontal"
+        title="Ce spun clienții noștri"
+        subtitle="Experiențele celor care ne-au ales să le păstrăm amintirile."
+      />
       <div data-track-section="întrebări frecvente"><FAQPage /></div>
+      <WeddingGuideSection />
       <Footer />
     </div>
   );

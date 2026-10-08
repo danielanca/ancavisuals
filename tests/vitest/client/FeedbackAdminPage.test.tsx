@@ -14,12 +14,19 @@ test("loads owner inbox and marks read only after server confirms", async () => 
     .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
   page(); await screen.findByText("Feedback client");
   expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Bearer admin-test");
+  expect(screen.getByRole("link", { name: "Acceptă ca recenzie" })).toHaveAttribute("href", "/admin/recenzii");
   fireEvent.click(screen.getByRole("button", { name: "Marchează citit" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Salvarea a eșuat");
   expect(screen.getByText("Nou")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Marchează citit" }));
   await screen.findByText("Feedback client");
   await vi.waitFor(() => expect(screen.queryByText("Nou")).not.toBeInTheDocument());
+});
+test("published feedback links to review management instead of offering duplicate acceptance", async () => {
+  fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ feedback: [{ ...item, publishedReviewId: "feedback-review" }], nextCursor: null }) });
+  page(); await screen.findByText("Ana");
+  expect(screen.getByRole("link", { name: "Publicat · Gestionează recenzia" })).toHaveAttribute("href", "/admin/recenzii");
+  expect(screen.queryByRole("link", { name: "Acceptă ca recenzie" })).not.toBeInTheDocument();
 });
 test("loads older feedback using the server cursor without duplicating existing entries", async () => {
   fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ feedback: [item], nextCursor: item.id }) })

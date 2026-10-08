@@ -5,13 +5,14 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { BUNNY_STORAGE_BASE_URL, getBunnyStorageZone, getBunnyStoragePassword, BUNNY_ACCESS_KEY_HEADER } from "../constants/bunny";
+import { deletePublicReview, FeedbackPublicationError, publishFeedbackReview } from "../services/feedbackPublication.service";
 
 const router = Router();
 const COLLECTION = "siteReviews";
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 const MAX_PHOTOS = 10;
 
-type ReviewCategory = "wedding" | "oferta";
+type ReviewCategory = "wedding" | "oferta" | "both";
 type ReviewPhoto = { url: string; name: string };
 
 async function uploadReviewPhoto(file: Express.Multer.File): Promise<ReviewPhoto> {
@@ -43,7 +44,7 @@ function serializeReview(doc: FirebaseFirestore.DocumentSnapshot) {
     id: doc.id,
     author: (data.author as string) ?? "",
     date: (data.date as string) ?? "",
-    rating: (data.rating as number) ?? 5,
+    rating: data.rating === null ? null : (data.rating as number) ?? 5,
     text: (data.text as string) ?? "",
     photos,
     verified: data.verified === true,
@@ -61,7 +62,7 @@ router.get("/", async (req: Request, res: Response) => {
   const offerSlug = typeof req.query.offerSlug === "string" ? req.query.offerSlug.trim() : "";
 
   try {
-    const snapshot = await firestore().collection(COLLECTION).where("category", "==", category).get();
+    const snapshot = await firestore().collection(COLLECTION).where("category", "in", [category, "both"]).get();
     let reviews = snapshot.docs.map(serializeReview);
     if (category === "oferta") {
       reviews = reviews.filter((r) => !r.offerSlug || r.offerSlug === offerSlug);
@@ -85,7 +86,7 @@ router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (_req: 
 });
 
 router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
-  const { author, date, rating, text, category, offerSlug, verified } = req.body as Record<string, string | undefined>;
+  const { author, date, rating, text, category, offerSlug, verified, sourceFeedbackId } = req.body as Record<string, string | undefined>;
   if (!author?.trim() || !text?.trim()) {
     res.status(400).json({ error: "Nume și text sunt obligatorii." });
     return;
@@ -94,21 +95,25 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("ph
   try {
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];
     const photos = await Promise.all(files.map(uploadReviewPhoto));
-    const docRef = await firestore().collection(COLLECTION).add({
+    const review = {
       author: author.trim(),
       date: date?.trim() || new Date().toISOString().slice(0, 10),
-      rating: Math.min(5, Math.max(1, Number(rating) || 5)),
+      rating: rating === "0" || (sourceFeedbackId && !rating) ? null : Math.min(5, Math.max(1, Number(rating) || 5)),
       text: text.trim(),
       photos,
       verified: verified === "true",
-      category: category === "oferta" ? "oferta" : "wedding",
-      offerSlug: category === "oferta" && offerSlug?.trim() ? offerSlug.trim() : null,
+      category: category === "both" ? "both" : category === "oferta" ? "oferta" : "wedding",
+      offerSlug: category !== "wedding" && offerSlug?.trim() ? offerSlug.trim() : null,
       order: Date.now(),
       createdAt: Timestamp.now(),
-    });
+    };
+    const docRef = sourceFeedbackId
+      ? await publishFeedbackReview(sourceFeedbackId, review)
+      : await firestore().collection(COLLECTION).add(review);
     const doc = await docRef.get();
     res.status(201).json({ review: serializeReview(doc) });
   } catch (error) {
+    if (error instanceof FeedbackPublicationError) { res.status(error.status).json({ error: error.message }); return; }
     console.error("[reviews] POST /admin failed:", error);
     res.status(500).json({ error: "Recenzia nu a putut fi salvată." });
   }
@@ -121,10 +126,11 @@ router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array(
     const update: Record<string, unknown> = {};
     if (author !== undefined) update.author = author.trim();
     if (date !== undefined) update.date = date.trim();
-    if (rating !== undefined) update.rating = Math.min(5, Math.max(1, Number(rating) || 5));
+    if (rating !== undefined) update.rating = rating === "0" ? null : Math.min(5, Math.max(1, Number(rating) || 5));
     if (text !== undefined) update.text = text.trim();
-    if (category !== undefined) update.category = category === "oferta" ? "oferta" : "wedding";
-    if (offerSlug !== undefined) update.offerSlug = category === "oferta" && offerSlug?.trim() ? offerSlug.trim() : null;
+    if (category !== undefined) update.category = category === "both" ? "both" : category === "oferta" ? "oferta" : "wedding";
+    if (offerSlug !== undefined) update.offerSlug = category !== "wedding" && offerSlug?.trim() ? offerSlug.trim() : null;
+    if (category === "wedding") update.offerSlug = null;
     if (verified !== undefined) update.verified = verified === "true";
 
     if (keepPhotoUrls !== undefined) {
@@ -160,7 +166,7 @@ router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array(
 
 router.delete("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
-    await firestore().collection(COLLECTION).doc(req.params.id).delete();
+    await deletePublicReview(req.params.id);
     res.json({ ok: true });
   } catch (error) {
     console.error("[reviews] DELETE /admin/:id failed:", error);

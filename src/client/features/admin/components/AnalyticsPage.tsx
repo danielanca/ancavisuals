@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import useAuth from "../auth/useAuth";
 import ConsentStatsCard from "./ConsentStatsCard";
+import ReferralTrafficPanel from "./ReferralTrafficPanel";
 
 interface Visit {
   id: string;
@@ -12,6 +13,7 @@ interface Visit {
   isBounce: boolean;
   page: string;
   referrer: string;
+  utmSource?: string;
   timestamp: string;
   ip: string;
   userAgent: string;
@@ -508,6 +510,8 @@ export default function AnalyticsPage() {
             </div>
           </div>
         </div>
+
+        <ReferralTrafficPanel visits={visits} cutoff={cutoff} periodLabel={activePeriod.label} />
 
         {/* Google Search Console — Keywords */}
         <div className="space-y-4">

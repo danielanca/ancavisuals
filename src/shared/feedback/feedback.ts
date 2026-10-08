@@ -11,4 +11,5 @@ export interface ClientFeedback {
   message: string;
   createdAt: string;
   read: boolean;
+  publishedReviewId?: string | null;
 }

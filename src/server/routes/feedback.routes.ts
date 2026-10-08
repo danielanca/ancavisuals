@@ -107,7 +107,7 @@ router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (req, r
     const snapshot = await query.get();
     const feedback: ClientFeedback[] = snapshot.docs.map(doc => {
       const data = doc.data();
-      return { id: doc.id, albumSlug: data.albumSlug, name: data.name, message: data.message, createdAt: data.createdAt, read: data.read === true };
+      return { id: doc.id, albumSlug: data.albumSlug, name: data.name, message: data.message, createdAt: data.createdAt, read: data.read === true, publishedReviewId: typeof data.publishedReviewId === "string" ? data.publishedReviewId : null };
     });
     res.json({ feedback, nextCursor: snapshot.docs.length === 50 ? snapshot.docs[49].id : null });
   } catch (error) { fail(res, error); }

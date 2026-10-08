@@ -10,13 +10,14 @@ import {
 } from "../../utils/googleAds";
 import { getLandingMeta } from "../../utils/sessionAttribution";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
+import ReviewsGrid from "../../components/Reviews/ReviewsGrid";
 import { useStartingPrices } from "../../hooks/useStartingPrices";
 import { startingPriceFor } from "../../../shared/pricing/startingPrices";
 import PriceConfigurator, { type DatePick } from "./PriceConfigurator";
 import LazySection from "./LazySection";
 import SectionSkeleton from "./SectionSkeleton";
 import HeroVideo from "./HeroVideo";
-import { AncaVisualsPromo, CampaignPackages, CampaignVideoPlayer, GuideBook, PortfolioParallaxGallery, preloadGroup } from "./lazyParts";
+import { AboutSummary, AncaVisualsPromo, CampaignPackages, CampaignVideoPlayer, GuideBook, PortfolioParallaxGallery, preloadGroup } from "./lazyParts";
 import ChatWithUs from "../../features/chat/components/ChatWithUs";
 import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
 import { heavyPhotoNote, isHeavyPhoto } from "../../../shared/media/photoWeight";
@@ -880,7 +881,22 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         />
       )}
 
+      {page.slug === "olx" && (
+        <LazySection height={stableVh(80)}>
+          <AboutSummary fallback={<SectionSkeleton height={stableVh(80)} />} />
+        </LazySection>
+      )}
+
       {/* ── TESTIMONIALS ───────────────────────────────────────────── */}
+      {page.slug === "olx" && (
+        <ReviewsGrid
+          category="oferta"
+          layout="horizontal"
+          offerSlug={page.slug}
+          title="Ce spun clienții noștri"
+          subtitle="Experiențele celor care ne-au ales pentru evenimentul lor."
+        />
+      )}
       {page.testimonials.length > 0 && (
         <section className="py-24 px-6 max-w-6xl mx-auto">
           <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Recenzii</p>

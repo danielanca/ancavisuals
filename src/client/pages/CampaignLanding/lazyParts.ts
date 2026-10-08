@@ -9,6 +9,7 @@ export const CampaignVideoPlayer = loadable(() => import("./CampaignVideoPlayer"
 export const AncaVisualsPromo = loadable(() => import("../MediaDownload/AncaVisualsPromo"), { ssr: false });
 export const CampaignPackages = loadable(() => import("./CampaignPackages"), { ssr: false });
 export const GuideBook = loadable(() => import("./GuideBook"), { ssr: false });
+export const AboutSummary = loadable(() => import("../About/AboutSummary"), { ssr: false });
 
 type Preloadable = { preload: () => void };
 

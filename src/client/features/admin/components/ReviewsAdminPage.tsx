@@ -1,6 +1,8 @@
 import React from "react";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import type { ClientFeedback } from "../../../../shared/feedback/feedback";
 
 interface ReviewPhoto {
   url: string;
@@ -11,11 +13,11 @@ interface Review {
   id: string;
   author: string;
   date: string;
-  rating: number;
+  rating: number | null;
   text: string;
   photos: ReviewPhoto[];
   verified: boolean;
-  category: "wedding" | "oferta";
+  category: "wedding" | "oferta" | "both";
   offerSlug: string | null;
 }
 
@@ -24,11 +26,12 @@ type FormState = {
   date: string;
   rating: number;
   text: string;
-  category: "wedding" | "oferta";
+  category: "wedding" | "oferta" | "both";
   offerSlug: string;
   verified: boolean;
   existingPhotos: ReviewPhoto[];
   newPhotoFiles: File[];
+  sourceFeedbackId?: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -47,7 +50,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (n: number) 
   return (
     <div className="flex gap-1">
       {[1, 2, 3, 4, 5].map((n) => (
-        <button key={n} type="button" onClick={() => onChange(n)} className="text-xl leading-none">
+        <button key={n} type="button" aria-label={`${n} stele`} onClick={() => onChange(n)} className="text-xl leading-none">
           <span className={n <= value ? "text-amber-400" : "text-neutral-700"}>★</span>
         </button>
       ))}
@@ -67,6 +70,8 @@ function useObjectUrls(files: File[]): string[] {
 
 const ReviewsAdminPage: React.FC = () => {
   const { auth } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const authHeader = React.useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
   const [reviews, setReviews] = React.useState<Review[]>([]);
@@ -91,6 +96,15 @@ const ReviewsAdminPage: React.FC = () => {
   }, [auth.accessToken, authHeader]);
 
   React.useEffect(() => { loadReviews(); }, [loadReviews]);
+  React.useEffect(() => {
+    const feedback = (location.state as { feedback?: ClientFeedback } | null)?.feedback;
+    if (!feedback) return;
+    setEditingId(null);
+    setForm({ ...emptyForm(), author: feedback.name, text: feedback.message, date: feedback.createdAt.slice(0, 10), rating: 0, category: "both", offerSlug: "olx", sourceFeedbackId: feedback.id });
+    setError(null);
+    setShowForm(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, location.pathname, navigate]);
 
   function openAddForm() {
     setEditingId(null);
@@ -104,7 +118,7 @@ const ReviewsAdminPage: React.FC = () => {
     setForm({
       author: review.author,
       date: review.date,
-      rating: review.rating,
+      rating: review.rating ?? 0,
       text: review.text,
       category: review.category,
       offerSlug: review.offerSlug ?? "",
@@ -131,7 +145,8 @@ const ReviewsAdminPage: React.FC = () => {
       body.set("rating", String(form.rating));
       body.set("text", form.text.trim());
       body.set("category", form.category);
-      if (form.category === "oferta") body.set("offerSlug", form.offerSlug.trim());
+      if (form.category !== "wedding") body.set("offerSlug", form.offerSlug.trim());
+      if (form.sourceFeedbackId) body.set("sourceFeedbackId", form.sourceFeedbackId);
       body.set("verified", String(form.verified));
       form.newPhotoFiles.forEach((file) => body.append("photos", file));
       if (editingId) body.set("keepPhotoUrls", JSON.stringify(form.existingPhotos.map((p) => p.url)));
@@ -151,9 +166,13 @@ const ReviewsAdminPage: React.FC = () => {
 
   async function handleDelete(id: string) {
     setDeletingId(id);
+    setError(null);
     try {
-      await fetch(`/api/reviews/admin/${id}`, { method: "DELETE", headers: authHeader });
+      const response = await fetch(`/api/reviews/admin/${id}`, { method: "DELETE", headers: authHeader });
+      if (!response.ok) throw new Error("Recenzia nu a putut fi ștearsă.");
       setReviews((current) => current.filter((r) => r.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eroare de conexiune.");
     } finally {
       setDeletingId(null);
     }
@@ -168,8 +187,9 @@ const ReviewsAdminPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-light tracking-tight text-white">Recenzii</h1>
             <p className="mt-1 text-sm text-neutral-400">
-              Recenziile de aici apar pe paginile publice — cele de tip "nuntă" pe paginile de oraș, cele de tip "ofertă" pe paginile /oferta/:slug.
+              Creează recenzii manual sau acceptă mesaje din Feedback clienți. Alege afișarea pe homepage și paginile de oraș, pe oferte sau în ambele zone.
             </p>
+            <Link to="/admin/feedback" className="mt-3 inline-block text-sm text-amber-200">Vezi feedback-ul primit →</Link>
           </div>
           <button
             onClick={openAddForm}
@@ -180,6 +200,7 @@ const ReviewsAdminPage: React.FC = () => {
           </button>
         </div>
 
+        {error && !showForm && <p role="alert" className="text-sm text-red-300">{error}</p>}
         {loading ? (
           <p className="text-sm text-neutral-500">Se încarcă...</p>
         ) : reviews.length === 0 ? (
@@ -203,9 +224,9 @@ const ReviewsAdminPage: React.FC = () => {
                     <span className="text-sm font-medium text-white">{review.author}</span>
                     {review.verified && <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">Verificată</span>}
                     <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-400">
-                      {review.category === "oferta" ? `Ofertă${review.offerSlug ? ` · ${review.offerSlug}` : " · toate"}` : "Nuntă"}
+                      {review.category === "both" ? `Homepage + ofertă · ${review.offerSlug || "toate"}` : review.category === "oferta" ? `Ofertă${review.offerSlug ? ` · ${review.offerSlug}` : " · toate"}` : "Homepage + orașe"}
                     </span>
-                    <span className="text-xs text-amber-400">{"★".repeat(review.rating)}<span className="text-neutral-700">{"★".repeat(5 - review.rating)}</span></span>
+                    {review.rating !== null && <span className="text-xs text-amber-400">{"★".repeat(review.rating)}<span className="text-neutral-700">{"★".repeat(5 - review.rating)}</span></span>}
                     <span className="text-xs text-neutral-600">{review.date}</span>
                   </div>
                   <p className="mt-1 truncate text-sm text-neutral-400">{review.text}</p>
@@ -228,11 +249,12 @@ const ReviewsAdminPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowForm(false)}>
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-neutral-800 bg-neutral-900 p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-medium text-white">{editingId ? "Editează recenzia" : "Recenzie nouă"}</h2>
+              <h2 className="text-lg font-medium text-white">{editingId ? "Editează recenzia" : form.sourceFeedbackId ? "Acceptă feedback ca recenzie" : "Recenzie nouă"}</h2>
               <button onClick={() => setShowForm(false)} className="text-neutral-500 hover:text-white">✕</button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {form.sourceFeedbackId && <p className="text-sm text-neutral-400">Verifică numele, textul și locul afișării. Publicarea are loc doar după salvare. Feedback-ul original rămâne păstrat. Formularul clientului nu cere stele; adaugă un rating doar dacă l-a oferit clientul.</p>}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-neutral-400 mb-1">Nume client</label>
@@ -250,6 +272,7 @@ const ReviewsAdminPage: React.FC = () => {
                 <div>
                   <label className="block text-xs text-neutral-400 mb-1">Notă</label>
                   <StarPicker value={form.rating} onChange={(n) => setForm((f) => ({ ...f, rating: n }))} />
+                  <button type="button" onClick={() => setForm(f => ({ ...f, rating: 0 }))} className="mt-2 text-xs text-neutral-400 underline">{form.rating === 0 ? "Fără rating" : "Elimină ratingul"}</button>
                 </div>
                 <label className="flex items-center gap-2 text-xs text-neutral-400">
                   <input type="checkbox" checked={form.verified} onChange={(e) => setForm((f) => ({ ...f, verified: e.target.checked }))} />
@@ -268,11 +291,12 @@ const ReviewsAdminPage: React.FC = () => {
                   <label className="block text-xs text-neutral-400 mb-1">Unde apare</label>
                   <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as "wedding" | "oferta" }))}
                     className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-500">
-                    <option value="wedding">Nuntă (paginile de oraș)</option>
-                    <option value="oferta">Ofertă (/oferta/:slug)</option>
+                  <option value="wedding">Homepage + paginile de oraș</option>
+                  <option value="oferta">Ofertă (/oferta/:slug)</option>
+                  <option value="both">Homepage + orașe + ofertă</option>
                   </select>
                 </div>
-                {form.category === "oferta" && (
+                {form.category !== "wedding" && (
                   <div>
                     <label className="block text-xs text-neutral-400 mb-1">Slug ofertă (gol = toate)</label>
                     <input value={form.offerSlug} onChange={(e) => setForm((f) => ({ ...f, offerSlug: e.target.value }))} placeholder="ex: olx"
@@ -344,7 +368,7 @@ const ReviewsAdminPage: React.FC = () => {
                   Anulează
                 </button>
                 <button type="submit" disabled={saving} className="rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50">
-                  {saving ? "Se salvează..." : editingId ? "Salvează" : "Adaugă"}
+                  {saving ? "Se salvează..." : editingId ? "Salvează" : form.sourceFeedbackId ? "Acceptă și publică recenzia" : "Adaugă"}
                 </button>
               </div>
             </form>
