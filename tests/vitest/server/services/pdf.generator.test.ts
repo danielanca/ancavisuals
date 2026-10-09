@@ -36,6 +36,18 @@ describe("generateContractPDF", () => {
   });
 
   describe("happy path", () => {
+    test("renders the stored transport price in the contract currency", async () => {
+      const { buildContractHTML } = await buildModule();
+      const html = buildContractHTML({
+        currency: "EUR", eurRate: 5, transportKm: "120", transportFuelPrice: "11",
+        services: [{ label: "Transport", price: 16, isTransport: true }],
+        priceTotal: 16, priceAdvance: 0,
+      });
+      expect(html).toContain("~16 EUR");
+      expect(html).not.toContain("~80 EUR");
+      expect(html).toContain("120 km × 6L/100km × 11 lei/L");
+    });
+
     test("renders escaped HTML and includes the bank section for non-cash payments", async () => {
       const { generateContractPDF, setContentMock, pdfMock, closeMock, launchMock } = await buildModule();
 

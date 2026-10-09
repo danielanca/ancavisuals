@@ -1,3 +1,4 @@
+import { estimateContractTransport } from "../../shared/contractTransport";
 import { CUSTOM_CLAUSE_PREFIX } from "../../shared/contractClauses";
 import puppeteer from "puppeteer";
 
@@ -170,7 +171,7 @@ export function computeContractTitle(flags: Pick<ServiceFlags, "hasFoto" | "hasV
 }
 
 export function computeTransportEstimate(km: number, fuelPrice: number): number {
-  return Math.ceil(km * 6 / 100 * fuelPrice);
+  return estimateContractTransport(km, fuelPrice, "RON", 5) ?? 0;
 }
 
 export function buildContractHTML(contract: Record<string, unknown>): string {
@@ -227,7 +228,8 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
             if (s.isTransport && contract.transportKm) {
               const km = Number(contract.transportKm);
               const fuelPrice = Number(contract.transportFuelPrice) || 10;
-              const estimated = computeTransportEstimate(km, fuelPrice);
+              // Use the saved price in the contract currency, including for historical contracts.
+              const estimated = s.price;
               return `<tr style="${bg}">
                 <td style="${cell}">${esc(s.label)}<br/><span style="font-size:8.5pt;color:#777;">${km} km × 6L/100km × ${fuelPrice} lei/L (preț carburant estimat la data semnării)</span></td>
                 <td style="${cell}text-align:right;vertical-align:top;">~${estimated} ${cur}<br/><span style="font-size:8pt;color:#999;font-style:italic;">estimat*</span></td>

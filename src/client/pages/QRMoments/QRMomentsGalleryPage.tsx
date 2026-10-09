@@ -111,6 +111,57 @@ function GalleryUpdatesSignup({ eventSlug, pin, hidden }: { eventSlug: string; p
   );
 }
 
+function DownloadPhotoButton({ upload, eventSlug, pin, adminToken }: {
+  upload: Upload;
+  eventSlug: string;
+  pin: string;
+  adminToken?: string;
+}) {
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState(false);
+
+  const download = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    setError(false);
+    try {
+      const query = adminToken ? '' : `?pin=${encodeURIComponent(pin)}`;
+      const response = await fetch(`/api/qr-moments/${encodeURIComponent(eventSlug)}/photo/${encodeURIComponent(upload.id)}/download${query}`, {
+        headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {},
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = upload.originalName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Give mobile browsers time to start saving before releasing the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError(true);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={download}
+        disabled={downloading}
+        aria-label={`Descarcă poza ${upload.originalName}`}
+        className="flex min-h-[44px] w-full items-center justify-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-2 text-xs text-amber-200 transition-colors hover:bg-amber-400/20 disabled:opacity-50"
+      >
+        <span aria-hidden="true">↓</span> {downloading ? 'Se descarcă…' : 'Descarcă poza'}
+      </button>
+      {error && <p role="alert" className="mt-1 text-xs text-red-400">Nu am putut descărca poza. Încearcă din nou.</p>}
+    </div>
+  );
+}
+
 function MediaThumbnail({ upload, onClick }: { upload: Upload; onClick: () => void }) {
   if (upload.type === 'photo') {
     if (isHeicUpload(upload)) {
@@ -424,17 +475,13 @@ function AssetModal({
                 <p className="text-neutral-400 text-sm">
                   Această poză e în format HEIC și nu poate fi previzualizată direct în browser.
                 </p>
-                <a
-                  href={upload.bunnyUrl}
-                  download={upload.originalName}
-                  className="inline-block px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black text-sm font-medium rounded-lg transition-colors"
-                >
-                  Descarcă poza
-                </a>
               </div>
             )}
             {upload.type === 'photo' && !isHeicUpload(upload) && (
               <img src={upload.bunnyUrl} alt="" className="w-full rounded-lg" />
+            )}
+            {upload.type === 'photo' && (
+              <DownloadPhotoButton key={upload.id} upload={upload} eventSlug={eventSlug} pin={pin} adminToken={adminToken} />
             )}
             {upload.type === 'video' && (
               <div className="relative flex h-[38dvh] min-h-[220px] max-h-[420px] justify-center overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/30 sm:h-[min(65vh,520px)]">
@@ -821,6 +868,7 @@ export default function QRMomentsGalleryPage() {
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {group.uploads.map((upload) => (
                       <div key={upload.id} className="relative">
+                        <div className="relative">
                         <MediaThumbnail upload={upload} onClick={() => setSelectedUpload(upload)} />
                         {group.guest.hasEmail && (
                           <button
@@ -835,6 +883,10 @@ export default function QRMomentsGalleryPage() {
                           >
                             {upload.thankedAt ? '✓' : '✉'}
                           </button>
+                        )}
+                        </div>
+                        {upload.type === 'photo' && (
+                          <DownloadPhotoButton upload={upload} eventSlug={eventSlug ?? ''} pin={pin} adminToken={auth.authorise ? auth.accessToken : undefined} />
                         )}
                       </div>
                     ))}

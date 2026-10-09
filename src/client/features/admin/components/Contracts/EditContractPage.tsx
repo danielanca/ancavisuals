@@ -1,3 +1,4 @@
+import { estimateContractTransport } from "../../../../../shared/contractTransport";
 import { validateCustomContractClauses } from "../../../../../shared/contractClauses";
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -291,11 +292,10 @@ const EditContractPage: React.FC = () => {
   useEffect(() => {
     const km = parseFloat(transportKm);
     const fuel = parseFloat(transportFuelPrice);
-    if (!isNaN(km) && km > 0 && !isNaN(fuel) && fuel > 0) {
-      const estimated = Math.ceil(km * 6 / 100 * fuel).toString();
-      setServices((prev) => prev.map((s) => s.id === TRANSPORT_SERVICE_ID ? { ...s, priceRaw: estimated } : s));
-    }
-  }, [transportKm, transportFuelPrice]);
+    const estimated = estimateContractTransport(km, fuel, currency, eurRate);
+    setServices((prev) => prev.map((s) => s.id === TRANSPORT_SERVICE_ID
+      ? { ...s, priceRaw: estimated === null ? "" : String(estimated) } : s));
+  }, [transportKm, transportFuelPrice, currency, eurRate]);
 
   const selectedServices = services.filter((s) => s.included);
   const customTotal = customServices.reduce((sum, s) => sum + priceToNumeric(s.priceRaw), 0);
@@ -536,21 +536,21 @@ const EditContractPage: React.FC = () => {
                 const conversion = typeof parsed === "number" && parsed > 0 ? convertAmount(parsed, currency, eurRate) : "";
 
                 return (
-                  <div key={s.id} className={`flex items-center gap-2 rounded-lg px-2 py-1 ${isMissing ? "bg-red-500/10" : ""}`}>
+                  <div key={s.id} className={`flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 ${isMissing ? "bg-red-500/10" : ""}`}>
                     <label className="flex items-center gap-2 cursor-pointer flex-1">
                       <input type="checkbox" checked={s.included} onChange={() => toggleService(s.id)} className="accent-emerald-500 shrink-0" />
                       <span className={`text-xs leading-tight ${s.included ? "text-neutral-200" : "text-neutral-500"}`}>{s.label}</span>
                     </label>
                     {s.included && s.id === TRANSPORT_SERVICE_ID ? (
-                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                        <input type="number" min="0" value={transportKm} onChange={(e) => setTransportKm(e.target.value)}
+                      <div className="flex items-center gap-1.5 max-w-full flex-wrap justify-end">
+                        <input type="number" min="0" aria-label="Distanță totală dus-întors (km)" value={transportKm} onChange={(e) => setTransportKm(e.target.value)}
                           placeholder="km" className="w-16 rounded px-2 py-1 text-xs text-right bg-neutral-700 border border-neutral-600 text-neutral-100 placeholder-neutral-500 focus:outline-none" />
-                        <span className="text-xs text-neutral-500">km ×</span>
-                        <input type="number" min="0" step="0.1" value={transportFuelPrice}
+                        <span className="text-xs text-neutral-500">km dus-întors × 6 L/100 km ×</span>
+                        <input type="number" min="0" step="0.1" aria-label="Preț carburant (lei/L)" value={transportFuelPrice}
                           onChange={(e) => setTransportFuelPrice(e.target.value)}
                           className="w-14 rounded px-2 py-1 text-xs text-right bg-neutral-700 border border-neutral-600 text-neutral-100 focus:outline-none" />
                         <span className="text-xs text-neutral-500">lei/L =</span>
-                        <span className="text-xs text-amber-400 font-medium">~{s.priceRaw || "0"} {currency}</span>
+                        <span className="text-xs text-amber-400 font-medium">{s.priceRaw ? `~${s.priceRaw}` : "—"} {currency}</span>
                       </div>
                     ) : s.included && (
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -575,7 +575,7 @@ const EditContractPage: React.FC = () => {
                 {customServices.map((s, i) => {
                   const parsed = parsePrice(s.priceRaw);
                   const isGratuit = parsed === "gratuit";
-                  const isMissing = serviceErrors.has(`custom_${i}`);
+                  const isMissing = serviceErrors.has(`custom_${i}`) && parsed === "missing";
                   const conversion = typeof parsed === "number" && parsed > 0 ? convertAmount(parsed, currency, eurRate) : "";
                   return (
                     <div key={i} className="flex gap-2 items-center">

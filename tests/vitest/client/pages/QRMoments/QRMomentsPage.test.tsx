@@ -1,4 +1,5 @@
 import React from "react";
+import type * as FirebaseStorage from "firebase/storage";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -8,7 +9,7 @@ import QRMomentsUnsubscribePage from "src/client/pages/QRMoments/QRMomentsUnsubs
 import { UPLOAD_ORIGIN } from "src/client/utils/address";
 
 vi.mock("firebase/storage", async () => {
-  const actual = await vi.importActual<typeof import("firebase/storage")>("firebase/storage");
+  const actual = await vi.importActual<typeof FirebaseStorage>("firebase/storage");
   return {
     ...actual,
     ref: vi.fn(() => ({})),
@@ -384,6 +385,10 @@ describe("QRMomentsPage", () => {
 
     fireEvent.change(screen.getByPlaceholderText("ex: AB12CD"), { target: { value: "PIN123" } });
     fireEvent.click(screen.getByRole("button", { name: /Intră în galerie/i }));
+    const downloadButton = await screen.findByRole("button", { name: "Descarcă poza photo.jpg" });
+    const linkClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['photo-bytes'], { type: 'image/jpeg' }) });
+    // The existing responses for view notification/comments are consumed after opening the photo.
     fireEvent.click(await screen.findByRole("button", { name: "Deschide photo.jpg" }));
 
     await waitFor(() => {
@@ -392,6 +397,16 @@ describe("QRMomentsPage", () => {
         expect.any(Object),
       );
     });
+    expect(screen.getAllByRole("button", { name: "Descarcă poza photo.jpg" })).toHaveLength(2);
+    fireEvent.click(downloadButton);
+    await waitFor(() => expect(linkClick).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/qr-moments/27martie2028/photo/upload-1/download?pin=PIN123", { headers: {} },
+    );
+    fetchMock.mockResolvedValueOnce({ ok: false });
+    fireEvent.click(downloadButton);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Nu am putut descărca poza');
+    expect(linkClick).toHaveBeenCalledTimes(1);
   });
 
   test("renders the unsubscribe confirmation page", async () => {

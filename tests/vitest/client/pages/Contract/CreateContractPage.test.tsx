@@ -80,6 +80,37 @@ describe("CreateContractPage", () => {
     mockNavigate.mockReset();
   });
 
+  test("converts transport from lei, recalculates on currency/rate changes and saves the converted price", async () => {
+    const fetchMock = makeFetchMock({ ok: true, json: async () => ({ id: "transport-contract" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    renderPage();
+    fireEvent.change(getEventTypeSelect(), { target: { value: "Altul" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Taxă transport spre și de la eveniment" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Distanță totală dus-întors (km)" }), { target: { value: "120" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Preț carburant (lei/L)" }), { target: { value: "11" } });
+    const currencySelect = screen.getAllByRole("combobox").find((el) => el.textContent === "RONEUR")!;
+    fireEvent.change(currencySelect, { target: { value: "EUR" } });
+    await screen.findByText("~16 EUR");
+    fireEvent.change(currencySelect, { target: { value: "RON" } });
+    await screen.findByText("~80 RON");
+    fireEvent.change(currencySelect, { target: { value: "EUR" } });
+    const rateInput = screen.getAllByRole("spinbutton").find((el) => el.getAttribute("step") === "0.05")!;
+    fireEvent.change(rateInput, { target: { value: "4" } });
+    await screen.findByText("~20 EUR");
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Distanță totală dus-întors (km)" }), { target: { value: "" } });
+    expect(screen.queryByText("~20 EUR")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Distanță totală dus-întors (km)" }), { target: { value: "120" } });
+    fireEvent.change(getEventDateInput(), { target: { value: "2027-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvează ca draft" }));
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url, options]) => url === "/api/contracts" && options?.method === "POST");
+      expect(call).toBeDefined();
+      const payload = JSON.parse(call![1].body);
+      expect(payload.services).toEqual([expect.objectContaining({ isTransport: true, price: 20 })]);
+      expect(payload.priceTotal).toBe(20);
+    });
+  });
+
   test("saves an incomplete unnamed draft by date and resumes it without replacing another draft", async () => {
     vi.stubGlobal("fetch", makeFetchMock({ ok: true, json: async () => ({}) }));
     saveWorkDraft({ id: "other", title: "Alt client", eventDate: "2027-01-01", updatedAt: "2026-09-25", progress: "todo", payload: "{}" });

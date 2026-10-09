@@ -776,6 +776,45 @@ router.post(
 
 // ─── Gallery: get uploads grouped by guest (PIN protected) ──────────────────
 
+router.get('/:eventSlug/photo/:uploadId/download', async (request: Request, response: Response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  try {
+    const { eventSlug, uploadId } = request.params;
+    const pin = typeof request.query.pin === 'string' ? request.query.pin : '';
+    const isAdmin = await isSupremeAdminRequest(request.headers.authorization);
+    if (!isAdmin && !pin) {
+      response.status(401).json({ error: 'PIN necesar.' });
+      return;
+    }
+    const eventDoc = await getEventBySlug(eventSlug);
+    if (!eventDoc.exists) {
+      response.status(404).json({ error: 'Eveniment negăsit.' });
+      return;
+    }
+    if (!isAdmin && eventDoc.data()!.pin !== pin) {
+      response.status(403).json({ error: 'PIN incorect.' });
+      return;
+    }
+    const uploadDoc = await firestore().collection(QR_UPLOADS).doc(uploadId).get();
+    const photo = uploadDoc.data();
+    if (!uploadDoc.exists || photo?.eventSlug !== eventSlug || photo?.visible !== true || photo?.type !== 'photo') {
+      response.status(404).json({ error: 'Fotografie negăsită.' });
+      return;
+    }
+    const file = await downloadBunnyOriginal(String(photo.bunnyUrl ?? ''));
+    const filename = String(photo.originalName || `${uploadId}.jpg`)
+      .replace(/[\\/]/g, '_')
+      .split('').map(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 ? '_' : character).join('');
+    response.attachment(filename);
+    response.setHeader('Content-Type', file.contentType);
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.send(file.buffer);
+  } catch (error) {
+    console.error('[qr-moments] photo download failed:', error);
+    response.status(502).json({ error: 'Nu am putut descărca poza. Încearcă din nou.' });
+  }
+});
+
 router.get('/:eventSlug/gallery', async (request: Request, response: Response) => {
   const { eventSlug } = request.params;
   const { pin } = request.query as { pin?: string };
