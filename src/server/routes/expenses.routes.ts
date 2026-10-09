@@ -107,7 +107,6 @@ router.post("/scan-receipt", requireFirebaseAuth, requireSupremeAdmin, async (re
 
     const { data, stopReason } = await requestStructured<ScannedReceipt>(anthropic, {
       maxTokens: 16000,
-      effort: "high",
       timeoutMs: 80_000,
       schema: RECEIPT_SCHEMA,
       messages: [

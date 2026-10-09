@@ -62,6 +62,7 @@ export interface ClientEvent {
   templateUrls?: string[];
   albumSlug?: string;
   albumPin?: string;
+  videoUrl?: string;
   expenses?: EventExpense[];
   postEventBackupConfirmedAt?: Date | null;
   postEventBackupReminderSentAt?: Date | null;

@@ -12,6 +12,7 @@ import type { InvoiceData as EFacturaData } from "../services/invoice.generator"
 import { generateFiscalReport, generateRegistru, buildInvoicesCsv, buildExpensesCsv } from "../services/fiscal.reports";
 import type { FiscalInvoice, FiscalExpense, EurRateLookup } from "../services/fiscal.reports";
 import { getBnrYearRates } from "../services/bnrExchangeRate.service";
+import { FINANCE_AI_MODEL } from "../lib/claudeStructured";
 
 const router = Router();
 const COLLECTION = "invoices";
@@ -30,7 +31,7 @@ router.post("/parse-text", requireFirebaseAuth, requireSupremeAdmin, async (req:
 
   try {
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: FINANCE_AI_MODEL,
       max_tokens: 1024,
       messages: [
         {

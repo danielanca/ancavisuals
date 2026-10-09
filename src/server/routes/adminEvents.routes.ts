@@ -20,6 +20,7 @@ import {
 import { getBnrRate, getBnrYearRates, BnrRateError } from "../services/bnrExchangeRate.service.js";
 import { sendEmail } from "../notifications/mailer";
 import { APP_BASE_URL } from "../constants/domain";
+import { normalizeEventVideoLink } from "../../shared/eventVideoLink";
 
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 const ADMIN_EMAIL = "ancadaniel1994@gmail.com";
@@ -296,12 +297,29 @@ router.get("/events/:id", async (req: Request, res: Response) => {
   }
 });
 
+router.patch("/events/:id/video-link", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const videoUrl = normalizeEventVideoLink(req.body?.videoUrl);
+  if (videoUrl === null) return res.status(400).json({ error: "Linkul video trebuie să fie un URL http:// sau https:// valid." });
+  try {
+    const doc = firestore().collection("adminEvents").doc(req.params.id);
+    if (!(await doc.get()).exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
+    await doc.update({ videoUrl });
+    return res.json({ ok: true, videoUrl });
+  } catch (error) {
+    console.error("[adminEvents] PATCH /events/:id/video-link failed:", error);
+    return res.status(500).json({ error: "Nu s-a putut salva linkul video." });
+  }
+});
+
 // PATCH /api/admin/events/:id — update fields
 router.patch("/events/:id", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { id } = req.params;
     const updates = req.body;
+    if ("videoUrl" in updates) {
+      return res.status(400).json({ error: "Folosește ruta video-link pentru a modifica linkul video." });
+    }
     if ("excludeFromCalendar" in updates && typeof updates.excludeFromCalendar !== "boolean") {
       return res.status(400).json({ error: "excludeFromCalendar trebuie să fie boolean." });
     }

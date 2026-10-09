@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
 // Model folosit pentru extragerea datelor financiare (bonuri, facturi, extrase).
-export const FINANCE_AI_MODEL = "claude-opus-5-5";
+export const FINANCE_AI_MODEL = "claude-haiku-4-5-20251001";
 
 export type StructuredResult<T> = {
   data: T | null;
@@ -11,7 +11,7 @@ export type StructuredResult<T> = {
 
 /**
  * Cere lui Claude un răspuns care respectă exact `schema` (structured outputs),
- * cu gândire adaptivă activă. Folosește streaming ca un extras lung să nu
+ * fără gândire extinsă, pentru cost redus. Folosește streaming ca un extras lung să nu
  * lovească timeout-ul HTTP. `data` e null doar dacă răspunsul a fost tăiat
  * (`max_tokens`) sau refuzat.
  */
@@ -21,7 +21,6 @@ export async function requestStructured<T>(
     messages: Anthropic.MessageParam[];
     schema: Record<string, unknown>;
     maxTokens: number;
-    effort: "low" | "medium" | "high" | "max";
     timeoutMs?: number;
   }
 ): Promise<StructuredResult<T>> {
@@ -30,8 +29,7 @@ export async function requestStructured<T>(
       {
         model: FINANCE_AI_MODEL,
         max_tokens: args.maxTokens,
-        thinking: { type: "adaptive" },
-        output_config: { effort: args.effort, format: { type: "json_schema", schema: args.schema } },
+        output_config: { format: { type: "json_schema", schema: args.schema } },
         messages: args.messages,
       },
       args.timeoutMs ? { timeout: args.timeoutMs } : undefined

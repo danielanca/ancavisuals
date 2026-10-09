@@ -4,6 +4,7 @@ import type { ClientEvent, EventDelivery, EventExpense, EventStatus } from "../t
 import Redacted from "./Redacted";
 import CreateClientBriefLink from "../../client-brief/CreateClientBriefLink";
 import FeedbackLink from "../../feedback/FeedbackLink";
+import EventVideoLink from "./EventVideoLink";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
@@ -1336,6 +1337,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                 )}
               </div>
             )}
+
+            {!isLead && <EventVideoLink key={event.id} eventId={event.id} videoUrl={event.videoUrl} onSaved={(videoUrl) => onUpdated?.({ videoUrl })} />}
 
             {/* Deadline livrare */}
             {isPast && !isLead && (() => {

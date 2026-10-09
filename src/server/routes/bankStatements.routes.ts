@@ -392,7 +392,6 @@ async function resolveAmbiguousMatches(
     const result = await requestStructured<{ decisions: typeof decisions }>(anthropic, {
       schema: MATCH_DECISIONS_SCHEMA,
       maxTokens: 16000,
-      effort: "medium",
       messages: [
         {
           role: "user",

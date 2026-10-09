@@ -202,6 +202,7 @@ async function loadRouter() {
     getEvents: getHandler("get", "/events"),
     postEvents: getHandler("post", "/events"),
     patchEvent: getHandler("patch", "/events/:id"),
+    patchVideoLink: getHandler("patch", "/events/:id/video-link"),
     deleteEvent: getHandler("delete", "/events/:id"),
     getSettings: getHandler("get", "/settings"),
     putSettings: getHandler("put", "/settings"),
@@ -325,6 +326,49 @@ describe("adminEvents routes", () => {
         body: { type: "Nuntă", client: { fullName: "Test" } },
       }, res);
       expect(res.status).toHaveBeenCalledWith(500);
+    });
+  });
+
+  describe("PATCH /events/:id/video-link", () => {
+    test("saves a Drive sharing link without changing delivery or uploading files", async () => {
+      const { patchVideoLink, updateMock, nodeFetchMock } = await loadRouter();
+      const res = createMockResponse();
+      await patchVideoLink({ params: { id: "ev-1" }, body: { videoUrl: " https://drive.google.com/file/d/abc/view?usp=sharing " } }, res);
+      expect(updateMock).toHaveBeenCalledWith("ev-1", { videoUrl: "https://drive.google.com/file/d/abc/view?usp=sharing" });
+      expect(res.json).toHaveBeenCalledWith({ ok: true, videoUrl: "https://drive.google.com/file/d/abc/view?usp=sharing" });
+      expect(nodeFetchMock).not.toHaveBeenCalled();
+    });
+
+    test.each([null, 123, "javascript:alert(1)", "data:text/html,video", "https://user:password@drive.google.com/video", "invalid", "https://drive.google.com/" + "a".repeat(4096)])("rejects invalid input %s", async (videoUrl) => {
+      const { patchVideoLink, updateMock } = await loadRouter();
+      const res = createMockResponse();
+      await patchVideoLink({ params: { id: "ev-1" }, body: { videoUrl } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("allows clearing the link", async () => {
+      const { patchVideoLink, updateMock } = await loadRouter();
+      const res = createMockResponse();
+      await patchVideoLink({ params: { id: "ev-1" }, body: { videoUrl: " " } }, res);
+      expect(updateMock).toHaveBeenCalledWith("ev-1", { videoUrl: "" });
+    });
+
+    test("does not create a missing event", async () => {
+      const { patchVideoLink, docGetMock, updateMock } = await loadRouter();
+      docGetMock.mockResolvedValueOnce({ exists: false });
+      const res = createMockResponse();
+      await patchVideoLink({ params: { id: "missing" }, body: { videoUrl: "https://drive.google.com/video" } }, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("link cannot be changed through the generic event patch", async () => {
+      const { patchEvent, updateMock } = await loadRouter();
+      const res = createMockResponse();
+      await patchEvent({ params: { id: "ev-1" }, body: { videoUrl: "https://drive.google.com/video" } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(updateMock).not.toHaveBeenCalled();
     });
   });
 

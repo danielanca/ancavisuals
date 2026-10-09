@@ -144,7 +144,7 @@ export async function extractStatementWithAi(
     { role: "user", content: [...documentBlocks, { type: "text", text: STATEMENT_PROMPT }] },
   ];
 
-  const first = await requestStructured<AiStatement>(client, { messages, schema: STATEMENT_SCHEMA, maxTokens: 64000, effort: "high" });
+  const first = await requestStructured<AiStatement>(client, { messages, schema: STATEMENT_SCHEMA, maxTokens: 64000 });
   if (!first.data) {
     throw new StatementExtractionError(
       first.stopReason === "max_tokens"
@@ -170,7 +170,6 @@ export async function extractStatementWithAi(
       const second = await requestStructured<AiStatement>(client, {
         schema: STATEMENT_SCHEMA,
         maxTokens: 64000,
-        effort: "high",
         messages: [
           ...messages,
           { role: "assistant", content: first.message.content },
@@ -225,7 +224,6 @@ export async function detectCsvMappingWithAi(client: Anthropic, rows: string[][]
   const result = await requestStructured<CsvColumnMapping>(client, {
     schema: CSV_MAPPING_SCHEMA,
     maxTokens: 8000,
-    effort: "medium",
     messages: [
       {
         role: "user",
