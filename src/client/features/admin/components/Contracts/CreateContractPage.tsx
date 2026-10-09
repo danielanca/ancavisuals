@@ -1,3 +1,4 @@
+import { validateCustomContractClauses } from "../../../../../shared/contractClauses";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { BankProfile } from "../../types";
@@ -462,6 +463,8 @@ const CreateContractPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+    const clauseError = validateCustomContractClauses(clauses);
+    if (clauseError) { setSubmitError(clauseError); return; }
 
     if (!eventType) { setSubmitError("Selectează tipul evenimentului."); return; }
     const selectedEventDates = eventDates.length > 0 ? eventDates : (eventDate ? [eventDate] : []);

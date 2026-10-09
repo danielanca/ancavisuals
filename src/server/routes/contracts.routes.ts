@@ -1,3 +1,4 @@
+import { validateCustomContractClauses } from "../../shared/contractClauses";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
@@ -130,6 +131,8 @@ router.post("/", async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const body = req.body;
+    const clauseError = validateCustomContractClauses(body.clauses);
+    if (clauseError) return res.status(400).json({ error: clauseError });
 
     if (!body.eventType || !body.eventDate) {
       return res.status(400).json({ error: "Câmpuri obligatorii: eventType, eventDate" });
@@ -592,6 +595,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
 
     const data = doc.data()!;
     const body = req.body;
+    const clauseError = data.status !== "signed" ? validateCustomContractClauses(body.clauses) : null;
+    if (clauseError) return res.status(400).json({ error: clauseError });
     const has = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
     if (has("clientEmail") && body.clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(body.clientEmail).trim())) {
       return res.status(400).json({ error: "Email-ul clientului nu este valid." });

@@ -88,7 +88,7 @@ describe("ContractListPage", () => {
       expect(screen.queryByText("Nunta 2027")).not.toBeInTheDocument();
       expect(screen.getByText("Drafturi de lucru (1)")).toBeInTheDocument();
       fireEvent.change(search, { target: { value: "21.1.2026" } });
-      expect(screen.getByText("Niciun contract pentru această dată.")).toBeInTheDocument();
+      expect(screen.getByText("Niciun contract pentru filtrele selectate.")).toBeInTheDocument();
       expect(screen.getByText("Drafturi de lucru (0)")).toBeInTheDocument();
       fireEvent.change(search, { target: { value: "31 februarie" } });
       expect(search).toHaveAttribute("aria-invalid", "true");

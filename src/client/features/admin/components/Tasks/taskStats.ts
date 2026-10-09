@@ -31,7 +31,7 @@ export interface ClientTask {
   dayOrder?: number | null;
   /** Ora din timeline-ul zilei planificate, „HH:MM”; null = neprogramat pe ore. */
   scheduledStart?: string | null;
-  /** Durata blocului din timeline, în minute. */
+  /** Timpul estimat de lucru în minute; folosit și ca durată în timeline. */
   durationMin?: number | null;
   createdAt: string | null;
   updatedAt: string | null;

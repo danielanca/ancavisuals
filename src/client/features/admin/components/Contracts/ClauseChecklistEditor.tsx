@@ -1,7 +1,9 @@
+import { CUSTOM_CLAUSE_PREFIX } from "../../../../../shared/contractClauses";
 import React, { useEffect, useRef, useState } from "react";
 import useAuth from "../../auth/useAuth";
 import RichTextEditor from "./RichTextEditor";
 import Checkbox from "./Checkbox";
+import ClauseAiRewrite from "./ClauseAiRewrite";
 
 export interface ClauseSnapshot {
   templateId: string;
@@ -82,7 +84,7 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
   }, [value]);
 
   async function generate() {
-    if (rendered && !window.confirm("Regenerezi clauzele? Modificările făcute manual pe lista curentă se pierd.")) return;
+    if (rendered && !window.confirm("Regenerezi clauzele din bibliotecă? Modificările lor manuale se pierd. Clauzele adăugate separat se păstrează.")) return;
     setLoading(true);
     setError(null);
     try {
@@ -108,16 +110,33 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
       const data = await res.json() as { clauses?: RenderedClause[]; error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "Eroare la generarea clauzelor.");
       const clauses = data.clauses ?? [];
+      const custom = (rendered ?? []).filter((clause) => clause.key.startsWith(CUSTOM_CLAUSE_PREFIX));
+      let order = Math.max(0, ...clauses.map((clause) => clause.order));
+      clauses.push(...custom.map((clause) => ({ ...clause, order: ++order })));
       setRendered(clauses);
       const nextChecked: Record<string, boolean> = {};
-      clauses.forEach((c) => { nextChecked[c.templateId] = c.defaultChecked; });
+      clauses.forEach((c) => { nextChecked[c.templateId] = c.key.startsWith(CUSTOM_CLAUSE_PREFIX) ? checked[c.templateId] ?? true : c.defaultChecked; });
       setChecked(nextChecked);
-      setEdited({});
+      setEdited((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => custom.some((clause) => clause.templateId === id))));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
     } finally {
       setLoading(false);
     }
+  }
+
+  function addClause() {
+    // Mark local initialization so the outgoing custom clause is not re-seeded as a saved snapshot.
+    seededFromValue.current = true;
+    const id = `${CUSTOM_CLAUSE_PREFIX}${crypto.randomUUID()}`;
+    const clause: RenderedClause = { templateId: id, key: id, title: "", body: "", order: Math.max(0, ...(rendered ?? []).map((item) => item.order)) + 1, groupKey: null, mutexGroup: null, defaultChecked: true };
+    setRendered((prev) => [...(prev ?? []), clause]);
+    setChecked((prev) => ({ ...prev, [id]: true }));
+  }
+
+  function removeClause(id: string) {
+    setRendered((prev) => prev?.filter((clause) => clause.templateId !== id) ?? null);
+    setEdited((prev) => { const next = { ...prev }; delete next[id]; return next; });
   }
 
   function toggle(clause: RenderedClause, next: boolean) {
@@ -161,7 +180,7 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={generate}
@@ -170,10 +189,12 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
         >
           {loading ? "Se generează..." : rendered ? "Regenerează clauzele" : "Generează clauzele"}
         </button>
+        <button type="button" onClick={addClause} disabled={loading} className="px-4 py-2 text-sm bg-violet-500/20 text-violet-300 rounded-lg disabled:opacity-50">Adaugă clauză</button>
         {!eventType && <span className="text-xs text-neutral-600">Selectează tipul evenimentului mai întâi.</span>}
         {rendered && <span className="text-xs text-neutral-500">{value.length} din {rendered.length} clauze bifate</span>}
       </div>
 
+      <p className="text-xs text-neutral-500">Completează titlul și textul. AI propune o variantă pe care o poți verifica și aplica.</p>
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {rendered && (
@@ -191,18 +212,24 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
                     className="mt-1"
                   />
                   <input
+                    aria-label="Titlu clauză"
+                    placeholder="Titlul clauzei"
+                    maxLength={300}
                     value={currentTitle}
                     onChange={(e) => editField(clause.templateId, clause, "title", e.target.value)}
                     className="bg-transparent text-sm text-white font-medium flex-1 outline-none border-b border-transparent focus:border-neutral-600"
                   />
                 </label>
+                {clause.key.startsWith(CUSTOM_CLAUSE_PREFIX) && <button type="button" onClick={() => removeClause(clause.templateId)} className="mt-2 text-xs text-red-400">Șterge clauza</button>}
                 {isChecked && (
                   <div className="mt-2">
                     <RichTextEditor
                       value={currentBody}
                       onChange={(html) => editField(clause.templateId, clause, "body", html)}
+                      label="Text clauză"
                       minHeight={70}
                     />
+                    <ClauseAiRewrite title={currentTitle} body={currentBody} onApply={(proposal) => setEdited((prev) => ({ ...prev, [clause.templateId]: proposal }))} />
                   </div>
                 )}
               </div>

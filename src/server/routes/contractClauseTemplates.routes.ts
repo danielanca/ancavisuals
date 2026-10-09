@@ -5,6 +5,7 @@ import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { detectServiceFlags, computeContractTitle, type ContractService } from "../services/pdf.generator";
 import { interpolateClauseTokens } from "../services/contractClauseInterpolation";
+import { rewriteContractClause } from "../services/contractClauseAi.service";
 import { SEED_DEFAULT_CLAUSES } from "../services/contractClauseSeedData";
 
 const router = Router();
@@ -21,6 +22,21 @@ interface ClauseTemplateDoc {
   mutexGroup: string | null;
   isActive: boolean;
 }
+
+// Explicit editor action only; never saves a clause or modifies a contract.
+router.post("/rewrite", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { title, body, mode } = req.body ?? {};
+  if (typeof title !== "string" || !title.trim() || title.length > 300 ||
+      typeof body !== "string" || !body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim() || body.length > 10000 ||
+      !["correct", "formal"].includes(mode)) {
+    res.status(400).json({ error: "Completează titlul și textul clauzei (maxim 300 / 10.000 caractere)." }); return;
+  }
+  try {
+    res.json({ clause: await rewriteContractClause(title.trim(), body, mode) });
+  } catch {
+    res.status(503).json({ error: "Reformularea AI nu este disponibilă acum. Textul tău a rămas neschimbat; poți încerca din nou sau îl poți edita manual." });
+  }
+});
 
 router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {

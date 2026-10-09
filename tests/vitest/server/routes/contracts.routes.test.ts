@@ -117,7 +117,7 @@ async function loadContractsRouter() {
   const module = await import("src/server/routes/contracts.routes");
   const router = module.default as any;
 
-  const getHandler = (method: "get" | "post", path: string): Handler => {
+  const getHandler = (method: "get" | "post" | "patch", path: string): Handler => {
     const layer = router.stack.find((entry: any) => entry.route?.path === path && entry.route.methods?.[method]);
     if (!layer) {
       throw new Error(`Missing ${method.toUpperCase()} handler for ${path}`);
@@ -141,6 +141,7 @@ async function loadContractsRouter() {
     sendSignedContractEmailMock,
     postCreateEvent: getHandler("post", "/:id/create-event"),
     postCreate: getHandler("post", "/"),
+    patchContract: getHandler("patch", "/:id"),
     getList: getHandler("get", "/"),
     getPublicSign: getHandler("get", "/sign/:token"),
     postPublicSign: getHandler("post", "/sign/:token"),
@@ -154,6 +155,36 @@ describe("contracts.routes", () => {
     vi.resetModules();
     vi.restoreAllMocks();
     delete process.env.APP_BASE_URL;
+  });
+
+  describe("custom clause snapshots", () => {
+    const clause = { templateId: "custom:1", key: "custom:1", title: "Ora de încheiere", body: "<p>Activitatea se încheie la ora 23:00.</p>", order: 10, groupKey: null };
+    test("persists custom headings and text on create", async () => {
+      const { postCreate, addMock } = await loadContractsRouter();
+      addMock.mockResolvedValue({ id: "contract-1" });
+      const res = createMockResponse();
+      await postCreate({ body: { eventType: "Nunta", eventDate: "2026-09-12", clauses: [clause] } }, res);
+      expect(addMock).toHaveBeenCalledWith(expect.objectContaining({ clauses: [clause] }));
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+    test.each([{ ...clause, title: " " }, { ...clause, body: "<p>&nbsp;</p>" }])("rejects incomplete custom clauses on create", async (incomplete) => {
+      const { postCreate, addMock } = await loadContractsRouter();
+      const res = createMockResponse();
+      await postCreate({ body: { eventType: "Nunta", eventDate: "2026-09-12", clauses: [incomplete] } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(addMock).not.toHaveBeenCalled();
+    });
+    test("preserves custom text on update and refuses incomplete edits", async () => {
+      const { patchContract, docGetMock, updateMock } = await loadContractsRouter();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ status: "draft" }) });
+      await patchContract({ params: { id: "c1" }, body: { clauses: [clause] } }, createMockResponse());
+      expect(updateMock).toHaveBeenCalledWith("c1", expect.objectContaining({ clauses: [clause] }));
+      updateMock.mockClear();
+      const res = createMockResponse();
+      await patchContract({ params: { id: "c1" }, body: { clauses: [{ ...clause, title: "" }] } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("happy path", () => {

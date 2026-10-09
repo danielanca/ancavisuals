@@ -287,6 +287,62 @@ describe("expenses routes", () => {
     });
   });
 
+  describe("PATCH /:id — edit expense documents and details", () => {
+    const receipt = { url: "https://cdn.example/receipt.pdf", name: "receipt.pdf", hash: "receipt" };
+    const invoice = { url: "https://cdn.example/invoice.pdf", name: "invoice.pdf", hash: "invoice" };
+    const existing = { amount: 165, currency: "RON", supplier: "Acme", invoiceNumber: "123", deductibility: 50, deductibleAmount: 82.5, chitanta: receipt };
+
+    test("attaches an invoice without overwriting the receipt or creating an expense", async () => {
+      const { patchExpense, updateMock, addMock } = await loadExpensesRouter({ docData: existing });
+      const res = createMockResponse();
+      await patchExpense({ params: { id: "e1" }, body: { factura: invoice, createdAt: "overwrite" } }, res);
+      expect(updateMock).toHaveBeenCalledWith("e1", { factura: invoice });
+      expect(addMock).not.toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    test("allows its own document hash and invoice number while editing", async () => {
+      const { patchExpense, updateMock, whereSnapMock, getCollectionMock } = await loadExpensesRouter({ docData: existing });
+      whereSnapMock.mockResolvedValue(makeDocSnap("e1", existing));
+      getCollectionMock.mockResolvedValue(makeDocSnap("e1", existing));
+      await patchExpense({ params: { id: "e1" }, body: { invoiceNumber: "123", factura: invoice, chitanta: receipt, amount: 200, deductibleAmount: 82.5 } }, createMockResponse());
+      expect(updateMock).toHaveBeenCalledWith("e1", expect.objectContaining({ amount: 200, deductibleAmount: 82.5, deductibility: 41.25, chitanta: receipt }));
+    });
+
+    test("rejects a hash attached to another expense even when its own hash also matches", async () => {
+      const { patchExpense, updateMock, whereSnapMock } = await loadExpensesRouter({ docData: existing });
+      whereSnapMock.mockResolvedValue({ docs: [...makeDocSnap("e1").docs, ...makeDocSnap("e2").docs] });
+      const res = createMockResponse();
+      await patchExpense({ params: { id: "e1" }, body: { factura: invoice } }, res);
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ existingId: "e2" }));
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("rejects duplicate invoice number for the same supplier", async () => {
+      const { patchExpense, updateMock, getCollectionMock } = await loadExpensesRouter({ docData: existing });
+      getCollectionMock.mockResolvedValue(makeDocSnap("e2", existing));
+      const res = createMockResponse();
+      await patchExpense({ params: { id: "e1" }, body: { invoiceNumber: "Factura Nr. 123" } }, res);
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test.each([{ date: "2026-02-30" }, { amount: -10 }, { currency: "XYZ" }, { factura: { url: "javascript:alert(1)", name: "invoice" } }, { deductibleAmount: "invalid" }])("rejects invalid edits: %j", async (body) => {
+      const { patchExpense, updateMock } = await loadExpensesRouter({ docData: existing });
+      const res = createMockResponse();
+      await patchExpense({ params: { id: "e1" }, body }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("stores date changes and clears optional text fields", async () => {
+      const { patchExpense, updateMock } = await loadExpensesRouter({ docData: existing });
+      await patchExpense({ params: { id: "e1" }, body: { date: "2026-10-09", supplier: null, description: null, invoiceNumber: null } }, createMockResponse());
+      expect(updateMock).toHaveBeenCalledWith("e1", expect.objectContaining({ date: expect.objectContaining({ toDate: expect.any(Function) }), supplier: null, description: null, invoiceNumber: null }));
+    });
+  });
+
   describe("POST /scan-receipt", () => {
     test("returns 400 when fileBase64 or mediaType is missing", async () => {
       const module = await import("src/server/routes/expenses.routes");

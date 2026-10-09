@@ -6,6 +6,7 @@ import TodayTimeline from "./TodayTimeline";
 import {
   DAY_MIN,
   DEFAULT_DURATION_MIN,
+  MAX_DURATION_MIN,
   DURATION_OPTIONS,
   absoluteStart,
   bucharestMinutes,
@@ -94,6 +95,18 @@ const inputClass =
 function formatDay(day: string): string {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("ro-RO", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+function EstimatedTimeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block text-xs text-neutral-400 space-y-1">
+      <span>Timp estimat (minute, opțional)</span>
+      <input type="number" min={5} max={MAX_DURATION_MIN} step={1} value={value}
+        onChange={(event) => onChange(event.target.value)} aria-label="Timp estimat (minute)"
+        placeholder="ex: 120" className={`${inputClass} w-full`} />
+      {Number(value) >= 5 && Number(value) <= MAX_DURATION_MIN && <span className="block text-neutral-500">{formatDuration(Number(value))}</span>}
+    </label>
+  );
 }
 
 export default function TasksPage() {
@@ -229,7 +242,7 @@ export default function TasksPage() {
   const scheduleTask = (id: string, start: number | null, durationMin?: number) => {
     if (start === null) return updateTask(id, { scheduledStart: null });
     const { day, time } = splitAbsolute(start, today);
-    return updateTask(id, { plannedFor: day, scheduledStart: time, durationMin: durationMin ?? DEFAULT_DURATION_MIN });
+    return updateTask(id, { plannedFor: day, scheduledStart: time, durationMin: durationMin ?? tasks.find((task) => task.id === id)?.durationMin ?? DEFAULT_DURATION_MIN });
   };
   const timelineTasks = useMemo(
     () =>
@@ -419,7 +432,7 @@ export default function TasksPage() {
   );
 }
 
-function QuickAdd({
+export function QuickAdd({
   events,
   today,
   onCreate,
@@ -432,6 +445,7 @@ function QuickAdd({
   const [client, setClient] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("normal");
+  const [estimatedMinutes, setEstimatedMinutes] = useState("");
   const [forToday, setForToday] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -447,11 +461,13 @@ function QuickAdd({
       dueDate: dueDate || null,
       priority,
       plannedFor: forToday ? today : null,
+      durationMin: estimatedMinutes === "" ? null : Number(estimatedMinutes),
     });
     setSaving(false);
     if (ok) {
       setTitle("");
       setDueDate("");
+      setEstimatedMinutes("");
       setPriority("normal");
     }
   }
@@ -490,6 +506,7 @@ function QuickAdd({
           className={inputClass}
         />
       </div>
+      <EstimatedTimeField value={estimatedMinutes} onChange={setEstimatedMinutes} />
       <PriorityPicker value={priority} onChange={setPriority} />
       <div className="flex items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm text-neutral-400">
@@ -732,6 +749,7 @@ function TaskRow({
         <div className="flex-1 min-w-0">
           <p className={`text-sm ${done ? "line-through text-neutral-500" : ""}`}>{task.title}</p>
           <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11px]">
+            {task.durationMin != null && <span className="px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300">Estimat: {formatDuration(task.durationMin)}</span>}
             {task.clientName && <span className="px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300">{task.clientName}</span>}
             {task.status === "doing" && <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300">În lucru</span>}
             {!done && (
@@ -845,7 +863,7 @@ function TaskRow({
   );
 }
 
-function TaskEditor({
+export function TaskEditor({
   task,
   events,
   onSave,
@@ -863,6 +881,7 @@ function TaskEditor({
     dueDate: task.dueDate ?? "",
     plannedFor: task.plannedFor ?? "",
     priority: task.priority,
+    estimatedMinutes: task.durationMin == null ? "" : String(task.durationMin),
   });
 
   function save(event: React.FormEvent) {
@@ -877,6 +896,7 @@ function TaskEditor({
       dueDate: form.dueDate || null,
       plannedFor: form.plannedFor || null,
       priority: form.priority,
+      durationMin: form.estimatedMinutes === "" ? null : Number(form.estimatedMinutes),
     });
   }
 
@@ -917,6 +937,7 @@ function TaskEditor({
           <input type="date" value={form.plannedFor} onChange={(e) => setForm({ ...form, plannedFor: e.target.value })} className={`${inputClass} w-full`} />
         </label>
       </div>
+      <EstimatedTimeField value={form.estimatedMinutes} onChange={(estimatedMinutes) => setForm({ ...form, estimatedMinutes })} />
       <div className="flex items-center justify-between pt-1">
         <button type="button" onClick={onDelete} className="text-xs text-red-400 hover:text-red-300">
           Șterge

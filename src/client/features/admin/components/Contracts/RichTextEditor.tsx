@@ -4,6 +4,7 @@ interface RichTextEditorProps {
   value: string;
   onChange: (html: string) => void;
   minHeight?: number;
+  label?: string;
 }
 
 function ToolbarButton({ onClick, label, title, bold }: { onClick: () => void; label: string; title: string; bold?: boolean }) {
@@ -24,7 +25,7 @@ function ToolbarButton({ onClick, label, title, bold }: { onClick: () => void; l
 // document.execCommand e deprecat dar încă funcțional pentru comenzi de bază; un editor de tip
 // TipTap/Quill ar fi overkill pentru cât de puțină formatare au clauzele. „Sursă HTML" rămâne ca
 // supapă pentru cazuri speciale (ex. caseta stilizată de avertisment VideoBooth 360°).
-const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHeight = 100 }) => {
+const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHeight = 100, label = "Text" }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const [sourceMode, setSourceMode] = useState(false);
   const [sourceValue, setSourceValue] = useState(value);
@@ -77,6 +78,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHei
       </div>
       {sourceMode ? (
         <textarea
+          aria-label={label}
           value={sourceValue}
           onChange={(e) => setSourceValue(e.target.value)}
           onBlur={() => onChange(sourceValue)}
@@ -86,6 +88,9 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHei
       ) : (
         <div
           ref={editorRef}
+          role="textbox"
+          aria-label={label}
+          aria-multiline="true"
           contentEditable
           suppressContentEditableWarning
           onInput={handleInput}

@@ -99,3 +99,24 @@ describe("generateContractPDF", () => {
     });
   });
 });
+
+describe("custom contract clauses", () => {
+  test("custom-only snapshots preserve the legacy clauses and append a separate titled article", async () => {
+    const { buildContractHTML } = await buildModule();
+    const html = buildContractHTML({ eventType: "Nuntă", services: [], clauses: [{ templateId: "custom:1", key: "custom:1", title: "Ora <specială>", body: "<p>Activitatea se încheie la 23:00.</p>", order: 1, groupKey: null }] });
+    expect(html).toContain("POLITICA DE ANULARE");
+    expect(html).toContain("PROTECȚIA DATELOR PERSONALE");
+    expect(html).toContain("ORA &lt;SPECIALĂ&gt;");
+    expect(html).toContain("Activitatea se încheie la 23:00.");
+  });
+  test("custom and library clauses render once in their saved order", async () => {
+    const { buildContractHTML } = await buildModule();
+    const html = buildContractHTML({ eventType: "Nuntă", services: [], clauses: [
+      { templateId: "standard", key: "standard", title: "Clauză selectată", body: "<p>Text standard salvat.</p>", order: 5, groupKey: null },
+      { templateId: "custom:1", key: "custom:1", title: "Clauză nouă", body: "<p>Text nou salvat.</p>", order: 6, groupKey: null },
+    ] });
+    expect(html.indexOf("Text standard salvat.")).toBeLessThan(html.indexOf("Text nou salvat."));
+    expect(html.split("Text nou salvat.")).toHaveLength(2);
+    expect(html).not.toContain("POLITICA DE ANULARE");
+  });
+});

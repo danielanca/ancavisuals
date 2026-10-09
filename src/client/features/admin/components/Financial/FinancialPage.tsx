@@ -137,6 +137,7 @@ interface State {
   loadingInvoices: boolean;
   loadingEvents: boolean;
   showAddExpense: boolean;
+  editExpense: Expense | null;
   showAddInvoice: boolean;
   showFiscalSettings: boolean;
   deletingId: string | null;
@@ -174,6 +175,7 @@ type Action =
   | { type: "SET_INVOICE_PAID"; id: string; paid: boolean; paidAt: string | null }
   | { type: "SET_INVOICE_EFACTURA"; id: string; eFactura: boolean; eFacturaSentAt: string | null }
   | { type: "SHOW_ADD_EXPENSE"; value: boolean }
+  | { type: "SET_EDIT_EXPENSE"; expense: Expense | null }
   | { type: "SHOW_ADD_INVOICE"; value: boolean }
   | { type: "SHOW_FISCAL_SETTINGS"; value: boolean }
   | { type: "SET_DELETING"; id: string | null }
@@ -206,6 +208,7 @@ const initialState: State = {
   loadingInvoices: false,
   loadingEvents: false,
   showAddExpense: false,
+  editExpense: null,
   showAddInvoice: false,
   showFiscalSettings: false,
   deletingId: null,
@@ -250,6 +253,7 @@ function reducer(state: State, action: Action): State {
         inv.id === action.id ? { ...inv, eFactura: action.eFactura, eFacturaSentAt: action.eFacturaSentAt } : inv
       ),
     };
+    case "SET_EDIT_EXPENSE": return { ...state, editExpense: action.expense };
     case "SHOW_ADD_EXPENSE": return { ...state, showAddExpense: action.value };
     case "SHOW_ADD_INVOICE": return { ...state, showAddInvoice: action.value };
     case "SHOW_FISCAL_SETTINGS": return { ...state, showFiscalSettings: action.value };
@@ -419,6 +423,7 @@ function CategoryBadge({ value }: { value: string }) {
 // ─── Add Expense Modal ────────────────────────────────────────────────────────
 
 interface AddExpenseModalProps {
+  expense?: Expense;
   accessToken: string;
   existingExpenses: Expense[];
   onClose: () => void;
@@ -452,9 +457,11 @@ function DocUploadRow({
   slot,
   onFileChange,
   onScan,
+  existingDoc,
 }: {
   label: string;
   slot: DocSlot;
+  existingDoc?: ExpenseDoc | null;
   onFileChange: (file: File | null) => void;
   onScan: () => void;
 }) {
@@ -503,25 +510,28 @@ function DocUploadRow({
           </>
         )}
       </div>
-      <input ref={inputRef} type="file" accept="image/*,.heic,.heif,.pdf" className="hidden"
+      {existingDoc && <a href={existingDoc.url} target="_blank" rel="noopener noreferrer" className="block mt-1 text-xs text-emerald-400 break-all">{existingDoc.name} (atașat{slot.file ? "; va fi înlocuit" : ""})</a>}
+      <input aria-label={label} ref={inputRef} type="file" accept="image/*,.heic,.heif,.pdf" className="hidden"
         onChange={(e) => onFileChange(e.target.files?.[0] ?? null)} />
     </div>
   );
 }
 
-function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDuplicateFound }: AddExpenseModalProps) {
-  const [date, setDate] = React.useState(new Date().toISOString().split("T")[0]);
-  const [category, setCategory] = React.useState("combustibil");
-  const [description, setDescription] = React.useState("");
-  const [supplier, setSupplier] = React.useState("");
-  const [amount, setAmount] = React.useState("");
-  const [currency, setCurrency] = React.useState("RON");
-  const [exchangeRate, setExchangeRate] = React.useState("");
-  const [deductibility, setDeductibility] = React.useState(50);
-  const [deductMode, setDeductMode] = React.useState<"percent" | "amount">("percent");
+export function AddExpenseModal({ expense, accessToken, existingExpenses: allExpenses, onClose, onAdded, onDuplicateFound }: AddExpenseModalProps) {
+  const existingExpenses = allExpenses.filter((item) => item.id !== expense?.id);
+  const originalUsd = expense?.originalCurrency === "USD" && Number(expense.exchangeRate) > 0 && Number(expense.originalAmount) > 0;
+  const [date, setDate] = React.useState(expense?.date.slice(0, 10) ?? new Date().toISOString().split("T")[0]);
+  const [category, setCategory] = React.useState(expense?.category ?? "combustibil");
+  const [description, setDescription] = React.useState(expense?.description ?? "");
+  const [supplier, setSupplier] = React.useState(expense?.supplier ?? "");
+  const [amount, setAmount] = React.useState(expense ? String(originalUsd ? expense.originalAmount : expense.amount) : "");
+  const [currency, setCurrency] = React.useState(originalUsd ? "USD" : expense?.currency ?? "RON");
+  const [exchangeRate, setExchangeRate] = React.useState(originalUsd ? String(expense?.exchangeRate) : "");
+  const [deductibility, setDeductibility] = React.useState(expense?.deductibility ?? 50);
+  const [deductMode, setDeductMode] = React.useState<"percent" | "amount">(expense ? "amount" : "percent");
   // Fixed deductible sum, in the invoice's currency (same as the Sumă field).
-  const [deductibleAmountInput, setDeductibleAmountInput] = React.useState("");
-  const [invoiceNumber, setInvoiceNumber] = React.useState("");
+  const [deductibleAmountInput, setDeductibleAmountInput] = React.useState(expense ? String(originalUsd ? expense.deductibleAmount / Number(expense.exchangeRate) : expense.deductibleAmount) : "");
+  const [invoiceNumber, setInvoiceNumber] = React.useState(expense?.invoiceNumber ?? "");
   const [facturaSlot, setFacturaSlot] = React.useState<DocSlot>({ file: null, scanning: false });
   const [chitantaSlot, setChitantaSlot] = React.useState<DocSlot>({ file: null, scanning: false });
   const [uploading, setUploading] = React.useState(false);
@@ -635,7 +645,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
       : deductibility;
 
     // Check 1: supplier + amount + currency (client-side)
-    if (supplier.trim()) {
+    if (!expense && supplier.trim()) {
       const normalizedSupplier = supplier.trim().toLowerCase();
       const duplicate = existingExpenses.find(
         (exp) =>
@@ -647,7 +657,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     }
 
     // Check 2: invoice number (client-side)
-    if (invoiceNumber.trim()) {
+    if (!expense && invoiceNumber.trim()) {
       const duplicate = existingExpenses.find((exp) => exp.invoiceNumber === invoiceNumber.trim());
       if (duplicate) { onDuplicateFound(duplicate); return; }
     }
@@ -660,8 +670,8 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
 
     try {
       const uploads = await Promise.all([
-        facturaSlot.file ? uploadExpenseFile(facturaSlot.file, date, accessToken) : Promise.resolve(null),
-        chitantaSlot.file ? uploadExpenseFile(chitantaSlot.file, date, accessToken) : Promise.resolve(null),
+        facturaSlot.file ? uploadExpenseFile(facturaSlot.file, date, accessToken) : Promise.resolve(expense?.factura ?? null),
+        chitantaSlot.file ? uploadExpenseFile(chitantaSlot.file, date, accessToken) : Promise.resolve(expense?.chitanta ?? null),
       ]);
       factura = uploads[0];
       chitanta = uploads[1];
@@ -674,7 +684,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     setUploading(false);
 
     // Check 3: hash duplicate returned from upload-doc
-    const dupeId = factura?.duplicateExpenseId ?? chitanta?.duplicateExpenseId;
+    const dupeId = [factura?.duplicateExpenseId, chitanta?.duplicateExpenseId].find((id) => id && id !== expense?.id);
     if (dupeId) {
       const dupeExpense = existingExpenses.find((exp) => exp.id === dupeId);
       if (dupeExpense) {
@@ -688,19 +698,19 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     }
 
     try {
-      const response = await fetch("/api/admin/expenses", {
-        method: "POST",
+      const response = await fetch(expense ? `/api/admin/expenses/${expense.id}` : "/api/admin/expenses", {
+        method: expense ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
           date, category,
-          description: description || undefined,
-          supplier: supplier || undefined,
+          description: description || null,
+          supplier: supplier || null,
           amount: currency === "USD" ? Number(amount) * Number(exchangeRate) : Number(amount),
           currency: currency === "USD" ? "RON" : currency,
-          ...(currency === "USD" ? { originalAmount: Number(amount), originalCurrency: "USD", exchangeRate: Number(exchangeRate) } : {}),
+          ...(currency === "USD" ? { originalAmount: Number(amount), originalCurrency: "USD", exchangeRate: Number(exchangeRate) } : { originalAmount: null, originalCurrency: null, exchangeRate: null }),
           deductibility: submittedDeductibility,
           ...(useManualDeduct ? { deductibleAmount: submittedDeductibleAmount } : {}),
-          invoiceNumber: invoiceNumber.trim() || undefined,
+          invoiceNumber: invoiceNumber.trim() || null,
           factura, chitanta,
         }),
       });
@@ -749,19 +759,20 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-neutral-800">
-          <h2 className="text-white font-semibold">Cheltuială nouă</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-white">
+          <h2 className="text-white font-semibold">{expense ? "Editează cheltuiala" : "Cheltuială nouă"}</h2>
+          <button aria-label="Închide" disabled={saving || facturaSlot.scanning || chitantaSlot.scanning} onClick={onClose} className="text-neutral-400 hover:text-white">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5">
+          <fieldset disabled={saving || facturaSlot.scanning || chitantaSlot.scanning} className="space-y-4">
           {/* Two labeled document slots */}
           <div className="space-y-3">
-            <DocUploadRow label="Factură" slot={facturaSlot}
+            <DocUploadRow label="Factură" slot={facturaSlot} existingDoc={expense?.factura}
               onFileChange={(file) => setFacturaSlot({ file, scanning: false })}
               onScan={() => handleScan(facturaSlot, setFacturaSlot)} />
-            <DocUploadRow label="Chitanță" slot={chitantaSlot}
+            <DocUploadRow label="Chitanță" slot={chitantaSlot} existingDoc={expense?.chitanta}
               onFileChange={(file) => setChitantaSlot({ file, scanning: false })}
               onScan={() => handleScan(chitantaSlot, setChitantaSlot)} />
             {(facturaSlot.file || chitantaSlot.file) && (
@@ -926,6 +937,7 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
               {uploading ? "Se încarcă fișiere..." : saving ? "Se salvează..." : "Salvează"}
             </button>
           </div>
+          </fieldset>
         </form>
       </div>
     </div>
@@ -2538,6 +2550,7 @@ const FinancialPage: React.FC = () => {
                             {expense.description && <span>· {expense.description}</span>}
                           </div>
                         </div>
+                        <button type="button" onClick={() => dispatch({ type: "SET_EDIT_EXPENSE", expense })} disabled={state.deletingId === expense.id} className="px-2 py-1.5 text-xs text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800 disabled:opacity-50">Editează</button>
                         <button onClick={() => handleDeleteExpense(expense.id)} disabled={state.deletingId === expense.id}
                           className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-neutral-800 transition-colors disabled:opacity-50 shrink-0">
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
@@ -2724,16 +2737,20 @@ const FinancialPage: React.FC = () => {
       </div>
 
       {/* Modals */}
-      {state.showAddExpense && (
+      {(state.showAddExpense || state.editExpense) && (
         <AddExpenseModal
+          key={state.editExpense?.id ?? "new"}
+          expense={state.editExpense ?? undefined}
           accessToken={auth.accessToken ?? ""}
           existingExpenses={state.expenses}
-          onClose={() => dispatch({ type: "SHOW_ADD_EXPENSE", value: false })}
+          onClose={() => { dispatch({ type: "SHOW_ADD_EXPENSE", value: false }); dispatch({ type: "SET_EDIT_EXPENSE", expense: null }); }}
           onAdded={(expense) => {
-            dispatch({ type: "ADD_EXPENSE", expense });
+            if (state.editExpense) dispatch({ type: "UPDATE_EXPENSE", id: expense.id, patch: expense });
+            else dispatch({ type: "ADD_EXPENSE", expense });
             dispatch({ type: "BUMP_EXPENSE_REVISION" });
           }}
           onDuplicateFound={(duplicate) => {
+            dispatch({ type: "SET_EDIT_EXPENSE", expense: null });
             dispatch({ type: "SHOW_ADD_EXPENSE", value: false });
             dispatch({ type: "SET_TAB", tab: "cheltuieli" });
             dispatch({ type: "SET_DUPLICATE_ALERT", payload: { expense: duplicate, year: new Date(duplicate.date).getFullYear() } });

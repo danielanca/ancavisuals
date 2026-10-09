@@ -309,39 +309,81 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
   }
 });
 
-// PATCH /:id — adjust the deductible part of an existing expense (fix a mistake).
-// Accepts either `deductibleAmount` (a fixed sum) or `deductibility` (a percent);
-// the other field is always re-derived so the two stay consistent.
+// PATCH /:id — edit an existing expense, preserving omitted fields/documents.
 router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
-    const { deductibleAmount, deductibility } = req.body as { deductibleAmount?: number; deductibility?: number };
-    const hasAmount = deductibleAmount != null && Number.isFinite(Number(deductibleAmount));
-    const hasPercent = deductibility != null && Number.isFinite(Number(deductibility));
-    if (!hasAmount && !hasPercent) {
-      res.status(400).json({ error: "Trimite deductibleAmount sau deductibility." });
-      return;
-    }
-
+    const body = req.body ?? {};
+    const fields = ["date", "category", "description", "supplier", "amount", "currency", "originalAmount", "originalCurrency", "exchangeRate", "invoiceNumber", "factura", "chitanta", "deductibleAmount", "deductibility"];
+    const patch: Record<string, unknown> = {};
+    for (const field of fields) if (Object.prototype.hasOwnProperty.call(body, field)) patch[field] = body[field];
+    if (!Object.keys(patch).length) { res.status(400).json({ error: "Trimite câmpurile de modificat." }); return; }
     const db = firestore();
     const ref = db.collection(COLLECTION).doc(req.params.id);
     const snap = await ref.get();
-    if (!snap.exists) {
-      res.status(404).json({ error: "Cheltuiala nu a fost găsită." });
-      return;
+    if (!snap.exists) { res.status(404).json({ error: "Cheltuiala nu a fost găsită." }); return; }
+    const current = snap.data() ?? {};
+    if ("date" in patch) {
+      if (typeof patch.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(patch.date) || !Number.isFinite(Date.parse(patch.date)) || new Date(patch.date).toISOString().slice(0, 10) !== patch.date) {
+        res.status(400).json({ error: "Data cheltuielii este invalidă." }); return;
+      }
+      patch.date = Timestamp.fromDate(new Date(patch.date));
     }
-
-    const total = Number(snap.data()?.amount ?? 0);
-    let nextDeductibleAmount: number;
-    if (hasAmount) {
-      nextDeductibleAmount = Math.round(Math.min(Math.max(Number(deductibleAmount), 0), total) * 100) / 100;
-    } else {
-      const pct = Math.min(Math.max(Number(deductibility), 0), 100);
-      nextDeductibleAmount = Math.round((total * pct) / 100 * 100) / 100;
+    for (const field of ["category", "description", "supplier", "invoiceNumber"]) {
+      if (!(field in patch)) continue;
+      const value = patch[field];
+      if ((value !== null && typeof value !== "string") || (field === "category" && (typeof value !== "string" || !value.trim()))) {
+        res.status(400).json({ error: "Datele cheltuielii sunt invalide." }); return;
+      }
+      patch[field] = typeof value === "string" ? value.trim() || null : null;
     }
-    const nextDeductibility = total > 0 ? Math.round((nextDeductibleAmount / total) * 100 * 100) / 100 : 0;
-
-    await ref.update({ deductibleAmount: nextDeductibleAmount, deductibility: nextDeductibility });
-    res.json({ id: req.params.id, deductibleAmount: nextDeductibleAmount, deductibility: nextDeductibility });
+    const next = { ...current, ...patch };
+    const total = Number(next.amount);
+    if (!Number.isFinite(total) || total <= 0 || !["RON", "EUR"].includes(next.currency ?? "RON")) {
+      res.status(400).json({ error: "Suma trebuie să fie pozitivă, în RON sau EUR. Pentru USD folosește conversia în RON." }); return;
+    }
+    if ("amount" in patch) patch.amount = total;
+    if (next.originalCurrency === "USD" && (!Number.isFinite(Number(next.originalAmount)) || Number(next.originalAmount) <= 0 || !Number.isFinite(Number(next.exchangeRate)) || Number(next.exchangeRate) <= 0)) {
+      res.status(400).json({ error: "Suma și cursul USD sunt invalide." }); return;
+    }
+    for (const field of ["factura", "chitanta"]) {
+      if (!(field in patch) || patch[field] === null) continue;
+      const doc = patch[field] as { url?: unknown; name?: unknown; hash?: unknown } | undefined;
+      let validUrl = false;
+      try { const url = new URL(typeof doc?.url === "string" ? doc.url : ""); validUrl = ["http:", "https:"].includes(url.protocol) && !url.username && !url.password; } catch { /* invalid URL */ }
+      if (!validUrl || typeof doc?.name !== "string" || !doc.name.trim() || (doc.hash != null && typeof doc.hash !== "string")) {
+        res.status(400).json({ error: "Documentul atașat este invalid." }); return;
+      }
+      patch[field] = { url: doc.url, name: doc.name, hash: doc.hash ?? null };
+      if (doc.hash) {
+        const matches = await Promise.all([db.collection(COLLECTION).where("factura.hash", "==", doc.hash).get(), db.collection(COLLECTION).where("chitanta.hash", "==", doc.hash).get()]);
+        const duplicate = matches.flatMap((match) => match.docs).find((item) => item.id !== req.params.id);
+        if (duplicate) { res.status(409).json({ error: "DUPLICATE_FILE", existingId: duplicate.id, message: "Fișier deja atașat altei cheltuieli." }); return; }
+      }
+    }
+    if (next.invoiceNumber && ("invoiceNumber" in patch || "supplier" in patch)) {
+      const all = await db.collection(COLLECTION).get();
+      const number = normalizeInvoiceValue(next.invoiceNumber);
+      const supplier = normalizeSupplier(next.supplier);
+      const duplicate = all.docs.find((item) => {
+        if (item.id === req.params.id) return false;
+        const other = item.data();
+        const otherSupplier = normalizeSupplier(other.supplier);
+        return number && normalizeInvoiceValue(other.invoiceNumber) === number && (!supplier || !otherSupplier || supplier === otherSupplier);
+      });
+      if (duplicate) { res.status(409).json({ error: "DUPLICATE_INVOICE_NUMBER", existingId: duplicate.id, message: "Factura există deja în altă cheltuială." }); return; }
+    }
+    const hasAmount = "deductibleAmount" in patch;
+    const hasPercent = "deductibility" in patch;
+    if ((hasAmount && (patch.deductibleAmount == null || !Number.isFinite(Number(patch.deductibleAmount)))) || (hasPercent && (patch.deductibility == null || !Number.isFinite(Number(patch.deductibility))))) {
+      res.status(400).json({ error: "Valoarea deductibilă este invalidă." }); return;
+    }
+    if (hasAmount || hasPercent || "amount" in patch) {
+      const deductible = hasAmount ? Math.min(Math.max(Number(patch.deductibleAmount), 0), total) : total * Math.min(Math.max(Number(next.deductibility ?? 0), 0), 100) / 100;
+      patch.deductibleAmount = Math.round(deductible * 100) / 100;
+      patch.deductibility = Math.round(Number(patch.deductibleAmount) / total * 10000) / 100;
+    }
+    await ref.update(patch);
+    res.json({ id: req.params.id, ...patch, ...(patch.date ? { date: (patch.date as Timestamp).toDate().toISOString() } : {}) });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }

@@ -1,3 +1,4 @@
+import { CUSTOM_CLAUSE_PREFIX } from "../../shared/contractClauses";
 import puppeteer from "puppeteer";
 
 // Provider details — fixed
@@ -456,7 +457,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
   const storedClauses = Array.isArray(contract.clauses) ? (contract.clauses as StoredClauseSnapshot[]) : [];
 
   let finalArticles: { title: string; body: string }[];
-  if (storedClauses.length > 0) {
+  if (storedClauses.some((clause) => !clause.key?.startsWith(CUSTOM_CLAUSE_PREFIX))) {
     // Indici ficși în array-ul de mai sus: 0=părți, 1=obiect, 2=tabel servicii, 9=preț&plată —
     // sunt singurele 4 secțiuni mereu prezente (obiecte, nu ternare) înaintea clauzei de exhaustivitate.
     const partiesArticle = articles[0] as { title: string; body: string };
@@ -473,12 +474,15 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       ...(additionalNotesArticle ? [additionalNotesArticle] : []),
     ];
   } else {
-    finalArticles = articles.filter((a): a is { title: string; body: string } => a !== null);
+    finalArticles = [
+      ...articles.filter((a): a is { title: string; body: string } => a !== null),
+      ...renderStoredClauseArticles(storedClauses),
+    ];
   }
 
   const renderedArticles = finalArticles
     .map((a, i) => `
-      <p class="section">${i + 1}. ${a.title.toUpperCase()}:</p>
+      <p class="section">${i + 1}. ${esc(a.title.toUpperCase())}:</p>
       ${a.body}
     `)
     .join("\n");
