@@ -4,6 +4,8 @@ import { feedbackPath } from "../../../shared/feedback/feedback";
 import useAuth from "../../features/admin/auth/useAuth";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import ProposalLinksPanel from "./ProposalLinksPanel";
+import PrintSelectionGuide from "./PrintSelectionGuide";
+import PrintSelectionLink from "./PrintSelectionLink";
 import type { PhotoVote } from "../../../shared/media/proposalConsensus";
 import styles from "./MediaAlbumPage.module.scss";
 import type { Album } from "./AlbumTypes";
@@ -233,6 +235,7 @@ function MobileColumnsToggle({
 export default function MediaAlbumPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const isPrintInvitation = searchParams.get("select") === "print";
   const { auth } = useAuth();
 
   const [moderationMode, setModerationMode] = useState(false);
@@ -247,6 +250,8 @@ export default function MediaAlbumPage() {
   const [gallery, dispatch] = useReducer(galleryReducer, initialGalleryState);
 
   const [savingPrint, setSavingPrint] = useState(false);
+  const [printSaveError, setPrintSaveError] = useState<string | null>(null);
+  const [printSaved, setPrintSaved] = useState(false);
   const [creatingShare, setCreatingShare] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -637,6 +642,8 @@ export default function MediaAlbumPage() {
   };
 
   const openPrintMode = () => {
+    setPrintSaveError(null);
+    setPrintSaved(false);
     const initial = new Set<string>((album?.print ?? []).map(fileNameFromUrl));
     dispatch({ type: "OPEN_PRINT_MODE", initial, currentPage: safePage });
   };
@@ -646,6 +653,7 @@ export default function MediaAlbumPage() {
 
   const togglePhoto = (src: string) => {
     if (mode !== "print" && mode !== "download") return;
+    if (mode === "print") setPrintSaved(false);
     dispatch({ type: "TOGGLE_PHOTO", mode, name: fileNameFromUrl(src) });
   };
 
@@ -736,19 +744,25 @@ export default function MediaAlbumPage() {
   };
 
   const savePrintSelection = async () => {
-    if (!slug) return;
+    if (!slug || savingPrint) return;
     setSavingPrint(true);
+    setPrintSaveError(null);
+    setPrintSaved(false);
     try {
       const response = await fetch(`/api/album/${slug}/print-selection`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: Array.from(selectedPrint) }),
       });
-      if (response.ok) {
-        const refreshed = await fetch(`/api/album/${slug}`).then((res) => res.json());
-        setAlbum(refreshed);
-        dispatch({ type: "SET_MODE", payload: "none" });
-      }
+      if (!response.ok) throw new Error("Nu am putut salva selecția. Încearcă din nou; pozele bifate sunt păstrate.");
+      const refreshResponse = await fetch(`/api/album/${slug}`);
+      if (!refreshResponse.ok) throw new Error("Selecția a fost trimisă, dar nu am putut verifica salvarea. Încearcă din nou.");
+      const refreshed = await refreshResponse.json();
+      setAlbum(refreshed);
+      dispatch({ type: "SET_MODE", payload: "none" });
+      setPrintSaved(true);
+    } catch (error) {
+      setPrintSaveError(error instanceof Error ? error.message : "Nu am putut salva selecția. Încearcă din nou.");
     } finally {
       setSavingPrint(false);
     }
@@ -1172,7 +1186,7 @@ export default function MediaAlbumPage() {
             isAdmin={isAdmin || auth.authorise}
             onAccepted={() => {
               setConsentGiven(true);
-              if (hasPhotos && !isAdmin && !auth.authorise && !localStorage.getItem('av:onboarding:done')) {
+              if (!isPrintInvitation && hasPhotos && !isAdmin && !auth.authorise && !localStorage.getItem('av:onboarding:done')) {
                 setTimeout(() => setShowOnboarding(true), 500);
               }
             }}
@@ -1286,6 +1300,20 @@ export default function MediaAlbumPage() {
           {album.shortvideo ? " · video scurt" : ""}
           {album.longvideo ? " · film complet" : ""}
         </p>
+
+        {isPrintInvitation && (
+          <PrintSelectionGuide
+            selecting={mode === "print"} count={selectedPrint.size} savedCount={printCount}
+            hasPhotos={hasPhotos} saving={savingPrint} saved={printSaved} error={printSaveError}
+            onStart={() => {
+              openPrintMode();
+              photosTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            onSave={() => void savePrintSelection()} onDelivery={() => setIsFormOpen(true)}
+          />
+        )}
+
+        {auth.authorise && slug && <PrintSelectionLink key={slug} albumSlug={slug} />}
 
         {!isModerationMode && (
           <div className={styles.actionButtons}>
@@ -1580,6 +1608,13 @@ export default function MediaAlbumPage() {
                 </div>
               )}
             </div>
+
+            {isPrintInvitation && mode === "print" && (
+              <p role="status" style={{ color: "#fef3c7", margin: "8px 0 16px" }}>
+                {selectedPrint.size} / 100 poze selectate · Atinge pozele pentru bifare/debifare, apoi apasă „Salvează selecția”.
+              </p>
+            )}
+            {!isPrintInvitation && printSaveError && <p role="alert">{printSaveError}</p>}
 
             {mode === "download" && (sharePanelOpen || shareUrl || shareError) && (
               <div ref={shareBoxRef} className={styles.shareBox}>

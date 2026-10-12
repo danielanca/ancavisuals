@@ -1,4 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { createAnthropicClient } from "../lib/anthropicClient";
+import type Anthropic from "@anthropic-ai/sdk";
 import { FEEDBACK_VARIANT_COUNT } from "../../shared/feedback/feedback";
 
 export class FeedbackAiUnavailableError extends Error {
@@ -9,7 +10,7 @@ export class FeedbackAiUnavailableError extends Error {
 }
 
 export async function generateFeedbackVariants(message: string): Promise<string[]> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 40_000, maxRetries: 0 });
+  const client = createAnthropicClient("Reformulare feedback", { apiKey: process.env.ANTHROPIC_API_KEY, timeout: 40_000, maxRetries: 0 });
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 2600,

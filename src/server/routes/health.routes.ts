@@ -1,3 +1,4 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router, type Request, type Response } from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import multer from "multer";
@@ -8,12 +9,12 @@ import { firestore } from "../firestore.js";
 import type { NextFunction } from "express";
 import { requireFirebaseAuth, requireEsteraOrAdmin, ESTERA_EMAIL, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth.js";
 import { buildBunnyStorageUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER } from "../constants/bunny.js";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
 const router = Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Sănătate", { apiKey: process.env.ANTHROPIC_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 const PROFILES_COL = "health_profiles";

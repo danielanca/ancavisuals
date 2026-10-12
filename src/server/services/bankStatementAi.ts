@@ -144,7 +144,7 @@ export async function extractStatementWithAi(
     { role: "user", content: [...documentBlocks, { type: "text", text: STATEMENT_PROMPT }] },
   ];
 
-  const first = await requestStructured<AiStatement>(client, { messages, schema: STATEMENT_SCHEMA, maxTokens: 64000 });
+  const first = await requestStructured<AiStatement>(client, { messages, schema: STATEMENT_SCHEMA, maxTokens: 64000, operation: "Extragere tranzacții din extras" });
   if (!first.data) {
     throw new StatementExtractionError(
       first.stopReason === "max_tokens"
@@ -168,6 +168,7 @@ export async function extractStatementWithAi(
       .join("\n");
     try {
       const second = await requestStructured<AiStatement>(client, {
+        operation: "A doua analiză: corectare sold extras",
         schema: STATEMENT_SCHEMA,
         maxTokens: 64000,
         messages: [
@@ -223,6 +224,7 @@ export async function detectCsvMappingWithAi(client: Anthropic, rows: string[][]
   const sample = rows.slice(0, 25).map((row, index) => `${index}: ${JSON.stringify(row)}`).join("\n");
   const result = await requestStructured<CsvColumnMapping>(client, {
     schema: CSV_MAPPING_SCHEMA,
+    operation: "Identificare coloane CSV",
     maxTokens: 8000,
     messages: [
       {

@@ -1,10 +1,11 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { createAnthropicClient } from "../lib/anthropicClient";
+import type Anthropic from "@anthropic-ai/sdk";
 import { esc } from "./pdf.generator";
 
 export type ClauseRewriteMode = "correct" | "formal";
 
 export async function rewriteContractClause(title: string, body: string, mode: ClauseRewriteMode): Promise<{ title: string; body: string; text: string }> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 40_000, maxRetries: 0 });
+  const client = createAnthropicClient("Reformulare clauze contract", { apiKey: process.env.ANTHROPIC_API_KEY, timeout: 40_000, maxRetries: 0 });
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 3500,

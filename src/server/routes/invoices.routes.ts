@@ -1,8 +1,8 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { Timestamp } from "firebase-admin/firestore";
 import archiver from "archiver";
-import Anthropic from "@anthropic-ai/sdk";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { generateInvoicePDF } from "../services/invoice.pdf";
@@ -18,7 +18,7 @@ const router = Router();
 const COLLECTION = "invoices";
 const SETTINGS_COLLECTION = "settings";
 const FISCAL_DOC = "fiscal";
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Extragere factură din text", { apiKey: process.env.ANTHROPIC_API_KEY });
 
 // POST /parse-text — AI extraction of invoice fields from freely pasted text (ex: extras de cont)
 router.post("/parse-text", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {

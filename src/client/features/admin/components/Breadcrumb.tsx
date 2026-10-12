@@ -7,6 +7,7 @@ const LABELS: Record<string, string> = {
   "bank-details": "Detalii bancare",
   "create-event": "Eveniment nou",
   "create-event-wedding": "Invitație nuntă",
+  "ai-usage": "AI Logs",
   errors: "Erori server",
   feedback: "Feedback clienți",
   contracts: "Contracte",

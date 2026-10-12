@@ -1,6 +1,6 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
-import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -14,7 +14,7 @@ const SITEMAP_PATH = join(__dirname, "../../../public/sitemap.xml");
 const router = Router();
 router.use(requireFirebaseAuth, requireSupremeAdmin);
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = createAnthropicClient("Generare SEO", { apiKey: process.env.ANTHROPIC_API_KEY });
 
 const existingCitySlugs = new Set(CITIES.map(city => city.slug));
 const allServiceSlugs = SERVICES.map(service => service.slug);

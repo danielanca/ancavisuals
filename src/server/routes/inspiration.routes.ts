@@ -1,9 +1,9 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import Anthropic from "@anthropic-ai/sdk";
 
 function storagePathFromUrl(url: string): string | null {
   try {
@@ -15,7 +15,7 @@ function storagePathFromUrl(url: string): string | null {
   }
 }
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Inspirație", { apiKey: process.env.ANTHROPIC_API_KEY });
 
 const router = Router();
 

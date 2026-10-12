@@ -335,6 +335,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         </svg>
       ),
       items: [
+        { label: "AI Logs", path: "/admin/ai-usage" },
         { label: "Conturi", path: "/admin/accounts" },
         { label: "Wedding Hub", path: "/admin/wedding-hub" },
         { label: "Erori server", path: "/admin/errors", badge: unseenErrors },

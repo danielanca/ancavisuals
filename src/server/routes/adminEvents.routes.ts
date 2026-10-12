@@ -1,8 +1,8 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
-import Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
 import nodeFetch from "node-fetch";
 import https from "node:https";
@@ -26,7 +26,7 @@ const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 const ADMIN_EMAIL = "ancadaniel1994@gmail.com";
 
 const router = Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Extragere lead din imagine", { apiKey: process.env.ANTHROPIC_API_KEY });
 const backupProofUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },

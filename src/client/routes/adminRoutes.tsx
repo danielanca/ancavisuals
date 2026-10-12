@@ -5,6 +5,8 @@ import AncaLoader from "../components/UI/AncaLoader";
 import RequireAuth from "../features/admin/components/RequireAuth";
 import CheckAuth from "../features/admin/components/CheckAuth";
 
+const AiUsagePage = loadable(() => import("../features/admin/components/AiUsagePage"), { fallback: <AncaLoader /> });
+
 const opts = { fallback: <AncaLoader /> };
 
 const Login = loadable(() => import("../features/admin/components/Login"), opts);
@@ -106,6 +108,7 @@ export const adminRoutes = [
       <Route path="/admin/goals/:type" element={<GoalDetailPage />} />
       <Route path="/admin/proiectie" element={<ForecastPage />} />
       <Route path="/admin/moderare" element={<ModerationReviewPage />} />
+      <Route path="/admin/ai-usage" element={<AiUsagePage />} />
       <Route path="/admin/errors" element={<ErrorsPage />} />
       <Route path="/admin/financial" element={<FinancialPage />} />
       <Route path="/admin/bank-statements" element={<BankStatementsPage />} />

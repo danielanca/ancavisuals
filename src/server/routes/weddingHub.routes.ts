@@ -1,8 +1,8 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { getAuth } from "firebase-admin/auth";
 import { Timestamp } from "firebase-admin/firestore";
-import Anthropic from "@anthropic-ai/sdk";
 import heicConvert from "heic-convert";
 import { jsonrepair } from "jsonrepair";
 import sharp from "sharp";
@@ -22,7 +22,7 @@ import type {
 import { seedChecklistDefaults, seedReminderDefaults } from "../utils/seedWeddingDefaults";
 
 const router = Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Wedding Hub", { apiKey: process.env.ANTHROPIC_API_KEY });
 const RSVP_STATUSES = new Set(["asteptare", "confirmat", "refuzat"]);
 const MENU_PREFERENCES = new Set(["carne", "vegetarian", "vegan", "mixt"]);
 const DECLINE_REASONS = new Set([

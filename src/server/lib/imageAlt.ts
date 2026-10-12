@@ -1,4 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { createAnthropicClient } from "./anthropicClient";
+import type Anthropic from "@anthropic-ai/sdk";
 
 const MODEL = "claude-sonnet-4-6";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -10,7 +11,7 @@ const SYSTEM_PROMPT = `Ești editor accesibilitate pentru un studio foto-video d
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("Lipsește ANTHROPIC_API_KEY din .env.");
-  if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!client) client = createAnthropicClient("Descrieri imagini", { apiKey: process.env.ANTHROPIC_API_KEY });
   return client;
 }
 

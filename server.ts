@@ -1,3 +1,5 @@
+import { aiUsageContext } from "./src/server/lib/aiUsage";
+import aiUsageRouter from "./src/server/routes/aiUsage.routes";
 import 'dotenv/config';
 import { devLogger } from "./src/server/utils/devStartup";
 import type { Request, Response, NextFunction } from 'express';
@@ -163,6 +165,9 @@ async function createServer() {
   });
 
   if (showProgress) devLogger.step("Express middleware");
+
+  app.use(aiUsageContext);
+  app.use("/api/admin/ai-usage", aiUsageRouter);
 
   // --- API routes ---
   const apiUrl = isProd

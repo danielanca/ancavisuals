@@ -4,6 +4,7 @@ import type { ClientEvent, EventDelivery, EventExpense, EventStatus } from "../t
 import Redacted from "./Redacted";
 import CreateClientBriefLink from "../../client-brief/CreateClientBriefLink";
 import FeedbackLink from "../../feedback/FeedbackLink";
+import PrintSelectionLink from "../../../pages/MediaDownload/PrintSelectionLink";
 import EventVideoLink from "./EventVideoLink";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
@@ -1056,6 +1057,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   <div className="space-y-2">
                     <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Album media</p>
                     <FeedbackLink key={albumSlug} albumSlug={albumSlug} />
+                    <PrintSelectionLink key={`print-${albumSlug}`} albumSlug={albumSlug} />
                     <div className="flex flex-wrap items-center gap-2">
                       <a
                         href={`/media/${albumSlug}`}

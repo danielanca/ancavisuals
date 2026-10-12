@@ -1,99 +1,11 @@
-
-import type { Request, Response } from "express";
 import { Router } from "express";
-import Anthropic from "@anthropic-ai/sdk";
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
-import { getStartingPrices } from "./startingPrices.routes";
-import { STARTING_PRICE_TYPES } from "../../shared/pricing/startingPrices";
-
-type PricePackage = {
-  id: string;
-  title: string;
-  price: number;
-  note?: string;
-};
-
-type PricesData = {
-  packages: PricePackage[];
-};
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const pricesData = JSON.parse(readFileSync(join(__dirname, "../../shared/pricing/prices.json"), "utf-8")) as PricesData;
 
 const router = Router();
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const photoPrice = pricesData.packages.find((service: PricePackage) => service.id === "photo")!.price;
-const videoPrice = pricesData.packages.find((service: PricePackage) => service.id === "video")!.price;
-
-const servicesText = pricesData.packages
-  .map((service: PricePackage) => `- ${service.title}: ${service.price} EUR — ${service.note ?? ""}`)
-  .join("\n");
-
-const SYSTEM_PROMPT = `Ești asistentul virtual al Anca Visuals, un studio profesionist de fotografie și videografie din România.
-
-Răspunzi DOAR în română. Ești prietenos, concis și util.
-
-SERVICII ȘI PREȚURI:
-${servicesText}
-
-PACHETE COMBINATE (orientativ):
-- Doar fotografie: de la ${photoPrice} EUR
-- Foto + video: de la ${photoPrice + videoPrice} EUR
-- Foto + video + extras (album, booth etc.): prețul variază în funcție de opțiuni
-
-TIPURI DE EVENIMENTE ACOPERITE:
-- Nunți
-- Botezuri
-- Petreceri și aniversări
-- Ședințe foto portret
-- Evenimente corporate
-
-DISPONIBILITATE:
-- Pentru a verifica disponibilitatea pentru o anumită dată, direcționează clientul să completeze formularul de contact sau să facă o rezervare la secțiunea /contact a site-ului.
-
-LIVRARE:
-- Fotografiile și videoclipurile sunt livrate online printr-un link personalizat de descărcare.
-
-CONTACT ȘI REZERVARE:
-- Clienții pot face o rezervare sau trimite un mesaj accesând pagina /contact de pe site.
-
-Dacă nu știi răspunsul la o întrebare specifică, îndrumă clientul să contacteze direct echipa prin pagina de contact.
-Nu inventa prețuri sau servicii care nu sunt menționate mai sus.`;
-
-async function startingPricesText(): Promise<string> {
-  const prices = await getStartingPrices();
-  return `PREȚURI DE PORNIRE PE TIP DE EVENIMENT (pachete foto-video):\n${STARTING_PRICE_TYPES.map((t) => `- ${t.label}: de la ${prices[t.key]} EUR`).join("\n")}`;
-}
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-router.post("/", async (req: Request, res: Response) => {
-  const { messages } = req.body as { messages: ChatMessage[] };
-
-  if (!messages || !Array.isArray(messages) || messages.length === 0) {
-    return res.status(400).json({ error: "Mesajele lipsesc." });
-  }
-
-  try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 500,
-      system: `${SYSTEM_PROMPT}\n\n${await startingPricesText()}`,
-      messages,
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    return res.json({ reply: text });
-  } catch (error) {
-    console.error("Chatbot error:", error);
-    return res.status(500).json({ error: "Eroare la procesarea mesajului." });
-  }
+// Legacy public AI endpoint is retired, including requests made outside the website UI.
+router.post("/", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  return res.status(410).json({ error: "Chatbotul AI nu mai este disponibil. Ne poți contacta prin /contact." });
 });
 
 export default router;

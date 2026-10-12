@@ -4,7 +4,7 @@ import https from "node:https";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { firestore } from "../firestore";
-import { buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER } from "../constants/bunny";
+import { buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_PREVIEW_FOLDER } from "../constants/bunny";
 import { APP_BASE_URL } from "../constants/domain";
 
 // Bunny CDN serves a certificate whose chain Node.js can't verify via the native fetch (undici).
@@ -12,7 +12,7 @@ import { APP_BASE_URL } from "../constants/domain";
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
 const EXCLUDED_DIRS = new Set(["expenses", "bank-statements", "offers", "offers-assets", "qr-moments"]);
-const STALE_THRESHOLD_MS = 18 * 60 * 60 * 1000; // 18 hours
+const STALE_ZIP_GRACE_MS = 15 * 60 * 1000; // quiet period after the latest photo upload, including compression time
 const NOTIFICATION_COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000; // re-notify max once per 5 days per album
 const NOTIFICATIONS_COL = "albumZipNotifications";
 
@@ -25,64 +25,91 @@ interface AlbumZipInfo {
   status: ZipStatus;
   latestPhotoDate: Date | null;
   zipDate: Date | null;
-  photoCount: number;
+  latestPreviewDate: Date | null;
+  latestChangeDate: Date | null;
+  issues: string[];
+  state: string;
   newPhotos: string[];
 }
 
 async function listDir(path: string): Promise<BunnyEntry[]> {
-  try {
-    const res = await nodeFetch(buildBunnyDirectoryUrl(path), {
-      headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
-      agent: bunnyAgent,
-    });
-    if (!res.ok) return [];
-    return await res.json() as BunnyEntry[];
-  } catch { return []; }
+  const res = await nodeFetch(buildBunnyDirectoryUrl(path), {
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
+    agent: bunnyAgent,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`Bunny directory listing failed (${res.status})`);
+  return await res.json() as BunnyEntry[];
+}
+
+function entryDate(entry: BunnyEntry): Date {
+  const date = entry.LastChanged ? new Date(entry.LastChanged) : null;
+  if (!date || !Number.isFinite(date.getTime())) throw new Error("Missing or invalid Bunny file timestamp");
+  return date;
+}
+
+function latestDate(entries: BunnyEntry[]): Date | null {
+  return entries.length ? new Date(Math.max(...entries.map(entry => entryDate(entry).getTime()))) : null;
 }
 
 async function checkAlbumZip(slug: string): Promise<AlbumZipInfo> {
-  const [rootEntries, photoEntries] = await Promise.all([
+  const [rootEntries, photoEntries, previewEntries] = await Promise.all([
     listDir(slug),
     listDir(`${slug}/${BUNNY_PHOTOS_FOLDER}`),
+    listDir(`${slug}/${BUNNY_PREVIEW_FOLDER}`),
   ]);
+  const photos = photoEntries.filter(e => !e.IsDirectory && /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(e.ObjectName));
+  const previews = previewEntries.filter(e => !e.IsDirectory && /\.(jpg|jpeg|png|webp)$/i.test(e.ObjectName));
+  const zipEntry = rootEntries.find(e => !e.IsDirectory && e.ObjectName === "photos.zip");
+  const latestPhotoDate = latestDate(photos);
+  const latestPreviewDate = latestDate(previews);
+  const zipDate = zipEntry ? entryDate(zipEntry) : null;
+  const latestChangeDate = latestDate([...photos, ...previews, ...(zipEntry ? [zipEntry] : [])]);
+  const issues: string[] = [];
+  const affected = new Set<string>();
+  const baseName = (name: string) => name.replace(/\.[^.]+$/, "");
+  const previewsByName = new Map(previews.map(entry => [baseName(entry.ObjectName), entry]));
 
-  const zipEntry = rootEntries.find((e) => !e.IsDirectory && e.ObjectName === "photos.zip");
-  const photos = photoEntries.filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png)$/i.test(e.ObjectName));
-
-  const latestPhotoDate = photos.length > 0
-    ? new Date(Math.max(...photos.map((p) => p.LastChanged ? new Date(p.LastChanged).getTime() : 0)))
-    : null;
-
-  const zipDate = zipEntry?.LastChanged ? new Date(zipEntry.LastChanged) : null;
-
-  let status: ZipStatus = "missing";
-  if (zipDate && latestPhotoDate) {
-    status = zipDate >= latestPhotoDate ? "ok" : "stale";
-  } else if (zipDate && !latestPhotoDate) {
-    status = "ok";
+  for (const original of photos) {
+    const preview = previewsByName.get(baseName(original.ObjectName));
+    if (!preview) {
+      issues.push(`Lipsă preview: ${original.ObjectName}`);
+      affected.add(original.ObjectName);
+    } else if (entryDate(preview) < entryDate(original)) {
+      issues.push(`Preview depășit: ${original.ObjectName}`);
+      affected.add(original.ObjectName);
+    }
   }
-
-  const newPhotos = (status === "stale" && zipDate)
-    ? photos
-        .filter((p) => p.LastChanged && new Date(p.LastChanged) > zipDate)
-        .sort((photoA, photoB) => new Date(photoB.LastChanged ?? 0).getTime() - new Date(photoA.LastChanged ?? 0).getTime())
-        .map((p) => p.ObjectName)
-    : photos.map((p) => p.ObjectName);
-
-  return { slug, status, latestPhotoDate, zipDate, photoCount: photos.length, newPhotos };
+  if (latestPhotoDate && latestPreviewDate && latestPreviewDate < latestPhotoDate) {
+    issues.push("photos_preview este mai vechi decât photos");
+  }
+  const latestSourceDate = latestDate([...photos, ...previews]);
+  const status: ZipStatus = !zipDate ? "missing"
+    : latestSourceDate && zipDate < latestSourceDate ? "stale" : "ok";
+  if (status === "missing") issues.push("Lipsă ZIP");
+  if (status === "stale") issues.push("ZIP depășit: photos.zip este mai vechi decât photos / photos_preview");
+  for (const original of photos) {
+    if (!zipDate || entryDate(original) > zipDate) affected.add(original.ObjectName);
+  }
+  const state = JSON.stringify([latestPhotoDate, latestPreviewDate, zipDate, issues]);
+  return { slug, status, latestPhotoDate, latestPreviewDate, latestChangeDate, zipDate,
+    issues, state, newPhotos: [...affected] };
 }
 
-async function shouldNotify(slug: string, latestPhotoDate: Date): Promise<boolean> {
+async function shouldNotify(slug: string, latestPhotoDate: Date, state: string): Promise<boolean> {
   try {
     const db = firestore();
     const doc = await db.collection(NOTIFICATIONS_COL).doc(slug).get();
     if (!doc.exists) return true;
 
-    const data = doc.data() as { notifiedAt?: { toMillis: () => number }; lastPhotoDate?: string };
+    const data = doc.data() as { notifiedAt?: { toMillis: () => number }; lastPhotoDate?: string; state?: string };
     const lastNotifiedAt = data.notifiedAt?.toMillis() ?? 0;
     const lastTrackedPhotoDate = data.lastPhotoDate ? new Date(data.lastPhotoDate).getTime() : 0;
 
-    // New photos added since last notification → notify again
+    if (data.state && data.state !== state) return true;
+
+    // New photos or previews added since last notification → notify again
     if (latestPhotoDate.getTime() > lastTrackedPhotoDate) return true;
     // Same photos but cooldown passed → re-notify
     if (Date.now() - lastNotifiedAt > NOTIFICATION_COOLDOWN_MS) return true;
@@ -91,11 +118,12 @@ async function shouldNotify(slug: string, latestPhotoDate: Date): Promise<boolea
   } catch { return true; }
 }
 
-async function markNotified(slug: string, latestPhotoDate: Date): Promise<void> {
+async function markNotified(slug: string, latestPhotoDate: Date, state: string): Promise<void> {
   try {
     await firestore().collection(NOTIFICATIONS_COL).doc(slug).set({
       notifiedAt: new Date(),
       lastPhotoDate: latestPhotoDate.toISOString(),
+      state,
     });
   } catch {}
 }
@@ -111,6 +139,10 @@ async function getArchivedSlugs(): Promise<Set<string>> {
         .map(([slug]) => slug)
     );
   } catch { return new Set(); }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
 }
 
 function formatStaleDuration(latestPhotoDate: Date, zipDate: Date | null): string {
@@ -130,6 +162,7 @@ async function runZipCheck() {
     const rootRes = await nodeFetch(buildBunnyDirectoryUrl(""), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
       agent: bunnyAgent,
+      signal: AbortSignal.timeout(30_000),
     });
     if (!rootRes.ok) return;
 
@@ -140,20 +173,27 @@ async function runZipCheck() {
       .filter((e) => e.IsDirectory && !EXCLUDED_DIRS.has(e.ObjectName) && !archivedSlugs.has(e.ObjectName))
       .map((e) => e.ObjectName);
 
-    const results = await Promise.all(albumSlugs.map(checkAlbumZip));
+    const checks = await Promise.allSettled(albumSlugs.map(checkAlbumZip));
+    const results: AlbumZipInfo[] = [];
+    checks.forEach((check, index) => {
+      if (check.status === "fulfilled") results.push(check.value);
+      else console.warn(`[album-zip-check] Verificare indisponibilă pentru ${albumSlugs[index]}`);
+    });
 
     const now = Date.now();
     const toNotify: AlbumZipInfo[] = [];
 
     for (const album of results) {
-      if (album.status === "ok") continue;
+      if (album.issues.length === 0) continue;
 
-      // Only alert if photos are old enough (> 18h) — give the user time to compress
+      // Wait for uploads to settle and allow compression to finish. Each new
+      // photo restarts the quiet period, even when the batch takes an hour.
       const latestPhotoDate = album.latestPhotoDate;
-      if (!latestPhotoDate) continue;
-      if (now - latestPhotoDate.getTime() < STALE_THRESHOLD_MS) continue;
+      const latestChangeDate = album.latestChangeDate;
+      if (!latestPhotoDate || !Number.isFinite(latestPhotoDate.getTime())) continue;
+      if (!latestChangeDate || now - latestChangeDate.getTime() < STALE_ZIP_GRACE_MS) continue;
 
-      if (await shouldNotify(album.slug, latestPhotoDate)) {
+      if (await shouldNotify(album.slug, latestChangeDate, album.state)) {
         toNotify.push(album);
       }
     }
@@ -167,7 +207,10 @@ async function runZipCheck() {
     });
 
     const rows = toNotify.map((album) => {
-      const statusLabel = album.status === "missing" ? "❌ Lipsă ZIP" : "⚠️ ZIP depășit";
+      const statusLabel = album.issues.slice(0, 8).map(issue => escapeHtml(issue)).join("<br>")
+        + (album.issues.length > 8 ? `<br>+ încă ${album.issues.length - 8} probleme` : "");
+      const previewDateStr = album.latestPreviewDate
+        ? album.latestPreviewDate.toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" }) : "—";
       const photoDateStr = album.latestPhotoDate
         ? album.latestPhotoDate.toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })
         : "—";
@@ -182,13 +225,13 @@ async function runZipCheck() {
       const shownFiles = album.newPhotos.slice(0, MAX_FILES_SHOWN);
       const hiddenCount = album.newPhotos.length - shownFiles.length;
       const filesHtml = shownFiles
-        .map((name) => `<li style="margin:2px 0;color:#374151;font-size:12px;font-family:monospace;">${name}</li>`)
+        .map((name) => `<li style="margin:2px 0;color:#374151;font-size:12px;font-family:monospace;">${escapeHtml(name)}</li>`)
         .join("") + (hiddenCount > 0 ? `<li style="margin:2px 0;color:#9ca3af;font-size:12px;">+ încă ${hiddenCount}</li>` : "");
 
       return `
         <tr>
           <td style="padding:10px 12px;border-bottom:1px solid #eee;vertical-align:top;">
-            <a href="${albumHealthUrl}?slug=${encodeURIComponent(album.slug)}" style="font-weight:600;color:#111;text-decoration:none;">${album.slug}</a>
+            <a href="${albumHealthUrl}?slug=${encodeURIComponent(album.slug)}" style="font-weight:600;color:#111;text-decoration:none;">${escapeHtml(album.slug)}</a>
           </td>
           <td style="padding:10px 12px;border-bottom:1px solid #eee;vertical-align:top;">${statusLabel}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #eee;vertical-align:top;">
@@ -196,6 +239,7 @@ async function runZipCheck() {
             <ul style="margin:4px 0 0;padding-left:16px;list-style:disc;">${filesHtml}</ul>
           </td>
           <td style="padding:10px 12px;border-bottom:1px solid #eee;color:#666;font-size:13px;vertical-align:top;">${photoDateStr}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #eee;color:#666;font-size:13px;vertical-align:top;">${previewDateStr}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #eee;color:#666;font-size:13px;vertical-align:top;">${zipDateStr}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;vertical-align:top;">${staleDuration}</td>
         </tr>`;
@@ -203,22 +247,25 @@ async function runZipCheck() {
 
     await sendEmail({
       to: adminUser.email,
-      subject: `📦 ZIP neactualizat (${toNotify.length}) — ${notifyDateStr}`,
+      subject: `📦 Fișiere album neactualizate (${toNotify.length}) — ${notifyDateStr}`,
       html: `
         <div style="font-family:sans-serif;max-width:700px;margin:0 auto;">
-          <h2 style="color:#111;margin:0 0 8px;">ZIP neactualizat după poze noi</h2>
+          <h2 style="color:#111;margin:0 0 8px;">Ordinea actualizării fișierelor albumului</h2>
           <p style="color:#555;margin:0 0 20px;">
-            Următoarele albume au poze adăugate recent dar <strong>photos.zip</strong> nu a fost actualizat.
-            Creează/actualizează zip-ul din Bunny Storage.
+            Ordinea așteptată: <strong>photos ≤ photos_preview ≤ photos.zip</strong>.
+            Verificăm fiecare preview față de fotografia originală și ZIP-ul față de ultimele fișiere.
+            Albumele de mai jos au fișiere lipsă sau depășite după 15 minute fără modificări.
+            Regenerează preview-urile necesare, apoi actualizează ZIP-ul în Bunny Storage.
           </p>
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
             <thead>
               <tr style="background:#f5f5f5;">
                 <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">Album</th>
                 <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">Status</th>
-                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">Fișiere noi</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">Poze afectate</th>
                 <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">Ultima poză</th>
-                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">ZIP creat</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">Ultimul preview</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">ZIP actualizat</th>
                 <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ddd;">Vechi de</th>
               </tr>
             </thead>
@@ -233,7 +280,7 @@ async function runZipCheck() {
 
     // Mark all as notified
     await Promise.all(
-      toNotify.map((album) => album.latestPhotoDate ? markNotified(album.slug, album.latestPhotoDate) : Promise.resolve())
+      toNotify.map((album) => album.latestChangeDate ? markNotified(album.slug, album.latestChangeDate, album.state) : Promise.resolve())
     );
 
     console.log(`[album-zip-check] Notificat pentru ${toNotify.length} albume: ${toNotify.map((album) => album.slug).join(", ")}`);

@@ -1,6 +1,7 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import type { Request, Response } from "express";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 
 // Asistent AI generic pentru admin — orice pagină îi poate trimite un rezumat text al
@@ -8,7 +9,7 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 // context, nu date inventate. Gândit ca să fie reutilizat pe mai multe pagini, nu doar una.
 const router = Router();
 router.use(requireFirebaseAuth, requireSupremeAdmin);
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Asistent admin", { apiKey: process.env.ANTHROPIC_API_KEY });
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 

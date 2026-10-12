@@ -1,7 +1,8 @@
+import { createAnthropicClient } from "../src/server/lib/anthropicClient";
 import "dotenv/config";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import { chromium } from "playwright";
 
 const DEFAULT_SITE = "https://www.ancavisuals.ro";
@@ -260,7 +261,7 @@ async function main(): Promise<void> {
   }
 
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("Lipsește ANTHROPIC_API_KEY");
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = createAnthropicClient("Generare descrieri imagini (script)", { apiKey: process.env.ANTHROPIC_API_KEY }, "script");
   const force = hasFlag("--force");
   const limit = Number(arg("--limit", String(images.length)));
   const pendingImages = fromCatalog

@@ -1,3 +1,4 @@
+import { withAiOperation } from "./aiUsage";
 import type Anthropic from "@anthropic-ai/sdk";
 
 // Model folosit pentru extragerea datelor financiare (bonuri, facturi, extrase).
@@ -22,9 +23,10 @@ export async function requestStructured<T>(
     schema: Record<string, unknown>;
     maxTokens: number;
     timeoutMs?: number;
+    operation?: string;
   }
 ): Promise<StructuredResult<T>> {
-  const message = await client.messages
+  const message = await withAiOperation(args.operation ?? "Extragere structurată", () => client.messages
     .stream(
       {
         model: FINANCE_AI_MODEL,
@@ -34,7 +36,7 @@ export async function requestStructured<T>(
       },
       args.timeoutMs ? { timeout: args.timeoutMs } : undefined
     )
-    .finalMessage();
+    .finalMessage());
 
   if (message.stop_reason === "max_tokens" || message.stop_reason === "refusal") {
     return { data: null, stopReason: message.stop_reason, message };

@@ -1,8 +1,9 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { createHash } from "crypto";
 import { Timestamp } from "firebase-admin/firestore";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
@@ -13,7 +14,7 @@ import { RECEIPT_SCHEMA, buildReceiptPrompt, validateScannedReceipt, type Scanne
 
 const router = Router();
 const COLLECTION = "expenses";
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Scanare bonuri și facturi", { apiKey: process.env.ANTHROPIC_API_KEY });
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -106,6 +107,7 @@ router.post("/scan-receipt", requireFirebaseAuth, requireSupremeAdmin, async (re
       : await prepareImageBlocks(buffer, mediaType);
 
     const { data, stopReason } = await requestStructured<ScannedReceipt>(anthropic, {
+      operation: "Citire bon / factură",
       maxTokens: 16000,
       timeoutMs: 80_000,
       schema: RECEIPT_SCHEMA,

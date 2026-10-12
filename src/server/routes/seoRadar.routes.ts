@@ -1,7 +1,8 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import puppeteer from "puppeteer";
 import { JSDOM } from "jsdom";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { requireFirebaseAuth, requireSupremeAdmin, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
@@ -12,8 +13,8 @@ const HISTORY_COLLECTION = "seoRadarSearches";
 const LINKED_COLLECTION = "seoRadarLinkedPosts";
 const OWN_DOMAIN = "ancavisuals.ro";
 const DATAFORSEO_ROMANIA_LOCATION_CODE = 2642;
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 30_000, maxRetries: 1 });
-const anthropicLong = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 120_000, maxRetries: 1 });
+const anthropic = createAnthropicClient("SEO Radar", { apiKey: process.env.ANTHROPIC_API_KEY, timeout: 30_000, maxRetries: 1 });
+const anthropicLong = createAnthropicClient("SEO Radar", { apiKey: process.env.ANTHROPIC_API_KEY, timeout: 120_000, maxRetries: 1 });
 
 type SerpResult = { position: number; title: string; url: string; domain: string; snippet: string };
 type HistoryRecord = {

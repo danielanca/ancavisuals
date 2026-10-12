@@ -1,3 +1,4 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { getAllPosts, getEditablePosts, getPostBySlug, importMarkdownPosts, saveBlogPost, slugExists } from "../utils/blogUtils";
@@ -5,10 +6,9 @@ import { addSitemapEntry, generateSitemapFromDb } from "../utils/sitemapGenerato
 import { syncLlmsTxtWithPost, regenerateLlmsTxtFromDb } from "../utils/llmsTxtGenerator";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { firestore } from "../firestore";
-import Anthropic from "@anthropic-ai/sdk";
 
 const blogRouter = Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Articole blog", { apiKey: process.env.ANTHROPIC_API_KEY });
 
 const normalizeSlug = (value: string): string => value
   .normalize("NFD")

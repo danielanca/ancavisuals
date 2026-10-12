@@ -1,5 +1,4 @@
 import { Router } from "express";
-import Anthropic from "@anthropic-ai/sdk";
 import type { ChatNode } from "../data/assistantChatData";
 import { CHAT_NODES, FALLBACK_NODE } from "../data/assistantChatData";
 import { firestore } from "../firestore";
@@ -67,24 +66,7 @@ async function getBookedDates(): Promise<string[]> {
 
 const router = Router();
 
-let anthropicClient: Anthropic | null = null;
-const getAnthropic = (): Anthropic => {
-  if (!anthropicClient) {
-    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return anthropicClient;
-};
-
-const CHAT_ASSISTANT_SYSTEM = `Ești asistentul virtual Anca Visuals. Răspunzi în română, natural, prietenos și concis (maximum 3 paragrafe).
-
-Informații obligatorii despre noi:
-- Suntem bazați în Turda, județul Cluj.
-- Facem evenimente oriunde în România și, la cerere, și în străinătate.
-- Pentru Turda nu percepem taxă de deplasare; pentru alte locații discutăm costul de deplasare.
-- Oferim fotografie, videografie, fotocabină, Video Booth 360 și QR Moments pentru nunți, botezuri, petreceri și evenimente corporate.
-- Nu inventa prețuri, disponibilitate sau servicii. Pentru ofertă și rezervare, direcționează clientul la /contact.
-
-Dacă cineva întreabă dacă suntem dintr-un alt oraș/județ (de exemplu Mureș), răspunde clar că suntem din Turda, dar ne deplasăm și facem evenimente oriunde.`;
+// Public assistant uses predefined answers only. Never send visitor messages to an AI provider.
 
 router.get("/init", (_req, res) => {
   res.json(CHAT_NODES.get("welcome") ?? FALLBACK_NODE);
@@ -204,21 +186,6 @@ router.post("/message", async (req, res) => {
     }
     if (/cum|proces|functioneaz|pasi|etape/.test(lower)) {
       return res.json(CHAT_NODES.get("process") ?? FALLBACK_NODE);
-    }
-  }
-
-  if (text && process.env.ANTHROPIC_API_KEY) {
-    try {
-      const response = await getAnthropic().messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 300,
-        system: CHAT_ASSISTANT_SYSTEM,
-        messages: [{ role: "user", content: text.trim() }],
-      });
-      const reply = response.content.find((block): block is Anthropic.TextBlock => block.type === "text")?.text.trim();
-      if (reply) return res.json({ id: "ai_answer", botMessage: reply, suggestions: [{ label: "Vorbește direct cu noi pe WhatsApp", intentId: "whatsapp" }, { label: "Vreau să rezerv", intentId: "booking" }, { label: "Alte întrebări", intentId: "welcome" }] satisfies ChatNode["suggestions"] });
-    } catch (error) {
-      console.error("[assistant] AI answer failed:", error);
     }
   }
 

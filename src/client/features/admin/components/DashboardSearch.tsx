@@ -9,6 +9,7 @@ type SearchItem = { label: string; path: string; category: string; icon: string;
 
 const SEARCH_ITEMS: SearchItem[] = [
   // Sistem
+  { label: "AI Logs", path: "/admin/ai-usage", category: "Sistem", icon: "📊", keywords: "anthropic claude openai gpt tokenuri cost consum istoric ai logs loguri" },
   { label: "Dashboard", path: "/admin", category: "Sistem", icon: "🏠", keywords: "acasa home principal" },
   // Evenimente
   { label: "Calendar", path: "/admin/calendar", category: "Evenimente", icon: "📅" },

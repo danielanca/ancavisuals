@@ -1,8 +1,9 @@
+import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { createHash } from "crypto";
 import { Timestamp } from "firebase-admin/firestore";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
@@ -17,7 +18,7 @@ const router = Router();
 const COLLECTION = "bankStatements";
 // Legături învățate din potrivirile manuale: „PETROM 1234 BUC” din extras = furnizorul „OMV Petrom”.
 const ALIASES_COLLECTION = "bankCounterpartyAliases";
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropicClient("Extrase bancare", { apiKey: process.env.ANTHROPIC_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 type ExtractedEntry = {
@@ -390,6 +391,7 @@ async function resolveAmbiguousMatches(
   let decisions: Array<{ entryIndex: number; decision: "match" | "no_match" | "uncertain"; candidateId: string | null }> = [];
   try {
     const result = await requestStructured<{ decisions: typeof decisions }>(anthropic, {
+      operation: "Potrivire tranzacții cu documente",
       schema: MATCH_DECISIONS_SCHEMA,
       maxTokens: 16000,
       messages: [
