@@ -54,6 +54,17 @@ function formatTime(iso: string): string {
   });
 }
 
+function whatsappUrl(phone: string): string | null {
+  const compact = phone.trim().replace(/[^\d+]/g, "");
+  if (!compact) return null;
+
+  const digits = compact.replace(/^\+/, "");
+  if (digits.startsWith("0") && digits.length >= 10) return `https://wa.me/40${digits.slice(1)}`;
+  if (digits.startsWith("40") && digits.length >= 11) return `https://wa.me/${digits}`;
+  if (digits.length >= 7) return `https://wa.me/${digits}`;
+  return null;
+}
+
 // "skipped" is either expected (own traffic / duplicate → info) or an error (a lead/contact stopped by a filter).
 const SKIPPED_INFO = { label: "Ignorat", className: "bg-neutral-700/30 text-neutral-400 border-neutral-600" };
 const SKIPPED_ERROR = { label: "Blocat", className: "bg-red-500/10 text-red-400 border-red-500/30" };
@@ -199,7 +210,20 @@ export default function LeadsPage() {
                         {lead.partial && <span className="ml-2 text-[11px] text-neutral-500">(pas 3 — configurator neterminat)</span>}
                       </p>
                       {lead.phone ? (
-                        <a href={`tel:${lead.phone}`} className="text-violet-400 text-sm font-mono hover:text-violet-300">{lead.phone}</a>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <a href={`tel:${lead.phone}`} className="text-violet-400 text-sm font-mono hover:text-violet-300">{lead.phone}</a>
+                          {whatsappUrl(lead.phone) && (
+                            <a
+                              href={whatsappUrl(lead.phone) ?? undefined}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#25D366] text-xs hover:text-[#5ee890]"
+                              aria-label={`Deschide conversația WhatsApp cu ${lead.name || lead.phone}`}
+                            >
+                              WhatsApp ↗
+                            </a>
+                          )}
+                        </div>
                       ) : (
                         <p className="text-neutral-600 text-sm">fără telefon</p>
                       )}

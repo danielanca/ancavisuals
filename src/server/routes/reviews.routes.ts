@@ -10,7 +10,7 @@ import { deletePublicReview, FeedbackPublicationError, publishFeedbackReview } f
 const router = Router();
 const COLLECTION = "siteReviews";
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
-const MAX_PHOTOS = 5;
+const MAX_PHOTOS = 15;
 
 type ReviewCategory = "wedding" | "oferta" | "both";
 type ReviewPhoto = { url: string; name: string };
@@ -67,6 +67,26 @@ function parseAlbumPhotoUrls(value: string | undefined): ReviewPhoto[] {
   } catch { return []; }
 }
 
+function parseStringArray(value: string | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch { return []; }
+}
+
+function orderPhotos(photos: ReviewPhoto[], order: string[], fileIds: string[] = []): ReviewPhoto[] {
+  if (order.length === 0) return photos;
+  const byKey = new Map<string, ReviewPhoto>();
+  photos.forEach(photo => byKey.set(photo.url, photo));
+  fileIds.forEach((id, index) => {
+    const photo = photos[photos.length - fileIds.length + index];
+    if (photo) byKey.set(`file:${id}`, photo);
+  });
+  const ordered = order.map(key => byKey.get(key)).filter((photo): photo is ReviewPhoto => Boolean(photo));
+  return ordered.length === photos.length ? ordered : [...ordered, ...photos.filter(photo => !ordered.includes(photo))];
+}
+
 // GET /api/reviews?category=wedding — recenzii pentru paginile de oraș/foto-video
 // GET /api/reviews?category=oferta&offerSlug=olx — recenzii pentru o pagină de ofertă anume
 // (o recenzie de tip "oferta" fără offerSlug apare pe TOATE paginile de ofertă)
@@ -99,7 +119,7 @@ router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (_req: 
 });
 
 router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
-  const { author, city, date, rating, text, category, offerSlug, verified, sourceFeedbackId, albumPhotoUrls } = req.body as Record<string, string | undefined>;
+  const { author, city, date, rating, text, category, offerSlug, verified, sourceFeedbackId, albumPhotoUrls, photoOrder, photoFileIds } = req.body as Record<string, string | undefined>;
   if (!author?.trim() || !text?.trim()) {
     res.status(400).json({ error: "Nume și text sunt obligatorii." });
     return;
@@ -107,7 +127,9 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("ph
 
   try {
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];
-    const photos = [...parseAlbumPhotoUrls(albumPhotoUrls), ...(await Promise.all(files.map(uploadReviewPhoto)))];
+    const albumPhotos = parseAlbumPhotoUrls(albumPhotoUrls);
+    const uploadedPhotos = await Promise.all(files.map(uploadReviewPhoto));
+    const photos = orderPhotos([...albumPhotos, ...uploadedPhotos], parseStringArray(photoOrder), parseStringArray(photoFileIds)).slice(0, MAX_PHOTOS);
     const review = {
       author: author.trim(),
       city: city?.trim() || "",
@@ -134,7 +156,7 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("ph
 });
 
 router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
-  const { author, city, date, rating, text, category, offerSlug, verified, keepPhotoUrls, albumPhotoUrls } = req.body as Record<string, string | undefined>;
+  const { author, city, date, rating, text, category, offerSlug, verified, keepPhotoUrls, albumPhotoUrls, photoOrder, photoFileIds } = req.body as Record<string, string | undefined>;
   try {
     const ref = firestore().collection(COLLECTION).doc(req.params.id);
     const update: Record<string, unknown> = {};
@@ -168,7 +190,8 @@ router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array(
       const uploaded = await Promise.all(files.map(uploadReviewPhoto));
       const albumPhotos = parseAlbumPhotoUrls(albumPhotoUrls);
       const merged = [...kept, ...albumPhotos, ...uploaded];
-      update.photos = merged.filter((photo, index, all) => all.findIndex(item => item.url === photo.url) === index);
+      const unique = merged.filter((photo, index, all) => all.findIndex(item => item.url === photo.url) === index);
+      update.photos = orderPhotos(unique, parseStringArray(photoOrder), parseStringArray(photoFileIds)).slice(0, MAX_PHOTOS);
       if ("photo" in existingData) update.photo = FieldValue.delete();
     }
 

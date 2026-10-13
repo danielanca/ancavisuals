@@ -39,3 +39,11 @@ test("manual creation remains available and a failed acceptance keeps the draft 
   expect(await screen.findByText("Feedback deja publicat")).toBeInTheDocument();
   expect(screen.getByDisplayValue("Feedback original")).toBeInTheDocument();
 });
+
+test("allows selecting up to 15 client photos", async () => {
+  render(<MemoryRouter><ReviewsAdminPage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "Adaugă recenzie" }));
+
+  expect(screen.getByText("Poze de la client (opțional, maximum 15)")).toBeInTheDocument();
+  expect(screen.getByText("0/15")).toBeInTheDocument();
+});

@@ -37,4 +37,19 @@ describe("LeadsPage delete", () => {
     await waitFor(() => expect(screen.queryByText("Ion Pop")).not.toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith("/api/admin/leads/l1", expect.objectContaining({ method: "DELETE" }));
   });
+
+  test("offers a WhatsApp link for a Romanian phone number", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url.includes("/leads")) return Promise.resolve({ ok: true, json: async () => ({ leads: [
+        { id: "l1", source: "contact-form", name: "Ion Pop", phone: "0712 345 678", emailStatus: "sent", createdAt: new Date().toISOString() },
+      ] }) });
+      return Promise.resolve({ ok: true, json: async () => ({ emails: [] }) });
+    }));
+
+    render(<MemoryRouter><LeadsPage /></MemoryRouter>);
+
+    const link = await screen.findByRole("link", { name: "Deschide conversația WhatsApp cu Ion Pop" });
+    expect(link).toHaveAttribute("href", "https://wa.me/40712345678");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
 });
