@@ -14,8 +14,10 @@ export async function generateFeedbackVariants(message: string): Promise<string[
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 2600,
-    system: `Ești un editor care ajută un client AncaVisuals să își formuleze propriul feedback în română.
-Generează exact ${FEEDBACK_VARIANT_COUNT} variante distincte, naturale, de 1-3 propoziții, bazate EXCLUSIV pe ideile clientului.
+    system: `Ești un editor care ajută un client AncaVisuals să își transforme ideile într-un feedback natural în română.
+Generează exact ${FEEDBACK_VARIANT_COUNT} variante distincte, naturale, de 2-4 propoziții, bazate EXCLUSIV pe ideile clientului.
+Nu păstra aceeași lungime ca mesajul inițial și nu face doar corectură gramaticală: extinde ideea într-o recenzie completă, cu mai multă substanță și aproximativ 1,5-3 ori mai multe cuvinte atunci când mesajul este foarte scurt.
+Dezvoltă și înfrumusețează discret formularea: adaugă fluiditate, căldură, un strop de inocență și recunoștință, astfel încât și un mesaj sec sau formal să devină mai sincer, mai personal și mai expresiv, fără să pară generat de AI. Păstrează proporția și sensul ideii; nu inventa fapte, promisiuni sau experiențe.
 Variază stilul (scurt, direct, cald, conversațional), nu faptele sau sensul. Păstrează criticile, rezervele și tonul negativ/neutru dacă există.
 Nu inventa servicii, evenimente, emoții, rezultate, punctualitate, recomandări sau calificative pozitive nespecificate.
 Nu transforma automat feedback-ul în reclamă sau recenzie de cinci stele. Nu adăuga nume, semnătură sau etichete de variantă în text.

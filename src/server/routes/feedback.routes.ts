@@ -73,7 +73,8 @@ router.post("/:slug", async (req, res) => {
   try {
     const message = getMessage(req.body);
     const { name, requestId, website } = req.body as Record<string, unknown>;
-    if (typeof name !== "string" || !name.trim() || name.length > FEEDBACK_NAME_LIMIT) throw new FeedbackError(400, "Completează numele (maximum 100 de caractere).");
+    if (typeof name !== "undefined" && typeof name !== "string") throw new FeedbackError(400, "Numele nu este valid.");
+    if (typeof name === "string" && name.length > FEEDBACK_NAME_LIMIT) throw new FeedbackError(400, "Numele poate avea maximum 100 de caractere.");
     if (typeof requestId !== "string" || !ID.test(requestId)) throw new FeedbackError(400, "Cerere invalidă. Reîncarcă pagina.");
     if (website) throw new FeedbackError(400, "Cerere invalidă.");
     const slug = await albumSlug(req.params.slug);
@@ -83,11 +84,11 @@ router.post("/:slug", async (req, res) => {
       const existing = await tx.get(ref);
       if (existing.exists) {
         const data = existing.data()!;
-        if (data.albumSlug !== slug || data.name !== name.trim() || data.message !== message) throw new FeedbackError(409, "Această cerere a fost deja trimisă cu alt text. Reîncarcă pagina pentru un feedback nou.");
+        if (data.albumSlug !== slug || data.name !== (typeof name === "string" ? name.trim() : "") || data.message !== message) throw new FeedbackError(409, "Această cerere a fost deja trimisă cu alt text. Reîncarcă pagina pentru un feedback nou.");
         return;
       }
       const rate = await checkRate(tx, req, "submit");
-      tx.set(ref, { albumSlug: slug, name: name.trim(), message, createdAt: new Date().toISOString(), read: false });
+      tx.set(ref, { albumSlug: slug, name: typeof name === "string" ? name.trim() : "", message, createdAt: new Date().toISOString(), read: false });
       tx.set(rate.ref, rate.data);
     });
     res.status(201).json({ ok: true });

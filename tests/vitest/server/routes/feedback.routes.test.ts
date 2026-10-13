@@ -53,7 +53,7 @@ const payload = { name: " Ana ", message: " Ne-au plăcut pozele. ", requestId: 
 const admin = { admin: true, headers: { authorization: "Bearer admin" } };
 beforeEach(() => {
   state.store.clear(); state.album.mockReset().mockResolvedValue({ photos: [] });
-  state.ai.mockReset().mockResolvedValue(Array.from({ length: 7 }, (_, index) => `Varianta ${index + 1}`));
+  state.ai.mockReset().mockResolvedValue(Array.from({ length: 5 }, (_, index) => `Varianta ${index + 1}`));
   vi.stubEnv("ANTHROPIC_API_KEY", "fake-test-key");
 });
 describe("album feedback", () => {
@@ -64,7 +64,7 @@ describe("album feedback", () => {
     expect(state.ai).not.toHaveBeenCalled();
   });
   test("rejects missing/oversized fields, invalid IDs and bot submissions", async () => {
-    for (const overrides of [{ name: "" }, { message: " " }, { name: "a".repeat(101) }, { message: "a".repeat(3001) }, { requestId: "../invalid" }, { website: "spam" }]) {
+    for (const overrides of [{ message: " " }, { name: "a".repeat(101) }, { message: "a".repeat(3001) }, { requestId: "../invalid" }, { website: "spam" }]) {
       expect((await call("post", "/:slug", { body: { ...payload, ...overrides } })).statusCode).toBe(400);
     }
     expect(state.store.size).toBe(0);
@@ -94,9 +94,9 @@ describe("album feedback", () => {
       expect((await call("post", "/:slug", { body: { ...payload, requestId: "sixth-request-id-0000" } })).statusCode).toBe(201);
     } finally { vi.useRealTimers(); }
   });
-  test("AI returns 7 variants without saving feedback and uses only client's words", async () => {
+  test("AI returns 5 variants without saving feedback and uses only client's words", async () => {
     const result = await call("post", "/:slug/variants", { body: { name: "Private name", message: " Fotografii bune, livrarea cam lentă. " } });
-    expect(result.body.variants).toHaveLength(7);
+    expect(result.body.variants).toHaveLength(5);
     expect(state.ai).toHaveBeenCalledWith("Fotografii bune, livrarea cam lentă.");
     expect([...state.store.keys()].some(key => key.startsWith("clientFeedback/"))).toBe(false);
     for (let index = 0; index < 4; index++) await call("post", "/:slug/variants", { body: { message: "Ideile mele" } });

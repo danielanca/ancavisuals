@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
 import { openCookieSettings } from "../../utils/cookieConsent";
@@ -24,6 +24,7 @@ import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
 import { heavyPhotoNote, isHeavyPhoto } from "../../../shared/media/photoWeight";
 import { whenLandingSettled } from "../../utils/whenLandingSettled";
 import { stableVh } from "../../utils/stableViewport";
+import { demoReviews } from "./ReviewsPreviewPage";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -157,6 +158,8 @@ function ArrowIcon() {
 const CONFIGURATOR_SEEN_KEY = "configurator-seen";
 
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
+  const location = useLocation();
+  const showReviewDemo = page.slug === "olx" && new URLSearchParams(location.search).get("recenzii-demo") === "1";
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
   const waLink = (text: string) => `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
   // No preselected date: a default (1st of next month) made "Verifică" one tap
@@ -896,8 +899,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           category="oferta"
           layout="horizontal"
           offerSlug={page.slug}
-          title="Ce spun clienții noștri"
+          title="Au avut încredere în noi"
           subtitle="Experiențele celor care ne-au ales pentru evenimentul lor."
+          fallbackReviews={showReviewDemo ? demoReviews : undefined}
         />
       )}
       {page.testimonials.length > 0 && (

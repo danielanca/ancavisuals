@@ -25,6 +25,7 @@ interface ReviewsGridProps {
   accentText?: string;
   accentBgSubtle?: string;
   previewReviews?: Review[];
+  fallbackReviews?: Review[];
   reviewTone?: "dark" | "light";
 }
 
@@ -33,7 +34,7 @@ function Stars({ rating, accentText }: { rating: number | null; accentText: stri
   return (
     <div className="flex gap-0.5" aria-label={`${rating} din 5 stele`}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <svg key={i} width="14" height="14" viewBox="0 0 24 24" fill={i < rating ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" className={i < rating ? accentText : "text-gray-700"}>
+        <svg key={i} width="17" height="17" viewBox="0 0 24 24" fill={i < rating ? "#f4c95d" : "#eeeae2"} stroke={i < rating ? "#d9a936" : "#d8d1c5"} strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round" className={`${i < rating ? accentText : "text-gray-700"} drop-shadow-[0_1px_1px_rgba(180,130,35,0.18)]`}>
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       ))}
@@ -55,6 +56,7 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
   accentText = ACCENT.text,
   accentBgSubtle = ACCENT.bgSubtle,
   previewReviews,
+  fallbackReviews,
   reviewTone = "dark",
 }) => {
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -79,11 +81,11 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
         if (!r.ok) throw new Error("Reviews unavailable");
         return r.json();
       })
-      .then((data) => setReviews(Array.isArray(data.reviews) ? data.reviews : []))
+      .then((data) => setReviews(Array.isArray(data.reviews) && data.reviews.length > 0 ? data.reviews : (fallbackReviews ?? [])))
       .catch(() => { if (!controller.signal.aborted) setReviews([]); })
       .finally(() => { if (!controller.signal.aborted) setLoaded(true); });
     return () => controller.abort();
-  }, [category, offerSlug, previewReviews]);
+  }, [category, offerSlug, previewReviews, fallbackReviews]);
 
   useEffect(() => {
     if (!openReview) return;
@@ -129,20 +131,21 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
                 type="button"
                 onClick={() => { setOpenReview(review); setPhotoIndex(0); }}
                 aria-label={`Citește recenzia de la ${review.author}`}
-                className="flex h-full min-h-[240px] w-full gap-4 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-amber-200 sm:gap-5 sm:p-5"
+                className="flex h-full min-h-[240px] w-full flex-col gap-4 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-amber-200 sm:flex-row sm:gap-5 sm:p-5"
               >
-                <div className="flex min-w-0 flex-1 flex-col py-1">
+                <div className="order-2 flex min-w-0 flex-1 flex-col py-1 sm:order-1">
                   <h3 className="flex items-center gap-2 text-base font-medium text-white sm:text-lg">
                     <span className="break-words">{review.author}</span>
                     {review.verified && <span className={`shrink-0 ${accentText}`} aria-label="Recenzie verificată">✓</span>}
                   </h3>
-                  <p className="mt-1 text-xs text-neutral-500">{review.city ? `Eveniment în ${review.city} · ` : ""}{fmtDate(review.date)}</p>
+                  {review.city && <p className="mt-1 text-xs text-neutral-500">Eveniment în {review.city}</p>}
+                  <p className="text-xs text-neutral-500">{fmtDate(review.date)}</p>
                   <div className="mt-4"><Stars rating={review.rating} accentText={accentText} /></div>
                   <p className="mt-3 line-clamp-5 whitespace-pre-line text-sm leading-6 text-neutral-300">{review.text}</p>
                   <span className={`mt-auto pt-5 text-xs ${accentText}`}>Citește recenzia <span aria-hidden="true">↗</span></span>
                 </div>
                 {review.photos.length > 0 && (
-                  <div className="flex aspect-square w-[38%] shrink-0 flex-col gap-2 self-center overflow-hidden rounded-[2px] bg-black/5">
+                  <div className="order-1 flex aspect-[4/3] w-full shrink-0 flex-col gap-2 self-center overflow-hidden rounded-[2px] bg-black/5 sm:order-2 sm:aspect-square sm:w-[38%]">
                     <img src={review.photos[0].url} alt={`Fotografie de la ${review.author}`} className="h-32 w-full min-h-0 flex-1 object-cover" loading="lazy" />
                     {review.photos.length > 1 && (
                       <div className="grid h-14 shrink-0 grid-cols-3 gap-1.5">
@@ -216,8 +219,8 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
               >
                 ✕
               </button>
-            {openReview.photos.length > 0 && <div className={`relative flex items-center justify-center ${accentBgSubtle}`}>
-              <img src={openReview.photos[photoIndex].url} alt={`Poză de la ${openReview.author}`} className="max-h-[45dvh] w-full object-contain md:max-h-[85dvh]" />
+            {openReview.photos.length > 0 && <div className={`relative flex h-[42dvh] min-h-[280px] items-center justify-center md:h-[78dvh] ${accentBgSubtle}`}>
+              <img src={openReview.photos[photoIndex].url} alt={`Poză de la ${openReview.author}`} className="h-full w-full object-contain" />
               {openReview.photos.length > 1 && (
                 <>
                   <button
@@ -264,7 +267,8 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
               </h3>
               <div className="mt-1.5 flex items-center gap-3">
                 <Stars rating={openReview.rating} accentText={accentText} />
-                <span className="text-xs text-gray-500">{openReview.city ? `Eveniment în ${openReview.city} · ` : ""}{fmtDate(openReview.date)}</span>
+                <span className="text-xs text-gray-500">{openReview.city ? `Eveniment în ${openReview.city}` : ""}</span>
+                <span className="text-xs text-gray-500">{fmtDate(openReview.date)}</span>
               </div>
               <p className="mt-6 whitespace-pre-line text-sm leading-7 text-gray-300">{openReview.text}</p>
               {openReview.verified && <p className={`mt-auto pt-8 text-xs ${accentText}`}>✓ Recenzie verificată</p>}

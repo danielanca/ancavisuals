@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import ReviewsGrid, { type Review } from "../../components/Reviews/ReviewsGrid";
 
 // Local fixtures only: never saved to siteReviews or used by the offer page.
-const demoReviews: Review[] = [
+export const demoReviews: Review[] = [
   {
     id: "demo-1", author: "Ana și Vlad · exemplu", city: "Cluj-Napoca", date: "2026-09-12", rating: 5, verified: false,
     text: "Ne era puțin teamă că o să fim rigizi în fața camerei, dar cu Dani și Estera ne-am simțit în largul nostru. Ne-au ghidat când aveam nevoie și au surprins momentele dintre noi fără să simțim că pozăm. Fotografii pline de emoție, exact cum ne doream.",
@@ -27,7 +27,7 @@ const demoReviews: Review[] = [
     ].map(name => ({ url: `https://ancavisuals.b-cdn.net/offers-assets/photo/${name}`, name: "Fotografie ilustrativă din portofoliu" })),
   },
   {
-    id: "demo-4", author: "Elena și Mihai · exemplu", city: "Oradea", date: "2026-07-25", rating: null, verified: false,
+    id: "demo-4", author: "Elena și Mihai · exemplu", city: "Oradea", date: "2026-07-25", rating: 5, verified: false,
     text: "De la prima discuție am știut ce include pachetul și cum o să decurgă colaborarea. În ziua nunții au fost calmi, atenți și mereu aproape când aveam nevoie. Galeria online a fost ușor de trimis familiei. Mulțumim pentru răbdare și pentru amintiri!",
     photos: [
       "1787017601545-q29h4k-Picture_0572.webp", "1787017601566-e26j2m-Picture_0720.webp", "1787017601552-6sm2l1-Picture_0348.webp", "1787017601532-4mvbwu-Picture_0431.webp",
@@ -43,6 +43,7 @@ export default function ReviewsPreviewPage() {
         [data-review-tone="light"] article:hover { border-color: #cfcfcf; }
         [data-review-tone="light"] article h3, [data-review-tone="light"] article p { color: #171717; }
         [data-review-tone="light"] article p.text-neutral-500, [data-review-tone="light"] article p.text-gray-500 { color: #737373; }
+        [data-review-tone="light"] > div > p { color: #4b4b4b; }
         [data-review-tone="light"] article span.text-amber-200 { color: #171717; }
         [data-review-tone="light"].fixed { background: rgba(20, 20, 20, .42); }
         [data-review-tone="light"].fixed > div { background: #fff; border-color: #e5e5e5; }
@@ -52,12 +53,18 @@ export default function ReviewsPreviewPage() {
         [data-review-tone="light"].fixed .text-gray-500 { color: #737373; }
         [data-review-tone="light"].fixed button { color: #171717; }
         [data-review-tone="light"].fixed > div > div:last-child { padding: 3.25rem 3.5rem; }
-        [data-review-tone="light"].fixed > div > div:last-child h3 { font-size: 1.8rem; letter-spacing: -.03em; }
+        [data-review-tone="light"].fixed > div > div:last-child h3 { font-size: 1.45rem; letter-spacing: -.02em; }
         [data-review-tone="light"] h1, [data-review-tone="light"] h2, [data-review-tone="light"] h3,
-        [data-review-tone="light"].fixed h3 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
+        [data-review-tone="light"].fixed h3 { font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: -.025em; }
+        [data-review-tone="light"] article h3 { font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: -.025em; }
+        [data-review-tone="light"] article p.line-clamp-5 { font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; line-height: 1.45; }
         [data-review-tone="light"] h1, [data-review-tone="light"] h2 { letter-spacing: -.025em; }
-        [data-review-tone="light"].fixed > div > div:last-child p.whitespace-pre-line { font-size: 1.05rem; line-height: 1.85; }
-        [data-review-tone="light"].fixed > div > div:first-child > img { min-height: 62dvh; object-fit: cover; }
+        [data-review-tone="light"].fixed > div > div:last-child p.whitespace-pre-line { font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; font-size: .95rem; line-height: 1.65; }
+        @media (min-width: 768px) {
+          [data-review-tone="light"].fixed > div > div:last-child h3 { font-size: 1.5rem; }
+          [data-review-tone="light"].fixed > div > div:last-child p.whitespace-pre-line { max-width: 34rem; }
+        }
+        [data-review-tone="light"].fixed > div > div:first-child > img { min-height: 0; object-fit: contain; }
       `}</style>
       <Helmet>
         <title>Previzualizare recenzii OLX | Anca Visuals</title>
@@ -74,7 +81,7 @@ export default function ReviewsPreviewPage() {
         category="oferta"
         offerSlug="olx"
         layout="horizontal"
-        title="Ce spun clienții noștri"
+        title="Au avut încredere în noi"
         subtitle="Experiențele celor care ne-au ales pentru evenimentul lor."
         previewReviews={demoReviews}
         reviewTone="light"

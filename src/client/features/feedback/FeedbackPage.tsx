@@ -14,6 +14,7 @@ export default function FeedbackPage() {
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
   const active = useRef<AbortController | null>(null);
+  const variantsRef = useRef<HTMLFieldSetElement | null>(null);
   const requestId = useRef("");
   const attemptedPayload = useRef("");
   useEffect(() => {
@@ -25,8 +26,7 @@ export default function FeedbackPage() {
   async function send(kind: "ai" | "submit") {
     if (active.current) return;
     setError("");
-    if (message.trim().length < 3) { setError("Scrie mai întâi câteva cuvinte despre experiența ta."); return; }
-    if (kind === "submit" && !name.trim()) { setError("Completează numele înainte de trimitere."); return; }
+    if (message.trim().length < 3) { setError("Adaugă câteva cuvinte despre experiența ta, iar AI-ul va dezvolta ideea într-o recenzie mai expresivă."); return; }
     const controller = new AbortController();
     active.current = controller;
     setBusy(kind);
@@ -48,6 +48,7 @@ export default function FeedbackPage() {
       if (kind === "ai") {
         if (!Array.isArray(data.variants) || data.variants.length !== FEEDBACK_VARIANT_COUNT || data.variants.some((value: unknown) => typeof value !== "string" || !value.trim())) throw new Error("Nu am primit variantele. Încearcă din nou sau scrie feedback-ul direct.");
         setVariants(data.variants); setSelected(null);
+        window.setTimeout(() => variantsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
       } else if (data.ok === true) {
         setSent(true);
       } else {
@@ -71,30 +72,30 @@ export default function FeedbackPage() {
         <p className="mt-4 text-neutral-300">Am primit mesajul tău. Ne ajută să înțelegem ce a mers bine și ce putem îmbunătăți.</p>
         <Link className="inline-block mt-6 text-amber-200 underline underline-offset-4" to={`/media/${encodeURIComponent(slug)}`}>Înapoi la album</Link>
       </section> : <>
-        <header className="mt-10 mb-8"><p className="text-xs uppercase tracking-widest text-neutral-400">Experiența ta contează</p>
-          <h1 className="mt-3 text-4xl font-light">Cum a fost pentru tine?</h1>
-          <p className="mt-4 text-neutral-300 leading-relaxed">Lasă-ne câteva cuvinte despre experiența cu AncaVisuals. Ne bucurăm să aflăm ce ți-a plăcut și ce putem face mai bine.</p>
+        <header className="mt-10 mb-8"><p className="text-xs uppercase tracking-widest text-neutral-400">Dacă doriți să ne spuneți</p>
+          <h1 className="mt-3 text-4xl font-light">Cum au decurs serviciile?</h1>
+          <p className="mt-4 text-neutral-300 leading-relaxed">Dacă aveți câteva clipe, ne puteți da câteva cuvinte despre cum au decurs serviciile. Ne ajută să știm ce a fost bine și unde putem deveni mai buni.</p>
         </header>
         <form onSubmit={event => { event.preventDefault(); void send("submit"); }} className="space-y-6">
-          <label className="block">Numele tău<input autoComplete="name" required maxLength={FEEDBACK_NAME_LIMIT} value={name} onChange={event => setName(event.target.value)} disabled={busy !== null} className={fieldClass} /></label>
+          <label className="block">Numele tău <span className="text-sm text-neutral-500">(opțional)</span><input autoComplete="name" maxLength={FEEDBACK_NAME_LIMIT} value={name} onChange={event => setName(event.target.value)} disabled={busy !== null} className={fieldClass} /></label>
           <div>
-            <label className="block" htmlFor="feedback-message">Câteva cuvinte despre experiența ta</label>
-            <textarea id="feedback-message" required minLength={3} maxLength={FEEDBACK_MESSAGE_LIMIT} rows={5} placeholder="Ce ți-a plăcut? Ce ai schimba? Scrie cum îți vine, chiar și în câteva cuvinte." value={message} onChange={event => { setMessage(event.target.value); setVariants([]); setSelected(null); }} disabled={busy !== null} className={fieldClass} />
+            <label className="block" htmlFor="feedback-message">Câteva cuvinte despre cum au decurs serviciile</label>
+            {error && <p role="alert" className="mt-3 rounded-xl bg-red-950/40 border border-red-900 p-4 text-red-200">{error}</p>}
+            <textarea id="feedback-message" required minLength={3} maxLength={FEEDBACK_MESSAGE_LIMIT} rows={5} placeholder="Dacă doriți, ne puteți spune pe scurt cum a fost colaborarea cu noi." value={message} onChange={event => { setMessage(event.target.value); setVariants([]); setSelected(null); }} disabled={busy !== null} className={fieldClass} />
             <p className="mt-2 text-xs text-neutral-400">{message.length}/{FEEDBACK_MESSAGE_LIMIT}</p>
           </div>
           <div aria-hidden="true" style={{ position: "absolute", left: "-10000px" }}><label>Website<input tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} /></label></div>
           <div className="rounded-xl border border-neutral-800 p-4">
-            <button type="button" disabled={busy !== null || message.trim().length < 3} onClick={() => void send("ai")} className="rounded-lg border border-amber-200/50 px-4 py-3 text-amber-200 hover:bg-amber-200/10 disabled:opacity-40">{busy === "ai" ? "Claude pregătește variantele…" : "Ajută-mă să formulez cu AI"}</button>
-            <p className="text-sm text-neutral-400 mt-3">Din cuvintele tale, AI-ul îți propune 7 formulări. Tu alegi și poți modifica textul înainte de trimitere.</p>
+            <button type="button" disabled={busy !== null} onClick={() => void send("ai")} className="rounded-lg border border-amber-200/50 px-4 py-3 text-amber-200 hover:bg-amber-200/10 disabled:opacity-40">{busy === "ai" ? "Claude pregătește variantele…" : "Ajută-mă să formulez cu AI"}</button>
+            <p aria-live="polite" className={variants.length > 0 ? "mt-3 rounded-xl border border-emerald-400/50 bg-emerald-950/50 px-4 py-3 text-sm text-emerald-100" : "text-sm text-neutral-400 mt-3"}>{variants.length > 0 ? <>Am pregătit câteva exemple cu ajutorul AI, dezvoltând ideea ta într-un mod mai cald, sincer și expresiv. <strong className="mt-2 block text-emerald-200">↓ Alege varianta care te reprezintă cel mai bine mai jos.</strong></> : "Dacă vrei, AI-ul îți poate dezvolta ideea într-o recenzie mai caldă, sinceră și expresivă. Alegi o variantă, o modifici cum dorești și o trimiți doar dacă te reprezintă."}</p>
           </div>
-          {variants.length > 0 && <fieldset className="space-y-3"><legend className="mb-3 text-lg">Alege varianta care te reprezintă</legend>
+          {variants.length > 0 && <fieldset ref={variantsRef} className="scroll-mt-6 space-y-3"><legend className="mb-3 text-lg">Câteva variante pe care le poți folosi</legend>
             {variants.map((variant, index) => <label key={index} className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer ${selected === index ? "border-amber-200 bg-amber-200/5" : "border-neutral-700 bg-neutral-900"}`}>
               <input className="mt-1 accent-amber-200" type="radio" name="feedback-variant" checked={selected === index} disabled={busy !== null} onChange={() => { setSelected(index); setMessage(variant); }} aria-label={`Varianta ${index + 1}`} />
               <span className="text-sm leading-relaxed whitespace-pre-wrap"><span className="block text-amber-200 text-xs mb-2">Varianta {index + 1}</span>{variant}</span>
             </label>)}
-            {selected !== null && <p className="text-sm text-neutral-300">Varianta aleasă este în câmpul de text de mai sus. O poți edita înainte să o trimiți.</p>}
+            {selected !== null && <p className="text-sm text-neutral-300">Alege o variantă doar dacă te reprezintă. Textul este în câmpul de mai sus și îl poți edita înainte să-l trimiți.</p>}
           </fieldset>}
-          {error && <p role="alert" className="rounded-xl bg-red-950/40 border border-red-900 p-4 text-red-200">{error}</p>}
           <button type="submit" disabled={busy !== null} className="w-full rounded-xl bg-amber-200 px-6 py-4 font-medium text-black hover:bg-amber-100 disabled:opacity-50">{busy === "submit" ? "Se trimite…" : "Trimite feedback-ul"}</button>
           <p className="text-sm text-neutral-400">Mesajul ajunge la echipa AncaVisuals și nu este publicat automat. <Link to="/privacy" className="underline">Confidențialitate</Link></p>
         </form>
