@@ -152,11 +152,11 @@ describe("album ZIP notification cron", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
-  test("alerts when ZIP is newer than photos but older than previews", async () => {
+  test("accepts ZIP created before previews when it contains the latest originals", async () => {
     listings["album/photos"] = [photo("2026-10-09T14:00:00Z")];
     listings["album/photos_preview"] = [photo("2026-10-09T17:40:00Z", "photo.webp")];
     await runCheck();
-    expect(mocks.sendEmail.mock.calls[0][0].html).toContain("ZIP depășit");
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
   test("checks every preview even if the newest preview and ZIP are current", async () => {
@@ -191,7 +191,7 @@ describe("album ZIP notification cron", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
-  test("new preview problems bypass cooldown once, then unchanged state is suppressed", async () => {
+  test("new preview problems bypass cooldown once, then resolved state is not re-notified", async () => {
     listings.album = [zip("2026-10-09T17:40:00Z")];
     listings["album/photos_preview"] = [];
     await runCheck();
@@ -201,8 +201,7 @@ describe("album ZIP notification cron", () => {
     expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
     listings["album/photos_preview"] = [photo("2026-10-09T17:45:00Z", "photo.webp")];
     await runCheck();
-    expect(mocks.sendEmail).toHaveBeenCalledTimes(2);
-    expect(mocks.sendEmail.mock.calls[1][0].html).toContain("ZIP depășit");
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
   });
 
   test("does not re-notify when Bunny returns the same files in a different order", async () => {

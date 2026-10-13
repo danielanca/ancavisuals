@@ -23,6 +23,11 @@ $font-body:       'DM Sans', sans-serif;
   color: $text-primary;
   font-family: $font-body;
   min-height: calc(var(--stable-vh, 1vh) * 100);
+
+  // Stil unitar pentru acțiunile din album: toate butoanele au colțuri drepte.
+  button {
+    border-radius: 0 !important;
+  }
 }
 
 .container {
@@ -73,7 +78,7 @@ $font-body:       'DM Sans', sans-serif;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 12px;
+  margin: 18px 0 28px;
 }
 
 // ── BUTTONS ─────────────────────────────────────────────
@@ -205,6 +210,12 @@ $font-body:       'DM Sans', sans-serif;
 .resetAllPrintBtn {
   composes: btn btnDanger;
   font-size: 13px;
+}
+
+.collapsePrintBtn {
+  composes: btn btnOutline;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 // ── PHOTOS SCROLLER ─────────────────────────────────────

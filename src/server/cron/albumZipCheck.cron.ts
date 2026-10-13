@@ -84,7 +84,9 @@ async function checkAlbumZip(slug: string): Promise<AlbumZipInfo> {
   if (latestPhotoDate && latestPreviewDate && latestPreviewDate < latestPhotoDate) {
     issues.push("photos_preview este mai vechi decât photos");
   }
-  const latestSourceDate = latestDate([...photos, ...previews]);
+  // ZIP-ul arhivează originale, deci poate fi creat înaintea preview-urilor.
+  // Ordine valide: photos ≤ photos_preview ≤ photos.zip sau photos ≤ photos.zip ≤ photos_preview.
+  const latestSourceDate = latestPhotoDate;
   const status: ZipStatus = !zipDate ? "missing"
     : latestSourceDate && zipDate < latestSourceDate ? "stale" : "ok";
   if (status === "missing") issues.push("Lipsă ZIP");
@@ -259,8 +261,8 @@ async function runZipCheck() {
         <div style="font-family:sans-serif;max-width:700px;margin:0 auto;">
           <h2 style="color:#111;margin:0 0 8px;">Ordinea actualizării fișierelor albumului</h2>
           <p style="color:#555;margin:0 0 20px;">
-            Ordinea așteptată: <strong>photos ≤ photos_preview ≤ photos.zip</strong>.
-            Verificăm fiecare preview față de fotografia originală și ZIP-ul față de ultimele fișiere.
+            Sunt valide ambele ordini: <strong>photos ≤ photos_preview ≤ photos.zip</strong> sau <strong>photos ≤ photos.zip ≤ photos_preview</strong>.
+            Verificăm fiecare preview față de fotografia originală și ZIP-ul față de ultimele fotografii originale.
             Albumele de mai jos au fișiere lipsă sau depășite după 15 minute fără modificări.
             Regenerează preview-urile necesare, apoi actualizează ZIP-ul în Bunny Storage.
           </p>

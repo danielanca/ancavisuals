@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { feedbackPath } from "../../../shared/feedback/feedback";
 import useAuth from "../../features/admin/auth/useAuth";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
 import ProposalLinksPanel from "./ProposalLinksPanel";
@@ -270,6 +269,7 @@ export default function MediaAlbumPage() {
   const [customUrl, setCustomUrl] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
+  const [printExpanded, setPrintExpanded] = useState(false);
 
   const [selectedModeration, setSelectedModeration] = useState<Set<string>>(new Set());
   const [showModerationSubmitModal, setShowModerationSubmitModal] = useState(false);
@@ -1836,9 +1836,21 @@ export default function MediaAlbumPage() {
                     Resetează toate pozele pentru imprimare
                   </button>
                 )}
+                {(printCount > 0 || tutorialPrintPhotos.length > 0) && (
+                  <button
+                    type="button"
+                    className={styles.collapsePrintBtn}
+                    onClick={() => setPrintExpanded(value => !value)}
+                    aria-expanded={printExpanded}
+                    aria-controls="print-photos-content"
+                  >
+                    {printExpanded ? "Colapsează pozele" : "Extinde pozele"} <span aria-hidden="true">{printExpanded ? "⌃" : "⌄"}</span>
+                  </button>
+                )}
               </div>
             </div>
 
+            <div id="print-photos-content" hidden={!printExpanded}>
             {printCount > 0 ? (
               <>
                 <MobileColumnsToggle mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} />
@@ -1889,6 +1901,7 @@ export default function MediaAlbumPage() {
             ) : (
               <p className={styles.emptyPrint}>Nu ai selectat încă poze pentru imprimat.</p>
             )}
+            </div>
           </div>
 
           {printCount > 0 && (
@@ -2124,11 +2137,6 @@ export default function MediaAlbumPage() {
       </div>
     </div>
 
-    {slug && <section className="bg-neutral-950 px-6 py-10 text-center text-white">
-      <h2 className="text-xl font-light">Cum a fost experiența cu noi?</h2>
-      <p className="mt-3 text-sm text-neutral-400">Ne-ar bucura să ne lași câteva cuvinte.</p>
-      <Link to={feedbackPath(slug)} className="inline-block mt-5 rounded-xl border border-amber-200/50 px-6 py-3 text-amber-200 hover:bg-amber-200/10">Lasă-ne feedback</Link>
-    </section>}
     <AncaVisualsPromo />
 
 
