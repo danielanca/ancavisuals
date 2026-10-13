@@ -21,6 +21,7 @@ function task(overrides: Partial<ClientTask>): ClientTask {
   return {
     id: Math.random().toString(36).slice(2),
     title: "Task",
+    description: "",
     notes: "",
     clientName: "",
     eventId: null,

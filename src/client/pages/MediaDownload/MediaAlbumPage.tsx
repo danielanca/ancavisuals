@@ -251,6 +251,8 @@ export default function MediaAlbumPage() {
   const [savingPrint, setSavingPrint] = useState(false);
   const [printSaveError, setPrintSaveError] = useState<string | null>(null);
   const [printSaved, setPrintSaved] = useState(false);
+  const [notifyingPrint, setNotifyingPrint] = useState(false);
+  const [printNotified, setPrintNotified] = useState(false);
   const [creatingShare, setCreatingShare] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -765,6 +767,20 @@ export default function MediaAlbumPage() {
       setPrintSaveError(error instanceof Error ? error.message : "Nu am putut salva selecția. Încearcă din nou.");
     } finally {
       setSavingPrint(false);
+    }
+  };
+
+  const notifyPrintSelection = async () => {
+    if (!slug || notifyingPrint || printCount === 0) return;
+    setNotifyingPrint(true);
+    try {
+      const response = await fetch(`/api/album/${slug}/print-selection/notify`, { method: "POST" });
+      if (!response.ok) throw new Error("Nu am putut trimite notificarea.");
+      setPrintNotified(true);
+    } catch {
+      setPrintSaveError("Nu am putut trimite notificarea. Încearcă din nou.");
+    } finally {
+      setNotifyingPrint(false);
     }
   };
 
@@ -1310,6 +1326,7 @@ export default function MediaAlbumPage() {
               photosTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
             onSave={() => void savePrintSelection()} onDelivery={() => setIsFormOpen(true)}
+            notifying={notifyingPrint} notified={printNotified} onNotify={() => void notifyPrintSelection()}
           />
         )}
 

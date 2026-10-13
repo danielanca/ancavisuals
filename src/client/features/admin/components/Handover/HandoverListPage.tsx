@@ -5,6 +5,7 @@ import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 import HandoverActionMenu from "./HandoverActionMenu";
 import EditHandoverModal from "./EditHandoverModal";
+import { getPublicAppOrigin } from "./publicOrigin";
 
 interface HandoverItem {
   id: string;
@@ -228,8 +229,8 @@ const HandoverListPage: React.FC = () => {
 
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-white text-2xl font-light tracking-tight">Procese Verbale</h1>
-            <p className="text-neutral-400 text-sm mt-1">{items.length} procese verbale totale</p>
+            <h1 className="text-white text-2xl font-light tracking-tight">Predarea responsabilității</h1>
+            <p className="text-neutral-400 text-sm mt-1">Procese verbale pentru predarea materialelor și preluarea responsabilității de către client · {items.length} în total</p>
           </div>
           <div className="flex gap-3">
             <button
@@ -242,7 +243,7 @@ const HandoverListPage: React.FC = () => {
               onClick={() => navigate("/admin/handover/new")}
               className="px-4 py-1.5 text-xs text-white bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 hover:text-emerald-300 transition-colors font-medium"
             >
-              + Proces Verbal nou
+              + Document de predare nou
             </button>
           </div>
         </div>
@@ -253,12 +254,12 @@ const HandoverListPage: React.FC = () => {
 
         {!loading && !error && items.length === 0 && (
           <div className="text-center py-20 text-neutral-500 text-sm">
-            <p className="mb-4">Niciun proces verbal creat încă.</p>
+            <p className="mb-4">Nu există încă niciun document de predare.</p>
             <button
               onClick={() => navigate("/admin/handover/new")}
               className="px-5 py-2 text-sm bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 hover:text-emerald-300 transition-colors"
             >
-              Creează primul proces verbal
+              Creează primul document de predare
             </button>
           </div>
         )}
@@ -293,7 +294,7 @@ const HandoverListPage: React.FC = () => {
                             Eveniment: {event.client?.fullName || "Fără nume"} · {event.typeLabel || event.type} · {event.eventDate ? formatDate(event.eventDate) : "Fără dată"}
                           </button>
                           <p className={`mt-1 ${item.status === "signed" ? "text-emerald-400" : "text-neutral-500"}`}>
-                            {item.status === "signed" ? "Proces verbal semnat pentru acest eveniment" : "Proces verbal încă nesemnat pentru acest eveniment"}
+                            {item.status === "signed" ? "Clientul a semnat preluarea responsabilității" : "Așteaptă semnarea de către client"}
                           </p>
                         </> : item.eventId ? <p className="text-neutral-500">Eveniment asociat indisponibil</p> : <>
                           <p className="text-neutral-500 mb-2">Fără eveniment asociat</p>
@@ -332,7 +333,7 @@ const HandoverListPage: React.FC = () => {
                       onPreview={() => window.open(`/api/handover/${item.id}/preview`, "_blank")}
                       onSend={() => confirmAction("send", item.id, `${item.eventType} — ${item.clientEmail || item.clientName || "client"}`)}
                       onCopyLink={() => {
-                        const url = `${window.location.origin}/proces-verbal/${item.token}`;
+                        const url = `${getPublicAppOrigin()}/proces-verbal/${item.token}`;
                         navigator.clipboard.writeText(url);
                         showToast("Link copiat în clipboard!");
                       }}

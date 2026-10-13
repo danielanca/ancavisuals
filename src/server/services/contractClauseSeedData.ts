@@ -192,6 +192,7 @@ export const SEED_DEFAULT_CLAUSES: SeedClause[] = [
     mutexGroup: null,
     bodyTemplate: `
       <p>BENEFICIARUL este responsabil de efectuarea unui <span class="bold">back-up</span> (copie de rezervă a fișierelor, stocată pe un dispozitiv propriu sau pe un serviciu de stocare în cloud) al tuturor materialelor — fotografii și/sau materiale video — primite de la PRESTATOR.</p>
+      <p>În cazul în care materialele sunt transmise prin link digital, BENEFICIARUL se obligă să verifice atât Inbox, cât și folderul Spam/Junk al adresei de email indicate. Linkul ajunge, de regulă, în termen de <span class="bold">2–3 minute</span> de la trimitere. Dacă linkul nu este primit în maximum <span class="bold">24 de ore</span>, BENEFICIARUL se obligă să anunțe imediat PRESTATORUL.</p>
       <p>PRESTATORUL nu poate fi tras la răspundere pentru pierderea, deteriorarea sau indisponibilitatea materialelor după livrarea acestora, indiferent de cauza producerii acestora, inclusiv ca urmare a trecerii timpului, defecțiunilor tehnice sau expirării platformei de livrare.</p>
     `,
   },
@@ -234,6 +235,20 @@ export const SEED_DEFAULT_CLAUSES: SeedClause[] = [
     conditionTag: "hasPhotoVideo",
     mutexGroup: null,
     bodyTemplate: `<p>PRESTATORUL nu poate fi tras la răspundere pentru: calitatea fotografiilor/filmărilor afectată de condiții de iluminat insuficient sau necontrolabil, spații aglomerate care limitează accesul, momente neacoperite ca urmare a restricțiilor impuse de oficianți sau a nepunctualității participanților.</p>`,
+  },
+  {
+    key: "fotografiere-persoane-nominalizate",
+    title: "Acoperirea momentelor și a persoanelor nominalizate",
+    appliesTo: "all",
+    order: 112,
+    groupKey: null,
+    conditionTag: "hasPhotoVideo",
+    mutexGroup: null,
+    bodyTemplate: `
+      <p>Serviciul foto și/sau video are caracter documentar. Fotograful și videograful selectează și documentează, în funcție de desfășurarea reală a evenimentului, momentele importante pe care le consideră relevante, ținând cont de acces, vizibilitate, lumină, program, poziționarea participanților și stilul artistic agreat. Serviciul nu reprezintă o inventariere și nu presupune fotografierea sau filmarea individuală garantată a fiecărei persoane prezente ori nominalizate de BENEFICIAR.</p>
+      <p>BENEFICIARUL, mireasa, mirele și/sau vornicul au obligația de a informa echipa foto-video, înainte sau, de preferat, cu aproximativ <span class="bold">10–20 de minute înainte</span>, despre momentele importante care urmează, locul desfășurării acestora și persoanele sau grupurile prioritare. Informarea poate fi făcută și pe loc, imediat ce programul se modifică sau apare un moment neprevăzut.</p>
+      <p>PRESTATORUL nu garantează existența unei fotografii sau filmări individuale cu o anumită persoană, familie ori grup dacă informația nu a fost transmisă în timp util, persoana nu a fost disponibilă sau identificată, a părăsit locul, nu a respectat programul, momentul s-a desfășurat fără acces vizual suficient ori desfășurarea evenimentului nu a permis realizarea cadrului. Lipsa unei astfel de imagini nu constituie prin ea însăși neexecutarea serviciului sau un motiv de reducere a prețului.</p>
+    `,
   },
   {
     key: "raspundere-photobooth",

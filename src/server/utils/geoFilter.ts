@@ -9,6 +9,11 @@ export const ALLOWED_NOTIFY_COUNTRIES = new Set([
   "SM", "TR", "UA", "VA", "XK", "GI", "IM", "JE", "GG",
 ]);
 
+/** True only for a known country in the European traffic set. Unknown geo is excluded from Europe-only reports. */
+export function isEuropeanCountry(country?: string | null): boolean {
+  return Boolean(country && ALLOWED_NOTIFY_COUNTRIES.has(country.toUpperCase()));
+}
+
 /**
  * True when the owner should be notified about a visitor from this country.
  * An unknown / empty country returns `true` — we don't silently drop visitors

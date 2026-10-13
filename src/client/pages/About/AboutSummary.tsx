@@ -10,7 +10,7 @@ export default function AboutSummary() {
           alt="Dani și Estera, echipa Anca Visuals"
           loading="lazy"
           decoding="async"
-          className="aspect-[4/5] w-full rounded-xl object-cover"
+          className="aspect-[4/5] w-full object-cover"
         />
         <div>
           <p className="mb-3 text-xs uppercase tracking-[0.25em] text-amber-200">Despre noi</p>

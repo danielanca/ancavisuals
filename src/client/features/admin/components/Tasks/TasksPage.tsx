@@ -3,6 +3,7 @@ import useAuth from "../../auth/useAuth";
 import Breadcrumb from "../Breadcrumb";
 import DictateField from "./DictateButton";
 import TodayTimeline from "./TodayTimeline";
+import RichTextEditor from "../Contracts/RichTextEditor";
 import {
   DAY_MIN,
   DEFAULT_DURATION_MIN,
@@ -103,7 +104,9 @@ function EstimatedTimeField({ value, onChange }: { value: string; onChange: (val
       <span>Timp estimat (minute, opțional)</span>
       <input type="number" min={5} max={MAX_DURATION_MIN} step={1} value={value}
         onChange={(event) => onChange(event.target.value)} aria-label="Timp estimat (minute)"
-        placeholder="ex: 120" className={`${inputClass} w-full`} />
+        placeholder="ex: 120"
+        className={`${inputClass} w-full [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+      />
       {Number(value) >= 5 && Number(value) <= MAX_DURATION_MIN && <span className="block text-neutral-500">{formatDuration(Number(value))}</span>}
     </label>
   );
@@ -442,6 +445,7 @@ export function QuickAdd({
   onCreate: (body: Partial<ClientTask>) => Promise<boolean>;
 }) {
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [client, setClient] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("normal");
@@ -456,6 +460,7 @@ export function QuickAdd({
     const match = events.find((option) => option.label === client || option.clientName === client);
     const ok = await onCreate({
       title,
+      description,
       clientName: match?.clientName ?? client,
       eventId: match?.id ?? null,
       dueDate: dueDate || null,
@@ -466,6 +471,7 @@ export function QuickAdd({
     setSaving(false);
     if (ok) {
       setTitle("");
+      setDescription("");
       setDueDate("");
       setEstimatedMinutes("");
       setPriority("normal");
@@ -483,6 +489,12 @@ export function QuickAdd({
           className={`${inputClass} w-full`}
         />
       </DictateField>
+      <div>
+        <p className="mb-1 text-xs text-neutral-400">Descriere</p>
+        <DictateField value={description} onChange={setDescription}>
+          <RichTextEditor value={description} onChange={setDescription} minHeight={90} label="Descriere task" />
+        </DictateField>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
         <input
           value={client}
@@ -801,6 +813,12 @@ function TaskRow({
               onClear={scheduledAt !== null ? () => { setScheduleOpen(false); onSchedule(null); } : undefined}
             />
           )}
+          {task.description && !editing && (
+            <div
+              className="prose prose-invert prose-sm mt-2 max-w-none text-neutral-300 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-5"
+              dangerouslySetInnerHTML={{ __html: task.description }}
+            />
+          )}
           {task.notes && !editing && <p className="text-xs text-neutral-500 mt-1.5 whitespace-pre-line">{task.notes}</p>}
         </div>
         {!done && (
@@ -876,6 +894,7 @@ export function TaskEditor({
 }) {
   const [form, setForm] = useState({
     title: task.title,
+    description: task.description,
     notes: task.notes,
     clientName: task.clientName,
     dueDate: task.dueDate ?? "",
@@ -890,6 +909,7 @@ export function TaskEditor({
     const match = events.find((option) => option.label === form.clientName || option.clientName === form.clientName);
     onSave({
       title: form.title,
+      description: form.description,
       notes: form.notes,
       clientName: match?.clientName ?? form.clientName,
       eventId: match ? match.id : form.clientName === task.clientName ? task.eventId : null,
@@ -906,6 +926,20 @@ export function TaskEditor({
       <DictateField value={form.title} onChange={(title) => setForm((prev) => ({ ...prev, title }))}>
         <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} aria-label="Titlu" className={`${inputClass} w-full`} />
       </DictateField>
+      <div>
+        <p className="mb-1 text-xs text-neutral-400">Descriere</p>
+        <DictateField
+          value={form.description}
+          onChange={(description) => setForm((prev) => ({ ...prev, description }))}
+        >
+          <RichTextEditor
+            value={form.description}
+            onChange={(description) => setForm((prev) => ({ ...prev, description }))}
+            minHeight={90}
+            label="Descriere task"
+          />
+        </DictateField>
+      </div>
       <DictateField value={form.notes} onChange={(notes) => setForm((prev) => ({ ...prev, notes }))}>
         <textarea
           value={form.notes}

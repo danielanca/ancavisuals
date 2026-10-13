@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { getPublicAppOrigin } from "./publicOrigin";
 
 interface CreateHandoverState {
   eventId?: string;
@@ -20,7 +21,14 @@ interface AdminEvent {
 
 const DEFAULT_COURIER_DELIVERY_DAYS = 7;
 const DEFAULT_MATERIALS_REPORT_WINDOW_DAYS = 7;
-const DEFAULT_DIGITAL_LINK_EXPIRY_DAYS = 30;
+const DEFAULT_DIGITAL_LINK_EXPIRY_DAYS = 15;
+
+function dateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 const CreateHandoverPage: React.FC = () => {
   const navigate = useNavigate();
@@ -30,6 +38,7 @@ const CreateHandoverPage: React.FC = () => {
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [eventQuery, setEventQuery] = useState("");
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const eventPickerRef = useRef<HTMLDivElement>(null);
   const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
 
   const [eventType, setEventType] = useState(fromEvent.eventType ?? "");
@@ -59,10 +68,36 @@ const CreateHandoverPage: React.FC = () => {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!eventPickerOpen) return;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (eventPickerRef.current && !eventPickerRef.current.contains(event.target as Node)) {
+        setEventPickerOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointerDown);
+  }, [eventPickerOpen]);
+
   const filteredEvents = useMemo(() => {
+    const today = new Date();
+    const cutoff = new Date(today);
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    const todayKey = dateKey(today);
+    const cutoffKey = dateKey(cutoff);
+    const recentPastEvents = events.filter((event) => {
+      const eventDay = event.eventDate?.slice(0, 10);
+      return Boolean(eventDay && eventDay >= cutoffKey && eventDay <= todayKey);
+    });
     const q = eventQuery.trim().toLowerCase();
-    if (!q) return events.slice(0, 20);
-    return events.filter((e) => {
+    if (!q) {
+      // API-ul livrează evenimentele crescător după dată; în selector vrem cele mai noi
+      // dintre evenimentele trecute din ultimele 6 luni.
+      return [...recentPastEvents]
+        .sort((first, second) => String(second.eventDate ?? "").localeCompare(String(first.eventDate ?? "")))
+        .slice(0, 20);
+    }
+    return recentPastEvents.filter((e) => {
       const label = `${e.client?.fullName ?? ""} ${e.typeLabel ?? e.type} ${e.eventDate ?? ""}`.toLowerCase();
       return label.includes(q);
     }).slice(0, 20);
@@ -77,7 +112,7 @@ const CreateHandoverPage: React.FC = () => {
     setClientEmail(event.client?.email ?? "");
     if (event.albumSlug) {
       setDigitalLinks((prev) => {
-        const url = `${window.location.origin}/qr-moments/${event.albumSlug}`;
+        const url = `${getPublicAppOrigin()}/media/${event.albumSlug}`;
         if (prev.length === 1 && !prev[0].label.trim() && !prev[0].url.trim()) {
           return [{ label: "Galerie foto/video", url }];
         }
@@ -164,11 +199,11 @@ const CreateHandoverPage: React.FC = () => {
             ← Înapoi
           </button>
           <div>
-            <h1 className="text-white text-2xl font-light tracking-tight">Proces Verbal nou</h1>
+            <h1 className="text-white text-2xl font-light tracking-tight">Predarea responsabilității</h1>
             <p className="text-neutral-400 text-sm mt-0.5">
               {fromEvent.eventId
                 ? <span className="text-emerald-400">Pre-completat din eveniment ↗</span>
-                : "Selectează evenimentul — clientul va semna prin link"}
+                : "Creează documentul care confirmă ce se predă și când clientul preia responsabilitatea"}
             </p>
           </div>
         </div>
@@ -176,7 +211,7 @@ const CreateHandoverPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-5">
 
           <Block title="Eveniment">
-            <div className="relative">
+            <div ref={eventPickerRef} className="relative">
               <Label>Caută eveniment (nume client, tip, dată)</Label>
               <input
                 className={inp}
@@ -233,19 +268,22 @@ const CreateHandoverPage: React.FC = () => {
             </div>
           </Block>
 
-          <Block title="Metodă de predare">
+          <Block title="Ce se predă și când preia clientul responsabilitatea">
+            <p className="text-neutral-400 text-sm leading-relaxed -mt-1">
+              Bifează toate formele de predare aplicabile. Acestea vor fi explicate clientului înainte de semnare.
+            </p>
             <div className="space-y-2.5">
               <CheckboxRow id="includeDigitalLink" checked={includeDigitalLink} onChange={setIncludeDigitalLink}
-                label="Trimitere link digital" hint="Link către galerie / QR Moments, trimis pe email după semnare." />
+                label="Materiale digitale — link după semnare" hint="Clientul descarcă și salvează materialele; responsabilitatea pentru păstrarea lor revine clientului după primire." />
               <CheckboxRow id="includeCourier" checked={includeCourier} onChange={setIncludeCourier}
-                label="Trimitere prin curier" hint="Materiale fizice (album etc.) expediate prin curier, cu AWB." />
+                label="Materiale fizice — livrare prin curier" hint="Clientul primește coletul și are termenul setat mai jos pentru verificarea integrității și semnalarea problemelor." />
               <CheckboxRow id="includePersonalHandover" checked={includePersonalHandover} onChange={setIncludePersonalHandover}
-                label="Predare personală" hint="Materialele fizice sunt predate direct clientului, la data semnării." />
+                label="Materiale fizice — predare personală" hint="Clientul confirmă primirea directă a materialelor la data semnării." />
             </div>
 
             {includeDigitalLink && (
               <div>
-                <Label>Materiale digitale (denumire + link)</Label>
+                <Label>Materiale digitale pe care le va primi clientul</Label>
                 <div className="space-y-2">
                   {digitalLinks.map((link, i) => (
                     <div key={i} className="flex gap-2">
@@ -288,7 +326,7 @@ const CreateHandoverPage: React.FC = () => {
               )}
               {(includeCourier || includePersonalHandover) && (
                 <div>
-                  <Label>Verificare integritate (zile)</Label>
+                  <Label>Termen verificare materiale (zile)</Label>
                   <input className={inp} type="number" min={1} value={materialsReportWindowDays}
                     onChange={(e) => setMaterialsReportWindowDays(Number(e.target.value) || DEFAULT_MATERIALS_REPORT_WINDOW_DAYS)} />
                 </div>
@@ -312,7 +350,7 @@ const CreateHandoverPage: React.FC = () => {
             </button>
             <button type="submit" disabled={loading}
               className="flex-[2] py-3 bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-semibold hover:bg-emerald-500/30 hover:text-emerald-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? "Se salvează..." : "Salvează procesul verbal"}
+              {loading ? "Se salvează..." : "Creează documentul de predare"}
             </button>
           </div>
         </form>

@@ -86,12 +86,22 @@ describe("tasks routes", () => {
     await post({ body: { title: "  Trimite preview  ", plannedFor: "2026-10-02" } }, res);
     expect(addMock).toHaveBeenCalledWith(expect.objectContaining({
       title: "Trimite preview",
+      description: "",
       status: "todo",
       priority: "normal",
       plannedFor: "2026-10-02",
       completedAt: null,
     }));
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  test("accepts and persists a rich-text description", async () => {
+    const { post, addMock } = await loadTasksRouter();
+    const res = createMockResponse();
+    await post({ body: { title: "Pregătește selecția", description: "<strong>Important</strong><ul><li>Verifică pozele</li></ul>" } }, res);
+    expect(addMock).toHaveBeenCalledWith(expect.objectContaining({
+      description: "<strong>Important</strong><ul><li>Verifică pozele</li></ul>",
+    }));
   });
 
   test("PATCH to done stamps completedAt; reopening clears it", async () => {

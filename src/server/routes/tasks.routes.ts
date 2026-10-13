@@ -30,6 +30,7 @@ function serializeTask(id: string, data: Record<string, unknown>) {
   return {
     id,
     title: data.title ?? "",
+    description: data.description ?? "",
     notes: data.notes ?? "",
     clientName: data.clientName ?? "",
     eventId: data.eventId ?? null,
@@ -54,6 +55,10 @@ export function buildTaskPatch(body: Record<string, unknown>, { requireTitle }: 
   if (body.title !== undefined || requireTitle) {
     if (typeof body.title !== "string" || !body.title.trim()) return { error: "Titlul este obligatoriu." };
     patch.title = body.title.trim().slice(0, 300);
+  }
+  if (body.description !== undefined) {
+    if (typeof body.description !== "string") return { error: "Descriere invalidă." };
+    patch.description = body.description.slice(0, 20_000);
   }
   if (body.notes !== undefined) {
     if (typeof body.notes !== "string") return { error: "Notițe invalide." };
@@ -126,6 +131,7 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
     const now = Timestamp.now();
     const status = (result.patch.status as TaskStatus | undefined) ?? "todo";
     const data = {
+      description: "",
       notes: "",
       clientName: "",
       eventId: null,

@@ -105,24 +105,33 @@ router.patch("/reorder", requireFirebaseAuth, requireSupremeAdmin, async (req: R
   }
 });
 
-// POST /seed-defaults — idempotent unless ?force=true; populates the shared ("all") baseline
+// POST /seed-defaults — adds missing shared defaults; ?sync=true also refreshes seed-managed wording.
 router.post("/seed-defaults", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const force = req.query.force === "true";
-    const existing = await db.collection(COLLECTION).limit(1).get();
-    if (!existing.empty && !force) {
-      res.json({ ok: true, skipped: true, message: "Biblioteca are deja clauze — folosește ?force=true ca să adaugi oricum seed-ul." });
+    const sync = req.query.sync === "true";
+    const existing = await db.collection(COLLECTION).get();
+    const existingByKey = new Map(existing.docs.map((doc) => [doc.data()?.key, doc]));
+    const existingKeys = new Set(existingByKey.keys());
+    const clauses = force ? SEED_DEFAULT_CLAUSES : SEED_DEFAULT_CLAUSES.filter((clause) => !existingKeys.has(clause.key));
+    const updates = sync ? SEED_DEFAULT_CLAUSES.filter((clause) => existingByKey.has(clause.key)) : [];
+    if (clauses.length === 0 && updates.length === 0) {
+      res.json({ ok: true, skipped: true, message: "Toate clauzele standard sunt deja în bibliotecă." });
       return;
     }
     const batch = db.batch();
     const now = Timestamp.now();
-    for (const clause of SEED_DEFAULT_CLAUSES) {
+    for (const clause of clauses) {
       const ref = db.collection(COLLECTION).doc();
       batch.set(ref, { ...clause, isActive: true, createdAt: now, updatedAt: now });
     }
+    for (const clause of updates) {
+      const ref = existingByKey.get(clause.key);
+      if (ref) batch.update(ref.ref, { title: clause.title, bodyTemplate: clause.bodyTemplate, updatedAt: now });
+    }
     await batch.commit();
-    res.json({ ok: true, inserted: SEED_DEFAULT_CLAUSES.length });
+    res.json({ ok: true, inserted: clauses.length, updated: updates.length });
   } catch (error) {
     console.error("[contract-clause-templates] POST /seed-defaults failed:", error);
     res.status(500).json({ error: String(error) });

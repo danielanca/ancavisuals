@@ -20,6 +20,7 @@ interface SavedService {
 }
 
 const TRANSPORT_SERVICE_ID = "transport";
+const FREE_BOOTH_SERVICE_IDS = ["photobooth", "videobooth"];
 
 const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "foto_video", label: "Foto + Video (1 fotograf + 1 videograf)", included: false, priceRaw: "800" },
@@ -350,6 +351,11 @@ const EditContractPage: React.FC = () => {
       setSubmitError("Completează prețul (sau scrie GRATUIT) pentru serviciile bifate marcate în roșu.");
       return;
     }
+    const freeBoothCount = selectedServices.filter((s) => FREE_BOOTH_SERVICE_IDS.includes(s.id) && parsePrice(s.priceRaw) === "gratuit").length;
+    if (freeBoothCount > 1) {
+      setSubmitError("Poți alege GRATUIT un singur serviciu: Fotocabină sau VideoBooth 360°. Celălalt serviciu trebuie să aibă un preț normal.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -529,6 +535,9 @@ const EditContractPage: React.FC = () => {
             </div>
 
             <div className="space-y-1">
+              <p className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                Promoție: dacă oferi un serviciu gratuit, alege unul singur — Fotocabină sau VideoBooth 360°. Scrie „GRATUIT” la unul dintre ele, nu la ambele.
+              </p>
               {services.map((s) => {
                 const parsed = parsePrice(s.priceRaw);
                 const isGratuit = parsed === "gratuit";

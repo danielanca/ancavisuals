@@ -15,7 +15,7 @@ const router = Router();
 
 const DEFAULT_COURIER_DELIVERY_DAYS = 7;
 const DEFAULT_MATERIALS_REPORT_WINDOW_DAYS = 7;
-const DEFAULT_DIGITAL_LINK_EXPIRY_DAYS = 30;
+const DEFAULT_DIGITAL_LINK_EXPIRY_DAYS = 15;
 
 // Labels are fine to show before signing ("what you'll receive"), but the actual URLs must stay
 // hidden until after signing — they're delivered by email right after.

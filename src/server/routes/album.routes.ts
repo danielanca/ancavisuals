@@ -2,6 +2,7 @@ import { Router } from "express";
 import express from "express";
 import type { Request, Response } from "express";
 import { getAlbum, downloadSelectedPhotos, postPrintSelection, downloadAll, deletePhoto, downloadPrintDynamic, addDeliveryAddress, getDeliveryAddress, addSwissLink } from "../controllers/album.controller";
+import { readPrintSelection } from "../services/printSelection.store";
 import { getAlbumStats } from "../services/albumStats.service";
 import { resolveAlbumSlug } from "../services/album.service";
 import { getAlbumRetentionBySlug } from "../services/albumRetention.service";
@@ -131,6 +132,29 @@ router.get("/:slug/retention", async (req: Request, res: Response) => {
 
 router.post("/:slug/download-selected", express.urlencoded({ extended: false }), downloadSelectedPhotos);
 router.post("/:slug/print-selection", express.json(), postPrintSelection);
+router.post("/:slug/print-selection/notify", async (req: Request, res: Response) => {
+  try {
+    const slug = String(req.params.slug || "");
+    const items = await readPrintSelection(slug);
+    if (items.length === 0) return res.status(400).json({ error: "no_print_selection" });
+
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      source: "print-selection",
+      subject: `🖨️ Selecție imprimare finalizată — ${slug}`,
+      html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <h2 style="color:#111;margin:0 0 16px;">Clientul a finalizat selecția pentru imprimare</h2>
+        <p style="color:#444;">Au fost alese <strong>${items.length}</strong> fotografii pentru imprimare.</p>
+        <p style="color:#444;">Album: <strong>${slug}</strong></p>
+        <p style="margin-top:24px;"><a href="https://ancavisuals.ro/media/${encodeURIComponent(slug)}?select=print" style="color:#8a6d3b;font-weight:600;">Deschide selecția fotografiilor</a></p>
+      </div>`,
+    });
+    return res.json({ ok: true, count: items.length });
+  } catch (error) {
+    console.error("[album] print selection notification failed:", error);
+    return res.status(500).json({ error: "notification_failed" });
+  }
+});
 router.post("/:slug/download-all", downloadAll);
 router.post("/:slug/delete-photo", express.json(), deletePhoto);
 router.post("/:slug/download-print-dynamic", downloadPrintDynamic);

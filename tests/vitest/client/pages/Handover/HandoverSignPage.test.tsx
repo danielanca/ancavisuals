@@ -71,7 +71,7 @@ describe("HandoverSignPage", () => {
       renderPage();
 
       expect(screen.getByText("Se încarcă procesul verbal...")).toBeInTheDocument();
-      expect(await screen.findByText("Proces Verbal de Predare-Primire a Materialelor")).toBeInTheDocument();
+      expect(await screen.findByText("Proces Verbal de Predare a Materialelor și Preluare a Responsabilității")).toBeInTheDocument();
       expect(screen.getByPlaceholderText("Ex: maria@email.com")).toHaveValue("client@example.com");
       expect(screen.getByText("30 zile")).toBeInTheDocument();
       expect(screen.getAllByText("7 zile").length).toBe(2);
@@ -85,7 +85,7 @@ describe("HandoverSignPage", () => {
 
       renderPage();
 
-      await screen.findByText("Proces Verbal de Predare-Primire a Materialelor");
+      await screen.findByText("Proces Verbal de Predare a Materialelor și Preluare a Responsabilității");
 
       fireEvent.change(screen.getByPlaceholderText("Ex: Popescu Ion"), { target: { value: "Ion Popescu" } });
       fireEvent.change(screen.getByPlaceholderText("Ex: 07xx xxx xxx"), { target: { value: "0712345678" } });
@@ -156,7 +156,7 @@ describe("HandoverSignPage", () => {
 
       renderPage();
 
-      await screen.findByText("Proces Verbal de Predare-Primire a Materialelor");
+      await screen.findByText("Proces Verbal de Predare a Materialelor și Preluare a Responsabilității");
       fireEvent.click(screen.getByRole("button", { name: "SEMNEZ PROCESUL VERBAL" }));
 
       expect(await screen.findByText("Numele complet este obligatoriu.")).toBeInTheDocument();

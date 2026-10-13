@@ -9,6 +9,7 @@ import { blockEmail, sendViaFunnel, type BlockCode } from "../notifications/emai
 import { adminUser } from "../constants/credentials";
 import { BOT_UA, isCrawlerIp } from "../utils/botUa";
 import { visitDay } from "../../shared/liveVisits";
+import { isEuropeanCountry } from "../utils/geoFilter";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 
@@ -19,6 +20,15 @@ const AI_SOURCE_ALIASES: Record<string, string> = {
   claude: "Claude", "claude.ai": "Claude", gemini: "Gemini", "gemini.google.com": "Gemini",
   perplexity: "Perplexity", "perplexity.ai": "Perplexity", grok: "Grok", "grok.com": "Grok",
 };
+
+const MIN_QUALIFIED_VISIT_SECONDS = 5;
+
+function isQualifiedAnalyticsVisit(data: FirebaseFirestore.DocumentData, includeLocal: boolean): boolean {
+  return (includeLocal || !isLocalIp(data.ip ?? ""))
+    && isEuropeanCountry(data.country)
+    && data.isBounce !== true
+    && Number(data.timeSpent ?? 0) >= MIN_QUALIFIED_VISIT_SECONDS;
+}
 
 function getAiSource(data: FirebaseFirestore.DocumentData): string | null {
   const source = String(data.utmSource ?? "").trim().toLowerCase();
@@ -243,7 +253,7 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
       .get();
 
     const visits = snapshot.docs
-      .filter((doc) => includeLocal || !isLocalIp(doc.data().ip ?? ""))
+      .filter((doc) => isQualifiedAnalyticsVisit(doc.data(), includeLocal))
       .map((doc) => {
         const d = doc.data();
         return {
@@ -290,7 +300,7 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
     const uniqueVisitors = (snap: FirebaseFirestore.QuerySnapshot): number =>
       new Set(
         snap.docs
-          .filter((d) => includeLocal || !isLocalIp(d.data().ip ?? ""))
+          .filter((d) => isQualifiedAnalyticsVisit(d.data(), includeLocal))
           .map((d) => d.data().visitorId || d.data().sessionId)
       ).size;
 
@@ -307,7 +317,7 @@ analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response)
     const aiSourceVisitors: Record<string, Set<string>> = {};
     const countryVisitors: Record<string, Set<string>> = {};
 
-    monthSnap.docs.filter((d) => includeLocal || !isLocalIp(d.data().ip ?? "")).forEach((d) => {
+    monthSnap.docs.filter((d) => isQualifiedAnalyticsVisit(d.data(), includeLocal)).forEach((d) => {
       const data = d.data();
       const aiSource = getAiSource(data);
       if (aiSource) {

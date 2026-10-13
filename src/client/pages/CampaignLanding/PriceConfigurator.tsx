@@ -78,7 +78,56 @@ const STYLES = `
 const formatAmount = (n: number) => n.toLocaleString("ro-RO");
 
 const MONTHS = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
-const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+
+function normalizeMonthText(value: string): string {
+  return value.trim().toLocaleLowerCase("ro-RO").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function monthDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const current = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = current;
+    }
+  }
+  return row[b.length];
+}
+
+function monthMatch(value: string): { index: number; approximate: boolean } | null {
+  const normalized = normalizeMonthText(value);
+  if (!normalized) return null;
+  const numeric = Number(normalized);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 12) return { index: numeric - 1, approximate: false };
+
+  const exact = MONTHS.findIndex((month) => {
+    const normalizedMonth = normalizeMonthText(month);
+    return normalizedMonth === normalized || (normalized.length >= 3 && normalizedMonth.startsWith(normalized));
+  });
+  if (exact >= 0) return { index: exact, approximate: false };
+
+  // Tolerates common omissions such as "decmbr" for "decembrie".
+  const consonants = normalized.replace(/[aeiou]/g, "");
+  const consonantMatch = MONTHS.findIndex((month) => normalizeMonthText(month).replace(/[aeiou]/g, "") === consonants);
+  if (consonantMatch >= 0) return { index: consonantMatch, approximate: true };
+
+  const close = MONTHS.findIndex((month) => monthDistance(normalized, normalizeMonthText(month)) <= 2);
+  return close >= 0 ? { index: close, approximate: true } : null;
+}
+
+function monthFromText(value: string): number | null {
+  return monthMatch(value)?.index ?? null;
+}
+
+function monthSuggestion(value: string): string | null {
+  const match = monthMatch(value);
+  if (!match || Number.isInteger(Number(normalizeMonthText(value)))) return null;
+  const canonical = MONTHS[match.index];
+  return normalizeMonthText(value) === canonical ? null : `Am înțeles „${value.trim()}” ca ${canonical}.`;
+}
 function formatDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : iso;
@@ -86,9 +135,6 @@ function formatDate(iso: string): string {
 
 const INPUT_CLASS =
   "w-full rounded-xl border border-neutral-950/15 bg-white px-3.5 py-3.5 text-base sm:text-sm text-neutral-950 outline-none transition-colors placeholder:text-neutral-500 hover:border-neutral-300 focus:border-neutral-950";
-
-const SELECT_CLASS =
-  "w-full appearance-none rounded-xl border border-neutral-950/15 bg-white bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='m1 1 4 4 4-4' stroke='%23737373' stroke-width='1.5'/%3E%3C/svg%3E\")] bg-[length:10px_6px] bg-[right_0.9rem_center] bg-no-repeat px-3.5 py-3.5 pr-8 text-base sm:text-sm text-neutral-950 outline-none transition-colors hover:border-neutral-300/60 focus:border-neutral-950";
 
 /** Counts from the old total to the new one; jumps straight there with reduced motion. */
 function useCountUp(target: number, ms = 450): number {
@@ -200,11 +246,33 @@ export default function PriceConfigurator({
     onDateChecked(eventDate, !bookedDates.includes(eventDate), event.formEventType);
   }, [eventDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const today = new Date();
-  const [todayYear, todayMonth, todayDay] = [today.getFullYear(), today.getMonth(), today.getDate()];
-  const monthKnown = dateParts.year !== null && dateParts.month !== null;
-  const maxDay = monthKnown ? daysInMonth(dateParts.year!, dateParts.month!) : 31;
-  const minDay = monthKnown && dateParts.year === todayYear && dateParts.month === todayMonth ? todayDay : 1;
+  const [dateText, setDateText] = useState({ day: "", month: "", year: "" });
+
+  useEffect(() => {
+    setDateText((current) => ({
+      day: current.day && Number(current.day) === dateParts.day ? current.day : dateParts.day === null ? "" : String(dateParts.day),
+      month: current.month && monthFromText(current.month) === dateParts.month ? current.month : dateParts.month === null ? "" : MONTHS[dateParts.month],
+      year: current.year && Number(current.year) === dateParts.year ? current.year : dateParts.year === null ? "" : String(dateParts.year),
+    }));
+  }, [dateParts.day, dateParts.month, dateParts.year]);
+
+  const updateDateText = (field: "day" | "month" | "year", value: string) => {
+    const nextText = { ...dateText, [field]: value };
+    setDateText(nextText);
+    if (value.trim() === "") {
+      onDatePart({ [field]: null });
+      return;
+    }
+    if (field === "month") {
+      const month = monthFromText(value);
+      if (month !== null) onDatePart({ month });
+      return;
+    }
+    const number = Number(value);
+    if (field === "day" && Number.isInteger(number) && number >= 1 && number <= 31) onDatePart({ day: number });
+    if (field === "year" && Number.isInteger(number) && number >= new Date().getFullYear() && number <= new Date().getFullYear() + 3) onDatePart({ year: number });
+  };
+  const monthHint = monthSuggestion(dateText.month);
 
   const pickEvent = (key: ConfiguratorEventKey) => {
     if (key === eventKey) return;
@@ -353,37 +421,33 @@ export default function PriceConfigurator({
 
             {/* 2 — Date: same picker state as the availability form below */}
             <div id="configurator-data" className="scroll-mt-6">
-              <StepTitle n={2}>Când și unde are loc evenimentul?</StepTitle>
-              <div className="mt-5 grid grid-cols-[84px_minmax(0,1fr)_104px] gap-2 sm:grid-cols-[100px_minmax(0,1fr)_120px]">
-                <select aria-label="Ziua (configurator)" value={dateParts.day ?? ""} onChange={(e) => onDatePart({ day: e.target.value === "" ? null : Number(e.target.value) })} className={SELECT_CLASS}>
-                  <option value="">Zi</option>
-                  {Array.from({ length: maxDay - minDay + 1 }, (_, i) => minDay + i).map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
-                <select aria-label="Luna (configurator)" value={dateParts.month ?? ""} onChange={(e) => onDatePart({ month: e.target.value === "" ? null : Number(e.target.value) })} className={SELECT_CLASS}>
-                  <option value="">Luna</option>
-                  {MONTHS.map((m, i) => (dateParts.year === null || dateParts.year > todayYear || i >= todayMonth) && (
-                    <option key={m} value={i}>{m[0].toUpperCase() + m.slice(1)}</option>
-                  ))}
-                </select>
-                <select aria-label="Anul (configurator)" value={dateParts.year ?? ""} onChange={(e) => onDatePart({ year: e.target.value === "" ? null : Number(e.target.value) })} className={SELECT_CLASS}>
-                  <option value="">An</option>
-                  {[todayYear, todayYear + 1, todayYear + 2, todayYear + 3].map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <div key={eventDate || "none"} className="configurator-in mt-3" aria-live="polite">
-                {available === null ? (
-                  <p className="text-xs text-neutral-500">Alege ziua, luna și anul — verificăm calendarul pe loc.</p>
-                ) : available ? (
-                  <p className="flex items-start gap-2.5 rounded-xl bg-emerald-600/10 px-4 py-3 text-sm text-emerald-800">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[11px] text-white">✓</span>
-                    <span><strong className="font-semibold">{formatDate(eventDate)} este liberă!</strong> Datele se rezervă în ordinea confirmării.</span>
-                  </p>
-                ) : (
-                  <p className="flex items-start gap-2.5 rounded-xl bg-red-600/10 px-4 py-3 text-sm text-red-800">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-600 text-[11px] text-white">✕</span>
-                    <span><strong className="font-semibold">{formatDate(eventDate)} este deja rezervată.</strong> Scrie-ne totuși — uneori avem o a doua echipă disponibilă.</span>
-                  </p>
-                )}
+              <div className="rounded-2xl border-2 border-amber-300/80 bg-amber-50/70 p-4 shadow-[0_12px_30px_-18px_rgba(217,119,6,0.55)] sm:p-5">
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-800">
+                  <span className="rounded-full bg-amber-200 px-2.5 py-1">Important</span>
+                  <span>Completează data pentru verificarea disponibilității</span>
+                </div>
+                <StepTitle n={2}>Când și unde are loc evenimentul?</StepTitle>
+                <div className="mt-5 grid grid-cols-[0.8fr_1.8fr_1fr] gap-2 sm:grid-cols-[90px_minmax(150px,1fr)_110px]">
+                  <input aria-label="Ziua (configurator)" inputMode="numeric" placeholder="Zi" value={dateText.day} onChange={(e) => updateDateText("day", e.target.value.replace(/[^0-9]/g, ""))} className={INPUT_CLASS} />
+                  <input aria-label="Luna (configurator)" placeholder={MONTHS[new Date().getMonth()]} value={dateText.month} onChange={(e) => updateDateText("month", e.target.value)} className={INPUT_CLASS} />
+                  <input aria-label="Anul (configurator)" inputMode="numeric" placeholder="An" value={dateText.year} onChange={(e) => updateDateText("year", e.target.value.replace(/[^0-9]/g, ""))} className={INPUT_CLASS} />
+                </div>
+                {monthHint && <p className="mt-2 text-xs text-neutral-500">{monthHint}</p>}
+                <div key={eventDate || "none"} className="configurator-in mt-3" aria-live="polite">
+                  {available === null ? (
+                    <p className="text-xs text-neutral-500">Alege ziua, luna și anul — verificăm calendarul pe loc.</p>
+                  ) : available ? (
+                    <p className="flex items-start gap-2.5 rounded-xl bg-emerald-600/10 px-4 py-3 text-sm text-emerald-800">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[11px] text-white">✓</span>
+                      <span><strong className="font-semibold">{formatDate(eventDate)} este liberă!</strong> Datele se rezervă în ordinea confirmării.</span>
+                    </p>
+                  ) : (
+                    <p className="flex items-start gap-2.5 rounded-xl bg-red-600/10 px-4 py-3 text-sm text-red-800">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-600 text-[11px] text-white">✕</span>
+                      <span><strong className="font-semibold">{formatDate(eventDate)} este deja rezervată.</strong> Scrie-ne totuși — uneori avem o a doua echipă disponibilă.</span>
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="mt-5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_200px]">
                 <div>

@@ -12,10 +12,13 @@ interface Props {
   error: string | null;
   onStart: () => void;
   onSave: () => void;
+  notifying: boolean;
+  notified: boolean;
+  onNotify: () => void;
   onDelivery: () => void;
 }
 
-export default function PrintSelectionGuide({ selecting, count, savedCount, hasPhotos, saving, saved, error, onStart, onSave, onDelivery }: Props) {
+export default function PrintSelectionGuide({ selecting, count, savedCount, hasPhotos, saving, saved, error, onStart, onSave, notifying, notified, onNotify, onDelivery }: Props) {
   const currentCount = selecting ? count : savedCount;
   return (
     <section className={styles.guide} aria-labelledby="print-invitation-title">
@@ -44,10 +47,16 @@ export default function PrintSelectionGuide({ selecting, count, savedCount, hasP
             <button type="button" onClick={onStart}>{savedCount > 0 ? "Continuă selecția" : "Începe selecția"}</button>
           )}
           <button type="button" className={styles.secondary} onClick={onDelivery}>Completează adresa de livrare</button>
+          {savedCount > 0 && (
+            <button type="button" className={styles.secondary} onClick={onNotify} disabled={notifying || notified}>
+              {notified ? "Ai fost notificat(ă)" : notifying ? "Se trimite notificarea..." : "Anunță fotograful că ai terminat"}
+            </button>
+          )}
         </div>
       )}
       {selecting && <p className={styles.hint}>Bifarea pozelor nu le trimite fotografului. Apăsați „Salvează selecția” pentru a înregistra alegerea. Puteți salva și progresul intermediar.</p>}
       {saved && <p role="status" className={styles.success}>Selecția a fost salvată. Fotograful poate vedea cele {savedCount} de fotografii alese.{savedCount < 100 ? " Puteți continua până la 100 de poze." : ""}</p>}
+      {notified && <p role="status" className={styles.success}>Te-am anunțat. Vom verifica selecția pentru imprimare.</p>}
       {error && <p role="alert" className={styles.error}>{error}</p>}
     </section>
   );

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { getPublicAppOrigin } from "./publicOrigin";
 
 interface HandoverItem {
   id: string;
@@ -95,7 +96,7 @@ const HandoverActionMenu: React.FC<Props> = ({
               <div className="border-t border-neutral-800 my-1" />
               <Item
                 label="📄  Pagina cu materiale"
-                onClick={() => window.open(`${window.location.origin}/proces-verbal/${handover.token}`, "_blank")}
+                onClick={() => window.open(`${getPublicAppOrigin()}/proces-verbal/${handover.token}`, "_blank")}
                 color="text-sky-400"
               />
               <Item

@@ -196,7 +196,7 @@ describe("handover.routes", () => {
       expect(saved.createdAt).toBeInstanceOf(Timestamp);
       expect(saved.courierDeliveryDays).toBe(7);
       expect(saved.materialsReportWindowDays).toBe(7);
-      expect(saved.digitalLinkExpiryDays).toBe(30);
+      expect(saved.digitalLinkExpiryDays).toBe(15);
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({ id: "handover-1", token: saved.token });
     });

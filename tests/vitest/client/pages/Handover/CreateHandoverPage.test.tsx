@@ -45,6 +45,26 @@ describe("CreateHandoverPage", () => {
   });
 
   describe("happy path", () => {
+    test("shows the newest events first when the picker is opened without a search", async () => {
+      const recent = new Date();
+      recent.setDate(recent.getDate() - 1);
+      const old = new Date();
+      old.setMonth(old.getMonth() - 7);
+      const events = [
+        { id: "recent-event", type: "Nuntă", eventDate: recent.toISOString(), client: { fullName: "Client recent" } },
+        { id: "old-event", type: "Nuntă", eventDate: old.toISOString(), client: { fullName: "Client vechi" } },
+      ];
+      vi.stubGlobal("fetch", makeFetchMock(events, { ok: true, status: 201, json: async () => ({}) }));
+
+      renderPage();
+
+      const searchInput = await screen.findByPlaceholderText("Ex: Popescu, Nuntă, 2026-08-...");
+      fireEvent.focus(searchInput);
+
+      expect(await screen.findByText(/Client recent/)).toBeInTheDocument();
+      expect(screen.queryByText(/Client vechi/)).not.toBeInTheDocument();
+    });
+
     test("prefills from event navigation state and submits the default day windows", async () => {
       const fetchMock = makeFetchMock([], {
         ok: true,
@@ -63,7 +83,7 @@ describe("CreateHandoverPage", () => {
 
       expect(await screen.findByText("Pre-completat din eveniment ↗")).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole("button", { name: "Salvează procesul verbal" }));
+      fireEvent.click(screen.getByRole("button", { name: "Creează documentul de predare" }));
 
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith("/admin/handover");
@@ -86,7 +106,7 @@ describe("CreateHandoverPage", () => {
         awb: "",
         courierDeliveryDays: 7,
         materialsReportWindowDays: 7,
-        digitalLinkExpiryDays: 30,
+        digitalLinkExpiryDays: 15,
       });
     });
 
@@ -111,7 +131,7 @@ describe("CreateHandoverPage", () => {
 
       expect(screen.getByDisplayValue("maria@example.com")).toBeInTheDocument();
       const digitalLinkInput = screen.getByPlaceholderText("https://ancavisuals.ro/qr-moments/...") as HTMLInputElement;
-      expect(digitalLinkInput.value).toContain("/qr-moments/botez-maria");
+      expect(digitalLinkInput.value).toContain("/media/botez-maria");
     });
   });
 
@@ -121,8 +141,8 @@ describe("CreateHandoverPage", () => {
 
       renderPage();
 
-      await screen.findByText("Proces Verbal nou");
-      fireEvent.click(screen.getByRole("button", { name: "Salvează procesul verbal" }));
+      await screen.findByText("Predarea responsabilității");
+      fireEvent.click(screen.getByRole("button", { name: "Creează documentul de predare" }));
 
       expect(await screen.findByText("Selectează un eveniment.")).toBeInTheDocument();
     });
@@ -143,7 +163,7 @@ describe("CreateHandoverPage", () => {
       });
 
       await screen.findByText("Pre-completat din eveniment ↗");
-      fireEvent.click(screen.getByRole("button", { name: "Salvează procesul verbal" }));
+      fireEvent.click(screen.getByRole("button", { name: "Creează documentul de predare" }));
 
       expect(await screen.findByText("Nu s-a putut crea procesul verbal.")).toBeInTheDocument();
       expect(mockNavigate).not.toHaveBeenCalled();

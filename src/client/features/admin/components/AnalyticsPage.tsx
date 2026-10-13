@@ -153,6 +153,21 @@ const COUNTRY_NAMES: Record<string, string> = {
   JP: "Japonia", KR: "Coreea de Sud", SG: "Singapore", NZ: "Noua Zeelandă",
 };
 
+const AI_SOURCE_ALIASES: Record<string, string> = {
+  chatgpt: "ChatGPT", "chatgpt.com": "ChatGPT", "chat.openai.com": "ChatGPT",
+  claude: "Claude", "claude.ai": "Claude", gemini: "Gemini", "gemini.google.com": "Gemini",
+  perplexity: "Perplexity", "perplexity.ai": "Perplexity", grok: "Grok", "grok.com": "Grok",
+};
+
+function visitAiSource(visit: Visit): string | null {
+  const source = visit.utmSource?.trim().toLowerCase();
+  if (source && AI_SOURCE_ALIASES[source]) return AI_SOURCE_ALIASES[source];
+  try {
+    const host = new URL(visit.referrer).hostname.replace(/^www\./, "").toLowerCase();
+    return AI_SOURCE_ALIASES[host] ?? null;
+  } catch { return null; }
+}
+
 function countryName(code: string): string {
   return COUNTRY_NAMES[code?.toUpperCase()] ?? code ?? "Necunoscut";
 }
@@ -345,6 +360,20 @@ export default function AnalyticsPage() {
     return Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 5).map(([referrer, count]) => ({ referrer, count }));
   }, [filteredVisits]);
 
+  const aiSources = useMemo(() => {
+    const visitorsBySource: Record<string, Set<string>> = {};
+    filteredVisits.forEach((visit) => {
+      const source = visitAiSource(visit);
+      if (!source) return;
+      const visitorKey = visit.visitorId || visit.sessionId || visit.ip || visit.id;
+      if (!visitorsBySource[source]) visitorsBySource[source] = new Set();
+      visitorsBySource[source].add(visitorKey);
+    });
+    return Object.entries(visitorsBySource)
+      .sort(([, a], [, b]) => b.size - a.size)
+      .map(([source, visitors]) => ({ source, count: visitors.size }));
+  }, [filteredVisits]);
+
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -499,9 +528,9 @@ export default function AnalyticsPage() {
           <div className="bg-neutral-900 border border-violet-500/20 rounded-xl p-4">
             <p className="text-violet-300 text-[10px] uppercase tracking-wider mb-3">Recomandări AI · vizitatori unici · {activePeriod.label}</p>
             <div className="space-y-1.5">
-              {(stats?.aiSources ?? []).length === 0 ? (
+              {aiSources.length === 0 ? (
                 <p className="text-neutral-600 text-xs">Nicio recomandare AI identificată</p>
-              ) : (stats?.aiSources ?? []).map(({ source, count }) => (
+              ) : aiSources.map(({ source, count }) => (
                 <div key={source} className="flex items-center gap-2">
                   <span className="text-neutral-300 text-xs flex-1">{source}</span>
                   <span className="text-violet-400 text-xs font-semibold">{count}</span>

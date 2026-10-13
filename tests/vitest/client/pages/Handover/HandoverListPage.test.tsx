@@ -29,13 +29,13 @@ function mockData(items: unknown[], events: unknown[], ok = true) {
 test("shows the linked event and signed state, and opens that event", async () => {
   mockData([{ ...protocol, eventId: event.id }], [event]);
   fireEvent.click(await screen.findByRole("button", { name: /Eveniment: Ana și Ion/ }));
-  expect(screen.getByText("Proces verbal semnat pentru acest eveniment")).toBeInTheDocument();
+  expect(screen.getByText("Clientul a semnat preluarea responsabilității")).toBeInTheDocument();
   expect(screen.getByRole("status")).toHaveTextContent('"scrollToEvent":"event-1"');
 });
 test("recognizes the reverse event association and keeps unsigned status clear", async () => {
   mockData([{ ...protocol, status: "sent" }], [{ ...event, handoverId: protocol.id }]);
   expect(await screen.findByRole("button", { name: /Eveniment: Ana și Ion/ })).toBeInTheDocument();
-  expect(screen.getByText("Proces verbal încă nesemnat pentru acest eveniment")).toBeInTheDocument();
+  expect(screen.getByText("Așteaptă semnarea de către client")).toBeInTheDocument();
 });
 test("associates an existing signed protocol from the list", async () => {
   const fetchMock = mockData([protocol], [event]);

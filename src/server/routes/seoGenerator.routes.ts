@@ -1,14 +1,21 @@
 import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
-import { readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { CITIES, SERVICES, type CityData } from "../../client/pages/LocationSEO/locationData";
 import { addSitemapEntries, getSitemapEntries } from "../utils/sitemapGenerator";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const LOCATION_DATA_PATH = join(__dirname, "../../client/pages/LocationSEO/locationData.ts");
+// The server bundle lives in dist/server, but generated cities must be persisted
+// in the source file that is used by the next build. In production __dirname
+// would otherwise resolve to dist/client, where locationData.ts does not exist.
+const LOCATION_DATA_RELATIVE_PATH = join("src", "client", "pages", "LocationSEO", "locationData.ts");
+const LOCATION_DATA_PATH = [
+  join(process.cwd(), LOCATION_DATA_RELATIVE_PATH),
+  join(__dirname, "../../client/pages/LocationSEO/locationData.ts"),
+].find(existsSync) ?? join(process.cwd(), LOCATION_DATA_RELATIVE_PATH);
 const SITEMAP_PATH = join(__dirname, "../../../public/sitemap.xml");
 
 const router = Router();

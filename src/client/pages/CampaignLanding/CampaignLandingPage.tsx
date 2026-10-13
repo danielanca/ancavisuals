@@ -16,6 +16,8 @@ import { startingPriceFor } from "../../../shared/pricing/startingPrices";
 import PriceConfigurator, { type DatePick } from "./PriceConfigurator";
 import LazySection from "./LazySection";
 import SectionSkeleton from "./SectionSkeleton";
+import QRMomentsPromo from "./QRMomentsPromo";
+import PhotobookPromo from "./PhotobookPromo";
 import HeroVideo from "./HeroVideo";
 import FreePhotoboothContracts from "./FreePhotoboothContracts";
 import { AboutSummary, AncaVisualsPromo, CampaignPackages, CampaignVideoPlayer, GuideBook, PortfolioParallaxGallery, preloadGroup } from "./lazyParts";
@@ -263,13 +265,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         window.setTimeout(() => {
           setShowLatestContract(true);
           window.setTimeout(() => setLatestContractVisible(true), 20);
-        }, 3000);
+        }, 50_000);
       })
       .catch(() => {});
   }), []);
   useEffect(() => {
     if (!latestContractVisible) return;
-    const timer = window.setTimeout(() => dismissLatestContract(), 10000);
+    const timer = window.setTimeout(() => dismissLatestContract(), 7000);
     return () => window.clearTimeout(timer);
   }, [latestContractVisible]);
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
@@ -362,6 +364,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const trackGuideDownload = () => {
     sendLiveEvent("guide_downloaded", { label: "Ghidul Mirilor", meta: { file: "Ghidul-Mirilor.pdf" } });
     measureOaiq("guide_downloaded", { page_path: `/oferta/${page.slug}` });
+  };
+  const trackQrMomentsInterest = () => {
+    sendLiveEvent("qr_moments_interest", { label: "QR Code Moments", meta: { source: "oferta/olx" } });
+    measureOaiq("qr_moments_interest", { page_path: `/oferta/${page.slug}` });
   };
   const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => {
     measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
@@ -586,7 +592,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {/* ── FILM — same full-bleed look as the hero: a photo, then the clip once it has
           downloaded (only while this section is on screen) ── */}
       {(page.heroClipUrl || galleryImageUrls.length > 1) && (
-        <section className="relative flex min-h-[calc(var(--stable-vh,1vh)*90)] items-end overflow-hidden bg-neutral-950 text-white">
+        <section className="relative flex min-h-[calc(var(--stable-vh,1vh)*30)] items-end overflow-hidden bg-neutral-950 text-white sm:min-h-[calc(var(--stable-vh,1vh)*90)]">
           {(galleryImageUrls[1] || page.heroImageUrl) && (
             <img
               src={galleryImageUrls[1] || page.heroImageUrl}
@@ -598,8 +604,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           )}
           {page.heroClipUrl && <HeroVideo src={page.heroClipUrl} hdSrc={page.heroClipHdUrl} />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-          <div className="relative mx-auto w-full max-w-6xl px-6 pb-16 pt-32 sm:pb-20">
-            <h2 className="max-w-2xl text-3xl font-light leading-tight sm:text-5xl">
+          <div className="relative mx-auto w-full max-w-6xl px-6 pb-8 pt-24 sm:pb-20 sm:pt-32">
+            <h2 className="max-w-2xl text-xl font-light leading-tight sm:text-5xl">
               Momente reale. Așa cum le trăiți.
             </h2>
           </div>
@@ -645,12 +651,12 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {(page.videoUrl || page.heroVideoUrl) && (
         <LazySection height={stableVh(60)} onShow={() => preloadGroup(1)}>
         <section id="film" className="scroll-mt-6 py-20 sm:py-24 border-b border-white/10">
-          <div className="mb-8 px-6 text-center">
+          <div className="mx-auto mb-8 w-full max-w-5xl px-6 text-center">
             <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
             <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
           </div>
           {/* Phones: edge to edge (no padding, corners or border). Desktop: a framed, narrower player — full width was too wide. */}
-          <div className="md:mx-auto md:max-w-5xl md:px-6">
+          <div className="mx-auto w-full max-w-5xl sm:px-6">
           <div className="md:overflow-hidden md:rounded-2xl md:shadow-2xl md:shadow-black/60 md:ring-1 md:ring-white/10">
           {isEmbedVideoUrl(page.videoUrl ?? "") ? (
             <div className="aspect-video w-full bg-black">
@@ -671,6 +677,64 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           </div>
           </div>
         </section>
+        </LazySection>
+      )}
+
+      {/* ── RESURSE GRATUITE — înaintea configuratorului ──────────── */}
+      {WEDDING_GUIDE_SLUGS.has(page.slug) && (
+        <LazySection height={stableVh(70)}>
+          <section className="bg-[#f6f2ea] px-6 py-16 text-[#2f2a24] sm:py-20">
+            <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-14">
+              <GuideBook />
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">PDF gratuit · 15 pagini</p>
+                <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">Ghidul Mirilor</h2>
+                <p className="mt-4 text-base leading-relaxed text-[#5c5348]">
+                  Tot ce ne-ar fi plăcut să știe toți mirii de la început, adunat din zecile de nunți la care am fost alături de cupluri.
+                </p>
+                <ul className="mt-6 grid gap-2.5 text-sm sm:grid-cols-2">
+                  {WEDDING_GUIDE_HIGHLIGHTS.map((item) => (
+                    <li key={item} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f2a24] text-[11px] text-[#f6f2ea]">✓</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href={WEDDING_GUIDE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={trackGuideDownload}
+                  className="mt-8 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2f2a24] px-6 py-4 text-sm font-semibold text-[#f6f2ea] transition-colors hover:bg-black sm:w-auto"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 3v12" />
+                    <path d="m7 10 5 5 5-5" />
+                    <path d="M5 21h14" />
+                  </svg>
+                  Descarcă ghidul gratuit
+                </a>
+                <p className="mt-3 text-xs text-[#5c5348]/80">Fără email, fără înregistrare — se deschide direct.</p>
+              </div>
+            </div>
+          </section>
+        </LazySection>
+      )}
+
+      {page.slug === "olx" && (
+        <LazySection height={stableVh(80)}>
+          <QRMomentsPromo
+            whatsappHref={waLink("Bună! Sunt interesat(ă) de QR Code Moments pentru nunta mea.")}
+            onCta={trackQrMomentsInterest}
+          />
+        </LazySection>
+      )}
+
+      {page.slug === "olx" && (
+        <LazySection height={stableVh(90)}>
+          <PhotobookPromo
+          />
         </LazySection>
       )}
 
@@ -1008,48 +1072,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           </div>
         </div>
       </section>
-
-      {/* ── GHIDUL MIRILOR — PDF gratuit ───────────────────────────── */}
-      {WEDDING_GUIDE_SLUGS.has(page.slug) && (
-        <LazySection height={stableVh(70)}>
-        <section className="bg-[#f6f2ea] px-6 py-16 text-[#2f2a24] sm:py-20">
-          <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-14">
-            <GuideBook />
-
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">PDF gratuit · 15 pagini</p>
-              <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">Ghidul Mirilor</h2>
-              <p className="mt-4 text-base leading-relaxed text-[#5c5348]">
-                Tot ce ne-ar fi plăcut să știe toți mirii de la început, adunat din zecile de nunți la care am fost alături de cupluri.
-              </p>
-              <ul className="mt-6 grid gap-2.5 text-sm sm:grid-cols-2">
-                {WEDDING_GUIDE_HIGHLIGHTS.map((item) => (
-                  <li key={item} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f2a24] text-[11px] text-[#f6f2ea]">✓</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <a
-                href={WEDDING_GUIDE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={trackGuideDownload}
-                className="mt-8 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2f2a24] px-6 py-4 text-sm font-semibold text-[#f6f2ea] transition-colors hover:bg-black sm:w-auto"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 3v12" />
-                  <path d="m7 10 5 5 5-5" />
-                  <path d="M5 21h14" />
-                </svg>
-                Descarcă ghidul gratuit
-              </a>
-              <p className="mt-3 text-xs text-[#5c5348]/80">Fără email, fără înregistrare — se deschide direct.</p>
-            </div>
-          </div>
-        </section>
-        </LazySection>
-      )}
 
       {promoAtPageEnd && <LazySection height={stableVh(100)}><AncaVisualsPromo desktopColumns={4} fallback={<SectionSkeleton height={stableVh(100)} />} /></LazySection>}
 

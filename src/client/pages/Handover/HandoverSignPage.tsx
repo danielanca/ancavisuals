@@ -78,7 +78,6 @@ const HandoverSignPage: React.FC = () => {
         if (res.status === 404) { setPageState("not_found"); return; }
         if (!res.ok) { setPageState("error"); return; }
         setHandover(data);
-        if (data.clientName) setClientName(data.clientName);
         if (data.clientEmail) setClientEmail(data.clientEmail);
         if (data.clientPhone) setClientPhone(data.clientPhone);
         setPageState("ready");
@@ -336,7 +335,7 @@ const HandoverSignPage: React.FC = () => {
         <div style={pg.header}>
           <div style={pg.logoText}>ANCA VISUALS</div>
           <div style={pg.logoSub}>Fotografie & Videografie</div>
-          <h1 style={pg.pageTitle}>Proces Verbal de Predare-Primire a Materialelor</h1>
+          <h1 style={pg.pageTitle}>Proces Verbal de Predare a Materialelor și Preluare a Responsabilității</h1>
         </div>
 
         <Section title="Eveniment">
@@ -345,7 +344,14 @@ const HandoverSignPage: React.FC = () => {
           {handover.clientName && <InfoRow label="Client" value={handover.clientName} />}
         </Section>
 
-        <Section title="Declarație">
+        <div style={pg.responsibilityNote}>
+          <p style={pg.responsibilityNoteTitle}>Ce confirmă acest document</p>
+          <p style={pg.responsibilityNoteText}>
+            Confirmă ce materiale sunt predate, cum ajung la dumneavoastră și momentul de la care preluați responsabilitatea pentru descărcarea, verificarea și păstrarea lor.
+          </p>
+        </div>
+
+        <Section title="Predare și responsabilități">
           <ol style={pg.declList}>
             {includeDigitalLink && (
               <li style={pg.declItem}>
@@ -353,7 +359,7 @@ const HandoverSignPage: React.FC = () => {
                 {handover.digitalLinks && handover.digitalLinks.length > 0 && (
                   <> Materialele digitale predate includ: <strong>{handover.digitalLinks.map((l) => l.label).join(", ")}</strong>.</>
                 )}
-                {" "}Înțeleg că acest link este valabil timp de <strong>{digitalLinkExpiryDays} zile</strong> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.
+                {" "}Înțeleg că acest link este valabil timp de <strong>{digitalLinkExpiryDays} zile</strong> calendaristice de la data prezentei semnături, termen în care <strong>am obligația de a descărca și salva materialele pe un dispozitiv propriu.</strong>
               </li>
             )}
             {includeCourier && (
@@ -375,7 +381,12 @@ const HandoverSignPage: React.FC = () => {
               </li>
             )}
             <li style={pg.declItem}>
-              Am fost informat(ă) că suporturile de stocare portabile (stick USB, card de memorie, hard disk extern) se pot defecta sau pot pierde datele stocate, de regulă după aproximativ <strong>3–4 ani</strong> de utilizare, fără avertisment prealabil. Prin urmare, îmi asum obligația de a realiza copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <strong>două locații diferite</strong> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). Anca Visuals nu poate fi trasă la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.
+              <strong>În cazul în care materialele predate includ un stick USB, am fost informat(ă) că suporturile portabile de stocare se pot defecta sau pot pierde datele stocate, fără avertisment prealabil.</strong>
+              <div style={pg.estimateNote}>
+                <p style={pg.estimateNoteTitle}>Notă privind durata estimată</p>
+                <p style={pg.estimateNoteText}>Din experiența noastră, perioada de <strong>3–4 ani</strong> este doar o estimare orientativă, comunicată cu titlu informativ. Anca Visuals nu asigură și nu garantează că suportul va rezista această perioadă; durata reală poate fi mai scurtă sau mai lungă. Această estimare nu reprezintă o durată garantată și nu constituie termen sau obligație contractuală.</p>
+              </div>
+              Prin urmare, eu, subsemnatul/subsemnata, mă oblig să realizez copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <strong>două locații diferite</strong> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). Anca Visuals nu poate fi trasă la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.
             </li>
           </ol>
         </Section>
@@ -385,9 +396,9 @@ const HandoverSignPage: React.FC = () => {
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
               <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>⚠️</span>
               <div>
-                <p style={pg.backupNoteTitle}>Important: salvați-vă materialele imediat după primire!</p>
+                <p style={pg.backupNoteTitle}>Recomandare: salvați-vă materialele imediat după primire!</p>
                 <p style={pg.backupNoteText}>
-                  Stick-urile USB și alte suporturi portabile <strong>durează în medie 3–4 ani</strong> și se pot defecta oricând, fără avertisment. Nu vă bazați doar pe un singur suport.
+                  Pentru siguranță, păstrați materialele în cel puțin două locații diferite și nu vă bazați pe un singur suport de stocare.
                 </p>
               </div>
             </div>
@@ -418,21 +429,17 @@ const HandoverSignPage: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <Section title="Datele Dumneavoastră">
-            <Field label="Nume și prenume *" error={fieldErrors.clientName}>
-              <input style={{ ...pg.input, ...(fieldErrors.clientName ? pg.inputErr : {}) }}
-                type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
-                placeholder="Ex: Popescu Ion" autoComplete="name" />
-            </Field>
-            <Field label="Telefon *" error={fieldErrors.clientPhone}>
-              <input style={{ ...pg.input, ...(fieldErrors.clientPhone ? pg.inputErr : {}) }}
-                type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
-                placeholder="Ex: 07xx xxx xxx" autoComplete="tel" />
-            </Field>
-            <Field label="Email *" error={fieldErrors.clientEmail}>
+          <Section title="Email pentru trimiterea materialelor">
+            <Field label="Adresa de email la care doriți să primiți materialele *" error={fieldErrors.clientEmail}>
               <input style={{ ...pg.input, ...(fieldErrors.clientEmail ? pg.inputErr : {}) }}
                 type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="Ex: maria@email.com" autoComplete="email" />
+              <p style={{ fontSize: 12, color: "#166534", lineHeight: 1.5, marginTop: 6 }}>
+                Folosim această adresă pentru a vă trimite linkul către materialele digitale, copia PDF a procesului verbal și eventualele comunicări legate de predare.
+              </p>
+              <p style={{ fontSize: 12, color: "#b42318", fontWeight: 700, lineHeight: 1.5, marginTop: 8, background: "#fff3f3", border: "1px solid #f3b5b5", borderRadius: 6, padding: "10px 12px" }}>
+                După semnare, verificați atât Inbox, cât și Spam/Junk. Emailul ajunge de regulă în 2–3 minute. Dacă nu îl primiți în maximum 24 de ore, vă rugăm să ne anunțați imediat.
+              </p>
             </Field>
           </Section>
 
@@ -470,7 +477,17 @@ const HandoverSignPage: React.FC = () => {
           </div>
           {fieldErrors.termsAcknowledged && <p style={{ ...pg.errText, padding: "0 28px 8px" }}>{fieldErrors.termsAcknowledged}</p>}
 
-          <Section title="Semnătura">
+          <Section title="Datele semnatarului și semnătura">
+            <Field label="Numele complet al persoanei care semnează *" error={fieldErrors.clientName}>
+              <input style={{ ...pg.input, ...(fieldErrors.clientName ? pg.inputErr : {}) }}
+                type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
+                placeholder="Ex: Popescu Ion" autoComplete="name" />
+            </Field>
+            <Field label="Telefon *" error={fieldErrors.clientPhone}>
+              <input style={{ ...pg.input, ...(fieldErrors.clientPhone ? pg.inputErr : {}) }}
+                type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
+                placeholder="Ex: 07xx xxx xxx" autoComplete="tel" />
+            </Field>
             <p style={pg.signHelp}>Semnați mai jos folosind mouse-ul sau degetul.</p>
             <canvas
               ref={canvasRef}
@@ -536,6 +553,12 @@ const pg: Record<string, React.CSSProperties> = {
   declList: { margin: 0, paddingLeft: 20 },
   declItem: { fontSize: 13, color: "#333", lineHeight: 1.7, marginBottom: 10 },
   backupNote: { background: "#fffbf0", border: "1.5px solid #e8c840", borderRadius: 8, padding: "16px 18px" },
+  responsibilityNote: { margin: "18px 28px 0", padding: "14px 16px", background: "#f7f3eb", borderLeft: "3px solid #c9a96e", borderRadius: 4 },
+  responsibilityNoteTitle: { fontWeight: 700, fontSize: 13, color: "#1a1a1a", margin: "0 0 5px" },
+  responsibilityNoteText: { fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 },
+  estimateNote: { margin: "12px 0", padding: "12px 14px", background: "#fffaf0", border: "1px solid #e8d39b", borderLeft: "3px solid #c9a96e", borderRadius: 6 },
+  estimateNoteTitle: { fontWeight: 700, fontSize: 12, color: "#5f4a22", margin: "0 0 4px" },
+  estimateNoteText: { fontSize: 12, color: "#5f5a50", lineHeight: 1.6, margin: 0 },
   backupNoteTitle: { fontWeight: 700, fontSize: 13, color: "#1a1a1a", marginBottom: 5 },
   backupNoteText: { fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 },
   backupToggle: { fontSize: 12, color: "#c9a96e", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", letterSpacing: 0.3 },

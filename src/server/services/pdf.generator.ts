@@ -366,6 +366,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       title: "Responsabilitatea beneficiarului privind stocarea materialelor",
       body: `
         <p>BENEFICIARUL este responsabil de efectuarea unui <span class="bold">back-up</span> (copie de rezervă a fișierelor, stocată pe un dispozitiv propriu sau pe un serviciu de stocare în cloud) al tuturor materialelor — fotografii și/sau materiale video — primite de la PRESTATOR.</p>
+        <p>În cazul în care materialele sunt transmise prin link digital, BENEFICIARUL se obligă să verifice atât Inbox, cât și folderul Spam/Junk al adresei de email indicate. Linkul ajunge, de regulă, în termen de <span class="bold">2–3 minute</span> de la trimitere. Dacă linkul nu este primit în maximum <span class="bold">24 de ore</span>, BENEFICIARUL se obligă să anunțe imediat PRESTATORUL.</p>
         <p>PRESTATORUL nu poate fi tras la răspundere pentru pierderea, deteriorarea sau indisponibilitatea materialelor după livrarea acestora, indiferent de cauza producerii acestora, inclusiv ca urmare a trecerii timpului, defecțiunilor tehnice sau expirării platformei de livrare.</p>
       `,
     },
@@ -588,7 +589,7 @@ export function buildHandoverHTML(handover: Record<string, unknown>): string {
 
   const declClauses: string[] = [];
   if (includeDigitalLink) {
-    declClauses.push(`Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <span class="bold">imediat după semnarea prezentului document</span>, nu înainte.${digitalLinkLabels.length ? ` Materialele digitale predate includ: <span class="bold">${esc(digitalLinkLabels.join(", "))}</span>.` : ""} Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care am obligația de a descărca și salva materialele pe un dispozitiv propriu.`);
+    declClauses.push(`Am fost informat(ă) și sunt de acord că linkul de acces digital către materialele foto/video rezultate în urma evenimentului îmi va fi trimis pe adresa de email indicată <span class="bold">imediat după semnarea prezentului document</span>, nu înainte.${digitalLinkLabels.length ? ` Materialele digitale predate includ: <span class="bold">${esc(digitalLinkLabels.join(", "))}</span>.` : ""} Înțeleg că acest link este valabil timp de <span class="bold">${digitalLinkExpiryDays} zile</span> calendaristice de la data prezentei semnături, termen în care <span class="bold">am obligația de a descărca și salva materialele pe un dispozitiv propriu.</span>`);
   }
   if (includeCourier) {
     declClauses.push(`Am luat la cunoștință faptul că materialele fizice (albumul și/sau alte suporturi), aferente pachetului contractat, urmează să fie livrate prin curier în termen de maximum <span class="bold">${courierDeliveryDays} zile</span> calendaristice de la data prezentei semnături.${awb ? ` Coletul are numărul de tracking (AWB) <span class="bold">${esc(awb)}</span>, pe baza căruia poate fi urmărit statusul livrării pe site-ul curierului.` : ""}`);
@@ -602,7 +603,7 @@ export function buildHandoverHTML(handover: Record<string, unknown>): string {
       : "predării materialelor fizice, conform prezentului document";
     declClauses.push(`Înțeleg că, de la data ${startMoment}, am la dispoziție un termen de <span class="bold">${materialsReportWindowDays} zile</span> calendaristice pentru a verifica integritatea acestora și a semnala în scris eventuale neconformități, deteriorări sau lipsuri constatate. În lipsa unei sesizări în acest interval, materialele fizice se consideră acceptate ca fiind conforme.`);
   }
-  declClauses.push(`Am fost informat(ă) că suporturile de stocare portabile (stick USB, card de memorie, hard disk extern) se pot defecta sau pot pierde datele stocate, de regulă după aproximativ <span class="bold">3–4 ani</span> de utilizare, fără avertisment prealabil. Prin urmare, îmi asum obligația de a realiza copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <span class="bold">două locații diferite</span> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). PRESTATORUL nu poate fi tras la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.`);
+  declClauses.push(`<span class="bold">În cazul în care materialele predate includ un stick USB, am fost informat(ă) că suporturile portabile de stocare se pot defecta sau pot pierde datele stocate, fără avertisment prealabil.</span><div class="estimate-note"><div class="estimate-note-title">Notă privind durata estimată</div><div>Din experiența noastră, perioada de <span class="bold">3–4 ani</span> este doar o estimare orientativă, comunicată cu titlu informativ. Anca Visuals nu asigură și nu garantează că suportul va rezista această perioadă; durata reală poate fi mai scurtă sau mai lungă. Această estimare nu reprezintă o durată garantată și nu constituie termen sau obligație contractuală.</div></div>Prin urmare, eu, subsemnatul/subsemnata, mă oblig să realizez copii de rezervă (back-up) ale tuturor materialelor primite, în cel puțin <span class="bold">două locații diferite</span> (de exemplu: calculator personal, hard disk extern, serviciu de stocare în cloud). PRESTATORUL nu poate fi tras la răspundere pentru pierderea sau deteriorarea materialelor după predarea acestora.`);
   const declListHtml = declClauses.map((c) => `<li>${c}</li>`).join("\n");
 
   const html = `<!DOCTYPE html>
@@ -626,6 +627,8 @@ export function buildHandoverHTML(handover: Record<string, unknown>): string {
   p { margin: 6px 0; }
   ol { padding-left: 20px; margin: 10px 0; }
   li { margin: 8px 0; }
+  .estimate-note { margin: 12px 0; padding: 10px 12px; background: #fffaf0; border: 1px solid #e8d39b; border-left: 3px solid #c9a96e; border-radius: 5px; font-size: 9.5pt; color: #5f5a50; line-height: 1.55; }
+  .estimate-note-title { font-weight: 700; color: #5f4a22; margin-bottom: 3px; }
   .sig-row { display: flex; gap: 60px; margin-top: 40px; }
   .sig-box { flex: 1; }
   .sig-label { font-size: 9pt; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; font-weight: 700; }
@@ -657,8 +660,8 @@ ${declListHtml}
       ? `<img src="${handover.clientSignatureBase64}" style="max-width:220px;max-height:50px;display:block;margin-bottom:6px;" alt="Semnatura" />`
       : `<div style="height:50px;border-bottom:1px solid #333;margin-bottom:6px;"></div>`}
     <div class="sig-name">${esc(handover.clientName as string || "")}</div>
-    ${handover.clientPhone || handover.clientEmail
-      ? `<div class="sig-date">${esc([handover.clientPhone as string, handover.clientEmail as string].filter(Boolean).join(" • "))}</div>`
+    ${handover.clientPhone
+      ? `<div class="sig-date">${esc(handover.clientPhone as string)}</div>`
       : ""}
     <div class="sig-date">${signedDate}</div>
   </div>

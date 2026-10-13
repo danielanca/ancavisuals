@@ -122,7 +122,7 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
           aria-label={started ? "Continuă videoclipul" : "Pornește videoclipul"}
           // The whole video, under the bar (no hard edge above it); the bottom padding keeps the
           // button centred in the picture above the bar.
-          className={`group absolute inset-0 flex flex-col items-center justify-center gap-4 pb-12 sm:pb-14 ${started ? "bg-black/20" : "bg-black/25"}`}
+          className={`group absolute inset-0 flex flex-col items-center justify-center gap-4 ${started ? "bg-black/20" : "bg-black/25"}`}
         >
           <BigPlay />
           {!started && (
@@ -133,28 +133,30 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
         </button>
       )}
 
-      {/* Always on screen, phone and desktop. */}
-      <div
-        className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-1.5 px-2 pb-1.5 pt-10 text-white sm:gap-3 sm:px-4 sm:pb-3 sm:pt-16"
-        // A long, soft fade (no visible top edge) so the controls read on bright footage too.
-        style={{ background: "linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.45) 40%, rgba(0,0,0,.15) 75%, rgba(0,0,0,0) 100%)" }}
-      >
-        <ControlButton label={playing ? "Pauză" : "Play"} onClick={togglePlay} d={playing ? ICONS.pause : ICONS.play} />
-        <ControlButton label={muted ? "Pornește sunetul" : "Oprește sunetul"} onClick={toggleMute} d={muted ? ICONS.soundOff : ICONS.soundOn} />
-        <input
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.1}
-          value={time}
-          onChange={(e) => seek(Number(e.target.value))}
-          aria-label="Poziția în videoclip"
-          className="cvp-range mx-1 min-w-0 flex-1"
-          style={{ "--cvp-progress": progress } as React.CSSProperties}
-        />
-        <span className="shrink-0 text-[11px] tabular-nums text-white/85 sm:text-xs">{formatTime(time)} / {formatTime(duration)}</span>
-        <ControlButton label="Ecran complet" onClick={fullscreen} d={ICONS.fullscreen} />
-      </div>
+      {/* After the first play: keep the controls available when paused or playing. */}
+      {started && (
+        <div
+          className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-1.5 px-2 pb-1.5 pt-10 text-white sm:gap-3 sm:px-4 sm:pb-3 sm:pt-16"
+          // A long, soft fade (no visible top edge) so the controls read on bright footage too.
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.45) 40%, rgba(0,0,0,.15) 75%, rgba(0,0,0,0) 100%)" }}
+        >
+          <ControlButton label={playing ? "Pauză" : "Play"} onClick={togglePlay} d={playing ? ICONS.pause : ICONS.play} />
+          <ControlButton label={muted ? "Pornește sunetul" : "Oprește sunetul"} onClick={toggleMute} d={muted ? ICONS.soundOff : ICONS.soundOn} />
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={time}
+            onChange={(e) => seek(Number(e.target.value))}
+            aria-label="Poziția în videoclip"
+            className="cvp-range mx-1 min-w-0 flex-1"
+            style={{ "--cvp-progress": progress } as React.CSSProperties}
+          />
+          <span className="shrink-0 text-[11px] tabular-nums text-white/85 sm:text-xs">{formatTime(time)} / {formatTime(duration)}</span>
+          <ControlButton label="Ecran complet" onClick={fullscreen} d={ICONS.fullscreen} />
+        </div>
+      )}
     </div>
   );
 }

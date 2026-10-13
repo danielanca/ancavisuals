@@ -188,7 +188,7 @@ const ContractClauseLibraryPage: React.FC = () => {
   async function handleSeed() {
     setSeeding(true);
     try {
-      const res = await fetch("/api/admin/contract-clause-templates/seed-defaults", { method: "POST", headers: authHeader });
+      const res = await fetch("/api/admin/contract-clause-templates/seed-defaults?sync=true", { method: "POST", headers: authHeader });
       const data = await res.json();
       if (data.skipped) alert(data.message ?? "Biblioteca are deja clauze.");
       load();
@@ -265,6 +265,9 @@ const ContractClauseLibraryPage: React.FC = () => {
             </button>
             <button onClick={() => setShowLegend((v) => !v)} className="px-3 py-1.5 text-xs text-neutral-400 border border-neutral-800 rounded-lg hover:border-neutral-600 transition-colors">
               {showLegend ? "Ascunde token-uri" : "Token-uri disponibile"}
+            </button>
+            <button onClick={handleSeed} disabled={seeding} className="px-3 py-1.5 text-xs text-emerald-400 border border-emerald-500/30 rounded-lg hover:border-emerald-400 transition-colors disabled:opacity-50">
+              {seeding ? "Se actualizează..." : "Actualizează clauzele standard"}
             </button>
           </div>
         </div>

@@ -27,6 +27,48 @@ const emptyPost: BlogPost = {
   source: "firestore",
 };
 
+function BlogLoadingState() {
+  return (
+    <div className="min-h-screen bg-neutral-950 px-4 py-6 text-white sm:px-6 lg:px-8" role="status" aria-live="polite" aria-label="Se încarcă administrarea blogului">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1500px] items-center justify-center">
+        <div className="relative w-full overflow-hidden rounded-[2rem] border border-neutral-800 bg-neutral-900/70 p-6 shadow-2xl shadow-amber-950/10 sm:p-10">
+          <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-amber-300/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-violet-400/10 blur-3xl" />
+          <div className="relative">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-300/30 bg-amber-300/10 text-3xl shadow-lg shadow-amber-950/20">
+                ✦
+              </div>
+              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-amber-300/70">Marketing & Web</p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Pregătim spațiul blogului</h1>
+              <p className="mt-2 text-sm text-neutral-500">Încărcăm articolele, statisticile și instrumentele de publicare.</p>
+              <div className="mt-6 flex items-center gap-2" aria-hidden="true">
+                {[0, 1, 2].map((index) => <span key={index} className="h-2 w-2 animate-bounce rounded-full bg-amber-300" style={{ animationDelay: `${index * 140}ms` }} />)}
+              </div>
+            </div>
+
+            <div className="mt-10 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+              <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div className="h-3 w-24 animate-pulse rounded bg-neutral-800" />
+                {["w-full", "w-4/5", "w-full", "w-3/5", "w-11/12"].map((width, index) => <div key={index} className={`h-14 ${width} animate-pulse rounded-xl border border-neutral-800 bg-neutral-900`} />)}
+              </div>
+              <div className="space-y-5 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-2"><div className="h-3 w-24 animate-pulse rounded bg-neutral-800" /><div className="h-6 w-56 animate-pulse rounded bg-neutral-800" /></div>
+                  <div className="h-9 w-28 animate-pulse rounded-xl bg-neutral-800" />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2"><div className="h-11 animate-pulse rounded-xl bg-neutral-900" /><div className="h-11 animate-pulse rounded-xl bg-neutral-900" /></div>
+                <div className="h-28 animate-pulse rounded-xl bg-neutral-900" />
+                <div className="h-40 animate-pulse rounded-xl bg-neutral-900" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BlogAdminPage() {
   const { auth } = useAuth();
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -205,6 +247,8 @@ export default function BlogAdminPage() {
   const inputClass = "mt-1.5 w-full rounded-xl border border-neutral-700 bg-neutral-950/70 px-3.5 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-neutral-600 focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:opacity-50";
   const labelClass = "text-xs font-medium uppercase tracking-wide text-neutral-500";
 
+  if (loading) return <BlogLoadingState />;
+
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-6 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1500px] space-y-6">
@@ -287,7 +331,7 @@ export default function BlogAdminPage() {
             </select>
           </div>
           <div className="max-h-[55vh] overflow-y-auto p-2 lg:max-h-[calc(100vh-365px)]">
-            {loading ? <p className="p-3 text-sm text-neutral-500">Se încarcă…</p> : visiblePosts.length === 0 ? <p className="p-5 text-center text-sm text-neutral-600">Nu există articole pentru acest filtru.</p> : Array.from(new Set(visiblePosts.map((post) => post.category?.trim() || "Fără categorie"))).sort((first, second) => first.localeCompare(second, "ro")).map((category) => {
+            {visiblePosts.length === 0 ? <p className="p-5 text-center text-sm text-neutral-600">Nu există articole pentru acest filtru.</p> : Array.from(new Set(visiblePosts.map((post) => post.category?.trim() || "Fără categorie"))).sort((first, second) => first.localeCompare(second, "ro")).map((category) => {
               const categoryPosts = visiblePosts.filter((post) => (post.category?.trim() || "Fără categorie") === category).sort((first, second) => (viewCounts[second.slug] ?? 0) - (viewCounts[first.slug] ?? 0));
               const isCollapsed = collapsedCategories[category] === true;
               return <div key={category} className="mb-2 overflow-hidden rounded-xl border border-neutral-800">

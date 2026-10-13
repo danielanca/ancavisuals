@@ -22,13 +22,6 @@ const STYLES = `
     0%, 100% { transform: translateY(0) rotate(-2deg); }
     50% { transform: translateY(-8px) rotate(-1deg); }
   }
-  /* Phones/tablets: the book stays shut and does a full 3D turn every 6s. 360deg = 0deg, so the loop is seamless. */
-  @keyframes guideBookSpin {
-    0% { transform: translateY(0) rotate(-2deg) rotateY(0deg); }
-    12% { transform: translateY(-6px) rotate(-2deg) rotateY(-12deg); }
-    32% { transform: translateY(-12px) rotate(0deg) rotateY(360deg); }
-    40%, 100% { transform: translateY(0) rotate(-2deg) rotateY(360deg); }
-  }
   .guide-book { perspective: 1400px; }
   .guide-book__body {
     position: relative; transform-style: preserve-3d;
@@ -44,7 +37,10 @@ const STYLES = `
   /* Pushed just behind the cover so a full turn shows the inside cover as the back, not the page. */
   .guide-book__page { transform: translateZ(-2px); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   @media (max-width: 1024px), (hover: none), (pointer: coarse) {
-    .guide-book__body { animation: guideBookSpin 6s cubic-bezier(.45,.05,.25,1) infinite; }
+    /* Mobile/tablet: keep the decorative book closed — do not reveal the contents. */
+    .guide-book__body, .guide-book--open .guide-book__body { animation: none !important; transform: translateY(0) rotate(-2deg) !important; }
+    .guide-book--open .guide-book__cover { transform: rotateY(0deg) !important; }
+    .guide-book--open .guide-book__page li { opacity: 0; transform: translateX(-6px); }
   }
   .guide-book__face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   .guide-book__inside { transform: rotateY(180deg); }

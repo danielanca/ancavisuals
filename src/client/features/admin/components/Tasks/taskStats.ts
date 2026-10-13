@@ -18,6 +18,8 @@ export function priorityRank(priority: TaskPriority): number {
 export interface ClientTask {
   id: string;
   title: string;
+  /** Descriere rich-text, păstrată ca HTML. */
+  description: string;
   notes: string;
   clientName: string;
   eventId: string | null;
