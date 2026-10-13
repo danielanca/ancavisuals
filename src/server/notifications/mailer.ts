@@ -4,6 +4,7 @@ import { canRetryEmail, describeEmailError, recordEmailDelivery, raiseEmailAlert
 import { logEmail, updateEmailLog } from "../services/emailLog.service";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { emailAuth } from "../constants/credentials";
+import { appendEmailFooters } from "./emailMarketingFooter";
 
 // Paid Zoho Workplace/Mail plans serve SMTP from smtppro.zoho.eu (not
 // smtp.zoho.eu, which is what the free plan's docs point to) — see the
@@ -69,23 +70,6 @@ interface SendEmailOptions {
   leadId?: string;
 }
 
-const CONTACT_EMAIL = "info@ancavisuals.ro";
-const CONTACT_WHATSAPP_URL = "https://wa.me/40745469907";
-
-const CONTACT_FOOTER = `
-  <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e5e5;font-family:sans-serif;font-size:13px;color:#666;">
-    Ne puteți contacta prin email la <a href="mailto:${CONTACT_EMAIL}" style="color:#666;">${CONTACT_EMAIL}</a>
-    sau prin <a href="${CONTACT_WHATSAPP_URL}" style="color:#666;">WhatsApp</a>.
-  </div>
-`;
-
-function wrapHtml(html: string): string {
-  // Already a full document (e.g. a pre-built report) — leave it as-is,
-  // rather than injecting the footer into markup we don't control.
-  if (html.trimStart().startsWith("<!DOCTYPE")) return html;
-  return `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"></head><body>${html}${CONTACT_FOOTER}</body></html>`;
-}
-
 // Display name shown in the recipient's inbox — without it, mail clients
 // fall back to the local part of the address ("info") as the sender name.
 const SENDER_DISPLAY_NAME = "AncaVisuals";
@@ -102,7 +86,7 @@ export async function sendEmail({ to, subject, html, from, source, leadId }: Sen
     await recordEmailDelivery(id, { attempts: attempt });
     let info: SMTPTransport.SentMessageInfo;
     try {
-      info = await activeTransport.sendMail({ from: activeFrom, to, subject, html: wrapHtml(html) });
+      info = await activeTransport.sendMail({ from: activeFrom, to, subject, html: await appendEmailFooters(html, to) });
     } catch (error) {
       await raiseEmailAlert({ id: randomUUID(), error: describeEmailError(error), diagnostic: emailErrorDiagnostic(error), subject, to });
       if (canRetryEmail(error) && attempt < 3) {

@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import useAuth from "../auth/useAuth";
+import { watchAlbumProcessing } from "./watchAlbumProcessing";
 
 interface AlbumHealth {
   slug: string;
@@ -15,6 +16,7 @@ interface AlbumHealth {
 }
 
 interface JobState {
+  reconnecting?: boolean;
   status: "running" | "done" | "error";
   log: string[];
   progress: { done: number; total: number };
@@ -90,55 +92,23 @@ export default function AlbumHealthPage() {
     // cleanup any existing connection for this slug
     liveCleanups.current[slug]?.();
 
-    let stopped = false;
-    const controller = new AbortController();
-
-    const connect = async () => {
-      try {
-        const res = await fetch(`/api/admin/album-health/${encodeURIComponent(slug)}/live`, {
-          headers: { Authorization: `Bearer ${auth.accessToken}` },
-          signal: controller.signal,
-        });
-        if (!res.body) return;
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (!stopped) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const event = JSON.parse(line.slice(6)) as Record<string, unknown>;
-              handleLiveEvent(slug, event);
-            } catch {}
-          }
-        }
-      } catch (err) {
-        if (!stopped) {
-          setJobStates((prev) => {
-            const current = prev[slug];
-            if (!current || current.status !== "running") return prev;
-            return { ...prev, [slug]: { ...current, status: "error", error: String(err) } };
-          });
-        }
-      }
-    };
-
-    connect();
-
-    const cleanup = () => { stopped = true; controller.abort(); };
+    const cleanup = watchAlbumProcessing(slug, () => auth.user ? auth.user.getIdToken() : Promise.resolve(auth.accessToken),
+      event => handleLiveEvent(slug, event),
+      reconnecting => setJobStates(prev => {
+        const current = prev[slug];
+        return current ? { ...prev, [slug]: { ...current, reconnecting } } : prev;
+      }),
+    );
     liveCleanups.current[slug] = cleanup;
     return cleanup;
   }, [auth.accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLiveEvent = (slug: string, event: Record<string, unknown>) => {
+    if (event.type === "done" || (event.type === "init" && event.status === "done")) {
+      setAlbums(albums => albums.map(album => album.slug === slug
+        ? { ...album, withPreview: album.total, missing: 0, missingFiles: [], coverage: 100, hasPreviewFolder: true }
+        : album));
+    }
     setJobStates((prev) => {
       const current = prev[slug] ?? { status: "running", log: [], progress: { done: 0, total: 0 }, initialWithPreview: 0 };
 
@@ -161,9 +131,6 @@ export default function AlbumHealthPage() {
         return { ...prev, [slug]: { ...current, progress: { done: event.done as number, total: event.total as number } } };
       }
       if (event.type === "done") {
-        setAlbums((albums) => albums.map((a) =>
-          a.slug === slug ? { ...a, withPreview: a.total, missing: 0, missingFiles: [], coverage: 100, hasPreviewFolder: true } : a
-        ));
         return { ...prev, [slug]: { ...current, status: "done" } };
       }
       if (event.type === "error") {
@@ -761,6 +728,9 @@ function AlbumRow({ album, job, detailsOpen, onToggleDetails, onProcess, onRetry
           </div>
         </div>
       )}
+
+      {job?.reconnecting && <p role="status" className="mt-3 text-xs text-amber-300">Conexiunea la progres s-a întrerupt. Reconectare automată… Procesarea pe server este independentă de această pagină.</p>}
+      {isRunning && <p className="mt-2 text-xs text-neutral-500">Poți închide pagina. Primești email la finalizare sau la probleme de procesare.</p>}
 
       {job && job.log.length > 0 && (
         <div className="mt-3 pt-3 border-t border-neutral-800">

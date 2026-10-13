@@ -92,9 +92,9 @@ async function loadRouter() {
     requireSupremeAdmin: (_req: any, _res: any, next: () => void) => next(),
   }));
 
-  vi.doMock("src/server/notifications/mailer", () => ({
-    sendEmail: vi.fn().mockResolvedValue(undefined),
-  }));
+  const sendEmailMock = vi.fn().mockResolvedValue(undefined);
+  vi.doMock("src/server/notifications/mailer", () => ({ sendEmail: sendEmailMock }));
+  vi.doMock("src/server/constants/credentials", () => ({ adminUser: { email: "configured-admin@test.ro" } }));
 
   vi.doMock("src/server/firestore", () => ({
     firestore: () => ({ collection: collectionMock }),
@@ -162,6 +162,7 @@ async function loadRouter() {
 
   vi.doMock("sharp", () => ({
     default: vi.fn(() => ({
+      timeout: vi.fn().mockReturnThis(),
       resize: vi.fn().mockReturnThis(),
       webp: vi.fn().mockReturnThis(),
       toBuffer: vi.fn().mockResolvedValue(Buffer.from("webp")),
@@ -171,6 +172,13 @@ async function loadRouter() {
   const nodeFetchMock = vi.fn();
   vi.doMock("node-fetch", () => ({ default: nodeFetchMock }));
 
+  const uploadNotifications = {
+    beginAlbumUpload: vi.fn().mockResolvedValue("11111111-1111-1111-1111-111111111111"),
+    recordAlbumUploadSuccess: vi.fn().mockResolvedValue(undefined),
+    touchAlbumUpload: vi.fn().mockResolvedValue(undefined),
+    notifyIncompleteAlbumUpload: vi.fn().mockResolvedValue(true),
+  };
+  vi.doMock("src/server/services/albumUploadNotifications", () => uploadNotifications);
   const module = await import("src/server/routes/adminEvents.routes");
   const router = module.default as any;
 
@@ -217,6 +225,10 @@ async function loadRouter() {
     postExtractFromImage: getHandler("post", "/leads/extract-from-image"),
     postCreateAlbum: getHandler("post", "/events/:id/create-album"),
     postUploadPhoto: getHandler("post", "/events/:id/upload-photo"),
+    postUploadPreview: getHandler("post", "/events/:id/upload-photo-preview"),
+    postUploadSession: getHandler("post", "/events/:id/upload-session"),
+    updateUploadSession: getHandler("post", "/events/:id/upload-session/:sessionId"),
+    uploadNotifications,
     postPhotoboothFolder: getHandler("post", "/events/:id/photobooth-folder"),
     postPhotoboothUpload: getHandler("post", "/events/:id/photobooth-upload"),
     getPhotoboothFiles: getHandler("get", "/events/:id/photobooth-files"),
@@ -228,6 +240,10 @@ async function loadRouter() {
     putAlbumHealthCategories: getHandler("put", "/album-health/categories"),
     postAlbumHealthProcess: getHandler("post", "/album-health/:slug/process"),
     nodeFetchMock,
+    sendEmailMock,
+    getDurableJobMock,
+    processing: await import("src/server/services/albumProcessingJobs"),
+    getAlbumLive: getHandler("get", "/album-health/:slug/live"),
   };
 }
 
@@ -910,6 +926,45 @@ describe("adminEvents routes", () => {
     });
   });
 
+  describe("album upload monitoring routes", () => {
+    test("registers a sanitized manifest before uploading", async () => {
+      const { postUploadSession, uploadNotifications } = await loadRouter();
+      const res = createMockResponse();
+      await postUploadSession({ params: { id: "ev-1" }, body: { files: ["DSC 001.jpg", "two.png"] } }, res);
+      expect(uploadNotifications.beginAlbumUpload).toHaveBeenCalledWith("ev-1", "nunta-ion-maria", ["DSC_001.jpg", "two.png"]);
+      expect(res.json).toHaveBeenCalledWith({ ok: true, sessionId: "11111111-1111-1111-1111-111111111111" });
+    });
+    test("rejects invalid, excessive and duplicate manifests", async () => {
+      const { postUploadSession, uploadNotifications } = await loadRouter();
+      for (const files of [[], ["file.exe"], ["one.jpg", "one.jpg"], Array(3001).fill("one.jpg")]) {
+        const res = createMockResponse();
+        await postUploadSession({ params: { id: "ev-1" }, body: { files } }, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+      }
+      expect(uploadNotifications.beginAlbumUpload).not.toHaveBeenCalled();
+    });
+    test("acknowledges a durable final report even if immediate SMTP delivery fails", async () => {
+      const { updateUploadSession, uploadNotifications } = await loadRouter();
+      uploadNotifications.notifyIncompleteAlbumUpload.mockRejectedValueOnce(new Error("SMTP down"));
+      const res = createMockResponse();
+      await updateUploadSession({ params: { id: "ev-1", sessionId: "session" }, body: { action: "finish" } }, res);
+      expect(uploadNotifications.touchAlbumUpload).toHaveBeenCalledWith("session", "ev-1", true);
+      expect(res.json).toHaveBeenCalledWith({ ok: true });
+    });
+    test("heartbeat does not send email", async () => {
+      const { updateUploadSession, uploadNotifications } = await loadRouter();
+      await updateUploadSession({ params: { id: "ev-1", sessionId: "session" }, body: { action: "heartbeat" } }, createMockResponse());
+      expect(uploadNotifications.touchAlbumUpload).toHaveBeenCalledWith("session", "ev-1", false);
+      expect(uploadNotifications.notifyIncompleteAlbumUpload).not.toHaveBeenCalled();
+    });
+    test("records successful originals on the server", async () => {
+      const { postUploadPhoto, uploadNotifications, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValue({ ok: true });
+      await postUploadPhoto({ params: { id: "ev-1" }, query: { name: "DSC 001.jpg" }, headers: { "x-album-upload-session": "session" } }, createMockResponse());
+      expect(uploadNotifications.recordAlbumUploadSuccess).toHaveBeenCalledWith("session", "ev-1", "DSC_001.jpg");
+    });
+  });
+
   // ───────────────── POST /events/:id/upload-photo ─────────────────
   describe("POST /events/:id/upload-photo", () => {
     const makeReq = (over: Record<string, unknown> = {}) => ({
@@ -951,7 +1006,7 @@ describe("adminEvents routes", () => {
 
     test("streams the file to Bunny photos/ and returns the sanitized name", async () => {
       const { postUploadPhoto, nodeFetchMock } = await loadRouter();
-      nodeFetchMock.mockResolvedValueOnce({ ok: true });
+      nodeFetchMock.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: true });
       const res = createMockResponse();
       await postUploadPhoto(makeReq({ query: { name: "my album/DSC 0007.JPG" } }), res);
       const [url, opts] = nodeFetchMock.mock.calls[0];
@@ -961,12 +1016,80 @@ describe("adminEvents routes", () => {
       expect(res.json).toHaveBeenCalledWith({ ok: true, name: "DSC_0007.JPG" });
     });
 
+    test("removes an obsolete preview after replacing an original", async () => {
+      const { postUploadPhoto, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, status: 404 });
+      const res = createMockResponse();
+      await postUploadPhoto(makeReq(), res);
+      expect(nodeFetchMock.mock.calls[1][0]).toContain("/photos_preview/Picture-0001.webp");
+      expect(nodeFetchMock.mock.calls[1][1].method).toBe("DELETE");
+      expect(res.json).toHaveBeenCalledWith({ ok: true, name: "Picture-0001.jpg" });
+    });
+    test("does not report success if removing the obsolete preview fails", async () => {
+      const { postUploadPhoto, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, status: 500 });
+      const res = createMockResponse();
+      await postUploadPhoto(makeReq(), res);
+      expect(res.status).toHaveBeenCalledWith(502);
+    });
     test("returns 502 when Bunny rejects the upload", async () => {
       const { postUploadPhoto, nodeFetchMock } = await loadRouter();
       nodeFetchMock.mockResolvedValueOnce({ ok: false, status: 507, text: async () => "insufficient storage" });
       const res = createMockResponse();
       await postUploadPhoto(makeReq(), res);
       expect(res.status).toHaveBeenCalledWith(502);
+    });
+  });
+
+  describe("POST /events/:id/upload-photo-preview", () => {
+    const webp = () => {
+      const body = Buffer.alloc(30);
+      body.write("RIFF", 0); body.writeUInt32LE(22, 4);
+      body.write("WEBP", 8); body.write("VP8X", 12);
+      return body;
+    };
+    const request = (over = {}) => ({ params: { id: "ev-1" }, query: { name: "DSC 0007.JPG" }, body: webp(), ...over });
+
+    test("validates WebP bytes before contacting Bunny", async () => {
+      const { postUploadPreview, nodeFetchMock } = await loadRouter();
+      const res = createMockResponse();
+      await postUploadPreview(request({ body: Buffer.from("fake webp") }), res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(nodeFetchMock).not.toHaveBeenCalled();
+    });
+    test("requires the original to exist and uploads under its sanitized basename", async () => {
+      const { postUploadPreview, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValue({ ok: true });
+      const req = request();
+      const res = createMockResponse();
+      await postUploadPreview(req, res);
+      expect(nodeFetchMock.mock.calls[0][0]).toContain("/photos/DSC_0007.JPG");
+      expect(nodeFetchMock.mock.calls[0][1].method).toBe("HEAD");
+      expect(nodeFetchMock.mock.calls[1][0]).toContain("/photos_preview/DSC_0007.webp");
+      expect(nodeFetchMock.mock.calls[1][1].body).toBe(req.body);
+      expect(res.json).toHaveBeenCalledWith({ ok: true, name: "DSC_0007.webp" });
+    });
+    test("does not upload a preview when the original is absent", async () => {
+      const { postUploadPreview, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: false, status: 404 });
+      const res = createMockResponse();
+      await postUploadPreview(request(), res);
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(nodeFetchMock).toHaveBeenCalledTimes(1);
+    });
+    test("reports Bunny upload failure for fallback on the VPS", async () => {
+      const { postUploadPreview, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, status: 507 });
+      const res = createMockResponse();
+      await postUploadPreview(request(), res);
+      expect(res.status).toHaveBeenCalledWith(502);
+    });
+    test("rejects missing events", async () => {
+      const { postUploadPreview, docGetMock } = await loadRouter();
+      docGetMock.mockResolvedValueOnce({ exists: false });
+      const res = createMockResponse();
+      await postUploadPreview(request(), res);
+      expect(res.status).toHaveBeenCalledWith(404);
     });
   });
 
@@ -1149,5 +1272,61 @@ describe("adminEvents routes", () => {
       await postAlbumHealthProcess({ params: { slug: "nunta-test" }, body: {} }, res);
       expect(res.json).toHaveBeenCalledWith({ ok: true, status: "already_running" });
     });
+  });
+});
+
+
+describe("album processing recovery", () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks(); });
+  async function setup(count: number, failFirst = false) {
+    const api = await loadRouter();
+    let record = {
+      slug: "test-album", status: "queued", initialized: false, pendingPhotos: [] as string[],
+      progress: { done: 0, total: 0 }, initialWithPreview: 0, alreadyExisting: 0,
+      failedAttempts: 0, retryCount: 0, nextAttemptAt: 0, startedAt: Date.now(),
+    };
+    api.getDurableJobMock.mockImplementation(async () => ({ ...record }));
+    vi.mocked(api.processing.updateDurableJob).mockImplementation(async (_slug, patch) => { record = { ...record, ...patch }; });
+    vi.mocked(api.processing.completeDurablePhoto).mockImplementation(async (_slug, filename) => {
+      record = { ...record, pendingPhotos: record.pendingPhotos.filter(name => name !== filename), progress: { ...record.progress, done: record.progress.done + 1 } };
+      return record as never;
+    });
+    api.nodeFetchMock.mockImplementation(async (url: string, options: { method?: string }) => {
+      if (url.endsWith("/photos/")) return { ok: true, json: async () => Array.from({ length: count }, (_, i) => ({ ObjectName: `${i}.jpg`, IsDirectory: false })) };
+      if (url.endsWith("/photos_preview/")) return { ok: true, json: async () => [] };
+      if (failFirst && url.endsWith("/photos/0.jpg")) throw new Error("Download timeout");
+      return { ok: true, body: {}, arrayBuffer: async () => Buffer.from("original") };
+    });
+    return { ...api, record: () => record };
+  }
+  test("completes 1000 images and emails the configured admin before deleting the queue", async () => {
+    const api = await setup(1000);
+    await api.postAlbumHealthProcess({ params: { slug: "test-album" }, body: {} }, createMockResponse());
+    await vi.waitFor(() => expect(api.processing.finishJob).toHaveBeenCalledWith("test-album"));
+    expect(api.processing.completeDurablePhoto).toHaveBeenCalledTimes(1000);
+    expect(api.record().pendingPhotos).toEqual([]);
+    expect(api.sendEmailMock).toHaveBeenCalledWith(expect.objectContaining({ to: "configured-admin@test.ro", subject: "✅ Preview procesat: test-album" }));
+    expect(api.processing.removeDurableJob).toHaveBeenCalledWith("test-album");
+    expect(api.nodeFetchMock.mock.calls.every(([, opts]) => Boolean(opts.signal))).toBe(true);
+  });
+  test("a failed photo stays queued while the others finish, with an email about automatic retry", async () => {
+    const api = await setup(3, true);
+    await api.postAlbumHealthProcess({ params: { slug: "test-album" }, body: {} }, createMockResponse());
+    await vi.waitFor(() => expect(api.sendEmailMock).toHaveBeenCalled());
+    expect(api.record().pendingPhotos).toEqual(["0.jpg"]);
+    expect(api.record().progress.done).toBe(2);
+    expect(api.record().status).toBe("queued");
+    expect(api.processing.removeDurableJob).not.toHaveBeenCalled();
+    expect(api.processing.finishJob).not.toHaveBeenCalled();
+    expect(api.sendEmailMock).toHaveBeenCalledWith(expect.objectContaining({ subject: "⚠️ Procesare incompletă: test-album", to: "configured-admin@test.ro" }));
+  });
+  test("a failed notification does not remove pending work or record notification as delivered", async () => {
+    const api = await setup(2, true);
+    api.sendEmailMock.mockRejectedValueOnce(new Error("SMTP down"));
+    await api.postAlbumHealthProcess({ params: { slug: "test-album" }, body: {} }, createMockResponse());
+    await vi.waitFor(() => expect(api.processing.endJobRun).toHaveBeenCalled());
+    expect(api.record().pendingPhotos).toEqual(["0.jpg"]);
+    expect(api.record()).not.toHaveProperty("problemNotifiedAt");
+    expect(api.processing.removeDurableJob).not.toHaveBeenCalled();
   });
 });

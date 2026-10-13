@@ -31,6 +31,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Propuneri Media", path: "/admin/instagram-proposals", category: "Media", icon: "📸", keywords: "instagram propuneri poze social" },
   { label: "Media Assets", path: "/admin/media-assets", category: "Media", icon: "🗂️", keywords: "assets imagini fisiere resurse" },
   { label: "QR Moments", path: "/admin/qr-moments", category: "Media", icon: "🔲", keywords: "qr cod scanare moment" },
+  { label: "Participanți QR Moments", path: "/admin/qr-participants", category: "Media", icon: "📇", keywords: "participanti persoane invitati contacte email emailuri baza de date albume upload incarcari dezabonare consimtamant" },
   { label: "Activitate album", path: "/admin/media-activity", category: "Media", icon: "📊", keywords: "vizualizari descarcare activitate" },
   { label: "Optimizare poze", path: "/admin/image-optimizer", category: "Media", icon: "⚡", keywords: "compresie webp optimizare imagini" },
   { label: "Sănătate albume", path: "/admin/album-health", category: "Media", icon: "💊", keywords: "zip webp status album health" },

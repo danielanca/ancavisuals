@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 type Handler = (req: any, res: any) => Promise<void> | void;
 
 function createMockResponse() {
-  const res: any = { status: vi.fn(), json: vi.fn(), send: vi.fn() };
+  const res: any = { status: vi.fn(), json: vi.fn(), send: vi.fn(), setHeader: vi.fn() };
   res.status.mockReturnValue(res);
   res.json.mockReturnValue(res);
   res.send.mockReturnValue(res);
@@ -25,7 +25,11 @@ async function loadRouter() {
   const geolocateIp = vi.fn().mockResolvedValue({ countryCode: "RO", country: "România", city: "Cluj-Napoca" });
 
   const docGetMock = vi.fn().mockResolvedValue({ exists: true, data: () => ({ title: "Oferta Nunți" }) });
-  const collectionMock = vi.fn(() => ({ doc: vi.fn(() => ({ get: docGetMock })) }));
+  const contractsGet = vi.fn().mockResolvedValue({ docs: [] });
+  const collectionMock = vi.fn(() => ({
+    doc: vi.fn(() => ({ get: docGetMock })),
+    where: vi.fn(() => ({ select: vi.fn(() => ({ get: contractsGet })) })),
+  }));
 
   vi.doMock("src/server/firestore", () => ({ firestore: () => ({ collection: collectionMock }) }));
   vi.doMock("src/server/notifications/mailer.js", () => ({ sendEmail }));
@@ -82,6 +86,8 @@ async function loadRouter() {
     router,
     postInteraction: getHandler("post", "/:slug/interaction"),
     getGeoCity: getHandler("get", "/geo-city"),
+    getFreeBooth: getHandler("get", "/olx/free-photobooth-contracts"),
+    contractsGet,
   };
 }
 
@@ -279,5 +285,25 @@ describe("campaign.routes — public landing-page flow", () => {
 
       expect(res.json).toHaveBeenCalledWith({ city: null });
     });
+  });
+});
+
+
+describe("campaign free photobooth endpoint", () => {
+  beforeEach(() => { vi.resetModules(); vi.restoreAllMocks(); });
+  test("returns the public list without caching", async () => {
+    const { getFreeBooth } = await loadRouter();
+    const res = createMockResponse();
+    await getFreeBooth({}, res);
+    expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
+    expect(res.json).toHaveBeenCalledWith({ contracts: [] });
+  });
+  test("returns a generic error when storage fails", async () => {
+    const { getFreeBooth, contractsGet } = await loadRouter();
+    contractsGet.mockRejectedValueOnce(new Error("private storage details"));
+    const res = createMockResponse();
+    await getFreeBooth({}, res);
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({ error: "Lista rezervărilor nu este disponibilă momentan." });
   });
 });

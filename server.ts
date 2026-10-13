@@ -21,6 +21,7 @@ import adminCalendarRouter from "./src/server/routes/adminCalendar.routes";
 import publicBookedDatesRouter from "./src/server/routes/publicBookedDates.routes";
 import { startingPricesAdminRouter, startingPricesPublicRouter } from "./src/server/routes/startingPrices.routes";
 import adminEventsRouter, { startAlbumProcessingQueue } from "./src/server/routes/adminEvents.routes";
+import { startAlbumUploadNotifications } from "./src/server/services/albumUploadNotifications";
 import chatbotRouter from "./src/server/routes/chatbot.routes";
 import uploadRouter from "./src/server/routes/upload.routes";
 import blogRouter from "./src/server/routes/blog.routes";
@@ -419,6 +420,7 @@ async function createServer() {
     // The ad landing's data, ready before the first visitor asks for it.
     void loadInitialData("/oferta/olx");
     if (!isTest) startAlbumProcessingQueue();
+    if (!isTest) startAlbumUploadNotifications();
     if (showProgress) {
       devLogger.ready(Number(port), Date.now() - startTime);
     } else {

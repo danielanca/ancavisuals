@@ -10,7 +10,7 @@ import { deletePublicReview, FeedbackPublicationError, publishFeedbackReview } f
 const router = Router();
 const COLLECTION = "siteReviews";
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
-const MAX_PHOTOS = 10;
+const MAX_PHOTOS = 5;
 
 type ReviewCategory = "wedding" | "oferta" | "both";
 type ReviewPhoto = { url: string; name: string };
@@ -43,6 +43,7 @@ function serializeReview(doc: FirebaseFirestore.DocumentSnapshot) {
   return {
     id: doc.id,
     author: (data.author as string) ?? "",
+    city: typeof data.city === "string" ? data.city : "",
     date: (data.date as string) ?? "",
     rating: data.rating === null ? null : (data.rating as number) ?? 5,
     text: (data.text as string) ?? "",
@@ -52,6 +53,18 @@ function serializeReview(doc: FirebaseFirestore.DocumentSnapshot) {
     offerSlug: (data.offerSlug as string | null) ?? null,
     order: typeof data.order === "number" ? data.order : 0,
   };
+}
+
+function parseAlbumPhotoUrls(value: string | undefined): ReviewPhoto[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is { url: string; name?: string } => Boolean(item && typeof item.url === "string"))
+      .map(item => ({ url: item.url, name: typeof item.name === "string" ? item.name : item.url.split("/").pop() ?? "fotografie" }))
+      .filter(photo => photo.url.startsWith("https://") && (!process.env.BUNNY_CDN_DOMAIN || photo.url.startsWith(`https://${process.env.BUNNY_CDN_DOMAIN}/`)));
+  } catch { return []; }
 }
 
 // GET /api/reviews?category=wedding — recenzii pentru paginile de oraș/foto-video
@@ -86,7 +99,7 @@ router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (_req: 
 });
 
 router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
-  const { author, date, rating, text, category, offerSlug, verified, sourceFeedbackId } = req.body as Record<string, string | undefined>;
+  const { author, city, date, rating, text, category, offerSlug, verified, sourceFeedbackId, albumPhotoUrls } = req.body as Record<string, string | undefined>;
   if (!author?.trim() || !text?.trim()) {
     res.status(400).json({ error: "Nume și text sunt obligatorii." });
     return;
@@ -94,9 +107,10 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("ph
 
   try {
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];
-    const photos = await Promise.all(files.map(uploadReviewPhoto));
+    const photos = [...parseAlbumPhotoUrls(albumPhotoUrls), ...(await Promise.all(files.map(uploadReviewPhoto)))];
     const review = {
       author: author.trim(),
+      city: city?.trim() || "",
       date: date?.trim() || new Date().toISOString().slice(0, 10),
       rating: rating === "0" || (sourceFeedbackId && !rating) ? null : Math.min(5, Math.max(1, Number(rating) || 5)),
       text: text.trim(),
@@ -120,11 +134,12 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("ph
 });
 
 router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
-  const { author, date, rating, text, category, offerSlug, verified, keepPhotoUrls } = req.body as Record<string, string | undefined>;
+  const { author, city, date, rating, text, category, offerSlug, verified, keepPhotoUrls, albumPhotoUrls } = req.body as Record<string, string | undefined>;
   try {
     const ref = firestore().collection(COLLECTION).doc(req.params.id);
     const update: Record<string, unknown> = {};
     if (author !== undefined) update.author = author.trim();
+    if (city !== undefined) update.city = city.trim();
     if (date !== undefined) update.date = date.trim();
     if (rating !== undefined) update.rating = rating === "0" ? null : Math.min(5, Math.max(1, Number(rating) || 5));
     if (text !== undefined) update.text = text.trim();
@@ -151,7 +166,9 @@ router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array(
       const kept = existingPhotos.filter((p) => keepUrls.includes(p.url));
       const files = (req.files as Express.Multer.File[] | undefined) ?? [];
       const uploaded = await Promise.all(files.map(uploadReviewPhoto));
-      update.photos = [...kept, ...uploaded];
+      const albumPhotos = parseAlbumPhotoUrls(albumPhotoUrls);
+      const merged = [...kept, ...albumPhotos, ...uploaded];
+      update.photos = merged.filter((photo, index, all) => all.findIndex(item => item.url === photo.url) === index);
       if ("photo" in existingData) update.photo = FieldValue.delete();
     }
 

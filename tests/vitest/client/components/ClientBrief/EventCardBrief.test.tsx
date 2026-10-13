@@ -46,3 +46,19 @@ test("brief creation appears only when the event is expanded", () => {
   fireEvent.click(header);
   expect(screen.queryByRole("button", { name: "Creează brief client" })).not.toBeInTheDocument();
 });
+
+test.each([
+  ["full payment", 1175, 1175, true, 0, "Achitat integral", false],
+  ["partial payment", 1175, 300, true, 875, "Avans încasat", true],
+  ["unconfirmed full amount", 1175, 1175, false, 0, "Avans neîncasat", false],
+  ["zero total", 0, 0, true, 0, "Avans încasat", false],
+  ["overpayment", 1175, 1200, true, 0, "Achitat integral", false],
+] as const)("payment label: %s", (_label, total, advanceAmount, advancePaid, remainingAmount, expected, showRest) => {
+  const event: ClientEvent = { id: "event-payment", type: "Nuntă", status: "confirmat", fiscalized: false,
+    createdAt: new Date(), eventDate: null, services: [], client: { fullName: "Client test", phone: "", email: "" },
+    pricing: { total, advanceAmount, advancePaid, remainingAmount } };
+  render(<MemoryRouter><EventCard event={event} exchangeRate={5} /></MemoryRouter>);
+  expect(screen.getByText(expected, { exact: false })).toBeInTheDocument();
+  expect(Boolean(screen.queryByText("Achitat integral", { exact: false }))).toBe(expected === "Achitat integral");
+  expect(Boolean(screen.queryByText(/Rest:/))).toBe(showRest);
+});

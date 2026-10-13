@@ -27,6 +27,7 @@ import { generateRomanianAlt } from "../lib/imageAlt";
 import { remoteFileSizes } from "../utils/remoteFileSize";
 import { shrinkPhoto, webpName } from "../utils/shrinkPhoto";
 import { createMediaAssetPreview } from "../utils/mediaAssetPreview";
+import { invalidateEmailMarketingFooterCache } from "../notifications/emailMarketingFooter";
 
 const router = Router();
 const mediaAssetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
@@ -480,6 +481,36 @@ router.get("/admin/media-assets", requireFirebaseAuth, requireSupremeAdmin, asyn
   } catch (error) {
     console.error("[oferte] GET /admin/media-assets failed:", error);
     res.status(500).json({ error: "Eroare server." });
+  }
+});
+
+router.get("/admin/media-assets/qr-email-photos", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const doc = await firestore().collection("qr_moments_email_config").doc("global").get();
+    res.json({ assetIds: Array.isArray(doc.data()?.assetIds) ? doc.data()?.assetIds : [] });
+  } catch (error) {
+    console.error("[oferte] GET /admin/media-assets/qr-email-photos failed:", error);
+    res.status(500).json({ error: "Nu am putut incarca selectia pozelor pentru email." });
+  }
+});
+
+router.put("/admin/media-assets/qr-email-photos", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const assetIds = req.body?.assetIds;
+    if (!Array.isArray(assetIds) || assetIds.length !== 5 || assetIds.some(id => typeof id !== "string" || !id.trim()) || new Set(assetIds).size !== 5) {
+      return res.status(400).json({ error: "Selecteaza exact 5 fotografii diferite." });
+    }
+    const db = firestore();
+    const docs = await Promise.all(assetIds.map(id => db.collection("offer_media_assets").doc(id).get()));
+    if (docs.some(doc => !doc.exists || doc.data()?.kind !== "image")) {
+      return res.status(400).json({ error: "Toate cele 5 elemente trebuie sa fie fotografii existente." });
+    }
+    await db.collection("qr_moments_email_config").doc("global").set({ assetIds, updatedAt: new Date().toISOString() }, { merge: true });
+    invalidateEmailMarketingFooterCache();
+    res.json({ ok: true, assetIds });
+  } catch (error) {
+    console.error("[oferte] PUT /admin/media-assets/qr-email-photos failed:", error);
+    res.status(500).json({ error: "Nu am putut salva selectia pozelor pentru email." });
   }
 });
 

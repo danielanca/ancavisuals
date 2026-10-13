@@ -47,6 +47,7 @@ const GuestInvitationPage = loadable(() => import("../features/wedding-hub/pages
 // with its data (src/server/ssr/initialData.ts) — loadable would render its loader there.
 import OfertaPage from "../pages/OfertaPage";
 const FuneralOfferPage = loadable(() => import("../pages/FuneralOfferPage"), opts(true));
+const ReviewsPreviewPage = loadable(() => import("../pages/CampaignLanding/ReviewsPreviewPage"), opts(true));
 const EventProgressPage = loadable(() => import("../pages/EventProgress/EventProgressPage"), opts(false));
 const FotocabinaPage = loadable(() => import("../pages/Fotocabina/FotocabinaPage"), opts(false));
 const FotocabinaGalleryPage = loadable(() => import("../pages/Fotocabina/FotocabinaGalleryPage"), opts(false));
@@ -219,6 +220,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/oferta/:slug",
     layout: null,
     component: OfertaPage,
+  },
+  {
+    path: "/oferta/olx/recenzii-demo",
+    layout: null,
+    component: ReviewsPreviewPage,
   },
   {
     path: "/p/:slug",

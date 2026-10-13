@@ -19,6 +19,7 @@ const LABELS: Record<string, string> = {
   mementos: "Mementouri",
   "media-activity": "Activitate Media",
   "qr-moments": "QR Moments",
+  "qr-participants": "Participanți QR Moments",
   "instagram-proposals": "Propuneri Media",
   "selectie-comuna": "Selecție comună",
   "image-optimizer": "Optimizare Poze",

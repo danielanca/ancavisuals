@@ -25,6 +25,7 @@ export interface DurableAlbumJob {
   alreadyExisting: number;
   failedAttempts: number;
   retryCount: number;
+  problemNotifiedAt?: number;
   nextAttemptAt: number;
   startedAt: number;
 }

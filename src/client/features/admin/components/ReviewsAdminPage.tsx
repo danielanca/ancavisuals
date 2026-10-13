@@ -1,17 +1,19 @@
 import React from "react";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { ClientFeedback } from "../../../../shared/feedback/feedback";
 
 interface ReviewPhoto {
   url: string;
   name: string;
 }
+type AlbumPhoto = ReviewPhoto;
 
 interface Review {
   id: string;
   author: string;
+  city?: string;
   date: string;
   rating: number | null;
   text: string;
@@ -23,6 +25,7 @@ interface Review {
 
 type FormState = {
   author: string;
+  city: string;
   date: string;
   rating: number;
   text: string;
@@ -31,11 +34,13 @@ type FormState = {
   verified: boolean;
   existingPhotos: ReviewPhoto[];
   newPhotoFiles: File[];
+  selectedAlbumPhotos: AlbumPhoto[];
   sourceFeedbackId?: string;
 };
 
 const emptyForm = (): FormState => ({
   author: "",
+  city: "",
   date: new Date().toISOString().slice(0, 10),
   rating: 5,
   text: "",
@@ -44,6 +49,7 @@ const emptyForm = (): FormState => ({
   verified: false,
   existingPhotos: [],
   newPhotoFiles: [],
+  selectedAlbumPhotos: [],
 });
 
 function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
@@ -72,6 +78,7 @@ const ReviewsAdminPage: React.FC = () => {
   const { auth } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const authHeader = React.useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
   const [reviews, setReviews] = React.useState<Review[]>([]);
@@ -84,6 +91,12 @@ const ReviewsAdminPage: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const newPhotoPreviews = useObjectUrls(form.newPhotoFiles);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [albumSlugs, setAlbumSlugs] = React.useState<string[]>([]);
+  const [activeAlbumSlug, setActiveAlbumSlug] = React.useState("");
+  const [albumPhotos, setAlbumPhotos] = React.useState<AlbumPhoto[]>([]);
+  const [albumLoading, setAlbumLoading] = React.useState(false);
+  const [galleryOpen, setGalleryOpen] = React.useState(false);
+  const editHandledRef = React.useRef<string | null>(null);
 
   const loadReviews = React.useCallback(() => {
     if (!auth.accessToken) return;
@@ -110,13 +123,16 @@ const ReviewsAdminPage: React.FC = () => {
     setEditingId(null);
     setForm(emptyForm());
     setError(null);
+    setActiveAlbumSlug(""); setAlbumPhotos([]);
+    void loadAlbumSlugs();
     setShowForm(true);
   }
 
-  function openEditForm(review: Review) {
+  const openEditForm = React.useCallback((review: Review) => {
     setEditingId(review.id);
     setForm({
       author: review.author,
+      city: review.city ?? "",
       date: review.date,
       rating: review.rating ?? 0,
       text: review.text,
@@ -125,10 +141,59 @@ const ReviewsAdminPage: React.FC = () => {
       verified: review.verified,
       existingPhotos: review.photos,
       newPhotoFiles: [],
+      selectedAlbumPhotos: [],
     });
+    setActiveAlbumSlug(""); setAlbumPhotos([]);
+    void loadAlbumSlugs();
     setError(null);
     setShowForm(true);
+  // loadAlbumSlugs is intentionally resolved from the latest admin session when the form opens.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId || loading || editHandledRef.current === editId) return;
+    const review = reviews.find(item => item.id === editId);
+    if (review) {
+      editHandledRef.current = editId;
+      openEditForm(review);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [searchParams, reviews, loading, location.pathname, navigate, openEditForm]);
+
+  async function loadAlbumSlugs() {
+    try {
+      const response = await fetch("/api/album/admin/list", { headers: authHeader });
+      const data = await response.json() as { slugs?: string[] };
+      setAlbumSlugs(data.slugs ?? []);
+    } catch { setAlbumSlugs([]); }
   }
+
+  async function loadAlbumPhotos(slug: string) {
+    setActiveAlbumSlug(slug); setAlbumPhotos([]);
+    if (!slug) return;
+    setAlbumLoading(true);
+    try {
+      const response = await fetch(`/api/album/${encodeURIComponent(slug)}`, { headers: authHeader });
+      const data = await response.json() as { photos?: string[] };
+      setAlbumPhotos((data.photos ?? []).map(url => ({ url, name: url.split("/").pop() ?? "fotografie" })));
+    } catch { setAlbumPhotos([]); }
+    finally { setAlbumLoading(false); }
+  }
+
+  function toggleAlbumPhoto(photo: AlbumPhoto) {
+    setForm(current => ({
+      ...current,
+      selectedAlbumPhotos: current.selectedAlbumPhotos.some(item => item.url === photo.url)
+        ? current.selectedAlbumPhotos.filter(item => item.url !== photo.url)
+        : current.existingPhotos.length + current.selectedAlbumPhotos.length + current.newPhotoFiles.length >= 5
+          ? current
+        : [...current.selectedAlbumPhotos, photo],
+    }));
+  }
+
+  const selectedPhotoCount = form.existingPhotos.length + form.selectedAlbumPhotos.length + form.newPhotoFiles.length;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -141,6 +206,8 @@ const ReviewsAdminPage: React.FC = () => {
     try {
       const body = new FormData();
       body.set("author", form.author.trim());
+      body.set("city", form.city.trim());
+      body.set("albumPhotoUrls", JSON.stringify(form.selectedAlbumPhotos));
       body.set("date", form.date);
       body.set("rating", String(form.rating));
       body.set("text", form.text.trim());
@@ -268,6 +335,12 @@ const ReviewsAdminPage: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1">Orașul evenimentului</label>
+                <input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} placeholder="ex: Cluj-Napoca"
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-500" />
+              </div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <label className="block text-xs text-neutral-400 mb-1">Notă</label>
@@ -306,7 +379,21 @@ const ReviewsAdminPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs text-neutral-400 mb-1">Poze (opțional)</label>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="block text-xs text-neutral-400">Poze (opțional, maximum 5)</label>
+                  <span className="text-xs text-neutral-500">{selectedPhotoCount}/5</span>
+                </div>
+                <div className="mb-3 rounded-lg border border-neutral-800 bg-neutral-950/50 p-3">
+                  <label className="block text-xs text-neutral-400 mb-2">Alege dintr-un album</label>
+                  <select value={activeAlbumSlug} onChange={(e) => void loadAlbumPhotos(e.target.value)} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white">
+                    <option value="">Selectează albumul...</option>
+                    {albumSlugs.map(slug => <option key={slug} value={slug}>{slug}</option>)}
+                  </select>
+                  <button type="button" onClick={() => setGalleryOpen(true)} className="mt-3 w-full rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-sm font-medium text-emerald-300 hover:bg-emerald-400/20">
+                    Deschide galeria full page {form.selectedAlbumPhotos.length > 0 ? `(${form.selectedAlbumPhotos.length} selectate)` : ""}
+                  </button>
+                  {activeAlbumSlug && albumLoading && <p className="mt-2 text-xs text-neutral-500">Se încarcă fotografiile...</p>}
+                </div>
                 <div
                   className={`rounded-lg border transition-colors ${dragging ? "border-emerald-500 bg-emerald-600/10" : "border-transparent"}`}
                   onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -328,7 +415,7 @@ const ReviewsAdminPage: React.FC = () => {
                       }} />
                   </label>
 
-                  {(form.existingPhotos.length > 0 || form.newPhotoFiles.length > 0) && (
+                  {(form.existingPhotos.length > 0 || form.selectedAlbumPhotos.length > 0 || form.newPhotoFiles.length > 0) && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {form.existingPhotos.map((photo) => (
                         <div key={photo.url} className="group relative h-16 w-16 shrink-0">
@@ -341,6 +428,12 @@ const ReviewsAdminPage: React.FC = () => {
                           >
                             ✕
                           </button>
+                        </div>
+                      ))}
+                      {form.selectedAlbumPhotos.map((photo) => (
+                        <div key={`album-${photo.url}`} className="group relative h-16 w-16 shrink-0">
+                          <img src={photo.url} alt={photo.name} className="h-16 w-16 rounded-lg object-cover" />
+                          <button type="button" onClick={() => toggleAlbumPhoto(photo)} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-xs text-neutral-300 ring-1 ring-neutral-700 hover:bg-red-500/80 hover:text-white" title="Scoate poza">✕</button>
                         </div>
                       ))}
                       {form.newPhotoFiles.map((file, i) => (
@@ -373,6 +466,25 @@ const ReviewsAdminPage: React.FC = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {galleryOpen && (
+        <div className="fixed inset-0 z-[80] flex min-h-screen flex-col bg-neutral-950 text-white">
+          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-neutral-800 px-5 py-4 sm:px-8">
+            <div><p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Galerie recenzie</p><h2 className="mt-1 text-xl font-medium">Alege fotografiile evenimentului</h2></div>
+            <button type="button" onClick={() => setGalleryOpen(false)} className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:border-neutral-500">Înapoi</button>
+          </header>
+          <div className="flex flex-wrap items-center gap-3 border-b border-neutral-800 px-5 py-4 sm:px-8">
+            <select value={activeAlbumSlug} onChange={(e) => void loadAlbumPhotos(e.target.value)} className="min-w-[240px] rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2.5 text-sm text-white"><option value="">Selectează albumul...</option>{albumSlugs.map(slug => <option key={slug} value={slug}>{slug}</option>)}</select>
+            <span className="text-sm text-neutral-400">{selectedPhotoCount}/5 fotografii selectate</span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8">
+            {albumLoading && <p className="py-16 text-center text-neutral-400">Se încarcă fotografiile...</p>}
+            {!albumLoading && !activeAlbumSlug && <p className="py-16 text-center text-neutral-500">Alege mai întâi un album.</p>}
+            {!albumLoading && activeAlbumSlug && albumPhotos.length === 0 && <p className="py-16 text-center text-neutral-500">Albumul nu are fotografii disponibile.</p>}
+            {!albumLoading && albumPhotos.length > 0 && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7">{albumPhotos.map(photo => { const selected = form.selectedAlbumPhotos.some(item => item.url === photo.url); const disabled = !selected && selectedPhotoCount >= 5; return <button key={photo.url} type="button" disabled={disabled} onClick={() => toggleAlbumPhoto(photo)} className={`group relative aspect-square overflow-hidden border-2 ${selected ? "border-emerald-400" : "border-transparent"} ${disabled ? "cursor-not-allowed opacity-45" : "hover:border-neutral-400"}`}><img src={photo.url} alt={photo.name} className="h-full w-full object-cover" loading="lazy" />{selected && <span className="absolute inset-0 flex items-center justify-center bg-emerald-500/35 text-3xl font-bold text-white">✓</span>}</button>; })}</div>}
+          </div>
+          <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-neutral-800 bg-neutral-950 px-5 py-4 sm:px-8"><button type="button" onClick={() => setGalleryOpen(false)} className="rounded-lg border border-neutral-700 px-4 py-2.5 text-sm text-neutral-300 hover:border-neutral-500">Anulează</button><button type="button" onClick={() => setGalleryOpen(false)} className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-medium text-neutral-950 hover:bg-emerald-400">Confirmă selecția ({form.selectedAlbumPhotos.length})</button></footer>
         </div>
       )}
     </div>

@@ -92,7 +92,14 @@ async function checkAlbumZip(slug: string): Promise<AlbumZipInfo> {
   for (const original of photos) {
     if (!zipDate || entryDate(original) > zipDate) affected.add(original.ObjectName);
   }
-  const state = JSON.stringify([latestPhotoDate, latestPreviewDate, zipDate, issues]);
+  // Bunny does not guarantee listing order. Keep the fingerprint stable so the
+  // same set of stale files does not look like a new problem every 5 minutes.
+  const state = JSON.stringify({
+    latestPhotoDate: latestPhotoDate?.toISOString() ?? null,
+    latestPreviewDate: latestPreviewDate?.toISOString() ?? null,
+    zipDate: zipDate?.toISOString() ?? null,
+    issues: [...issues].sort(),
+  });
   return { slug, status, latestPhotoDate, latestPreviewDate, latestChangeDate, zipDate,
     issues, state, newPhotos: [...affected] };
 }

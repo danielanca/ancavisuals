@@ -9,7 +9,12 @@ const buildMailer = async (senderEmail = "sender@example.com") => {
   const setMock = vi.fn().mockResolvedValue(undefined);
   const logSetMock = vi.fn().mockResolvedValue(undefined);
   vi.doMock("src/server/firestore", () => ({
-    firestore: () => ({ collection: (name: string) => ({ doc: () => ({ set: name === "emailLog" ? logSetMock : setMock }) }) }),
+    firestore: () => ({ collection: (name: string) => ({ doc: (id = "") => ({
+      set: name === "emailLog" ? logSetMock : setMock,
+      get: async () => name === "qr_moments_email_config"
+        ? { exists: true, data: () => ({ assetIds: ["one", "two", "three", "four", "five"] }) }
+        : { exists: true, data: () => ({ kind: "image", previewUrl: `https://cdn.example.com/${id}.webp` }) },
+    }) }) }),
   }));
   const transportMock = { sendMail: sendMailMock, verify: vi.fn().mockResolvedValue(true) };
   const createTransportMock = vi.fn(() => transportMock);
@@ -142,13 +147,34 @@ describe("sendEmail", () => {
       expect(html).toContain("<p>Hello</p>");
     });
 
-    test("does not inject the footer into an already-complete HTML document", async () => {
+    test("inserts both footers before the closing body of a full HTML document", async () => {
       const { sendEmail, sendMailMock } = await buildMailer();
       const fullDoc = "<!DOCTYPE html><html><body><p>Pre-built report</p></body></html>";
 
       await sendEmail({ to: "client@example.com", subject: "S", html: fullDoc });
 
-      expect(sendMailMock.mock.calls[0][0].html).toBe(fullDoc);
+      const html = sendMailMock.mock.calls[0][0].html as string;
+      expect(html.indexOf("Păstrează emoția")).toBeGreaterThan(html.indexOf("<p>Pre-built report</p>"));
+      expect(html.indexOf("info@ancavisuals.ro")).toBeGreaterThan(html.indexOf("Păstrează emoția"));
+      expect(html).toContain("</body></html>");
+    });
+
+    test("appends the selected three-photo brand footer to client email", async () => {
+      const { sendEmail, sendMailMock } = await buildMailer();
+      await sendEmail({ to: "client@example.com", subject: "S", html: "<p>Salut</p>" });
+      const html = sendMailMock.mock.calls[0][0].html as string;
+      expect(html.match(/cdn\.example\.com\/(one|two|three|four|five)\.webp/g)).toHaveLength(5);
+      expect(html).toContain("Descoperă AncaVisuals");
+      expect(html).toContain("Videobooth 360 · QR Moments · Invitații digitale · Aplicație de planificare a nunții");
+    });
+
+    test("omits the photo marketing footer for the owner's admin email", async () => {
+      const { sendEmail, sendMailMock } = await buildMailer();
+      await sendEmail({ to: "  ancadaniel1994@gmail.com ", subject: "S", html: "<p>Admin</p>" });
+      const html = sendMailMock.mock.calls[0][0].html as string;
+      expect(html).not.toContain("Păstrează emoția");
+      expect(html).not.toContain("cdn.example.com");
+      expect(html).toContain("info@ancavisuals.ro");
     });
   });
 });

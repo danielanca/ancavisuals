@@ -1,6 +1,6 @@
 import { createAnthropicClient } from "../lib/anthropicClient";
 import type { Request, Response } from "express";
-import { Router } from "express";
+import { Router, raw } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import multer from "multer";
@@ -19,11 +19,13 @@ import {
 } from "../services/albumProcessingJobs.js";
 import { getBnrRate, getBnrYearRates, BnrRateError } from "../services/bnrExchangeRate.service.js";
 import { sendEmail } from "../notifications/mailer";
+import { adminUser } from "../constants/credentials";
 import { APP_BASE_URL } from "../constants/domain";
 import { normalizeEventVideoLink } from "../../shared/eventVideoLink";
+import { sanitizeAlbumPhotoName as sanitizePhotoName } from "../../shared/albumPhotoName";
+import { beginAlbumUpload, recordAlbumUploadSuccess, touchAlbumUpload, notifyIncompleteAlbumUpload } from "../services/albumUploadNotifications";
 
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
-const ADMIN_EMAIL = "ancadaniel1994@gmail.com";
 
 const router = Router();
 const anthropic = createAnthropicClient("Extragere lead din imagine", { apiKey: process.env.ANTHROPIC_API_KEY });
@@ -616,16 +618,43 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
 
 const ALBUM_PHOTO_EXT = /\.(jpe?g|png)$/i;
 
-const sanitizePhotoName = (raw: string): string =>
-  raw
-    .replace(/^.*[/\\]/, "")            // strip any path
-    .replace(/[^a-zA-Z0-9._-]/g, "_")   // keep only safe chars
-    .replace(/_{2,}/g, "_")
-    .slice(-128);
+router.post("/events/:id/upload-session", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const files: unknown = req.body?.files;
+  if (!Array.isArray(files) || !files.length || files.length > 3000 ||
+      files.some((name) => typeof name !== "string" || name.length > 255 || !ALBUM_PHOTO_EXT.test(name))) {
+    return res.status(400).json({ error: "Lista de fotografii este invalidă (maximum 3000)." });
+  }
+  const names = files.map((name: string) => sanitizePhotoName(name));
+  if (new Set(names).size !== names.length) return res.status(400).json({ error: "Nume duplicate." });
+  try {
+    const doc = await firestore().collection("adminEvents").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Eveniment inexistent." });
+    const slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Eveniment fără album." });
+    const sessionId = await beginAlbumUpload(req.params.id, slug, names);
+    return res.json({ ok: true, sessionId });
+  } catch {
+    return res.status(503).json({ error: "Nu s-a putut activa monitorizarea uploadului." });
+  }
+});
+
+router.post("/events/:id/upload-session/:sessionId", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  if (!["heartbeat", "finish"].includes(req.body?.action)) return res.status(400).json({ error: "Acțiune invalidă." });
+  try {
+    await touchAlbumUpload(req.params.sessionId, req.params.id, req.body.action === "finish");
+    if (req.body.action === "finish") {
+      try { await notifyIncompleteAlbumUpload(req.params.sessionId); }
+      catch { /* Durable checker retries SMTP failures. */ }
+    }
+    return res.json({ ok: true });
+  } catch {
+    return res.status(503).json({ error: "Monitorizarea uploadului nu a putut fi actualizată." });
+  }
+});
 
 // POST /api/admin/events/:id/upload-photo?name=<filename>
 // Streaming pass-through: originalul curge direct browser → server → Bunny {albumSlug}/photos/,
-// fără să fie ținut în RAM. Previzualizarea WebP se generează separat cu process-album.
+// fără să fie ținut în RAM. Browserul urcă separat WebP; process-album repară lipsurile.
 router.post("/events/:id/upload-photo", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -657,6 +686,7 @@ router.post("/events/:id/upload-photo", requireFirebaseAuth, requireSupremeAdmin
       headers,
       body: req,
       agent: bunnyAgent,
+      signal: AbortSignal.timeout(120_000),
     });
 
     if (!bunnyRes.ok) {
@@ -665,6 +695,18 @@ router.post("/events/:id/upload-photo", requireFirebaseAuth, requireSupremeAdmin
       return res.status(502).json({ error: `Bunny a respins upload-ul (${bunnyRes.status}).` });
     }
 
+    // Replacing an original must not leave its old preview behind if local encoding fails.
+    const oldPreview = await nodeFetch(buildBunnyStorageUrl(slug, "photos_preview", safeName.replace(/\.[^.]+$/, ".webp")), {
+      method: "DELETE",
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
+      agent: bunnyAgent,
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!oldPreview.ok && oldPreview.status !== 404) {
+      return res.status(502).json({ error: "Originalul a fost încărcat, dar previzualizarea veche nu a putut fi eliminată. Reîncearcă." });
+    }
+    const uploadSession = req.headers["x-album-upload-session"];
+    if (typeof uploadSession === "string") await recordAlbumUploadSuccess(uploadSession, id, safeName);
     invalidateAlbumCache(slug);
     res.json({ ok: true, name: safeName });
   } catch (error) {
@@ -672,6 +714,41 @@ router.post("/events/:id/upload-photo", requireFirebaseAuth, requireSupremeAdmin
     res.status(500).json({ error: String(error) });
   }
 });
+
+// Only a small, already encoded preview is buffered; no image conversion on the VPS.
+router.post("/events/:id/upload-photo-preview", requireFirebaseAuth, requireSupremeAdmin,
+  raw({ type: "image/webp", limit: "8mb" }), async (req: Request, res: Response) => {
+    try {
+      const originalName = String(req.query.name ?? "").trim();
+      if (!ALBUM_PHOTO_EXT.test(originalName)) return res.status(400).json({ error: "Nume original invalid." });
+      const body = req.body as unknown;
+      if (!Buffer.isBuffer(body) || body.length < 20 || body.toString("ascii", 0, 4) !== "RIFF" ||
+          body.toString("ascii", 8, 12) !== "WEBP" || body.readUInt32LE(4) + 8 !== body.length ||
+          !["VP8 ", "VP8L", "VP8X"].includes(body.toString("ascii", 12, 16))) {
+        return res.status(400).json({ error: "Previzualizare WebP invalidă." });
+      }
+      const doc = await firestore().collection("adminEvents").doc(req.params.id).get();
+      if (!doc.exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
+      const slug = doc.data()?.albumSlug as string | undefined;
+      if (!slug) return res.status(400).json({ error: "Evenimentul nu are album." });
+      const safeName = sanitizePhotoName(originalName);
+      const headers = { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() };
+      const original = await nodeFetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, safeName), {
+        method: "HEAD", headers, agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+      });
+      if (!original.ok) return res.status(original.status === 404 ? 409 : 502).json({ error: "Originalul nu poate fi verificat." });
+      const name = safeName.replace(/\.[^.]+$/, ".webp");
+      const uploaded = await nodeFetch(buildBunnyStorageUrl(slug, "photos_preview", name), {
+        method: "PUT", headers: { ...headers, "Content-Type": "image/webp" }, body,
+        agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+      });
+      if (!uploaded.ok) return res.status(502).json({ error: "Bunny a respins previzualizarea." });
+      invalidateAlbumCache(slug);
+      return res.json({ ok: true, name });
+    } catch {
+      return res.status(502).json({ error: "Încărcarea previzualizării a eșuat." });
+    }
+  });
 
 // POST /api/admin/events/:id/photobooth-folder — ensure {albumSlug}/photobooth/ exists in Bunny
 router.post("/events/:id/photobooth-folder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
@@ -1070,6 +1147,23 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
 
 // Background processing function — Firestore keeps pending filenames so interrupted
 // jobs can be reconciled against Bunny and resumed after server startup.
+async function notifyAlbumProcessingProblem(slug: string, job?: DurableAlbumJob): Promise<void> {
+  if (job?.problemNotifiedAt) return;
+  try {
+    await sendEmail({
+      to: adminUser.email,
+      subject: `⚠️ Procesare incompletă: ${slug}`,
+      html: `<p>Generarea previzualizărilor nu este încă finalizată.</p>
+        ${job?.initialized ? `<p>${job.progress.done}/${job.progress.total} generate; ${job.pendingPhotos.length} poze rămase.</p>` : ""}
+        <p>Jobul este păstrat pentru reîncercare automată.</p>
+        <p><a href="${APP_BASE_URL}/admin/album-health">Verifică progresul în administrare</a></p>`,
+    });
+    if (job) await updateDurableJob(slug, { problemNotifiedAt: Date.now() });
+  } catch (error) {
+    console.error("[album-processing] retry email failed:", error);
+  }
+}
+
 async function runAlbumProcessing(slug: string): Promise<void> {
   const storageKey = getBunnyStorageKey();
 
@@ -1081,6 +1175,7 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     const listRes = await nodeFetch(buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
       agent: bunnyAgent,
+      signal: AbortSignal.timeout(120_000),
     });
     if (!listRes.ok) throw new Error("Nu pot lista folderul photos din Bunny.");
 
@@ -1094,7 +1189,9 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     const previewListRes = await nodeFetch(buildBunnyDirectoryUrl(slug, "photos_preview"), {
       headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
       agent: bunnyAgent,
+      signal: AbortSignal.timeout(120_000),
     });
+    if (!previewListRes.ok && previewListRes.status !== 404) throw new Error("Nu pot lista folderul photos_preview din Bunny.");
     const existingPreviews = new Set<string>();
     if (previewListRes.ok) {
       const previewEntries = await previewListRes.json() as { ObjectName: string }[];
@@ -1120,40 +1217,49 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     let failedThisAttempt = 0;
 
     for (const filename of photosToGenerate) {
-      const baseName = filename.replace(/\.[^.]+$/, "");
+      try {
+        const baseName = filename.replace(/\.[^.]+$/, "");
+        appendJobLog(slug, `⏳ Procesez ${filename}…`);
 
-      const dlRes = await nodeFetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename), {
-        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
-        agent: bunnyAgent,
-      });
-      if (!dlRes.ok || !dlRes.body) {
-        appendJobLog(slug, `⚠️ ${filename}: descărcarea a eșuat; va fi reîncercată automat.`);
-        failedThisAttempt++;
-        continue;
-      }
+        const dlRes = await nodeFetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename), {
+          headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+          agent: bunnyAgent,
+          signal: AbortSignal.timeout(120_000),
+        });
+        if (!dlRes.ok || !dlRes.body) {
+          appendJobLog(slug, `⚠️ ${filename}: descărcarea a eșuat; va fi reîncercată automat.`);
+          failedThisAttempt++;
+          continue;
+        }
 
-      const buffer = Buffer.from(await dlRes.arrayBuffer());
-      const webpBuffer = await sharp(buffer)
-        .resize({ width: 1400, withoutEnlargement: true })
-        .webp({ quality: 72 })
-        .toBuffer();
+        const buffer = Buffer.from(await dlRes.arrayBuffer());
+        const webpBuffer = await sharp(buffer)
+          .timeout({ seconds: 60 })
+          .resize({ width: 1400, withoutEnlargement: true })
+          .webp({ quality: 72 })
+          .toBuffer();
 
-      const previewName = `${baseName}.webp`;
-      const upRes = await nodeFetch(buildBunnyStorageUrl(slug, "photos_preview", previewName), {
-        method: "PUT",
-        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "image/webp" },
-        body: webpBuffer,
-        agent: bunnyAgent,
-      });
+        const previewName = `${baseName}.webp`;
+        const upRes = await nodeFetch(buildBunnyStorageUrl(slug, "photos_preview", previewName), {
+          method: "PUT",
+          headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "image/webp" },
+          body: webpBuffer,
+          agent: bunnyAgent,
+          signal: AbortSignal.timeout(120_000),
+        });
 
-      if (upRes.ok) {
-        const completed = await completeDurablePhoto(slug, filename);
-        const done = completed?.progress.done ?? generated;
-        const total = completed?.progress.total ?? totalToGenerate;
-        setJobProgress(slug, done, total);
-        appendJobLog(slug, `✅ ${previewName} (${done}/${total})`);
-      } else {
-        appendJobLog(slug, `⚠️ ${previewName}: încărcarea a eșuat; va fi reîncercată automat.`);
+        if (upRes.ok) {
+          const completed = await completeDurablePhoto(slug, filename);
+          const done = completed?.progress.done ?? generated;
+          const total = completed?.progress.total ?? totalToGenerate;
+          setJobProgress(slug, done, total);
+          appendJobLog(slug, `✅ ${previewName} (${done}/${total})`);
+        } else {
+          appendJobLog(slug, `⚠️ ${previewName}: încărcarea a eșuat; va fi reîncercată automat.`);
+          failedThisAttempt++;
+        }
+      } catch {
+        appendJobLog(slug, `⚠️ ${filename}: procesarea a eșuat; fișierul rămâne în coadă pentru reîncercare.`);
         failedThisAttempt++;
       }
     }
@@ -1170,6 +1276,7 @@ async function runAlbumProcessing(slug: string): Promise<void> {
         retryCount, nextAttemptAt: Date.now() + retryDelayMs,
       });
       errorJob(slug, reason);
+      await notifyAlbumProcessingProblem(slug, latest);
       return;
     }
 
@@ -1177,7 +1284,7 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     appendJobLog(slug, `🎉 Gata! ${done} generate, ${latest.alreadyExisting} existau deja, ${latest.failedAttempts + failedThisAttempt} încercări eșuate temporar`);
     invalidateAlbumCache(slug);
     await sendEmail({
-      to: ADMIN_EMAIL,
+      to: adminUser.email,
       subject: `✅ Preview procesat: ${slug}`,
       html: `<p>Folderul <strong>photos_preview</strong> pentru albumul <strong>${slug}</strong> a fost procesat.</p>
              <p>${done} previzualizări generate, ${latest.alreadyExisting} deja existente${latest.failedAttempts + failedThisAttempt ? `, ${latest.failedAttempts + failedThisAttempt} încercări temporare au eșuat și au fost reluate` : ""}.</p>
@@ -1198,14 +1305,7 @@ async function runAlbumProcessing(slug: string): Promise<void> {
       }).catch((persistError) => console.error("[album-processing] failed to schedule retry:", persistError));
     }
     errorJob(slug, message);
-    if (!queuedJob || queuedJob.failedAttempts === 0) {
-      sendEmail({
-        to: ADMIN_EMAIL,
-        subject: `❌ Eroare la procesarea albumului: ${slug}`,
-        html: `<p>Procesarea folderului <strong>photos_preview</strong> pentru albumul <strong>${slug}</strong> a eșuat.</p>
-               <p>Eroare: ${message}</p>`,
-      }).catch((err) => console.error("[album-processing] email notify failed:", err));
-    }
+    await notifyAlbumProcessingProblem(slug, queuedJob);
   }
 }
 
@@ -1291,11 +1391,17 @@ router.get("/album-health/:slug/live", requireFirebaseAuth, requireSupremeAdmin,
   const slug = String(req.params.slug);
 
   res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("X-Accel-Buffering", "no");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  const send = (data: object) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`); };
+  const send = (data: object) => {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+      (res as Response & { flush?: () => void }).flush?.();
+    }
+  };
 
   let job = getJob(slug);
   const queuedJob = await getDurableJob(slug);
@@ -1314,7 +1420,18 @@ router.get("/album-health/:slug/live", requireFirebaseAuth, requireSupremeAdmin,
   };
 
   job.emitter.on("update", onUpdate);
-  req.on("close", () => job.emitter.off("update", onUpdate));
+  // The worker can finish between the initial status check above and listener
+  // registration. Recheck after subscribing so the final event cannot be lost.
+  if (job.status !== "running") {
+    send({ type: job.status, ...(job.error ? { error: job.error } : {}) });
+    job.emitter.off("update", onUpdate);
+    res.end();
+    return;
+  }
+  const heartbeat = setInterval(() => send({ type: "heartbeat" }), 15_000);
+  const cleanup = () => { clearInterval(heartbeat); job!.emitter.off("update", onUpdate); };
+  res.on("close", cleanup);
+  res.on("finish", cleanup);
 });
 
 // POST /api/admin/album-health/:slug/process — start background job, returns immediately

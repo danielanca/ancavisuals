@@ -17,6 +17,7 @@ import PriceConfigurator, { type DatePick } from "./PriceConfigurator";
 import LazySection from "./LazySection";
 import SectionSkeleton from "./SectionSkeleton";
 import HeroVideo from "./HeroVideo";
+import FreePhotoboothContracts from "./FreePhotoboothContracts";
 import { AboutSummary, AncaVisualsPromo, CampaignPackages, CampaignVideoPlayer, GuideBook, PortfolioParallaxGallery, preloadGroup } from "./lazyParts";
 import ChatWithUs from "../../features/chat/components/ChatWithUs";
 import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
@@ -618,7 +619,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <p className="mt-4 text-sm text-neutral-600">Oferta s-a încheiat.</p>
           ) : (
             <>
-              <p className="mx-auto mt-4 max-w-sm text-sm font-medium leading-relaxed text-neutral-700 sm:text-base">Doar pentru următoarele 2 nunți rezervate.</p>
+              <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-neutral-600 sm:text-base">Am oferit fotocabina gratuită pentru 5 nunți. 3 locuri s-au ocupat deja.</p>
+              <p className="mt-3 text-lg font-semibold text-neutral-950">Au mai rămas doar 2 locuri disponibile.</p>
               <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-neutral-950/15 bg-neutral-100 px-5 py-2.5 text-sm text-neutral-950">
                 Până pe <strong className="font-semibold">30 octombrie 2026</strong>
               </p>
@@ -632,6 +634,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               </div>
             </>
           )}
+          {page.slug === "olx" && <FreePhotoboothContracts />}
         </div>
       </section>
 
@@ -817,7 +820,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   )}
                   {photoboothGift && (
                     <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                      🎁 <span className="font-semibold">+ Fotocabina e gratuită</span> dacă rezervi până pe 30 octombrie — doar pentru următoarele 2 nunți.
+                      🎁 <span className="font-semibold">+ Fotocabina e gratuită</span> dacă rezervi până pe 30 octombrie — 3 din 5 locuri s-au ocupat, mai sunt 2 disponibile.
                     </p>
                   )}
                   {!free && <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție — scrie-ne.</p>}

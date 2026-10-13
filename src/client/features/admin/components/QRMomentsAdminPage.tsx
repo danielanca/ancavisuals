@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { destination, isProd } from "../../../utils/address";
 import Breadcrumb from "./Breadcrumb";
 import AncaLoader from "../../../components/UI/AncaLoader";
@@ -906,7 +907,8 @@ export default function QRMomentsAdminPage() {
             <h1 className="text-white text-2xl font-light tracking-tight">QR Moments Admin</h1>
             <p className="text-neutral-500 text-sm mt-1">Evenimente, upload-uri, invitați și comentarii.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link to="/admin/qr-participants" className="px-3 py-2 rounded-lg border border-amber-500/30 text-amber-300 text-sm">Participanți QR Moments</Link>
             <button
               onClick={() => { setEditorError(null); setEditorMode("create"); }}
               className="px-3 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 text-sm hover:bg-emerald-500/30 hover:text-emerald-300 transition-colors"

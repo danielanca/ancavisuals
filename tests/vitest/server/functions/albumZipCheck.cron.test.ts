@@ -205,6 +205,21 @@ describe("album ZIP notification cron", () => {
     expect(mocks.sendEmail.mock.calls[1][0].html).toContain("ZIP depășit");
   });
 
+  test("does not re-notify when Bunny returns the same files in a different order", async () => {
+    listings["album/photos"] = [photo("2026-10-09T17:40:00Z", "b.jpg"), photo("2026-10-09T17:39:00Z", "a.jpg")];
+    listings["album/photos_preview"] = [photo("2026-10-09T17:40:00Z", "b.webp")];
+    await runCheck();
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    const firstData = mocks.set.mock.calls[0][2] as { lastPhotoDate: string; state: string };
+    notification = { ...firstData, notifiedAt: { toMillis: () => NOW.getTime() } };
+    const firstState = notification.state;
+    listings["album/photos"] = [photo("2026-10-09T17:39:00Z", "a.jpg"), photo("2026-10-09T17:40:00Z", "b.jpg")];
+    listings["album/photos_preview"] = [photo("2026-10-09T17:40:00Z", "b.webp")];
+    await runCheck();
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    expect(notification?.state).toBe(firstState);
+  });
+
   test("a preview listing error is skipped rather than reported as missing previews", async () => {
     const fetchListing = mocks.fetch.getMockImplementation()!;
     mocks.fetch.mockImplementation(async (url: string) => url.endsWith("photos_preview")

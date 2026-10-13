@@ -545,7 +545,7 @@ export default function PriceConfigurator({
                           </span>
                           <span className="mt-0.5 block text-xs text-neutral-600">{extra.note}</span>
                           {free && (
-                            <span className="mt-1 block text-xs font-semibold text-amber-700">{event.giftNote ?? "Ofertă pentru următoarele 2 nunți rezervate"}</span>
+                            <span className="mt-1 block text-xs font-semibold text-amber-700">{event.giftNote ?? "3 din 5 locuri s-au ocupat · Mai sunt 2 disponibile"}</span>
                           )}
                         </span>
                         <span className="shrink-0 text-right text-sm">

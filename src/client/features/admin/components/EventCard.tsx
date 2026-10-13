@@ -6,6 +6,7 @@ import CreateClientBriefLink from "../../client-brief/CreateClientBriefLink";
 import FeedbackLink from "../../feedback/FeedbackLink";
 import PrintSelectionLink from "../../../pages/MediaDownload/PrintSelectionLink";
 import EventVideoLink from "./EventVideoLink";
+import { watchAlbumProcessing } from "./watchAlbumProcessing";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
@@ -55,6 +56,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const ronOf = (eur: number) => rate ? formatRON(Math.round(eur * rate)) : null;
   const eurOf = (ron: number) => rate ? formatEUR(Math.round((ron / rate) * 100) / 100) : null;
   const hasEventData = Boolean(event?.client);
+  const fullyPaid = event.pricing?.advancePaid === true && (event.pricing?.total ?? 0) > 0 &&
+    (event.pricing?.advanceAmount ?? 0) >= event.pricing.total;
   const fallbackDate = event?.eventDate ? new Date(event.eventDate) : null;
   const fallbackName = event?.client?.fullName ?? "";
 
@@ -78,6 +81,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [folderCreating, setFolderCreating] = useState(false);
   const [folderResult, setFolderResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [processProgress, setProcessProgress] = useState<{ done: number; total: number } | null>(null);
+  const [processReconnecting, setProcessReconnecting] = useState(false);
+  const processWatchCleanup = useRef<(() => void) | undefined>();
+  useEffect(() => () => processWatchCleanup.current?.(), []);
   const [processLog, setProcessLog] = useState<string[]>([]);
   const [showAlbumUploader, setShowAlbumUploader] = useState(false);
   const [expenses, setExpenses] = useState<EventExpense[]>(event.expenses ?? []);
@@ -401,54 +408,30 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   // watches its live progress over SSE. When the job finishes, the server
   // sends an email to the admin — no need to keep this page open.
   const watchAlbumJob = (slug: string) => {
-    const controller = new AbortController();
-    (async () => {
-      try {
-        const res = await fetch(`/api/admin/album-health/${encodeURIComponent(slug)}/live`, {
-          headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
-          signal: controller.signal,
-        });
-        if (!res.body) return;
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
-              if (data.type === "init") {
-                setProcessLog((data.log as string[] | undefined) ?? []);
-                if (data.status !== "running") setProcessing(false);
-              } else if (data.type === "log") {
-                setProcessLog((l) => [...l, data.message as string]);
-              } else if (data.type === "done") {
-                setProcessLog((l) => [...l, "🎉 Procesare completă! Vei primi un email de confirmare."]);
-                setProcessing(false);
-              } else if (data.type === "error") {
-                setProcessLog((l) => [...l, `❌ Eroare: ${data.error}`]);
-                setProcessing(false);
-              }
-            } catch {}
-          }
-        }
-      } catch {
-        // connection dropped (e.g. tab closed) — the job itself keeps running server-side
+    processWatchCleanup.current?.();
+    processWatchCleanup.current = watchAlbumProcessing(slug, () => auth.auth.user ? auth.auth.user.getIdToken() : Promise.resolve(auth.auth.accessToken), data => {
+      if (data.type === "init") {
+        setProcessLog((data.log as string[] | undefined) ?? []);
+        setProcessProgress(data.progress as { done: number; total: number } | undefined ?? null);
+        setProcessing(data.status === "running");
+      } else if (data.type === "progress") {
+        setProcessProgress({ done: data.done as number, total: data.total as number });
+      } else if (data.type === "log") {
+        setProcessLog(log => [...log, data.message as string]);
+      } else if (data.type === "done") {
+        setProcessLog(log => [...log, "🎉 Procesare completă! Emailul de confirmare a fost trimis."]);
+        setProcessing(false);
+      } else if (data.type === "error") {
+        setProcessLog(log => [...log, `⚠️ ${data.error}`]);
+        setProcessing(false);
       }
-    })();
+    }, setProcessReconnecting);
   };
 
   const handleProcessAlbum = async () => {
     if (!event.id || !albumSlug || processing) return;
     setProcessing(true);
+    setProcessProgress(null);
     setProcessLog(["Se pornește procesarea pe server..."]);
 
     try {
@@ -861,14 +844,14 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                       {backupPending ? "Backup neconfirmat" : "Backup confirmat"}
                     </span>
                   )}
-                  <span className="flex items-center gap-1.5">
+                  <span className={`flex items-center gap-1.5 ${fullyPaid ? "text-emerald-300" : ""}`}>
                     <span>{event.pricing?.advancePaid ? "✅" : "⏳"}</span>
                     <span>
-                      {event.pricing?.advancePaid ? "Avans încasat" : "Avans neîncasat"}{" "}
+                      {fullyPaid ? "Achitat integral" : event.pricing?.advancePaid ? "Avans încasat" : "Avans neîncasat"}{" "}
                       <Redacted>({formatEUR(event.pricing?.advanceAmount ?? 0)}{ronOf(event.pricing?.advanceAmount ?? 0) ? ` · ≈ ${ronOf(event.pricing?.advanceAmount ?? 0)}` : ""})</Redacted>
                     </span>
                   </span>
-                  {(event.pricing?.remainingAmount ?? 0) > 0 && (
+                  {!fullyPaid && (event.pricing?.remainingAmount ?? 0) > 0 && (
                     <span className="flex items-center gap-1.5">
                       <span>💳</span>
                       <span>
@@ -1176,6 +1159,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                       </div>
                     )}
 
+                    {processReconnecting && <p role="status" className="mt-2 text-xs text-amber-300">Progresul live s-a întrerupt. Reconectare automată… Procesarea pe server continuă independent de pagină.</p>}
+                    {processing && processProgress?.total ? <p className="mt-2 text-xs text-neutral-400">Previzualizări generate: {processProgress.done}/{processProgress.total}</p> : null}
                     {processLog.length > 0 && (
                       <div className="mt-2 bg-neutral-950 border border-neutral-800 rounded-lg p-3 max-h-40 overflow-y-auto">
                         {processLog.map((line, i) => (
@@ -1718,7 +1703,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   <input type="text" inputMode="numeric" className={inputClass} value={form.total} onChange={set("total")} />
                 </div>
                 <div>
-                  <label className={labelClass}>Avans (EUR)</label>
+                  <label className={labelClass}>Avans / sumă încasată (EUR)</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1744,7 +1729,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                   className="w-4 h-4 accent-emerald-500"
                 />
                 <label htmlFor="advancePaid" className="text-neutral-400 text-xs cursor-pointer">
-                  Avans încasat
+                  {Number(form.total) > 0 && Number(form.advanceAmount) >= Number(form.total) ? "Sumă integrală încasată" : "Avans încasat"}
                 </label>
               </div>
               <div>

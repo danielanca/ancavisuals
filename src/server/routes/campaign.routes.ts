@@ -10,6 +10,7 @@ import { reportLeadConversion } from "../services/googleAdsConversion.service";
 import { geolocateIp } from "../utils/geolocateIp";
 import { saveLead, updateLeadEmailStatus } from "../services/leads.service";
 import { getClientIp } from "../utils/ipinfo";
+import { getFreePhotoboothContracts } from "../services/freePhotoboothContracts.service";
 
 const router = Router();
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -38,6 +39,15 @@ async function deleteFromBunny(bunnyPath: string): Promise<void> {
 }
 
 // ─── PUBLIC ──────────────────────────────────────────────────────────────────
+
+router.get("/olx/free-photobooth-contracts", async (_req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    res.json({ contracts: await getFreePhotoboothContracts() });
+  } catch {
+    res.status(503).json({ error: "Lista rezervărilor nu este disponibilă momentan." });
+  }
+});
 
 // Every /oferta/:slug render asks for the campaign first (for /oferta/olx the answer is
 // "none"): remembered for a minute, forgotten once any change to campaigns is saved.

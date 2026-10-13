@@ -26,6 +26,7 @@ const InspirationPage = loadable(() => import("../features/admin/components/Insp
 const MementosPage = loadable(() => import("../features/admin/components/MementosPage"), opts);
 const MediaActivityPage = loadable(() => import("../features/admin/components/MediaActivityPage"), opts);
 const QRMomentsAdminPage = loadable(() => import("../features/admin/components/QRMomentsAdminPage"), opts);
+const QrParticipantsPage = loadable(() => import("../features/admin/components/QrParticipantsPage"), opts);
 const AnalyticsPage = loadable(() => import("../features/admin/components/AnalyticsPage"), opts);
 const LiveVisitorsPage = loadable(() => import("../features/admin/components/LiveVisitorsPage"), opts);
 const LeadsPage = loadable(() => import("../features/admin/components/LeadsPage"), opts);
@@ -98,6 +99,7 @@ export const adminRoutes = [
       <Route path="/admin/mementos" element={<MementosPage />} />
       <Route path="/admin/media-activity" element={<MediaActivityPage />} />
       <Route path="/admin/qr-moments" element={<QRMomentsAdminPage />} />
+      <Route path="/admin/qr-participants" element={<QrParticipantsPage />} />
       <Route path="/admin/analytics" element={<AnalyticsPage />} />
       <Route path="/admin/live" element={<LiveVisitorsPage />} />
       <Route path="/admin/leads" element={<LeadsPage />} />

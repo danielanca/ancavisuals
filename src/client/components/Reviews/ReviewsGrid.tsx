@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ACCENT } from "../../utils/theme";
 
-interface Review {
+export interface Review {
   id: string;
   author: string;
+  city?: string;
   date: string;
   rating: number | null;
   text: string;
@@ -23,6 +24,8 @@ interface ReviewsGridProps {
   // paseze propriile clase ca recenziile să se încadreze vizual acolo unde apar.
   accentText?: string;
   accentBgSubtle?: string;
+  previewReviews?: Review[];
+  reviewTone?: "dark" | "light";
 }
 
 function Stars({ rating, accentText }: { rating: number | null; accentText: string }) {
@@ -51,6 +54,8 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
   layout = "masonry",
   accentText = ACCENT.text,
   accentBgSubtle = ACCENT.bgSubtle,
+  previewReviews,
+  reviewTone = "dark",
 }) => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -62,6 +67,11 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
     const controller = new AbortController();
     setLoaded(false);
     setOpenReview(null);
+    if (previewReviews) {
+      setReviews(previewReviews);
+      setLoaded(true);
+      return () => controller.abort();
+    }
     const params = new URLSearchParams({ category });
     if (offerSlug) params.set("offerSlug", offerSlug);
     fetch(`/api/reviews?${params.toString()}`, { signal: controller.signal })
@@ -73,7 +83,7 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
       .catch(() => { if (!controller.signal.aborted) setReviews([]); })
       .finally(() => { if (!controller.signal.aborted) setLoaded(true); });
     return () => controller.abort();
-  }, [category, offerSlug]);
+  }, [category, offerSlug, previewReviews]);
 
   useEffect(() => {
     if (!openReview) return;
@@ -105,7 +115,7 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
   if (!loaded || reviews.length === 0) return null;
 
   return (
-    <section data-track-section="recenzii" className="mx-auto max-w-6xl px-6 py-16">
+    <section data-track-section="recenzii" data-review-tone={reviewTone} className="mx-auto max-w-6xl px-6 py-16">
       <div>
         <h2 className="text-2xl font-light md:text-3xl">{title}</h2>
         {subtitle && <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-400">{subtitle}</p>}
@@ -114,7 +124,7 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
       <div className={layout === "horizontal" ? "mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2" : "mt-8 columns-1 gap-6 sm:columns-2 lg:columns-3"}>
         {reviews.map((review) => (
           layout === "horizontal" ? (
-            <article key={review.id} className="overflow-hidden rounded-3xl border border-white/10 bg-neutral-900 transition-colors hover:border-amber-200/30">
+            <article key={review.id} className="overflow-hidden rounded-none border border-white/10 bg-neutral-900 transition-colors hover:border-amber-200/30">
               <button
                 type="button"
                 onClick={() => { setOpenReview(review); setPhotoIndex(0); }}
@@ -126,15 +136,24 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
                     <span className="break-words">{review.author}</span>
                     {review.verified && <span className={`shrink-0 ${accentText}`} aria-label="Recenzie verificată">✓</span>}
                   </h3>
-                  <p className="mt-1 text-xs text-neutral-500">{fmtDate(review.date)}</p>
+                  <p className="mt-1 text-xs text-neutral-500">{review.city ? `Eveniment în ${review.city} · ` : ""}{fmtDate(review.date)}</p>
                   <div className="mt-4"><Stars rating={review.rating} accentText={accentText} /></div>
                   <p className="mt-3 line-clamp-5 whitespace-pre-line text-sm leading-6 text-neutral-300">{review.text}</p>
                   <span className={`mt-auto pt-5 text-xs ${accentText}`}>Citește recenzia <span aria-hidden="true">↗</span></span>
                 </div>
                 {review.photos.length > 0 && (
-                  <div className="relative w-[35%] shrink-0 self-stretch overflow-hidden rounded-2xl bg-black/30">
-                    <img src={review.photos[0].url} alt={`Fotografie de la ${review.author}`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-                    {review.photos.length > 1 && <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-1 text-xs text-white">+{review.photos.length - 1}</span>}
+                  <div className="flex aspect-square w-[38%] shrink-0 flex-col gap-2 self-center overflow-hidden rounded-[2px] bg-black/5">
+                    <img src={review.photos[0].url} alt={`Fotografie de la ${review.author}`} className="h-32 w-full min-h-0 flex-1 object-cover" loading="lazy" />
+                    {review.photos.length > 1 && (
+                      <div className="grid h-14 shrink-0 grid-cols-3 gap-1.5">
+                        {review.photos.slice(1, 4).map((photo, index) => (
+                          <div key={photo.url} className="relative min-w-0 overflow-hidden rounded-none">
+                            <img src={photo.url} alt={`Fotografie ${index + 2} de la ${review.author}`} className="h-full w-full object-cover" loading="lazy" />
+                            {index === 2 && review.photos.length > 4 && <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-xs font-medium text-white">+{review.photos.length - 4}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </button>
@@ -177,6 +196,7 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
 
       {openReview && createPortal(
         <div
+          data-review-tone={reviewTone}
           className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
           onClick={() => setOpenReview(null)}
         >
@@ -185,13 +205,13 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
             role="dialog"
             aria-modal="true"
             aria-label={`Recenzie de la ${openReview.author}`}
-            className={`relative grid max-h-[90dvh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-neutral-900 shadow-2xl ${openReview.photos.length > 0 ? "md:grid-cols-[1.2fr_1fr]" : "max-w-xl"}`}
+            className={`relative grid max-h-[90dvh] w-full max-w-5xl overflow-y-auto rounded-none border border-white/10 bg-neutral-900 shadow-2xl ${openReview.photos.length > 0 ? "md:grid-cols-[1.2fr_1fr]" : "max-w-xl"}`}
             onClick={(e) => e.stopPropagation()}
           >
               <button
                 type="button"
                 onClick={() => setOpenReview(null)}
-                className="absolute left-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white transition-colors hover:bg-black/80 focus-visible:outline focus-visible:outline-amber-200"
+                className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-xl text-black shadow-lg transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200"
                 aria-label="Închide"
               >
                 ✕
@@ -203,7 +223,7 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
                   <button
                     type="button"
                     onClick={() => setPhotoIndex((i) => (i - 1 + openReview.photos.length) % openReview.photos.length)}
-                    className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+                    className="absolute left-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/95 text-2xl text-black shadow-lg transition-transform hover:scale-105"
                     aria-label="Poza anterioară"
                   >
                     ‹
@@ -211,14 +231,23 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
                   <button
                     type="button"
                     onClick={() => setPhotoIndex((i) => (i + 1) % openReview.photos.length)}
-                    className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+                    className="absolute right-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/95 text-2xl text-black shadow-lg transition-transform hover:scale-105"
                     aria-label="Poza următoare"
                   >
                     ›
                   </button>
-                  <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
-                    {openReview.photos.map((_, i) => (
-                      <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === photoIndex ? "bg-white" : "bg-white/40"}`} />
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-gradient-to-t from-black/65 to-transparent px-4 pb-3 pt-8">
+                    {openReview.photos.map((photo, i) => (
+                      <button
+                        key={photo.url}
+                        type="button"
+                        onClick={() => setPhotoIndex(i)}
+                        aria-label={`Deschide fotografia ${i + 1}`}
+                        aria-current={i === photoIndex ? "true" : undefined}
+                        className={`h-12 w-12 overflow-hidden border-2 bg-black/30 shadow-md transition-all sm:h-14 sm:w-14 ${i === photoIndex ? "border-white opacity-100" : "border-white/45 opacity-75 hover:opacity-100"}`}
+                      >
+                        <img src={photo.url} alt="" aria-hidden="true" className="h-full w-full object-cover" loading="lazy" />
+                      </button>
                     ))}
                   </div>
                 </>
@@ -235,7 +264,7 @@ const ReviewsGrid: React.FC<ReviewsGridProps> = ({
               </h3>
               <div className="mt-1.5 flex items-center gap-3">
                 <Stars rating={openReview.rating} accentText={accentText} />
-                <span className="text-xs text-gray-500">{fmtDate(openReview.date)}</span>
+                <span className="text-xs text-gray-500">{openReview.city ? `Eveniment în ${openReview.city} · ` : ""}{fmtDate(openReview.date)}</span>
               </div>
               <p className="mt-6 whitespace-pre-line text-sm leading-7 text-gray-300">{openReview.text}</p>
               {openReview.verified && <p className={`mt-auto pt-8 text-xs ${accentText}`}>✓ Recenzie verificată</p>}
