@@ -188,8 +188,8 @@ const ReviewsAdminPage: React.FC = () => {
       selectedAlbumPhotos: current.selectedAlbumPhotos.some(item => item.url === photo.url)
         ? current.selectedAlbumPhotos.filter(item => item.url !== photo.url)
         : current.existingPhotos.length + current.selectedAlbumPhotos.length + current.newPhotoFiles.length >= 5
-          ? current
-        : [...current.selectedAlbumPhotos, photo],
+            ? current.selectedAlbumPhotos
+            : [...current.selectedAlbumPhotos, photo],
     }));
   }
 
