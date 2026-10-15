@@ -592,7 +592,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {/* ── FILM — same full-bleed look as the hero: a photo, then the clip once it has
           downloaded (only while this section is on screen) ── */}
       {(page.heroClipUrl || galleryImageUrls.length > 1) && (
-        <section className="relative flex min-h-[calc(var(--stable-vh,1vh)*30)] items-end overflow-hidden bg-neutral-950 text-white sm:min-h-[calc(var(--stable-vh,1vh)*90)]">
+        <section className="relative flex min-h-[calc(var(--stable-vh,1vh)*30)] items-end overflow-hidden bg-neutral-950 text-white sm:min-h-[calc(var(--stable-vh,1vh)*90)] lg:mx-auto lg:my-12 lg:h-[min(90vh,760px)] lg:min-h-0 lg:max-w-[1280px] lg:rounded-[2rem] lg:shadow-2xl lg:shadow-black/50">
           {(galleryImageUrls[1] || page.heroImageUrl) && (
             <img
               src={galleryImageUrls[1] || page.heroImageUrl}
@@ -604,8 +604,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           )}
           {page.heroClipUrl && <HeroVideo src={page.heroClipUrl} hdSrc={page.heroClipHdUrl} />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-          <div className="relative mx-auto w-full max-w-6xl px-6 pb-8 pt-24 sm:pb-20 sm:pt-32">
-            <h2 className="max-w-2xl text-xl font-light leading-tight sm:text-5xl">
+          <div className="relative mx-auto w-full max-w-6xl px-6 pb-8 pt-24 sm:pb-20 sm:pt-32 lg:px-12 lg:pb-14">
+            <h2 className="max-w-2xl text-xl font-light leading-tight sm:text-5xl lg:max-w-3xl lg:text-6xl lg:tracking-tight lg:drop-shadow-[0_3px_18px_rgba(0,0,0,0.55)]">
               Momente reale. Așa cum le trăiți.
             </h2>
           </div>

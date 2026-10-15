@@ -2015,11 +2015,11 @@ const FinancialPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-neutral-800">
+        {/* Tabs — pe mobil se derulează orizontal în loc să lățească pagina */}
+        <div className="-mx-4 flex gap-1 overflow-x-auto border-b border-neutral-800 px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
           {([["overview", "Overview"], ["taxe", "Taxe & Estimări"], ["cheltuieli", "Cheltuieli"], ["facturi", "Facturi emise"], ["tva", "TVA Taxare Inversă"]] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => dispatch({ type: "SET_TAB", tab })}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${state.activeTab === tab ? "border-white text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"}`}>
+              className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${state.activeTab === tab ? "border-white text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"}`}>
               {label}
             </button>
           ))}
@@ -2492,17 +2492,24 @@ const FinancialPage: React.FC = () => {
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">✕</button>
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
-                <input type="date" value={state.expenseDateFrom}
-                  onChange={(e) => dispatch({ type: "SET_EXPENSE_DATE_FROM", value: e.target.value })}
-                  className="py-2 px-2.5 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors [color-scheme:dark]" />
-                <span className="text-neutral-600 text-xs">–</span>
-                <input type="date" value={state.expenseDateTo}
-                  onChange={(e) => dispatch({ type: "SET_EXPENSE_DATE_TO", value: e.target.value })}
-                  className="py-2 px-2.5 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors [color-scheme:dark]" />
+              {/* Pe iPhone (WebKit, inclusiv Chrome) input date gol nu arată placeholder, deci etichetele sunt vizibile. */}
+              <div className="flex items-end gap-1.5">
+                <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] text-neutral-500 sm:w-36 sm:flex-none">
+                  De la
+                  <input type="date" value={state.expenseDateFrom}
+                    onChange={(e) => dispatch({ type: "SET_EXPENSE_DATE_FROM", value: e.target.value })}
+                    className="min-h-[38px] w-full min-w-0 py-2 px-2.5 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors [color-scheme:dark]" />
+                </label>
+                <span className="pb-2.5 text-neutral-600 text-xs">–</span>
+                <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] text-neutral-500 sm:w-36 sm:flex-none">
+                  Până la
+                  <input type="date" value={state.expenseDateTo}
+                    onChange={(e) => dispatch({ type: "SET_EXPENSE_DATE_TO", value: e.target.value })}
+                    className="min-h-[38px] w-full min-w-0 py-2 px-2.5 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors [color-scheme:dark]" />
+                </label>
                 {(state.expenseDateFrom || state.expenseDateTo) && (
                   <button onClick={() => { dispatch({ type: "SET_EXPENSE_DATE_FROM", value: "" }); dispatch({ type: "SET_EXPENSE_DATE_TO", value: "" }); }}
-                    className="text-neutral-500 hover:text-white transition-colors text-xs px-1">✕</button>
+                    aria-label="Șterge intervalul" className="pb-2.5 text-neutral-500 hover:text-white transition-colors text-xs px-1">✕</button>
                 )}
               </div>
             </div>

@@ -150,6 +150,10 @@ const DashboardInner: React.FC = () => {
   const location = useLocation();
   const { auth } = useAuth();
   const { privacyMode, togglePrivacyMode } = usePrivacyMode();
+  const getEmailAlertToken = useCallback(
+    () => auth.user ? auth.user.getIdToken() : Promise.resolve(auth.accessToken ?? ""),
+    [auth.user, auth.accessToken],
+  );
 
   const targetEventId =
     typeof (location.state as { scrollToEvent?: unknown } | null)?.scrollToEvent === "string"
@@ -254,12 +258,12 @@ const DashboardInner: React.FC = () => {
 
   if (auth.role === "moderator") return <ModeratorAlbumsPage />;
 
-  if (loading) return <><EmailFailureBanner accessToken={auth.accessToken ?? ""} /><AncaLoader /></>;
+  if (loading) return <><EmailFailureBanner accessToken={auth.accessToken ?? ""} getToken={getEmailAlertToken} /><AncaLoader /></>;
 
   if (error) {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-        <EmailFailureBanner accessToken={auth.accessToken ?? ""} />
+        <EmailFailureBanner accessToken={auth.accessToken ?? ""} getToken={getEmailAlertToken} />
         <p className="text-red-400 text-sm">Eroare: {error}</p>
       </div>
     );
@@ -295,7 +299,7 @@ const DashboardInner: React.FC = () => {
     <>
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-4xl mx-auto space-y-8">
-        <EmailFailureBanner accessToken={auth.accessToken ?? ""} />
+        <EmailFailureBanner accessToken={auth.accessToken ?? ""} getToken={getEmailAlertToken} />
 
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

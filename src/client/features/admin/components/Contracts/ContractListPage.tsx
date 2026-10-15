@@ -62,7 +62,7 @@ const ContractListPage: React.FC = () => {
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  type PendingAction = { type: "delete" | "cancel" | "send"; id: string; contractLabel: string } | null;
+  type PendingAction = { type: "delete" | "cancel" | "send"; id: string; contractLabel: string; isDraft?: boolean } | null;
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [invoiceModal, setInvoiceModal] = useState<ContractItem | null>(null);
 
@@ -350,8 +350,8 @@ const ContractListPage: React.FC = () => {
     setTimeout(() => setToast(null), 2500);
   };
 
-  const confirmAction = (type: "delete" | "cancel" | "send", id: string, contractLabel: string) => {
-    setPendingAction({ type, id, contractLabel });
+  const confirmAction = (type: "delete" | "cancel" | "send", id: string, contractLabel: string, isDraft = false) => {
+    setPendingAction({ type, id, contractLabel, isDraft });
   };
 
   const executePendingAction = () => {
@@ -486,7 +486,10 @@ const ContractListPage: React.FC = () => {
                   <p className="text-white text-sm">{draft.eventDate ? formatDate(draft.eventDate) : "Dată nesetată"} — {draft.clientName?.trim() || "Draft necunoscut"}</p>
                   <p className="text-xs text-neutral-400 mt-1">Salvat în cont · {draft.clientEmail || "Email necompletat"}</p>
                 </div>
-                <button type="button" className="text-sm text-sky-300" onClick={() => navigate(`/admin/contracts/${draft.id}/edit`)}>Continuă draftul</button>
+                <div className="flex gap-3 text-sm">
+                  <button type="button" className="text-sky-300" onClick={() => navigate(`/admin/contracts/${draft.id}/edit`)}>Continuă draftul</button>
+                  <button type="button" className="text-neutral-400" onClick={() => confirmAction("delete", draft.id, `${draft.eventDate ? formatDate(draft.eventDate) : "dată nesetată"} — ${draft.clientName?.trim() || "Draft necunoscut"}`, true)}>Șterge draftul</button>
+                </div>
               </div>
             ))}
             {filteredWorkDrafts.map((draft) => (
@@ -703,19 +706,19 @@ const ContractListPage: React.FC = () => {
       {pendingAction && (
         <ConfirmModal
           title={
-            pendingAction.type === "delete" ? "Șterge contract" :
+            pendingAction.type === "delete" ? (pendingAction.isDraft ? "Șterge draftul" : "Șterge contract") :
             pendingAction.type === "cancel" ? "Anulează contract" :
             "Trimite link semnare"
           }
           message={
             pendingAction.type === "delete"
-              ? `Ștergi definitiv contractul pentru ${pendingAction.contractLabel}? Acțiunea nu poate fi anulată.`
+              ? `Ștergi definitiv ${pendingAction.isDraft ? "draftul" : "contractul"} pentru ${pendingAction.contractLabel}? Acțiunea nu poate fi anulată.`
               : pendingAction.type === "cancel"
               ? `Anulezi contractul pentru ${pendingAction.contractLabel}? Clientul nu va mai putea semna.`
               : `Trimiți link-ul de semnare pe email la ${pendingAction.contractLabel}?`
           }
           confirmLabel={
-            pendingAction.type === "delete" ? "Șterge definitiv" :
+            pendingAction.type === "delete" ? (pendingAction.isDraft ? "Șterge draftul" : "Șterge definitiv") :
             pendingAction.type === "cancel" ? "Anulează contractul" :
             "Trimite"
           }

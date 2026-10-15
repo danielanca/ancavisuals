@@ -97,7 +97,7 @@ describe("ContractListPage", () => {
       expect(screen.getByText("Nunta 2027")).toBeInTheDocument();
     });
 
-    test("includes existing server drafts without local drafts and opens their editor", async () => {
+    test("includes existing server drafts, opens their editor, and can delete them", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ contracts: [{ ...contractsFixture[0], eventDate: "2027-09-18" }] }),
@@ -107,6 +107,12 @@ describe("ContractListPage", () => {
       expect(screen.getByText(/18 sept.*2027 — Draft necunoscut/)).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Continuă draftul" }));
       expect(mockNavigate).toHaveBeenCalledWith("/admin/contracts/contract-1/edit");
+
+      fireEvent.click(screen.getByRole("button", { name: "Șterge draftul" }));
+      const deleteButtons = await screen.findAllByRole("button", { name: "Șterge draftul", exact: true });
+      expect(deleteButtons).toHaveLength(2);
+      fireEvent.click(deleteButtons[1]);
+      await waitFor(() => expect(screen.queryByText(/Drafturi de lucru \(1\)/)).not.toBeInTheDocument());
     });
 
     test("loads and renders the contract list", async () => {

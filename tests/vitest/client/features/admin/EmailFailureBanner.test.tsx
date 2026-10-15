@@ -60,3 +60,16 @@ test("cancels retries when unmounted", async () => {
   await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
+
+test("asks for a fresh token on every check so an expired session token does not raise the banner", async () => {
+  vi.useFakeTimers();
+  const fetchMock = vi.fn(async (_url, options) => options?.headers?.Authorization === "Bearer fresh"
+    ? { ok: true, json: async () => ({ alert: null }) }
+    : { ok: false, status: 401 });
+  vi.stubGlobal("fetch", fetchMock);
+  const getToken = vi.fn().mockResolvedValue("fresh");
+  render(<EmailFailureBanner accessToken="expired" getToken={getToken} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+  expect(getToken).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole("alert")).toBeNull();
+});

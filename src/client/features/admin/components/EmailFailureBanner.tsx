@@ -2,18 +2,22 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGetWithRetry } from "../../../utils/fetchGetWithRetry";
 
 type Alert = { id: string; occurredAt: string; error: string; subject: string; to: string; diagnostic?: string };
-export default function EmailFailureBanner({ accessToken }: { accessToken: string }) {
+// Polling outlives the 1 h Firebase ID token (sleep, background tab), so every check asks for a fresh one.
+export default function EmailFailureBanner({ accessToken, getToken }: { accessToken: string; getToken?: () => Promise<string> }) {
   const [alert, setAlert] = useState<Alert | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
   const pending = useRef<AbortController | null>(null);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const load = useCallback(async () => {
     if (!accessToken || pending.current) return;
     const controller = new AbortController();
     pending.current = controller;
     try {
-      const res = await fetchGetWithRetry("/api/admin/email-alert", { signal: controller.signal, headers: { Authorization: `Bearer ${accessToken}` } });
+      const token = getTokenRef.current ? await getTokenRef.current() : accessToken;
+      const res = await fetchGetWithRetry("/api/admin/email-alert", { signal: controller.signal, headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (!controller.signal.aborted) { setAlert(data.alert); setUnavailable(false); }
@@ -32,8 +36,9 @@ export default function EmailFailureBanner({ accessToken }: { accessToken: strin
     if (!alert) return;
     setBusy(true);
     try {
+      const token = getTokenRef.current ? await getTokenRef.current() : accessToken;
       const res = await fetch("/api/admin/email-alert/acknowledge", { method: "POST", headers: {
-        Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`, "Content-Type": "application/json",
       }, body: JSON.stringify({ id: alert.id }) });
       if (!res.ok) throw new Error();
       setFeedback(""); await load();

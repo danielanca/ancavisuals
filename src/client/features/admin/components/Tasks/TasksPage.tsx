@@ -4,6 +4,7 @@ import Breadcrumb from "../Breadcrumb";
 import DictateField from "./DictateButton";
 import TodayTimeline from "./TodayTimeline";
 import RichTextEditor from "../Contracts/RichTextEditor";
+import { fetchGetWithRetry } from "../../../../utils/fetchGetWithRetry";
 import {
   DAY_MIN,
   DEFAULT_DURATION_MIN,
@@ -112,6 +113,21 @@ function EstimatedTimeField({ value, onChange }: { value: string; onChange: (val
   );
 }
 
+// Lista de clienți e un <datalist> care caută după text: punem data și cu luna scrisă,
+// ca „8 august” să găsească nunta, nu doar „08.08.2026”.
+export function eventDateSearchLabel(eventDate: Date | string | null | undefined): string {
+  if (!eventDate) return "fără dată";
+  const date = new Date(eventDate);
+  if (Number.isNaN(date.getTime())) return "fără dată";
+  const timeZone = "Europe/Bucharest";
+  const written = date.toLocaleDateString("ro-RO", { day: "numeric", month: "long", year: "numeric", timeZone });
+  const numeric = date.toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone });
+  return `${written} · ${numeric}`;
+}
+
+const TASK_LOAD_AUTO_ROUNDS = 3;
+const TASK_LOAD_RETRY_DELAY_MS = 4000;
+
 export default function TasksPage() {
   const { auth } = useAuth();
   const [tasks, setTasks] = useState<ClientTask[]>([]);
@@ -130,31 +146,71 @@ export default function TasksPage() {
     [auth.accessToken],
   );
 
+  // fetchGetWithRetry face deja 3 încercări; dacă tot eșuează, mai reîncercăm automat
+  // de câteva ori (și la revenirea conexiunii) înainte să arătăm eroarea.
+  const [loadRound, setLoadRound] = useState(0);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const retryLoad = useCallback(() => {
+    setLoadFailed(false);
+    setLoading(true);
+    setLoadRound((round) => (round >= TASK_LOAD_AUTO_ROUNDS ? 0 : round + 1));
+  }, []);
+
+  useEffect(() => {
+    if (!auth.accessToken || tasksLoaded) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setLoading(true);
+    fetchGetWithRetry("/api/admin/tasks", { headers: { Authorization: `Bearer ${auth.accessToken}` }, signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = (await response.json()) as { tasks: ClientTask[] };
+        if (controller.signal.aborted) return;
+        setTasks(data.tasks ?? []);
+        setTasksLoaded(true);
+        setLoadFailed(false);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        if (loadRound < TASK_LOAD_AUTO_ROUNDS) {
+          timer = setTimeout(() => setLoadRound((round) => round + 1), TASK_LOAD_RETRY_DELAY_MS);
+          return;
+        }
+        setLoadFailed(true);
+        setLoading(false);
+      });
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [auth.accessToken, tasksLoaded, loadRound]);
+
+  useEffect(() => {
+    if (tasksLoaded || !loadFailed) return;
+    window.addEventListener("online", retryLoad);
+    return () => window.removeEventListener("online", retryLoad);
+  }, [tasksLoaded, loadFailed, retryLoad]);
+
   useEffect(() => {
     if (!auth.accessToken) return;
-    const authHeader = { Authorization: `Bearer ${auth.accessToken}` };
-    fetch("/api/admin/tasks", { headers: authHeader })
-      .then(async (response) => {
-        if (!response.ok) throw new Error();
-        const data = (await response.json()) as { tasks: ClientTask[] };
-        setTasks(data.tasks ?? []);
-      })
-      .catch(() => setError("Nu am putut încărca taskurile."))
-      .finally(() => setLoading(false));
-    fetch("/api/admin/events", { headers: authHeader })
+    const controller = new AbortController();
+    fetchGetWithRetry("/api/admin/events", { headers: { Authorization: `Bearer ${auth.accessToken}` }, signal: controller.signal })
       .then((response) => response.json())
       .then((data: { events?: ClientEvent[] }) => {
+        if (controller.signal.aborted) return;
         const options = (data.events ?? [])
           .filter((event) => event.status !== "anulat" && event.client?.fullName)
           .filter((event) => isEventWorkable(event.eventDate, bucharestDay()))
           .sort((a, b) => String(b.eventDate ?? "").localeCompare(String(a.eventDate ?? "")))
           .map((event) => {
-            const date = event.eventDate ? new Date(event.eventDate).toLocaleDateString("ro-RO") : "fără dată";
-            return { id: event.id, clientName: event.client.fullName, label: `${event.client.fullName} — ${event.typeLabel ?? event.type} (${date})` };
+            return { id: event.id, clientName: event.client.fullName, label: `${event.client.fullName} — ${event.typeLabel ?? event.type} (${eventDateSearchLabel(event.eventDate)})` };
           });
         setEvents(options);
       })
       .catch(() => {});
+    return () => controller.abort();
   }, [auth.accessToken]);
 
   // Pagina poate rămâne deschisă peste miezul nopții.
@@ -284,7 +340,17 @@ export default function TasksPage() {
         <QuickAdd events={events} today={today} onCreate={createTask} />
 
         {loading ? (
-          <p className="text-sm text-neutral-500">Se încarcă…</p>
+          <div role="status" className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-6 text-sm text-neutral-400">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-600 border-t-violet-400" aria-hidden="true" />
+            {loadRound > 0 ? "Conexiunea merge greu, reîncerc să încarc taskurile…" : "Se încarcă taskurile…"}
+          </div>
+        ) : loadFailed && !tasksLoaded ? (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <span>Nu am putut încărca taskurile. Reîncerc automat când revine conexiunea.</span>
+            <button type="button" onClick={retryLoad} className="rounded-md border border-red-400/40 px-3 py-1 text-red-200 hover:bg-red-500/20">
+              Reîncearcă
+            </button>
+          </div>
         ) : (
           <>
             <ProgressPanel stats={stats} today={today} />
@@ -713,7 +779,7 @@ function TaskRow({
         done ? "border-neutral-800 border-l-neutral-700 bg-neutral-900/30" : `border-neutral-800 bg-neutral-900 ${PRIORITY_STYLES[task.priority]?.border ?? ""}`
       } ${order?.dragging ? "opacity-40" : ""} ${order?.dropTarget ? "ring-2 ring-violet-500/60" : ""}`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex flex-wrap items-start gap-3 sm:flex-nowrap">
         {order && (
           <div className="flex shrink-0 flex-col items-center -my-1">
             <button
@@ -759,7 +825,7 @@ function TaskRow({
           className="mt-1 h-4 w-4 accent-emerald-500"
         />
         <div className="flex-1 min-w-0">
-          <p className={`text-sm ${done ? "line-through text-neutral-500" : ""}`}>{task.title}</p>
+          <p className={`text-sm break-words ${done ? "line-through text-neutral-500" : ""}`}>{task.title}</p>
           <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11px]">
             {task.durationMin != null && <span className="px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300">Estimat: {formatDuration(task.durationMin)}</span>}
             {task.clientName && <span className="px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300">{task.clientName}</span>}
@@ -821,8 +887,9 @@ function TaskRow({
           )}
           {task.notes && !editing && <p className="text-xs text-neutral-500 mt-1.5 whitespace-pre-line">{task.notes}</p>}
         </div>
+        <div className="flex w-full flex-wrap gap-1 border-t border-neutral-800 pt-2 sm:w-auto sm:shrink-0 sm:justify-end sm:border-0 sm:pt-0">
         {!done && (
-          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          <>
             <button
               type="button"
               onClick={() => onUpdate(task.id, { status: task.status === "doing" ? "todo" : "doing" })}
@@ -856,7 +923,7 @@ function TaskRow({
                 Mâine
               </button>
             )}
-          </div>
+          </>
         )}
         <button
           type="button"
@@ -865,6 +932,7 @@ function TaskRow({
         >
           {editing ? "Închide" : "Editează"}
         </button>
+        </div>
       </div>
       {editing && (
         <TaskEditor
