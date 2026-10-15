@@ -53,6 +53,7 @@ const loadShareController = async () => {
   }));
 
   vi.doMock("src/server/constants/bunny", () => ({
+    PRIVATE_BUNNY_DIRS: new Set(["contracts", "expenses"]),
     BUNNY_ACCESS_KEY_HEADER: "AccessKey",
     BUNNY_IMAGE_FILE_PATTERN: /\.(jpg|jpeg|png|webp)$/i,
     BUNNY_PHOTOS_FOLDER: "photos",
@@ -107,6 +108,16 @@ describe("share.controller", () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: "missing_slug" });
     expect(createShareRecordMock).not.toHaveBeenCalled();
+  });
+
+  test.each(["contracts", "../contracts", "a/b"])("createShare rejects the non-album slug %s", async (slug) => {
+    const { module } = await loadShareController();
+    const res = createMockResponse();
+
+    await module.createShare({ body: { slug, items: ["a.jpg"] } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "invalid_slug" });
   });
 
   test("createShare rejects when all provided files are unsafe", async () => {

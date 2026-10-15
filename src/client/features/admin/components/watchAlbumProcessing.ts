@@ -4,6 +4,7 @@ export function watchAlbumProcessing(
   accessToken: string | (() => Promise<string>),
   onEvent: (event: Record<string, unknown>) => void,
   onConnectionChange: (reconnecting: boolean) => void,
+  livePath = `/api/admin/album-health/${encodeURIComponent(slug)}/live`,
 ): () => void {
   let stopped = false;
   let controller: AbortController | undefined;
@@ -20,7 +21,7 @@ export function watchAlbumProcessing(
       resetIdle();
       const token = typeof accessToken === "function" ? await accessToken() : accessToken;
       if (stopped) return;
-      const response = await fetch(`/api/admin/album-health/${encodeURIComponent(slug)}/live`, {
+      const response = await fetch(livePath, {
         headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
       });
       if (!response.ok || !response.body) throw new Error("Progress unavailable");

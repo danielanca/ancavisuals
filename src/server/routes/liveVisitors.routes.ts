@@ -223,6 +223,7 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
           : (CRITICAL_LABELS[body.event] ?? EMAIL_EVENTS[body.event] ?? ACTIVITY_TITLES[body.event] ?? body.event))
           + (checkedDate ? `: ${checkedDate}` : "")
           + (eventType ? `${checkedDate ? " · " : ": "}${eventType}` : "")
+          + (checkedDate && meta.available === false ? " · ❌ OCUPATĂ" : checkedDate && meta.available === true ? " · ✅ liberă" : "")
           + (pairedDate ? ` (pentru ${pairedDate})` : ""),
         description: `${leadContact ? `${leadContact} · ` : ""}${geoLabel} · ${event.page}${session.isGoogleAds ? " · Google Ads" : ""}`,
         metadata: {
@@ -407,9 +408,14 @@ liveVisitorsAdminRouter.get(
   },
 );
 
-// GET /api/admin/analytics/live/contact-stats?from=YYYY-MM-DD&to=YYYY-MM-DD
+// GET /api/admin/analytics/live/contact-stats?from=YYYY-MM-DD&to=YYYY-MM-DD[&also=YYYY-MM-DD,…]
 // WhatsApp / "Afișează numărul" / tel: / availability clicks, aggregated from live_sessions.
+// `also` = later start days inside the range: their stats come back in `alsoFrom[day]` from the
+// same read, so the admin can switch Azi / 7 / 30 / 90 zile without waiting for another query.
 const CONTACT_STATS_MAX_DAYS = 92;
+const CONTACT_STATS_MAX_ALSO = 6;
+// Only what summarizeContactStats needs — skips the heavy path / scrollByPage fields.
+const CONTACT_STATS_FIELDS = ["visitorId", "startedAtMs", "firstSeenAt", "attribution", "isGoogleAds", "events", "archived", "ip"];
 const CONTACT_STATS_MAX_SESSIONS = 20_000;
 liveVisitorsAdminRouter.get(
   "/analytics/live/contact-stats",
@@ -427,10 +433,18 @@ liveVisitorsAdminRouter.get(
     if (end <= start || end - start > CONTACT_STATS_MAX_DAYS * 86_400_000 + 7_200_000) {
       return res.status(400).json({ error: `Intervalul poate avea cel mult ${CONTACT_STATS_MAX_DAYS} de zile.` });
     }
+    const alsoDays = String(req.query.also ?? "").split(",").map((d) => d.trim()).filter(Boolean).slice(0, CONTACT_STATS_MAX_ALSO);
+    let alsoStarts: [string, number][];
+    try {
+      alsoStarts = alsoDays.map((day) => [day, visitDayBounds(day).start]);
+    } catch {
+      return res.status(400).json({ error: "Interval invalid." });
+    }
     try {
       const snap = await firestore().collection("live_sessions")
         .where("startedAtMs", ">=", start)
         .where("startedAtMs", "<", end)
+        .select(...CONTACT_STATS_FIELDS)
         .limit(CONTACT_STATS_MAX_SESSIONS)
         .get();
       // Archived sessions are the ones hidden from /admin/live (own visits, noise); Meta crawlers recorded before the IP filter too.
@@ -446,7 +460,11 @@ liveVisitorsAdminRouter.get(
             events: Array.isArray(d.events) ? d.events : [],
           };
         });
-      res.json({ ...summarizeContactStats(sessions), truncated: snap.size === CONTACT_STATS_MAX_SESSIONS });
+      const alsoFrom = Object.fromEntries(alsoStarts.map(([day, from]) => [
+        day,
+        summarizeContactStats(sessions.filter((s) => Number(s.startedAtMs ?? 0) >= from)),
+      ]));
+      res.json({ ...summarizeContactStats(sessions), truncated: snap.size === CONTACT_STATS_MAX_SESSIONS, alsoFrom });
     } catch (error) {
       console.error("[live-visitors] GET /live/contact-stats failed:", error);
       res.status(500).json({ error: "failed" });

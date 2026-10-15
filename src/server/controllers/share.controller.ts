@@ -5,6 +5,7 @@
 import type { Request, Response } from "express";
 import archiver from "archiver";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
+import { PRIVATE_BUNNY_DIRS } from "../constants/bunny";
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { createShareRecord, readShareRecord } from "../services/share.store";
 import {
@@ -73,6 +74,10 @@ export const createShare = async (req: Request, res: Response) => {
   const showAll = req.body?.showAll === true;
 
   if (!slug) return res.status(400).json({ error: "missing_slug" });
+  // Album folders only: the share later signs `/${slug}/<photos folder>/<file>` for anyone.
+  if (!/^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug) || PRIVATE_BUNNY_DIRS.has(slug.toLowerCase())) {
+    return res.status(400).json({ error: "invalid_slug" });
+  }
 
   const items = Array.isArray(itemsRaw) ? itemsRaw.map(String) : [];
   const clean = Array.from(new Set(items.filter(isSafeFile)));

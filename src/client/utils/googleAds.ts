@@ -7,6 +7,8 @@ const AW_LEAD_SEND_TO = "AW-10941123412/zzijCI7gxv4cENSWkeEo"; // "Trimiteți un
 const AW_CONTACT_CLICK_SEND_TO = "AW-10941123412/MCYICIjAx_4cENSWkeEo"; // "Persoană de contact" (WhatsApp / phone reveal clicks)
 const AW_PHONE_REVEAL_MICRO_SEND_TO = "AW-10941123412/vnzKCPrJ0oQdENSWkeEo"; // "Telefon afișat (micro)"
 const AW_AVAILABILITY_MICRO_SEND_TO = "AW-10941123412/UaLJCL7Y0oQdENSWkeEo"; // "Verificare disponibilitate (micro)"
+const AW_OLX_WHATSAPP_SEND_TO = "AW-10941123412/kCa_CIy_6p0dENSWkeEo"; // "WhatsApp - oferta OLX" (primary)
+const AW_OLX_CONFIGURATOR_SEND_TO = "AW-10941123412/CZIxCI-_6p0dENSWkeEo"; // "Configurator pret - oferta OLX" (primary)
 
 function newTransactionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -81,6 +83,16 @@ export function fireAdsAvailabilityMicroConversion(): void {
   if (firstThisSession("availability")) fireAdsConversion(AW_AVAILABILITY_MICRO_SEND_TO, { value: 0 });
 }
 
+// /oferta/olx is the paid-campaign landing: its WhatsApp clicks and configured
+// prices are primary conversions of their own, on top of the site-wide
+// (secondary) "Persoană de contact".
+const OLX_OFFER_PATH = /^\/oferta\/olx\/?$/;
+
+/** Visitor checked a date in the /oferta/olx configurator and configured a price. */
+export function fireAdsOlxConfiguratorConversion(params: { value?: number } = {}): void {
+  if (firstThisSession("olx-configurator")) fireAdsConversion(AW_OLX_CONFIGURATOR_SEND_TO, params);
+}
+
 export const isWhatsAppHref = (href: string) => /wa\.me|wa\.link|whatsapp\.com|api\.whatsapp/i.test(href);
 
 // Album clients (/media) and admin are existing customers, not ad leads.
@@ -97,6 +109,9 @@ export function installAdsContactClickTracking(): () => void {
     const link = (e.target as Element | null)?.closest?.("a[href]");
     const href = link?.getAttribute("href") ?? "";
     if (isWhatsAppHref(href) || href.toLowerCase().startsWith("tel:")) fireAdsContactClickConversion();
+    if (isWhatsAppHref(href) && OLX_OFFER_PATH.test(window.location.pathname) && firstThisSession("olx-whatsapp")) {
+      fireAdsConversion(AW_OLX_WHATSAPP_SEND_TO, {});
+    }
   };
   document.addEventListener("click", onClick, true);
   return () => document.removeEventListener("click", onClick, true);

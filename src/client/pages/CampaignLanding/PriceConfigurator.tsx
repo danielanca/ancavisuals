@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { usePriceBook } from "../../hooks/useStartingPrices";
+import { useDatePrices, usePriceBook, usePriceSeasons } from "../../hooks/useStartingPrices";
+import { priceDependsOnDate, seasonalPriceBook } from "../../../shared/pricing/seasonalPricing";
 import { sendLiveEvent } from "../../utils/liveEvent";
 import LocationField from "../Contact/LocationField";
 import { guessCounty } from "../../data/romaniaLocations";
@@ -37,6 +38,8 @@ interface PriceConfiguratorProps {
   bookedDates: string[];
   /** A complete date was picked (once per date): report the availability check. */
   onDateChecked: (eventDate: string, available: boolean, formEventType: string) => void;
+  /** Once both happened: a complete date was picked and the visitor chose an option (event, package, extra, hours). */
+  onPriceConfigured: () => void;
   /** Keeps the availability form's event type in sync with the configurator. */
   onEventChange: (formEventType: string) => void;
   /** "Lasă-ne numărul": the page shows its phone form for the picked date. */
@@ -198,11 +201,22 @@ function initialEvent(): ConfiguratorEventKey {
 }
 
 export default function PriceConfigurator({
-  waLink, onWhatsAppClick, photoboothFree, dateParts, onDatePart, eventDate, bookedDates, onDateChecked, onEventChange, onBook, onLocationChange, onSubmitLead,
+  waLink, onWhatsAppClick, photoboothFree, dateParts, onDatePart, eventDate, bookedDates, onDateChecked, onPriceConfigured, onEventChange, onBook, onLocationChange, onSubmitLead,
 }: PriceConfiguratorProps) {
-  const prices = usePriceBook();
+  const standardPrices = usePriceBook();
+  const seasons = usePriceSeasons();
+  const datePrices = useDatePrices();
   const [eventKey, setEventKey] = useState<ConfiguratorEventKey>(initialEvent);
   const event = eventByKey(eventKey) ?? CONFIGURATOR_EVENTS[0];
+  // Prices depend on the event's month (/admin/preturi → sezoane) and on special weekend dates;
+  // until the date is complete, the cheapest still possible.
+  const eventMonth = dateParts.month === null ? null : dateParts.month + 1;
+  const exactDate = eventDate || null;
+  const prices = useMemo(
+    () => seasonalPriceBook(standardPrices, seasons, event.startingKey, eventMonth, exactDate, datePrices),
+    [standardPrices, seasons, event.startingKey, eventMonth, exactDate, datePrices],
+  );
+  const priceFromLowestMonth = priceDependsOnDate(seasons, datePrices, event.startingKey, exactDate, eventMonth);
   const rates = hourlyRates(event, prices);
   const [service, setService] = useState<ServiceKey>(() => defaultService(event));
   const [extras, setExtras] = useState<ExtraKey[]>([]);
@@ -238,6 +252,14 @@ export default function PriceConfigurator({
   useEffect(() => { onEventChange(event.formEventType); }, [event.formEventType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const available = eventDate ? !bookedDates.includes(eventDate) : null;
+  // Ads conversion: the date and at least one choice of their own, in either order.
+  const [optionChosen, setOptionChosen] = useState(false);
+  const priceConfigured = useRef(false);
+  useEffect(() => {
+    if (!eventDate || !optionChosen || priceConfigured.current) return;
+    priceConfigured.current = true;
+    onPriceConfigured();
+  }, [eventDate, optionChosen]); // eslint-disable-line react-hooks/exhaustive-deps
   // Report each picked date once (the page sends the Ads micro-conversion + live event).
   const reportedDate = useRef("");
   useEffect(() => {
@@ -276,6 +298,7 @@ export default function PriceConfigurator({
 
   const pickEvent = (key: ConfiguratorEventKey) => {
     if (key === eventKey) return;
+    setOptionChosen(true);
     const next = eventByKey(key)!;
     setEventKey(key);
     setService(defaultService(next));
@@ -291,12 +314,14 @@ export default function PriceConfigurator({
 
   const pickService = (key: ServiceKey) => {
     if (key === service) return;
+    setOptionChosen(true);
     setService(key);
     track("configurator_service_selected", servicesFor(event).find((s) => s.key === key)?.label ?? key, { service: key });
   };
 
   const toggleExtra = (key: ExtraKey) => {
     const on = !extras.includes(key);
+    setOptionChosen(true);
     setExtras((current) => (current.includes(key) ? current.filter((x) => x !== key) : [...current, key]));
     track("configurator_extra_toggled", EXTRAS[key].label, { extra: key, on });
   };
@@ -339,7 +364,7 @@ export default function PriceConfigurator({
   const whatsappMessage = [
     `Bună! Mi-am făcut configurația pe site pentru ${event.label.toLocaleLowerCase("ro-RO")}${eventDate ? `, pe ${formatDate(eventDate)}` : ""}${place ? ` (locația: ${place})` : ""}:`,
     ...quote.lines.map((line) => `• ${line.label}${line.waived ? " (ofertă: gratuit)" : ` — ${formatAmount(line.amount)} €`}`),
-    `Estimare: ${formatAmount(quote.total)} €.`,
+    `Estimare: ${priceFromLowestMonth ? "de la " : ""}${formatAmount(quote.total)} €.`,
     available === null
       ? "Aș dori să verificăm disponibilitatea și detaliile."
       : available
@@ -359,7 +384,7 @@ export default function PriceConfigurator({
     const message = [
       "Configurație trimisă din configuratorul de preț:",
       ...quote.lines.map((line) => `• ${line.label}${line.waived ? " — gratuit (cadou/ofertă)" : ` — ${formatAmount(line.amount)} €`}`),
-      `Estimare: ${formatAmount(quote.total)} €`,
+      `Estimare: ${priceFromLowestMonth ? "de la " : ""}${formatAmount(quote.total)} €`,
       "Acord GDPR: da — a cerut să fie contactat",
     ].join("\n");
     setLeadStatus((await onSubmitLead({ name: "", phone: phone.trim(), message })) ? "sent" : "error");
@@ -557,7 +582,7 @@ export default function PriceConfigurator({
                       type="button"
                       aria-label="Mai puține ore"
                       disabled={hours <= rates.includedHours}
-                      onClick={() => { hoursTouched.current = true; setHours((h) => clampHours(event, h - 1)); }}
+                      onClick={() => { hoursTouched.current = true; setOptionChosen(true); setHours((h) => clampHours(event, h - 1)); }}
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-950/20 text-lg transition-colors hover:border-neutral-950 disabled:cursor-not-allowed disabled:opacity-30"
                     >
                       −
@@ -569,7 +594,7 @@ export default function PriceConfigurator({
                       type="button"
                       aria-label="Mai multe ore"
                       disabled={hours >= rates.maxHours}
-                      onClick={() => { hoursTouched.current = true; setHours((h) => clampHours(event, h + 1)); }}
+                      onClick={() => { hoursTouched.current = true; setOptionChosen(true); setHours((h) => clampHours(event, h + 1)); }}
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-950/20 text-lg transition-colors hover:border-neutral-950 disabled:cursor-not-allowed disabled:opacity-30"
                     >
                       +
@@ -772,11 +797,14 @@ export default function PriceConfigurator({
                 </ul>
 
                 <div className="mt-6 text-center">
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">Estimare</p>
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">{priceFromLowestMonth ? "Estimare · de la" : "Estimare"}</p>
                   <p key={pulse} className={`mt-1 flex items-baseline justify-center gap-1.5 ${pulse ? "configurator-pulse" : ""}`} aria-live="polite">
                     <span className="text-6xl font-normal leading-none tabular-nums">{formatAmount(shownTotal)}</span>
                     <span className="text-2xl font-normal text-white/60">€</span>
                   </p>
+                  {priceFromLowestMonth && (
+                    <p className="mx-auto mt-3 max-w-[15rem] text-xs leading-relaxed text-amber-200/80 [text-wrap:balance]">Prețul depinde de luna evenimentului — alege data pentru prețul exact.</p>
+                  )}
                   <p className="mx-auto mt-3 max-w-[15rem] text-xs leading-relaxed text-white/50 [text-wrap:balance]">Prețul final îl confirmăm împreună, după ce discutăm detaliile.</p>
                 </div>
 

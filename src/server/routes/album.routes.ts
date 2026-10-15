@@ -10,6 +10,7 @@ import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { sendEmail } from "../notifications/mailer";
 import { firestore } from "../firestore";
 import { adminUser } from "../constants/credentials";
+import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 
 const ADMIN_EMAIL = adminUser.email;
 
@@ -22,7 +23,7 @@ router.param("slug", (req, _res, next, value) => {
     .catch(() => next());
 });
 
-router.get("/admin/list", async (req: Request, res: Response) => {
+router.get("/admin/list", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER } = await import("../constants/bunny");
     const url = buildBunnyDirectoryUrl();
@@ -156,11 +157,11 @@ router.post("/:slug/print-selection/notify", async (req: Request, res: Response)
   }
 });
 router.post("/:slug/download-all", downloadAll);
-router.post("/:slug/delete-photo", express.json(), deletePhoto);
+router.post("/:slug/delete-photo", requireFirebaseAuth, requireSupremeAdmin, express.json(), deletePhoto);
 router.post("/:slug/download-print-dynamic", downloadPrintDynamic);
 router.post("/:slug/delivery-address", express.json(), addDeliveryAddress);
 router.get("/:slug/delivery-address", getDeliveryAddress);
-router.post("/:slug/swisslink", express.json(), addSwissLink);
+router.post("/:slug/swisslink", requireFirebaseAuth, requireSupremeAdmin, express.json(), addSwissLink);
 
 router.get("/:slug/qr-moments", async (req: Request, res: Response) => {
   try {

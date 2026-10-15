@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
+import CheckedDatesStats from "./CheckedDatesStats";
 import { CONTACT_METRICS, type ContactMetric, type ContactStats } from "../../../../shared/contactStats";
 import { visitDay, type VisitSource } from "../../../../shared/liveVisits";
 
@@ -11,7 +13,7 @@ const METRIC_LABEL: Record<ContactMetric, string> = {
   availability: "Verifică disponibilitatea",
 };
 
-const SOURCE_LABEL: Record<VisitSource, string> = {
+export const SOURCE_LABEL: Record<VisitSource, string> = {
   google_ads: "Google Ads",
   organic: "Organic (Google & altele)",
   instagram: "Instagram",
@@ -31,7 +33,8 @@ const RANGES = [
 
 const daysAgo = (n: number) => visitDay(Date.now() - n * 86_400_000);
 
-type Response = ContactStats & { truncated?: boolean; error?: string };
+type Response = ContactStats & { truncated?: boolean; error?: string; alsoFrom?: Record<string, ContactStats> };
+type RangeKey = (typeof RANGES)[number]["key"];
 
 function Cell({ clicks, visitors }: { clicks: number; visitors: number }) {
   if (!clicks) return <span className="text-neutral-700">—</span>;
@@ -76,26 +79,37 @@ function CountsTable({ title, rows }: { title: string; rows: { key: string; labe
 
 export default function ContactStatsPage() {
   const { auth } = useAuth();
-  const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("30");
-  const [data, setData] = useState<Response | null>(null);
+  const [range, setRange] = useState<RangeKey>("30");
+  // Every range comes from one request (the widest range + `also` start days), so switching is instant.
+  const [byRange, setByRange] = useState<Partial<Record<RangeKey, ContactStats & { truncated?: boolean }>>>({});
+  const data = byRange[range] ?? null;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!auth.accessToken) return;
-    const days = RANGES.find((r) => r.key === range)?.days ?? 30;
-    const params = new URLSearchParams({ from: daysAgo(days - 1), to: visitDay() });
+    const widest = RANGES.reduce((a, b) => (b.days > a.days ? b : a));
+    const startOf = (r: (typeof RANGES)[number]) => daysAgo(r.days - 1);
+    const params = new URLSearchParams({
+      from: startOf(widest),
+      to: visitDay(),
+      also: RANGES.filter((r) => r !== widest).map(startOf).join(","),
+    });
     setLoading(true);
     setError(null);
     fetch(`/api/admin/analytics/live/contact-stats?${params}`, { headers: { Authorization: `Bearer ${auth.accessToken}` } })
       .then((r) => r.json())
       .then((d: Response) => {
-        if (d.error) setError(d.error);
-        else setData(d);
+        if (d.error) { setError(d.error); return; }
+        const { alsoFrom = {}, ...full } = d;
+        setByRange(Object.fromEntries(RANGES.map((r) => [
+          r.key,
+          r === widest ? full : alsoFrom[startOf(r)] ? { ...alsoFrom[startOf(r)], truncated: full.truncated } : undefined,
+        ])));
       })
       .catch(() => setError("Nu s-au putut încărca statisticile."))
       .finally(() => setLoading(false));
-  }, [auth.accessToken, range]);
+  }, [auth.accessToken]);
 
   useEffect(load, [load]);
 
@@ -115,6 +129,9 @@ export default function ContactStatsPage() {
             <p className="text-neutral-500 text-sm mt-1">
               Câte persoane au apăsat pe WhatsApp, „Afișează numărul” și „Verifică” — din sesiunile urmărite în Vizitatori live.
             </p>
+            <Link to="/admin/preturi#preturi-pe-date" className="inline-block mt-2 text-violet-400 text-sm hover:text-violet-300">
+              💶 Prețuri pe sezoane și pe date →
+            </Link>
           </div>
           <div className="flex gap-2">
             {RANGES.map((r) => (
@@ -169,6 +186,47 @@ export default function ContactStatsPage() {
                 </p>
               </section>
             )}
+
+            {data.availabilityOutcomeBySource.length > 0 && (
+              <section className="space-y-2">
+                <h2 className="text-neutral-400 text-xs uppercase tracking-wider">Rezultatul verificărilor de disponibilitate, pe sursă</h2>
+                <div className="overflow-x-auto rounded-xl border border-neutral-800">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-neutral-500 text-xs text-left">
+                        <th className="px-3 py-2 font-normal" />
+                        <th className="px-3 py-2 font-normal text-right whitespace-nowrap">✅ Dată liberă</th>
+                        <th className="px-3 py-2 font-normal text-right whitespace-nowrap">❌ Dată ocupată</th>
+                        <th className="px-3 py-2 font-normal text-right whitespace-nowrap">% ocupate</th>
+                        <th className="px-3 py-2 font-normal text-right whitespace-nowrap">Fără rezultat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.availabilityOutcomeBySource.map(({ source, outcomes }) => {
+                        const known = outcomes.free.clicks + outcomes.booked.clicks;
+                        return (
+                          <tr key={source} className="border-t border-neutral-800/70">
+                            <td className="px-3 py-2 text-neutral-300 whitespace-nowrap">{SOURCE_LABEL[source] ?? source}</td>
+                            <td className="px-3 py-2 text-right tabular-nums"><Cell {...outcomes.free} /></td>
+                            <td className="px-3 py-2 text-right tabular-nums"><Cell {...outcomes.booked} /></td>
+                            <td className="px-3 py-2 text-right tabular-nums text-white">
+                              {known ? `${Math.round((outcomes.booked.clicks / known) * 100)}%` : <span className="text-neutral-700">—</span>}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums"><Cell {...outcomes.unknown} /></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-neutral-600 text-xs">
+                  Persoane distincte; în paranteză, numărul de verificări. Cine a verificat mai multe date poate apărea și la „liberă”, și la „ocupată”.
+                  „% ocupate” = verificări pe date ocupate din toate verificările cu rezultat.
+                </p>
+              </section>
+            )}
+
+            <CheckedDatesStats dates={data.checkedDates} months={data.checkedMonths} />
 
             <CountsTable
               title="Pe sursă de trafic"

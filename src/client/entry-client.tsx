@@ -18,7 +18,11 @@ import { LOAD_USERCENTRICS_EVENT } from "./utils/cookieConsent";
 import { InitialDataContext, readInitialData } from "./ssr/initialData";
 import { preloadSsrLazy } from "./routes/ssrLazy";
 import { whenLandingSettled } from "./utils/whenLandingSettled";
+import { installAuthFetch } from "./features/admin/providers/authFetch";
 
+// Before render: adds the signed-in user's token to /api/ requests (and is installed before
+// ErrorMonitorContext wraps fetch, so that wrapper's cleanup restores this one).
+installAuthFetch();
 const stopImageFailureRecovery = installImageFailureRecovery();
 if (import.meta.hot) import.meta.hot.dispose(stopImageFailureRecovery);
 const stopStableViewport = installStableViewport();

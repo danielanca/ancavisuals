@@ -1,4 +1,5 @@
 import { firestore } from "../firestore";
+import { logActivityOnce } from "./activity.service";
 
 export const EMAIL_DELIVERIES = "emailDeliveries";
 export type EmailDeliveryStatus = "pending" | "accepted" | "failed" | "unknown";
@@ -41,6 +42,13 @@ export async function raiseEmailAlert(input: Omit<EmailAlert, "occurredAt">): Pr
   memoryAlert = alert;
   try { await alertRef().set({ alert }); }
   catch { console.error("[email-alert] Persistent storage unavailable; alert retained in this process"); }
+  void logActivityOnce(`email-failed:${input.id}`, {
+    type: "email_failed",
+    title: "Email eșuat",
+    description: `${input.subject} · ${input.error}`,
+    metadata: { deliveryId: input.id, route: "/admin" },
+    emailSent: false,
+  }).catch(() => {});
 }
 
 export async function getEmailAlert(): Promise<EmailAlert | null> {

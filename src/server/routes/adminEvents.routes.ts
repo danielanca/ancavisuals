@@ -6,6 +6,10 @@ import { Timestamp } from "firebase-admin/firestore";
 import multer from "multer";
 import nodeFetch from "node-fetch";
 import https from "node:https";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import archiver from "archiver";
 import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_QR_MOMENT_FOLDER } from "../constants/bunny";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import sharp from "sharp";
@@ -24,6 +28,12 @@ import { APP_BASE_URL } from "../constants/domain";
 import { normalizeEventVideoLink } from "../../shared/eventVideoLink";
 import { sanitizeAlbumPhotoName as sanitizePhotoName } from "../../shared/albumPhotoName";
 import { beginAlbumUpload, recordAlbumUploadSuccess, touchAlbumUpload, notifyIncompleteAlbumUpload } from "../services/albumUploadNotifications";
+import {
+  beginAlbumZipRun, endAlbumZipRun, enqueueAlbumZipJob, getAlbumZipJob, listAlbumZipJobs,
+  removeAlbumZipJob, updateAlbumZipJob, createAlbumZipJob, getAlbumZipInMemoryJob,
+  appendAlbumZipLog, setAlbumZipProgress, finishAlbumZipJob, errorAlbumZipJob, serializeAlbumZipJob,
+} from "../services/albumZipProcessingJobs.js";
+import { logActivityOnce } from "../services/activity.service";
 
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
@@ -219,7 +229,7 @@ Format:
 });
 
 // GET /api/admin/events — all events, sorted by eventDate
-router.get("/events", async (_req: Request, res: Response) => {
+router.get("/events", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const snapshot = await db.collection("adminEvents").orderBy("eventDate", "asc").get();
@@ -233,7 +243,7 @@ router.get("/events", async (_req: Request, res: Response) => {
 });
 
 // POST /api/admin/events — create new event
-router.post("/events", async (req: Request, res: Response) => {
+router.post("/events", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const body = req.body;
@@ -281,7 +291,7 @@ router.post("/events", async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/events/:id — fetch single event
-router.get("/events/:id", async (req: Request, res: Response) => {
+router.get("/events/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const snapshot = await firestore().collection("adminEvents").doc(req.params.id).get();
     if (!snapshot.exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
@@ -314,7 +324,7 @@ router.patch("/events/:id/video-link", requireFirebaseAuth, requireSupremeAdmin,
 });
 
 // PATCH /api/admin/events/:id — update fields
-router.patch("/events/:id", async (req: Request, res: Response) => {
+router.patch("/events/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { id } = req.params;
@@ -345,7 +355,7 @@ router.patch("/events/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/events/:id/post-event-backup/confirm-admin", async (req: Request, res: Response) => {
+router.post("/events/:id/post-event-backup/confirm-admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { id } = req.params;
@@ -453,7 +463,7 @@ router.get("/events/:id/post-event-backup/confirm", async (req: Request, res: Re
 });
 
 // DELETE /api/admin/events/:id — permanently delete event
-router.delete("/events/:id", async (req: Request, res: Response) => {
+router.delete("/events/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { id } = req.params;
@@ -466,7 +476,7 @@ router.delete("/events/:id", async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/settings — goals + currency
-router.get("/settings", async (_req: Request, res: Response) => {
+router.get("/settings", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("settings").doc("admin").get();
@@ -499,7 +509,7 @@ router.get("/settings", async (_req: Request, res: Response) => {
 
 // GET /api/admin/exchange-rates?year=2026&currency=EUR|USD — full RON rate table for the
 // year, from BNR (falls back to the admin-configured flat exchangeRate on failure)
-router.get("/exchange-rates", async (req: Request, res: Response) => {
+router.get("/exchange-rates", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const year = Number(req.query.year) || new Date().getUTCFullYear();
   const currency = req.query.currency === "USD" ? "USD" : "EUR";
   try {
@@ -517,7 +527,7 @@ router.get("/exchange-rates", async (req: Request, res: Response) => {
 });
 
 // PUT /api/admin/settings — save goals
-router.put("/settings", async (req: Request, res: Response) => {
+router.put("/settings", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     await db.collection("settings").doc("admin").set(req.body, { merge: true });
@@ -528,7 +538,7 @@ router.put("/settings", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/ui-state", async (_req: Request, res: Response) => {
+router.get("/ui-state", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("settings").doc("adminUIState").get();
@@ -538,7 +548,7 @@ router.get("/ui-state", async (_req: Request, res: Response) => {
   }
 });
 
-router.put("/ui-state", async (req: Request, res: Response) => {
+router.put("/ui-state", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     await db.collection("settings").doc("adminUIState").set(req.body, { merge: true });
@@ -548,7 +558,7 @@ router.put("/ui-state", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/events/:id/create-album", async (req: Request, res: Response) => {
+router.post("/events/:id/create-album", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { slug, pin } = req.body as { slug: string; pin?: string };
@@ -914,7 +924,7 @@ router.post("/events/:id/photobooth-delete", requireFirebaseAuth, requireSupreme
 });
 
 // Checks if a Bunny folder already exists for the given slug and auto-links it to the event
-router.post("/events/:id/detect-album", async (req: Request, res: Response) => {
+router.post("/events/:id/detect-album", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { slug } = req.body as { slug: string };
@@ -936,7 +946,7 @@ router.post("/events/:id/detect-album", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/events/:id/album", async (req: Request, res: Response) => {
+router.patch("/events/:id/album", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { albumSlug, albumPin } = req.body as { albumSlug?: string; albumPin?: string };
@@ -956,7 +966,7 @@ router.patch("/events/:id/album", async (req: Request, res: Response) => {
 // The job runs independently of this HTTP request — closing the browser tab does not
 // interrupt it. Live progress can be watched via GET /album-health/:slug/live, and an
 // email is sent to the admin when the job finishes (see runAlbumProcessing below).
-router.post("/events/:id/process-album", async (req: Request, res: Response) => {
+router.post("/events/:id/process-album", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const db = firestore();
@@ -980,7 +990,7 @@ router.post("/events/:id/process-album", async (req: Request, res: Response) => 
 });
 
 // GET /api/admin/media-activity — most recent visits to /media pages
-router.get("/media-activity", async (req: Request, res: Response) => {
+router.get("/media-activity", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const limit = Math.min(Number(req.query.limit) || 100, 500);
@@ -1013,7 +1023,7 @@ router.get("/media-activity", async (req: Request, res: Response) => {
 });
 
 // DELETE /api/admin/media-activity/:id — delete a visit record
-router.delete("/media-activity/:id", async (req: Request, res: Response) => {
+router.delete("/media-activity/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     await db.collection("mediaVisits").doc(req.params.id).delete();
@@ -1090,20 +1100,20 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
         type BunnyHealthEntry = { ObjectName: string; IsDirectory: boolean; LastChanged?: string };
 
         const photos: BunnyHealthEntry[] = [];
-        const previewBases = new Set<string>();
+        const previewsByBase = new Map<string, BunnyHealthEntry>();
 
         if (photosRes.ok) {
           const entries = await photosRes.json() as BunnyHealthEntry[];
-          entries
-            .filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png)$/i.test(e.ObjectName))
-            .forEach((e) => photos.push(e));
+            entries
+              .filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(e.ObjectName))
+              .forEach((e) => photos.push(e));
         }
 
         if (previewsRes.ok) {
           const entries = await previewsRes.json() as BunnyHealthEntry[];
-          entries
-            .filter((e) => !e.IsDirectory && /\.webp$/i.test(e.ObjectName))
-            .forEach((e) => previewBases.add(e.ObjectName.replace(/\.webp$/i, "")));
+            entries
+              .filter((e) => !e.IsDirectory && /\.(webp|jpg|jpeg|png)$/i.test(e.ObjectName))
+              .forEach((e) => previewsByBase.set(e.ObjectName.replace(/\.[^.]+$/i, ""), e));
         }
 
         // ZIP status: check photos.zip in album root vs latest photo date
@@ -1126,13 +1136,22 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
 
         const total = photos.length;
         const missingFiles = photos
-          .filter((p) => !previewBases.has(p.ObjectName.replace(/\.[^.]+$/, "")))
+          .filter((p) => !previewsByBase.has(p.ObjectName.replace(/\.[^.]+$/, "")))
           .map((p) => p.ObjectName);
-        const withPreview = total - missingFiles.length;
+        const staleFiles = photos
+          .filter((p) => {
+            const preview = previewsByBase.get(p.ObjectName.replace(/\.[^.]+$/, ""));
+            return Boolean(preview && p.LastChanged && preview.LastChanged && new Date(preview.LastChanged) < new Date(p.LastChanged));
+          })
+          .map((p) => p.ObjectName);
+        const affectedFiles = [...new Set([...missingFiles, ...staleFiles])];
+        const withPreview = total - affectedFiles.length;
         const missing = missingFiles.length;
+        const stale = staleFiles.length;
         const coverage = total > 0 ? Math.round((withPreview / total) * 100) : (previewsRes.ok ? 100 : 0);
 
-        return { slug, total, withPreview, missing, missingFiles, hasPreviewFolder: previewsRes.ok, coverage, zipStatus, zipDate };
+        return { slug, total, withPreview, missing, stale, missingFiles, staleFiles, affectedFiles,
+          hasPreviewFolder: previewsRes.ok, coverage, zipStatus, zipDate };
       })
     );
 
@@ -1158,6 +1177,13 @@ async function notifyAlbumProcessingProblem(slug: string, job?: DurableAlbumJob)
         <p>Jobul este păstrat pentru reîncercare automată.</p>
         <p><a href="${APP_BASE_URL}/admin/album-health">Verifică progresul în administrare</a></p>`,
     });
+    await logActivityOnce(`preview-processing-failed:${slug}:${job?.startedAt ?? "unknown"}`, {
+      type: "processing_failed",
+      title: `Preview-uri nefinalizate: ${slug}`,
+      description: job?.initialized ? `${job.pendingPhotos.length} poze rămase în coadă` : "Procesarea nu a putut porni",
+      metadata: { slug, route: "/admin/album-health" },
+      emailSent: true,
+    });
     if (job) await updateDurableJob(slug, { problemNotifiedAt: Date.now() });
   } catch (error) {
     console.error("[album-processing] retry email failed:", error);
@@ -1179,10 +1205,9 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     });
     if (!listRes.ok) throw new Error("Nu pot lista folderul photos din Bunny.");
 
-    const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
+    const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean; LastChanged?: string }[];
     const photos = entries
-      .filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png)$/i.test(e.ObjectName) && e.ObjectName !== ".keep")
-      .map((e) => e.ObjectName);
+      .filter((e) => !e.IsDirectory && /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(e.ObjectName) && e.ObjectName !== ".keep");
 
     appendJobLog(slug, `📂 ${photos.length} poze găsite`);
 
@@ -1192,16 +1217,23 @@ async function runAlbumProcessing(slug: string): Promise<void> {
       signal: AbortSignal.timeout(120_000),
     });
     if (!previewListRes.ok && previewListRes.status !== 404) throw new Error("Nu pot lista folderul photos_preview din Bunny.");
-    const existingPreviews = new Set<string>();
+    const existingPreviews = new Map<string, string | undefined>();
     if (previewListRes.ok) {
-      const previewEntries = await previewListRes.json() as { ObjectName: string }[];
-      previewEntries.forEach((e) => existingPreviews.add(e.ObjectName.replace(/\.[^.]+$/, "")));
+      const previewEntries = await previewListRes.json() as { ObjectName: string; LastChanged?: string }[];
+      previewEntries.forEach((e) => existingPreviews.set(e.ObjectName.replace(/\.[^.]+$/, ""), e.LastChanged));
     }
 
     const previousPending = queuedJob.initialized ? queuedJob.pendingPhotos : [];
-    const photosToGenerate = photos.filter((filename) => !existingPreviews.has(filename.replace(/\.[^.]+$/, "")));
+    const photosToGenerate = photos
+      .filter((photo) => {
+        const previewDate = existingPreviews.get(photo.ObjectName.replace(/\.[^.]+$/, ""));
+        return !previewDate || !photo.LastChanged || !Number.isFinite(Date.parse(previewDate))
+          || new Date(previewDate) < new Date(photo.LastChanged);
+      })
+      .map((photo) => photo.ObjectName);
     const recovered = previousPending.filter((filename) =>
-      photos.includes(filename) && existingPreviews.has(filename.replace(/\.[^.]+$/, ""))
+      photos.some(photo => photo.ObjectName === filename)
+      && !photosToGenerate.includes(filename)
     ).length;
     const generated = queuedJob.progress.done + recovered;
     const totalToGenerate = generated + photosToGenerate.length;
@@ -1290,6 +1322,13 @@ async function runAlbumProcessing(slug: string): Promise<void> {
              <p>${done} previzualizări generate, ${latest.alreadyExisting} deja existente${latest.failedAttempts + failedThisAttempt ? `, ${latest.failedAttempts + failedThisAttempt} încercări temporare au eșuat și au fost reluate` : ""}.</p>
              <p><a href="${APP_BASE_URL}/media/${slug}">Vezi galeria</a></p>`,
     });
+    await logActivityOnce(`preview-processing-complete:${slug}:${latest.startedAt}`, {
+      type: "processing_complete",
+      title: `Preview-uri actualizate: ${slug}`,
+      description: `${done} previzualizări disponibile; procesarea s-a încheiat`,
+      metadata: { slug, route: "/admin/album-health" },
+      emailSent: true,
+    });
     await removeDurableJob(slug);
     finishJob(slug);
   } catch (err) {
@@ -1309,6 +1348,114 @@ async function runAlbumProcessing(slug: string): Promise<void> {
   }
 }
 
+async function runAlbumZipProcessing(slug: string): Promise<void> {
+  const job = await getAlbumZipJob(slug);
+  if (!job) throw new Error("Jobul ZIP nu mai există în coada persistentă.");
+  const storageKey = getBunnyStorageKey();
+  getAlbumZipInMemoryJob(slug) ?? createAlbumZipJob(slug);
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `album-zip-${slug}-`));
+  const zipPath = path.join(tempDir, "photos.zip");
+
+  try {
+    await updateAlbumZipJob(slug, { status: "running", nextAttemptAt: 0 });
+    const listRes = await nodeFetch(buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER), {
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+    });
+    if (!listRes.ok) throw new Error("Nu pot lista folderul photos din Bunny.");
+    const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
+    const photos = entries.filter(entry => !entry.IsDirectory && /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(entry.ObjectName));
+    appendAlbumZipLog(slug, `📂 ${photos.length} originale găsite`);
+    setAlbumZipProgress(slug, 0, photos.length);
+    await updateAlbumZipJob(slug, { progress: { done: 0, total: photos.length } });
+
+    const output = fs.createWriteStream(zipPath);
+    const archive = archiver("zip", { zlib: { level: 6 } });
+    const archiveDone = new Promise<void>((resolve, reject) => {
+      output.on("close", () => resolve());
+      output.on("error", reject);
+      archive.on("error", reject);
+    });
+    archive.pipe(output);
+    for (let index = 0; index < photos.length; index++) {
+      const filename = photos[index].ObjectName;
+      const photoRes = await nodeFetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, filename), {
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+      });
+      if (!photoRes.ok) throw new Error(`Nu pot descărca ${filename} (${photoRes.status}).`);
+      archive.append(Buffer.from(await photoRes.arrayBuffer()), { name: filename });
+      const done = index + 1;
+      setAlbumZipProgress(slug, done, photos.length);
+      await updateAlbumZipJob(slug, { progress: { done, total: photos.length } });
+      if (done === 1 || done % 50 === 0 || done === photos.length) appendAlbumZipLog(slug, `📦 ${done}/${photos.length} originale în ZIP`);
+    }
+    await archive.finalize();
+    await archiveDone;
+
+    const zipSize = (await fs.promises.stat(zipPath)).size;
+    appendAlbumZipLog(slug, `🔍 Verificare: ${photos.length} poze, ${Math.round(zipSize / 1024 / 1024)} MB`);
+    const uploadRes = await nodeFetch(buildBunnyStorageUrl(slug, "photos.zip"), {
+      method: "PUT", headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "application/zip", "Content-Length": String(zipSize) },
+      body: fs.createReadStream(zipPath), agent: bunnyAgent, signal: AbortSignal.timeout(300_000),
+    });
+    if (!uploadRes.ok) throw new Error(`Încărcarea photos.zip a eșuat (${uploadRes.status}).`);
+
+    const verifyRes = await nodeFetch(buildBunnyDirectoryUrl(slug), {
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey }, agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+    });
+    if (!verifyRes.ok) throw new Error("Nu pot verifica ZIP-ul după încărcare.");
+    const rootEntries = await verifyRes.json() as { ObjectName: string; IsDirectory: boolean; Length?: number }[];
+    const uploadedZip = rootEntries.find(entry => !entry.IsDirectory && entry.ObjectName === "photos.zip");
+    if (!uploadedZip) throw new Error("ZIP-ul încărcat nu apare în Bunny.");
+    if (uploadedZip.Length !== undefined && uploadedZip.Length !== zipSize) {
+      throw new Error(`Dimensiunea ZIP-ului verificat diferă (${uploadedZip.Length} vs ${zipSize} bytes).`);
+    }
+    appendAlbumZipLog(slug, `✅ ZIP verificat: ${photos.length}/${photos.length} poze`);
+    await removeAlbumZipJob(slug);
+    finishAlbumZipJob(slug);
+    invalidateAlbumCache(slug);
+    await sendEmail({
+      to: adminUser.email,
+      subject: `✅ ZIP actualizat: ${slug}`,
+      html: `<p><strong>photos.zip</strong> pentru albumul <strong>${slug}</strong> a fost regenerat și verificat.</p><p>${photos.length} poze în ZIP.</p>`,
+    });
+    await logActivityOnce(`album-zip-complete:${slug}:${job.startedAt}`, {
+      type: "album_zip",
+      title: `ZIP actualizat: ${slug}`,
+      description: `${photos.length} poze verificate în photos.zip`,
+      metadata: { slug, route: "/admin/album-health" },
+      emailSent: true,
+    });
+  } catch (error) {
+    const message = String(error);
+    appendAlbumZipLog(slug, `⚠️ ${message}`);
+    const current = await getAlbumZipJob(slug);
+    if (current) {
+      const retryCount = current.retryCount + 1;
+      const retryDelayMs = Math.min(15 * 60_000, 30_000 * (2 ** Math.min(retryCount - 1, 5)));
+      await updateAlbumZipJob(slug, { status: "queued", retryCount, nextAttemptAt: Date.now() + retryDelayMs });
+      errorAlbumZipJob(slug, `Retry automat în ${Math.round(retryDelayMs / 1000)} secunde.`);
+    }
+    await sendEmail({ to: adminUser.email, subject: `⚠️ ZIP neregenerat: ${slug}`, html: `<p>Regenerarea ZIP-ului pentru <strong>${slug}</strong> a eșuat.</p><p>${message}</p><p>Jobul va fi reîncercat automat.</p>` }).catch(() => {});
+    await logActivityOnce(`album-zip-failed:${slug}:${current?.startedAt ?? job.startedAt}`, {
+      type: "processing_failed",
+      title: `Regenerare ZIP eșuată: ${slug}`,
+      description: message,
+      metadata: { slug, route: "/admin/album-health" },
+      emailSent: true,
+    }).catch(() => {});
+  } finally {
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
+    endAlbumZipRun(slug);
+  }
+}
+
+function launchAlbumZipProcessing(slug: string): boolean {
+  if (!beginAlbumZipRun(slug)) return false;
+  if (!getAlbumZipInMemoryJob(slug)) createAlbumZipJob(slug);
+  void runAlbumZipProcessing(slug);
+  return true;
+}
+
 function launchAlbumProcessing(slug: string): boolean {
   if (!beginJobRun(slug)) return false;
   void runAlbumProcessing(slug).finally(() => endJobRun(slug));
@@ -1326,6 +1473,12 @@ export function startAlbumProcessingQueue(): void {
         restoreJobFromQueue(record, `🔄 Reiau coada persistentă: ${record.pendingPhotos.length} poze rămase.`);
         void runAlbumProcessing(record.slug).finally(() => endJobRun(record.slug));
       }
+      for (const record of await listAlbumZipJobs()) {
+        if (record.nextAttemptAt > now || !beginAlbumZipRun(record.slug)) continue;
+        createAlbumZipJob(record.slug);
+        appendAlbumZipLog(record.slug, "🔄 Reiau coada persistentă pentru ZIP.");
+        void runAlbumZipProcessing(record.slug);
+      }
     } catch (error) {
       console.error("[album-processing] queue recovery failed:", error);
     }
@@ -1341,6 +1494,45 @@ router.get("/album-health/jobs", requireFirebaseAuth, requireSupremeAdmin, async
     if (!getJob(record.slug)) restoreJobFromQueue(record, `🔄 Job salvat: ${record.pendingPhotos.length} poze rămase.`);
   }
   res.json({ jobs: getAllJobs() });
+});
+
+router.get("/album-health/zip-jobs", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  const jobs = await listAlbumZipJobs();
+  res.json({ jobs: jobs.map(record => serializeAlbumZipJob(getAlbumZipInMemoryJob(record.slug) ?? createAlbumZipJob(record.slug))) });
+});
+
+router.post("/album-health/:slug/zip", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const slug = String(req.params.slug);
+  try {
+    const created = await enqueueAlbumZipJob(slug);
+    if (!created && !getAlbumZipJob(slug)) return res.status(409).json({ error: "Există deja un job ZIP pentru acest album." });
+    if (!getAlbumZipInMemoryJob(slug)) createAlbumZipJob(slug);
+    const started = launchAlbumZipProcessing(slug);
+    res.json({ ok: true, status: started ? "started" : "already_running" });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.get("/album-health/:slug/zip-live", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const slug = String(req.params.slug);
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const job = getAlbumZipInMemoryJob(slug);
+  if (!job) { res.write(`data: ${JSON.stringify({ type: "error", error: "Job ZIP negăsit." })}\n\n`); return res.end(); }
+  const send = (data: object) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`); };
+  send({ type: "init", ...serializeAlbumZipJob(job) });
+  if (job.status !== "running") return res.end();
+  const onUpdate = (event: object) => { send(event); if ((event as { type?: string }).type === "done" || (event as { type?: string }).type === "error") res.end(); };
+  job.emitter.on("update", onUpdate);
+  const heartbeat = setInterval(() => send({ type: "heartbeat" }), 15_000);
+  const cleanup = () => { clearInterval(heartbeat); job.emitter.off("update", onUpdate); };
+  res.on("close", cleanup);
+  res.on("finish", cleanup);
 });
 
 // GET /api/admin/album-health/categories — load persisted category overrides

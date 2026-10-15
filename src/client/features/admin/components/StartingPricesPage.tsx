@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
 import {
@@ -15,6 +15,17 @@ import {
   type ConfiguratorPriceKey,
   type ConfiguratorPrices,
 } from "../../../../shared/pricing/configuratorPrices";
+import {
+  datePricesError,
+  normalizeDatePrices,
+  normalizeSeasons,
+  seasonsError,
+  type DatePrice,
+  type PriceSeason,
+} from "../../../../shared/pricing/seasonalPricing";
+import SeasonalPricingEditor from "./SeasonalPricingEditor";
+import WeekendPricingCalendar from "./WeekendPricingCalendar";
+import BookedDatesPricing from "./BookedDatesPricing";
 
 type Draft = Record<StartingPriceKey, string>;
 type ConfiguratorDraft = Record<ConfiguratorPriceKey, string>;
@@ -38,6 +49,8 @@ export default function StartingPricesPage() {
   const { auth } = useAuth();
   const [draft, setDraft] = useState<Draft>(toDraft(DEFAULT_STARTING_PRICES));
   const [configuratorDraft, setConfiguratorDraft] = useState<ConfiguratorDraft>(toConfiguratorDraft(DEFAULT_CONFIGURATOR_PRICES));
+  const [seasons, setSeasons] = useState<PriceSeason[]>([]);
+  const [datePrices, setDatePrices] = useState<DatePrice[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -48,15 +61,27 @@ export default function StartingPricesPage() {
       .then((d) => {
         setDraft(toDraft(normalizeStartingPrices(d?.prices)));
         setConfiguratorDraft(toConfiguratorDraft(normalizeConfiguratorPrices(d?.configurator)));
+        setSeasons(normalizeSeasons(d?.seasons));
+        setDatePrices(normalizeDatePrices(d?.datePrices));
       })
       .catch(() => setMessage({ ok: false, text: "Nu s-au putut încărca prețurile — se afișează valorile implicite." }))
       .finally(() => setLoading(false));
   }, []);
 
+  // Opened from /admin/statistici-contact → jump to the weekend calendar once it is rendered.
+  useEffect(() => {
+    if (!loading && ["#preturi-pe-date", "#date-ocupate"].includes(window.location.hash)) document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
+  }, [loading]);
+
   const invalid = STARTING_PRICE_TYPES.some(({ key }) => {
     const value = Number(draft[key]);
     return !Number.isInteger(value) || value <= 0 || value > 100_000;
   }) || CONFIGURATOR_PRICE_FIELDS.some(({ key }) => configuratorDraft[key].trim() === "" || !isValidConfiguratorPrice(Number(configuratorDraft[key])));
+
+  const seasonsProblem = seasonsError(seasons) ?? datePricesError(datePrices);
+  // Live preview for the seasons, from what is typed now (invalid fields fall back to the defaults).
+  const previewStarting = useMemo(() => normalizeStartingPrices(Object.fromEntries(STARTING_PRICE_TYPES.map(({ key }) => [key, Number(draft[key])]))), [draft]);
+  const previewConfigurator = useMemo(() => normalizeConfiguratorPrices(Object.fromEntries(CONFIGURATOR_PRICE_FIELDS.map(({ key }) => [key, configuratorDraft[key]]))), [configuratorDraft]);
 
   const save = async () => {
     setSaving(true);
@@ -67,12 +92,14 @@ export default function StartingPricesPage() {
       const res = await fetch("/api/admin/starting-prices", {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-        body: JSON.stringify({ prices, configurator }),
+        body: JSON.stringify({ prices, configurator, seasons: seasons.map((season) => ({ ...season, name: season.name.trim() })), datePrices }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Nu s-au putut salva prețurile.");
       setDraft(toDraft(normalizeStartingPrices(data.prices)));
       setConfiguratorDraft(toConfiguratorDraft(normalizeConfiguratorPrices(data.configurator)));
+      setSeasons(normalizeSeasons(data.seasons));
+      setDatePrices(normalizeDatePrices(data.datePrices));
       setMessage({ ok: true, text: "Salvat. Site-ul folosește noile prețuri în cel mult un minut." });
     } catch (e) {
       setMessage({ ok: false, text: e instanceof Error ? e.message : "Nu s-au putut salva prețurile." });
@@ -83,7 +110,7 @@ export default function StartingPricesPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
-      <div className="max-w-xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6">
         <Breadcrumb />
 
         <div>
@@ -93,7 +120,7 @@ export default function StartingPricesPage() {
           </p>
         </div>
 
-        <div className="rounded-xl border border-neutral-800 divide-y divide-neutral-800">
+        <div className="max-w-xl rounded-xl border border-neutral-800 divide-y divide-neutral-800">
           {STARTING_PRICE_TYPES.map(({ key, label }) => (
             <label key={key} className="flex items-center justify-between gap-4 px-4 py-3">
               <span className="text-neutral-200 text-sm">{label}</span>
@@ -123,6 +150,7 @@ export default function StartingPricesPage() {
           </p>
         </div>
 
+        <div className="grid gap-4 md:grid-cols-2">
         {CONFIGURATOR_GROUPS.map((group) => (
           <div key={group}>
             <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-neutral-500">{group}</p>
@@ -149,18 +177,50 @@ export default function StartingPricesPage() {
             </div>
           </div>
         ))}
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="pt-6 border-t border-neutral-800">
+          <SeasonalPricingEditor
+            seasons={seasons}
+            onChange={setSeasons}
+            startingPrices={previewStarting}
+            configuratorPrices={previewConfigurator}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="pt-6 border-t border-neutral-800">
+          <WeekendPricingCalendar
+            datePrices={datePrices}
+            onChange={setDatePrices}
+            seasons={seasons}
+            startingPrices={previewStarting}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="pt-6 border-t border-neutral-800">
+          <BookedDatesPricing
+            datePrices={datePrices}
+            onChange={setDatePrices}
+            seasons={seasons}
+            book={{ ...previewStarting, ...previewConfigurator }}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 backdrop-blur">
           <button
             onClick={() => void save()}
-            disabled={loading || saving || invalid}
+            disabled={loading || saving || invalid || !!seasonsProblem}
             className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium disabled:opacity-40"
           >
             {saving ? "Se salvează…" : "Salvează"}
           </button>
           {invalid && <span className="text-amber-400 text-xs">Fiecare preț trebuie să fie un număr întreg (prețurile de pornire mai mari ca 0).</span>}
+          {!invalid && seasonsProblem && <span className="text-amber-400 text-xs">{seasonsProblem}</span>}
+          {message && <span role="status" className={`text-sm ${message.ok ? "text-green-400" : "text-red-400"}`}>{message.text}</span>}
         </div>
-        {message && <p className={`text-sm ${message.ok ? "text-green-400" : "text-red-400"}`}>{message.text}</p>}
       </div>
     </div>
   );

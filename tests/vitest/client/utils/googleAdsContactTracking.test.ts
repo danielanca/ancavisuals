@@ -3,10 +3,12 @@
  * "Persoană de contact" conversion once per session; album and admin pages don't.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { fireAdsAvailabilityMicroConversion, installAdsContactClickTracking } from "src/client/utils/googleAds";
+import { fireAdsAvailabilityMicroConversion, fireAdsOlxConfiguratorConversion, installAdsContactClickTracking } from "src/client/utils/googleAds";
 
 const CONTACT = "AW-10941123412/MCYICIjAx_4cENSWkeEo";
 const AVAILABILITY = "AW-10941123412/UaLJCL7Y0oQdENSWkeEo";
+const OLX_WHATSAPP = "AW-10941123412/kCa_CIy_6p0dENSWkeEo";
+const OLX_CONFIGURATOR = "AW-10941123412/CZIxCI-_6p0dENSWkeEo";
 
 const click = (href: string) => {
   const a = document.createElement("a");
@@ -70,5 +72,26 @@ describe("Google Ads contact tracking", () => {
     fireAdsAvailabilityMicroConversion();
     fireAdsAvailabilityMicroConversion();
     expect(sentTo(gtag)).toEqual([AVAILABILITY]);
+  });
+
+  test("WhatsApp on /oferta/olx also counts as its own conversion, once per session", () => {
+    setPath("/oferta/olx");
+    click("https://wa.me/40745469907");
+    click("https://wa.me/40745469907");
+    expect(sentTo(gtag)).toEqual([CONTACT, OLX_WHATSAPP]);
+  });
+
+  test("phone clicks on /oferta/olx and WhatsApp on other offers skip the OLX conversion", () => {
+    setPath("/oferta/olx");
+    click("tel:+40745469907");
+    setPath("/oferta/smart-wedding");
+    click("https://wa.me/40745469907");
+    expect(sentTo(gtag)).toEqual([CONTACT]);
+  });
+
+  test("configurator conversion counts once per session", () => {
+    fireAdsOlxConfiguratorConversion();
+    fireAdsOlxConfiguratorConversion();
+    expect(sentTo(gtag)).toEqual([OLX_CONFIGURATOR]);
   });
 });

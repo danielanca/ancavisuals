@@ -15,6 +15,11 @@ function makeReq(overrides: Partial<{ headers: Record<string, string | string[]>
 }
 
 describe("getClientIp", () => {
+  test("prefers Cloudflare's CF-Connecting-IP over a spoofable x-forwarded-for", () => {
+    const req = makeReq({ headers: { "cf-connecting-ip": "81.2.3.4", "x-forwarded-for": "127.0.0.1, 81.2.3.4" } });
+    expect(getClientIp(req)).toBe("81.2.3.4");
+  });
+
   test("returns the first IP from a string x-forwarded-for header", () => {
     const req = makeReq({ headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } });
     expect(getClientIp(req)).toBe("1.2.3.4");

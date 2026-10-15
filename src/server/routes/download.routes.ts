@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Readable } from "stream";
 import type { ReadableStream as NodeReadableStream } from "stream/web";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
+import { publicMediaPath } from "../constants/bunny";
 
 const router = Router();
 
@@ -15,8 +16,8 @@ const sanitizeName = (name: string, fallback: string) =>
 const isAllowedExt = (p: string) => /\.(mp4|zip)$/i.test(p);
 
 router.get("/", async (req, res) => {
-  const path = String(req.query.path || "").replace(/^\/+/, "");
-  if (!path || path.includes("..")) return res.status(400).send("Bad path");
+  const path = publicMediaPath(String(req.query.path || ""));
+  if (!path) return res.status(400).send("Bad path");
   if (!isAllowedExt(path)) return res.status(403).send("Only mp4 or zip");
 
   const isZip = /\.zip$/i.test(path);

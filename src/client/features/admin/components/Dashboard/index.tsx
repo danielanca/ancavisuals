@@ -22,7 +22,7 @@ import { fetchGetWithRetry } from "../../../../utils/fetchGetWithRetry";
 
 // ── Widget Order ──────────────────────────────────────────────────────────
 
-const DEFAULT_WIDGET_ORDER = ["leads", "activity", "goals", "financial", "countdown", "albumHealth", "mementos", "events", "deadlines"];
+const DEFAULT_WIDGET_ORDER = ["leads", "goals", "financial", "countdown", "albumHealth", "mementos", "events", "deadlines"];
 const WIDGET_ORDER_KEY = "dashboard_widget_order";
 
 function useDashboardWidgetOrder() {
@@ -279,7 +279,6 @@ const DashboardInner: React.FC = () => {
     financial: <FinancialSummary events={events} />,
     countdown: <NextEventCountdown events={events} />,
     leads: <LeadsWidget />,
-    activity: <ActivityInbox />,
     albumHealth: <AlbumHealthWidget />,
     mementos: <MementosWidget />,
     deadlines: <DeliveryDeadlineOverview events={events} onEventUpdated={handleEventUpdated} />,
@@ -351,6 +350,11 @@ const DashboardInner: React.FC = () => {
               {reorderMode ? "Gata" : "Ordine"}
             </button>
           </div>
+        </div>
+
+        {/* Admin inbox — always visible at the top */}
+        <div className="mb-5">
+          <ActivityInbox />
         </div>
 
         {/* Search */}

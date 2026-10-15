@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import useAuth from "../auth/useAuth";
 import { watchAlbumProcessing } from "./watchAlbumProcessing";
@@ -8,7 +8,10 @@ interface AlbumHealth {
   total: number;
   withPreview: number;
   missing: number;
+  stale: number;
   missingFiles: string[];
+  staleFiles: string[];
+  affectedFiles: string[];
   hasPreviewFolder: boolean;
   coverage: number;
   zipStatus: "ok" | "stale" | "missing";
@@ -59,6 +62,10 @@ export default function AlbumHealthPage() {
   const { auth } = useAuth();
   const [albums, setAlbums] = useState<AlbumHealth[]>([]);
   const [jobStates, setJobStates] = useState<Record<string, JobState>>({});
+  const [zipJobStates, setZipJobStates] = useState<Record<string, JobState>>({});
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
+  const [archivingSelected, setArchivingSelected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scanned, setScanned] = useState(false);
@@ -66,6 +73,7 @@ export default function AlbumHealthPage() {
   const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, AlbumCategory>>(loadCategoryOverrides);
   const liveCleanups = useRef<Record<string, () => void>>({});
+  const zipLiveCleanups = useRef<Record<string, () => void>>({});
   const MAX_RETRIES = 10;
 
   const setCategory = useCallback((slug: string, category: AlbumCategory) => {
@@ -106,7 +114,7 @@ export default function AlbumHealthPage() {
   const handleLiveEvent = (slug: string, event: Record<string, unknown>) => {
     if (event.type === "done" || (event.type === "init" && event.status === "done")) {
       setAlbums(albums => albums.map(album => album.slug === slug
-        ? { ...album, withPreview: album.total, missing: 0, missingFiles: [], coverage: 100, hasPreviewFolder: true }
+        ? { ...album, withPreview: album.total, missing: 0, stale: 0, missingFiles: [], staleFiles: [], affectedFiles: [], coverage: 100, hasPreviewFolder: true }
         : album));
     }
     setJobStates((prev) => {
@@ -140,6 +148,33 @@ export default function AlbumHealthPage() {
     });
   };
 
+  const connectZipLive = useCallback((slug: string) => {
+    zipLiveCleanups.current[slug]?.();
+    const cleanup = watchAlbumProcessing(
+      slug,
+      () => auth.user ? auth.user.getIdToken() : Promise.resolve(auth.accessToken),
+      event => {
+        if (event.type === "done" || (event.type === "init" && event.status === "done")) {
+          setAlbums(current => current.map(album => album.slug === slug
+            ? { ...album, zipStatus: "ok", zipDate: new Date().toISOString() }
+            : album));
+        }
+        setZipJobStates(previous => {
+          const current = previous[slug] ?? { status: "running", log: [], progress: { done: 0, total: 0 }, initialWithPreview: 0 };
+          if (event.type === "init") return { ...previous, [slug]: { ...current, ...event, status: event.status as JobState["status"], log: (event.log as string[]) ?? [], progress: (event.progress as JobState["progress"]) ?? current.progress, initialWithPreview: 0 } };
+          if (event.type === "log") return { ...previous, [slug]: { ...current, log: [...current.log, event.message as string] } };
+          if (event.type === "progress") return { ...previous, [slug]: { ...current, progress: { done: event.done as number, total: event.total as number } } };
+          if (event.type === "done") return { ...previous, [slug]: { ...current, status: "done" } };
+          if (event.type === "error") return { ...previous, [slug]: { ...current, status: "error", error: event.error as string } };
+          return previous;
+        });
+      },
+      reconnecting => setZipJobStates(previous => previous[slug] ? { ...previous, [slug]: { ...previous[slug], reconnecting } } : previous),
+      `/api/admin/album-health/${encodeURIComponent(slug)}/zip-live`,
+    );
+    zipLiveCleanups.current[slug] = cleanup;
+  }, [auth.accessToken, auth.user]);
+
   const scan = useCallback(async (attempt = 1) => {
     setLoading(true);
     setError(null);
@@ -147,10 +182,11 @@ export default function AlbumHealthPage() {
 
     try {
       const headers = { Authorization: `Bearer ${auth.accessToken}` };
-      const [healthRes, jobsRes, categoriesRes] = await Promise.all([
+      const [healthRes, jobsRes, categoriesRes, zipJobsRes] = await Promise.all([
         fetch("/api/admin/album-health", { headers }),
         fetch("/api/admin/album-health/jobs", { headers }),
         fetch("/api/admin/album-health/categories", { headers }),
+        fetch("/api/admin/album-health/zip-jobs", { headers }),
       ]);
 
       if (!healthRes.ok) throw new Error((await healthRes.json() as { error?: string }).error ?? "Eroare server");
@@ -198,6 +234,15 @@ export default function AlbumHealthPage() {
         }
         setJobStates(states);
       }
+      if (zipJobsRes.ok) {
+        const { jobs } = await zipJobsRes.json() as { jobs: Array<{ slug: string; status: string; log: string[]; progress: { done: number; total: number }; error?: string }> };
+        const states: Record<string, JobState> = {};
+        for (const job of jobs) {
+          states[job.slug] = { status: job.status as JobState["status"], log: job.log, progress: job.progress, initialWithPreview: 0, error: job.error };
+          if (job.status === "running") connectZipLive(job.slug);
+        }
+        setZipJobStates(states);
+      }
     } catch (err) {
       if (attempt < MAX_RETRIES) {
         setTimeout(() => scan(attempt + 1), 2000);
@@ -211,15 +256,16 @@ export default function AlbumHealthPage() {
 
   useEffect(() => { scan(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDeleteZip = useCallback(async (slug: string) => {
+  const handleDeleteZip = useCallback(async (slug: string): Promise<boolean> => {
     const res = await fetch(`/api/admin/album-health/${encodeURIComponent(slug)}/zip`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     });
-    if (!res.ok) return;
+    if (!res.ok) return false;
     setAlbums((prev) => prev.map((album) =>
       album.slug === slug ? { ...album, zipStatus: "missing" as const, zipDate: null } : album
     ));
+    return true;
   }, [auth.accessToken]);
 
   const startProcess = useCallback(async (slug: string, initialWithPreview: number) => {
@@ -236,13 +282,26 @@ export default function AlbumHealthPage() {
     connectLive(slug);
   }, [auth.accessToken, connectLive]);
 
+  const startZipProcess = useCallback(async (slug: string) => {
+    const res = await fetch(`/api/admin/album-health/${encodeURIComponent(slug)}/zip`, {
+      method: "POST", headers: { Authorization: `Bearer ${auth.accessToken}` },
+    });
+    if (!res.ok) return;
+    setZipJobStates(previous => ({ ...previous, [slug]: { status: "running", log: ["Se conectează..."], progress: { done: 0, total: 0 }, initialWithPreview: 0 } }));
+    connectZipLive(slug);
+  }, [auth.accessToken, connectZipLive]);
+
   useEffect(() => {
     const cleanups = liveCleanups.current;
-    return () => { Object.values(cleanups).forEach((fn) => fn()); };
+    const zipCleanups = zipLiveCleanups.current;
+    return () => { Object.values(cleanups).forEach((fn) => fn()); Object.values(zipCleanups).forEach((fn) => fn()); };
   }, []);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = useMemo(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
 
   const sorted = [...albums].sort((a, b) => {
     const dateA = parseSlugDate(a.slug);
@@ -259,6 +318,39 @@ export default function AlbumHealthPage() {
   const activeAlbums = sorted.filter((a) => getCategory(a.slug) === "active");
   const deliveredAlbums = sorted.filter((a) => getCategory(a.slug) === "delivered");
   const archivedAlbums = sorted.filter((a) => getCategory(a.slug) === "archived");
+  const selectableAlbums = useMemo(
+    () => albums.filter((album) => (categoryOverrides[album.slug] ?? getAutoCategory(album.slug, today)) !== "archived"),
+    [albums, categoryOverrides, today]
+  );
+
+  const toggleSelected = useCallback((slug: string) => {
+    setSelectedSlugs(previous => {
+      const next = new Set(previous);
+      if (next.has(slug)) next.delete(slug); else next.add(slug);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedSlugs(previous => previous.size === selectableAlbums.length
+      ? new Set()
+      : new Set(selectableAlbums.map(album => album.slug)));
+  }, [selectableAlbums]);
+
+  const archiveSelected = useCallback(async () => {
+    const albumsToArchive = selectableAlbums.filter(album => selectedSlugs.has(album.slug));
+    if (albumsToArchive.length === 0) return;
+    if (!window.confirm(`Arhivezi ${albumsToArchive.length} albume și ștergi photos.zip pentru fiecare? Originalele și preview-urile rămân.`)) return;
+    setArchivingSelected(true);
+    let failed = 0;
+    for (const album of albumsToArchive) {
+      if (album.zipStatus !== "missing" && !(await handleDeleteZip(album.slug))) { failed++; continue; }
+      setCategory(album.slug, "archived");
+    }
+    setSelectedSlugs(new Set());
+    setArchivingSelected(false);
+    if (failed > 0) window.alert(`${failed} albume nu au putut fi arhivate deoarece ZIP-ul nu a putut fi șters.`);
+  }, [handleDeleteZip, selectableAlbums, selectedSlugs, setCategory]);
 
   const [createSlug, setCreateSlug] = useState("");
   const [creating, setCreating] = useState(false);
@@ -283,7 +375,10 @@ export default function AlbumHealthPage() {
         total: 0,
         withPreview: 0,
         missing: 0,
+        stale: 0,
         missingFiles: [],
+        staleFiles: [],
+        affectedFiles: [],
         hasPreviewFolder: false,
         coverage: 0,
         zipStatus: "missing" as const,
@@ -346,6 +441,30 @@ export default function AlbumHealthPage() {
               </svg>
             </button>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mb-5">
+          <button
+            onClick={() => { setSelectionMode(previous => !previous); setSelectedSlugs(new Set()); }}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectionMode ? "bg-amber-500/20 text-amber-300" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}
+          >
+            ☑ {selectionMode ? "Închide selecția" : "Selectează albume"}
+          </button>
+          {selectionMode && (
+            <>
+              <button onClick={toggleSelectAll} className="px-3 py-1.5 rounded-md bg-neutral-800 text-neutral-300 text-xs font-medium hover:bg-neutral-700">
+                {selectableAlbums.length > 0 && selectedSlugs.size === selectableAlbums.length ? "Deselectează toate" : "Selectează toate"}
+              </button>
+              <button
+                onClick={() => void archiveSelected()}
+                disabled={selectedSlugs.size === 0 || archivingSelected}
+                className="px-3 py-1.5 rounded-md bg-amber-500/15 text-amber-300 text-xs font-medium hover:bg-amber-500/25 disabled:opacity-40"
+              >
+                {archivingSelected ? "Arhivez..." : `Arhivează selectatele (${selectedSlugs.size})`}
+              </button>
+              <span className="text-xs text-neutral-500">Se selectează albumele din „În lucru” și „Predate”.</span>
+            </>
+          )}
         </div>
 
         {showCreateForm && (
@@ -421,8 +540,9 @@ export default function AlbumHealthPage() {
               <Stat value={complete} label="Complete (100% WebP)" color="emerald" />
               <Stat value={incomplete} label={`Incomplete · ${totalMissing} lipsă`} color="amber" />
             </div>
-            <Section title="În lucru" albums={activeAlbums} jobStates={jobStates} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} currentCategory="active" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} />
-            <Section title="Predate" albums={deliveredAlbums} jobStates={jobStates} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} currentCategory="delivered" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} dimmed />
+            <Section title="În lucru" albums={activeAlbums} jobStates={jobStates} zipJobStates={zipJobStates} selectionMode={selectionMode} selectedSlugs={selectedSlugs} onToggleSelect={toggleSelected} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} startZipProcess={startZipProcess} currentCategory="active" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} />
+            <Section title="Predate" albums={deliveredAlbums} jobStates={jobStates} zipJobStates={zipJobStates} selectionMode={selectionMode} selectedSlugs={selectedSlugs} onToggleSelect={toggleSelected} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} startZipProcess={startZipProcess} currentCategory="delivered" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} dimmed />
+            <Section title="Arhivate" albums={archivedAlbums} jobStates={jobStates} zipJobStates={zipJobStates} selectionMode={false} selectedSlugs={selectedSlugs} onToggleSelect={toggleSelected} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} startZipProcess={startZipProcess} currentCategory="archived" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} dimmed />
           </>
         )}
       </div>
@@ -494,16 +614,21 @@ const CATEGORY_LABELS: Record<AlbumCategory, string> = {
   archived: "Arhivate",
 };
 
-function Section({ title, albums, jobStates, expandedDetails, toggleDetails, startProcess, currentCategory, onSetCategory, onDeleteZip, dimmed }: {
+function Section({ title, albums, jobStates, zipJobStates, selectionMode, selectedSlugs, onToggleSelect, expandedDetails, toggleDetails, startProcess, startZipProcess, currentCategory, onSetCategory, onDeleteZip, dimmed }: {
   title: string;
   albums: AlbumHealth[];
   jobStates: Record<string, JobState>;
+  zipJobStates: Record<string, JobState>;
+  selectionMode: boolean;
+  selectedSlugs: Set<string>;
+  onToggleSelect: (slug: string) => void;
   expandedDetails: Set<string>;
   toggleDetails: (slug: string) => void;
   startProcess: (slug: string, initialWithPreview: number) => void;
+  startZipProcess: (slug: string) => void;
   currentCategory: AlbumCategory;
   onSetCategory: (slug: string, category: AlbumCategory) => void;
-  onDeleteZip: (slug: string) => Promise<void>;
+  onDeleteZip: (slug: string) => Promise<boolean>;
   dimmed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -560,10 +685,15 @@ function Section({ title, albums, jobStates, expandedDetails, toggleDetails, sta
               key={album.slug}
               album={album}
               job={jobStates[album.slug]}
+              zipJob={zipJobStates[album.slug]}
+              selectionMode={selectionMode}
+              selected={selectedSlugs.has(album.slug)}
+              onToggleSelect={() => onToggleSelect(album.slug)}
               detailsOpen={expandedDetails.has(album.slug)}
               onToggleDetails={() => toggleDetails(album.slug)}
-              onProcess={() => startProcess(album.slug, album.withPreview)}
-              onRetry={() => startProcess(album.slug, album.withPreview)}
+              onProcess={() => startProcess(album.slug, album.total - album.affectedFiles.length)}
+              onRetry={() => startProcess(album.slug, album.total - album.affectedFiles.length)}
+              onRebuildZip={() => startZipProcess(album.slug)}
               onDeleteZip={() => onDeleteZip(album.slug)}
               currentCategory={currentCategory}
               onSetCategory={(cat) => onSetCategory(album.slug, cat)}
@@ -579,20 +709,28 @@ function Section({ title, albums, jobStates, expandedDetails, toggleDetails, sta
   );
 }
 
-function AlbumRow({ album, job, detailsOpen, onToggleDetails, onProcess, onRetry, onDeleteZip, currentCategory, onSetCategory }: {
+function AlbumRow({ album, job, zipJob, selectionMode, selected, onToggleSelect, detailsOpen, onToggleDetails, onProcess, onRetry, onRebuildZip, onDeleteZip, currentCategory, onSetCategory }: {
   album: AlbumHealth;
   job?: JobState;
+  zipJob?: JobState;
+  selectionMode: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   detailsOpen: boolean;
   onToggleDetails: () => void;
   onProcess: () => void;
   onRetry: () => void;
-  onDeleteZip: () => Promise<void>;
+  onRebuildZip: () => void;
+  onDeleteZip: () => Promise<boolean>;
   currentCategory: AlbumCategory;
   onSetCategory: (cat: AlbumCategory) => void;
 }) {
   const isRunning = job?.status === "running";
   const isError = job?.status === "error";
   const isDone = job?.status === "done";
+  const isZipRunning = zipJob?.status === "running";
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [confirmingZipDelete, setConfirmingZipDelete] = useState(false);
   const [deletingZip, setDeletingZip] = useState(false);
 
@@ -601,6 +739,24 @@ function AlbumRow({ album, job, detailsOpen, onToggleDetails, onProcess, onRetry
     await onDeleteZip();
     setDeletingZip(false);
     setConfirmingZipDelete(false);
+  };
+
+  const handleArchiveChange = async (checked: boolean) => {
+    setArchiveError(null);
+    if (checked) {
+      const confirmed = window.confirm(`Arhivezi albumul „${album.slug}” și ștergi photos.zip? Originalele și preview-urile rămân păstrate.`);
+      if (!confirmed) return;
+      setArchiving(true);
+      if (album.zipStatus !== "missing" && !(await onDeleteZip())) {
+        setArchiveError("ZIP-ul nu a putut fi șters; albumul nu a fost arhivat.");
+        setArchiving(false);
+        return;
+      }
+      onSetCategory("archived");
+      setArchiving(false);
+      return;
+    }
+    onSetCategory("delivered");
   };
 
   const displayWithPreview = isRunning && job
@@ -614,14 +770,23 @@ function AlbumRow({ album, job, detailsOpen, onToggleDetails, onProcess, onRetry
   }, [job?.log.length]);
 
   return (
-    <div className={`bg-neutral-900 border rounded-lg p-4 transition-colors ${isError ? "border-red-500/30" : "border-neutral-800"}`}>
+    <div className={`bg-neutral-900 border rounded-lg p-4 transition-colors ${currentCategory !== "archived" && isError ? "border-red-500/30" : "border-neutral-800"}`}>
       <div className="flex items-center gap-4">
+        {selectionMode && currentCategory !== "archived" && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label={`Selectează albumul ${album.slug} pentru arhivare`}
+            className="h-4 w-4 shrink-0 accent-amber-500"
+          />
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-sm font-medium text-white truncate">{album.slug}</span>
-            <StatusBadge album={album} isDone={isDone} onClickDetails={album.missing > 0 && !isDone ? onToggleDetails : undefined} detailsOpen={detailsOpen} />
-            <ZipBadge status={album.zipStatus} zipDate={album.zipDate} />
-            {album.zipStatus !== "missing" && !confirmingZipDelete && (
+            <StatusBadge album={album} archived={currentCategory === "archived"} isDone={isDone} onClickDetails={album.affectedFiles.length > 0 && !isDone ? onToggleDetails : undefined} detailsOpen={detailsOpen} />
+            <ZipBadge status={album.zipStatus} zipDate={album.zipDate} archived={currentCategory === "archived"} />
+            {currentCategory !== "archived" && album.zipStatus !== "missing" && !confirmingZipDelete && (
               <button
                 onClick={() => setConfirmingZipDelete(true)}
                 title="Șterge photos.zip"
@@ -658,7 +823,7 @@ function AlbumRow({ album, job, detailsOpen, onToggleDetails, onProcess, onRetry
                 </button>
               </div>
             )}
-            {isError && (
+            {currentCategory !== "archived" && isError && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-500/15 text-red-400">
                 ❌ Eroare
               </span>
@@ -686,14 +851,25 @@ function AlbumRow({ album, job, detailsOpen, onToggleDetails, onProcess, onRetry
               Retry
             </button>
           )}
-          {!isError && !isDone && album.missing > 0 && (
+          {currentCategory !== "archived" && !isError && !isDone && album.affectedFiles.length > 0 && (
             <button onClick={onProcess} disabled={isRunning} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-500/15 text-violet-400 text-xs font-medium hover:bg-violet-500/25 transition-colors disabled:opacity-50 whitespace-nowrap">
               {isRunning ? (
                 <><svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>Procesez...</>
               ) : (
-                <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>Procesează ({album.missing} lipsă)</>
+                <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>Regenerează preview-urile ({album.affectedFiles.length} afectate)</>
               )}
             </button>
+          )}
+          {currentCategory !== "archived" && !isZipRunning && album.zipStatus !== "ok" && (
+            <button onClick={onRebuildZip} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-sky-500/15 text-sky-400 text-xs font-medium hover:bg-sky-500/25 transition-colors whitespace-nowrap">
+              📦 Reconstruiește photos.zip
+            </button>
+          )}
+          {currentCategory !== "archived" && isZipRunning && (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-sky-500/10 text-sky-300 text-xs whitespace-nowrap">
+              <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8V2z" /></svg>
+              ZIP {zipJob?.progress.done ?? 0}/{zipJob?.progress.total || "…"}
+            </span>
           )}
 
           {import.meta.env.VITE_BUNNY_STORAGE_ZONE_ID && (
@@ -712,15 +888,19 @@ function AlbumRow({ album, job, detailsOpen, onToggleDetails, onProcess, onRetry
             </a>
           )}
           {/* Move-to category menu — portal-based to escape stacking contexts */}
+          <label className="inline-flex items-center gap-1.5 text-xs text-neutral-400 whitespace-nowrap cursor-pointer" title="Arhivează albumul și elimină photos.zip">
+            <input type="checkbox" checked={currentCategory === "archived"} disabled={archiving} onChange={(event) => void handleArchiveChange(event.target.checked)} className="accent-amber-500" />
+            Arhivat
+          </label>
           <CategoryMenu currentCategory={currentCategory} onSetCategory={onSetCategory} />
         </div>
       </div>
 
-      {detailsOpen && !isRunning && album.missingFiles.length > 0 && (
+      {detailsOpen && !isRunning && album.affectedFiles.length > 0 && (
         <div className="mt-3 pt-3 border-t border-neutral-800">
-          <p className="text-xs text-neutral-500 mb-2">{album.missingFiles.length} poze fără WebP preview:</p>
+            <p className="text-xs text-neutral-500 mb-2">{album.affectedFiles.length} poze cu preview lipsă sau învechit:</p>
           <div className="max-h-40 overflow-y-auto space-y-0.5">
-            {album.missingFiles.map((file) => (
+            {album.affectedFiles.map((file) => (
               <div key={file} className="text-xs text-neutral-400 font-mono flex items-center gap-1.5">
                 <span className="text-red-500/70">✕</span>{file}
               </div>
@@ -729,8 +909,9 @@ function AlbumRow({ album, job, detailsOpen, onToggleDetails, onProcess, onRetry
         </div>
       )}
 
-      {job?.reconnecting && <p role="status" className="mt-3 text-xs text-amber-300">Conexiunea la progres s-a întrerupt. Reconectare automată… Procesarea pe server este independentă de această pagină.</p>}
-      {isRunning && <p className="mt-2 text-xs text-neutral-500">Poți închide pagina. Primești email la finalizare sau la probleme de procesare.</p>}
+      {currentCategory !== "archived" && job?.reconnecting && <p role="status" className="mt-3 text-xs text-amber-300">Conexiunea la progres s-a întrerupt. Reconectare automată… Procesarea pe server este independentă de această pagină.</p>}
+      {currentCategory !== "archived" && isRunning && <p className="mt-2 text-xs text-neutral-500">Poți închide pagina. Primești email la finalizare sau la probleme de procesare.</p>}
+      {archiveError && <p className="mt-2 text-xs text-red-400">{archiveError}</p>}
 
       {job && job.log.length > 0 && (
         <div className="mt-3 pt-3 border-t border-neutral-800">
@@ -807,7 +988,14 @@ function CategoryMenu({ currentCategory, onSetCategory }: {
   );
 }
 
-function ZipBadge({ status, zipDate }: { status: "ok" | "stale" | "missing"; zipDate: string | null }) {
+function ZipBadge({ status, zipDate, archived }: { status: "ok" | "stale" | "missing"; zipDate: string | null; archived?: boolean }) {
+  if (archived) {
+    return (
+      <span title="ZIP omis pentru album arhivat" className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/50 text-neutral-500">
+        📦 ZIP omis · arhivat
+      </span>
+    );
+  }
   const dateStr = zipDate
     ? new Date(zipDate).toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" })
     : null;
@@ -833,12 +1021,20 @@ function ZipBadge({ status, zipDate }: { status: "ok" | "stale" | "missing"; zip
   );
 }
 
-function StatusBadge({ album, isDone, onClickDetails, detailsOpen }: {
+function StatusBadge({ album, archived, isDone, onClickDetails, detailsOpen }: {
   album: AlbumHealth;
+  archived?: boolean;
   isDone?: boolean;
   onClickDetails?: () => void;
   detailsOpen?: boolean;
 }) {
+  if (archived) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/50 text-neutral-400">
+        ✓ Arhivat
+      </span>
+    );
+  }
   if (album.coverage === 100 || isDone) {
     return (
       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-400">
@@ -860,7 +1056,7 @@ function StatusBadge({ album, isDone, onClickDetails, detailsOpen }: {
   }
   return (
     <button onClick={onClickDetails} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors">
-      ⚠ Parțial · {album.missing} lipsă {chevron}
+      ⚠ Parțial · {album.affectedFiles.length} afectate {chevron}
     </button>
   );
 }

@@ -31,7 +31,7 @@ function tsToISO(value: unknown): string | null {
 }
 
 // POST /api/handover — create new handover protocol (admin)
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const body = req.body;
@@ -93,7 +93,7 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // GET /api/handover — list (admin)
-router.get("/", async (_req: Request, res: Response) => {
+router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const snapshot = await db.collection("materialsHandover").orderBy("createdAt", "desc").get();
@@ -346,7 +346,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
 });
 
 // PATCH /api/handover/:id — update AWB / digital link (admin)
-router.patch("/:id", async (req: Request, res: Response) => {
+router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("materialsHandover").doc(req.params.id).get();
@@ -377,7 +377,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
 });
 
 // POST /api/handover/:id/send — send signing link to client (admin)
-router.post("/:id/send", async (req: Request, res: Response) => {
+router.post("/:id/send", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("materialsHandover").doc(req.params.id).get();
@@ -458,7 +458,7 @@ router.post("/:id/reminder", requireFirebaseAuth, requireSupremeAdmin, async (re
 });
 
 // GET /api/handover/:id — details (admin)
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("materialsHandover").doc(req.params.id).get();
@@ -479,7 +479,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 });
 
 // GET /api/handover/:id/preview — PDF preview (admin)
-router.get("/:id/preview", async (req: Request, res: Response) => {
+router.get("/:id/preview", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("materialsHandover").doc(req.params.id).get();
@@ -498,7 +498,7 @@ router.get("/:id/preview", async (req: Request, res: Response) => {
 });
 
 // DELETE /api/handover/:id — delete (admin)
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("materialsHandover").doc(req.params.id).get();

@@ -50,13 +50,19 @@ export async function updateEmailLog(id: string | null, patch: Partial<EmailLogE
   }
 }
 
+const EMAIL_LOG_LIST_FIELDS = [
+  "to", "subject", "status", "severity", "source", "reason", "error", "leadId", "deliveryId", "createdAt", "updatedAt",
+] as const;
+
 export async function getEmailLog(limit = 100) {
-  const snapshot = await firestore().collection(EMAIL_LOG).orderBy("createdAt", "desc").limit(limit).get();
-  // The list omits bodies; the detail endpoint returns them.
-  return snapshot.docs.map((doc) => {
-    const { html: _html, ...rest } = doc.data();
-    return { id: doc.id, ...rest };
-  });
+  // The list omits bodies (up to 200 KB each); select() keeps Firestore from
+  // downloading them at all. The detail endpoint returns the body.
+  const snapshot = await firestore().collection(EMAIL_LOG)
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .select(...EMAIL_LOG_LIST_FIELDS)
+    .get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
 
 export async function getEmailLogEntry(id: string) {

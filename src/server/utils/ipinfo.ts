@@ -12,6 +12,11 @@ export type IpInfo = {
 };
 
 export const getClientIp = (request: Request): string => {
+  // Behind Cloudflare: it overwrites CF-Connecting-IP on every request, while the first
+  // X-Forwarded-For entry is whatever the visitor sent (e.g. a fake 127.0.0.1).
+  const cfIp = request.headers["cf-connecting-ip"];
+  if (typeof cfIp === "string" && cfIp.trim()) return cfIp.trim();
+
   const forwarded = request.headers["x-forwarded-for"];
 
   if (typeof forwarded === "string" && forwarded.length > 0) {

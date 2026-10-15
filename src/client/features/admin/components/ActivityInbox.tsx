@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import EmailDiagnostics from "./EmailDiagnostics";
 import useAuth from "../auth/useAuth";
 
-type ActivityType = "contact" | "visitor" | "subscribe" | "lead" | "offer_viewed";
+type ActivityType = "contact" | "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit"
+  | "task_overdue" | "upload_incomplete" | "processing_failed" | "processing_complete" | "album_zip" | "email_failed";
 
 interface Activity {
   id: string;
@@ -32,6 +33,13 @@ const TYPE_ICON: Record<ActivityType, string> = {
   subscribe: "🔔",
   lead: "📝",
   offer_viewed: "👁",
+  seo_visit: "🔎",
+  task_overdue: "⏰",
+  upload_incomplete: "📤",
+  processing_failed: "❌",
+  processing_complete: "✅",
+  album_zip: "📦",
+  email_failed: "✉️",
 };
 
 const TYPE_COLOR: Record<ActivityType, string> = {
@@ -40,6 +48,13 @@ const TYPE_COLOR: Record<ActivityType, string> = {
   subscribe: "#f59e0b",
   lead: "#10b981",
   offer_viewed: "#8b5cf6",
+  seo_visit: "#06b6d4",
+  task_overdue: "#f97316",
+  upload_incomplete: "#eab308",
+  processing_failed: "#ef4444",
+  processing_complete: "#22c55e",
+  album_zip: "#38bdf8",
+  email_failed: "#fb7185",
 };
 
 const TYPE_LABEL: Record<ActivityType, string> = {
@@ -48,6 +63,13 @@ const TYPE_LABEL: Record<ActivityType, string> = {
   subscribe: "Abonat",
   lead: "Lead",
   offer_viewed: "Ofertă",
+  seo_visit: "SEO",
+  task_overdue: "Task întârziat",
+  upload_incomplete: "Upload incomplet",
+  processing_failed: "Procesare eșuată",
+  processing_complete: "Procesare finalizată",
+  album_zip: "ZIP album",
+  email_failed: "Email eșuat",
 };
 
 const SETTING_LABELS: (keyof NotificationSettings["email"])[] = [
@@ -178,7 +200,7 @@ export default function ActivityInbox() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #1a1a1a", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Activitate site</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Inbox administrare</span>
           {unreadCount > 0 && (
             <span style={{ background: "#dc2626", color: "#fff", fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "1px 7px" }}>
               {unreadCount}
@@ -239,7 +261,7 @@ export default function ActivityInbox() {
 
       {/* Filter tabs */}
       <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #1a1a1a", overflowX: "auto" }}>
-        {(["all", "contact", "lead", "subscribe", "offer_viewed"] as const).map((f) => (
+        {(["all", "lead", "task_overdue", "processing_failed", "processing_complete", "album_zip", "email_failed", "contact", "subscribe", "offer_viewed"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -305,7 +327,11 @@ export default function ActivityInbox() {
           filtered.map((activity) => (
             <div
               key={activity.id}
-              onClick={() => { if (!activity.read) markRead(activity.id); }}
+              onClick={() => {
+                if (!activity.read) markRead(activity.id);
+                const route = activity.metadata?.route;
+                if (route) navigate(route);
+              }}
               style={{
                 display: "flex", alignItems: "flex-start", gap: 12,
                 padding: "12px 18px",
@@ -318,18 +344,18 @@ export default function ActivityInbox() {
               {/* Icon */}
               <div style={{
                 width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                background: `${TYPE_COLOR[activity.type]}18`,
+                background: `${TYPE_COLOR[activity.type] ?? "#a78bfa"}18`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 14,
               }}>
-                {TYPE_ICON[activity.type]}
+                {TYPE_ICON[activity.type] ?? "🔔"}
               </div>
 
               {/* Content */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                   {!activity.read && (
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: TYPE_COLOR[activity.type], flexShrink: 0 }} />
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: TYPE_COLOR[activity.type] ?? "#a78bfa", flexShrink: 0 }} />
                   )}
                   <span style={{ fontSize: 13, fontWeight: activity.read ? 400 : 600, color: activity.read ? "#888" : "#e5e5e5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {activity.title}
@@ -339,6 +365,18 @@ export default function ActivityInbox() {
                   <p style={{ fontSize: 11, color: "#4ade80", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {activity.description}
                   </p>
+                )}
+                {activity.metadata?.event === "availability_checked" && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!activity.read) markRead(activity.id);
+                      navigate("/admin/statistici-contact");
+                    }}
+                    style={{ marginTop: 4, padding: 0, border: "none", background: "transparent", color: "#a78bfa", fontSize: 11, cursor: "pointer" }}
+                  >
+                    📊 Vezi statistici disponibilitate →
+                  </button>
                 )}
               </div>
 

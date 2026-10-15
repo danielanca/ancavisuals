@@ -67,7 +67,7 @@ export function partitionEvents(events: ClientEvent[], today: Date, currentYear:
   return { yearEvents, upcoming: visibleUpcoming, past, leads, archived };
 }
 
-type Tab = "leaduri" | "viitor" | "trecut" | "arhiva";
+type Tab = "viitor" | "trecut" | "arhiva";
 type ViewMode = "list" | "calendar";
 type FiscalFilter = "toate" | "fiscalizate" | "nefiscalizate";
 
@@ -104,12 +104,10 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const targetDate = targetEvent.eventDate ? new Date(targetEvent.eventDate) : null;
-    let nextTab: Tab = "leaduri";
+    let nextTab: Tab;
 
     if (targetEvent.status === "anulat") {
       nextTab = "arhiva";
-    } else if (targetEvent.status === "lead" || targetEvent.status === "tentativ") {
-      nextTab = "leaduri";
     } else if (targetDate && targetDate < now) {
       nextTab = "trecut";
     } else {
@@ -185,7 +183,6 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
     let list: ClientEvent[] = [];
     if (tab === "viitor") list = filteredUpcoming;
     else if (tab === "trecut") list = filteredPast;
-    else if (tab === "leaduri") list = filteredLeads;
     else if (tab === "arhiva") list = filteredArchived;
 
     const text = buildExportText(list);
@@ -200,7 +197,7 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const { upcoming, past, leads, archived } = partitionEvents(events, today, currentYear);
+  const { upcoming, past, archived } = partitionEvents(events, today, currentYear);
   const applyFiscalFilter = (list: ClientEvent[]) =>
     list.filter((event) => {
       if (fiscalFilter === "toate") return true;
@@ -210,7 +207,6 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
 
   const filteredUpcoming = applyFiscalFilter(upcoming);
   const filteredPast = applyFiscalFilter(past);
-  const filteredLeads = applyFiscalFilter(leads);
   const filteredArchived = applyFiscalFilter(archived);
   const futureYears = [currentYear + 1, currentYear + 2];
   const upcomingByYear = new Map<number, ClientEvent[]>(
@@ -327,29 +323,6 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
           </div>
         )}
       </section>
-    );
-  }
-
-  function renderLeads(list: ClientEvent[]) {
-    // sort: tentativ first, then lead; within each group sort by createdAt desc
-    const sorted = [...list].sort((a, b) => {
-      if (a.status === b.status) return b.createdAt.getTime() - a.createdAt.getTime();
-      return a.status === "tentativ" ? -1 : 1;
-    });
-    return (
-      <div className="space-y-2">
-        {sorted.map((event) => (
-          <div id={`event-card-${event.id}`} key={`${event.id}-${collapseKey}`}>
-            <EventCard
-              event={event}
-              initialCollapsed={cardStates[event.id] ?? allCollapsed}
-              onCollapseChange={(c) => handleCardCollapse(event.id, c)}
-              onUpdated={(updated) => onEventUpdated?.(event.id, updated)}
-              onDeleted={() => onEventDeleted?.(event.id)}
-            />
-          </div>
-        ))}
-      </div>
     );
   }
 
@@ -625,30 +598,12 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
   }
 
   const tabs: { key: Tab; label: string; count: number; color: string }[] = [
-    { key: "leaduri", label: "Lead", count: filteredLeads.length, color: "bg-amber-500/20 text-amber-400" },
     { key: "viitor", label: "Viitor", count: filteredUpcoming.length, color: "bg-emerald-500/20 text-emerald-400" },
     { key: "trecut", label: "Trecut", count: filteredPast.length, color: "bg-neutral-600 text-neutral-300" },
   ];
 
   function renderContent() {
     if (viewMode === "calendar") return renderCalendar();
-
-    if (tab === "leaduri") {
-      if (filteredLeads.length === 0) {
-        return (
-          <div className="text-center py-12">
-            <p className="text-neutral-500 text-sm">Niciun lead activ.</p>
-            <button
-              onClick={onAddEvent}
-              className="mt-4 text-xs text-neutral-400 underline underline-offset-4 hover:text-white transition-colors"
-            >
-              Adaugă primul lead
-            </button>
-          </div>
-        );
-      }
-      return renderLeads(filteredLeads);
-    }
 
     if (tab === "viitor") {
       return (
@@ -864,13 +819,12 @@ const EventList: React.FC<EventListProps> = ({ events, targetEventId, onAddEvent
           </div>
         ) : collapsed ? (
           <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-            <span className="rounded-full border border-neutral-700 px-2 py-1">Lead-uri {filteredLeads.length}</span>
             <span className="rounded-full border border-neutral-700 px-2 py-1">Viitoare {filteredUpcoming.length}</span>
             <span className="rounded-full border border-neutral-700 px-2 py-1">Trecute {filteredPast.length}</span>
             <span className="rounded-full border border-neutral-700 px-2 py-1">Arhivă {filteredArchived.length}</span>
           </div>
         ) : (
-          (viewMode !== "calendar" && tab !== "leaduri" && tab !== "arhiva") && (
+          (viewMode !== "calendar" && tab !== "arhiva") && (
             <div className="mb-3 flex justify-end">
               <button
                 onClick={handleToggleAll}

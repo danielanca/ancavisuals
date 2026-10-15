@@ -55,8 +55,8 @@ async function loadRouter() {
   const numberingGet = vi.fn().mockResolvedValue({ docs: [], size: 0 });
   const cursorGet = vi.fn().mockResolvedValue({ exists: true, id: "cursor" });
   const makeQuery = (get: ReturnType<typeof vi.fn>) => {
-    const q: any = { orderBy: vi.fn(), where: vi.fn(), startAfter: vi.fn(), limit: vi.fn(), get };
-    for (const fn of [q.orderBy, q.where, q.startAfter, q.limit]) fn.mockReturnValue(q);
+    const q: any = { orderBy: vi.fn(), where: vi.fn(), startAfter: vi.fn(), limit: vi.fn(), select: vi.fn(), get };
+    for (const fn of [q.orderBy, q.where, q.startAfter, q.limit, q.select]) fn.mockReturnValue(q);
     return q;
   };
   const query = makeQuery(historyGet);
@@ -64,6 +64,7 @@ async function loadRouter() {
   const collection = {
     orderBy: vi.fn((_field: string, direction: string) => direction === "asc" ? numberingQuery : query),
     doc: vi.fn(() => ({ get: cursorGet })),
+    where: vi.fn(() => query),
   };
   vi.doMock("src/server/firestore", () => ({ firestore: () => ({ collection: () => collection }) }));
 
@@ -80,6 +81,7 @@ async function loadRouter() {
     recordEvent, ping, endSession, logActivity, sendEmail,
     query, historyGet, numberingGet, cursorGet,
     getHistory: getHandler("get", "/analytics/live/history"),
+    getContactStats: getHandler("get", "/analytics/live/contact-stats"),
     postEvent: getHandler("post", "/live/event"),
     postPing: getHandler("post", "/live/ping"),
     postEnd: getHandler("post", "/live/end"),
@@ -333,5 +335,24 @@ describe("liveVisitors.routes", () => {
     const res = createMockResponse();
     await postEnd({ body: { sessionId: "s1", durationSeconds: 90 }, headers: {} }, res);
     expect(endSession).toHaveBeenCalledWith("s1", "left", 90);
+  });
+
+  test("contact stats return every requested range from one read, with only the needed fields", async () => {
+    const { getContactStats, historyGet, query } = await loadRouter();
+    const day = (iso: string) => Date.parse(`${iso}T10:00:00Z`);
+    const session = (id: string, at: number) => ({
+      id,
+      data: () => ({ visitorId: id, startedAtMs: at, events: [{ name: "availability_checked", at, meta: { dateKey: "2027-08-14", available: false } }] }),
+    });
+    historyGet.mockResolvedValueOnce({ docs: [session("old", day("2026-09-01")), session("new", day("2026-10-10"))], size: 2 });
+    const res = createMockResponse();
+    await getContactStats({ query: { from: "2026-08-01", to: "2026-10-15", also: "2026-10-09,2026-10-15" } } as any, res);
+    expect(historyGet).toHaveBeenCalledTimes(1);
+    expect(query.select.mock.calls[0]).toEqual(expect.arrayContaining(["visitorId", "startedAtMs", "events", "attribution"]));
+    expect(query.select.mock.calls[0]).not.toContain("path");
+    const body = res.json.mock.calls[0][0];
+    expect(body.totals.availability.visitors).toBe(2);
+    expect(body.alsoFrom["2026-10-09"].totals.availability.visitors).toBe(1);
+    expect(body.alsoFrom["2026-10-15"].totals.availability.visitors).toBe(0);
   });
 });

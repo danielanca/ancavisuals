@@ -24,6 +24,10 @@ import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../share
 import { downloadBunnyOriginal } from '../utils/downloadBunnyOriginal';
 import { applyCORSpolicy } from '../constants/cors';
 
+// Guest names, host messages and comments come from visitors: never raw HTML in emails.
+const escapeHtml = (value: unknown): string =>
+  String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_FILE_SIZE_BYTES } });
 
@@ -234,10 +238,10 @@ async function sendThankYouEmail(
       <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
         <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
           <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
-          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${guestName}!</h2>
-          <p style="color:#6b5b4d;margin:0 0 18px;">${hostDisplayName} ți-a lăsat un mesaj special:</p>
+          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${escapeHtml(guestName)}!</h2>
+          <p style="color:#6b5b4d;margin:0 0 18px;">${escapeHtml(hostDisplayName)} ți-a lăsat un mesaj special:</p>
           <div style="background:#fbf6ee;border:1px solid #ecd9bd;padding:16px 18px;border-radius:12px;margin:0 0 20px;">
-            <p style="margin:0;font-size:16px;line-height:1.45;color:#241f1a;">"${message}"</p>
+            <p style="margin:0;font-size:16px;line-height:1.45;color:#241f1a;">"${escapeHtml(message)}"</p>
           </div>
           <p style="color:#6b5b4d;font-size:13px;line-height:1.6;margin:0 0 20px;">${eventType === 'corporate' ? 'Ne bucurăm că ai contribuit la amintirile echipei și ale evenimentului.' : 'Ne bucurăm că ai fost alături de ei și că ai imortalizat aceste momente.'}</p>
           <hr style="border:none;border-top:1px solid #eadfce;margin:0 0 18px;">
@@ -284,8 +288,8 @@ export async function sendViewNotificationEmail(
       <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
         <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
           <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
-          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${guestName}!</h2>
-          <p style="color:#6b5b4d;margin:0 0 12px;">${hostDisplayName} ${viewVerb} ${mediaLabel} la eveniment. ${eventType === 'corporate' ? 'Mulțumim că ai surprins energia echipei!' : 'Mulțumim că ai imortalizat aceste momente!'}</p>
+          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${escapeHtml(guestName)}!</h2>
+          <p style="color:#6b5b4d;margin:0 0 12px;">${escapeHtml(hostDisplayName)} ${viewVerb} ${mediaLabel} la eveniment. ${eventType === 'corporate' ? 'Mulțumim că ai surprins energia echipei!' : 'Mulțumim că ai imortalizat aceste momente!'}</p>
           ${thumbnailHtml}
           <hr style="border:none;border-top:1px solid #eadfce;margin:16px 0;">
           <p style="font-size:12px;color:#7b6a5a;margin:0 0 8px;">
@@ -322,11 +326,11 @@ async function sendCommentNotification(
       <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
         <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
           <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
-          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${guestName}!</h2>
-          <p style="color:#6b5b4d;margin:0;">${hostDisplayName} a lăsat un mesaj la ce ai trimis:</p>
+          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${escapeHtml(guestName)}!</h2>
+          <p style="color:#6b5b4d;margin:0;">${escapeHtml(hostDisplayName)} a lăsat un mesaj la ce ai trimis:</p>
 
           <div style="background:#fbf6ee;border:1px solid #ecd9bd;padding:16px 18px;border-radius:12px;margin:18px 0;">
-            <p style="margin:0;font-size:16px;line-height:1.45;color:#241f1a;">"${commentText}"</p>
+            <p style="margin:0;font-size:16px;line-height:1.45;color:#241f1a;">"${escapeHtml(commentText)}"</p>
           </div>
 
           ${thumbnailHtml ? `<div style="margin:0 0 12px;">${thumbnailHtml.replace('style="max-width:280px;border-radius:8px;margin:12px 0;"', 'style="display:block;max-width:280px;width:100%;border-radius:12px;border:1px solid #eadfce;margin:0;"')}</div>` : ''}
@@ -383,7 +387,7 @@ async function sendUploadNotification(
         <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
           <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
           <h2 style="color:#241f1a;margin:0 0 8px;font-size:24px;font-weight:600;">Upload nou în QR Moments</h2>
-          <p style="color:#6b5b4d;margin:0;line-height:1.5;">${guestName} a încărcat ${uploadLabel} pentru evenimentul <strong>${eventSlug}</strong>.</p>
+          <p style="color:#6b5b4d;margin:0;line-height:1.5;">${escapeHtml(guestName)} a încărcat ${uploadLabel} pentru evenimentul <strong>${escapeHtml(eventSlug)}</strong>.</p>
           <a href="${galleryUrl}" style="display:inline-block;background:#e0a13b;color:#241f1a;padding:11px 22px;border-radius:999px;text-decoration:none;font-weight:700;margin-top:18px;">
             Deschide galeria
           </a>

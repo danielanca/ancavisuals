@@ -4,6 +4,7 @@ import { adminUser } from "../constants/credentials";
 import { APP_BASE_URL } from "../constants/domain";
 import { blockEmail, sendViaFunnel } from "../notifications/emailFunnel";
 import { createTaskEmailActionToken, TASK_EMAIL_ACTIONS } from "../services/clientTaskEmailActions";
+import { logActivityOnce } from "../services/activity.service";
 
 const OVERDUE_GRACE_MS = 2 * 60 * 60_000;
 
@@ -81,6 +82,13 @@ export async function checkOverdueClientTasks(now = new Date()) {
         if (fresh.data()?.timelineActionTokenHash === actionToken.fields.timelineActionTokenHash) {
           tx.update(doc.ref, { timelineReminderSentKey: schedule.key, timelineReminderSentAt: now.toISOString(), timelineReminderLeaseUntil: 0 });
         }
+      });
+      await logActivityOnce(`task-overdue:${doc.id}:${schedule.key}`, {
+        type: "task_overdue",
+        title: `Task întârziat: ${String(claimed.title ?? "Task")}`,
+        description: `${String(claimed.clientName ?? "Fără client")} · programat ${schedule.end}`,
+        metadata: { taskId: doc.id, route: "/admin/taskuri" },
+        emailSent: true,
       });
     } catch (error) {
       // A failed send is retried after the lease expires; one failure must not block other tasks.

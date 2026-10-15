@@ -291,25 +291,12 @@ describe("album.controller", () => {
     expect(res.json).toHaveBeenCalledWith({ ok: true, count: 2 });
   });
 
-  test("deletePhoto rejects requests with a wrong admin key", async () => {
-    const { module } = await loadAlbumController();
-    const res = createMockResponse();
-
-    await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "a.jpg" }, headers: { "x-admin-key": "wrong" } },
-      res,
-    );
-
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ error: "forbidden" });
-  });
-
   test("deletePhoto rejects invalid slugs", async () => {
     const { module } = await loadAlbumController();
     const res = createMockResponse();
 
     await module.deletePhoto(
-      { params: { slug: "../demo" }, body: { filename: "a.jpg" }, headers: { "x-admin-key": "ankvisuals1994" } },
+      { params: { slug: "../demo" }, body: { filename: "a.jpg" } },
       res,
     );
 
@@ -322,7 +309,7 @@ describe("album.controller", () => {
     const res = createMockResponse();
 
     await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "../a.jpg" }, headers: { "x-admin-key": "ankvisuals1994" } },
+      { params: { slug: "demo" }, body: { filename: "../a.jpg" } },
       res,
     );
 
@@ -336,7 +323,7 @@ describe("album.controller", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 404, ok: false }));
 
     await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "a.jpg" }, headers: { "x-admin-key": "ankvisuals1994" } },
+      { params: { slug: "demo" }, body: { filename: "a.jpg" } },
       res,
     );
 
@@ -359,7 +346,7 @@ describe("album.controller", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "a.jpg" }, headers: { "x-admin-key": "ankvisuals1994" } },
+      { params: { slug: "demo" }, body: { filename: "a.jpg" } },
       res,
     );
 
@@ -384,7 +371,7 @@ describe("album.controller", () => {
     loadAlbumMock.mockResolvedValue(null);
 
     await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "a.jpg" }, headers: { "x-admin-key": "ankvisuals1994" } },
+      { params: { slug: "demo" }, body: { filename: "a.jpg" } },
       res,
     );
 
@@ -411,7 +398,7 @@ describe("album.controller", () => {
     loadAlbumMock.mockResolvedValue({ slug: "demo", originalPhoto: [] });
 
     await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "a.jpg" }, headers: { "x-admin-key": "ankvisuals1994" } },
+      { params: { slug: "demo" }, body: { filename: "a.jpg" } },
       res,
     );
 
@@ -431,7 +418,7 @@ describe("album.controller", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
 
     await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "a.jpg" }, headers: { "x-admin-key": "ankvisuals1994" } },
+      { params: { slug: "demo" }, body: { filename: "a.jpg" } },
       res,
     );
 
@@ -604,5 +591,15 @@ describe("album.controller", () => {
       success: true,
       message: "Swiss link saved successfully",
     });
+  });
+
+  test.each(["javascript:alert(1)", "http://swiss.example", "not a url"])("addSwissLink rejects %s", async (link) => {
+    const { module, addLinkMock } = await loadAlbumController();
+    const res = createMockResponse();
+
+    await module.addSwissLink({ params: { slug: "demo" }, body: { link } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(addLinkMock).not.toHaveBeenCalled();
   });
 });

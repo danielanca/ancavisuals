@@ -7,6 +7,7 @@ import useAuth from "../../auth/useAuth";
 import { matchesEventDateQuery, parseEventDateQuery } from "./contractDateSearch";
 
 import { listWorkDrafts, migrateLegacyWorkDraft, removeWorkDraft, type ContractWorkDraft } from "./contractWorkDrafts";
+import { openAuthedInNewTab } from "../../providers/authFetch";
 
 interface ContractItem {
   id: string;
@@ -621,7 +622,7 @@ const ContractListPage: React.FC = () => {
                       reminding={reminding}
                       onEdit={() => navigate(`/admin/contracts/${contract.id}/edit`)}
                       onSign={() => { setSigError(null); setSigningId(contract.id); }}
-                      onPreview={() => window.open(`/api/contracts/${contract.id}/preview`, "_blank")}
+                      onPreview={() => { void openAuthedInNewTab(`/api/contracts/${contract.id}/preview`).catch(() => {}); }}
                       onCreateEvent={() => handleCreateEvent(contract.id)}
                       onSend={() => confirmAction("send", contract.id, `${contract.eventType} — ${contract.clientEmail ?? ""}`)}
                       onCopyLink={() => {

@@ -218,16 +218,16 @@ export default function CollaboratorPage() {
   }, [auth.accessToken]);
 
   useEffect(() => {
-    if (state.tab !== "gallery") return;
+    if (state.tab !== "gallery" || !auth.accessToken) return;
     if (state.galleryPhotos.length > 0) return;
     dispatch({ type: "SET_GALLERY_LOADING", loading: true });
-    fetch("/api/admin/inspiration/photos")
+    fetch("/api/admin/inspiration/photos", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
       .then((response) => response.json())
       .then((data: { photos?: InspirationPhoto[] }) => {
         dispatch({ type: "SET_GALLERY", photos: data.photos ?? [] });
       })
       .finally(() => dispatch({ type: "SET_GALLERY_LOADING", loading: false }));
-  }, [state.tab, state.galleryPhotos.length]);
+  }, [state.tab, state.galleryPhotos.length, auth.accessToken]);
 
   const handlePickFiles = (files: FileList | null) => {
     if (!files) return;
@@ -260,7 +260,7 @@ export default function CollaboratorPage() {
       const base64 = await getBase64(draft.file);
       const response = await fetch("/api/admin/inspiration/suggest-tags-from-image", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
         body: JSON.stringify({
           imageBase64: base64,
           mediaType: draft.file.type || "image/jpeg",

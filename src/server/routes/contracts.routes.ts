@@ -127,7 +127,7 @@ async function saveContractCalendar(contractId: string, signature?: Record<strin
 }
 
 // POST /api/contracts — create new contract (admin)
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const body = req.body;
@@ -220,7 +220,7 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // GET /api/contracts — contract list (admin)
-router.get("/", async (_req: Request, res: Response) => {
+router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const snapshot = await db.collection("contracts").orderBy("createdAt", "desc").get();
@@ -587,7 +587,7 @@ router.post("/:id/resend", requireFirebaseAuth, requireSupremeAdmin, async (req:
 
 // PATCH /api/contracts/:id — edit contract (admin)
 // Signed contracts allow only metadata updates (bank details, fiscal status, payment dates)
-router.patch("/:id", async (req: Request, res: Response) => {
+router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("contracts").doc(req.params.id).get();
@@ -682,7 +682,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
 });
 
 // GET /api/contracts/:id — contract details (admin)
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("contracts").doc(req.params.id).get();
@@ -705,7 +705,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 });
 
 // POST /api/contracts/:id/create-event — generate adminEvent from contract
-router.post("/:id/create-event", async (req: Request, res: Response) => {
+router.post("/:id/create-event", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const contract = await saveContractCalendar(req.params.id);
     res.status(201).json({ ok: true, eventId: contract.eventId });
@@ -717,7 +717,7 @@ router.post("/:id/create-event", async (req: Request, res: Response) => {
 });
 
 // POST /api/contracts/:id/reset-signature — clear client signature (testing only)
-router.post("/:id/reset-signature", async (req: Request, res: Response) => {
+router.post("/:id/reset-signature", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("contracts").doc(req.params.id).get();
@@ -741,7 +741,7 @@ router.post("/:id/reset-signature", async (req: Request, res: Response) => {
 });
 
 // DELETE /api/contracts/:id — delete contract (admin)
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("contracts").doc(req.params.id).get();
@@ -764,7 +764,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 });
 
 // GET /api/contracts/:id/preview — PDF preview (admin)
-router.get("/:id/preview", async (req: Request, res: Response) => {
+router.get("/:id/preview", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("contracts").doc(req.params.id).get();
@@ -792,7 +792,7 @@ router.get("/:id/preview", async (req: Request, res: Response) => {
 });
 
 // POST /api/contracts/:id/cancel — cancel contract (admin)
-router.post("/:id/cancel", async (req: Request, res: Response) => {
+router.post("/:id/cancel", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("contracts").doc(req.params.id).get();
@@ -809,7 +809,7 @@ router.post("/:id/cancel", async (req: Request, res: Response) => {
 });
 
 // POST /api/contracts/:id/prestator-sign — provider signature (admin)
-router.post("/:id/prestator-sign", async (req: Request, res: Response) => {
+router.post("/:id/prestator-sign", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const { prestatorSignatureBase64 } = req.body;
@@ -867,7 +867,7 @@ router.post("/:id/reminder", requireFirebaseAuth, requireSupremeAdmin, async (re
 });
 
 // POST /api/contracts/:id/send — send link to client (admin)
-router.post("/:id/send", async (req: Request, res: Response) => {
+router.post("/:id/send", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection("contracts").doc(req.params.id).get();

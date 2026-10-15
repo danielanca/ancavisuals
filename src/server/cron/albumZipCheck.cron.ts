@@ -6,6 +6,7 @@ import { adminUser } from "../constants/credentials";
 import { firestore } from "../firestore";
 import { buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_PREVIEW_FOLDER } from "../constants/bunny";
 import { APP_BASE_URL } from "../constants/domain";
+import { logActivityOnce } from "../services/activity.service";
 
 // Bunny CDN serves a certificate whose chain Node.js can't verify via the native fetch (undici).
 // Using node-fetch with a custom https.Agent bypasses this while scoping the workaround to Bunny only.
@@ -286,6 +287,17 @@ async function runZipCheck() {
           </p>
         </div>`,
     });
+
+    await Promise.all(toNotify.map((album) => logActivityOnce(
+      `album-health-warning:${album.slug}:${album.latestChangeDate?.getTime() ?? "unknown"}`,
+      {
+        type: "album_zip",
+        title: `Album necesită atenție: ${album.slug}`,
+        description: album.issues.slice(0, 2).join(" · "),
+        metadata: { slug: album.slug, route: "/admin/album-health" },
+        emailSent: true,
+      },
+    ).catch((error) => console.error("[album-zip-check] Inbox event failed:", error))));
 
     // Mark all as notified
     await Promise.all(

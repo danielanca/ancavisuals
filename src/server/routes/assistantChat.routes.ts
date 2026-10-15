@@ -7,6 +7,8 @@ import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { renderChatbotLeadTemplate } from "../notifications/templates/chatbotLeadTemplate";
 import { renderDateCheckTemplate } from "../notifications/templates/dateCheckTemplate";
+import { getDatePrices, getPriceSeasons, getStartingPrices } from "./startingPrices.routes";
+import { datePercent, SEASONAL_EVENT_TYPES, seasonalStartingPrice } from "../../shared/pricing/seasonalPricing";
 
 /** ============================================================
  *  CONSTANTS
@@ -42,6 +44,16 @@ export function parseDate(input: string): string | null {
   }
 
   return `${yearNumber}-${String(monthNumber).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`;
+}
+
+/** "Nuntă de la 1.140 €, botez de la 275 €…" for the date (/admin/preturi: seasons + special weekend dates). */
+async function startingPricesLine(dateKey: string): Promise<string> {
+  const [prices, seasons, dates] = await Promise.all([getStartingPrices(), getPriceSeasons(), getDatePrices()]);
+  const parts = SEASONAL_EVENT_TYPES.map(({ label }) =>
+    `${label.toLowerCase()} de la ${seasonalStartingPrice(label, prices, seasons, dateKey, dates).toLocaleString("ro-RO")} €`);
+  const special = SEASONAL_EVENT_TYPES.some(({ key }) => datePercent(dates, key, dateKey) !== 0);
+  const month = MONTHS_RO[parseInt(dateKey.slice(5, 7)) - 1].toLowerCase();
+  return `${special ? `Pentru ${parseInt(dateKey.slice(8, 10))} ${month}` : `Pentru luna ${month}`}, pachetele foto-video încep de la: ${parts.join(", ")}.`;
 }
 
 async function getBookedDates(): Promise<string[]> {
@@ -133,6 +145,7 @@ router.post("/message", async (req, res) => {
       const [yearNumber, monthNumber, dayNumber] = dateKey.split("-");
       const humanDate = `${parseInt(dayNumber)} ${MONTHS_RO[parseInt(monthNumber) - 1]} ${yearNumber}`;
       const isBooked = bookedDates.includes(dateKey);
+      const pricesLine = isBooked ? "" : await startingPricesLine(dateKey);
       const node: ChatNode = isBooked
         ? {
             id: "data_ocupata",
@@ -144,7 +157,7 @@ router.post("/message", async (req, res) => {
           }
         : {
             id: "date_available",
-            botMessage: `✅ Data de **${humanDate}** este disponibilă!\n\nPoți lăsa numărul tău de telefon și te contactăm noi, sau deschide formularul pentru a configura pachetul.`,
+            botMessage: `✅ Data de **${humanDate}** este disponibilă!\n\n${pricesLine}\n\nPoți lăsa numărul tău de telefon și te contactăm noi, sau deschide formularul pentru a configura pachetul.`,
             suggestions: [
               { label: "📞 Lasă numărul tău", intentId: "leave_phone" },
               { label: "Deschide formularul →", intentId: "link_contact" },

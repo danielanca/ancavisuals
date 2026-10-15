@@ -4,11 +4,12 @@ import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import { checkAndSendMementos } from "../cron/mementos.cron";
 import { sendEmail } from "../notifications/mailer";
+import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 
 const router = Router();
 const COLLECTION = "mementos";
 
-router.get("/mementos", async (_req: Request, res: Response) => {
+router.get("/mementos", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const snapshot = await db.collection(COLLECTION).orderBy("dueDate", "asc").get();
@@ -29,7 +30,7 @@ router.get("/mementos", async (_req: Request, res: Response) => {
   }
 });
 
-router.post("/mementos", async (req: Request, res: Response) => {
+router.post("/mementos", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { title, description, dueDate, category, reminderMinutesBefore, recurring } = req.body;
     if (!title || !dueDate || !category) {
@@ -54,7 +55,7 @@ router.post("/mementos", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/mementos/:id", async (req: Request, res: Response) => {
+router.patch("/mementos/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { completed, title, description, dueDate, reminderMinutesBefore, recurring } = req.body;
     const db = firestore();
@@ -88,11 +89,11 @@ router.patch("/mementos/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/mementos/server-time", (_req: Request, res: Response) => {
+router.get("/mementos/server-time", requireFirebaseAuth, requireSupremeAdmin, (_req: Request, res: Response) => {
   res.json({ serverTime: new Date().toISOString() });
 });
 
-router.post("/mementos/send-test-email", async (_req: Request, res: Response) => {
+router.post("/mementos/send-test-email", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     await sendEmail({
       to: "ancadaniel1994@gmail.com",
@@ -109,7 +110,7 @@ router.post("/mementos/send-test-email", async (_req: Request, res: Response) =>
 });
 
 
-router.delete("/mementos/:id", async (req: Request, res: Response) => {
+router.delete("/mementos/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     await db.collection(COLLECTION).doc(req.params.id).delete();

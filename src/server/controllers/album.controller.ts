@@ -27,7 +27,6 @@ import {
   getBunnyStorageKey,
 } from "../constants/bunny";
 
-const ADMIN_SECRET_KEY = process.env.ALBUM_ADMIN_KEY || "ankvisuals1994";
 const storageKey = getBunnyStorageKey();
 const MAX_SELECTED_DOWNLOAD_FILES = 300;
 const MAX_PRINT_SELECTION_FILES = 2000;
@@ -150,14 +149,10 @@ export async function postPrintSelection(req: Request, res: Response) {
   return res.json({ ok: true, count: clean.length });
 }
 
+/** Admin only: the route requires a signed-in supreme admin (see album.routes). */
 export async function deletePhoto(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
   const { filename } = req.body;
-
-  const providedKey = req.headers["x-admin-key"];
-  if (providedKey !== ADMIN_SECRET_KEY) {
-    return res.status(403).json({ error: "forbidden" });
-  }
 
   if (!slug || !isSafeSlug(slug)) {
     return res.status(400).json({ error: "invalid_slug" });
@@ -348,6 +343,12 @@ export async function addSwissLink(req: Request, res: Response) {
 
     if (!data.link) {
       return res.status(400).json({ success: false, error: "Missing required field: link" });
+    }
+    // Rendered as the album's download button, so only plain https links are accepted.
+    let parsed: URL | null = null;
+    try { parsed = new URL(String(data.link)); } catch { parsed = null; }
+    if (!parsed || parsed.protocol !== "https:") {
+      return res.status(400).json({ success: false, error: "Linkul trebuie să înceapă cu https://" });
     }
 
     await addLink(slug, data.link);

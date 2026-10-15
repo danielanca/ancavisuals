@@ -3,6 +3,7 @@ import type { User } from "firebase/auth";
 import { getCookie, isBrowser, setJWT } from "../../../utils/functions";
 import { whenLandingSettled } from "../../../utils/whenLandingSettled";
 import { loadFirebaseAuth } from "./loadFirebaseAuth";
+import { markAuthFetchSignedOut, setAuthFetchUser } from "./authFetch";
 
 const JWT_COOKIE = "jwt";
 const JWT_TTL_HOURS = 24;
@@ -44,6 +45,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   useEffect(() => {
     if (!isBrowser()) return;
     if (!getCookie(JWT_COOKIE)) {
+      markAuthFetchSignedOut();
       setState((s) => (s.user ? s : { ...s, loading: false }));
     }
   }, []);
@@ -54,6 +56,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   // what the visitor came for); the admin cookie already tells the landing who is admin.
   useEffect(() => {
     const onUser = async (user: User | null) => {
+      setAuthFetchUser(user);
       if (!user) {
         await setJWT(JWT_COOKIE, "", -1);
         await setJWT(ADMIN_COOKIE, "", -1);

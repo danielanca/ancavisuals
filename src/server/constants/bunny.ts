@@ -9,6 +9,23 @@ export const BUNNY_PREVIEW_FOLDER = "photos_preview";
 export const BUNNY_QR_MOMENT_FOLDER = "qr-moment";
 export const BUNNY_DEFAULT_ARCHIVE_NAME = "photos.zip";
 
+// Top-level folders holding business documents, never served through the public CDN signers.
+export const PRIVATE_BUNNY_DIRS = new Set([
+  "admin-events", "bank-statements", "company-documents", "contracts", "expenses",
+  "handover", "health-activity", "invoices", "offers",
+]);
+
+/** The decoded path when it is safe to sign for a visitor (album media), otherwise null. */
+export function publicMediaPath(raw: string): string | null {
+  let path: string;
+  try { path = decodeURIComponent(raw); } catch { return null; }
+  path = path.replace(/^\/+/, "");
+  const segments = path.split("/");
+  if (!path || path.includes("\\") || segments.some((s) => s === ".." || s === "." || s === "")) return null;
+  if (PRIVATE_BUNNY_DIRS.has(segments[0].toLowerCase())) return null;
+  return path;
+}
+
 // Shared operational limits for uploads and generated archives.
 export const MAX_QR_UPLOAD_FILES = 25;
 export const MAX_QR_UPLOAD_FILE_SIZE_BYTES = 200 * 1024 * 1024;

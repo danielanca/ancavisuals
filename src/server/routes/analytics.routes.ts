@@ -10,6 +10,7 @@ import { adminUser } from "../constants/credentials";
 import { BOT_UA, isCrawlerIp } from "../utils/botUa";
 import { visitDay } from "../../shared/liveVisits";
 import { isEuropeanCountry } from "../utils/geoFilter";
+import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 
@@ -240,7 +241,7 @@ analyticsPublicRouter.patch("/engagement", async (req: Request, res: Response) =
 });
 
 // GET /api/admin/analytics/visits — all recent visits
-analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response) => {
+analyticsAdminRouter.get("/analytics/visits", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const limit = Math.min(Number(req.query.limit) || 1000, 5000);
@@ -287,7 +288,7 @@ analyticsAdminRouter.get("/analytics/visits", async (req: Request, res: Response
 });
 
 // GET /api/admin/analytics/stats — aggregated statistics
-analyticsAdminRouter.get("/analytics/stats", async (req: Request, res: Response) => {
+analyticsAdminRouter.get("/analytics/stats", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const includeLocal = req.query.includeLocal === "true";
@@ -421,7 +422,7 @@ analyticsPublicRouter.post("/consent", async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/analytics/consent?days=30 — daily banner counters
-analyticsAdminRouter.get("/analytics/consent", async (req: Request, res: Response) => {
+analyticsAdminRouter.get("/analytics/consent", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
     const since = visitDay(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);

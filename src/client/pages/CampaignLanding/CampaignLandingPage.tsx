@@ -7,12 +7,13 @@ import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
 import {
   fireAdsContactClickConversion,
   fireAdsLeadConversion,
+  fireAdsOlxConfiguratorConversion,
 } from "../../utils/googleAds";
 import { getLandingMeta } from "../../utils/sessionAttribution";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 import ReviewsGrid from "../../components/Reviews/ReviewsGrid";
-import { useStartingPrices } from "../../hooks/useStartingPrices";
-import { startingPriceFor } from "../../../shared/pricing/startingPrices";
+import { useDatePrices, usePriceSeasons, useStartingPrices } from "../../hooks/useStartingPrices";
+import { seasonalStartingPrice } from "../../../shared/pricing/seasonalPricing";
 import PriceConfigurator, { type DatePick } from "./PriceConfigurator";
 import LazySection from "./LazySection";
 import SectionSkeleton from "./SectionSkeleton";
@@ -175,6 +176,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [availStatus, setAvailStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
   const startingPrices = useStartingPrices();
+  const priceSeasons = usePriceSeasons();
+  const datePrices = useDatePrices();
   // With the availability section off, "check the date" links go to the configurator's date step.
   const availabilityHref = SHOW_AVAILABILITY_SECTION || !CONFIGURATOR_SLUGS.has(page.slug) ? "#verifica-data" : "#configurator-data";
 
@@ -755,6 +758,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             reportAvailabilityCheck(formatDateRo(eventDate), eventDate, available, eventType);
             measureOaiq("availability_checked", { page_path: `/oferta/${page.slug}` });
           }}
+          onPriceConfigured={() => fireAdsOlxConfiguratorConversion()}
           onSubmitLead={(contact) => submitLead(contact, "configurator")}
           onLocationChange={(location) => setForm((c) => (c.location === location ? c : { ...c, location }))}
           onBook={() => {
@@ -876,7 +880,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               const waText = free
                 ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? ", cu fotocabina gratuită" : ""}.`
                 : `Bună! Am văzut că ${dateLabel} e ocupată. Aveți o soluție pentru ${event}?`;
-              const startingPrice = startingPriceFor(form.eventType, startingPrices);
+              const startingPrice = `${seasonalStartingPrice(form.eventType, startingPrices, priceSeasons, form.eventDate, datePrices)} €`;
               return (
                 <div className={`mt-4 rounded-xl border p-4 ${free ? "border-green-700/40 bg-green-900/25" : "border-amber-700/40 bg-amber-900/20"}`}>
                   <p className={`text-sm font-medium ${free ? "text-green-300" : "text-amber-200"}`}>

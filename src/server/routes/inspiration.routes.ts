@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 
 function storagePathFromUrl(url: string): string | null {
   try {
@@ -25,7 +26,7 @@ function stripDiacritics(str: string): string {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-router.post("/inspiration/suggest-tags", async (req: Request, res: Response) => {
+router.post("/inspiration/suggest-tags", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { query, availableTags } = req.body as { query: string; availableTags: string[] };
     if (!query?.trim() || !Array.isArray(availableTags)) {
@@ -79,7 +80,8 @@ Exemplu răspuns: ["mire", "mireasa", "biserica"]`,
   }
 });
 
-router.post("/inspiration/suggest-tags-from-image", async (req: Request, res: Response) => {
+// Collaborators (any signed-in account) use this from /colaborator.
+router.post("/inspiration/suggest-tags-from-image", requireFirebaseAuth, async (req: Request, res: Response) => {
   try {
     const { imageBase64, mediaType, availableTags } = req.body as {
       imageBase64: string;
@@ -150,7 +152,8 @@ RULES:
   }
 });
 
-router.get("/inspiration/photos", async (_req: Request, res: Response) => {
+// Collaborators (any signed-in account) use this from /colaborator.
+router.get("/inspiration/photos", requireFirebaseAuth, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
     const snapshot = await db.collection(COLLECTION).orderBy("uploadedAt", "desc").get();
@@ -168,7 +171,7 @@ router.get("/inspiration/photos", async (_req: Request, res: Response) => {
   }
 });
 
-router.post("/inspiration/photos", async (req: Request, res: Response) => {
+router.post("/inspiration/photos", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { url, tags, notes } = req.body;
     if (!url || !Array.isArray(tags)) {
@@ -188,7 +191,7 @@ router.post("/inspiration/photos", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/inspiration/photos/:id", async (req: Request, res: Response) => {
+router.patch("/inspiration/photos/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const { tags, notes } = req.body;
     const db = firestore();
@@ -200,7 +203,7 @@ router.patch("/inspiration/photos/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.delete("/inspiration/photos/:id", async (req: Request, res: Response) => {
+router.delete("/inspiration/photos/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const db = firestore();
     const doc = await db.collection(COLLECTION).doc(req.params.id).get();

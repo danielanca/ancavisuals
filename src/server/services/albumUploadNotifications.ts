@@ -3,6 +3,7 @@ import { firestore } from "../firestore";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { APP_BASE_URL } from "../constants/domain";
+import { logActivityOnce } from "./activity.service";
 
 const COLLECTION = "albumUploadSessions";
 const IDLE_MS = 15 * 60_000;
@@ -73,6 +74,13 @@ export async function notifyIncompleteAlbumUpload(id: string, now = Date.now()):
         <p>Verifică și reîncarcă fișierele de mai jos. Lipsa confirmării poate apărea și dacă transferul s-a încheiat, dar conexiunea s-a întrerupt înainte de înregistrarea rezultatului.</p>
         <ul>${session.pending.map((name) => `<li>${html(name)}</li>`).join("")}</ul>
         <p><a href="${APP_BASE_URL}/admin">Deschide administrarea evenimentelor</a></p>`,
+    });
+    await logActivityOnce(`album-upload-incomplete:${id}`, {
+      type: "upload_incomplete",
+      title: `Upload incomplet: ${session.slug}`,
+      description: `${session.pending.length} din ${session.total} originale nu au fost confirmate`,
+      metadata: { slug: session.slug, route: "/admin/album-health" },
+      emailSent: true,
     });
     await ref(id).delete();
     return true;

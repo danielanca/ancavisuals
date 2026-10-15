@@ -6,6 +6,7 @@ import useAuth from "../../auth/useAuth";
 import HandoverActionMenu from "./HandoverActionMenu";
 import EditHandoverModal from "./EditHandoverModal";
 import { getPublicAppOrigin } from "./publicOrigin";
+import { openAuthedInNewTab } from "../../providers/authFetch";
 
 interface HandoverItem {
   id: string;
@@ -330,7 +331,7 @@ const HandoverListPage: React.FC = () => {
                       deleting={deleting}
                       resending={resending}
                       reminding={reminding}
-                      onPreview={() => window.open(`/api/handover/${item.id}/preview`, "_blank")}
+                      onPreview={() => { void openAuthedInNewTab(`/api/handover/${item.id}/preview`).catch(() => {}); }}
                       onSend={() => confirmAction("send", item.id, `${item.eventType} — ${item.clientEmail || item.clientName || "client"}`)}
                       onCopyLink={() => {
                         const url = `${getPublicAppOrigin()}/proces-verbal/${item.token}`;
