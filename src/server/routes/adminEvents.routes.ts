@@ -19,7 +19,7 @@ import {
   appendJobLog, setJobProgress, finishJob, errorJob,
   beginJobRun, endJobRun, enqueueDurableJob, getDurableJob, listDurableJobs,
   updateDurableJob, completeDurablePhoto, removeDurableJob, restoreJobFromQueue,
-  type DurableAlbumJob,
+  describePhotoFailure, type DurableAlbumJob, type PhotoFailure,
 } from "../services/albumProcessingJobs.js";
 import { getBnrRate, getBnrYearRates, BnrRateError } from "../services/bnrExchangeRate.service.js";
 import { sendEmail } from "../notifications/mailer";
@@ -1087,6 +1087,9 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
 
     const rootEntries = await rootRes.json() as { ObjectName: string; IsDirectory: boolean }[];
     const albumDirs = rootEntries.filter((e) => e.IsDirectory && !EXCLUDED_DIRS.has(e.ObjectName));
+    // Why photos could not be processed, from the preview queue (latest attempt).
+    const failuresBySlug = new Map((await listDurableJobs().catch(() => [] as DurableAlbumJob[]))
+      .map((job) => [job.slug, job.failures ?? []] as const));
 
     const results = await Promise.all(
       albumDirs.map(async (dir) => {
@@ -1151,7 +1154,9 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
         const coverage = total > 0 ? Math.round((withPreview / total) * 100) : (previewsRes.ok ? 100 : 0);
 
         return { slug, total, withPreview, missing, stale, missingFiles, staleFiles, affectedFiles,
-          hasPreviewFolder: previewsRes.ok, coverage, zipStatus, zipDate };
+          hasPreviewFolder: previewsRes.ok, coverage, zipStatus, zipDate,
+          // Only photos still missing a preview: a later successful pass clears the reason.
+          failures: (failuresBySlug.get(slug) ?? []).filter((failure) => affectedFiles.includes(failure.file)) };
       })
     );
 
@@ -1164,6 +1169,21 @@ router.get("/album-health", requireFirebaseAuth, requireSupremeAdmin, async (_re
   }
 });
 
+const MAX_FAILURES_IN_EMAIL = 20;
+const escapeEmailHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+function failuresHtml(failures: PhotoFailure[]): string {
+  if (failures.length === 0) return "";
+  const items = failures.slice(0, MAX_FAILURES_IN_EMAIL)
+    .map((f) => `<li><strong>${escapeEmailHtml(f.file)}</strong>: ${escapeEmailHtml(f.reason)}</li>`).join("");
+  const more = failures.length > MAX_FAILURES_IN_EMAIL ? `<li>+ încă ${failures.length - MAX_FAILURES_IN_EMAIL}</li>` : "";
+  const permanent = failures.some((f) => f.permanent)
+    ? "<p><strong>Reîncercarea automată nu rezolvă fișierele corupte sau lipsă</strong> — reîncarcă originalele respective din admin.</p>"
+    : "";
+  return `<p>De ce nu s-au procesat:</p><ul>${items}${more}</ul>${permanent}`;
+}
+
 // Background processing function — Firestore keeps pending filenames so interrupted
 // jobs can be reconciled against Bunny and resumed after server startup.
 async function notifyAlbumProcessingProblem(slug: string, job?: DurableAlbumJob): Promise<void> {
@@ -1174,13 +1194,16 @@ async function notifyAlbumProcessingProblem(slug: string, job?: DurableAlbumJob)
       subject: `⚠️ Procesare incompletă: ${slug}`,
       html: `<p>Generarea previzualizărilor nu este încă finalizată.</p>
         ${job?.initialized ? `<p>${job.progress.done}/${job.progress.total} generate; ${job.pendingPhotos.length} poze rămase.</p>` : ""}
+        ${failuresHtml(job?.failures ?? [])}
         <p>Jobul este păstrat pentru reîncercare automată.</p>
         <p><a href="${APP_BASE_URL}/admin/album-health">Verifică progresul în administrare</a></p>`,
     });
     await logActivityOnce(`preview-processing-failed:${slug}:${job?.startedAt ?? "unknown"}`, {
       type: "processing_failed",
       title: `Preview-uri nefinalizate: ${slug}`,
-      description: job?.initialized ? `${job.pendingPhotos.length} poze rămase în coadă` : "Procesarea nu a putut porni",
+      description: job?.initialized
+        ? [`${job.pendingPhotos.length} poze rămase în coadă`, ...(job.failures ?? []).slice(0, 3).map((f) => `${f.file}: ${f.reason}`)].join(" · ")
+        : "Procesarea nu a putut porni",
       metadata: { slug, route: "/admin/album-health" },
       emailSent: true,
     });
@@ -1247,8 +1270,16 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     if (recovered) appendJobLog(slug, `🔁 Recuperate ${recovered} poze deja încărcate înainte de întrerupere.`);
     appendJobLog(slug, `🖼 ${photosToGenerate.length} previzualizări WebP de generat${skipped ? `, ${skipped} există deja` : ""}...`);
     let failedThisAttempt = 0;
+    const failures: PhotoFailure[] = [];
+    const recordFailure = (file: string, stage: "download" | "convert" | "upload", error: unknown) => {
+      const failure = { file, ...describePhotoFailure(stage, error) };
+      failures.push(failure);
+      failedThisAttempt++;
+      appendJobLog(slug, `⚠️ ${file}: ${failure.reason}${failure.permanent ? "" : " Va fi reîncercat automat."}`);
+    };
 
     for (const filename of photosToGenerate) {
+      let stage: "download" | "convert" | "upload" = "download";
       try {
         const baseName = filename.replace(/\.[^.]+$/, "");
         appendJobLog(slug, `⏳ Procesez ${filename}…`);
@@ -1259,12 +1290,12 @@ async function runAlbumProcessing(slug: string): Promise<void> {
           signal: AbortSignal.timeout(120_000),
         });
         if (!dlRes.ok || !dlRes.body) {
-          appendJobLog(slug, `⚠️ ${filename}: descărcarea a eșuat; va fi reîncercată automat.`);
-          failedThisAttempt++;
+          recordFailure(filename, "download", dlRes.status);
           continue;
         }
 
         const buffer = Buffer.from(await dlRes.arrayBuffer());
+        stage = "convert";
         const webpBuffer = await sharp(buffer)
           .timeout({ seconds: 60 })
           .resize({ width: 1400, withoutEnlargement: true })
@@ -1272,6 +1303,7 @@ async function runAlbumProcessing(slug: string): Promise<void> {
           .toBuffer();
 
         const previewName = `${baseName}.webp`;
+        stage = "upload";
         const upRes = await nodeFetch(buildBunnyStorageUrl(slug, "photos_preview", previewName), {
           method: "PUT",
           headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "image/webp" },
@@ -1287,12 +1319,10 @@ async function runAlbumProcessing(slug: string): Promise<void> {
           setJobProgress(slug, done, total);
           appendJobLog(slug, `✅ ${previewName} (${done}/${total})`);
         } else {
-          appendJobLog(slug, `⚠️ ${previewName}: încărcarea a eșuat; va fi reîncercată automat.`);
-          failedThisAttempt++;
+          recordFailure(filename, "upload", upRes.status);
         }
-      } catch {
-        appendJobLog(slug, `⚠️ ${filename}: procesarea a eșuat; fișierul rămâne în coadă pentru reîncercare.`);
-        failedThisAttempt++;
+      } catch (error) {
+        recordFailure(filename, stage, error);
       }
     }
 
@@ -1303,12 +1333,14 @@ async function runAlbumProcessing(slug: string): Promise<void> {
       const retryDelayMs = Math.min(15 * 60_000, 30_000 * (2 ** Math.min(retryCount - 1, 5)));
       const reason = `${latest.pendingPhotos.length} poze rămase; reîncercare automată în ${Math.round(retryDelayMs / 1000)} secunde.`;
       appendJobLog(slug, `⏳ ${reason}`);
+      // Only photos still pending: one that failed then succeeded on a later pass is not a problem.
+      const pendingFailures = failures.filter((failure) => latest.pendingPhotos.includes(failure.file));
       await updateDurableJob(slug, {
         status: "queued", failedAttempts: latest.failedAttempts + failedThisAttempt,
-        retryCount, nextAttemptAt: Date.now() + retryDelayMs,
+        retryCount, nextAttemptAt: Date.now() + retryDelayMs, failures: pendingFailures,
       });
       errorJob(slug, reason);
-      await notifyAlbumProcessingProblem(slug, latest);
+      await notifyAlbumProcessingProblem(slug, { ...latest, failures: pendingFailures });
       return;
     }
 
@@ -1331,6 +1363,10 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     });
     await removeDurableJob(slug);
     finishJob(slug);
+    // Order on Bunny: photos → photos_preview → photos.zip. Previews are done, so the ZIP comes last.
+    const newestPhoto = Math.max(0, ...photos.map((photo) => Date.parse(photo.LastChanged ?? "") || 0));
+    await queueZipAfterPreviews(slug, newestPhoto)
+      .catch((error) => console.error(`[album-processing] ZIP after previews failed for ${slug}:`, error));
   } catch (err) {
     const message = String(err);
     appendJobLog(slug, `⚠️ ${message} Jobul rămâne în coadă și va fi reîncercat automat.`);
@@ -1346,6 +1382,22 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     errorJob(slug, message);
     await notifyAlbumProcessingProblem(slug, queuedJob);
   }
+}
+
+/** Rebuilds photos.zip once previews are done, unless the ZIP already holds the newest original. */
+async function queueZipAfterPreviews(slug: string, newestPhotoMs: number): Promise<void> {
+  const rootRes = await nodeFetch(buildBunnyDirectoryUrl(slug), {
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+  });
+  if (!rootRes.ok) throw new Error(`Nu pot lista albumul (${rootRes.status}).`);
+  const zip = (await rootRes.json() as { ObjectName: string; IsDirectory: boolean; LastChanged?: string }[])
+    .find((entry) => !entry.IsDirectory && entry.ObjectName === "photos.zip");
+  const zipMs = Date.parse(zip?.LastChanged ?? "") || 0;
+  if (zip && zipMs >= newestPhotoMs) return;
+  await enqueueAlbumZipJob(slug);
+  if (!getAlbumZipInMemoryJob(slug)) createAlbumZipJob(slug);
+  appendAlbumZipLog(slug, "📦 Preview-urile sunt gata — regenerez photos.zip.");
+  launchAlbumZipProcessing(slug);
 }
 
 async function runAlbumZipProcessing(slug: string): Promise<void> {

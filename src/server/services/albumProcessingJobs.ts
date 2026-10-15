@@ -26,8 +26,40 @@ export interface DurableAlbumJob {
   failedAttempts: number;
   retryCount: number;
   problemNotifiedAt?: number;
+  /** Why each still-pending photo failed on the latest attempt (an array, so a merge replaces it). */
+  failures?: PhotoFailure[];
   nextAttemptAt: number;
   startedAt: number;
+}
+
+export interface PhotoFailure {
+  file: string;
+  reason: string;
+  /** Retrying cannot help (corrupt or unsupported file, original deleted): the photo needs re-uploading. */
+  permanent: boolean;
+}
+
+/** Turns a download/convert/upload failure into a reason the owner can act on. */
+export function describePhotoFailure(stage: "download" | "convert" | "upload", error: unknown): Omit<PhotoFailure, "file"> {
+  const message = typeof error === "number" ? `HTTP ${error}` : error instanceof Error ? error.message : String(error);
+  if (/timeout|timed out|aborted/i.test(message)) {
+    return stage === "convert"
+      ? { reason: `Conversia a depășit 60 s (fișier foarte mare sau neobișnuit): ${message}`, permanent: false }
+      : { reason: `Bunny nu a răspuns la timp (${stage === "download" ? "descărcare" : "încărcare"}); de obicei temporar.`, permanent: false };
+  }
+  if (stage === "download") {
+    return error === 404
+      ? { reason: "Originalul nu mai există în Bunny (șters sau redenumit).", permanent: true }
+      : { reason: `Descărcarea originalului din Bunny a eșuat (${message}); de obicei temporar.`, permanent: false };
+  }
+  if (stage === "upload") return { reason: `Încărcarea preview-ului în Bunny a eșuat (${message}); de obicei temporar.`, permanent: false };
+  if (/premature end|truncat|corrupt|bad huffman|unexpected end|invalid jpeg/i.test(message)) {
+    return { reason: `Fișier incomplet sau corupt (încărcare întreruptă) — reîncarcă originalul. Detalii: ${message}`, permanent: true };
+  }
+  if (/unsupported image format|heif|heic|compression format/i.test(message)) {
+    return { reason: `Format pe care serverul nu îl poate citi (ex. HEIC) — convertește în JPG și reîncarcă. Detalii: ${message}`, permanent: true };
+  }
+  return { reason: `Conversia în WebP a eșuat: ${message}`, permanent: false };
 }
 
 const jobs = new Map<string, ProcessingJob>();

@@ -99,6 +99,14 @@ async function loadRouter() {
   vi.doMock("src/server/firestore", () => ({
     firestore: () => ({ collection: collectionMock }),
   }));
+  vi.doMock("src/server/services/activity.service", () => ({ logActivityOnce: vi.fn().mockResolvedValue("activity-id") }));
+  const zip = {
+    enqueueAlbumZipJob: vi.fn().mockResolvedValue(true), getAlbumZipJob: vi.fn(), listAlbumZipJobs: vi.fn().mockResolvedValue([]),
+    updateAlbumZipJob: vi.fn(), removeAlbumZipJob: vi.fn(), beginAlbumZipRun: vi.fn(() => false), endAlbumZipRun: vi.fn(),
+    createAlbumZipJob: vi.fn(), getAlbumZipInMemoryJob: vi.fn(), appendAlbumZipLog: vi.fn(), setAlbumZipProgress: vi.fn(),
+    finishAlbumZipJob: vi.fn(), errorAlbumZipJob: vi.fn(), serializeAlbumZipJob: vi.fn(),
+  };
+  vi.doMock("src/server/services/albumZipProcessingJobs", () => zip);
 
   vi.doMock("firebase-admin/firestore", () => {
     class MockTimestamp {
@@ -143,6 +151,7 @@ async function loadRouter() {
     setJobProgress: vi.fn(),
     finishJob: vi.fn(),
     errorJob: vi.fn(),
+    describePhotoFailure: vi.fn(() => ({ reason: "Bunny nu a răspuns la timp (descărcare); de obicei temporar.", permanent: false })),
   }));
 
   vi.doMock("@anthropic-ai/sdk", () => ({
@@ -239,10 +248,13 @@ async function loadRouter() {
     getAlbumHealthCategories: getHandler("get", "/album-health/categories"),
     putAlbumHealthCategories: getHandler("put", "/album-health/categories"),
     postAlbumHealthProcess: getHandler("post", "/album-health/:slug/process"),
+    getAlbumHealth: getHandler("get", "/album-health"),
+    listDurableJobsMock,
     nodeFetchMock,
     sendEmailMock,
     getDurableJobMock,
     processing: await import("src/server/services/albumProcessingJobs"),
+    zip,
     getAlbumLive: getHandler("get", "/album-health/:slug/live"),
   };
 }
@@ -1278,7 +1290,9 @@ describe("adminEvents routes", () => {
 
 describe("album processing recovery", () => {
   beforeEach(() => { vi.resetModules(); vi.clearAllMocks(); });
+  let rootEntries: { ObjectName: string; IsDirectory: boolean; LastChanged?: string }[] = [];
   async function setup(count: number, failFirst = false) {
+    rootEntries = [];
     const api = await loadRouter();
     let record = {
       slug: "test-album", status: "queued", initialized: false, pendingPhotos: [] as string[],
@@ -1294,6 +1308,7 @@ describe("album processing recovery", () => {
     api.nodeFetchMock.mockImplementation(async (url: string, options: { method?: string }) => {
       if (url.endsWith("/photos/")) return { ok: true, json: async () => Array.from({ length: count }, (_, i) => ({ ObjectName: `${i}.jpg`, IsDirectory: false })) };
       if (url.endsWith("/photos_preview/")) return { ok: true, json: async () => [] };
+      if (url.endsWith("/test-album/")) return { ok: true, json: async () => rootEntries };
       if (failFirst && url.endsWith("/photos/0.jpg")) throw new Error("Download timeout");
       return { ok: true, body: {}, arrayBuffer: async () => Buffer.from("original") };
     });
@@ -1328,5 +1343,47 @@ describe("album processing recovery", () => {
     expect(api.record().pendingPhotos).toEqual(["0.jpg"]);
     expect(api.record()).not.toHaveProperty("problemNotifiedAt");
     expect(api.processing.removeDurableJob).not.toHaveBeenCalled();
+  });
+  test("rebuilds photos.zip after the previews, so Bunny keeps photos → photos_preview → photos.zip", async () => {
+    const api = await setup(2);
+    await api.postAlbumHealthProcess({ params: { slug: "test-album" }, body: {} }, createMockResponse());
+    await vi.waitFor(() => expect(api.zip.enqueueAlbumZipJob).toHaveBeenCalledWith("test-album"));
+    expect(api.zip.enqueueAlbumZipJob.mock.invocationCallOrder[0])
+      .toBeGreaterThan(vi.mocked(api.processing.finishJob).mock.invocationCallOrder[0]);
+  });
+  test("keeps a ZIP that already holds the newest original", async () => {
+    const api = await setup(2);
+    rootEntries = [{ ObjectName: "photos.zip", IsDirectory: false, LastChanged: "2999-01-01T00:00:00" }];
+    await api.postAlbumHealthProcess({ params: { slug: "test-album" }, body: {} }, createMockResponse());
+    await vi.waitFor(() => expect(api.processing.finishJob).toHaveBeenCalledWith("test-album"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(api.zip.enqueueAlbumZipJob).not.toHaveBeenCalled();
+  });
+  test("does not touch the ZIP while photos are still failing", async () => {
+    const api = await setup(2, true);
+    await api.postAlbumHealthProcess({ params: { slug: "test-album" }, body: {} }, createMockResponse());
+    await vi.waitFor(() => expect(api.sendEmailMock).toHaveBeenCalled());
+    expect(api.zip.enqueueAlbumZipJob).not.toHaveBeenCalled();
+    expect(api.record().failures).toEqual([{ file: "0.jpg", reason: expect.any(String), permanent: false }]);
+    expect(api.sendEmailMock.mock.calls[0][0].html).toContain("De ce nu s-au procesat");
+  });
+  test("Album Health shows why a photo still has no preview", async () => {
+    const api = await loadRouter();
+    api.listDurableJobsMock.mockResolvedValueOnce([{ slug: "test-album", failures: [
+      { file: "broken.jpg", reason: "Fișier incomplet sau corupt", permanent: true },
+      { file: "fixed-later.jpg", reason: "Bunny nu a răspuns la timp", permanent: false },
+    ] }]);
+    api.nodeFetchMock.mockImplementation(async (url: string) => {
+      const json = async () => url.endsWith("/photos/")
+        ? [{ ObjectName: "broken.jpg", IsDirectory: false }, { ObjectName: "fixed-later.jpg", IsDirectory: false }]
+        : url.endsWith("/photos_preview/") ? [{ ObjectName: "fixed-later.webp", IsDirectory: false }]
+        : url.endsWith("/test-album/") ? []
+        : [{ ObjectName: "test-album", IsDirectory: true }];
+      return { ok: true, json };
+    });
+    const res = createMockResponse();
+    await api.getAlbumHealth({}, res);
+    const [album] = res.json.mock.calls[0][0].albums;
+    expect(album.failures).toEqual([{ file: "broken.jpg", reason: "Fișier incomplet sau corupt", permanent: true }]);
   });
 });

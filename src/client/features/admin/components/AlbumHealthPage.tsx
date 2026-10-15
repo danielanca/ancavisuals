@@ -16,6 +16,8 @@ interface AlbumHealth {
   coverage: number;
   zipStatus: "ok" | "stale" | "missing";
   zipDate: string | null;
+  /** Why the server could not generate these previews (latest attempt). */
+  failures?: { file: string; reason: string; permanent: boolean }[];
 }
 
 interface JobState {
@@ -315,8 +317,11 @@ export default function AlbumHealthPage() {
   const getCategory = (slug: string): AlbumCategory =>
     categoryOverrides[slug] ?? getAutoCategory(slug, today);
 
-  const activeAlbums = sorted.filter((a) => getCategory(a.slug) === "active");
-  const deliveredAlbums = sorted.filter((a) => getCategory(a.slug) === "delivered");
+  // Every non-archived album with a problem goes to the top, whatever its category.
+  const needsAttention = (a: AlbumHealth) => getCategory(a.slug) !== "archived" && hasAlbumProblem(a);
+  const attentionAlbums = sorted.filter(needsAttention);
+  const activeAlbums = sorted.filter((a) => getCategory(a.slug) === "active" && !needsAttention(a));
+  const deliveredAlbums = sorted.filter((a) => getCategory(a.slug) === "delivered" && !needsAttention(a));
   const archivedAlbums = sorted.filter((a) => getCategory(a.slug) === "archived");
   const selectableAlbums = useMemo(
     () => albums.filter((album) => (categoryOverrides[album.slug] ?? getAutoCategory(album.slug, today)) !== "archived"),
@@ -536,10 +541,11 @@ export default function AlbumHealthPage() {
         {scanned && (
           <>
             <div className="grid grid-cols-3 gap-3 mb-6">
-              <Stat value={activeAlbums.length + deliveredAlbums.length} label="Albume totale" />
+              <Stat value={nonArchived.length} label="Albume totale" />
               <Stat value={complete} label="Complete (100% WebP)" color="emerald" />
               <Stat value={incomplete} label={`Incomplete · ${totalMissing} lipsă`} color="amber" />
             </div>
+            <Section title="Necesită atenție" albums={attentionAlbums} jobStates={jobStates} zipJobStates={zipJobStates} selectionMode={selectionMode} selectedSlugs={selectedSlugs} onToggleSelect={toggleSelected} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} startZipProcess={startZipProcess} currentCategory="attention" categoryOf={getCategory} onSetCategory={setCategory} onDeleteZip={handleDeleteZip} />
             <Section title="În lucru" albums={activeAlbums} jobStates={jobStates} zipJobStates={zipJobStates} selectionMode={selectionMode} selectedSlugs={selectedSlugs} onToggleSelect={toggleSelected} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} startZipProcess={startZipProcess} currentCategory="active" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} />
             <Section title="Predate" albums={deliveredAlbums} jobStates={jobStates} zipJobStates={zipJobStates} selectionMode={selectionMode} selectedSlugs={selectedSlugs} onToggleSelect={toggleSelected} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} startZipProcess={startZipProcess} currentCategory="delivered" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} dimmed />
             <Section title="Arhivate" albums={archivedAlbums} jobStates={jobStates} zipJobStates={zipJobStates} selectionMode={false} selectedSlugs={selectedSlugs} onToggleSelect={toggleSelected} expandedDetails={expandedDetails} toggleDetails={toggleDetails} startProcess={startProcess} startZipProcess={startZipProcess} currentCategory="archived" onSetCategory={setCategory} onDeleteZip={handleDeleteZip} dimmed />
@@ -608,13 +614,18 @@ function Stat({ value, label, color }: { value: number; label: string; color?: "
   );
 }
 
+/** Missing/stale previews or a missing/stale ZIP. */
+function hasAlbumProblem(album: AlbumHealth): boolean {
+  return album.coverage < 100 || album.affectedFiles.length > 0 || album.zipStatus !== "ok";
+}
+
 const CATEGORY_LABELS: Record<AlbumCategory, string> = {
   active: "În lucru",
   delivered: "Predate",
   archived: "Arhivate",
 };
 
-function Section({ title, albums, jobStates, zipJobStates, selectionMode, selectedSlugs, onToggleSelect, expandedDetails, toggleDetails, startProcess, startZipProcess, currentCategory, onSetCategory, onDeleteZip, dimmed }: {
+function Section({ title, albums, jobStates, zipJobStates, selectionMode, selectedSlugs, onToggleSelect, expandedDetails, toggleDetails, startProcess, startZipProcess, currentCategory, categoryOf, onSetCategory, onDeleteZip, dimmed }: {
   title: string;
   albums: AlbumHealth[];
   jobStates: Record<string, JobState>;
@@ -626,7 +637,9 @@ function Section({ title, albums, jobStates, zipJobStates, selectionMode, select
   toggleDetails: (slug: string) => void;
   startProcess: (slug: string, initialWithPreview: number) => void;
   startZipProcess: (slug: string) => void;
-  currentCategory: AlbumCategory;
+  /** "attention" mixes categories: each row then takes its own from categoryOf. */
+  currentCategory: AlbumCategory | "attention";
+  categoryOf?: (slug: string) => AlbumCategory;
   onSetCategory: (slug: string, category: AlbumCategory) => void;
   onDeleteZip: (slug: string) => Promise<boolean>;
   dimmed?: boolean;
@@ -644,6 +657,7 @@ function Section({ title, albums, jobStates, zipJobStates, selectionMode, select
         className="w-full flex items-end gap-3 mb-4 group"
       >
         <h2 className={`text-2xl font-bold tracking-tight uppercase ${
+          currentCategory === "attention" ? "text-orange-400" :
           currentCategory === "active" ? "text-yellow-400" :
           currentCategory === "delivered" ? "text-emerald-400" :
           "text-red-400"
@@ -695,7 +709,7 @@ function Section({ title, albums, jobStates, zipJobStates, selectionMode, select
               onRetry={() => startProcess(album.slug, album.total - album.affectedFiles.length)}
               onRebuildZip={() => startZipProcess(album.slug)}
               onDeleteZip={() => onDeleteZip(album.slug)}
-              currentCategory={currentCategory}
+              currentCategory={categoryOf?.(album.slug) ?? (currentCategory as AlbumCategory)}
               onSetCategory={(cat) => onSetCategory(album.slug, cat)}
             />
           ))}
@@ -895,6 +909,25 @@ function AlbumRow({ album, job, zipJob, selectionMode, selected, onToggleSelect,
           <CategoryMenu currentCategory={currentCategory} onSetCategory={onSetCategory} />
         </div>
       </div>
+
+      {currentCategory !== "archived" && !isRunning && (album.failures?.length ?? 0) > 0 && (
+        <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-3">
+          <p className="text-xs font-medium text-red-300 mb-2">
+            {album.failures!.length === 1 ? "1 poză nu s-a putut genera" : `${album.failures!.length} poze nu s-au putut genera`}:
+          </p>
+          <ul className="max-h-48 overflow-y-auto space-y-1.5">
+            {album.failures!.map((failure) => (
+              <li key={failure.file} className="text-xs">
+                <span className="font-mono text-neutral-200">{failure.file}</span>
+                {failure.permanent && (
+                  <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-500/20 text-red-300">Reîncarcă originalul</span>
+                )}
+                <p className="text-neutral-400 mt-0.5">{failure.reason}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {detailsOpen && !isRunning && album.affectedFiles.length > 0 && (
         <div className="mt-3 pt-3 border-t border-neutral-800">
