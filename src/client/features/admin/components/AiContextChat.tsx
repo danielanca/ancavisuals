@@ -3,6 +3,8 @@ import React from "react";
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  // Ce date a citit asistentul pentru acest răspuns (ex. "facturi 2026") — doar endpoint-uri cu unelte.
+  sources?: string[];
 }
 
 interface AiContextChatProps {
@@ -12,12 +14,15 @@ interface AiContextChatProps {
   accessToken: string;
   title?: string;
   placeholder?: string;
+  // Endpoint alternativ, ex. asistentul financiar cu acces la date (/api/admin/finance-assistant/chat).
+  endpoint?: string;
+  emptyHint?: string;
 }
 
 // Widget de chat AI generic, gândit să fie montat pe orice pagină de admin — fiecare pagină
 // îi dă doar un rezumat text ("context") al ce e relevant chiar acum. Nu ține memorie între
 // pagini sau sesiuni; conversația trăiește doar cât timp componenta e montată.
-const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, title = "Întreabă asistentul AI", placeholder = "Scrie o întrebare..." }) => {
+const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, title = "Întreabă asistentul AI", placeholder = "Scrie o întrebare...", endpoint = "/api/admin/ai-assistant/chat", emptyHint }) => {
   const [open, setOpen] = React.useState(false);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -38,14 +43,14 @@ const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, tit
     setError("");
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/ai-assistant/chat", {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ context, messages: nextMessages }),
+        body: JSON.stringify({ context, messages: nextMessages.map(({ role, content }) => ({ role, content })) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Asistentul nu a putut răspunde.");
-      setMessages((current) => [...current, { role: "assistant", content: data.reply as string }]);
+      setMessages((current) => [...current, { role: "assistant", content: data.reply as string, sources: Array.isArray(data.sources) ? data.sources : undefined }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Asistentul nu a putut răspunde.");
     } finally {
@@ -76,7 +81,7 @@ const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, tit
           <div ref={scrollRef} className="max-h-80 space-y-3 overflow-y-auto pr-1">
             {messages.length === 0 && (
               <p className="text-xs text-neutral-500">
-                Întreabă orice despre datele de mai sus — ex. "cât am de plătit luna asta" sau "ce înseamnă taxarea inversă".
+                {emptyHint ?? 'Întreabă orice despre datele de mai sus — ex. "cât am de plătit luna asta" sau "ce înseamnă taxarea inversă".'}
               </p>
             )}
             {messages.map((message, index) => (
@@ -85,10 +90,13 @@ const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, tit
                   message.role === "user" ? "bg-emerald-500/15 text-emerald-100" : "bg-neutral-800 text-neutral-200"
                 }`}>
                   {message.content}
+                  {message.sources && message.sources.length > 0 && (
+                    <p className="mt-1.5 text-[11px] text-neutral-500">Consultat: {message.sources.join(", ")}</p>
+                  )}
                 </div>
               </div>
             ))}
-            {loading && <p className="text-xs text-neutral-500">Asistentul scrie...</p>}
+            {loading && <p className="text-xs text-neutral-500">Asistentul se uită prin date și scrie...</p>}
           </div>
 
           {error && <p className="mt-2 text-xs text-red-400">{error}</p>}

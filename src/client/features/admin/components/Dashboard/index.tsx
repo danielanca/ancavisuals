@@ -18,11 +18,12 @@ import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeCo
 import AlbumHealthWidget from "../AlbumHealthWidget";
 import DeliveryDeadlineOverview from "../DeliveryDeadlineOverview";
 import DashboardSearch from "../DashboardSearch";
+import VisitorsSnapshotWidget from "../VisitorsSnapshotWidget";
 import { fetchGetWithRetry } from "../../../../utils/fetchGetWithRetry";
 
 // ── Widget Order ──────────────────────────────────────────────────────────
 
-const DEFAULT_WIDGET_ORDER = ["leads", "goals", "financial", "countdown", "albumHealth", "mementos", "events", "deadlines"];
+const DEFAULT_WIDGET_ORDER = ["visitors", "leads", "goals", "financial", "countdown", "albumHealth", "mementos", "events", "deadlines"];
 const WIDGET_ORDER_KEY = "dashboard_widget_order";
 
 function useDashboardWidgetOrder() {
@@ -278,6 +279,7 @@ const DashboardInner: React.FC = () => {
     ),
     financial: <FinancialSummary events={events} />,
     countdown: <NextEventCountdown events={events} />,
+    visitors: <VisitorsSnapshotWidget />,
     leads: <LeadsWidget />,
     albumHealth: <AlbumHealthWidget />,
     mementos: <MementosWidget />,

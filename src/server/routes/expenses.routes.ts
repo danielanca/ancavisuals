@@ -10,6 +10,7 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import { BUNNY_ACCESS_KEY_HEADER, BUNNY_STORAGE_BASE_URL, getBunnyStorageZone, getBunnyStoragePassword } from "../constants/bunny";
 import { requestStructured } from "../lib/claudeStructured";
 import { isSupportedImageUpload, prepareImageBlocks } from "../lib/visionImage";
+import { findExpenseDuplicate, normalizeCif, type ExpenseDuplicateMatch, type ExpenseIdentity } from "../../shared/finance/expenseDuplicates";
 import { RECEIPT_SCHEMA, buildReceiptPrompt, validateScannedReceipt, type ScannedReceipt } from "../services/receiptScan";
 
 const router = Router();
@@ -18,21 +19,30 @@ const anthropic = createAnthropicClient("Scanare bonuri și facturi", { apiKey: 
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-function normalizeInvoiceValue(value: unknown): string {
-  const normalized = String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
-  return normalized.replace(/^FACTURA/, "").replace(/^(NR|NO)/, "");
+type StoredExpense = ExpenseIdentity & { id: string };
+
+function toDateValue(value: unknown): Date | string | null {
+  if (value && typeof (value as Timestamp).toDate === "function") return (value as Timestamp).toDate();
+  return (value as Date | string | null | undefined) ?? null;
 }
 
-function normalizeSupplier(value: unknown): string {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+function comparableValue(value: unknown): unknown {
+  const date = toDateValue(value);
+  return date instanceof Date ? date.getTime() : value ?? null;
+}
+
+function toStoredExpense(doc: FirebaseFirestore.QueryDocumentSnapshot): StoredExpense {
+  const data = doc.data();
+  return { id: doc.id, date: toDateValue(data.date), supplier: data.supplier ?? null, supplierCif: data.supplierCif ?? null, invoiceNumber: data.invoiceNumber ?? null, amount: data.amount ?? null, currency: data.currency ?? null };
+}
+
+// Răspunsul 409 pentru duplicat: „certain” blochează mereu, „probable” doar
+// până când adminul confirmă explicit (confirmPossibleDuplicate).
+function duplicateResponse(match: ExpenseDuplicateMatch<StoredExpense>, invoiceNumber: unknown) {
+  if (match.level === "certain") {
+    return { error: "DUPLICATE_INVOICE_NUMBER", existingId: match.expense.id, level: match.level, message: `Factura "${String(invoiceNumber ?? "")}" este deja înregistrată în registru.` };
+  }
+  return { error: "POSSIBLE_DUPLICATE", existingId: match.expense.id, level: match.level, message: "Există deja o cheltuială de la același furnizor, cu aceeași sumă și dată apropiată." };
 }
 
 // POST /upload-doc — upload a receipt/invoice file to Bunny CDN
@@ -193,7 +203,7 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, r
 
 // POST / — create expense
 router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
-  const { date, category, description, supplier, amount, currency, exchangeRate, originalAmount, originalCurrency, deductibility, deductibleAmount: deductibleAmountInput, invoiceNumber, factura, chitanta } = req.body as {
+  const { date, category, description, supplier, amount, currency, exchangeRate, originalAmount, originalCurrency, deductibility, deductibleAmount: deductibleAmountInput, invoiceNumber, supplierCif, confirmPossibleDuplicate, factura, chitanta } = req.body as {
     date: string;
     category: string;
     description?: string;
@@ -209,6 +219,8 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
     // (e.g. a phone bill with several lines). Overrides the percentage.
     deductibleAmount?: number;
     invoiceNumber?: string;
+    supplierCif?: string | null;
+    confirmPossibleDuplicate?: boolean;
     factura?: { url: string; name: string; hash?: string } | null;
     chitanta?: { url: string; name: string; hash?: string } | null;
   };
@@ -244,27 +256,20 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       }
     }
 
-    // Dedup check 2: invoice identity.  The invoice number is often entered as
-    // "123", "Factura nr. 123" or with different spaces/dashes, so an exact
-    // Firestore equality query is not enough. Read the (small) expense register
-    // and compare normalized number + supplier; this also catches older records
-    // created before normalized fields existed.
-    const normalizedInvoiceNumber = normalizeInvoiceValue(invoiceNumber);
-    if (normalizedInvoiceNumber) {
+    // Dedup check 2: invoice identity across the whole (small) register —
+    // normalized invoice number + supplier (CIF when known), plus the
+    // "same supplier, same amount, near date" heuristic for documents without
+    // a number (e.g. the same invoice uploaded once as photo, once as PDF).
+    const sourceCurrencyForCheck = currency ?? "RON";
+    const amountForCheck = sourceCurrencyForCheck === "USD" ? Number(amount) * Number(exchangeRate) : Number(amount);
+    if (invoiceNumber || supplier || supplierCif) {
       const expensesSnapshot = await db.collection(COLLECTION).get();
-      const normalizedSupplierName = normalizeSupplier(supplier);
-      const duplicateInvoice = expensesSnapshot.docs.find((doc) => {
-        const existing = doc.data();
-        if (normalizeInvoiceValue(existing.invoiceNumber) !== normalizedInvoiceNumber) return false;
-        const existingSupplier = normalizeSupplier(existing.supplier);
-        return !normalizedSupplierName || !existingSupplier || existingSupplier === normalizedSupplierName;
-      });
-      if (duplicateInvoice) {
-        res.status(409).json({
-          error: "DUPLICATE_INVOICE_NUMBER",
-          existingId: duplicateInvoice.id,
-          message: `Factura "${invoiceNumber}" este deja înregistrată în registru.`,
-        });
+      const match = findExpenseDuplicate(
+        { date, supplier, supplierCif, invoiceNumber, amount: amountForCheck, currency: sourceCurrencyForCheck === "USD" ? "RON" : sourceCurrencyForCheck },
+        expensesSnapshot.docs.map(toStoredExpense),
+      );
+      if (match && (match.level === "certain" || confirmPossibleDuplicate !== true)) {
+        res.status(409).json(duplicateResponse(match, invoiceNumber));
         return;
       }
     }
@@ -297,6 +302,7 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
       deductibility: numDeductibility,
       deductibleAmount,
       invoiceNumber: invoiceNumber?.trim() ?? null,
+      supplierCif: normalizeCif(supplierCif) || null,
       originalAmount: sourceCurrency === "USD" ? Number(originalAmount ?? amount) : null,
       originalCurrency: sourceCurrency === "USD" ? "USD" : null,
       exchangeRate: sourceCurrency === "USD" ? Number(exchangeRate) : null,
@@ -315,7 +321,7 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
 router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
     const body = req.body ?? {};
-    const fields = ["date", "category", "description", "supplier", "amount", "currency", "originalAmount", "originalCurrency", "exchangeRate", "invoiceNumber", "factura", "chitanta", "deductibleAmount", "deductibility"];
+    const fields = ["date", "category", "description", "supplier", "amount", "currency", "originalAmount", "originalCurrency", "exchangeRate", "invoiceNumber", "supplierCif", "factura", "chitanta", "deductibleAmount", "deductibility"];
     const patch: Record<string, unknown> = {};
     for (const field of fields) if (Object.prototype.hasOwnProperty.call(body, field)) patch[field] = body[field];
     if (!Object.keys(patch).length) { res.status(400).json({ error: "Trimite câmpurile de modificat." }); return; }
@@ -330,7 +336,7 @@ router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
       }
       patch.date = Timestamp.fromDate(new Date(patch.date));
     }
-    for (const field of ["category", "description", "supplier", "invoiceNumber"]) {
+    for (const field of ["category", "description", "supplier", "invoiceNumber", "supplierCif"]) {
       if (!(field in patch)) continue;
       const value = patch[field];
       if ((value !== null && typeof value !== "string") || (field === "category" && (typeof value !== "string" || !value.trim()))) {
@@ -362,17 +368,23 @@ router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
         if (duplicate) { res.status(409).json({ error: "DUPLICATE_FILE", existingId: duplicate.id, message: "Fișier deja atașat altei cheltuieli." }); return; }
       }
     }
-    if (next.invoiceNumber && ("invoiceNumber" in patch || "supplier" in patch)) {
+    if ("supplierCif" in patch) patch.supplierCif = normalizeCif(patch.supplierCif) || null;
+    // Re-check identity only when an identifying field really changed, so
+    // attaching a document to an old record never trips over legacy near-duplicates.
+    const identityChanged = ["invoiceNumber", "supplier", "supplierCif", "amount", "currency", "date"].some((field) => {
+      if (!(field in patch)) return false;
+      return comparableValue(current[field]) !== comparableValue(patch[field]);
+    });
+    if (identityChanged) {
       const all = await db.collection(COLLECTION).get();
-      const number = normalizeInvoiceValue(next.invoiceNumber);
-      const supplier = normalizeSupplier(next.supplier);
-      const duplicate = all.docs.find((item) => {
-        if (item.id === req.params.id) return false;
-        const other = item.data();
-        const otherSupplier = normalizeSupplier(other.supplier);
-        return number && normalizeInvoiceValue(other.invoiceNumber) === number && (!supplier || !otherSupplier || supplier === otherSupplier);
-      });
-      if (duplicate) { res.status(409).json({ error: "DUPLICATE_INVOICE_NUMBER", existingId: duplicate.id, message: "Factura există deja în altă cheltuială." }); return; }
+      const nextDate = toDateValue(next.date);
+      const match = findExpenseDuplicate(
+        { id: req.params.id, date: nextDate, supplier: next.supplier, supplierCif: next.supplierCif, invoiceNumber: next.invoiceNumber, amount: total, currency: next.currency ?? "RON" },
+        all.docs.map(toStoredExpense),
+      );
+      if (match && (match.level === "certain" || body.confirmPossibleDuplicate !== true)) {
+        res.status(409).json(duplicateResponse(match, next.invoiceNumber)); return;
+      }
     }
     const hasAmount = "deductibleAmount" in patch;
     const hasPercent = "deductibility" in patch;

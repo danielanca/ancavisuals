@@ -51,3 +51,22 @@ test("preserves USD conversion and the stored deductible amount when only attach
   await waitFor(() => expect(onAdded).toHaveBeenCalled());
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ amount: 450, currency: "RON", originalAmount: 100, originalCurrency: "USD", exchangeRate: 4.5, deductibleAmount: 225 });
 });
+
+test("a probable duplicate asks for confirmation, then saves with the confirmation flag", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 201, json: async () => ({ id: "new" }) });
+  vi.stubGlobal("fetch", fetchMock);
+  const onAdded = vi.fn();
+  const onDuplicateFound = vi.fn();
+  const existing = { ...expense, id: "old", invoiceNumber: null, date: "2026-10-09T00:00:00.000Z" };
+  const { container } = render(<AddExpenseModal existingExpenses={[existing]} accessToken="test" onClose={vi.fn()} onAdded={onAdded} onDuplicateFound={onDuplicateFound} />);
+  fireEvent.change(screen.getByPlaceholderText("ex: Petrom, Dedeman..."), { target: { value: "ACME S.R.L." } });
+  fireEvent.change(container.querySelector('input[type="number"][step="0.01"]')!, { target: { value: "165" } });
+  fireEvent.change(container.querySelector('input[type="date"]')!, { target: { value: "2026-10-10" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvează" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("același furnizor");
+  expect(fetchMock).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: /salvează oricum/ }));
+  await waitFor(() => expect(onAdded).toHaveBeenCalled());
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ confirmPossibleDuplicate: true, supplier: "ACME S.R.L." });
+  expect(onDuplicateFound).not.toHaveBeenCalled();
+});

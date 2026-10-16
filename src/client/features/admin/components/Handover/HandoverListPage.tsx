@@ -7,6 +7,7 @@ import HandoverActionMenu from "./HandoverActionMenu";
 import EditHandoverModal from "./EditHandoverModal";
 import { getPublicAppOrigin } from "./publicOrigin";
 import { openAuthedInNewTab } from "../../providers/authFetch";
+import { whatsappUrl } from "../../whatsappUrl";
 
 interface HandoverItem {
   id: string;
@@ -36,7 +37,7 @@ interface LinkedEvent {
   typeLabel?: string;
   eventDate?: string | null;
   handoverId?: string;
-  client?: { fullName?: string };
+  client?: { fullName?: string; phone?: string };
 }
 
 const DeliveryBadge: React.FC<{ label: string }> = ({ label }) => (
@@ -49,6 +50,10 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   signed: { label: "Semnat", color: "#22c55e" },
   expired: { label: "Expirat", color: "#ef4444" },
 };
+
+function handoverWhatsAppMessage(token: string): string {
+  return `Salutare! Aici se află materialele: ${getPublicAppOrigin()}/proces-verbal/${token}`;
+}
 
 const HandoverListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -319,6 +324,13 @@ const HandoverListPage: React.FC = () => {
                         <span>Data: {formatDate(item.eventDate)}</span>
                         {item.clientEmail && <span>Client: {item.clientEmail}</span>}
                         {item.clientName && <span>Semnat de: {item.clientName}</span>}
+                        {event?.client?.phone && <span className="flex items-center gap-1.5">
+                          Telefon: {event.client.phone}
+                          {whatsappUrl(event.client.phone) && <a href={whatsappUrl(event.client.phone, handoverWhatsAppMessage(item.token))!} target="_blank" rel="noopener noreferrer"
+                            className="px-2 py-0.5 rounded-md bg-green-700/60 hover:bg-green-600/70 text-white transition-colors">
+                            WhatsApp
+                          </a>}
+                        </span>}
                         <span>Creat: {formatDate(item.createdAt)}</span>
                         {item.signedAt && <span>Semnat: {formatDate(item.signedAt)}</span>}
                         {item.awb && <span>AWB: {item.awb}</span>}

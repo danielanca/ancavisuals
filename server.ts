@@ -83,6 +83,7 @@ import { startReverseChargeVatCron } from "./src/server/cron/reverseChargeVat.cr
 import { startPhotoboothNotifyCron } from "./src/server/cron/photoboothNotify.cron";
 import { startSeoRadarWeeklyScanCron } from "./src/server/cron/seoRadarWeeklyScan.cron";
 import adminAiAssistantRouter from "./src/server/routes/adminAiAssistant.routes";
+import financeAssistantRouter from "./src/server/routes/financeAssistant.routes";
 import reviewsRouter from "./src/server/routes/reviews.routes";
 import feedbackRouter from "./src/server/routes/feedback.routes";
 import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
@@ -237,6 +238,7 @@ async function createServer() {
   app.use("/api/admin/invoices", invoicesRouter);
   app.use("/api/admin/bank-statements", bankStatementsRouter);
   app.use("/api/admin/ai-assistant", adminAiAssistantRouter);
+  app.use("/api/admin/finance-assistant", financeAssistantRouter);
   app.use("/api/reviews", reviewsRouter);
   app.use("/api/feedback", feedbackRouter);
   app.use("/api/admin/company-documents", companyDocumentsRouter);

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
 import ConfirmModal from "./ConfirmModal";
+import { whatsappUrl } from "../whatsappUrl";
 
 type EmailStatus = "pending" | "sent" | "failed" | "skipped";
 
@@ -52,17 +53,6 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleString("ro-RO", {
     timeZone: "Europe/Bucharest", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
-}
-
-function whatsappUrl(phone: string): string | null {
-  const compact = phone.trim().replace(/[^\d+]/g, "");
-  if (!compact) return null;
-
-  const digits = compact.replace(/^\+/, "");
-  if (digits.startsWith("0") && digits.length >= 10) return `https://wa.me/40${digits.slice(1)}`;
-  if (digits.startsWith("40") && digits.length >= 11) return `https://wa.me/${digits}`;
-  if (digits.length >= 7) return `https://wa.me/${digits}`;
-  return null;
 }
 
 // "skipped" is either expected (own traffic / duplicate → info) or an error (a lead/contact stopped by a filter).

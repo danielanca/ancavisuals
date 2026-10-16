@@ -21,6 +21,12 @@ const isProd = process.env.NODE_ENV === "production";
 const backendAgent = new Agent({ keepAlive: true, maxSockets: 50 });
 export default defineConfig({
   plugins: [react()],
+  css: {
+    preprocessorOptions: {
+      // Vite 4 only speaks Sass's legacy JS API; the modern one needs Vite 5.4+.
+      scss: { silenceDeprecations: ["legacy-js-api"] },
+    },
+  },
   resolve: {
     alias: {
       src: fileURLToPath(new URL("./src", import.meta.url)),

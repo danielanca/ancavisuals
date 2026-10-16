@@ -160,6 +160,15 @@ router.post("/:slug/interaction", (_req: Request, res: Response) => {
 });
 
 // Visitor text goes into the owner's email as HTML: escape it, keep the message's line breaks.
+// Same normalization as LeadsPage: Romanian "07xx" numbers become "407xx".
+function whatsappUrl(phone: string): string | null {
+  const digits = phone.trim().replace(/[^\d+]/g, "").replace(/^\+/, "");
+  if (digits.startsWith("0") && digits.length >= 10) return `https://wa.me/40${digits.slice(1)}`;
+  if (digits.startsWith("40") && digits.length >= 11) return `https://wa.me/${digits}`;
+  if (digits.length >= 7) return `https://wa.me/${digits}`;
+  return null;
+}
+
 function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
@@ -200,6 +209,7 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
     // contact request. The lead is always persisted below (via logActivity,
     // which backs the admin activity inbox) regardless of whether this
     // succeeds, and the inbox flags it visibly when it didn't.
+    const whatsappLink = whatsappUrl(phone);
     let emailSent = false;
     try {
       const { sendEmail } = await import("../notifications/mailer.js");
@@ -215,7 +225,7 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
             <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>
             <table style="width:100%;border-collapse:collapse;font-size:14px;">
               ${name ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${escapeHtml(name)}</td></tr>` : ""}
-              <tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${escapeHtml(phone)}</td></tr>
+              <tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${escapeHtml(phone)}${whatsappLink ? ` &nbsp;<a href="${whatsappLink}" style="display:inline-block;background:#25d366;color:#fff;text-decoration:none;font-weight:600;padding:4px 10px;border-radius:6px;font-size:13px;">💬 WhatsApp</a>` : ""}</td></tr>
               ${eventType ? `<tr><td style="padding:8px 0;color:#666;">Tip eveniment</td><td style="color:#111;">${escapeHtml(eventType)}</td></tr>` : ""}
               ${eventDate ? `<tr><td style="padding:8px 0;color:#666;">Dată eveniment</td><td style="color:#111;">${escapeHtml(eventDate)}</td></tr>` : ""}
               ${location ? `<tr><td style="padding:8px 0;color:#666;">Localitate</td><td style="color:#111;">${escapeHtml(location)}</td></tr>` : ""}

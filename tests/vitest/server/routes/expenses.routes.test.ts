@@ -230,6 +230,41 @@ describe("expenses routes", () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "DUPLICATE_INVOICE_NUMBER" }));
     });
 
+    test("returns 409 POSSIBLE_DUPLICATE for same supplier + amount + near date, and saves once confirmed", async () => {
+      const { postCreate, getCollectionMock, addMock } = await loadExpensesRouter();
+      const stored = { supplier: "SC Acme S.R.L.", amount: 120, currency: "RON", invoiceNumber: null, date: { toDate: () => new Date("2026-05-01") } };
+      getCollectionMock.mockResolvedValue({ docs: [{ id: "existing", data: () => stored }] });
+      const body = { date: "2026-05-02", category: "altele", amount: 120, deductibility: 50, supplier: "ACME" };
+
+      const res = createMockResponse();
+      await postCreate({ body }, res);
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "POSSIBLE_DUPLICATE", existingId: "existing", level: "probable" }));
+      expect(addMock).not.toHaveBeenCalled();
+
+      const confirmed = createMockResponse();
+      await postCreate({ body: { ...body, confirmPossibleDuplicate: true } }, confirmed);
+      expect(confirmed.status).toHaveBeenCalledWith(201);
+    });
+
+    test("confirmation never overrides a certain duplicate", async () => {
+      const { postCreate, getCollectionMock, addMock } = await loadExpensesRouter();
+      getCollectionMock.mockResolvedValue({ docs: [{ id: "existing", data: () => ({ supplier: "Acme", supplierCif: "RO123", invoiceNumber: "FA 0012", amount: 120 }) }] });
+      const res = createMockResponse();
+      await postCreate({ body: { date: "2026-05-02", category: "altele", amount: 120, deductibility: 50, supplier: "Alt nume", supplierCif: "123", invoiceNumber: "FA12", confirmPossibleDuplicate: true } }, res);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "DUPLICATE_INVOICE_NUMBER", level: "certain" }));
+      expect(addMock).not.toHaveBeenCalled();
+    });
+
+    test("same invoice number from a different supplier is allowed and the CIF is stored", async () => {
+      const { postCreate, getCollectionMock, addMock } = await loadExpensesRouter();
+      getCollectionMock.mockResolvedValue({ docs: [{ id: "existing", data: () => ({ supplier: "Acme", invoiceNumber: "1", amount: 120 }) }] });
+      const res = createMockResponse();
+      await postCreate({ body: { date: "2026-05-02", category: "altele", amount: 120, deductibility: 50, supplier: "Beta SRL", supplierCif: "RO 456", invoiceNumber: "1" } }, res);
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(addMock.mock.calls[0][0].supplierCif).toBe("456");
+    });
+
     test("defaults currency to RON when not provided", async () => {
       const { postCreate, addMock } = await loadExpensesRouter();
       const res = createMockResponse();
@@ -326,6 +361,14 @@ describe("expenses routes", () => {
       await patchExpense({ params: { id: "e1" }, body: { invoiceNumber: "Factura Nr. 123" } }, res);
       expect(res.status).toHaveBeenCalledWith(409);
       expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("does not re-check identity when only documents change", async () => {
+      const { patchExpense, getCollectionMock, updateMock } = await loadExpensesRouter({ docData: existing });
+      getCollectionMock.mockResolvedValue(makeDocSnap("e2", existing));
+      await patchExpense({ params: { id: "e1" }, body: { supplier: "Acme", invoiceNumber: "123", amount: 165, factura: invoice } }, createMockResponse());
+      expect(getCollectionMock).not.toHaveBeenCalled();
+      expect(updateMock).toHaveBeenCalled();
     });
 
     test.each([{ date: "2026-02-30" }, { amount: -10 }, { currency: "XYZ" }, { factura: { url: "javascript:alert(1)", name: "invoice" } }, { deductibleAmount: "invalid" }])("rejects invalid edits: %j", async (body) => {
