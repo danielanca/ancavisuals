@@ -51,7 +51,7 @@ export default function FeedbackAdminPage() {
       <p className="my-4 whitespace-pre-wrap break-words leading-relaxed text-neutral-200">{item.message}</p>
       <div className="flex flex-wrap items-center gap-4 text-sm"><Link className="text-amber-200 break-all" to={`/media/${encodeURIComponent(item.albumSlug)}`}>Album: {item.albumSlug}</Link><Link className="text-neutral-400" to={feedbackPath(item.albumSlug)}>Pagina de feedback</Link>
         {item.publishedReviewId
-          ? <Link className="text-emerald-300" to={`/admin/recenzii?edit=${encodeURIComponent(item.publishedReviewId)}`}>Publicat · Editează recenzia + poze</Link>
+          ? <Link className="text-emerald-300" to={`/admin/recenzii?edit=${encodeURIComponent(item.publishedReviewId)}`}>Acceptat ca recenzie · Editează (draft / publicare + poze)</Link>
           : <Link className="rounded-lg border border-amber-200/30 px-3 py-2 text-amber-200" to="/admin/recenzii" state={{ feedback: item }}>Acceptă ca recenzie</Link>}
         {!item.read && <button type="button" disabled={marking !== null} className="text-neutral-300 underline underline-offset-4 disabled:opacity-50" onClick={() => void markRead(item.id)}>{marking === item.id ? "Se salvează…" : "Marchează citit"}</button>}</div>
     </article>)}</div>

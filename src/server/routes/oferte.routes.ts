@@ -229,7 +229,8 @@ router.get("/portfolio-images", async (_req: Request, res: Response) => {
         seen.add(sourceKey);
         return true;
       })
-      .map((asset) => asset.url as string);
+      // Copia WebP comprimată (creată la upload / „Generează copii WebP”), altfel originalul.
+      .map((asset) => (asset.previewUrl || asset.url) as string);
     res.json({ urls });
   } catch (error) {
     res.status(500).json({ error: String(error) });
@@ -457,15 +458,19 @@ router.get("/admin/template-showcase", requireFirebaseAuth, requireSupremeAdmin,
   try {
     const showcase = await readTemplateShowcase();
     const allAssets = await enrichMediaAssetDisplayUrls(await listMediaAssets());
+    const services = OFFER_SERVICES.map(service => {
+      const resolved = resolveTemplateAssets([service.id], showcase, allAssets)[service.id];
+      return { ...service, assets: resolved?.desktop ?? [], assetsMobile: resolved?.mobile ?? [] };
+    });
+    // Mărimea fiecărei poze, ca organizatorul să arate ce ascunde site-ul vizitatorilor
+    // (> MAX_PHOTO_BYTES) — aceeași măsurare (cu cache) ca oferta publică.
+    type ShowcaseAsset = (typeof services)[number]["assets"][number];
+    const shownUrl = (asset: ShowcaseAsset) => asset.displayUrl ?? asset.url;
+    const imageUrls = services.flatMap(service => [...service.assets, ...service.assetsMobile].filter(asset => asset.kind === "image").map(shownUrl));
+    const sizes = await remoteFileSizes([...new Set(imageUrls)], 4000);
+    const withSize = (asset: ShowcaseAsset) => (asset.kind === "image" ? { ...asset, sizeBytes: sizes.get(shownUrl(asset)) } : asset);
     res.json({
-      services: OFFER_SERVICES.map(service => {
-        const resolved = resolveTemplateAssets([service.id], showcase, allAssets)[service.id];
-        return {
-          ...service,
-          assets: resolved?.desktop ?? [],
-          assetsMobile: resolved?.mobile ?? [],
-        };
-      }),
+      services: services.map(service => ({ ...service, assets: service.assets.map(withSize), assetsMobile: service.assetsMobile.map(withSize) })),
     });
   } catch (error) {
     console.error("[oferte] GET /admin/template-showcase failed:", error);

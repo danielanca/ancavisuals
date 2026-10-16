@@ -159,7 +159,6 @@ export const OFFER_SERVICES: OfferServiceDefinition[] = [
     description: "Invitatii incarca instant poze si video direct de pe telefon, fara aplicatie.",
     basePrice: formatPrice("qrmoments"),
     sampleImages: [
-      "https://images.pexels.com/photos/15591485/pexels-photo-15591485/free-photo-of-smiling-women-in-dresses-on-party.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
       "https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2Fmedia%2Fhomepage%2FLAST_EVENTS%2FPoze-125.jpg?alt=media&token=364b1285-b470-4251-8002-8ba6a7a1bb98",
     ],
   },
@@ -277,11 +276,12 @@ export function mergeOfferShowcase(
  * Landing videos of an offer (/oferta/:slug), set in /admin/oferte as file links:
  * the hero clip replaces the hero photo once fully downloaded — `clipUrl` (light, e.g.
  * 540p) on a modest connection, `clipHdUrl` (e.g. 720p) on a good one, none on a very
- * weak one — and `filmUrl` plays in "Vezi-ne la lucru" (on tap).
+ * weak one — and `filmUrl` plays in "Vezi-ne la lucru" (on tap), shown first as
+ * `filmPosterUrl` (e.g. the Bunny Stream thumbnail of an HLS film).
  */
-export type OfferHeroVideo = { clipUrl?: string; clipHdUrl?: string; filmUrl?: string };
+export type OfferHeroVideo = { clipUrl?: string; clipHdUrl?: string; filmUrl?: string; filmPosterUrl?: string };
 
-const HERO_VIDEO_FIELDS = ["clipUrl", "clipHdUrl", "filmUrl"] as const;
+const HERO_VIDEO_FIELDS = ["clipUrl", "clipHdUrl", "filmUrl", "filmPosterUrl"] as const;
 
 /** Keeps only https links; an empty field is left out. */
 export function normalizeOfferHeroVideo(raw: unknown): OfferHeroVideo {

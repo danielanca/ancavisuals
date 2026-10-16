@@ -3,7 +3,11 @@ import { beforeEach, expect, test, vi } from "vitest";
 const state = vi.hoisted(() => ({ store: new Map<string, any>() }));
 function doc(collection: string, id: string) {
   const key = `${collection}/${id}`;
-  return { id, key, get: async () => ({ id, exists: state.store.has(key), data: () => state.store.get(key) }) };
+  return {
+    id, key,
+    get: async () => ({ id, exists: state.store.has(key), data: () => state.store.get(key) }),
+    update: async (data: any) => { state.store.set(key, { ...state.store.get(key), ...data }); },
+  };
 }
 vi.mock("src/server/firestore", () => ({ firestore: () => ({
   collection: (collection: string) => ({
@@ -87,4 +91,26 @@ test("removing an accepted review unpublishes it while keeping private feedback 
   expect(state.store.has(`siteReviews/${id}`)).toBe(false);
   expect(state.store.get(`clientFeedback/${sourceId}`)).toMatchObject({ message: "Original privat", publishedReviewId: null });
   expect((await call("post", "/admin", { ...admin, body })).statusCode).toBe(201);
+});
+
+test("drafts stay in admin only until published; reviews without status remain public", async () => {
+  expect((await call("post", "/admin", { ...admin, body: { author: "Draft", text: "Text draft", rating: "5", category: "wedding", status: "draft" } })).body.review).toMatchObject({ status: "draft" });
+  state.store.set("siteReviews/legacy", { author: "Veche", text: "Fără status", category: "wedding", date: "2025-01-01", order: 1 });
+  const publicAuthors = async () => (await call("get", "/", { query: { category: "wedding" } })).body.reviews.map((review: any) => review.author);
+  expect(await publicAuthors()).toEqual(["Veche"]);
+
+  expect((await call("put", "/admin/:id", { headers: admin.headers, params: { id: "manual-review" }, body: { status: "published" } })).statusCode).toBe(403);
+  const published = await call("put", "/admin/:id", { ...admin, params: { id: "manual-review" }, body: { status: "published" } });
+  expect(published.body.review).toMatchObject({ author: "Draft", text: "Text draft", status: "published" });
+  expect(await publicAuthors()).toEqual(["Draft", "Veche"]);
+
+  await call("put", "/admin/:id", { ...admin, params: { id: "manual-review" }, body: { status: "draft" } });
+  expect(await publicAuthors()).toEqual(["Veche"]);
+});
+
+test("feedback can be accepted as a draft without appearing publicly", async () => {
+  const result = await call("post", "/admin", { ...admin, body: { ...body, status: "draft" } });
+  expect(result.body.review).toMatchObject({ status: "draft" });
+  expect(state.store.get(`clientFeedback/${sourceId}`)).toMatchObject({ publishedReviewId: `feedback-${sourceId}` });
+  expect((await call("get", "/", { query: { category: "oferta", offerSlug: "olx" } })).body.reviews).toHaveLength(0);
 });

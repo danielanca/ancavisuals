@@ -115,6 +115,9 @@ export interface CampaignPage {
   active: boolean;
   viewCount?: number;
   videoThumbnailUrl?: string;
+  // Doar pentru butonul de admin: unde se editează pozele portofoliului când pagina nu vine
+  // dintr-o campanie (ex. /oferta/olx randată din oferta `olx`). Lipsă = galeria campaniei.
+  adminGalleryEditPath?: string;
 }
 
 interface CampaignLandingPageProps {
@@ -316,6 +319,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     } catch { return hasAdminCookie; }
   });
   const [adminNotice, setAdminNotice] = useState(false);
+  // Unelte de admin pe pagina publică: doar după montare, ca să nu intre în HTML-ul de pe
+  // server (vizitatorii nu le primesc) și să nu strice hidratarea.
+  const [showAdminTools, setShowAdminTools] = useState(false);
+  useEffect(() => { setShowAdminTools(isAdmin); }, [isAdmin]);
+  const galleryEditorUrl = `${page.adminGalleryEditPath ?? `/admin/campanii/${encodeURIComponent(page.slug)}`}?sectiune=galerie&device=${isMobile ? "mobile" : "desktop"}`;
   // Heavy photos (> 1 MB) are left out for visitors; the admin still sees them, flagged.
   // Referință stabilă (useMemo) — fără asta, ticăitul cronometrului de mai jos ar
   // recrea aceste array-uri la fiecare render, ceea ce distruge și reface în buclă
@@ -580,16 +588,32 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       </section>
 
       {/* ── PORTFOLIO — rămâne sus, imediat după hero ── */}
-      {galleryItems.length > 0 && (
-        <LazySection height={stableVh(100)} onShow={() => preloadGroup(1)}>
-        <PortfolioParallaxGallery
-          fallback={<SectionSkeleton height={stableVh(100)} />}
-          images={galleryImageUrls}
-          batchSize={12}
-          warnings={galleryWarnings}
-          altBase="fotografie și videografie Anca Visuals"
-        />
-        </LazySection>
+      {(galleryItems.length > 0 || showAdminTools) && (
+        <div className="relative">
+          {showAdminTools && (
+            <Link
+              to={galleryEditorUrl}
+              className="absolute right-4 top-4 z-30 flex items-center gap-1.5 rounded-full border border-amber-300/50 bg-neutral-950/90 px-4 py-2 text-xs font-semibold text-amber-200 shadow-xl shadow-black/40 backdrop-blur hover:bg-neutral-900"
+            >
+              <span aria-hidden="true">✎</span>
+              {galleryItems.length > 0 ? "Editează pozele portofoliului" : "Adaugă poze în portofoliu"}
+              <span className="font-normal text-amber-200/60">· doar admin · {isMobile ? "mobil" : "desktop"}</span>
+            </Link>
+          )}
+          {galleryItems.length > 0 ? (
+            <LazySection height={stableVh(100)} onShow={() => preloadGroup(1)}>
+            <PortfolioParallaxGallery
+              fallback={<SectionSkeleton height={stableVh(100)} />}
+              images={galleryImageUrls}
+              batchSize={12}
+              warnings={galleryWarnings}
+              altBase="fotografie și videografie Anca Visuals"
+            />
+            </LazySection>
+          ) : (
+            <div className="h-20" />
+          )}
+        </div>
       )}
 
       {/* ── FILM — same full-bleed look as the hero: a photo, then the clip once it has

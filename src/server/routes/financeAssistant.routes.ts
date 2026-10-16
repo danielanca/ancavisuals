@@ -10,7 +10,7 @@ import { getBnrYearRates } from "../services/bnrExchangeRate.service";
 // Asistent AI pentru zona Financiar. Spre deosebire de asistentul generic (care vede doar
 // rezumatul text trimis de pagină), acesta are unelte read-only peste Firestore: facturi,
 // cheltuieli, tranzacții din extrase și evenimente. Pagina trimite în `context` doar cifrele
-// calculate pe ecran (taxe, proiecție), ca răspunsurile să se potrivească cu ce vede omul.
+// calculate pe ecran (taxe din facturile emise, praguri), ca răspunsurile să se potrivească cu ce vede omul.
 const router = Router();
 router.use(requireFirebaseAuth, requireSupremeAdmin);
 const anthropic = createAnthropicClient("Asistent financiar", { apiKey: process.env.ANTHROPIC_API_KEY, timeout: 120_000 });
@@ -146,7 +146,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "list_events",
-    description: "Evenimentele (nunți, botezuri etc.) cu data, statusul și prețul contractat (EUR), plus cât mai e de încasat. Opțional pe interval de date (YYYY-MM-DD) și status (confirmat, tentativ, anulat etc.).",
+    description: "Evenimentele FISCALIZATE (nunți, botezuri etc.) cu data, statusul și prețul contractat (EUR), plus cât mai e de încasat. Evenimentele nefiscalizate nu sunt incluse. Opțional pe interval de date (YYYY-MM-DD) și status (confirmat, tentativ, anulat etc.).",
     input_schema: {
       type: "object",
       properties: {
@@ -300,7 +300,9 @@ async function listEvents(input: ToolInput) {
   const from = str(input.from);
   const to = str(input.to);
   const status = str(input.status);
+  // Regula utilizatorului: evenimentele nefiscalizate nu intră în niciun calcul.
   const rows = snapshot.docs
+    .filter((doc) => doc.data().fiscalized === true)
     .map((doc) => {
       const data = doc.data();
       const pricing = (data.pricing ?? {}) as Row;
@@ -341,8 +343,12 @@ export const FINANCE_SYSTEM_PROMPT = `Ești asistentul financiar intern al lui A
 Date:
 - Ai unelte read-only pentru facturi emise, cheltuieli, tranzacții din extrasele bancare și evenimente. Folosește-le ori de câte ori întrebarea are nevoie de cifre; nu ghici și nu inventa date. Poți apela mai multe unelte (și pe ani diferiți) înainte să răspunzi.
 - Folosește totalurile întoarse de unelte (totalRon, deductibleRon, inRon, outRon etc.) în loc să aduni manual multe rânduri. Când un rezultat are truncated: true, spune că lista e parțială sau filtrează mai precis.
-- "Context pagină" de mai jos conține cifrele calculate pe ecran (taxe, proiecție la 31 dec, cotă de pus deoparte). Când discuți taxe, pornește de la ele ca să fie consecvente cu ce vede utilizatorul.
+- "Context pagină" de mai jos conține cifrele calculate pe ecran (taxe din facturile emise, praguri, cotă de pus deoparte, proiecția la 31 dec). Când discuți taxe, pornește de la ele ca să fie consecvente cu ce vede utilizatorul.
 - Sumele în EUR sunt convertite la cursul BNR din ziua documentului. Evenimentele au prețul în EUR.
+- Regula utilizatorului — două variante, prezentate SEPARAT și etichetate clar:
+  1) Situația reală (acum): venitul = DOAR facturile emise în anul respectiv (list_invoices). Ele conțin atât evenimentele făcute, cât și avansurile încasate pentru evenimente din anul următor. Asta e suma de plată "de acum".
+  2) Proiecția la 31 dec: facturile emise + ce mai e de facturat din evenimentele VIITOARE din acel an marcate "Fiscalizat" (confirmate sau tentative): prețul minus facturile deja legate de eveniment, din orice an. Fără cheltuieli viitoare presupuse. Cifrele calculate sunt în "Context pagină" (VARIANTA 2) — folosește-le.
+  Nu extrapola pe ritm mediu. Evenimentele nefiscalizate nu intră în niciun calcul (unealta de evenimente nici nu le întoarce).
 
 Reguli PFA sistem real (venituri 2026; salariul minim pentru contribuții = cel de la 1 ianuarie 2026, 4.050 RON — creșterea la 4.325 RON din iulie nu contează pentru PFA):
 - Venit net = încasări − cheltuieli deductibile. Cheltuiala e deductibilă doar dacă e făcută în interesul activității, cu document justificativ pe CIF-ul PFA și plătită.
@@ -355,7 +361,7 @@ Reguli PFA sistem real (venituri 2026; salariul minim pentru contribuții = cel 
 - Declarația unică D212 și plata pentru veniturile din 2026: până la 25 mai 2027.
 
 Cum răspunzi:
-- La "merită să cumpăr / să plătesc X?": calculează cât scad taxele, cât costă net și dacă te ține sub/peste pragul CAS în proiecția de final de an.
+- La "merită să cumpăr / să plătesc X?": calculează cât scad taxele și cât costă net, pe profitul din facturile emise, și cât rămâne până la pragul CAS.
 - Sugerează cheltuieli doar dacă sunt utile real activității (echipament, software, cursuri, marketing, transport la evenimente). Descurajează cheltuielile făcute doar pentru taxe și cheltuielile personale trecute pe PFA.
 - La extrase: semnalează plățile "unmatched" (fără document) — sunt cheltuieli posibil deductibile pierdute sau trebuie justificate.
 - Nu ești consultant fiscal certificat: pentru sume finale de declarat, recomandă confirmarea cu un contabil, dar fără să repeți asta la fiecare mesaj.`;

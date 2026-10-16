@@ -4,6 +4,10 @@
  * controls (owner): our bottom bar — play/pause, sound on/off, seekable progress, time,
  * fullscreen — is ALWAYS visible, on phone and desktop (top-left buttons were tried: nobody
  * saw them). Scrolling the video off screen pauses it.
+ *
+ * Adaptive quality: an HLS link (Bunny Stream `…/playlist.m3u8`) switches between the
+ * encoded resolutions by the visitor's real bandwidth — natively on Safari (iPhone/Mac),
+ * through hls.js elsewhere, loaded only on the first play. Plain MP4 links play as before.
  */
 import React, { useEffect, useRef, useState } from "react";
 import { sendLiveEvent } from "../../utils/liveEvent";
@@ -35,9 +39,43 @@ const ICONS = {
   fullscreen: "M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 3v-3h2v5h-5v-2h3z",
 };
 
+const isHlsUrl = (url: string) => /\.m3u8(?:[?#]|$)/i.test(url);
+// Bunny Stream keeps the thumbnail next to the playlist.
+const hlsThumbnail = (url: string) => url.replace(/playlist\.m3u8.*$/i, "thumbnail.jpg");
+
+type HlsInstance = { loadSource: (url: string) => void; attachMedia: (video: HTMLMediaElement) => void; destroy: () => void };
+
 export default function CampaignVideoPlayer({ src, poster, label }: { src: string; poster?: string; label?: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const isHls = isHlsUrl(src);
+  // Safari (and any browser that plays HLS itself) gets the playlist as a plain src — keeps
+  // play() inside the tap on iPhone. Decided after mount: the server render has no <video> API.
+  const [nativeHls, setNativeHls] = useState(false);
+  const hlsRef = useRef<HlsInstance | null>(null);
+  const sourceReadyRef = useRef<Promise<void> | null>(null);
+  const shownPoster = poster || (isHls ? hlsThumbnail(src) : undefined);
+
+  useEffect(() => {
+    if (isHls) setNativeHls(Boolean(videoRef.current?.canPlayType("application/vnd.apple.mpegurl")));
+    return () => { hlsRef.current?.destroy(); hlsRef.current = null; sourceReadyRef.current = null; };
+  }, [isHls, src]);
+
+  // HLS outside Safari: load hls.js and attach the playlist once, on the first play.
+  const ensureSource = (video: HTMLVideoElement): Promise<void> => {
+    if (!isHls || nativeHls) return Promise.resolve();
+    if (!sourceReadyRef.current) {
+      sourceReadyRef.current = import("hls.js").then(({ default: Hls }) => {
+        if (!Hls.isSupported()) { video.src = src; return; }
+        // Auto quality from bandwidth, never above what the player's on-screen size can show.
+        const hls = new Hls({ capLevelToPlayerSize: true, startLevel: -1 });
+        hls.loadSource(src);
+        hls.attachMedia(video);
+        hlsRef.current = hls;
+      });
+    }
+    return sourceReadyRef.current;
+  };
   const [started, setStarted] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -65,7 +103,7 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
       sendLiveEvent("video_played", { label: label ?? "Vezi-ne la lucru" });
     }
     setStarted(true);
-    void video.play().catch(() => setPlaying(false));
+    void ensureSource(video).then(() => video.play()).catch(() => setPlaying(false));
   };
 
   const toggleMute = () => {
@@ -100,8 +138,8 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
       <video
         ref={videoRef}
         // Without a poster iOS shows a black box; #t=0.1 makes it paint the first frame.
-        src={poster || src.includes("#") ? src : `${src}#t=0.1`}
-        poster={poster}
+        src={isHls ? (nativeHls ? src : undefined) : poster || src.includes("#") ? src : `${src}#t=0.1`}
+        poster={shownPoster}
         playsInline
         preload="metadata"
         onPlay={() => { setStarted(true); setPlaying(true); }}

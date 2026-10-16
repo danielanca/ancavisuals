@@ -137,7 +137,8 @@ router.get("/gallery/sources", requireFirebaseAuth, requireSupremeAdmin, async (
     });
     const assets = assetsSnap.docs.map((doc) => {
       const data = doc.data();
-      return { id: doc.id, url: String(data.url ?? ""), label: String(data.label ?? "") };
+      // Varianta comprimată, ca poza aleasă să fie ușoară pe site.
+      return { id: doc.id, url: String(data.previewUrl || data.url || ""), label: String(data.label ?? "") };
     });
     res.json({ proposals, assets });
   } catch (error) {

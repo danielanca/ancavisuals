@@ -40,9 +40,10 @@ type FormData = {
 type PackageField = Exclude<keyof OfferPackage, "id">;
 
 const HERO_VIDEO_INPUTS: { field: keyof OfferHeroVideo; label: string; placeholder: string }[] = [
-  { field: "clipUrl", label: "Clip hero — internet slăbuț (ex. 540p, ideal sub 10 MB)", placeholder: "https://ancavisuals.b-cdn.net/…/hero-540p-mobil.mp4" },
-  { field: "clipHdUrl", label: "Clip hero — internet bun (ex. 720p, opțional)", placeholder: "https://ancavisuals.b-cdn.net/…/hero-720p.mp4" },
-  { field: "filmUrl", label: "Film pentru player „Vezi-ne la lucru” (pornește la play)", placeholder: "https://ancavisuals.b-cdn.net/…/film-1080p.mp4" },
+  { field: "clipUrl", label: "Clip hero — recomandat link HLS din Bunny Stream cu segmentul de buclă (…/playlist.m3u8#t=59,127 = secundele 59–127, calitate adaptivă); sau MP4 ușor (ex. 540p, ideal sub 10 MB)", placeholder: "https://vz-….b-cdn.net/<video-id>/playlist.m3u8#t=59,127" },
+  { field: "clipHdUrl", label: "Clip hero — internet bun (ex. 720p, opțional; ignorat când clipul de mai sus e HLS)", placeholder: "https://ancavisuals.b-cdn.net/…/hero-720p.mp4" },
+  { field: "filmUrl", label: "Film pentru player „Vezi-ne la lucru” (pornește la play) — recomandat link HLS din Bunny Stream (…/playlist.m3u8): calitatea se adaptează la viteza internetului", placeholder: "https://vz-….b-cdn.net/<video-id>/playlist.m3u8" },
+  { field: "filmPosterUrl", label: "Imagine de start a filmului (opțional — la Bunny Stream: thumbnail-ul din folderul filmului)", placeholder: "https://vz-….b-cdn.net/<video-id>/thumbnail_….jpg" },
 ];
 
 function newPackage(id = "package-1"): OfferPackage {

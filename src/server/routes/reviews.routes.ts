@@ -13,6 +13,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 const MAX_PHOTOS = 15;
 
 type ReviewCategory = "wedding" | "oferta" | "both";
+// Recenziile fără `status` (create înainte de draft) rămân publicate.
+type ReviewStatus = "draft" | "published";
+const parseStatus = (value: unknown): ReviewStatus => (value === "draft" ? "draft" : "published");
 type ReviewPhoto = { url: string; name: string };
 
 async function uploadReviewPhoto(file: Express.Multer.File): Promise<ReviewPhoto> {
@@ -52,6 +55,7 @@ function serializeReview(doc: FirebaseFirestore.DocumentSnapshot) {
     category: (data.category as ReviewCategory) ?? "wedding",
     offerSlug: (data.offerSlug as string | null) ?? null,
     order: typeof data.order === "number" ? data.order : 0,
+    status: parseStatus(data.status),
   };
 }
 
@@ -96,7 +100,8 @@ router.get("/", async (req: Request, res: Response) => {
 
   try {
     const snapshot = await firestore().collection(COLLECTION).where("category", "in", [category, "both"]).get();
-    let reviews = snapshot.docs.map(serializeReview);
+    // Draft-urile se văd doar în admin. Filtrăm în memorie: recenziile vechi nu au `status`.
+    let reviews = snapshot.docs.map(serializeReview).filter((r) => r.status === "published");
     if (category === "oferta") {
       reviews = reviews.filter((r) => !r.offerSlug || r.offerSlug === offerSlug);
     }
@@ -119,7 +124,7 @@ router.get("/admin/all", requireFirebaseAuth, requireSupremeAdmin, async (_req: 
 });
 
 router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
-  const { author, city, date, rating, text, category, offerSlug, verified, sourceFeedbackId, albumPhotoUrls, photoOrder, photoFileIds } = req.body as Record<string, string | undefined>;
+  const { author, city, date, rating, text, category, offerSlug, verified, sourceFeedbackId, albumPhotoUrls, photoOrder, photoFileIds, status } = req.body as Record<string, string | undefined>;
   if (!author?.trim() || !text?.trim()) {
     res.status(400).json({ error: "Nume și text sunt obligatorii." });
     return;
@@ -140,6 +145,7 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("ph
       verified: verified === "true",
       category: category === "both" ? "both" : category === "oferta" ? "oferta" : "wedding",
       offerSlug: category !== "wedding" && offerSlug?.trim() ? offerSlug.trim() : null,
+      status: parseStatus(status),
       order: Date.now(),
       createdAt: Timestamp.now(),
     };
@@ -156,7 +162,7 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, upload.array("ph
 });
 
 router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array("photos", MAX_PHOTOS), async (req: Request, res: Response) => {
-  const { author, city, date, rating, text, category, offerSlug, verified, keepPhotoUrls, albumPhotoUrls, photoOrder, photoFileIds } = req.body as Record<string, string | undefined>;
+  const { author, city, date, rating, text, category, offerSlug, verified, keepPhotoUrls, albumPhotoUrls, photoOrder, photoFileIds, status } = req.body as Record<string, string | undefined>;
   try {
     const ref = firestore().collection(COLLECTION).doc(req.params.id);
     const update: Record<string, unknown> = {};
@@ -169,6 +175,7 @@ router.put("/admin/:id", requireFirebaseAuth, requireSupremeAdmin, upload.array(
     if (offerSlug !== undefined) update.offerSlug = category !== "wedding" && offerSlug?.trim() ? offerSlug.trim() : null;
     if (category === "wedding") update.offerSlug = null;
     if (verified !== undefined) update.verified = verified === "true";
+    if (status !== undefined) update.status = parseStatus(status);
 
     if (keepPhotoUrls !== undefined) {
       const existingSnapshot = await ref.get();

@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- reaches into Express router internals and mock req/res */
 /*
  * Purpose: public showcase zones never send full-resolution album originals (they get the
- * album's optimized preview) nor photos over 350 KB — the admin gets those, flagged; videos stay.
+ * album's optimized preview) nor Media Assets originals that have a compressed copy
+ * (<name>.preview.webp), nor photos over 350 KB — the admin gets those, flagged; videos stay.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -11,12 +12,18 @@ const SIZES: Record<string, number> = {
   [`${CDN}/album/photos_preview/A.webp`]: 120_000,
   [`${CDN}/album/photos/B.jpg`]: 3_000_000, // no preview
   [`${CDN}/offers-assets/photo/big.jpg`]: 2_500_000,
+  [`${CDN}/offers-assets/photo/big.preview.webp`]: 80_000, // its compressed copy
   [`${CDN}/offers-assets/photo/small.jpg`]: 200_000,
   [`${CDN}/offers-assets/photo/medium.jpg`]: 400_000, // over 350 KB
 };
 
 // HEADs that finished without a size: B has no preview.
-const MISSING = new Set([`${CDN}/album/photos_preview/B.webp`]);
+// HEADs that finished without a size: B has no preview; small/medium have no compressed copy.
+const MISSING = new Set([
+  `${CDN}/album/photos_preview/B.webp`,
+  `${CDN}/offers-assets/photo/small.preview.webp`,
+  `${CDN}/offers-assets/photo/medium.preview.webp`,
+]);
 
 async function load(urls: string[], sizes: Record<string, number> = SIZES) {
   vi.stubEnv("BUNNY_CDN_DOMAIN", CDN);
@@ -57,6 +64,7 @@ describe("showcase zones: light photos", () => {
     expect(heavy).toBeUndefined();
     expect(photos).toEqual([
       `${CDN}/album/photos_preview/A.webp?token=t`,
+      `${CDN}/offers-assets/photo/big.preview.webp?token=t`,
       `${CDN}/offers-assets/photo/small.jpg?token=t`,
       `${CDN}/homepage/clip.mp4?token=t`,
     ]);
@@ -68,7 +76,6 @@ describe("showcase zones: light photos", () => {
     expect(photos).toContain(`${CDN}/album/photos/B.jpg?token=t`);
     expect(heavy).toEqual({
       [`${CDN}/album/photos/B.jpg?token=t`]: 3_000_000,
-      [`${CDN}/offers-assets/photo/big.jpg?token=t`]: 2_500_000,
       [`${CDN}/offers-assets/photo/medium.jpg?token=t`]: 400_000,
     });
   });
@@ -76,5 +83,16 @@ describe("showcase zones: light photos", () => {
   test("cold cache (sizes still loading): the album preview is sent, never the original", async () => {
     const { photos } = await call(await load([`${CDN}/27iunie2026/photos/Picture-0566.jpg?token=x`], {}));
     expect(photos).toEqual([`${CDN}/27iunie2026/photos_preview/Picture-0566.webp?token=t`]);
+  });
+
+  test("a Media Assets original is swapped for its compressed copy; an existing copy is never swapped again", async () => {
+    const { photos } = await call(await load([
+      `${CDN}/offers-assets/photo/big.jpg?token=x`,
+      `${CDN}/offers-assets/photo/big.preview.webp`,
+    ]));
+    expect(photos).toEqual([
+      `${CDN}/offers-assets/photo/big.preview.webp?token=t`,
+      `${CDN}/offers-assets/photo/big.preview.webp?token=t`,
+    ]);
   });
 });

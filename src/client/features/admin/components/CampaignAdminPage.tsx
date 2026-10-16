@@ -1,5 +1,5 @@
 import React, { useReducer, useEffect, useCallback, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import Breadcrumb from "./Breadcrumb";
 import type { CampaignPage, CampaignPackage } from "../../../pages/CampaignLanding/CampaignLandingPage";
 import ReorderableMediaGrid, { type ReorderableMediaItem } from "./shared/ReorderableMediaGrid";
@@ -399,7 +399,20 @@ type MediaSource = { id: string; url: string; label: string; kind: "asset" | "pr
 function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
   const galleryInputRef = React.useRef<HTMLInputElement>(null);
   const [showPicker, setShowPicker] = useState<"gallery" | "heroImage" | "heroVideo" | null>(null);
-  const [galleryDevice, setGalleryDevice] = useState<"desktop" | "mobile">("desktop");
+  // Link din butonul de admin de pe pagina publică: `?sectiune=galerie&device=mobile|desktop`
+  // → deschide lista potrivită și derulează la galerie, evidențiind-o câteva secunde.
+  const [searchParams] = useSearchParams();
+  const linkedToGallery = searchParams.get("sectiune") === "galerie";
+  const [galleryDevice, setGalleryDevice] = useState<"desktop" | "mobile">(() =>
+    linkedToGallery && searchParams.get("device") === "mobile" ? "mobile" : "desktop");
+  const galleryCardRef = React.useRef<HTMLDivElement>(null);
+  const [highlightGallery, setHighlightGallery] = useState(linkedToGallery);
+  useEffect(() => {
+    if (!linkedToGallery) return;
+    galleryCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const timer = window.setTimeout(() => setHighlightGallery(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, [linkedToGallery]);
   const galleryDesktop = page.galleryDesktop ?? [];
   const galleryMobile = page.galleryMobile ?? [];
   const activeGalleryList = galleryDevice === "desktop" ? galleryDesktop : galleryMobile;
@@ -654,7 +667,11 @@ function EditView({ page, state, dispatch, onSave, onDelete }: EditViewProps) {
 
         {/* ── Right: Gallery + Packages + Testimonials ── */}
         <div className="space-y-5">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+          <div
+            ref={galleryCardRef}
+            id="galerie"
+            className={`scroll-mt-6 bg-neutral-900 border rounded-xl p-5 transition-shadow duration-700 ${highlightGallery ? "border-amber-400 ring-2 ring-amber-400/60" : "border-neutral-800"}`}
+          >
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs text-neutral-400 uppercase tracking-wider">Galerie ({galleryDesktop.length} desktop · {galleryMobile.length} mobil)</h3>
               <div className="flex items-center gap-3">

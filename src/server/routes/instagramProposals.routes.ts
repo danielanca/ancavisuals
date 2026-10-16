@@ -54,15 +54,47 @@ function previewPhotoUrl(originalUrl: string): string {
   }
 }
 
+// Bunny răspunde uneori 400 „Unable to upload file” când o încărcare se întrerupe (ex. multe
+// acceptări rapide, fiecare cu descărcare + încărcare + WebP). Reîncercăm de câteva ori.
+const UPLOAD_ATTEMPTS = 3;
+const UPLOAD_RETRY_DELAYS_MS = [600, 1800];
+
 async function uploadToBunny(buffer: Buffer, bunnyPath: string, contentType: string): Promise<void> {
   const key = getBunnyStorageKey();
-  const response = await fetch(buildBunnyStorageUrl(bunnyPath), {
-    method: "PUT",
-    headers: { [BUNNY_ACCESS_KEY_HEADER]: key, "Content-Type": contentType },
-    body: buffer,
-  });
-  if (!response.ok) {
-    throw new Error(`Bunny upload failed: ${response.status} ${await response.text()}`);
+  for (let attempt = 1; ; attempt++) {
+    const response = await fetch(buildBunnyStorageUrl(bunnyPath), {
+      method: "PUT",
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: key, "Content-Type": contentType },
+      body: buffer,
+    });
+    if (response.ok) return;
+    const detail = await response.text();
+    const retryable = response.status === 400 || response.status === 429 || response.status >= 500;
+    if (!retryable || attempt >= UPLOAD_ATTEMPTS) {
+      throw new Error(`Bunny upload failed: ${response.status} ${detail}`);
+    }
+    console.warn(`[instagram-proposals] Bunny upload ${response.status} pentru ${bunnyPath}, reîncerc (${attempt}/${UPLOAD_ATTEMPTS - 1})`);
+    await new Promise(resolve => setTimeout(resolve, UPLOAD_RETRY_DELAYS_MS[attempt - 1] ?? 2000));
+  }
+}
+
+// Cel mult 2 importuri în Media Assets deodată (fiecare: descărcare original, încărcare, WebP cu
+// sharp) — acceptările rapide din admin nu mai pornesc zeci de încărcări grele în paralel.
+const MAX_PARALLEL_IMPORTS = 2;
+let runningImports = 0;
+const importQueue: Array<() => void> = [];
+
+export async function withImportSlot<T>(task: () => Promise<T>): Promise<T> {
+  // Locul eliberat trece direct la următorul din coadă (fără să scadă contorul), ca un import
+  // nou să nu poată intra între timp peste limită.
+  if (runningImports < MAX_PARALLEL_IMPORTS) runningImports++;
+  else await new Promise<void>(resolve => importQueue.push(resolve));
+  try {
+    return await task();
+  } finally {
+    const next = importQueue.shift();
+    if (next) next();
+    else runningImports--;
   }
 }
 
@@ -339,7 +371,7 @@ router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Reque
       if (destinations.length > 0) updates.destinations = destinations;
       if (destinations.includes(MEDIA_DESTINATION)) {
         const proposalWithOverride = { ...proposal, destinations };
-        const createdAssetIds = await importProposalToMediaAssets(id, proposalWithOverride);
+        const createdAssetIds = await withImportSlot(() => importProposalToMediaAssets(id, proposalWithOverride));
         if (createdAssetIds.length > 0) {
           updates.mediaAssetIds = createdAssetIds;
           updates.mediaAssetsImportedAt = Timestamp.now();

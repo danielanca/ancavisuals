@@ -48,6 +48,8 @@ type Offer = {
   heroVideo?: OfferHeroVideo;
 };
 
+const toGalleryItem = (asset: OfferAsset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id, sizeBytes: asset.sizeBytes });
+
 function offerToCampaign(offer: Offer): CampaignPage {
   const assets = offer.serviceSections.flatMap((section) => section.assets);
   const images = assets.filter((asset) => asset.kind === "image");
@@ -68,9 +70,19 @@ function offerToCampaign(offer: Offer): CampaignPage {
     // The film plays in "Vezi-ne la lucru" (on tap); the hero only ever gets the short clip.
     heroVideoUrl: "",
     videoUrl: offer.heroVideo?.filmUrl || videos[0]?.displayUrl || videos[0]?.url || "",
+    videoThumbnailUrl: offer.heroVideo?.filmUrl ? offer.heroVideo.filmPosterUrl : undefined,
     heroClipUrl: offer.heroVideo?.clipUrl,
     heroClipHdUrl: offer.heroVideo?.clipHdUrl,
-    gallery: images.map((asset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id, sizeBytes: asset.sizeBytes })),
+    gallery: images.map(toGalleryItem),
+    // Ordinea aranjată separat pentru desktop / mobil în /admin/template-oferte/<serviciu>
+    // (un serviciu fără listă de mobil o folosește pe cea de desktop).
+    galleryDesktop: images.map(toGalleryItem),
+    galleryMobile: offer.serviceSections
+      .flatMap((section) => (section.assetsMobile?.length ? section.assetsMobile : section.assets))
+      .filter((asset) => asset.kind === "image")
+      .map(toGalleryItem),
+    // Pozele vin din șablonul ofertei (Media Assets pe servicii), nu dintr-o campanie.
+    adminGalleryEditPath: "/admin/template-oferte/photo",
     packages: (offer.packages ?? []).map((pkg) => ({
       id: pkg.id,
       name: pkg.name,

@@ -270,6 +270,49 @@ describe("instagramProposals.routes", () => {
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
 
+    test("a Bunny upload refused with 400 is retried and the import still succeeds", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.doMock("src/server/utils/downloadBunnyOriginal", () => ({ downloadBunnyOriginal: async () => ({ buffer: Buffer.from("jpg"), contentType: "image/jpeg" }) }));
+      vi.doMock("src/server/utils/mediaAssetPreview", () => ({ createMediaAssetPreview: async () => ({}) }));
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce({ ok: false, status: 400, text: async () => '{"HttpCode":400,"Message":"Unable to upload file: "}' })
+        .mockResolvedValueOnce({ ok: true, status: 201, text: async () => "" });
+      vi.stubGlobal("fetch", fetchMock);
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { patchStatus, docGetMock, whereMock, addMock, updateMock } = await loadInstagramProposalsRouter();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ albumSlug: "album", fileName: "IMG_1.jpg", photoUrl: "https://cdn.test/album/photos/IMG_1.jpg", destinations: ["media_assets"], mediaAssetServiceIds: ["photo"] }) });
+      whereMock.mockResolvedValue({ docs: [] });
+      addMock.mockResolvedValue({ id: "asset-new" });
+      const res = createMockResponse();
+
+      await patchStatus({ params: { id: "vote-1" }, body: { status: "accepted" } }, res);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ status: "accepted", mediaAssetIds: ["asset-new"] }));
+      expect(res.json).toHaveBeenCalledWith({ ok: true });
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    test("at most two Media Assets imports run at once; the rest wait their turn", async () => {
+      const { withImportSlot } = await import("src/server/routes/instagramProposals.routes");
+      let running = 0;
+      let peak = 0;
+      const releases: Array<() => void> = [];
+      const task = () => withImportSlot(async () => {
+        running++;
+        peak = Math.max(peak, running);
+        await new Promise<void>((resolve) => releases.push(resolve));
+        running--;
+      });
+      const all = Promise.all([task(), task(), task(), task()]);
+      await vi.waitFor(() => expect(releases).toHaveLength(2));
+      while (releases.length) { releases.shift()!(); await new Promise((r) => setTimeout(r, 0)); }
+      await vi.waitFor(() => expect(running).toBe(0));
+      await all;
+      expect(peak).toBe(2);
+    });
+
     test("updates status to rejected", async () => {
       const { patchStatus, updateMock } = await loadInstagramProposalsRouter();
       const res = createMockResponse();

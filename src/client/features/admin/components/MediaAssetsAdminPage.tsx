@@ -89,23 +89,11 @@ export default function MediaAssetsAdminPage() {
   const [reprocessSummary, setReprocessSummary] = useState<string | null>(null);
   const [generatingAltIds, setGeneratingAltIds] = useState<Set<string>>(new Set());
   const [bulkAltProgress, setBulkAltProgress] = useState<{ done: number; total: number } | null>(null);
-  const [qrEmailPhotoIds, setQrEmailPhotoIds] = useState<string[]>([]);
-  const [savedQrEmailPhotoIds, setSavedQrEmailPhotoIds] = useState<string[]>([]);
-  const [savingQrEmailPhotos, setSavingQrEmailPhotos] = useState(false);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     if (!auth.accessToken) return;
     void loadAssets();
-    void fetch("/api/oferte/admin/media-assets/qr-email-photos", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
-      .then(async response => {
-        const data = await readJsonResponse<{ assetIds?: string[]; error?: string }>(response);
-        if (!response.ok) throw new Error(data.error ?? "Nu am putut incarca pozele selectate.");
-        const ids = data.assetIds ?? [];
-        setQrEmailPhotoIds(ids);
-        setSavedQrEmailPhotoIds(ids);
-      })
-      .catch(loadError => setError(loadError instanceof Error ? loadError.message : String(loadError)));
     void fetch("/api/admin/ui-state", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
       .then(r => r.json())
       .then((data: { mediaAssetsCollapsed?: string[] }) => {
@@ -137,34 +125,6 @@ export default function MediaAssetsAdminPage() {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
       setLoading(false);
-    }
-  }
-
-  function toggleQrEmailPhoto(assetId: string) {
-    setQrEmailPhotoIds(current => {
-      if (current.includes(assetId)) return current.filter(id => id !== assetId);
-      if (current.length >= 5) return current;
-      return [...current, assetId];
-    });
-  }
-
-  async function saveQrEmailPhotos() {
-    if (qrEmailPhotoIds.length !== 5) return;
-    setSavingQrEmailPhotos(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/oferte/admin/media-assets/qr-email-photos", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-        body: JSON.stringify({ assetIds: qrEmailPhotoIds }),
-      });
-      const data = await readJsonResponse<{ ok?: boolean; error?: string }>(response);
-      if (!response.ok || !data.ok) throw new Error(data.error ?? "Nu am putut salva selectia.");
-      setSavedQrEmailPhotoIds(qrEmailPhotoIds);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError));
-    } finally {
-      setSavingQrEmailPhotos(false);
     }
   }
 
@@ -450,41 +410,6 @@ export default function MediaAssetsAdminPage() {
             {reprocessSummary}
           </div>
         )}
-
-        <section className="rounded-2xl border border-amber-900/70 bg-amber-950/20 p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-lg font-medium text-amber-100">Poze pentru emailul QR Moments</h2>
-              <p className="mt-1 text-sm text-neutral-400">Alege cele 5 fotografii care apar în footerul emailurilor. Ordinea selectării este ordinea din email.</p>
-            </div>
-            <button type="button" onClick={() => void saveQrEmailPhotos()} disabled={qrEmailPhotoIds.length !== 5 || savingQrEmailPhotos || (qrEmailPhotoIds.length === savedQrEmailPhotoIds.length && qrEmailPhotoIds.every((id, i) => id === savedQrEmailPhotoIds[i]))} className="shrink-0 rounded-lg border border-amber-700 px-4 py-2 text-sm text-amber-200 hover:bg-amber-900/30 disabled:cursor-not-allowed disabled:opacity-40">
-              {savingQrEmailPhotos ? "Se salvează..." : "Salvează cele 5 poze"}
-            </button>
-          </div>
-          <p className="mt-3 text-xs text-neutral-500">Selectate: {qrEmailPhotoIds.length}/5</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {assets.filter(asset => qrEmailPhotoIds.includes(asset.id)).map((asset, index) => (
-              <div key={asset.id} className="relative overflow-hidden rounded-xl border border-amber-800 bg-neutral-950 p-2">
-                <img src={assetUrl(asset)} alt={asset.alt || asset.label} className="h-32 w-full object-contain" />
-                <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-black">{index + 1}</span>
-                <button type="button" onClick={() => toggleQrEmailPhoto(asset.id)} className="mt-2 w-full rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:border-red-700 hover:text-red-300">Elimină din selecție</button>
-              </div>
-            ))}
-          </div>
-          {assets.filter(asset => asset.kind === "image").length === 0 ? (
-            <p className="mt-4 text-sm text-neutral-500">Adaugă fotografii în biblioteca de mai jos ca să le poți selecta.</p>
-          ) : (
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-8">
-              {assets.filter(asset => asset.kind === "image").map(asset => {
-                const selected = qrEmailPhotoIds.includes(asset.id);
-                return <button key={asset.id} type="button" onClick={() => toggleQrEmailPhoto(asset.id)} aria-pressed={selected} title={asset.label} className={`relative overflow-hidden rounded-lg border-2 bg-neutral-950 ${selected ? "border-amber-400" : "border-neutral-800 hover:border-neutral-500"}`}>
-                  <img src={assetUrl(asset)} alt={asset.alt || asset.label} className="h-20 w-full object-cover" loading="lazy" />
-                  {selected && <span className="absolute right-1 top-1 rounded-full bg-amber-400 px-1.5 text-[10px] font-bold text-black">{qrEmailPhotoIds.indexOf(asset.id) + 1}</span>}
-                </button>;
-              })}
-            </div>
-          )}
-        </section>
 
         <div className="space-y-5">
           {OFFER_SERVICES.map(service => {

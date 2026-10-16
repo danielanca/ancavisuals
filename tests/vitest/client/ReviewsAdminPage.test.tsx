@@ -28,6 +28,36 @@ test("accepting feedback opens an editable draft and publishes only when the own
   expect(options.body.get("rating")).toBe("0");
   expect(options.body.get("category")).toBe("both");
   expect(options.body.get("offerSlug")).toBe("olx");
+  expect(options.body.get("status")).toBe("published");
+});
+
+test("feedback can be accepted as a draft", async () => {
+  render(<MemoryRouter initialEntries={[{ pathname: "/admin/recenzii", state: { feedback } }]}><ReviewsAdminPage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "Acceptă ca draft" }));
+  await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options.method === "POST")).toBe(true));
+  const [, options] = fetchMock.mock.calls.find(([, options]) => options.method === "POST")!;
+  expect(options.body.get("status")).toBe("draft");
+  expect(options.body.get("sourceFeedbackId")).toBe(feedback.id);
+});
+
+test("lists drafts separately and toggles publication from the list", async () => {
+  const review = (id: string, author: string, status: "draft" | "published") => ({ id, author, status, date: "2026-10-01", rating: 5, text: `Text ${author}`, photos: [], verified: false, category: "wedding", offerSlug: null });
+  fetchMock.mockImplementation(async (_url, options) => options?.method === "PUT"
+    ? { ok: true, json: async () => ({ review: {} }) }
+    : { ok: true, json: async () => ({ reviews: [review("r1", "Ana", "draft"), review("r2", "Ion", "published")] }) });
+  render(<MemoryRouter><ReviewsAdminPage /></MemoryRouter>);
+
+  expect(await screen.findByText("Draft · nu apare pe site")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Draft (1)" }));
+  expect(screen.getByText("Ana")).toBeInTheDocument();
+  expect(screen.queryByText("Ion")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Publică" }));
+  await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options?.method === "PUT")).toBe(true));
+  const [url, options] = fetchMock.mock.calls.find(([, options]) => options?.method === "PUT")!;
+  expect(url).toBe("/api/reviews/admin/r1");
+  expect(options.body.get("status")).toBe("published");
+  expect(await screen.findByText("Nicio recenzie în draft.")).toBeInTheDocument();
 });
 
 test("manual creation remains available and a failed acceptance keeps the draft for correction", async () => {

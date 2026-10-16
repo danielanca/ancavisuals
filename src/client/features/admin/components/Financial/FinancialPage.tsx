@@ -7,6 +7,7 @@ import { ROMANIAN_COUNTIES, getCitiesForCounty } from "../../../../data/romaniaL
 import { isReverseChargeSupplier, STANDARD_VAT_RATE } from "../../../../../shared/finance/reverseChargeSuppliers";
 import { findExpenseDuplicate } from "../../../../../shared/finance/expenseDuplicates";
 import { SMIN_2026, calcPfaTax, calcSetAside } from "../../../../../shared/finance/pfaTax";
+import { fiscalizedEventsToInvoice } from "../../../../../shared/finance/taxProjection";
 import AiContextChat from "../AiContextChat";
 import { useSearchable } from "../dashboardSearchRegistry";
 
@@ -92,68 +93,6 @@ interface Invoice {
 }
 
 // ─── PFA Tax Calculator ───────────────────────────────────────────────────────
-
-// Proiecție la 31 dec pentru anul curent: ritm uniform + scenariu pe evenimente rezervate.
-// Folosită de tab-ul Taxe, de cota "cât să pui deoparte" și de contextul chat-ului AI,
-// ca toate trei să lucreze cu aceleași cifre. null dacă nu e destul istoric (< ½ lună).
-function projectTaxYear({ currentBase, totalIncome, events, invoices, exchangeRate, now }: {
-  currentBase: number;
-  totalIncome: number;
-  events: ClientEvent[];
-  invoices: Invoice[];
-  exchangeRate: number;
-  now: Date;
-}) {
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const monthsElapsed = now.getMonth() + now.getDate() / daysInMonth;
-  if (monthsElapsed < 0.5) return null;
-
-  const factor = 12 / monthsElapsed;
-  const projectedBase = currentBase * factor;
-  const projectedIncome = totalIncome * factor;
-  const monthlyRate = currentBase / monthsElapsed;
-
-  // În loc să presupunem venit uniform, ne uităm la evenimentele confirmate/tentative
-  // care mai urmează până la 31 dec și le adunăm pe rând, în ordinea datei.
-  // Doar cele FISCALIZATE: cele nefiscalizate nu primesc factură, deci nu intră la taxe.
-  const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-  const invoicedEventIds = new Set(invoices.filter((inv) => inv.eventId).map((inv) => inv.eventId as string));
-  const remainingEvents = events
-    // Type guard în loc de `(e.eventDate as Date) > now`: Babel-ul din plugin-react (React
-    // Refresh în dev) pierde parantezele din jurul cast-ului și esbuild nu mai parsează codul.
-    .filter((e): e is ClientEvent & { eventDate: Date } => e.eventDate instanceof Date)
-    .filter((e) => e.status === "confirmat" || e.status === "tentativ")
-    .filter((e) => e.eventDate > now && e.eventDate <= endOfYear);
-  const withExpectedNet = (list: typeof remainingEvents) => list
-    .map((e) => ({
-      ...e,
-      // Prețurile evenimentelor sunt în EUR — le convertim la RON. Dacă evenimentul e deja
-      // facturat parțial, numărăm doar restul rămas (restul e deja prins în totalIncome).
-      expectedNet: (invoicedEventIds.has(e.id) ? Math.max(0, e.pricing.remainingAmount) : e.pricing.total) * exchangeRate,
-    }))
-    .sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
-  const upcomingEvents = withExpectedNet(remainingEvents.filter((e) => e.fiscalized === true));
-  // Nefiscalizatele nu intră în proiecție; le păstrăm pentru simularea „dacă le fiscalizez”.
-  const unfiscalizedEvents = withExpectedNet(remainingEvents.filter((e) => e.fiscalized !== true));
-  const unfiscalizedCount = unfiscalizedEvents.length;
-
-  // Cotă de profit reținut din venitul brut, extrasă din cheltuielile deductibile de până
-  // acum — o aplicăm și la venitul viitor din evenimente.
-  const dedRatio = totalIncome > 0 ? currentBase / totalIncome : 1;
-  const expectedFromEvents = upcomingEvents.reduce((sum, e) => sum + e.expectedNet, 0);
-  const projectedIncomeEvents = totalIncome + expectedFromEvents;
-  const projectedBaseEvents = currentBase + expectedFromEvents * dedRatio;
-  const hasEvents = upcomingEvents.length > 0;
-
-  return {
-    monthsElapsed, monthlyRate, dedRatio,
-    projectedBase, projectedIncome,
-    upcomingEvents, expectedFromEvents, projectedIncomeEvents, projectedBaseEvents, hasEvents, unfiscalizedEvents, unfiscalizedCount,
-    // Scenariul afișat ca principal: pe evenimente dacă există, altfel ritm uniform.
-    finalBase: hasEvents ? projectedBaseEvents : projectedBase,
-    finalIncome: hasEvents ? projectedIncomeEvents : projectedIncome,
-  };
-}
 
 interface State {
   activeTab: ActiveTab;
@@ -403,96 +342,6 @@ function matchesSearch(query: string, parts: Array<string | null | undefined>): 
 }
 
 let activeInfoBadgeId: string | null = null;
-
-// Simulare „ce-ar fi dacă”: evenimentele nefiscalizate rămase anul ăsta, bifate local (nu se
-// salvează nimic), adunate peste proiecția pe facturi + evenimente fiscalizate.
-function FiscalizationSimulator({ year, events, baseWithoutThem, dedRatio }: {
-  year: number;
-  events: (ClientEvent & { eventDate: Date; expectedNet: number })[];
-  baseWithoutThem: number;
-  dedRatio: number;
-}) {
-  const [picked, setPicked] = useState<Set<string>>(() => new Set());
-  const toggle = (id: string) => setPicked((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const allPicked = picked.size === events.length;
-
-  const baseTax = calcPfaTax(baseWithoutThem);
-  const addedIncome = events.filter((e) => picked.has(e.id)).reduce((sum, e) => sum + e.expectedNet, 0);
-  const simBase = baseWithoutThem + addedIncome * dedRatio;
-  const simTax = calcPfaTax(simBase);
-  const diff = simTax.total - baseTax.total;
-  const casJump = simTax.cas > baseTax.cas;
-
-  return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-white">Simulare: dacă le fiscalizezi</p>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Evenimentele nefiscalizate rămase în {year}. Bifează-le ca să vezi cât ai plăti în plus. Nu se salvează nimic — ca să intre în calcul, bifează „Fiscalizat” pe eveniment.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setPicked(allPicked ? new Set() : new Set(events.map((e) => e.id)))}
-          className="shrink-0 text-xs text-violet-400 hover:text-violet-300"
-        >
-          {allPicked ? "Debifează tot" : "Bifează tot"}
-        </button>
-      </div>
-
-      <div className="divide-y divide-neutral-800/60 rounded-lg border border-neutral-800">
-        {events.map((e) => (
-          <label key={e.id} className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-neutral-800/30">
-            <span className="flex min-w-0 items-center gap-2.5">
-              <input type="checkbox" checked={picked.has(e.id)} onChange={() => toggle(e.id)} className="h-4 w-4 shrink-0 accent-amber-500" />
-              <span className="min-w-0">
-                <span className="block truncate text-neutral-200">
-                  {e.client.fullName} <span className="text-neutral-600">· {e.type}</span>
-                </span>
-                <span className="block text-neutral-600">
-                  {e.eventDate.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" })}
-                  {" · "}
-                  <span className={e.status === "confirmat" ? "text-emerald-400" : "text-amber-400"}>
-                    {e.status === "confirmat" ? "Confirmat" : "Tentativ"}
-                  </span>
-                </span>
-              </span>
-            </span>
-            <span className="shrink-0 font-medium text-white">+{fmtCurrency(e.expectedNet, "RON")}</span>
-          </label>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div>
-          <p className="text-xs text-neutral-500">Taxe acum (fără ele)</p>
-          <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(baseTax.total, "RON")}</p>
-        </div>
-        <div>
-          <p className="text-xs text-neutral-500">Taxe cu cele bifate</p>
-          <p className="text-amber-300 font-semibold text-sm mt-0.5">{fmtCurrency(simTax.total, "RON")}</p>
-        </div>
-        <div>
-          <p className="text-xs text-neutral-500">Diferență</p>
-          <p className={`font-medium text-sm mt-0.5 ${diff > 0 ? "text-red-300" : "text-neutral-400"}`}>
-            {diff > 0 ? "+" : ""}{fmtCurrency(diff, "RON")}
-          </p>
-        </div>
-      </div>
-      {picked.size > 0 && (
-        <p className="text-xs text-neutral-500">
-          Profit estimat la 31 dec: {fmtCurrency(simBase, "RON")} (impozit {fmtCurrency(simTax.impozit, "RON")} · CASS {fmtCurrency(simTax.cass, "RON")} · CAS {fmtCurrency(simTax.cas, "RON")}).
-          {casJump && <span className="text-red-300"> Trece pragul CAS — apare pensia de {fmtCurrency(simTax.cas - baseTax.cas, "RON")}.</span>}
-        </p>
-      )}
-    </div>
-  );
-}
 
 function InfoBadge({ title, description }: { title: string; description: string }) {
   const detailsRef = React.useRef<HTMLDetailsElement>(null);
@@ -1785,7 +1634,6 @@ const FinancialPage: React.FC = () => {
   const { auth } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
   // Tab Taxe: „până azi” (din facturi) vs „până la 31 dec” (facturi + evenimente fiscalizate).
-  const [taxView, setTaxView] = useState<"azi" | "an">("azi");
   // Per-day EUR→RON rates from BNR (see /api/admin/exchange-rates), keyed by ISO date,
   // so each invoice/expense converts at the rate that actually applied on its own date.
   const [eurRates, setEurRates] = React.useState<{ rates: Record<string, number>; latest: number }>({ rates: {}, latest: 5 });
@@ -1867,6 +1715,18 @@ const FinancialPage: React.FC = () => {
       .catch(() => dispatch({ type: "SET_LOADING_INVOICES", value: false }));
   }, [auth.accessToken, state.selectedYear, authHeader]);
 
+  // Facturile din toți anii — doar pentru proiecția de final de an: din evenimentele viitoare
+  // scădem ce s-a facturat deja pentru ele (ex. avansul facturat anul trecut). Se reîncarcă
+  // când se schimbă facturile anului selectat (factură nouă / ștearsă).
+  const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
+  useEffect(() => {
+    if (!auth.accessToken) return;
+    fetch("/api/admin/invoices", { headers: authHeader })
+      .then((r) => r.json())
+      .then((data) => setAllInvoices(data.invoices ?? []))
+      .catch(() => {});
+  }, [auth.accessToken, authHeader, state.invoices]);
+
   // Load events + fiscal settings once
   useEffect(() => {
     if (!auth.accessToken) return;
@@ -1937,27 +1797,24 @@ const FinancialPage: React.FC = () => {
     };
   }, [state.invoices, state.expenses, rateForDate]);
 
-  const projection = useMemo(() => {
-    if (state.selectedYear !== CURRENT_YEAR || overview.totalIncome <= 0) return null;
-    return projectTaxYear({
-      currentBase: Math.max(0, overview.taxableBase),
-      totalIncome: overview.totalIncome,
-      events: state.events,
-      invoices: state.invoices,
-      exchangeRate,
-      now: new Date(),
-    });
-  }, [state.selectedYear, state.events, state.invoices, overview.totalIncome, overview.taxableBase, exchangeRate]);
-
   // Rezumat text pentru asistentul financiar — cifrele calculate pe ecran (taxe, proiecție,
   // cotă de pus deoparte). Datele brute (facturi, cheltuieli, extrase) le citește singur pe server.
+  // Varianta 2 din tab-ul Taxe: facturi emise + ce mai e de facturat din evenimentele viitoare
+  // fiscalizate din anul selectat. Fără cheltuieli viitoare presupuse (limită de sus).
+  const yearEndProjection = useMemo(() => {
+    const events = fiscalizedEventsToInvoice(state.events, allInvoices, { year: state.selectedYear, now: new Date(), eurRate: exchangeRate });
+    const addedRon = events.reduce((sum, row) => sum + row.toInvoiceRon, 0);
+    const base = Math.max(0, overview.taxableBase + addedRon);
+    return { events, addedRon, base, income: overview.totalIncome + addedRon, tax: calcPfaTax(base) };
+  }, [state.events, allInvoices, state.selectedYear, exchangeRate, overview.taxableBase, overview.totalIncome]);
+
   const financeAiContext = useMemo(() => {
     const ron = (value: number) => `${Math.round(value * 100) / 100} RON`;
     const toRON = (amount: number, currency: string, dateIso: string) =>
       currency === "EUR" ? amount * rateForDate(dateIso) : amount;
     const currentBase = Math.max(0, overview.taxableBase);
     const tax = calcPfaTax(currentBase);
-    const setAside = calcSetAside(currentBase, overview.totalIncome, projection);
+    const setAside = calcSetAside(currentBase, overview.totalIncome);
 
     const byCategory = new Map<string, { total: number; deductible: number; count: number }>();
     const bySupplier = new Map<string, number>();
@@ -1983,24 +1840,11 @@ const FinancialPage: React.FC = () => {
       ? `ATENȚIE: filtrul de lună e activ (${MONTHS[state.selectedMonth]}${state.selectedMonthTo > state.selectedMonth ? `–${MONTHS[state.selectedMonthTo]}` : ""}) — cheltuielile de mai jos sunt doar din acea perioadă, deci profitul e supraestimat față de anul întreg.`
       : "Cheltuielile acoperă tot anul selectat.";
 
-    let projectionText = "Nu există proiecție de final de an (an trecut, fără încasări sau prea devreme în an).";
-    if (projection) {
-      const finalTax = calcPfaTax(projection.finalBase);
-      const casThreshold = 12 * SMIN_2026;
-      const casGap = casThreshold - projection.finalBase;
-      const eventLines = projection.upcomingEvents.map((e) =>
-        `- ${(e.eventDate as Date).toLocaleDateString("ro-RO")} · ${e.type} · ${e.status} · +${ron(e.expectedNet)} încasare estimată`);
-      projectionText = [
-        `Scenariu folosit: ${projection.hasEvents ? "evenimente FISCALIZATE rezervate (confirmate + tentative) până la 31 dec" : "ritm uniform de până acum"}. Evenimentele nefiscalizate nu primesc factură și nu intră la taxe${projection.unfiscalizedCount ? ` (${projection.unfiscalizedCount} excluse până la 31 dec)` : ""}.`,
-        `Marja de profit de până acum (profit ÷ încasări): ${Math.round(projection.dedRatio * 100)}% — aplicată și la încasările viitoare.`,
-        projection.hasEvents ? `Evenimente fiscalizate rămase (${projection.upcomingEvents.length}, total ${ron(projection.expectedFromEvents)}):\n${eventLines.join("\n")}` : "",
-        `Încasări estimate la 31 dec: ${ron(projection.finalIncome)}. Profit estimat la 31 dec: ${ron(projection.finalBase)}.`,
-        `Taxe estimate an întreg: impozit ${ron(finalTax.impozit)}, CASS ${ron(finalTax.cass)}, CAS ${ron(finalTax.cas)}, total ${ron(finalTax.total)}.`,
-        casGap > 0
-          ? `Prag CAS (${ron(casThreshold)}): profitul estimat e cu ${ron(casGap)} SUB prag. Dacă profitul crește cu mai mult de atât, apare CAS ${ron(casThreshold * 0.25)}.`
-          : `Prag CAS (${ron(casThreshold)}): profitul estimat e cu ${ron(-casGap)} PESTE prag — cheltuieli deductibile reale de peste ${ron(-casGap)} până la 31 dec ar elimina CAS-ul de ${ron(casThreshold * 0.25)}.`,
-      ].filter(Boolean).join("\n");
-    }
+    const casThreshold = 12 * SMIN_2026;
+    const casGap = casThreshold - currentBase;
+    const thresholdText = casGap > 0
+      ? `Profitul din facturi e cu ${ron(casGap)} SUB pragul CAS (${ron(casThreshold)}). Dacă îl depășește, apare CAS ${ron(casThreshold * 0.25)}.`
+      : `Profitul din facturi e cu ${ron(-casGap)} PESTE pragul CAS (${ron(casThreshold)}).`;
 
     return [
       `Pagina curentă: Financiar, tab-ul "${TAB_LABELS[state.activeTab]}", anul selectat ${state.selectedYear}.`,
@@ -2015,7 +1859,7 @@ const FinancialPage: React.FC = () => {
       `- CAS: bază ${ron(tax.casBase)}, sumă ${ron(tax.cas)}`,
       `- Impozit: bază ${ron(tax.incomeTaxBase)}, sumă ${ron(tax.impozit)}`,
       `- Total taxe pe profitul de până acum: ${ron(tax.total)}`,
-      `- Recomandare afișată: pune deoparte ${Math.round(setAside.rate * 100)}% din fiecare încasare nouă (${setAside.basedOnProjection ? "pe baza proiecției de final de an" : "cotă marginală"}).`,
+      `- Recomandare afișată: pune deoparte ${Math.round(setAside.rate * 100)}% din fiecare factură nouă (cotă marginală, fără salt CAS).`,
       "",
       "Cheltuieli pe categorii (în RON):",
       categoryLines.join("\n") || "- nicio cheltuială înregistrată",
@@ -2023,10 +1867,19 @@ const FinancialPage: React.FC = () => {
       "Furnizori principali după suma deductibilă:",
       supplierLines.join("\n") || "- niciunul",
       "",
-      "Proiecție la 31 decembrie:",
-      projectionText,
+      "Praguri:",
+      thresholdText,
+      "",
+      "VARIANTA 2 — Proiecție la 31 dec (separată de situația reală de mai sus): facturi emise + ce mai e de facturat din evenimentele viitoare marcate Fiscalizat din acest an (prețul minus facturile deja legate de eveniment, din orice an). Fără cheltuieli viitoare presupuse.",
+      yearEndProjection.events.length === 0
+        ? "- Nu există evenimente viitoare fiscalizate în anul selectat; proiecția = situația reală."
+        : [
+          ...yearEndProjection.events.map((row) => `- ${row.date.toLocaleDateString("ro-RO")} · ${row.event.type} · ${row.event.status} · preț ${row.totalEur} EUR, deja facturat ${Math.round(row.invoicedEur * 100) / 100} EUR, de facturat ${ron(row.toInvoiceRon)}`),
+          `- Încasări estimate la 31 dec: ${ron(yearEndProjection.income)}; profit estimat: ${ron(yearEndProjection.base)}`,
+          `- Taxe estimate la 31 dec: impozit ${ron(yearEndProjection.tax.impozit)}, CASS ${ron(yearEndProjection.tax.cass)}, CAS ${ron(yearEndProjection.tax.cas)}, total ${ron(yearEndProjection.tax.total)} (față de ${ron(tax.total)} acum)`,
+        ].join("\n"),
     ].join("\n");
-  }, [overview, projection, state.expenses, state.selectedYear, state.selectedMonth, state.selectedMonthTo, state.activeTab, exchangeRate, rateForDate]);
+  }, [overview, yearEndProjection, state.expenses, state.selectedYear, state.selectedMonth, state.selectedMonthTo, state.activeTab, exchangeRate, rateForDate]);
 
   const filteredExpenses = useMemo(() => {
     const q = state.expenseSearch.trim();
@@ -2363,13 +2216,15 @@ const FinancialPage: React.FC = () => {
 
         {/* ─── Taxe & Estimări Tab ─── */}
         {state.activeTab === "taxe" && (() => {
+          // Totul pornește de la „Facturi emise” din anul selectat: evenimentele făcute ȘI
+          // avansurile încasate pentru anul următor. Fără estimări din evenimente sau din ritm.
+          const currentBase = Math.max(0, overview.taxableBase);
           const tax = calcPfaTax(overview.taxableBase);
-          const setAside = calcSetAside(Math.max(0, overview.taxableBase), overview.totalIncome, projection);
-          const showProjection = state.selectedYear === CURRENT_YEAR && overview.totalIncome > 0 && projection !== null;
-          const view = showProjection ? taxView : "azi";
-          const TAX_VIEWS = [
-            { key: "azi" as const, label: "Până azi", hint: "din facturile emise", total: tax.total },
-            { key: "an" as const, label: "Până la 31 dec", hint: "+ evenimente fiscalizate", total: projection ? calcPfaTax(projection.finalBase).total : 0 },
+          const setAside = calcSetAside(currentBase, overview.totalIncome);
+          const thresholds = [
+            { label: "CASS peste minim (10% din profitul real)", threshold: 6 * SMIN_2026, below: `Sub prag plătești oricum CASS minim: ${fmtCurrency(0.6 * SMIN_2026, "RON")}.` },
+            { label: "CAS (pensie) devine obligatoriu", threshold: 12 * SMIN_2026, below: `Dacă profitul trece pragul, apare dintr-odată CAS de ${fmtCurrency(12 * SMIN_2026 * 0.25, "RON")}.` },
+            { label: "CAS urcă la baza de 24 salarii minime", threshold: 24 * SMIN_2026, below: `Peste prag, CAS devine ${fmtCurrency(24 * SMIN_2026 * 0.25, "RON")}.` },
           ];
 
           return (
@@ -2380,9 +2235,7 @@ const FinancialPage: React.FC = () => {
                   <p className="text-sm font-medium text-amber-100">Cât să pui deoparte din fiecare plată nouă</p>
                   <InfoBadge
                     title="Recomandare"
-                    description={setAside.basedOnProjection
-                      ? "Taxele în plus pe care le aduce restul anului (estimarea de la 31 dec minus taxele de până acum), împărțite la încasările estimate rămase. Include saltul de CAS dacă proiecția trece pragul de 12 salarii minime. Se recalculează când se schimbă facturile, cheltuielile sau evenimentele."
-                      : "Cât cresc taxele la următorii 1.000 RON încasați, la marja de profit de până acum (după cheltuielile deductibile). Nu include un eventual salt de CAS — verifică pragurile de mai jos."}
+                    description="Cât cresc taxele la următorii 1.000 RON facturați, la marja de profit de până acum (facturi emise − cheltuieli deductibile). Nu include un eventual salt de CAS — vezi pragurile de mai jos."
                   />
                 </div>
                 <p className="text-2xl font-semibold text-amber-300">
@@ -2390,39 +2243,12 @@ const FinancialPage: React.FC = () => {
                 </p>
                 <p className="text-xs text-amber-100/70">
                   {overview.totalIncome > 0
-                    ? `Din fiecare ${fmtCurrency(1000, "RON")} încasați de acum înainte, pune deoparte ~${fmtCurrency(Math.round(setAside.rate * 1000), "RON")} pentru taxe. Pentru ce ai încasat deja ar trebui să ai deoparte ${fmtCurrency(setAside.alreadyOwed, "RON")}.`
+                    ? `Din fiecare ${fmtCurrency(1000, "RON")} facturați de acum înainte, pune deoparte ~${fmtCurrency(Math.round(setAside.rate * 1000), "RON")} pentru taxe. Pentru ce ai facturat deja ar trebui să ai deoparte ${fmtCurrency(setAside.alreadyOwed, "RON")}.`
                     : "Adaugă facturi pentru a calcula o cotă orientativă."}
                 </p>
               </div>
 
-              {showProjection && (
-                <div role="tablist" className="grid grid-cols-2 gap-2">
-                  {TAX_VIEWS.map((v) => (
-                    <button
-                      key={v.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={view === v.key}
-                      onClick={() => setTaxView(v.key)}
-                      className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                        view === v.key
-                          ? "border-amber-500/60 bg-amber-500/10"
-                          : "border-neutral-800 bg-neutral-900 hover:border-neutral-600"
-                      }`}
-                    >
-                      <p className={`text-xs ${view === v.key ? "text-amber-100" : "text-neutral-400"}`}>
-                        {v.label} <span className="text-neutral-500">· {v.hint}</span>
-                      </p>
-                      <p className={`mt-1 text-xl font-semibold tabular-nums ${view === v.key ? "text-amber-300" : "text-white"}`}>
-                        {fmtCurrency(v.total, "RON")}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {/* Calculator taxe PFA — situația actuală */}
-              {view === "azi" && (
               <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-white">Situație actuală {state.selectedYear}</p>
@@ -2470,245 +2296,107 @@ const FinancialPage: React.FC = () => {
                 )}
                 <p className="text-xs text-neutral-600">Estimare orientativă · salariu minim pentru contribuțiile 2026 = {fmtCurrency(SMIN_2026, "RON")} (cel de la 1 ian; creșterea din iulie nu contează pentru PFA) · Curs EUR = {exchangeRate} RON · plată anuală unică (D212), nu în rate trimestriale · CASS = 10% din profit, minim 6 salarii minime ({fmtCurrency(6 * SMIN_2026, "RON")}) chiar și sub prag, maxim 72 · CAS (pensie) obligatoriu de la 12 salarii minime ({fmtCurrency(12 * SMIN_2026, "RON")}) profit · impozitul se calculează după deducerea CAS și CASS</p>
               </div>
-              )}
 
-              {/* Proiecție an — doar pentru anul curent, când există venit */}
-              {showProjection && view === "an" && (() => {
-                if (!projection) return null;
-                const {
-                  monthsElapsed, monthlyRate, dedRatio, projectedBase, projectedIncome,
-                  upcomingEvents, expectedFromEvents, projectedIncomeEvents, projectedBaseEvents, hasEvents, unfiscalizedEvents, unfiscalizedCount,
-                } = projection;
-                const currentBase = Math.max(0, overview.taxableBase);
-                const projTax = calcPfaTax(projectedBase);
-                const projTaxEvents = calcPfaTax(projectedBaseEvents);
-
-                const milestones = [
-                  { label: "CASS crește peste minim (10% din profitul real)", threshold: 6 * SMIN_2026 },
-                  { label: "Plătești CAS (pensie)", threshold: 12 * SMIN_2026 },
-                  { label: "CAS urcă la baza de 24 salarii minime", threshold: 24 * SMIN_2026 },
-                ].map((m) => {
-                  const reached = currentBase >= m.threshold;
-                  const remaining = Math.max(0, m.threshold - currentBase);
-                  const monthsAway = monthlyRate > 0 ? remaining / monthlyRate : Infinity;
-                  const etaIndex = Math.ceil(monthsElapsed + monthsAway);
-                  const eta = !reached && etaIndex >= 1 && etaIndex <= 12 ? MONTHS[etaIndex] : null;
-                  const remainingAfterProjection = Math.max(0, m.threshold - projectedBase);
-                  return { ...m, reached, remaining, eta, remainingAfterProjection };
-                });
-
-                const eventMilestones = milestones.map((m) => {
-                  if (m.reached) return { ...m, etaLabel: null as string | null, remainingAfterEvents: 0 };
-                  let running = currentBase;
-                  let etaLabel: string | null = null;
-                  for (const e of upcomingEvents) {
-                    running += e.expectedNet * dedRatio;
-                    if (running >= m.threshold) {
-                      etaLabel = (e.eventDate as Date).toLocaleDateString("ro-RO", { day: "2-digit", month: "short" });
-                      break;
-                    }
-                  }
-                  const remainingAfterEvents = Math.max(0, m.threshold - projectedBaseEvents);
-                  return { ...m, etaLabel, remainingAfterEvents };
-                });
-
-                // Bară de progres: verde = profit realizat până acum, chihlimbar = ce ai
-                // mai ajunge dacă se confirmă și restul estimării (uniform sau evenimente).
-                function renderMilestoneBar(threshold: number, projected: number) {
-                  const pctCurrent = Math.min(100, (currentBase / threshold) * 100);
-                  const pctProjected = Math.min(100, (projected / threshold) * 100);
+              {/* Praguri — doar pe profitul din facturile emise, fără proiecții */}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-white">Praguri {state.selectedYear} · din facturile emise</p>
+                  <InfoBadge title="Praguri CASS / CAS" description="Profitul de acum (facturi emise în anul selectat − cheltuieli deductibile) față de pragurile de contribuții. Nu include evenimente viitoare — crește doar când emiți facturi noi." />
+                </div>
+                {thresholds.map((t) => {
+                  const reached = currentBase >= t.threshold;
+                  const pct = Math.min(100, (currentBase / t.threshold) * 100);
                   return (
-                    <div className="relative mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
-                      <div className="absolute inset-y-0 left-0 rounded-full bg-amber-400/40" style={{ width: `${pctProjected}%` }} />
-                      <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-400" style={{ width: `${pctCurrent}%` }} />
-                    </div>
-                  );
-                }
-
-                function renderBarLegend(amberLabel: string) {
-                  return (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-neutral-500">
-                      <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400" /> profit realizat până acum</span>
-                      <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400/60" /> {amberLabel}</span>
-                    </div>
-                  );
-                }
-
-                const uniformScenario = (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <p className="text-xs text-neutral-500">Profit acum</p>
-                        <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(currentBase, "RON")}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-neutral-500">Profit estimat 31 dec</p>
-                        <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(projectedBase, "RON")}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-neutral-500">Taxe estimate an întreg</p>
-                        <p className="text-amber-300 font-semibold text-sm mt-0.5">{fmtCurrency(projTax.total, "RON")}</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 border-t border-neutral-800 pt-3">
-                      {renderBarLegend("cât mai ajungi din estimare")}
-                      {milestones.map((m) => (
-                        <div key={m.label}>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm text-neutral-300">
-                              {m.reached && <span className="text-emerald-400">✓ </span>}
-                              {m.label}
-                            </span>
-                            <span className="text-xs text-neutral-500 shrink-0">prag {fmtCurrency(m.threshold, "RON")}</span>
-                          </div>
-                          {renderMilestoneBar(m.threshold, projectedBase)}
-                          <p className="text-xs mt-1">
-                            {m.reached
-                              ? <span className="text-emerald-400/80">Deja atins</span>
-                              : m.eta
-                                ? <span className="text-amber-300/90">Estimativ în {m.eta} — îți mai trebuie {fmtCurrency(m.remaining, "RON")} profit</span>
-                                : <span className="text-neutral-500">Improbabil anul acesta — lipsesc {fmtCurrency(m.remainingAfterProjection, "RON")} față de estimarea de 31 dec</span>}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <p className="text-xs text-neutral-600">
-                      Presupune venit uniform pe tot anul, pe baza ritmului de până acum. Dacă ai sezon (nunți vara), tratează-o ca limită inferioară — estimat venit din facturi: {fmtCurrency(projectedIncome, "RON")}.
-                    </p>
-                  </div>
-                );
-
-                const eventScenario = (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <p className="text-xs text-neutral-500">Evenimente fiscalizate rămase</p>
-                        <p className="text-white font-medium text-sm mt-0.5">{upcomingEvents.length} · {fmtCurrency(expectedFromEvents, "RON")}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-neutral-500">Profit estimat 31 dec</p>
-                        <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(projectedBaseEvents, "RON")}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-neutral-500">Taxe estimate an întreg</p>
-                        <p className="text-amber-300 font-semibold text-sm mt-0.5">{fmtCurrency(projTaxEvents.total, "RON")}</p>
-                      </div>
-                    </div>
-
-                    <details className="group rounded-lg border border-neutral-800 bg-neutral-950/40">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs text-neutral-400 hover:text-white">
-                        <span className="flex items-center gap-1.5">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 transition-transform group-open:rotate-90"><polyline points="9 18 15 12 9 6" /></svg>
-                          Vezi evenimentele ({upcomingEvents.length})
+                    <div key={t.label}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-neutral-300">
+                          {reached && <span className="text-emerald-400">✓ </span>}
+                          {t.label}
                         </span>
-                        <span className="text-neutral-600">sumă contractată pe eveniment, în ordinea datei</span>
-                      </summary>
-                      <div className="divide-y divide-neutral-800/60 border-t border-neutral-800">
-                        {upcomingEvents.map((e, i) => {
-                          const runningTotal = currentBase + upcomingEvents.slice(0, i + 1).reduce((sum, ev) => sum + ev.expectedNet * dedRatio, 0);
-                          return (
-                            <div key={e.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-                              <div className="min-w-0">
-                                <p className="truncate text-neutral-200">
-                                  {e.client.fullName} <span className="text-neutral-600">· {e.type}</span>
-                                </p>
-                                <p className="text-neutral-600">
-                                  {(e.eventDate as Date).toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" })}
-                                  {" · "}
-                                  <span className={e.status === "confirmat" ? "text-emerald-400" : "text-amber-400"}>
-                                    {e.status === "confirmat" ? "Confirmat" : "Tentativ"}
-                                  </span>
-                                </p>
-                              </div>
-                              <div className="shrink-0 text-right">
-                                <p className="font-medium text-white">+{fmtCurrency(e.expectedNet, "RON")}</p>
-                                <p className="text-neutral-600">profit cumulat {fmtCurrency(runningTotal, "RON")}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        <span className="text-xs text-neutral-500 shrink-0">prag {fmtCurrency(t.threshold, "RON")}</span>
                       </div>
-                    </details>
+                      <div className="relative mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+                        <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-400" style={{ width: `${pct}%` }} />
+                      </div>
+                      <p className="text-xs mt-1">
+                        {reached
+                          ? <span className="text-emerald-400/80">Atins</span>
+                          : <span className="text-neutral-500">Mai ai {fmtCurrency(t.threshold - currentBase, "RON")} profit până la prag. {t.below}</span>}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
 
-                    <div className="space-y-3">
-                      {renderBarLegend("ce ai mai ajunge dacă se confirmă evenimentele rezervate")}
-                      {eventMilestones.map((m) => (
-                        <div key={m.label}>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm text-neutral-300">
-                              {m.reached && <span className="text-emerald-400">✓ </span>}
-                              {m.label}
-                            </span>
-                            <span className="text-xs text-neutral-500 shrink-0">prag {fmtCurrency(m.threshold, "RON")}</span>
-                          </div>
-                          {renderMilestoneBar(m.threshold, projectedBaseEvents)}
-                          <p className="text-xs mt-1">
-                            {m.reached
-                              ? <span className="text-emerald-400/80">Deja atins</span>
-                              : m.etaLabel
-                                ? <span className="text-amber-300/90">Estimativ pe {m.etaLabel}, după evenimentele rezervate</span>
-                                : <span className="text-neutral-500">Improbabil cu evenimentele rezervate — ar mai lipsi {fmtCurrency(m.remainingAfterEvents ?? 0, "RON")}</span>}
-                          </p>
-                        </div>
-                      ))}
+              {/* Varianta 2 — proiecție la 31 dec: facturi emise + evenimente viitoare fiscalizate */}
+              {state.selectedYear === CURRENT_YEAR && (() => {
+                const projTax = yearEndProjection.tax;
+                const diff = projTax.total - tax.total;
+                const casThreshold = 12 * SMIN_2026;
+                const crossesCas = currentBase < casThreshold && yearEndProjection.base >= casThreshold;
+                return (
+                  <div className="bg-neutral-900 border border-sky-900/50 rounded-xl p-4 space-y-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-white">
+                        Proiecție la 31 decembrie {state.selectedYear}
+                        <span className="font-normal text-neutral-500"> · facturi emise + evenimente fiscalizate viitoare</span>
+                      </p>
+                      <InfoBadge
+                        title="Cum se calculează"
+                        description="Situația reală de mai sus (facturile emise) plus, pentru fiecare eveniment viitor din acest an marcat Fiscalizat (confirmat sau tentativ), suma rămasă de facturat: prețul minus facturile deja legate de el, din orice an — ca un avans facturat să nu fie numărat de două ori. Nu presupune cheltuieli viitoare, deci e o limită de sus. Evenimentele nefiscalizate nu intră."
+                      />
                     </div>
 
-                    <p className="text-xs text-neutral-600">
-                      Estimat venit din evenimente fiscalizate: {fmtCurrency(projectedIncomeEvents, "RON")}. Nu include lead-uri neconfirmate și evenimentele nefiscalizate; presupune că evenimentele tentative se confirmă.
-                    </p>
-                  </div>
-                );
+                    {yearEndProjection.events.length === 0 ? (
+                      <p className="text-sm text-neutral-500">Nu ai evenimente viitoare marcate „Fiscalizat” în {state.selectedYear} — proiecția e egală cu situația actuală ({fmtCurrency(tax.total, "RON")}).</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <p className="text-xs text-neutral-500">Acum · facturi emise</p>
+                            <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(tax.total, "RON")}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-neutral-500">La 31 dec · estimat</p>
+                            <p className="text-sky-300 font-semibold text-sm mt-0.5">{fmtCurrency(projTax.total, "RON")}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-neutral-500">În plus</p>
+                            <p className="text-amber-300 font-medium text-sm mt-0.5">+{fmtCurrency(diff, "RON")}</p>
+                          </div>
+                        </div>
 
-                return (
-                  <div className="space-y-3">
-                    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-white">
-                          Proiecție la 31 decembrie {state.selectedYear}
-                          {hasEvents && <span className="font-normal text-neutral-500"> · pe baza evenimentelor fiscalizate</span>}
-                        </p>
-                        <InfoBadge
-                          title="Cum se calculează"
-                          description={hasEvents
-                            ? "Profitul de acum (din facturi) + profitul estimat din evenimentele FISCALIZATE confirmate/tentative programate până la 31 dec — cele nefiscalizate nu primesc factură, deci nu intră la taxe — mai realist decât o medie uniformă dacă ai sezon (nunți vara). Bara de sub fiecare prag: verde = profit realizat până acum, chihlimbar = ce ai mai ajunge dacă se confirmă evenimentele rezervate."
-                            : "Nu ai evenimente fiscalizate confirmate sau tentative programate până la final de an, deci estimăm pe baza ritmului mediu de până acum: profit de la începutul anului ÷ lunile scurse × 12."}
-                        />
-                      </div>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm border-t border-neutral-800 pt-3">
+                          <div className="flex justify-between"><span className="text-neutral-400">Profit estimat</span><span className="text-white">{fmtCurrency(yearEndProjection.base, "RON")}</span></div>
+                          <div className="flex justify-between"><span className="text-neutral-400">CASS</span><span className="text-amber-400">{fmtCurrency(projTax.cass, "RON")}</span></div>
+                          <div className="flex justify-between"><span className="text-neutral-400">Impozit</span><span className="text-amber-400">{fmtCurrency(projTax.impozit, "RON")}</span></div>
+                          <div className="flex justify-between"><span className="text-neutral-400">CAS</span><span className="text-amber-400">{fmtCurrency(projTax.cas, "RON")}</span></div>
+                        </div>
 
-                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-                        <p className="text-xs text-amber-100/70">Cât vei plăti statului în total, estimat pentru tot anul {state.selectedYear} (impozit + CASS + CAS)</p>
-                        <p className="mt-1 text-2xl font-semibold text-amber-300">{fmtCurrency(hasEvents ? projTaxEvents.total : projTax.total, "RON")}</p>
-                        {unfiscalizedCount > 0 && (
-                          <p className="mt-1 text-xs text-amber-100/50">
-                            Nu include {unfiscalizedCount} {unfiscalizedCount === 1 ? "eveniment nefiscalizat" : "evenimente nefiscalizate"} până la 31 dec.
+                        {crossesCas && (
+                          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                            Cu aceste evenimente treci pragul CAS ({fmtCurrency(casThreshold, "RON")}) — apare CAS de {fmtCurrency(projTax.cas, "RON")}.
                           </p>
                         )}
-                      </div>
 
-                      {hasEvents ? eventScenario : uniformScenario}
-                    </div>
-
-                    {unfiscalizedEvents.length > 0 && (
-                      <FiscalizationSimulator
-                        year={state.selectedYear}
-                        events={unfiscalizedEvents}
-                        baseWithoutThem={projectedBaseEvents}
-                        dedRatio={dedRatio}
-                      />
-                    )}
-
-                    {hasEvents && (
-                      <details className="group rounded-xl border border-neutral-800 bg-neutral-900/40">
-                        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-2.5 text-xs text-neutral-500 hover:text-neutral-300">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 transition-transform group-open:rotate-90"><polyline points="9 18 15 12 9 6" /></svg>
-                          Vezi și estimarea pe ritm mediu (fără evenimente)
-                        </summary>
-                        <div className="border-t border-neutral-800 p-4">
-                          {uniformScenario}
+                        <div className="divide-y divide-neutral-800/60 rounded-lg border border-neutral-800">
+                          {yearEndProjection.events.map((row) => (
+                            <div key={row.event.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                              <div className="min-w-0">
+                                <p className="truncate text-neutral-200">{row.event.client.fullName} <span className="text-neutral-600">· {row.event.type}</span></p>
+                                <p className="text-neutral-600">
+                                  {row.date.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" })}
+                                  {" · "}
+                                  <span className={row.event.status === "confirmat" ? "text-emerald-400" : "text-amber-400"}>{row.event.status === "confirmat" ? "Confirmat" : "Tentativ"}</span>
+                                  {row.invoicedEur > 0 && <> · deja facturat {Math.round(row.invoicedEur)} EUR din {row.totalEur} EUR</>}
+                                </p>
+                              </div>
+                              <p className="shrink-0 font-medium text-white">+{fmtCurrency(row.toInvoiceRon, "RON")}</p>
+                            </div>
+                          ))}
                         </div>
-                      </details>
+                        <p className="text-xs text-neutral-600">De facturat din evenimente: {fmtCurrency(yearEndProjection.addedRon, "RON")} (curs {exchangeRate} RON/EUR).</p>
+                      </>
                     )}
                   </div>
                 );

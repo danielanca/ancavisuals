@@ -8,4 +8,10 @@ describe("offer landing videos", () => {
     expect(normalizeOfferHeroVideo({ clipUrl: "javascript:alert(1)", filmUrl: "http://cdn.test/f.mp4" })).toEqual({});
     expect(normalizeOfferHeroVideo(null)).toEqual({});
   });
+
+  test("keeps an HLS film with its poster image", () => {
+    const filmUrl = "https://vz-test.b-cdn.net/abc/playlist.m3u8";
+    const filmPosterUrl = "https://vz-test.b-cdn.net/abc/thumbnail_1.jpg";
+    expect(normalizeOfferHeroVideo({ filmUrl, filmPosterUrl })).toEqual({ filmUrl, filmPosterUrl });
+  });
 });

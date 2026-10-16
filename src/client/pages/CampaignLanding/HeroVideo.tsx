@@ -26,6 +26,12 @@ const downloaded = new Map<string, string>();
  * leaves the screen. Until then the photo shows.
  */
 export default function HeroVideo({ src, hdSrc }: { src: string; hdSrc?: string }) {
+  // A Bunny Stream playlist streams with adaptive quality instead of a full download.
+  if (isHlsUrl(src)) return <HlsHeroLoop src={src} />;
+  return <Mp4HeroVideo src={src} hdSrc={hdSrc} />;
+}
+
+function Mp4HeroVideo({ src, hdSrc }: { src: string; hdSrc?: string }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [visible, setVisible] = useState(false);
@@ -112,6 +118,123 @@ export default function HeroVideo({ src, hdSrc }: { src: string; hdSrc?: string 
           muted
           loop
           playsInline
+          onPlaying={() => setPlaying(true)}
+          className={`h-full w-full object-cover transition-opacity duration-700 ${playing ? "opacity-100" : "opacity-0"}`}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── HLS (Bunny Stream) ───────────────────────────────────────────────────────
+
+const isHlsUrl = (url: string) => /\.m3u8(?:[?#]|$)/i.test(url);
+
+/**
+ * `…/playlist.m3u8#t=59,127` → the playlist plus the looped segment (Media Fragments
+ * syntax: start[,end] in seconds). Lets one uploaded film serve both the "Vezi-ne la lucru"
+ * player (whole film) and the hero (just the loop), without a separate cut.
+ */
+export function parseLoopUrl(url: string): { url: string; start: number; end: number | null } {
+  const [base, fragment = ""] = url.split("#");
+  const match = /(?:^|&)t=([\d.]+)(?:,([\d.]+))?/.exec(fragment);
+  const start = match ? Number(match[1]) : 0;
+  const end = match?.[2] ? Number(match[2]) : null;
+  return { url: base, start: Number.isFinite(start) ? start : 0, end: end !== null && end > start ? end : null };
+}
+
+/** No video on 2G or with data saver on — the photo stays. */
+function connectionAllowsVideo(): boolean {
+  const connection = (navigator as Navigator & { connection?: Connection }).connection;
+  return !(connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g");
+}
+
+type HlsInstance = { loadSource: (url: string) => void; attachMedia: (video: HTMLMediaElement) => void; destroy: () => void };
+
+/**
+ * The hero clip as an adaptive stream: nothing loads before the page has, the hero is on
+ * screen and the connection allows it; then quality follows the visitor's bandwidth (capped
+ * to the hero's size on screen), loading starts right at the loop's start, and the loop
+ * replays from what is already buffered. Plays only while on screen; the photo stays under
+ * it until the first frame plays.
+ */
+function HlsHeroLoop({ src }: { src: string }) {
+  const { url, start, end } = parseLoopUrl(src);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [active, setActive] = useState(false);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(Boolean(entry?.isIntersecting)), { threshold: 0.25 });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+
+  // First time the hero is visible after the page has loaded: start streaming (once).
+  useEffect(() => {
+    if (active || !visible || !connectionAllowsVideo()) return;
+    const begin = () => setActive(true);
+    if (document.readyState === "complete") begin();
+    else window.addEventListener("load", begin, { once: true });
+    return () => window.removeEventListener("load", begin);
+  }, [active, visible]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!active || !video) return;
+    let hls: HlsInstance | null = null;
+    let cancelled = false;
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = url; // Safari: native HLS
+    } else {
+      import("hls.js").then(({ default: Hls }) => {
+        if (cancelled) return;
+        if (!Hls.isSupported()) return; // the photo stays
+        hls = new Hls({ capLevelToPlayerSize: true, startLevel: -1, startPosition: start, maxBufferLength: 20 });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+      }).catch(() => { /* the photo stays */ });
+    }
+    return () => { cancelled = true; hls?.destroy(); };
+  }, [active, url, start]);
+
+  // Play only while on screen and the tab is visible.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!active || !video) return;
+    const sync = () => {
+      if (visible && document.visibilityState === "visible") void video.play().catch(() => {});
+      else video.pause();
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, [active, visible]);
+
+  const backToStart = (video: HTMLVideoElement) => {
+    video.currentTime = start;
+    void video.play().catch(() => {});
+  };
+
+  return (
+    <div ref={boxRef} aria-hidden="true" className="absolute inset-0">
+      {active && (
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          preload="auto"
+          onLoadedMetadata={(e) => { if (start > 0 && e.currentTarget.currentTime < start) e.currentTarget.currentTime = start; }}
+          onTimeUpdate={(e) => {
+            const video = e.currentTarget;
+            const loopEnd = end ?? video.duration - 0.25;
+            if (Number.isFinite(loopEnd) && loopEnd > start && video.currentTime >= loopEnd) backToStart(video);
+          }}
+          onEnded={(e) => backToStart(e.currentTarget)}
           onPlaying={() => setPlaying(true)}
           className={`h-full w-full object-cover transition-opacity duration-700 ${playing ? "opacity-100" : "opacity-0"}`}
         />

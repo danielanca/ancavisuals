@@ -4,6 +4,8 @@ import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
 import PhotoReviewImage from "../../../components/Media/PhotoReviewImage";
 import galleryStyles from "../../../components/Media/PhotoReviewGallery.module.scss";
+import UploadQueuePanel from "./UploadQueuePanel";
+import { useUploadQueue } from "./useUploadQueue";
 import type { PhotoVote } from "../../../../shared/media/proposalConsensus";
 
 type ProposalStatus = "pending" | "accepted" | "archived" | "rejected";
@@ -114,6 +116,7 @@ function PendingCard({
   selectionEnabled,
   canModerate,
   busy,
+  busyLabel = "Se salvează…",
   accepted,
   generatingAlt,
   onAccept,
@@ -125,6 +128,7 @@ function PendingCard({
   selectionEnabled: boolean;
   canModerate: boolean;
   busy: boolean;
+  busyLabel?: string;
   accepted: boolean;
   generatingAlt: boolean;
   onAccept: (destinations: ProposalDestination[]) => void;
@@ -132,7 +136,6 @@ function PendingCard({
   onDelete: () => void;
   onGenerateAlt: () => void;
 }) {
-  const [accepting, setAccepting] = useState(false);
   const [acceptDests, setAcceptDests] = useState<Set<ProposalDestination>>(
     new Set(group.destinations.length > 0 ? group.destinations : ["instagram"])
   );
@@ -149,12 +152,14 @@ function PendingCard({
   const isJoint = group.proposedBy.length > 1;
 
   return (
-    <div className={`bg-neutral-950 border rounded-xl overflow-hidden ${accepted ? "border-cyan-900/60" : "border-neutral-800"}`}>
+    <div className={`bg-neutral-950 border rounded-xl overflow-hidden ${accepted ? "border-emerald-500/70 ring-1 ring-emerald-500/40" : "border-neutral-800"}`}>
       <div className="flex flex-col">
         <div className="relative w-full">
           <PhotoReviewImage src={group.previewPhotoUrl ?? group.photoUrl} original={group.originalPhotoUrl ?? group.photoUrl}
             alt={group.fileName} enabled={selectionEnabled} busy={busy}
-            onAccept={canModerate && !accepted ? () => setAccepting(true) : undefined} onReject={canModerate && !accepted ? onReject : undefined} />
+            // Un singur clic: acceptă direct cu destinațiile bifate dedesubt (fără pas „Confirmă”).
+            onAccept={canModerate && !accepted && acceptDests.size > 0 ? () => onAccept(Array.from(acceptDests)) : undefined}
+            onReject={canModerate && !accepted ? onReject : undefined} />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           {!accepted && (
             <button
@@ -168,10 +173,19 @@ function PendingCard({
             </button>
           )}
           {accepted && (
-            <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-cyan-300 text-2xl font-bold leading-none">✓</span>
-                <span className="text-cyan-300 text-[10px] font-semibold tracking-wide uppercase">Acceptat</span>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/45 backdrop-blur-[3px]">
+              <div className="flex flex-col items-center gap-2">
+                {busy ? (
+                  <>
+                    <span aria-hidden="true" className="h-12 w-12 animate-spin rounded-full border-4 border-emerald-500/30 border-t-emerald-400" />
+                    <span className="rounded-full bg-neutral-900/90 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-300 shadow-lg shadow-black/40">{busyLabel}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-2xl font-bold leading-none text-neutral-950 shadow-lg shadow-black/40 ring-4 ring-emerald-500/30">✓</span>
+                    <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-neutral-950 shadow-lg shadow-black/40">Acceptat</span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -210,57 +224,31 @@ function PendingCard({
                 </span>
               ))}
             </div>
-          ) : selectionEnabled && accepting ? (
+          ) : (
             <>
+              {/* Destinațiile se aleg direct aici (presetate cu ce a propus persoana); „Acceptă” de pe poză le folosește. */}
               <div className="flex gap-1.5 flex-wrap">
                 {(["instagram", "media_assets"] as ProposalDestination[]).map(dest => {
                   const active = acceptDests.has(dest);
-                  return (
+                  const label = dest === "media_assets" ? "Media Assets" : "Instagram";
+                  const style = dest === "media_assets"
+                    ? active ? "bg-teal-900/60 text-teal-300 border-teal-700" : "bg-transparent text-teal-700 border-teal-900"
+                    : active ? "bg-fuchsia-900/60 text-fuchsia-300 border-fuchsia-700" : "bg-transparent text-fuchsia-800 border-fuchsia-950";
+                  return canModerate && selectionEnabled ? (
                     <button
                       key={dest}
                       type="button"
                       onClick={() => toggleDest(dest)}
-                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
-                        dest === "media_assets"
-                          ? active ? "bg-teal-900/60 text-teal-300 border-teal-700" : "bg-transparent text-teal-700 border-teal-900"
-                          : active ? "bg-fuchsia-900/60 text-fuchsia-300 border-fuchsia-700" : "bg-transparent text-fuchsia-800 border-fuchsia-950"
-                      }`}
+                      disabled={busy}
+                      aria-pressed={active}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer disabled:opacity-40 ${style}`}
                     >
-                      {dest === "media_assets" ? "Media Assets" : "Instagram"}
+                      {label}
                     </button>
-                  );
+                  ) : active ? (
+                    <span key={dest} className={`text-[10px] px-2 py-0.5 rounded-full border ${style}`}>{label}</span>
+                  ) : null;
                 })}
-              </div>
-              <div className="flex gap-2 sm:gap-1.5">
-                <button
-                  onClick={() => { onAccept(Array.from(acceptDests)); setAccepting(false); }}
-                  disabled={busy || acceptDests.size === 0}
-                  className="flex-1 py-2.5 sm:py-2 rounded-lg text-xs font-bold bg-cyan-900/50 text-cyan-300 hover:bg-cyan-800/60 transition-colors disabled:opacity-40 active:scale-95"
-                >
-                  {busy ? "..." : "Confirmă"}
-                </button>
-                <button
-                  onClick={() => setAccepting(false)}
-                  disabled={busy}
-                  className="px-3 py-2.5 sm:py-2 rounded-lg text-xs text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-40"
-                >
-                  ✕
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex gap-1 flex-wrap">
-                {group.destinations.map((destination) => (
-                  <span
-                    key={destination}
-                    className={`text-[10px] px-2 py-0.5 rounded-full ${
-                      destination === "media_assets" ? "bg-teal-950/60 text-teal-300" : "bg-fuchsia-950/60 text-fuchsia-300"
-                    }`}
-                  >
-                    {destination === "media_assets" ? "Media Assets" : "Instagram"}
-                  </span>
-                ))}
               </div>
               <div className="flex gap-2 sm:gap-1.5">
                 <button
@@ -397,7 +385,12 @@ function AlbumGroupHeader({
 }) {
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={!isCollapsed}
+      aria-label={`${isCollapsed ? "Deschide" : "Închide"} albumul ${albumSlug}`}
       onClick={onToggle}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onToggle(); } }}
       className="flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none border-b border-neutral-800/50"
     >
       <span className="text-xs text-neutral-600">{isCollapsed ? "▶" : "▼"}</span>
@@ -428,12 +421,18 @@ export default function InstagramProposalsAdminPage() {
   const [tab, setTab] = useState<Tab>("pending");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [collapsedAlbums, setCollapsedAlbums] = useState<Set<string>>(new Set());
+  // Albumele pornesc închise; se ține minte doar ce ai deschis în sesiunea asta.
+  const [expandedAlbums, setExpandedAlbums] = useState<Set<string>>(new Set());
   const [allStatusFilter, setAllStatusFilter] = useState<ProposalStatus | "all">("all");
   const [destinationFilter, setDestinationFilter] = useState<ProposalDestination | "all">("all");
   const [allAlbumFilter, setAllAlbumFilter] = useState("all");
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const [acceptedInSession, setAcceptedInSession] = useState<Set<string>>(new Set());
+  // Acceptările (cu import în Media Assets) trec printr-o coadă: câte 2 deodată, ca pe server,
+  // cu panou jos-dreapta (progres, cât mai durează). Poza urcă oricum imediat în „Acceptate acum”.
+  const uploadQueue = useUploadQueue(2);
+  const queueStatus = new Map(uploadQueue.items.map(item => [item.key, item.status]));
+  const queuedOrder = uploadQueue.items.filter(item => item.status === "queued").map(item => item.key);
   const [refreshKey, setRefreshKey] = useState(0);
   const [generatingAltKeys, setGeneratingAltKeys] = useState<Set<string>>(new Set());
   const [bulkAltProgress, setBulkAltProgress] = useState<{ done: number; total: number } | null>(null);
@@ -471,24 +470,55 @@ export default function InstagramProposalsAdminPage() {
     } catch (error) { setFetchError(String(error)); } finally { setUpdatingId(null); }
   };
 
-  const updateStatusGroup = async (groupKey: string, ids: string[], status: ProposalStatus, destinations?: ProposalDestination[]) => {
+  // Salvează toate voturile unei poze; aruncă eroare dacă nu s-a putut salva niciunul.
+  const saveGroupStatus = async (ids: string[], status: ProposalStatus, destinations?: ProposalDestination[]) => {
+    const body: Record<string, unknown> = { status };
+    if (destinations) body.destinations = destinations;
+    // Process one photo's votes in order so a Media Assets import can reuse the first copy.
+    for (const id of ids) {
+      const response = await fetch(`/api/instagram-proposals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error((await response.json()).error ?? "Nu am putut actualiza propunerea.");
+      setProposals(prev => prev.map(p => p.id === id ? { ...p, status, selectionDestinations: p.selectionDestinations ?? p.destinations ?? ["instagram"], ...(destinations ? { destinations } : {}) } : p));
+    }
+  };
+
+  const updateStatusGroup = async (group: GroupedProposal, status: ProposalStatus, destinations?: ProposalDestination[]) => {
     if (!auth.accessToken) return;
-    setUpdatingId(groupKey);
-    try {
-      const body: Record<string, unknown> = { status };
-      if (destinations) body.destinations = destinations;
-      // Process one photo's votes in order so a Media Assets import can reuse the first copy.
-      for (const id of ids) {
-        const response = await fetch(`/api/instagram-proposals/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-          body: JSON.stringify(body),
-        });
-        if (!response.ok) throw new Error((await response.json()).error ?? "Nu am putut actualiza propunerea.");
-        setProposals(prev => prev.map(p => p.id === id ? { ...p, status, selectionDestinations: p.selectionDestinations ?? p.destinations ?? ["instagram"], ...(destinations ? { destinations } : {}) } : p));
-      }
-      if (status === "accepted") setAcceptedInSession((prev) => new Set([...prev, groupKey]));
-    } catch (error) { setFetchError(String(error)); } finally { setUpdatingId(null); }
+    if (status !== "accepted") {
+      setUpdatingId(group.key);
+      try { await saveGroupStatus(group.ids, status, destinations); }
+      catch (error) { setFetchError(String(error)); }
+      finally { setUpdatingId(null); }
+      return;
+    }
+    // Optimistic: urcă imediat în „Acceptate acum”; salvarea așteaptă în coadă.
+    setAcceptedInSession(prev => new Set([...prev, group.key]));
+    uploadQueue.enqueue(
+      { key: group.key, label: `${group.albumSlug} · ${group.fileName}`, thumbUrl: group.previewPhotoUrl ?? group.photoUrl },
+      async () => {
+        try {
+          await saveGroupStatus(group.ids, "accepted", destinations);
+        } catch (error) {
+          // Poza revine la locul ei, încă de decis; eroarea rămâne în panou cu „Reîncearcă”.
+          setAcceptedInSession(prev => {
+            const next = new Set(prev);
+            next.delete(group.key);
+            return next;
+          });
+          throw error instanceof Error ? error : new Error(String(error));
+        }
+      },
+    );
+  };
+
+  // „Reîncearcă” din panou: poza urcă din nou sus și reintră în coadă.
+  const retryUpload = (key: string) => {
+    setAcceptedInSession(prev => new Set([...prev, key]));
+    uploadQueue.retry(key);
   };
 
   const generateAlt = async (key: string, ids: string[], photoUrl: string) => {
@@ -569,7 +599,7 @@ export default function InstagramProposalsAdminPage() {
   };
 
   const toggleAlbum = (slug: string) =>
-    setCollapsedAlbums((prev) => {
+    setExpandedAlbums((prev) => {
       const next = new Set(prev);
       next.has(slug) ? next.delete(slug) : next.add(slug);
       return next;
@@ -694,9 +724,20 @@ export default function InstagramProposalsAdminPage() {
           ))}
         </div>
 
+        <UploadQueuePanel
+          title="Acceptări"
+          items={uploadQueue.items}
+          averageMs={uploadQueue.averageMs}
+          concurrency={uploadQueue.concurrency}
+          onRetry={retryUpload}
+          onDismiss={uploadQueue.dismiss}
+        />
+
+        {/* Fixă sus (jos e panoul cozii de încărcare): se vede oriunde ai derulat. */}
         {fetchError && (
-          <div className="bg-red-950/50 border border-red-900 rounded-xl px-4 py-3 text-sm text-red-400">
-            Eroare: {fetchError}
+          <div role="alert" className="fixed inset-x-4 top-4 z-50 mx-auto flex max-w-xl items-start gap-3 rounded-xl border border-red-900 bg-red-950/95 px-4 py-3 text-sm text-red-300 shadow-2xl shadow-black/50">
+            <span className="flex-1">Eroare: {fetchError}</span>
+            <button type="button" onClick={() => setFetchError(null)} aria-label="Închide eroarea" className="shrink-0 text-red-400 hover:text-red-200">✕</button>
           </div>
         )}
 
@@ -740,6 +781,31 @@ export default function InstagramProposalsAdminPage() {
               )}
               {albumGroups.map(([albumSlug, albumProposals]) => {
                 const photoGroups = groupByPhoto(albumProposals);
+                // Acceptatele din sesiunea asta urcă sus în albumul lor, într-un rând separat (în
+                // ordinea acceptării); dedesubt rămân cele încă de decis. Un rând separat, nu doar
+                // primele în listă: masonry-ul e pe coloane și le-ar fi pus una sub alta în stânga.
+                const acceptedOrder = Array.from(acceptedInSession);
+                const acceptedGroups = photoGroups
+                  .filter((group) => acceptedInSession.has(group.key))
+                  .sort((a, b) => acceptedOrder.indexOf(a.key) - acceptedOrder.indexOf(b.key));
+                const pendingGroups = photoGroups.filter((group) => !acceptedInSession.has(group.key));
+                const renderCard = (group: GroupedProposal) => (
+                  <div key={group.key} className="bg-neutral-950">
+                    <PendingCard
+                      selectionEnabled={selectionEnabled}
+                      canModerate={auth.role === "admin"}
+                      group={group}
+                      busy={queueStatus.get(group.key) === "queued" || queueStatus.get(group.key) === "uploading" || updatingId === group.key}
+                      busyLabel={queueStatus.get(group.key) === "queued" ? `În coadă #${queuedOrder.indexOf(group.key) + 1}` : "Se încarcă…"}
+                      accepted={acceptedInSession.has(group.key)}
+                      generatingAlt={generatingAltKeys.has(group.key)}
+                      onAccept={(destinations) => void updateStatusGroup(group, "accepted", destinations)}
+                      onReject={() => void updateStatusGroup(group, "rejected")}
+                      onDelete={() => deleteProposalGroup(group.key, group.ids)}
+                      onGenerateAlt={() => void generateAlt(group.key, group.ids, group.photoUrl)}
+                    />
+                  </div>
+                );
                 return (
                   <div key={albumSlug} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
                     <AlbumGroupHeader
@@ -747,28 +813,25 @@ export default function InstagramProposalsAdminPage() {
                       count={photoGroups.length}
                       label={photoGroups.length !== albumProposals.length ? `poze (${albumProposals.length} propuneri)` : "propuneri"}
                       labelColor="bg-orange-500/20 text-orange-400"
-                      isCollapsed={collapsedAlbums.has(albumSlug)}
+                      isCollapsed={!expandedAlbums.has(albumSlug)}
                       onToggle={() => toggleAlbum(albumSlug)}
                     />
-                    {!collapsedAlbums.has(albumSlug) && (
-                      <div className={`${galleryStyles.masonry} p-3`}>
-                        {photoGroups.map((group) => (
-                          <div key={group.key} className="bg-neutral-950">
-                            <PendingCard
-                              selectionEnabled={selectionEnabled}
-                              canModerate={auth.role === "admin"}
-                              group={group}
-                              busy={updatingId === group.key}
-                              accepted={acceptedInSession.has(group.key)}
-                              generatingAlt={generatingAltKeys.has(group.key)}
-                              onAccept={(destinations) => updateStatusGroup(group.key, group.ids, "accepted", destinations)}
-                              onReject={() => updateStatusGroup(group.key, group.ids, "rejected")}
-                              onDelete={() => deleteProposalGroup(group.key, group.ids)}
-                              onGenerateAlt={() => void generateAlt(group.key, group.ids, group.photoUrl)}
-                            />
+                    {expandedAlbums.has(albumSlug) && (
+                      <>
+                        {acceptedGroups.length > 0 && (
+                          <section aria-label={`Acceptate acum în ${albumSlug}`} className="border-b border-emerald-900/40 bg-emerald-950/10 p-3">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-400">✓ Acceptate acum ({acceptedGroups.length})</p>
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                              {acceptedGroups.map(renderCard)}
+                            </div>
+                          </section>
+                        )}
+                        {pendingGroups.length > 0 && (
+                          <div className={`${galleryStyles.masonry} p-3`}>
+                            {pendingGroups.map(renderCard)}
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );
@@ -805,10 +868,10 @@ export default function InstagramProposalsAdminPage() {
                     count={albumProposals.length}
                     label="acceptate"
                     labelColor="bg-cyan-500/20 text-cyan-400"
-                    isCollapsed={collapsedAlbums.has(albumSlug)}
+                    isCollapsed={!expandedAlbums.has(albumSlug)}
                     onToggle={() => toggleAlbum(albumSlug)}
                   />
-                  {!collapsedAlbums.has(albumSlug) && (
+                  {expandedAlbums.has(albumSlug) && (
                     <div className={`${galleryStyles.masonry} p-3`}>
                       {albumProposals.map((proposal) => (
                         <AcceptedCard

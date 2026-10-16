@@ -23,7 +23,12 @@ interface Review {
   verified: boolean;
   category: "wedding" | "oferta" | "both";
   offerSlug: string | null;
+  status: ReviewStatus;
 }
+
+// Draft = salvată în admin, dar nu apare pe site. Publicată = vizibilă în zonele alese.
+type ReviewStatus = "draft" | "published";
+type StatusFilter = "all" | ReviewStatus;
 
 type FormState = {
   author: string;
@@ -36,6 +41,7 @@ type FormState = {
   verified: boolean;
   selectedPhotos: SelectedPhoto[];
   sourceFeedbackId?: string;
+  status: ReviewStatus;
 };
 
 type SelectedPhoto = {
@@ -55,6 +61,7 @@ const emptyForm = (): FormState => ({
   offerSlug: "",
   verified: false,
   selectedPhotos: [],
+  status: "published",
 });
 
 function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
@@ -102,6 +109,10 @@ const ReviewsAdminPage: React.FC = () => {
   const newPhotoFileValues = React.useMemo(() => newPhotoFiles.map(item => item.file), [newPhotoFiles]);
   const newPhotoPreviews = useObjectUrls(newPhotoFileValues);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [togglingId, setTogglingId] = React.useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
+  const draftCount = reviews.filter(review => review.status === "draft").length;
+  const visibleReviews = statusFilter === "all" ? reviews : reviews.filter(review => review.status === statusFilter);
   const [albumSlugs, setAlbumSlugs] = React.useState<string[]>([]);
   const [activeAlbumSlug, setActiveAlbumSlug] = React.useState("");
   const [albumPhotos, setAlbumPhotos] = React.useState<AlbumPhoto[]>([]);
@@ -151,6 +162,7 @@ const ReviewsAdminPage: React.FC = () => {
       offerSlug: review.offerSlug ?? "",
       verified: review.verified,
       selectedPhotos: review.photos.map(photo => ({ id: `existing-${photo.url}`, source: "existing", photo })),
+      status: review.status,
     });
     setActiveAlbumSlug(""); setAlbumPhotos([]);
     void loadAlbumSlugs();
@@ -224,8 +236,13 @@ const ReviewsAdminPage: React.FC = () => {
     });
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Enter în formular păstrează starea curentă; butoanele aleg explicit draft / publicat.
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    void saveReview(form.status);
+  }
+
+  async function saveReview(status: ReviewStatus) {
     if (!form.author.trim() || !form.text.trim()) {
       setError("Numele și textul recenziei sunt obligatorii.");
       return;
@@ -246,6 +263,7 @@ const ReviewsAdminPage: React.FC = () => {
       if (form.category !== "wedding") body.set("offerSlug", form.offerSlug.trim());
       if (form.sourceFeedbackId) body.set("sourceFeedbackId", form.sourceFeedbackId);
       body.set("verified", String(form.verified));
+      body.set("status", status);
       newPhotoFiles.forEach((item) => body.append("photos", item.file));
       if (editingId) body.set("keepPhotoUrls", JSON.stringify(form.selectedPhotos.filter(item => item.source === "existing").map(item => item.photo?.url).filter(Boolean)));
 
@@ -259,6 +277,24 @@ const ReviewsAdminPage: React.FC = () => {
       setError(err instanceof Error ? err.message : "Recenzia nu a putut fi salvată.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function toggleStatus(review: Review) {
+    const status: ReviewStatus = review.status === "draft" ? "published" : "draft";
+    setTogglingId(review.id);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.set("status", status);
+      const response = await fetch(`/api/reviews/admin/${review.id}`, { method: "PUT", headers: authHeader, body });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Starea recenziei nu a putut fi schimbată.");
+      setReviews((current) => current.map((item) => item.id === review.id ? { ...item, status } : item));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eroare de conexiune.");
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -285,7 +321,7 @@ const ReviewsAdminPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-light tracking-tight text-white">Recenzii</h1>
             <p className="mt-1 text-sm text-neutral-400">
-              Creează recenzii manual sau acceptă mesaje din Feedback clienți. Alege afișarea pe homepage și paginile de oraș, pe oferte sau în ambele zone.
+              Creează recenzii manual sau acceptă mesaje din Feedback clienți. Alege afișarea pe homepage și paginile de oraș, pe oferte sau în ambele zone. Draft-urile rămân doar aici, până le publici.
             </p>
             <Link to="/admin/feedback" className="mt-3 inline-block text-sm text-amber-200">Vezi feedback-ul primit →</Link>
           </div>
@@ -299,14 +335,26 @@ const ReviewsAdminPage: React.FC = () => {
         </div>
 
         {error && !showForm && <p role="alert" className="text-sm text-red-300">{error}</p>}
+        {!loading && reviews.length > 0 && (
+          <div role="tablist" aria-label="Filtru stare recenzii" className="flex flex-wrap gap-1">
+            {([["all", `Toate (${reviews.length})`], ["published", `Publicate (${reviews.length - draftCount})`], ["draft", `Draft (${draftCount})`]] as const).map(([value, label]) => (
+              <button key={value} type="button" role="tab" aria-selected={statusFilter === value} onClick={() => setStatusFilter(value)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${statusFilter === value ? "bg-neutral-800 text-white" : "text-neutral-500 hover:text-neutral-300"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {loading ? (
           <p className="text-sm text-neutral-500">Se încarcă...</p>
         ) : reviews.length === 0 ? (
           <p className="text-sm text-neutral-500">Nicio recenzie adăugată încă.</p>
+        ) : visibleReviews.length === 0 ? (
+          <p className="text-sm text-neutral-500">{statusFilter === "draft" ? "Nicio recenzie în draft." : "Nicio recenzie publicată."}</p>
         ) : (
           <div className="space-y-2">
-            {reviews.map((review) => (
-              <div key={review.id} className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+            {visibleReviews.map((review) => (
+              <div key={review.id} className={`flex items-start gap-3 rounded-xl border p-4 ${review.status === "draft" ? "border-dashed border-neutral-700 bg-neutral-900/50" : "border-neutral-800 bg-neutral-900"}`}>
                 {review.photos.length > 0 && (
                   <div className="relative h-16 w-16 shrink-0">
                     <img src={review.photos[0].url} alt="" className="h-16 w-16 rounded-lg object-cover" />
@@ -320,6 +368,9 @@ const ReviewsAdminPage: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-white">{review.author}</span>
+                    {review.status === "draft"
+                      ? <span className="rounded bg-neutral-700/60 px-1.5 py-0.5 text-[10px] font-medium text-neutral-300">Draft · nu apare pe site</span>
+                      : <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">Publicată</span>}
                     {review.verified && <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">Verificată</span>}
                     <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-400">
                       {review.category === "both" ? `Homepage + ofertă · ${review.offerSlug || "toate"}` : review.category === "oferta" ? `Ofertă${review.offerSlug ? ` · ${review.offerSlug}` : " · toate"}` : "Homepage + orașe"}
@@ -330,6 +381,14 @@ const ReviewsAdminPage: React.FC = () => {
                   <p className="mt-1 truncate text-sm text-neutral-400">{review.text}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void toggleStatus(review)}
+                    disabled={togglingId === review.id}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${review.status === "draft" ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25" : "text-neutral-400 hover:bg-neutral-800 hover:text-white"}`}
+                  >
+                    {review.status === "draft" ? "Publică" : "Treci în draft"}
+                  </button>
                   <button onClick={() => openEditForm(review)} className="p-1.5 rounded-lg text-neutral-600 hover:text-amber-400 hover:bg-neutral-800 transition-colors" title="Editează">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                   </button>
@@ -352,7 +411,7 @@ const ReviewsAdminPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {form.sourceFeedbackId && <p className="text-sm text-neutral-400">Verifică numele, textul și locul afișării. Publicarea are loc doar după salvare. Feedback-ul original rămâne păstrat. Formularul clientului nu cere stele; adaugă un rating doar dacă l-a oferit clientul.</p>}
+              {form.sourceFeedbackId && <p className="text-sm text-neutral-400">Verifică numele, textul și locul afișării. Poți salva ca draft (nu apare pe site) sau publica direct. Feedback-ul original rămâne păstrat. Formularul clientului nu cere stele; adaugă un rating doar dacă l-a oferit clientul.</p>}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-neutral-400 mb-1">Nume client</label>
@@ -481,8 +540,11 @@ const ReviewsAdminPage: React.FC = () => {
                 <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:border-neutral-500">
                   Anulează
                 </button>
-                <button type="submit" disabled={saving} className="rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50">
-                  {saving ? "Se salvează..." : editingId ? "Salvează" : form.sourceFeedbackId ? "Acceptă și publică recenzia" : "Adaugă"}
+                <button type="button" onClick={() => void saveReview("draft")} disabled={saving} className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:border-neutral-500 disabled:opacity-50">
+                  {saving ? "Se salvează..." : editingId ? "Salvează ca draft" : form.sourceFeedbackId ? "Acceptă ca draft" : "Adaugă ca draft"}
+                </button>
+                <button type="button" onClick={() => void saveReview("published")} disabled={saving} className="rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50">
+                  {saving ? "Se salvează..." : editingId ? "Salvează și publică" : form.sourceFeedbackId ? "Acceptă și publică recenzia" : "Adaugă și publică"}
                 </button>
               </div>
             </form>

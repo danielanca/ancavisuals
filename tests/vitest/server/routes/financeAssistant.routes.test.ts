@@ -23,6 +23,11 @@ function createMockResponse() {
 }
 
 const collections: Record<string, Array<Record<string, unknown>>> = {
+  adminEvents: [
+    { id: "ev1", eventDate: new FakeTimestamp(new Date("2026-11-07T12:00:00Z")), type: "nunta", status: "confirmat", fiscalized: true, client: { fullName: "Ana" }, pricing: { total: 1000, remainingAmount: 700 } },
+    { id: "ev2", eventDate: new FakeTimestamp(new Date("2026-11-14T12:00:00Z")), type: "nunta", status: "confirmat", fiscalized: false, client: { fullName: "Bogdan" }, pricing: { total: 1500, remainingAmount: 1500 } },
+    { id: "ev3", eventDate: new FakeTimestamp(new Date("2026-11-21T12:00:00Z")), type: "botez", status: "tentativ", client: { fullName: "Cristi" }, pricing: { total: 600, remainingAmount: 600 } },
+  ],
   expenses: [
     { id: "e1", date: new FakeTimestamp(new Date("2026-03-03T10:00:00Z")), supplier: "Adobe", category: "software", amount: 100, currency: "EUR", deductibleAmount: 100, factura: { url: "u" } },
     { id: "e2", date: new FakeTimestamp(new Date("2026-03-10T10:00:00Z")), supplier: "OMV Petrom", category: "combustibil", amount: 400, currency: "RON", deductibleAmount: 200, factura: null, chitanta: null },
@@ -107,6 +112,19 @@ describe("finance assistant chat", () => {
     // Tranzacția marcată manual ca "dismissed" nu mai apare ca fără document.
     expect(bank.rows).toHaveLength(1);
     expect(bank.rows[0]).toMatchObject({ counterparty: "EMAG", status: "unmatched", amountRon: 250 });
+  });
+
+  test("never exposes unfiscalized events to the model", async () => {
+    const { handler, createMock } = await loadHandler([
+      { stop_reason: "tool_use", content: [toolUse("t1", "list_events", { from: "2026-10-16", to: "2026-12-31" })] },
+      { stop_reason: "end_turn", content: [{ type: "text", text: "Ai un eveniment fiscalizat." }] },
+    ]);
+    const res = createMockResponse();
+    await handler({ body: { messages: [{ role: "user", content: "ce evenimente mai am?" }] } }, res);
+
+    const events = JSON.parse(toolResults(createMock, 1)[0].content);
+    expect(events.rows.map((row: { id: string }) => row.id)).toEqual(["ev1"]);
+    expect(events).toMatchObject({ count: 1, totalEur: 1000, remainingEur: 700 });
   });
 
   test("reports unknown tools as errors and keeps going", async () => {

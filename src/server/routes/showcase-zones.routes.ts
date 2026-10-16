@@ -25,11 +25,14 @@ function refreshBunnyUrl(url: string): string {
 // A photo picked from an album may be the full-resolution original (/<album>/photos/X.jpg,
 // often 2–4 MB). Every album also has its optimized copy at /<album>/photos_preview/X.webp.
 const ALBUM_ORIGINAL = /^\/([^/]+)\/photos\/([^/]+)\.(?:jpe?g|png|webp)$/i;
+// A Media Assets photo (offers-assets/<service>/<name>.<ext>) has its compressed copy next to it
+// as <name>.preview.webp (made on upload / by „Generează copii WebP”).
+const MEDIA_ASSET_ORIGINAL = /^\/offers-assets\/(.+?)(?<!\.preview)\.(?:jpe?g|png|webp)$/i;
 // Zones can hold videos too (homepage_videos) — those are always large and stay.
 const VIDEO_FILE = /\.(?:mp4|mov|webm|m4v)$/i;
 
 /**
- * Swaps album originals for their optimized copy and drops photos still over
+ * Swaps album originals and Media Assets originals for their optimized copy and drops photos still over
  * MAX_PHOTO_BYTES — for the admin they stay, listed in `heavy` (URL → bytes) to flag them.
  */
 async function lightPhotoUrls(storedUrls: string[], keepHeavy: boolean): Promise<{ urls: string[]; heavy: Record<string, number> }> {
@@ -40,8 +43,12 @@ async function lightPhotoUrls(storedUrls: string[], keepHeavy: boolean): Promise
   };
   const previewOf = (url: string) => {
     try {
-      const match = cdnBase && url.startsWith(cdnBase) ? ALBUM_ORIGINAL.exec(new URL(url).pathname) : null;
-      return match ? `${cdnBase}/${match[1]}/photos_preview/${match[2]}.webp` : null;
+      if (!cdnBase || !url.startsWith(cdnBase)) return null;
+      const pathname = new URL(url).pathname;
+      const album = ALBUM_ORIGINAL.exec(pathname);
+      if (album) return `${cdnBase}/${album[1]}/photos_preview/${album[2]}.webp`;
+      const asset = MEDIA_ASSET_ORIGINAL.exec(pathname);
+      return asset ? `${cdnBase}/offers-assets/${asset[1]}.preview.webp` : null;
     } catch { return null; }
   };
   const previews = storedUrls.map(previewOf);
@@ -100,7 +107,8 @@ router.get("/:id/sources", requireFirebaseAuth, requireSupremeAdmin, async (req:
         const data = doc.data();
         return {
           id: doc.id,
-          url: refreshBunnyUrl(String(data.url ?? "")),
+          // Varianta comprimată, ca pozele noi alese să fie ușoare de la început.
+          url: refreshBunnyUrl(String(data.previewUrl || data.url || "")),
           label: String(data.label ?? ""),
           serviceId: String(data.serviceId ?? ""),
           kind: data.kind === "video" ? "video" as const : "image" as const,

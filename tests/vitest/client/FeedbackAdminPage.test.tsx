@@ -25,7 +25,7 @@ test("loads owner inbox and marks read only after server confirms", async () => 
 test("published feedback links to review management instead of offering duplicate acceptance", async () => {
   fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ feedback: [{ ...item, publishedReviewId: "feedback-review" }], nextCursor: null }) });
   page(); await screen.findByText("Ana");
-  expect(screen.getByRole("link", { name: "Publicat · Gestionează recenzia" })).toHaveAttribute("href", "/admin/recenzii");
+  expect(screen.getByRole("link", { name: "Acceptat ca recenzie · Editează (draft / publicare + poze)" })).toHaveAttribute("href", "/admin/recenzii?edit=feedback-review");
   expect(screen.queryByRole("link", { name: "Acceptă ca recenzie" })).not.toBeInTheDocument();
 });
 test("loads older feedback using the server cursor without duplicating existing entries", async () => {

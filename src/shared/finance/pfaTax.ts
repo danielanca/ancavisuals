@@ -37,22 +37,12 @@ export function calcPfaTax(taxableBase: number): {
   return { impozit, incomeTaxBase, cassBase, cass, casBase, cas, total };
 }
 
-// Cât să pui deoparte din fiecare plată nouă. Cu proiecție: taxele în plus până la 31 dec
-// împărțite la încasările estimate rămase (prinde și saltul CAS dacă proiecția trece pragul).
-// Fără proiecție: cota marginală pe următorii 1.000 RON încasați, la marja de profit de acum.
-// `alreadyOwed` = taxele aferente profitului de până acum, care ar trebui să fie deja deoparte.
-export function calcSetAside(
-  currentBase: number,
-  totalIncome: number,
-  projection: { finalBase: number; finalIncome: number } | null,
-) {
+// Cât să pui deoparte din fiecare factură nouă: cota marginală pe următorii 1.000 RON
+// facturați, la marja de profit de acum. Nu prinde un eventual salt de CAS (se vede la praguri).
+// `alreadyOwed` = taxele aferente profitului din facturile emise, care ar trebui să fie deja deoparte.
+export function calcSetAside(currentBase: number, totalIncome: number) {
   const alreadyOwed = calcPfaTax(currentBase).total;
-  const remainingIncome = projection ? projection.finalIncome - totalIncome : 0;
-  if (projection && remainingIncome > 1) {
-    const extraTax = Math.max(0, calcPfaTax(projection.finalBase).total - alreadyOwed);
-    return { rate: extraTax / remainingIncome, alreadyOwed, basedOnProjection: true };
-  }
   const profitMargin = totalIncome > 0 ? currentBase / totalIncome : 1;
   const marginalPerProfit = (calcPfaTax(currentBase + 1000).total - alreadyOwed) / 1000;
-  return { rate: marginalPerProfit * profitMargin, alreadyOwed, basedOnProjection: false };
+  return { rate: marginalPerProfit * profitMargin, alreadyOwed };
 }

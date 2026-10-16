@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import { type OfferAssetKind } from "../../../../shared/offers/offerServices";
+import { MAX_PHOTO_BYTES, formatPhotoWeight, isHeavyPhoto } from "../../../../shared/media/photoWeight";
 
 type OfferMediaAsset = {
   id: string;
@@ -13,6 +14,8 @@ type OfferMediaAsset = {
   label: string;
   displayUrl?: string;
   sourceAlbumSlug?: string;
+  // Doar în lista template-ului: mărimea fișierului afișat (pozele grele sunt ascunse vizitatorilor).
+  sizeBytes?: number;
 };
 
 const NO_ALBUM_GROUP = "Alte poze";
@@ -62,7 +65,9 @@ export default function OfferTemplateOrganizerPage() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
-  const [activeDevice, setActiveDevice] = useState<Device>("desktop");
+  // `?device=mobile` vine din butonul de admin de pe pagina publică (deschis de pe telefon).
+  const [searchParams] = useSearchParams();
+  const [activeDevice, setActiveDevice] = useState<Device>(() => searchParams.get("device") === "mobile" ? "mobile" : "desktop");
   const draggingIdsRef = useRef<string[]>([]);
   const dragOverIdRef = useRef<string | null>(null);
 
@@ -220,7 +225,13 @@ export default function OfferTemplateOrganizerPage() {
     window.addEventListener("pointercancel", onUp);
   }
 
-  function renderEditableCard(asset: OfferMediaAsset, index: number, variant: "desktop" | "mobile") {
+  const previewColumns = activeDevice === "desktop" ? 4 : 2;
+  // Ce vede vizitatorul: pozele grele lipsesc, iar restul urcă pe pozițiile lor.
+  const isHiddenFromVisitors = (asset: OfferMediaAsset) => asset.kind === "image" && isHeavyPhoto(asset.sizeBytes);
+  const visitorAssets = activeAssets.filter(asset => !isHiddenFromVisitors(asset));
+  const hiddenAssets = activeAssets.filter(isHiddenFromVisitors);
+
+  function renderEditableCard(asset: OfferMediaAsset, badge: string, variant: "desktop" | "mobile") {
     const rounded = variant === "desktop" ? "rounded-2xl" : "rounded-xl";
     const marginBottom = variant === "desktop" ? "mb-3" : "mb-2";
     const isSelected = multiSelected.has(asset.id);
@@ -245,7 +256,7 @@ export default function OfferTemplateOrganizerPage() {
             <img src={assetUrl(asset)} alt={asset.label} className="block h-auto w-full" loading="lazy" draggable={false} />
           )}
           <div className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-white pointer-events-none">
-            #{index + 1}
+            {badge}
           </div>
           {isSelected && (
             <div className="absolute left-2 bottom-2 flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-white pointer-events-none">
@@ -392,19 +403,31 @@ export default function OfferTemplateOrganizerPage() {
               : "Aceasta ordine e vazuta de vizitatorii de pe mobil."}
           </p>
 
-          {activeAssets.length > 0 ? (
+          {visitorAssets.length > 0 ? (
+            // Pozele sunt împărțite PE RÂNDURI în coloane (#1, #2, #3, #4 pe primul rând…), exact ca
+            // galeria publică (PortfolioParallaxGallery: index % coloane): 4 coloane = ce vede un
+            // vizitator pe laptop/monitor, 2 = telefon. CSS `columns` le-ar fi pus pe coloane
+            // (#1, #2, #3 una sub alta), deci altă ordine vizuală decât pe site.
             <div
-              className={
-                activeDevice === "desktop"
-                  // Same breakpoints as the public offer gallery (OfertaPage.tsx),
-                  // so what you arrange here matches exactly what the client sees.
-                  ? "mt-5 columns-2 gap-3 sm:columns-3 lg:columns-4"
-                  : "mt-5 mx-auto max-w-[340px] columns-2 gap-2"
-              }
+              className={activeDevice === "desktop" ? "mt-5 grid grid-cols-4 gap-3" : "mt-5 mx-auto grid max-w-[340px] grid-cols-2 gap-2"}
             >
-              {activeAssets.map((asset, index) => renderEditableCard(asset, index, activeDevice))}
+              {Array.from({ length: previewColumns }, (_, column) => (
+                <div key={column} className="min-w-0">
+                  {visitorAssets.map((asset, index) => (index % previewColumns === column ? renderEditableCard(asset, `#${index + 1}`, activeDevice) : null))}
+                </div>
+              ))}
             </div>
-          ) : (
+          ) : null}
+          {hiddenAssets.length > 0 && (
+            <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+              <p className="text-sm font-medium text-amber-200">Nu apar pe site — prea grele (peste {MAX_PHOTO_BYTES / 1024} KB)</p>
+              <p className="mt-1 text-xs text-amber-100/70">Vizitatorii nu le primesc, iar pozele de mai sus le iau locul. Înlocuiește-le cu o variantă mai ușoară în Media Assets sau scoate-le (✕).</p>
+              <div className={`mt-3 grid gap-3 ${activeDevice === "desktop" ? "grid-cols-4" : "grid-cols-2"}`}>
+                {hiddenAssets.map(asset => <div key={asset.id} className="min-w-0">{renderEditableCard(asset, `ascunsă · ${formatPhotoWeight(asset.sizeBytes ?? 0)}`, activeDevice)}</div>)}
+              </div>
+            </div>
+          )}
+          {activeAssets.length === 0 && (
             <div className="mt-5 rounded-xl border border-neutral-800 bg-neutral-950/60 px-4 py-6 text-sm text-neutral-600">
               Nu ai selectat inca asset-uri pentru {activeDevice === "desktop" ? "desktop" : "mobil"}.
             </div>
