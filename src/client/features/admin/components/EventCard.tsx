@@ -5,6 +5,7 @@ import Redacted from "./Redacted";
 import CreateClientBriefLink from "../../client-brief/CreateClientBriefLink";
 import FeedbackLink from "../../feedback/FeedbackLink";
 import PrintSelectionLink from "../../../pages/MediaDownload/PrintSelectionLink";
+import CoupleLink from "../../../pages/MediaDownload/CoupleLink";
 import EventVideoLink from "./EventVideoLink";
 import { watchAlbumProcessing } from "./watchAlbumProcessing";
 import EventStatusBadge from "./EventStatusBadge";
@@ -1041,6 +1042,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                     <p className="text-neutral-500 text-xs uppercase tracking-wide font-medium">Album media</p>
                     <FeedbackLink key={albumSlug} albumSlug={albumSlug} />
                     <PrintSelectionLink key={`print-${albumSlug}`} albumSlug={albumSlug} />
+                    <CoupleLink key={`couple-${albumSlug}`} albumSlug={albumSlug} />
                     <div className="flex flex-wrap items-center gap-2">
                       <a
                         href={`/media/${albumSlug}`}

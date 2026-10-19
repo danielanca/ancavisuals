@@ -28,6 +28,7 @@ import { heavyPhotoNote, isHeavyPhoto } from "../../../shared/media/photoWeight"
 import { whenLandingSettled } from "../../utils/whenLandingSettled";
 import { stableVh } from "../../utils/stableViewport";
 import { demoReviews } from "./ReviewsPreviewPage";
+import { useReferral } from "../../utils/referral";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -387,6 +388,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   };
 
   const promoExpired = PROMO_DEADLINE - now <= 0;
+  // Came through a guest's recommendation (utm_source=recomandare): the photobooth + QR code
+  // are free no matter whether the public promo is still on.
+  const referral = useReferral();
+  const photoboothFree = referral || !promoExpired;
 
   const checkAvailability = (e: React.FormEvent) => {
     e.preventDefault();
@@ -413,6 +418,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           gclid: landing?.gclid,
           wbraid: landing?.wbraid,
           gbraid: landing?.gbraid,
+          referral,
         }),
       });
       if (res.ok) {
@@ -651,7 +657,21 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <span className="h-px w-10 bg-neutral-300/60" />
           </p>
           <h2 className="mt-5 text-4xl font-normal uppercase leading-tight tracking-[0.05em] sm:text-5xl">🎁 Fotocabina e gratuită</h2>
-          {promoExpired ? (
+          {referral ? (
+            <>
+              <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-neutral-600 sm:text-base">
+                Ai venit prin recomandarea cuiva, așa că fotocabina și QR code-ul pentru pozele invitaților sunt <strong className="text-neutral-950">gratuite</strong> la nunta ta.
+              </p>
+              <div>
+                <a
+                  href={availabilityHref}
+                  className="mt-7 inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-6 py-3.5 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-neutral-800"
+                >
+                  Verifică disponibilitatea
+                </a>
+              </div>
+            </>
+          ) : promoExpired ? (
             <p className="mt-4 text-sm text-neutral-600">Oferta s-a încheiat.</p>
           ) : (
             <>
@@ -770,7 +790,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         <PriceConfigurator
           waLink={waLink}
           onWhatsAppClick={(position) => trackClick("click_whatsapp", position)}
-          photoboothFree={!promoExpired}
+          photoboothFree={photoboothFree}
           dateParts={dateParts}
           onDatePart={setDatePart}
           eventDate={form.eventDate}
@@ -900,9 +920,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               const dateLabel = formatDateRo(form.eventDate);
               const event = form.eventType.toLowerCase();
               // Same terms as the "Ofertă limitată" section: first 2 weddings, until PROMO_DEADLINE.
-              const photoboothGift = free && !promoExpired && form.eventType === "Nuntă";
+              const photoboothGift = free && photoboothFree && form.eventType === "Nuntă";
               const waText = free
-                ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? ", cu fotocabina gratuită" : ""}.`
+                ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? (referral ? ", cu fotocabina gratuită și QR code (am venit prin recomandare)" : ", cu fotocabina gratuită") : ""}.`
                 : `Bună! Am văzut că ${dateLabel} e ocupată. Aveți o soluție pentru ${event}?`;
               const startingPrice = `${seasonalStartingPrice(form.eventType, startingPrices, priceSeasons, form.eventDate, datePrices)} €`;
               return (
@@ -915,7 +935,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   )}
                   {photoboothGift && (
                     <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                      🎁 <span className="font-semibold">+ Fotocabina e gratuită</span> dacă rezervi până pe 30 octombrie — 3 din 5 locuri s-au ocupat, mai sunt 2 disponibile.
+                      {referral
+                        ? <>🎁 <span className="font-semibold">+ Fotocabina și QR code sunt gratuite</span> pentru tine, pentru că ai venit prin recomandarea cuiva.</>
+                        : <>🎁 <span className="font-semibold">+ Fotocabina e gratuită</span> dacă rezervi până pe 30 octombrie — 3 din 5 locuri s-au ocupat, mai sunt 2 disponibile.</>}
                     </p>
                   )}
                   {!free && <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție — scrie-ne.</p>}

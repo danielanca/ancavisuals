@@ -13,7 +13,7 @@ const CheckAuth: React.FC = () => {
 
   // If already logged in, skip the login page
   return auth?.authorise ? (
-    <Navigate to={loginDestination(location.state)} replace />
+    <Navigate to={loginDestination(location.state, location.search)} replace />
   ) : (
     <Outlet />
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
 import PhotoReviewImage from "../../../components/Media/PhotoReviewImage";
@@ -418,14 +418,17 @@ export default function InstagramProposalsAdminPage() {
   const [proposals, setProposals] = useState<InstagramProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectionEnabled, setSelectionEnabled] = useState(false);
-  const [tab, setTab] = useState<Tab>("pending");
+  // ?album=<slug> (from "👀 Vezi pozele propuse" on an album page) opens "Toate" filtered to that album.
+  const [searchParams] = useSearchParams();
+  const albumParam = searchParams.get("album");
+  const [tab, setTab] = useState<Tab>(albumParam ? "all" : "pending");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   // Albumele pornesc închise; se ține minte doar ce ai deschis în sesiunea asta.
   const [expandedAlbums, setExpandedAlbums] = useState<Set<string>>(new Set());
   const [allStatusFilter, setAllStatusFilter] = useState<ProposalStatus | "all">("all");
   const [destinationFilter, setDestinationFilter] = useState<ProposalDestination | "all">("all");
-  const [allAlbumFilter, setAllAlbumFilter] = useState("all");
+  const [allAlbumFilter, setAllAlbumFilter] = useState(albumParam || "all");
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const [acceptedInSession, setAcceptedInSession] = useState<Set<string>>(new Set());
   // Acceptările (cu import în Media Assets) trec printr-o coadă: câte 2 deodată, ca pe server,

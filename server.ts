@@ -75,6 +75,7 @@ import { startClientTasksCron } from "./src/server/cron/clientTasks.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
+import { startAlbumPromisesCron } from "./src/server/cron/albumPromises.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
@@ -90,6 +91,7 @@ import { startServerMonitor } from "./src/server/monitoring/serverMonitor";
 import { generateSitemapFromDb } from "./src/server/utils/sitemapGenerator";
 import healthRouter from "./src/server/routes/health.routes";
 import { initialDataScript, loadInitialData } from "./src/server/ssr/initialData";
+import { shareOgFor } from "./src/server/ssr/shareOg";
 import type { InitialData } from "./src/client/ssr/initialData";
 
 // Shared HTTP defaults used by both local development and the production server.
@@ -274,6 +276,7 @@ async function createServer() {
   startAnalyticsCron();
   startAlbumRetentionCron();
   startPostEventBackupCron();
+  startAlbumPromisesCron();
   startErrorsCron();
   startRemindersCron();
   startAlbumZipCheckCron();
@@ -283,7 +286,7 @@ async function createServer() {
   startReverseChargeVatCron();
   startSeoRadarWeeklyScanCron();
 
-  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites · photobooth notify · reverse-charge VAT · seo radar weekly scan");
+  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · album promises · errors · collaborator invites · photobooth notify · reverse-charge VAT · seo radar weekly scan");
 
   let vite: ViteDevServer | undefined;
   let template: string;
@@ -398,6 +401,8 @@ async function createServer() {
       }
 
       const cssAssets = await stylesheetsPromise;
+      // /share/<id>: WhatsApp-style link preview with the first chosen photo.
+      htmlTemplate = await shareOgFor(htmlTemplate, new URL(url, "http://localhost").pathname);
       const html = htmlTemplate
         .replace(`<!--app-html-->`, appHtml)
         .replace(`<!--head-->`, head + "\n" + cssAssets)
@@ -438,6 +443,10 @@ async function createServer() {
       console.log(`App is listening on http://127.0.0.1:${port}`);
     }
   });
+
+  // Node's 5-minute default cuts off browser-built album ZIPs (GBs on a home uplink) mid-stream.
+  // nginx in front still enforces client timeouts; the ZIP route aborts on its own when bytes stop.
+  httpServer.requestTimeout = 3 * 60 * 60_000;
 
   if (!isProd && vite) {
     httpServer.on('upgrade', (req, socket, head) => {

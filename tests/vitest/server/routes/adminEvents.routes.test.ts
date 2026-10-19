@@ -124,6 +124,7 @@ async function loadRouter() {
     BUNNY_ACCESS_KEY_HEADER: "AccessKey",
     BUNNY_PHOTOS_FOLDER: "photos",
     BUNNY_QR_MOMENT_FOLDER: "qr-moment",
+    BUNNY_DEFAULT_ARCHIVE_NAME: "photos.zip",
     getBunnyStorageKey: vi.fn(() => "test-key"),
     buildBunnyStorageUrl: vi.fn((...parts: string[]) => `https://storage.bunnycdn.com/${parts.join("/")}`),
     buildBunnyDirectoryUrl: vi.fn((...parts: string[]) => `https://storage.bunnycdn.com/${parts.filter(Boolean).join("/")}/`),
@@ -235,6 +236,8 @@ async function loadRouter() {
     postCreateAlbum: getHandler("post", "/events/:id/create-album"),
     postUploadPhoto: getHandler("post", "/events/:id/upload-photo"),
     postUploadPreview: getHandler("post", "/events/:id/upload-photo-preview"),
+    postAlbumZipCheck: getHandler("post", "/events/:id/album-zip/check"),
+    postUploadAlbumZip: getHandler("post", "/events/:id/upload-album-zip"),
     postUploadSession: getHandler("post", "/events/:id/upload-session"),
     updateUploadSession: getHandler("post", "/events/:id/upload-session/:sessionId"),
     uploadNotifications,
@@ -1050,6 +1053,91 @@ describe("adminEvents routes", () => {
       const res = createMockResponse();
       await postUploadPhoto(makeReq(), res);
       expect(res.status).toHaveBeenCalledWith(502);
+    });
+  });
+
+  describe("browser-built photos.zip", () => {
+    const { Readable } = require("node:stream") as typeof import("node:stream");
+    const { createHash } = require("node:crypto") as typeof import("node:crypto");
+    const listing = (names: string[]) => ({ ok: true, json: async () => names.map((ObjectName) => ({ ObjectName, IsDirectory: false })) });
+    const hash = (names: string[]) => createHash("sha256").update([...names].sort().join("\n")).digest("hex");
+    const zipReq = (headers: Record<string, string> = {}) => Object.assign(Readable.from([Buffer.from("zip-bytes-of-length-30-xxxxxx")]), {
+      params: { id: "ev-1" },
+      headers: { "content-length": "30", "x-album-zip-manifest": hash(["a.jpg", "b.JPG"]), ...headers },
+    });
+
+    test("check reports originals in Bunny that the selection lacks", async () => {
+      const { postAlbumZipCheck, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce(listing(["a.jpg", "b.JPG", "c.jpg", "notes.txt"]));
+      const res = createMockResponse();
+      await postAlbumZipCheck({ params: { id: "ev-1" }, body: { files: ["a.jpg", "b.JPG"] } }, res);
+      expect(nodeFetchMock.mock.calls[0][0]).toContain("nunta-ion-maria/photos/");
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ complete: false, missing: ["c.jpg"], missingCount: 1, extra: [] }));
+    });
+
+    test("check confirms a selection that matches the album exactly", async () => {
+      const { postAlbumZipCheck, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce(listing(["b.JPG", "a.jpg"]));
+      const res = createMockResponse();
+      await postAlbumZipCheck({ params: { id: "ev-1" }, body: { files: ["a.jpg", "b.JPG"] } }, res);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ complete: true }));
+    });
+
+    test("streams the ZIP to Bunny, verifies its size and drops a queued server rebuild", async () => {
+      const { postUploadAlbumZip, nodeFetchMock, zip } = await loadRouter();
+      zip.beginAlbumZipRun.mockReturnValue(true);
+      nodeFetchMock.mockResolvedValueOnce(listing(["a.jpg", "b.JPG"]))
+        .mockImplementationOnce(async (_url: string, opts: any) => { for await (const _ of opts.body) { /* drain */ } return { ok: true }; })
+        .mockResolvedValueOnce({ ok: true, json: async () => [{ ObjectName: "photos.zip", IsDirectory: false, Length: 30 }] });
+      const res = createMockResponse();
+      await postUploadAlbumZip(zipReq(), res);
+      const [url, opts] = nodeFetchMock.mock.calls[1];
+      expect(url).toContain("nunta-ion-maria/photos.zip");
+      expect(opts.method).toBe("PUT");
+      expect(opts.headers["Content-Length"]).toBe("30");
+      expect(zip.removeAlbumZipJob).toHaveBeenCalledWith("nunta-ion-maria");
+      expect(zip.endAlbumZipRun).toHaveBeenCalledWith("nunta-ion-maria");
+      expect(res.json).toHaveBeenCalledWith({ ok: true, size: 30, count: 2 });
+    });
+
+    test("refuses a ZIP whose manifest no longer matches Bunny", async () => {
+      const { postUploadAlbumZip, nodeFetchMock, zip } = await loadRouter();
+      zip.beginAlbumZipRun.mockReturnValue(true);
+      nodeFetchMock.mockResolvedValueOnce(listing(["a.jpg", "b.JPG", "new.jpg"]));
+      const res = createMockResponse();
+      await postUploadAlbumZip(zipReq(), res);
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(nodeFetchMock).toHaveBeenCalledTimes(1);
+      expect(zip.endAlbumZipRun).not.toHaveBeenCalled();
+    });
+
+    test("refuses while the server is already building photos.zip", async () => {
+      const { postUploadAlbumZip, nodeFetchMock, zip } = await loadRouter();
+      zip.beginAlbumZipRun.mockReturnValue(false);
+      nodeFetchMock.mockResolvedValueOnce(listing(["a.jpg", "b.JPG"]));
+      const res = createMockResponse();
+      await postUploadAlbumZip(zipReq(), res);
+      expect(res.status).toHaveBeenCalledWith(409);
+    });
+
+    test("reports a size mismatch after upload", async () => {
+      const { postUploadAlbumZip, nodeFetchMock, zip } = await loadRouter();
+      zip.beginAlbumZipRun.mockReturnValue(true);
+      nodeFetchMock.mockResolvedValueOnce(listing(["a.jpg", "b.JPG"])).mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true, json: async () => [{ ObjectName: "photos.zip", IsDirectory: false, Length: 12 }] });
+      const res = createMockResponse();
+      await postUploadAlbumZip(zipReq(), res);
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(zip.removeAlbumZipJob).not.toHaveBeenCalled();
+      expect(zip.endAlbumZipRun).toHaveBeenCalled();
+    });
+
+    test("rejects requests without a manifest hash", async () => {
+      const { postUploadAlbumZip, nodeFetchMock } = await loadRouter();
+      const res = createMockResponse();
+      await postUploadAlbumZip(zipReq({ "x-album-zip-manifest": "nope" }), res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(nodeFetchMock).not.toHaveBeenCalled();
     });
   });
 

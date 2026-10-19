@@ -3,18 +3,27 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AlbumPhotoUploader from "src/client/features/admin/components/AlbumPhotoUploader";
 import { createAlbumPreview } from "src/client/features/admin/components/createAlbumPreview";
+import { buildAlbumZip, uploadAlbumZip } from "src/client/features/admin/components/albumZip";
 
 vi.mock("src/client/features/admin/components/createAlbumPreview", () => ({ createAlbumPreview: vi.fn() }));
+vi.mock("src/client/features/admin/components/albumZip", () => ({
+  buildAlbumZip: vi.fn(), uploadAlbumZip: vi.fn(), albumZipManifestHash: vi.fn(async () => "a".repeat(64)),
+}));
 vi.mock("src/client/features/admin/providers/loadFirebaseAuth", () => ({
   loadFirebaseAuth: async () => ({ auth: { currentUser: { getIdToken: async () => "fresh-token" } } }),
 }));
 const fetchMock = vi.fn();
 const sessionFetchMock = vi.fn();
+const zipCheckMock = vi.fn();
 const pick = (container: HTMLElement, files: File[]) => fireEvent.change(container.querySelector("input")!, { target: { files } });
 const photo = (name = "DSC 001.jpg") => new File(["original"], name, { type: "image/jpeg" });
 beforeEach(() => {
   sessionFetchMock.mockReset().mockResolvedValue({ ok: true, json: async () => ({ sessionId: "11111111-1111-1111-1111-111111111111" }) });
-  vi.stubGlobal("fetch", (url: string, options: unknown) => url.includes("upload-session") ? sessionFetchMock(url, options) : fetchMock(url, options));
+  zipCheckMock.mockReset().mockResolvedValue({ ok: true, json: async () => ({ ok: true, complete: true }) });
+  vi.stubGlobal("fetch", (url: string, options: unknown) => url.includes("upload-session") ? sessionFetchMock(url, options)
+    : url.includes("album-zip/check") ? zipCheckMock(url, options) : fetchMock(url, options));
+  vi.mocked(buildAlbumZip).mockReset().mockResolvedValue(new Blob(["zip"], { type: "application/zip" }));
+  vi.mocked(uploadAlbumZip).mockReset().mockResolvedValue({ ok: true, status: 200 });
   fetchMock.mockReset().mockImplementation(async (url: string) => ({ ok: true, json: async () => ({ name: url.includes("preview") ? "DSC_001.webp" : "DSC_001.jpg" }) }));
   vi.mocked(createAlbumPreview).mockReset().mockResolvedValue(new Blob(["webp"], { type: "image/webp" }));
 });
@@ -68,7 +77,7 @@ describe("local album preview uploads", () => {
     fireEvent.click(screen.getByText("Reîncearcă 1 eșuate"));
     await waitFor(() => expect(done).toHaveBeenCalledOnce());
   });
-  test("retries network failures only after every other upload and preview has finished", async () => {
+  test("retries network failures only after every other original has finished", async () => {
     const attempts = new Map<string, number>();
     let releaseSlow!: (value: unknown) => void;
     fetchMock.mockImplementation(async (url: string, options) => {
@@ -99,6 +108,7 @@ describe("local album preview uploads", () => {
     pick(container, [photo()]);
     await waitFor(() => expect(done).toHaveBeenCalledOnce());
     expect(fetchMock.mock.calls.map(([url]) => url.includes("upload-photo-preview"))).toEqual([false, true, true]);
+    expect(uploadAlbumZip).toHaveBeenCalledOnce();
     expect(screen.queryByText(/previzualizări vor fi generate pe server/)).toBeNull();
   });
   test("keeps files and blocks unmonitored uploads if session registration fails", async () => {
@@ -156,5 +166,57 @@ describe("local album preview uploads", () => {
     unmount();
     expect(signal.aborted).toBe(true);
     expect(done).not.toHaveBeenCalled();
+  });
+
+  test("uploads every original before any preview, then builds and uploads photos.zip locally", async () => {
+    const order: string[] = [];
+    fetchMock.mockImplementation(async (url: string, options) => {
+      order.push(url.includes("preview") ? "preview" : "original");
+      return { ok: true, json: async () => ({ name: options.body.name }) };
+    });
+    vi.mocked(uploadAlbumZip).mockImplementation(async () => { order.push("zip"); return { ok: true, status: 200 }; });
+    const done = vi.fn();
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    const files = [photo("a.jpg"), photo("b.jpg"), photo("c.jpg")];
+    pick(container, files);
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    expect(order).toEqual(["original", "original", "original", "preview", "preview", "preview", "zip"]);
+    expect(JSON.parse(zipCheckMock.mock.calls[0][1].body).files).toEqual(["a.jpg", "b.jpg", "c.jpg"]);
+    expect(vi.mocked(buildAlbumZip).mock.calls[0][0]).toEqual(files.map((file) => ({ name: file.name, file })));
+    const [url, , headers] = vi.mocked(uploadAlbumZip).mock.calls[0];
+    expect(url).toBe("/api/admin/events/e1/upload-album-zip");
+    expect(headers["X-Album-Zip-Manifest"]).toBe("a".repeat(64));
+    expect(headers.Authorization).toBe("Bearer fresh-token");
+    expect(screen.getByText(/photos.zip urcat și verificat/)).toBeTruthy();
+  });
+  test("leaves the ZIP to the server when Bunny holds originals outside this selection", async () => {
+    zipCheckMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, complete: false, missingCount: 40 }) });
+    const done = vi.fn();
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    pick(container, [photo()]);
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    expect(buildAlbumZip).not.toHaveBeenCalled();
+    expect(screen.getByText(/alte 40 originale/)).toBeTruthy();
+  });
+  test("keeps the album open for a manual ZIP retry instead of falling back to the server", async () => {
+    vi.mocked(uploadAlbumZip).mockResolvedValueOnce({ ok: false, status: 413 });
+    const done = vi.fn();
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    pick(container, [photo()]);
+    await screen.findByText("Reîncearcă photos.zip");
+    expect(screen.getByText(/client_max_body_size/)).toBeTruthy();
+    expect(done).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Reîncearcă photos.zip"));
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    expect(uploadAlbumZip).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.filter(([url]) => !url.includes("preview"))).toHaveLength(1);
+  });
+  test("can hand a failed ZIP over to the server", async () => {
+    vi.mocked(buildAlbumZip).mockRejectedValueOnce(new Error("disk read failed"));
+    const done = vi.fn();
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    pick(container, [photo()]);
+    fireEvent.click(await screen.findByText("Lasă serverul să facă ZIP-ul"));
+    expect(done).toHaveBeenCalledOnce();
   });
 });

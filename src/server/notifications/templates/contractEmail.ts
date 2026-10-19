@@ -110,6 +110,34 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
   });
 }
 
+/** Client signed first; the provider has now signed too — send the final, fully signed PDF. */
+export async function sendFullySignedContractEmail(options: SignedContractEmailOptions): Promise<void> {
+  const { to, eventType, eventDate, clientName, pdfUrl, hasPdf = true } = options;
+  const formattedDate = formatRoDate(eventDate);
+  const html = emailWrap(`
+    <p style="color: #333; margin-bottom: 12px;">Bună ziua${clientName ? `, ${clientName}` : ""},</p>
+    <p style="color: #333; margin-bottom: 12px;">
+      Contractul pentru evenimentul <strong>${eventType}</strong> din <strong>${formattedDate}</strong>
+      a fost semnat și de <strong>Anca Visuals</strong>. Este acum <strong>semnat de ambele părți</strong>.
+    </p>
+    <p style="color: #555; margin-bottom: 28px;">
+      ${hasPdf
+        ? "Mai jos găsiți varianta finală a contractului, cu ambele semnături. Vă recomandăm să o păstrați."
+        : "Varianta finală, cu ambele semnături, se generează — o puteți accesa în curând din link-ul de mai jos."}
+    </p>
+    <div style="text-align: center; margin-bottom: 28px;">
+      <a href="${pdfUrl}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">${hasPdf ? "Descarcă contractul final" : "Vezi contractul"}</a>
+    </div>
+  `);
+
+  await mailer.sendMail({
+    from: emailAuth.email,
+    to,
+    subject: `Contract semnat de ambele părți — ${eventType} ${formattedDate}`,
+    html,
+  });
+}
+
 interface DeletedContractEmailOptions {
   contract: Record<string, unknown>;
 }

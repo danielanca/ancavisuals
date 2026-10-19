@@ -1,4 +1,5 @@
 import { validateCustomContractClauses } from "../../shared/contractClauses";
+import { isValidNightEndTime, nightEventApplies, parseNightEventAnswer } from "../../shared/contractNightEvent";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
@@ -9,7 +10,7 @@ import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateContractPDF, buildContractHTML } from "../services/pdf.generator";
 import { generateInvoicePDF, generateInvoiceXML } from "../services/invoice.generator";
 import type { InvoiceData } from "../services/invoice.generator";
-import { sendContractLinkEmail, sendSignedContractEmail, sendContractDeletedEmail, sendContractReminderEmail } from "../notifications/templates/contractEmail";
+import { sendContractLinkEmail, sendSignedContractEmail, sendFullySignedContractEmail, sendContractDeletedEmail, sendContractReminderEmail } from "../notifications/templates/contractEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { expandEventDates } from "../utils/expandEventDates";
@@ -282,6 +283,14 @@ router.get("/latest-signed", async (_req: Request, res: Response) => {
 
 // NOTE: /sign/:token routes must come BEFORE /:id to avoid route collision
 
+/** Lets the signing page preview the contract with the night-event answer not yet submitted. */
+function previewNightEvent(query: Request["query"]): Record<string, unknown> {
+  const answer = parseNightEventAnswer(query.nightEvent);
+  if (!answer) return {};
+  const end = query.nightEventEndTime;
+  return { nightEvent: answer, nightEventEndTime: answer === "da" && isValidNightEndTime(end) ? end : "" };
+}
+
 // GET /api/contracts/sign/:token/pdf — PDF contract for public preview
 // Public preview query params overlay client-entered identity and company details.
 router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
@@ -312,6 +321,7 @@ router.get("/sign/:token/pdf", async (req: Request, res: Response) => {
       ...(req.query.clientRepresentativeName !== undefined ? { clientRepresentativeName: String(req.query.clientRepresentativeName) } : {}),
       ...(req.query.clientRepresentativeRole !== undefined ? { clientRepresentativeRole: String(req.query.clientRepresentativeRole) } : {}),
       ...(req.query.clientRepresentativeIdSeries !== undefined ? { clientRepresentativeIdSeries: String(req.query.clientRepresentativeIdSeries) } : {}),
+      ...previewNightEvent(req.query),
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="contract-preview.pdf"`);
@@ -347,6 +357,7 @@ router.get("/sign/:token/html", async (req: Request, res: Response) => {
       ...(req.query.clientRepresentativeName !== undefined ? { clientRepresentativeName: String(req.query.clientRepresentativeName) } : {}),
       ...(req.query.clientRepresentativeRole !== undefined ? { clientRepresentativeRole: String(req.query.clientRepresentativeRole) } : {}),
       ...(req.query.clientRepresentativeIdSeries !== undefined ? { clientRepresentativeIdSeries: String(req.query.clientRepresentativeIdSeries) } : {}),
+      ...previewNightEvent(req.query),
     });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
@@ -409,7 +420,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       clientName, clientEmail, clientAddress, clientPhone, clientIdSeries, clientSignatureBase64,
       clientCIF, clientEntityType, clientRegistrationNumber, clientCity, clientCounty,
       clientBankName, clientIBAN, clientRepresentativeName, clientRepresentativeRole,
-      clientRepresentativeIdSeries,
+      clientRepresentativeIdSeries, nightEvent, nightEventEndTime,
     } = req.body;
 
     if (!clientEmail?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
@@ -467,6 +478,23 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
       return res.status(410).json({ error: "Contractul a expirat sau a fost anulat.", status: contract.status });
     }
 
+    // Night-event declaration is mandatory at signing (except event types where it makes no sense).
+    const nightAnswer = parseNightEventAnswer(nightEvent);
+    let nightFields: Record<string, unknown> = {};
+    if (nightEventApplies(contract.eventType)) {
+      if (!nightAnswer) {
+        return res.status(400).json({ error: "Alegeți dacă evenimentul este de zi sau de noapte." });
+      }
+      if (nightAnswer === "da" && !isValidNightEndTime(nightEventEndTime)) {
+        return res.status(400).json({ error: "Pentru un eveniment de noapte, completați ora estimată de final (între 00:00 și 08:00)." });
+      }
+      nightFields = {
+        nightEvent: nightAnswer,
+        nightEventEndTime: nightAnswer === "da" ? nightEventEndTime : null,
+        nightEventDeclaredAt: Timestamp.now(),
+      };
+    }
+
     const clientIp = getClientIp(req) ?? "unknown";
     const clientUserAgent = req.headers["user-agent"] ?? "";
     const ipInfo = await fetchIpInfo(clientIp).catch(() => null);
@@ -506,6 +534,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
         country: ipInfo?.country ?? "",
         org: ipInfo?.org ?? "",
       },
+      ...nightFields,
     });
 
     // Generate PDF and send email in background — don't block the response
@@ -543,6 +572,7 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
         country: ipInfo?.country ?? "",
         org: ipInfo?.org ?? "",
       },
+      ...nightFields,
       signedAt: signedAt.toDate().toISOString(),
     };
 
@@ -825,14 +855,16 @@ router.post("/:id/prestator-sign", requireFirebaseAuth, requireSupremeAdmin, asy
     await db.collection("contracts").doc(req.params.id).update({ prestatorSignatureBase64 });
 
     // If the client signed first, the PDF was already generated without the
-    // provider signature. Regenerate it so the stored/downloaded PDF is complete.
+    // provider signature. Regenerate it so the stored/downloaded PDF is complete,
+    // and — the first time the provider signs — send the client the final copy.
+    const notifyClient = contract.status === "signed" && !contract.prestatorSignatureBase64 && typeof contract.clientEmail === "string" && contract.clientEmail.trim() !== "";
     if (contract.status === "signed") {
-      generateAndUploadPDF({ ...contract, prestatorSignatureBase64 }).catch((error) => {
-        console.error("[contracts] PDF regeneration after provider signature failed:", error);
+      regenerateAfterProviderSignature({ ...contract, prestatorSignatureBase64 }, notifyClient).catch((error) => {
+        console.error("[contracts] PDF regeneration / client notification after provider signature failed:", error);
       });
     }
 
-    res.json({ ok: true });
+    res.json({ ok: true, clientNotified: notifyClient });
   } catch (error) {
     console.error("[contracts] POST /:id/prestator-sign failed:", error);
     res.status(500).json({ error: "Eroare server." });
@@ -939,6 +971,19 @@ async function generateAndUploadPDF(contract: Record<string, unknown>): Promise<
     console.error("[contracts] PDF generation/upload failed:", pdfError);
     return null;
   }
+}
+
+async function regenerateAfterProviderSignature(contract: Record<string, unknown>, notifyClient: boolean): Promise<void> {
+  const pdfUrl = await generateAndUploadPDF(contract);
+  if (!notifyClient) return;
+  await sendFullySignedContractEmail({
+    to: String(contract.clientEmail),
+    eventType: contract.eventType as string,
+    eventDate: contract.eventDate as string,
+    clientName: contract.clientName as string,
+    pdfUrl: pdfUrl ?? `${APP_BASE_URL}/contract/${String(contract.token ?? "")}`,
+    hasPdf: pdfUrl !== null,
+  });
 }
 
 async function generateAndSendPDF(contract: Record<string, unknown>): Promise<void> {

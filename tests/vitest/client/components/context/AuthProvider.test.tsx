@@ -5,6 +5,7 @@
 import React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "src/client/features/admin/providers/AuthProvider";
 import useAuth from "src/client/features/admin/auth/useAuth";
 
@@ -69,9 +70,11 @@ describe("AuthProvider", () => {
     });
 
     render(
-      <AuthProvider>
-        <AuthProbe />
-      </AuthProvider>,
+      <MemoryRouter>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </MemoryRouter>,
     );
 
     await waitFor(() => {
@@ -95,9 +98,11 @@ describe("AuthProvider", () => {
     });
 
     render(
-      <AuthProvider>
-        <AuthProbe />
-      </AuthProvider>,
+      <MemoryRouter>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </MemoryRouter>,
     );
 
     await waitFor(() => {
@@ -117,9 +122,11 @@ describe("AuthProvider", () => {
     });
 
     render(
-      <AuthProvider>
-        <AuthProbe />
-      </AuthProvider>,
+      <MemoryRouter>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </MemoryRouter>,
     );
 
     await act(async () => {
@@ -139,5 +146,36 @@ describe("AuthProvider", () => {
 
     await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ app: "mock-auth" }));
     expect(mockSetJWT).toHaveBeenCalledWith("jwt", "", -1);
+  });
+
+  test("client preview hides admin features on public pages but never in /admin", async () => {
+    const user = { getIdToken: vi.fn().mockResolvedValue("firebase-token") };
+    mockGetCookie.mockReturnValue("existing-cookie");
+    mockOnIdTokenChanged.mockImplementation((_auth, callback) => {
+      void callback(user);
+      return () => {};
+    });
+    localStorage.setItem("av:client-preview", "1");
+
+    function PreviewProbe() {
+      const { auth, signedInAsAdmin, clientPreview } = useAuth();
+      return <div data-testid="state">{`${auth.authorise}/${signedInAsAdmin}/${clientPreview}`}</div>;
+    }
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/media/ana-mihai"]}>
+        <AuthProvider><PreviewProbe /></AuthProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("false/true/true"));
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={["/admin/contracts"]}>
+        <AuthProvider><PreviewProbe /></AuthProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("true/true/true"));
+    localStorage.removeItem("av:client-preview");
   });
 });

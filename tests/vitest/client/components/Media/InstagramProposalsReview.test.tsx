@@ -160,3 +160,13 @@ test("quick accepts wait in a queue of two, with their position and the remainin
   releases.splice(0).forEach((release) => release());
   expect(await within(panel).findByText("Toate gata ✓")).toBeInTheDocument();
 });
+
+test("?album=<slug> (from the album page) opens 'Toate' showing only that album's proposals", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, json: async () => ({ proposals: [
+    { id: "v1", albumSlug: "nunta-ana", fileName: "ana.jpg", photoUrl: "https://cdn.test/ana.jpg", proposedBy: "a", proposedAt: "2026-10-06", status: "pending", destinations: ["instagram"] },
+    { id: "v2", albumSlug: "botez-ion", fileName: "ion.jpg", photoUrl: "https://cdn.test/ion.jpg", proposedBy: "a", proposedAt: "2026-10-06", status: "accepted", destinations: ["instagram"] },
+  ] }) } as Response);
+  render(<MemoryRouter initialEntries={["/admin/instagram-proposals?album=nunta-ana"]}><InstagramProposalsAdminPage /></MemoryRouter>);
+  expect(await screen.findByDisplayValue("nunta-ana")).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByAltText("ion.jpg")).not.toBeInTheDocument());
+});

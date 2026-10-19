@@ -111,8 +111,9 @@ export default function AlbumPager({
 
       <div className={styles.row2}>
         {mode !== "none" && (
-          <button className={styles.btnGhost} type="button" onClick={onToggleSelectPage}>
-            {allOnPageSelected ? "Deselectează pagina" : "Selectează pagina"}
+          <button className={styles.btnGhost} type="button" onClick={onToggleSelectPage} aria-pressed={allOnPageSelected}>
+            <span className={styles.check} aria-hidden="true">{allOnPageSelected ? "✓" : ""}</span>
+            <span>{allOnPageSelected ? "Deselectează pagina" : "Selectează pagina"}</span>
           </button>
         )}
 
@@ -127,9 +128,10 @@ export default function AlbumPager({
               type="button"
               onClick={() => onMobileColumnsChange(1)}
               aria-label="1 coloană"
+              title="O poză pe rând"
             >
               <svg viewBox="0 0 24 24" fill="currentColor">
-                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <rect x="4" y="4" width="16" height="16" />
               </svg>
             </button>
             <button
@@ -137,10 +139,11 @@ export default function AlbumPager({
               type="button"
               onClick={() => onMobileColumnsChange(2)}
               aria-label="2 coloane"
+              title="Două poze pe rând"
             >
               <svg viewBox="0 0 24 24" fill="currentColor">
-                <rect x="3" y="4" width="8" height="16" rx="2" />
-                <rect x="13" y="4" width="8" height="16" rx="2" />
+                <rect x="3" y="4" width="8" height="16" />
+                <rect x="13" y="4" width="8" height="16" />
               </svg>
             </button>
           </div>

@@ -4,6 +4,7 @@ import useAuth from "../../auth/useAuth";
 import RichTextEditor from "./RichTextEditor";
 import Checkbox from "./Checkbox";
 import ClauseAiRewrite from "./ClauseAiRewrite";
+import { defaultClauseSetFor, type ClauseSet } from "../../../../../shared/contractClauseSets";
 
 export interface ClauseSnapshot {
   templateId: string;
@@ -65,6 +66,37 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seededFromValue = useRef(false);
+  const [sets, setSets] = useState<Pick<ClauseSet, "id" | "name" | "eventType">[]>([]);
+  // "" = shared library; otherwise a saved template id.
+  const [setId, setSetId] = useState("");
+  const setChosenByHand = useRef(false);
+
+  const getToken = async (force = false) => (auth.user ? auth.user.getIdToken(force) : auth.accessToken);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await fetch("/api/admin/contract-clause-templates/sets", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res?.ok || cancelled) return;
+        const data = (await res.json()) as { sets?: ClauseSet[] };
+        if (!cancelled) setSets((data.sets ?? []).map(({ id, name, eventType: type }) => ({ id, name, eventType: type })));
+      } catch {
+        // No templates available: the shared library still works.
+      }
+    })();
+    return () => { cancelled = true; };
+    // Templates are loaded once per form; the token getter is stable enough for that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Follow the event type until the admin picks a template by hand.
+  useEffect(() => {
+    if (setChosenByHand.current) return;
+    setSetId(defaultClauseSetFor(sets, eventType)?.id ?? "");
+  }, [sets, eventType]);
 
   // EditContractPage loads an existing contract's saved clause snapshot asynchronously — once it
   // arrives, show it directly instead of forcing the admin to click "Generează" (which would
@@ -89,6 +121,7 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
     setError(null);
     try {
       const body = JSON.stringify({
+          ...(setId ? { setId } : {}),
           eventType, services, privateClient, eventDate, eventStartTime, eventEndTime, eventLocation,
           clientName, priceTotal, currency, priceAdvance, priceRest, bankBeneficiaryName, bankIban,
           transportKm: transportKm ? Number(transportKm) : undefined, transportFuelPrice,
@@ -180,6 +213,24 @@ const ClauseChecklistEditor: React.FC<ClauseChecklistEditorProps> = ({
 
   return (
     <div className="space-y-3">
+      {sets.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="clause-set" className="text-xs text-neutral-400">Șablon clauze</label>
+          <select
+            id="clause-set"
+            value={setId}
+            onChange={(e) => { setChosenByHand.current = true; setSetId(e.target.value); }}
+            className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-neutral-500"
+          >
+            <option value="">Biblioteca standard (comune + tipul evenimentului)</option>
+            {sets.map((set) => (
+              <option key={set.id} value={set.id}>{set.name}{set.eventType === eventType ? " — recomandat" : ""}</option>
+            ))}
+          </select>
+          {rendered && <span className="text-xs text-neutral-600">Apasă „Regenerează clauzele” după ce schimbi șablonul.</span>}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"

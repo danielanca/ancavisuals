@@ -173,15 +173,21 @@ function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+export const REFERRAL_LEAD_NOTE = "🎁 Venit prin recomandare (utm_source=recomandare): fotocabina + QR code GRATUITE, promise pe pagină.";
+
 // POST /api/campaign/:slug/contact — form submission from landing page
 router.post("/:slug/contact", async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
-    const { name, phone, eventDate, eventType, location, message, gclid, wbraid, gbraid } = req.body as {
+    const { name, phone, eventDate, eventType, location, message: rawMessage, gclid, wbraid, gbraid, referral } = req.body as {
       name?: string; phone?: string; eventDate?: string; eventType?: string; location?: string; message?: string;
-      gclid?: string; wbraid?: string; gbraid?: string;
+      gclid?: string; wbraid?: string; gbraid?: string; referral?: boolean;
     };
     if (!phone) { res.status(400).json({ error: "Telefonul este obligatoriu." }); return; }
+    // Came through a guest's recommendation link: the photobooth + QR code are promised free.
+    const message = referral === true
+      ? [REFERRAL_LEAD_NOTE, rawMessage].filter(Boolean).join("\n")
+      : rawMessage;
 
     const leadId = await saveLead({
       source: `campaign:${slug}`,
@@ -219,7 +225,7 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
         source: "lead",
         ...(leadId ? { leadId } : {}),
         to: adminUser.email,
-        subject: `📩 Cerere nouă de pe landing "${pageTitle}" — ${subjectTime}`,
+        subject: `${referral === true ? "🎁 RECOMANDARE · " : ""}📩 Cerere nouă de pe landing "${pageTitle}" — ${subjectTime}`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
             <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>

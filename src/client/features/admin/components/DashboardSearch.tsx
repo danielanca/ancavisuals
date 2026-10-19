@@ -36,6 +36,8 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Optimizare poze", path: "/admin/image-optimizer", category: "Media", icon: "⚡", keywords: "compresie webp optimizare imagini" },
   { label: "Sănătate albume", path: "/admin/album-health", category: "Media", icon: "💊", keywords: "zip webp status album health" },
   { label: "Stocare Bunny", path: "/admin/storage-stats", category: "Media", icon: "🗄️", keywords: "bunny storage spatiu gb poze video arhive stocare" },
+  { label: "Noutăți în masă", path: "/admin/album-updates", category: "Media", icon: "📣", keywords: "noutati album intarziere intarzie mai dureaza estimare termen anunt clienti mai multi grup bulk mesaj sms whatsapp email abonati poze video videoclip album tiparit" },
+  { label: "Anunță întârziere la mai mulți clienți", path: "/admin/album-updates", category: "Media", icon: "⏳", keywords: "intarziere delay mai dureaza poze video album clienti grup selecteaza evenimente" },
   // Evenimente
   { label: "Progres Evenimente", path: "/admin/progress", category: "Evenimente", icon: "📋", keywords: "progres editare livrare fotografiere etape status" },
   // Financiar

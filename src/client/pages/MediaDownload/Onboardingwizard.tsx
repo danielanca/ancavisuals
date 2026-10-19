@@ -8,42 +8,56 @@ type Step = {
   position: 'top' | 'bottom' | 'left' | 'right';
 };
 
+// Mandatory tour: clients kept sending album picks on WhatsApp or making their own share links
+// because they never noticed these features — every action of the album is shown once.
 const STEPS: Step[] = [
   {
-    targetSelector: '[data-onboarding="photo"]',
-    title: '👆 Apasă pe orice poză',
-    description: 'Apasă pe orice poză ca s-o vezi <strong>mărită la rezoluție completă</strong>. Navighezi cu <strong>săgețile</strong> din lateral sau cu <strong>swipe stânga/dreapta</strong> pe telefon.',
+    targetSelector: '[data-onboarding="hub"]',
+    title: '👋 Tot ce poți face e aici, sus',
+    description: 'Înainte să vezi pozele, îți arătăm în <strong>1 minut</strong> ce poți face în album. Toate acțiunile sunt în <strong>cardurile de mai sus</strong>, le găsești oricând aici.',
     position: 'bottom',
   },
   {
-    targetSelector: '[data-onboarding="pager"]',
-    title: '📄 Navigare între pagini',
-    description: 'Pozele sunt împărțite pe <strong>mai multe pagini</strong>. Folosești <strong>săgețile ‹ ›</strong> pentru pagina anterioară/următoare, sau scrii <strong>numărul direct</strong> în căsuță și apeși Enter.',
-    position: 'top',
-  },
-  {
-    targetSelector: '[data-onboarding="subscribe"]',
-    title: '🔔 Notificare poze noi',
-    description: 'Introdu adresa de email și apasă <strong>Abonează-te</strong>. Primești <strong>automat un email</strong> când fotograful adaugă poze noi — fără să mai intri zilnic să verifici.',
+    targetSelector: '[data-onboarding="hub-print"]',
+    title: '🖼️ Pozele pentru albumul tipărit',
+    description: 'Pozele pentru album le alegi <strong>direct aici</strong>, bifându-le. <strong>Nu ni le trimite pe WhatsApp sau prin alt link</strong> — selecția salvată aici ajunge direct la noi, fără greșeli.',
     position: 'bottom',
   },
   {
-    targetSelector: '[data-onboarding="download-btn"]',
+    targetSelector: '[data-onboarding="hub-share"]',
+    title: '📤 Trimite poze invitaților',
+    description: 'Vrei să dai nașilor sau prietenilor doar <strong>câteva poze</strong>? Le bifezi și primești <strong>un link doar cu ele</strong> — nu e nevoie de Drive, WeTransfer sau WhatsApp, și nu le dai tot albumul.',
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-onboarding="hub-delivery"]',
+    title: '📦 Adresa de livrare',
+    description: 'Completează aici <strong>unde trimitem albumul tipărit și stick-ul</strong>. O poți modifica oricând.',
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-onboarding="hub-download"]',
     title: '⬇️ Descarcă toate pozele',
-    description: 'Apasă pentru a descărca <strong>toate pozele</strong> ca arhivă ZIP, la <strong>calitate completă</strong>, exact cum au ieșit din aparat. Poate dura câteva minute.',
-    position: 'top',
+    description: 'Toate pozele într-o arhivă ZIP, la <strong>calitate completă</strong>. Salvează-le în cel puțin <strong>două locuri</strong> (calculator + Google Photos/iCloud).',
+    position: 'bottom',
   },
   {
-    targetSelector: '[data-onboarding="print-btn"]',
-    title: '🖨️ Alege poze pentru imprimare',
-    description: 'Apasă <strong>Modifică selecția pentru imprimare</strong>, bifează pozele dorite, salvează — fotograful vede exact ce ai ales și pregătește <strong>comanda de imprimare</strong>.',
-    position: 'top',
+    targetSelector: '[data-onboarding="hub-sent"]',
+    title: '💌 Pozele trimise de voi',
+    description: 'Aici vedeți <strong>cui ați trimis poze</strong>, câte deschideri a avut fiecare link și puteți opri oricând un link.',
+    position: 'bottom',
   },
   {
-    targetSelector: '[data-onboarding="print-section"]',
-    title: '📋 Zona pozelor de imprimat',
-    description: 'Aceasta este <strong>secțiunea de imprimare</strong>. Pozele pe care le selectezi apar aici. Poți <strong>adăuga sau elimina</strong> orice poză oricând, înainte ca fotograful să pregătească comanda.',
-    position: 'top',
+    targetSelector: '[data-onboarding="hub-updates"]',
+    title: '🔔 Noutăți & abonare',
+    description: 'Abonează-te pe <strong>WhatsApp, SMS sau email</strong> și îți scriem când avem o estimare de predare sau încărcăm poze noi.',
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-onboarding="photo"]',
+    title: '👆 Acum, pozele',
+    description: 'Apasă pe orice poză ca s-o vezi <strong>mărită</strong>. Navighezi cu <strong>săgețile</strong> sau cu <strong>swipe</strong> pe telefon.',
+    position: 'bottom',
   },
 ];
 
@@ -53,7 +67,9 @@ type TooltipPosition = {
   arrowSide: 'top' | 'bottom' | 'left' | 'right';
 };
 
-const STORAGE_KEY = 'av:onboarding:done';
+/** Bumped when the tour changes, so everyone sees the new version once. */
+export const ONBOARDING_STORAGE_KEY = 'av:onboarding:v2';
+const STORAGE_KEY = ONBOARDING_STORAGE_KEY;
 const TOOLTIP_WIDTH = 300;
 const TOOLTIP_OFFSET = 16;
 
@@ -197,23 +213,14 @@ export default function OnboardingWizard({ forceShow, onClose, onStart }: Props)
     return () => window.removeEventListener('resize', handleResize);
   }, [visible, currentStep, computePosition]);
 
-  const handleSkip = () => {
-    setVisible(false);
-    localStorage.setItem(STORAGE_KEY, '1');
-    onClose?.();
-  };
-
   if (!visible || !tooltipPosition || !highlightRect) return null;
 
   const step = STEPS[currentStep];
 
   return (
     <div className={styles.root} ref={overlayRef}>
-      <div className={styles.backdrop} onClick={handleSkip} />
-
-      <button className={styles.skipTopBtn} onClick={handleSkip}>
-        Sari peste tutorial ✕
-      </button>
+      {/* No way to skip: the tour is mandatory before the photos. */}
+      <div className={styles.backdrop} />
 
       <div
         className={styles.highlight}
@@ -235,9 +242,6 @@ export default function OnboardingWizard({ forceShow, onClose, onStart }: Props)
       >
         <div className={styles.tooltipHeader}>
           <span className={styles.tooltipTitle}>{step.title}</span>
-          <button className={styles.skipBtn} onClick={handleSkip} aria-label="Sari peste">
-            ✕
-          </button>
         </div>
 
         <p className={styles.tooltipDescription} dangerouslySetInnerHTML={{ __html: step.description }} />

@@ -4,7 +4,8 @@ import type { Request, Response } from "express";
 import { getAlbum, downloadSelectedPhotos, postPrintSelection, downloadAll, deletePhoto, downloadPrintDynamic, addDeliveryAddress, getDeliveryAddress, addSwissLink } from "../controllers/album.controller";
 import { readPrintSelection } from "../services/printSelection.store";
 import { getAlbumStats } from "../services/albumStats.service";
-import { resolveAlbumSlug } from "../services/album.service";
+import { loadAlbum, resolveAlbumSlug } from "../services/album.service";
+import { logActivity } from "../services/activity.service";
 import { getAlbumRetentionBySlug } from "../services/albumRetention.service";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { sendEmail } from "../notifications/mailer";
@@ -133,11 +134,35 @@ router.get("/:slug/retention", async (req: Request, res: Response) => {
 
 router.post("/:slug/download-selected", express.urlencoded({ extended: false }), downloadSelectedPhotos);
 router.post("/:slug/print-selection", express.json(), postPrintSelection);
+// The client tells the photographer the album-photo selection is done. One email per album
+// every 24 h: a second tap within that window is refused and the page shows when it unlocks.
+export const PRINT_NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const printNoticeRef = (slug: string) => firestore().collection("printSelectionNotices").doc(slug);
+
+router.get("/:slug/print-selection/notify", async (req: Request, res: Response) => {
+  try {
+    const slug = String(req.params.slug || "");
+    const last = ((await printNoticeRef(slug).get()).data() as { lastNotifiedAt?: number } | undefined)?.lastNotifiedAt ?? null;
+    const nextAllowedAt = last !== null && Date.now() - last < PRINT_NOTIFY_COOLDOWN_MS ? last + PRINT_NOTIFY_COOLDOWN_MS : null;
+    return res.json({ lastNotifiedAt: last, nextAllowedAt });
+  } catch (error) {
+    console.error("[album] print notify status failed:", error);
+    return res.json({ lastNotifiedAt: null, nextAllowedAt: null });
+  }
+});
+
 router.post("/:slug/print-selection/notify", async (req: Request, res: Response) => {
   try {
     const slug = String(req.params.slug || "");
     const items = await readPrintSelection(slug);
     if (items.length === 0) return res.status(400).json({ error: "no_print_selection" });
+
+    const ref = printNoticeRef(slug);
+    const last = ((await ref.get()).data() as { lastNotifiedAt?: number } | undefined)?.lastNotifiedAt;
+    const now = Date.now();
+    if (last !== undefined && now - last < PRINT_NOTIFY_COOLDOWN_MS) {
+      return res.status(429).json({ error: "already_notified", lastNotifiedAt: last, nextAllowedAt: last + PRINT_NOTIFY_COOLDOWN_MS });
+    }
 
     await sendEmail({
       to: ADMIN_EMAIL,
@@ -150,9 +175,54 @@ router.post("/:slug/print-selection/notify", async (req: Request, res: Response)
         <p style="margin-top:24px;"><a href="https://ancavisuals.ro/media/${encodeURIComponent(slug)}?select=print" style="color:#8a6d3b;font-weight:600;">Deschide selecția fotografiilor</a></p>
       </div>`,
     });
-    return res.json({ ok: true, count: items.length });
+    await ref.set({ lastNotifiedAt: now, count: items.length }, { merge: true });
+    return res.json({ ok: true, count: items.length, lastNotifiedAt: now, nextAllowedAt: now + PRINT_NOTIFY_COOLDOWN_MS });
   } catch (error) {
     console.error("[album] print selection notification failed:", error);
+    return res.status(500).json({ error: "notification_failed" });
+  }
+});
+// POST /:slug/zip-request — a client found no "download all" ZIP and asks for it. Emails the
+// admin at most once per album every 6 h (repeated clicks only refresh the inbox entry).
+const ZIP_REQUEST_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+router.post("/:slug/zip-request", async (req: Request, res: Response) => {
+  const slug = String(req.params.slug || "");
+  if (!/^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug)) return res.status(400).json({ error: "invalid_album" });
+  try {
+    const album = await loadAlbum(slug);
+    if (!album) return res.status(404).json({ error: "album_not_found" });
+    if (album.zipReady) return res.json({ ok: true, zipReady: true });
+
+    const ref = firestore().collection("albumZipRequests").doc(slug);
+    const previous = (await ref.get()).data() as { lastNotifiedAt?: number; count?: number } | undefined;
+    const now = Date.now();
+    const count = (previous?.count ?? 0) + 1;
+    const recentlyNotified = previous?.lastNotifiedAt !== undefined && now - previous.lastNotifiedAt < ZIP_REQUEST_COOLDOWN_MS;
+    await ref.set({ lastRequestedAt: now, count, ...(recentlyNotified ? {} : { lastNotifiedAt: now }) }, { merge: true });
+    if (recentlyNotified) return res.json({ ok: true, alreadyNotified: true });
+
+    const albumUrl = `https://ancavisuals.ro/media/${encodeURIComponent(slug)}`;
+    await logActivity({
+      type: "album_zip",
+      title: `📦 Client cere ZIP-ul — ${slug}`,
+      description: "Albumul nu are încă arhiva cu toate pozele gata de descărcare.",
+      metadata: { albumSlug: slug, count: String(count) },
+      emailSent: true,
+    }).catch(() => {});
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      source: "album-zip-request",
+      subject: `📦 Albumul ${slug} nu are ZIP-ul gata de descărcare`,
+      html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <h2 style="color:#111;margin:0 0 16px;">Un client vrea să descarce toate pozele</h2>
+        <p style="color:#444;">Albumul <strong>${slug}</strong> nu are încă arhiva ZIP cu toate pozele (<code>photos.zip</code>).</p>
+        <p style="color:#444;">Clientul a apăsat „Anunță fotograful” din album${count > 1 ? ` (cerere nr. ${count})` : ""}.</p>
+        <p style="margin-top:24px;"><a href="${albumUrl}" style="color:#8a6d3b;font-weight:600;">Deschide albumul</a></p>
+      </div>`,
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[album] zip request failed:", error);
     return res.status(500).json({ error: "notification_failed" });
   }
 });

@@ -80,10 +80,10 @@ test("returning through invitation preserves a draft already in print mode", asy
   expect(screen.getAllByRole("button", { name: "Salvează selecția (1)" })).toHaveLength(2);
 });
 
-test("regular album link keeps the normal album without the invitation", async () => {
+test("regular album link also shows the print selection guide under the action hub", async () => {
   renderAlbum("");
   await screen.findByRole("heading", { name: "Album test" });
-  expect(screen.queryByRole("heading", { name: /Alegeți cele 100/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /Alegeți cele 100/ })).toBeInTheDocument();
 });
 
 test("admin copy uses production origin and exposes a manual fallback", async () => {

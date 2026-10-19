@@ -117,6 +117,8 @@ describe("ContractSignPage", () => {
       fireEvent.change(screen.getByPlaceholderText("Str. Exemplu nr. 1, Oraș, Județ"), { target: { value: "  Cluj  " } });
       fireEvent.change(screen.getByPlaceholderText("07xxxxxxxx"), { target: { value: " 0712345678 " } });
       fireEvent.change(screen.getByPlaceholderText("Ex: AB123456"), { target: { value: "ab123456" } });
+      fireEvent.click(screen.getByLabelText(/Eveniment de NOAPTE/));
+      fireEvent.change(screen.getByLabelText("Ora estimată de final (după miezul nopții) *"), { target: { value: "02:30" } });
       fireEvent.click(screen.getByLabelText(/Sunt de acord cu prelucrarea datelor mele personale/));
       fireEvent.click(screen.getByLabelText("Am citit contractul în întregime și sunt de acord cu toate clauzele și condițiile prezentate."));
       fireEvent.click(screen.getByLabelText(/Am înțeles că, după primirea materialelor/));
@@ -149,6 +151,8 @@ describe("ContractSignPage", () => {
         clientCounty: "",
         clientPhone: "0712345678",
         clientIdSeries: "AB123456",
+        nightEvent: "da",
+        nightEventEndTime: "02:30",
         clientSignatureBase64: "data:image/png;base64,signature",
       });
 

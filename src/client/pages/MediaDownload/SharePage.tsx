@@ -5,6 +5,7 @@ import styles from "./MediaAlbumPage.module.scss";
 import AncaLoader from "../../components/UI/AncaLoader";
 import useAuth from "../../features/admin/auth/useAuth";
 import AncaVisualsPromo from "./AncaVisualsPromo";
+import WeddingCta from "./WeddingCta";
 import { OFFER_SERVICES } from "../../../shared/offers/offerServices";
 
 type SharePayload = {
@@ -13,6 +14,8 @@ type SharePayload = {
   count: number;
   expiresAt: number;
   showAll?: boolean;
+  label?: string;
+  message?: string;
   photos: string[];
 };
 
@@ -51,7 +54,7 @@ export default function SharePage() {
   const { auth } = useAuth();
   const [data, setData] = useState<SharePayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expired, setExpired] = useState(false);
+  const [expired, setExpired] = useState<"expired" | "revoked" | null>(null);
   const [importModal, setImportModal] = useState<ImportModal>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -59,7 +62,12 @@ export default function SharePage() {
     if (!id) return;
     (async () => {
       const res = await fetch(`/api/share/${id}`);
-      if (res.status === 410) { setExpired(true); setLoading(false); return; }
+      if (res.status === 410) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setExpired(body.error === "revoked" ? "revoked" : "expired");
+        setLoading(false);
+        return;
+      }
       if (!res.ok) { setData(null); setLoading(false); return; }
       const json = await res.json();
       setData(json);
@@ -130,7 +138,9 @@ export default function SharePage() {
   if (expired)
     return (
       <div className={styles.page}>
-        <div className={styles.container}>Link expirat.</div>
+        <div className={styles.container}>
+          {expired === "revoked" ? "Acest link nu mai este activ." : "Link expirat."}
+        </div>
       </div>
     );
   if (!data)
@@ -142,13 +152,25 @@ export default function SharePage() {
 
   const isAdminView = auth.authorise;
 
+  // Counts as "trimis mai departe" in the couple's manager.
+  const trackForward = () => {
+    void fetch(`/api/share/${encodeURIComponent(data.id)}/forward`, { method: "POST", keepalive: true }).catch(() => undefined);
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.container}>
         <h1 className={styles.title}>
           {data.showAll ? "Album foto" : "Selecție foto"}
         </h1>
-        <p className={styles.meta}>{data.count} fotografii</p>
+        <p className={styles.meta}>
+          {data.label ? `Pentru ${data.label} · ` : ""}{data.count} fotografii
+        </p>
+        {data.message && (
+          <p style={{ margin: "12px 0 0", color: "#e8d4a2", fontSize: "15px", fontStyle: "italic", lineHeight: 1.5, whiteSpace: "pre-line" }}>
+            „{data.message}”
+          </p>
+        )}
         <div className={styles.divider} />
 
         {/* Share CTA — prominent, above photos */}
@@ -173,6 +195,7 @@ export default function SharePage() {
           <button
             type="button"
             onClick={() => {
+              trackForward();
               if (typeof navigator.share === "function") {
                 void navigator.share({ title: "Poze eveniment — Anca Visuals", url: window.location.href });
               } else {
@@ -210,6 +233,7 @@ export default function SharePage() {
             <button
               type="button"
               onClick={() => {
+                trackForward();
                 void navigator.clipboard.writeText(window.location.href).then(() => {
                   setLinkCopied(true);
                   setTimeout(() => setLinkCopied(false), 2500);
@@ -256,26 +280,9 @@ export default function SharePage() {
 
         <BunnyPhotoGallery orgPhoto={data.photos} photos={data.photos} variant="plain" />
 
-        {/* Re-share nudge before promo */}
-        <div style={{ margin: "32px 0 0", padding: "16px 20px", background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: "12px", display: "flex", flexDirection: "column", gap: "10px", alignItems: "center", textAlign: "center" }}>
-          <p style={{ color: "#555", fontSize: "12px", margin: 0 }}>Ți-au plăcut pozele? Trimite-le și altora!</p>
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof navigator.share === "function") {
-                void navigator.share({ title: "Poze eveniment — Anca Visuals", url: window.location.href });
-              } else {
-                void navigator.clipboard.writeText(window.location.href).then(() => {
-                  setLinkCopied(true);
-                  setTimeout(() => setLinkCopied(false), 2500);
-                });
-              }
-            }}
-            style={{ padding: "10px 24px", background: "#25D366", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
-          >
-            📤 Trimite mai departe
-          </button>
-        </div>
+        {/* Guests are the next clients: ask straight away whether they (or someone they know) are
+            getting married, with one tap to check the date or recommend us on WhatsApp. */}
+        <WeddingCta />
       </div>
 
       <AncaVisualsPromo />

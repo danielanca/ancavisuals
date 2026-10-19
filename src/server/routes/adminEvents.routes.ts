@@ -2,6 +2,7 @@ import { createAnthropicClient } from "../lib/anthropicClient";
 import type { Request, Response } from "express";
 import { Router, raw } from "express";
 import { firestore } from "../firestore";
+import { subscribeEventClient } from "../services/eventClientSubscription";
 import { Timestamp } from "firebase-admin/firestore";
 import multer from "multer";
 import nodeFetch from "node-fetch";
@@ -9,8 +10,10 @@ import https from "node:https";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { Transform } from "node:stream";
 import archiver from "archiver";
-import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_QR_MOMENT_FOLDER } from "../constants/bunny";
+import { buildBunnyStorageUrl, buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_PHOTOS_FOLDER, BUNNY_QR_MOMENT_FOLDER, BUNNY_DEFAULT_ARCHIVE_NAME } from "../constants/bunny";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import sharp from "sharp";
 import { invalidateAlbumCache } from "../services/album.service.js";
@@ -27,6 +30,7 @@ import { adminUser } from "../constants/credentials";
 import { APP_BASE_URL } from "../constants/domain";
 import { normalizeEventVideoLink } from "../../shared/eventVideoLink";
 import { sanitizeAlbumPhotoName as sanitizePhotoName } from "../../shared/albumPhotoName";
+import { ALBUM_ZIP_PHOTO_EXT, albumZipManifest } from "../../shared/albumZipManifest";
 import { beginAlbumUpload, recordAlbumUploadSuccess, touchAlbumUpload, notifyIncompleteAlbumUpload } from "../services/albumUploadNotifications";
 import {
   beginAlbumZipRun, endAlbumZipRun, enqueueAlbumZipJob, getAlbumZipJob, listAlbumZipJobs,
@@ -618,6 +622,8 @@ router.post("/events/:id/create-album", requireFirebaseAuth, requireSupremeAdmin
     const updates: Record<string, unknown> = { albumSlug: slug };
     if (pin) updates.albumPin = pin;
     await db.collection("adminEvents").doc(id).update(updates);
+    // The client gets album updates on WhatsApp without filling the form; never blocks the album.
+    await subscribeEventClient(id).catch((error) => console.error("[adminEvents] client auto-subscribe failed:", error));
 
     res.json({ ok: true, slug, mediaUrl: `/media/${slug}` });
   } catch (error) {
@@ -759,6 +765,113 @@ router.post("/events/:id/upload-photo-preview", requireFirebaseAuth, requireSupr
       return res.status(502).json({ error: "Încărcarea previzualizării a eșuat." });
     }
   });
+
+async function listAlbumZipOriginals(slug: string): Promise<string[]> {
+  const listRes = await nodeFetch(buildBunnyDirectoryUrl(slug, BUNNY_PHOTOS_FOLDER), {
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+  });
+  if (!listRes.ok) throw new Error(`Nu pot lista folderul photos din Bunny (${listRes.status}).`);
+  const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
+  return entries.filter((entry) => !entry.IsDirectory && ALBUM_ZIP_PHOTO_EXT.test(entry.ObjectName)).map((entry) => entry.ObjectName);
+}
+
+// The browser builds photos.zip only when it holds every original in Bunny; otherwise the server ZIP job does it.
+router.post("/events/:id/album-zip/check", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const files: unknown = req.body?.files;
+  if (!Array.isArray(files) || !files.length || files.length > 3000 || files.some((name) => typeof name !== "string")) {
+    return res.status(400).json({ error: "Lista de fotografii este invalidă." });
+  }
+  try {
+    const doc = await firestore().collection("adminEvents").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Eveniment inexistent." });
+    const slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Eveniment fără album." });
+    const inBunny = await listAlbumZipOriginals(slug);
+    const local = new Set(files as string[]);
+    const missing = inBunny.filter((name) => !local.has(name));
+    const bunnySet = new Set(inBunny);
+    const extra = (files as string[]).filter((name) => !bunnySet.has(name));
+    return res.json({ ok: true, complete: !missing.length && !extra.length, missing: missing.slice(0, 20), missingCount: missing.length, extra: extra.slice(0, 20) });
+  } catch (error) {
+    return res.status(502).json({ error: String(error instanceof Error ? error.message : error) });
+  }
+});
+
+// POST /api/admin/events/:id/upload-album-zip — stream pass-through browser → VPS → Bunny {slug}/photos.zip.
+// Nothing touches the VPS disk. nginx needs `client_max_body_size 0; proxy_request_buffering off;` for this path.
+router.post("/events/:id/upload-album-zip", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const size = Number(req.headers["content-length"]);
+  const manifestHash = String(req.headers["x-album-zip-manifest"] ?? "");
+  if (!Number.isSafeInteger(size) || size < 22 || !/^[0-9a-f]{64}$/.test(manifestHash)) {
+    return res.status(400).json({ error: "Cerere ZIP invalidă." });
+  }
+  let slug: string | undefined;
+  let locked = false;
+  try {
+    const doc = await firestore().collection("adminEvents").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Eveniment inexistent." });
+    slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Eveniment fără album." });
+    const originals = await listAlbumZipOriginals(slug);
+    if (createHash("sha256").update(albumZipManifest(originals)).digest("hex") !== manifestHash) {
+      return res.status(409).json({ error: "Originalele din Bunny s-au schimbat față de ZIP-ul local. Reîncearcă." });
+    }
+    if (!beginAlbumZipRun(slug)) return res.status(409).json({ error: "Serverul generează deja photos.zip pentru acest album." });
+    locked = true;
+
+    // Abort only when the browser stops sending: a multi-GB ZIP legitimately takes longer than any fixed limit.
+    const stalled = new AbortController();
+    let idle = setTimeout(() => stalled.abort(), 180_000);
+    const body = req.pipe(new Transform({
+      transform(chunk, _encoding, callback) {
+        clearTimeout(idle);
+        idle = setTimeout(() => stalled.abort(), 180_000);
+        callback(null, chunk);
+      },
+    }));
+    let uploadRes;
+    try {
+      uploadRes = await nodeFetch(buildBunnyStorageUrl(slug, BUNNY_DEFAULT_ARCHIVE_NAME), {
+        method: "PUT",
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(), "Content-Type": "application/zip", "Content-Length": String(size) },
+        body, agent: bunnyAgent, signal: stalled.signal,
+      });
+    } finally {
+      clearTimeout(idle);
+    }
+    if (!uploadRes.ok) {
+      console.error(`[adminEvents] upload-album-zip Bunny ${uploadRes.status}: ${await uploadRes.text().catch(() => "")}`);
+      return res.status(502).json({ error: `Bunny a respins photos.zip (${uploadRes.status}).` });
+    }
+
+    const verifyRes = await nodeFetch(buildBunnyDirectoryUrl(slug), {
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+    });
+    if (!verifyRes.ok) return res.status(502).json({ error: "photos.zip a fost trimis, dar nu poate fi verificat în Bunny." });
+    const uploaded = (await verifyRes.json() as { ObjectName: string; IsDirectory: boolean; Length?: number }[])
+      .find((entry) => !entry.IsDirectory && entry.ObjectName === BUNNY_DEFAULT_ARCHIVE_NAME);
+    if (!uploaded || (uploaded.Length !== undefined && uploaded.Length !== size)) {
+      return res.status(502).json({ error: "photos.zip din Bunny are altă dimensiune decât cel trimis. Reîncearcă." });
+    }
+
+    // A queued server rebuild is now redundant; dropping it keeps a stale job from overwriting this ZIP.
+    try { await removeAlbumZipJob(slug); } catch { /* A leftover job only rebuilds the same ZIP. */ }
+    invalidateAlbumCache(slug);
+    await logActivityOnce(`album-zip-browser:${slug}:${Date.now()}`, {
+      type: "album_zip",
+      title: `ZIP încărcat din browser: ${slug}`,
+      description: `${originals.length} poze, ${Math.round(size / 1024 / 1024)} MB`,
+      metadata: { slug, route: "/admin/album-health" },
+      emailSent: false,
+    }).catch(() => {});
+    return res.json({ ok: true, size, count: originals.length });
+  } catch (error) {
+    console.error("[adminEvents] upload-album-zip failed:", error);
+    if (!res.headersSent) res.status(502).json({ error: "Încărcarea photos.zip a eșuat. Reîncearcă." });
+  } finally {
+    if (locked && slug) endAlbumZipRun(slug);
+  }
+});
 
 // POST /api/admin/events/:id/photobooth-folder — ensure {albumSlug}/photobooth/ exists in Bunny
 router.post("/events/:id/photobooth-folder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
@@ -1415,7 +1528,7 @@ async function runAlbumZipProcessing(slug: string): Promise<void> {
     });
     if (!listRes.ok) throw new Error("Nu pot lista folderul photos din Bunny.");
     const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
-    const photos = entries.filter(entry => !entry.IsDirectory && /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(entry.ObjectName));
+    const photos = entries.filter(entry => !entry.IsDirectory && ALBUM_ZIP_PHOTO_EXT.test(entry.ObjectName));
     appendAlbumZipLog(slug, `📂 ${photos.length} originale găsite`);
     setAlbumZipProgress(slug, 0, photos.length);
     await updateAlbumZipJob(slug, { progress: { done: 0, total: photos.length } });

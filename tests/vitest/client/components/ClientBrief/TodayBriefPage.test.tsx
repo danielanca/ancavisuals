@@ -70,3 +70,11 @@ test("login return destination allows internal private pages and rejects externa
     expect(loginDestination({ from: { pathname } })).toBe("/admin");
   }
 });
+
+test("login from an album returns to that album, never to outside paths", () => {
+  expect(loginDestination(null, "?redirect=%2Fmedia%2Fpetcu-nunta")).toBe("/media/petcu-nunta");
+  for (const redirect of ["//evil.com", "https://evil.com", "/media/a/../../admin", "/media/", "/contact"]) {
+    expect(loginDestination(null, `?redirect=${encodeURIComponent(redirect)}`)).toBe("/admin");
+  }
+  expect(loginDestination({ from: { pathname: "/azi" } }, "?redirect=%2Fmedia%2Fx")).toBe("/azi");
+});

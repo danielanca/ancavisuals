@@ -8,9 +8,10 @@ type Props = {
   slug: string;
   isOpen: boolean;
   onClose: () => void;
+  onEdit?: (address: DeliveryAddress) => void;
 };
 
-type DeliveryAddress = {
+export type DeliveryAddress = {
   fullName: string;
   phone: string;
   street: string;
@@ -20,7 +21,7 @@ type DeliveryAddress = {
   deliveryAddressUpdatedAt?: number;
 };
 
-export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
+export default function DeliveryAddressModal({ slug, isOpen, onClose, onEdit }: Props) {
   const [data, setData] = useState<DeliveryAddress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +117,11 @@ export default function DeliveryAddressModal({ slug, isOpen, onClose }: Props) {
               </div>
 
               <div className={styles.footer}>
+                {onEdit && (
+                  <button type="button" className={styles.editBtn} onClick={() => onEdit(data)}>
+                    ✏️ Modifică adresa
+                  </button>
+                )}
                 <div className={styles.timestamp}>
                   Ultima actualizare: {formatDate(data.deliveryAddressUpdatedAt)}
                 </div>

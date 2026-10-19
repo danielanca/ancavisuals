@@ -269,11 +269,14 @@ export async function downloadPrintDynamic(req: Request, res: Response) {
     // Convertim .webp → .jpg și forțăm folderul photos/ (originale JPEG)
     const originalFile = file.replace(/\.webp$/i, ".jpg");
     const url = buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, originalFile);
-    const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
-
-    if (!response.ok || !response.body) continue;
-
-    archive.append(Readable.fromWeb(response.body as unknown as NodeReadableStream), { name: originalFile });
+    // One missing/failed photo must not break the whole ZIP (headers are already sent).
+    try {
+      const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+      if (!response.ok || !response.body) continue;
+      archive.append(Readable.fromWeb(response.body as unknown as NodeReadableStream), { name: originalFile });
+    } catch (err) {
+      console.error(`Failed to fetch print file for zip: ${originalFile}`, err);
+    }
   }
 
   await archive.finalize();

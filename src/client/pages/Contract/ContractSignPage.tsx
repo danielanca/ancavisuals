@@ -1,5 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import {
+  NIGHT_EVENT_REASON,
+  NIGHT_HALF_HOUR_FEE_RON,
+  NIGHT_LATEST_END,
+  NIGHT_TOLERANCE_MINUTES,
+  isValidNightEndTime,
+  nightEventApplies,
+  parseNightEventAnswer,
+  type NightEventAnswer,
+} from "../../../shared/contractNightEvent";
 
 interface ServiceItem {
   label: string;
@@ -15,6 +25,8 @@ interface ContractData {
   eventLocation?: string;
   eventStartTime?: string;
   eventEndTime?: string;
+  nightEvent?: string;
+  nightEventEndTime?: string;
   eventDetails?: string;
   services: ServiceItem[];
   currency: string;
@@ -64,6 +76,8 @@ const ContractSignPage: React.FC = () => {
   const [clientRepresentativeName, setClientRepresentativeName] = useState("");
   const [clientRepresentativeRole, setClientRepresentativeRole] = useState("");
   const [clientRepresentativeIdSeries, setClientRepresentativeIdSeries] = useState("");
+  const [nightEvent, setNightEvent] = useState<NightEventAnswer | "">("");
+  const [nightEventEndTime, setNightEventEndTime] = useState("");
   const [dataSaved, setDataSaved] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [gdprAccepted, setGdprAccepted] = useState(false);
@@ -106,6 +120,15 @@ const ContractSignPage: React.FC = () => {
         if (data.clientRepresentativeName) setClientRepresentativeName(data.clientRepresentativeName);
         if (data.clientRepresentativeRole) setClientRepresentativeRole(data.clientRepresentativeRole);
         if (data.clientRepresentativeIdSeries) setClientRepresentativeIdSeries(data.clientRepresentativeIdSeries);
+        // Pre-select only when the contract already says it runs past midnight; otherwise the client chooses.
+        const presetNight = parseNightEventAnswer(data.nightEvent);
+        if (presetNight) {
+          setNightEvent(presetNight);
+          if (presetNight === "da" && isValidNightEndTime(data.nightEventEndTime)) setNightEventEndTime(data.nightEventEndTime);
+        } else if (data.eventStartTime && data.eventEndTime && data.eventEndTime <= data.eventStartTime) {
+          setNightEvent("da");
+          if (isValidNightEndTime(data.eventEndTime)) setNightEventEndTime(data.eventEndTime);
+        }
         setPageState("ready");
       })
       .catch(() => setPageState("error"));
@@ -200,6 +223,12 @@ const ContractSignPage: React.FC = () => {
     if (isCompany && !clientPhone.trim()) errors.clientPhone = "Telefonul este obligatoriu.";
     if (isCompany && !clientBankName.trim()) errors.clientBankName = "Banca este obligatorie.";
     if (isCompany && !clientIBAN.trim()) errors.clientIBAN = "IBAN-ul este obligatoriu.";
+    if (nightEventApplies(contract?.eventType)) {
+      if (!nightEvent) errors.nightEvent = "Alegeți dacă evenimentul este de zi sau de noapte.";
+      else if (nightEvent === "da" && !isValidNightEndTime(nightEventEndTime)) {
+        errors.nightEvent = `Completați ora estimată de final (între 00:00 și ${NIGHT_LATEST_END}).`;
+      }
+    }
     if (!hasSignature.current) errors.signature = "Semnătura este obligatorie.";
     if (!agreed) errors.agreed = "Trebuie să fiți de acord cu contractul.";
     if (!gdprAccepted) errors.gdpr = "Acordul GDPR este obligatoriu.";
@@ -239,6 +268,7 @@ const ContractSignPage: React.FC = () => {
             clientRepresentativeRole: clientRepresentativeRole.trim(),
             clientRepresentativeIdSeries: clientRepresentativeIdSeries.trim(),
           } : {}),
+          ...(nightEvent ? { nightEvent, nightEventEndTime: nightEvent === "da" ? nightEventEndTime : "" } : {}),
           clientSignatureBase64: canvas.toDataURL("image/png"),
         }),
       });
@@ -441,6 +471,72 @@ const ContractSignPage: React.FC = () => {
 
         {/* DATE CLIENT */}
         <form onSubmit={handleSubmit}>
+          {nightEventApplies(contract.eventType) && (
+            <Section title="Programul evenimentului — zi sau noapte?">
+              <p style={{ fontSize: 13, color: "#444", margin: "0 0 6px" }}>
+                Interval orar din contract:{" "}
+                <strong>
+                  {contract.eventStartTime || contract.eventEndTime
+                    ? `${contract.eventStartTime || "—"} – ${contract.eventEndTime || "—"}`
+                    : "încă nestabilit"}
+                </strong>
+              </p>
+              <p style={{ fontSize: 12, color: "#888", margin: "0 0 12px", lineHeight: 1.5 }}>
+                Chiar dacă nu știți încă orele exacte, trebuie să ne spuneți acum dacă evenimentul se termină înainte sau după miezul nopții (00:00). {NIGHT_EVENT_REASON}
+              </p>
+              <div role="radiogroup" aria-label="Eveniment de zi sau de noapte" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {([
+                  ["nu", "☀️ Eveniment de ZI", "Se termină până la ora 00:00."],
+                  ["da", "🌙 Eveniment de NOAPTE", "Continuă după ora 00:00."],
+                ] as const).map(([value, label, hint]) => (
+                  <label
+                    key={value}
+                    style={{
+                      display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: 8, cursor: "pointer",
+                      border: `1.5px solid ${nightEvent === value ? "#c9a96e" : fieldErrors.nightEvent ? "#e57373" : "#e5e0d8"}`,
+                      background: nightEvent === value ? "#fdf8ee" : "#fff",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="nightEvent"
+                      value={value}
+                      checked={nightEvent === value}
+                      onChange={() => { setNightEvent(value); setDataSaved(false); }}
+                      style={{ marginTop: 3, accentColor: "#c9a96e" }}
+                    />
+                    <span>
+                      <span style={{ display: "block", fontWeight: 700, fontSize: 14, color: "#1a1a1a" }}>{label}</span>
+                      <span style={{ display: "block", fontSize: 12, color: "#777" }}>{hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {nightEvent === "da" && (
+                <div style={{ marginTop: 12 }}>
+                  <Field label="Ora estimată de final (după miezul nopții) *" error={undefined}>
+                    <input
+                      style={pg.input}
+                      type="time"
+                      aria-label="Ora estimată de final (după miezul nopții) *"
+                      value={nightEventEndTime}
+                      max={NIGHT_LATEST_END}
+                      onChange={(e) => { setNightEventEndTime(e.target.value); setDataSaved(false); }}
+                    />
+                    <span style={pg.hint}>Ex: 02:00. Programul până la această oră este inclus în preț.</span>
+                  </Field>
+                </div>
+              )}
+              {fieldErrors.nightEvent && <span style={pg.errText}>{fieldErrors.nightEvent}</span>}
+              <p style={{ fontSize: 12, color: "#555", margin: "12px 0 0", lineHeight: 1.6, background: "#faf7f2", borderRadius: 6, padding: "10px 12px" }}>
+                <strong>Ce se întâmplă dacă evenimentul se prelungește?</strong>{" "}
+                {nightEvent === "da"
+                  ? `După ora de final declarată, primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt din partea noastră. Peste ele se achită ${NIGHT_HALF_HOUR_FEE_RON} lei pentru fiecare jumătate de oră începută.`
+                  : `Dacă evenimentul trece de ora 00:00, primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt din partea noastră. După ora 00:${NIGHT_TOLERANCE_MINUTES} se achită ${NIGHT_HALF_HOUR_FEE_RON} lei pentru fiecare jumătate de oră începută (ex.: până la 00:55 — ${NIGHT_HALF_HOUR_FEE_RON} lei, până la 01:25 — ${NIGHT_HALF_HOUR_FEE_RON * 2} lei).`}
+              </p>
+            </Section>
+          )}
+
           <Section title="Datele Dumneavoastră (Beneficiar)">
             <p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>
               Completați datele de mai jos; informațiile lipsă din draft pot fi completate aici. Apoi apăsați <strong>Salvează datele</strong> pentru a le vedea incluse în contract.
@@ -529,6 +625,7 @@ const ContractSignPage: React.FC = () => {
                   clientRepresentativeName: clientRepresentativeName.trim(),
                   clientRepresentativeRole: clientRepresentativeRole.trim(),
                   clientRepresentativeIdSeries: clientRepresentativeIdSeries.trim(),
+                  ...(nightEvent ? { nightEvent, nightEventEndTime: nightEvent === "da" ? nightEventEndTime : "" } : {}),
                 });
                 window.open(`/api/contracts/sign/${token}/html?${params.toString()}`, "_blank");
               }}

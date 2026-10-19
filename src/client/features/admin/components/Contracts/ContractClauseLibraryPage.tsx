@@ -4,6 +4,8 @@ import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 import { EVENT_TYPES } from "./CreateContractPage";
 import RichTextEditor from "./RichTextEditor";
+import ClauseSetsPanel from "./ClauseSetsPanel";
+import { CONDITION_TAGS } from "./clauseConditionTags";
 
 interface ClauseTemplate {
   id: string;
@@ -17,19 +19,6 @@ interface ClauseTemplate {
   mutexGroup: string | null;
   isActive: boolean;
 }
-
-const CONDITION_TAGS: { value: string; label: string }[] = [
-  { value: "", label: "Fără condiție (mereu bifat implicit)" },
-  { value: "hasFoto", label: "Doar dacă are serviciu Foto" },
-  { value: "hasVideo", label: "Doar dacă are serviciu Video" },
-  { value: "hasPhotobooth", label: "Doar dacă are Fotocabină / Photo Booth" },
-  { value: "hasVideobooth", label: "Doar dacă are VideoBooth 360°" },
-  { value: "hasPhotoVideo", label: "Doar dacă are Foto sau Video" },
-  { value: "privateClient", label: "Doar dacă e client privat (confidențialitate)" },
-  { value: "notPrivateClient", label: "Doar dacă NU e client privat" },
-  { value: "hasPhotoVideoAndPrivate", label: "Foto/Video + client privat" },
-  { value: "hasPhotoVideoAndNotPrivate", label: "Foto/Video + NU e client privat" },
-];
 
 // Trebuie ținut sincronizat manual cu CLAUSE_TOKENS din src/server/services/contractClauseInterpolation.ts
 // (fișierul de server nu poate fi importat în bundle-ul de client — folosește puppeteer).
@@ -162,6 +151,7 @@ const ContractClauseLibraryPage: React.FC = () => {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [view, setView] = useState<"sets" | "library">("sets");
 
   const authHeader = useMemo(() => ({ Authorization: `Bearer ${auth.accessToken}` }), [auth.accessToken]);
 
@@ -257,7 +247,7 @@ const ContractClauseLibraryPage: React.FC = () => {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-white text-2xl font-light tracking-tight">Șabloane contract</h1>
-            <p className="text-neutral-400 text-sm mt-1">Clauzele disponibile la crearea unui contract nou, bifate implicit.</p>
+            <p className="text-neutral-400 text-sm mt-1">Șabloane complete pe tip de eveniment, plus biblioteca de clauze din care pornesc.</p>
           </div>
           <div className="flex gap-2">
             <button onClick={() => navigate("/admin/contracts")} className="px-3 py-1.5 text-xs text-neutral-400 border border-neutral-800 rounded-lg hover:border-neutral-600 transition-colors">
@@ -284,7 +274,24 @@ const ContractClauseLibraryPage: React.FC = () => {
           </div>
         )}
 
-        {templates.length === 0 && !loading && (
+        <div className="flex gap-1.5" role="tablist" aria-label="Secțiune">
+          {([["sets", "Șabloane (Nuntă, Botez, Majorat, Corporate…)"], ["library", "Biblioteca de clauze"]] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={view === value}
+              onClick={() => setView(value)}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${view === value ? "border-white bg-white/10 text-white" : "border-neutral-800 text-neutral-400 hover:border-neutral-600"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === "sets" && <ClauseSetsPanel authHeader={authHeader} />}
+
+        {view === "library" && templates.length === 0 && !loading && (
           <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 py-16 text-center">
             <p className="text-sm text-neutral-500 mb-4">Biblioteca e goală.</p>
             <button onClick={handleSeed} disabled={seeding} className="px-5 py-2 text-sm bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 transition-colors disabled:opacity-50">
@@ -293,10 +300,10 @@ const ContractClauseLibraryPage: React.FC = () => {
           </div>
         )}
 
-        {loading && <p className="text-center py-10 text-sm text-neutral-500">Se încarcă...</p>}
-        {error && <p className="text-center py-10 text-sm text-red-400">Eroare: {error}</p>}
+        {view === "library" && loading && <p className="text-center py-10 text-sm text-neutral-500">Se încarcă...</p>}
+        {view === "library" && error && <p className="text-center py-10 text-sm text-red-400">Eroare: {error}</p>}
 
-        {!loading && templates.length > 0 && (
+        {view === "library" && !loading && templates.length > 0 && (
           <>
             <div className="flex gap-1.5 flex-wrap">
               <button

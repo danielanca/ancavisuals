@@ -112,6 +112,22 @@ describe("campaign.routes — public landing-page flow", () => {
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
 
+    test("a lead from a recommendation link is flagged: free photobooth + QR code in subject and message", async () => {
+      const { postContact, sendEmail } = await loadRouter();
+      const res = createMockResponse();
+      await postContact({ params: { slug: "olx" }, body: { phone: "0745469907", message: "• Foto", referral: true } }, res);
+      const mail = sendEmail.mock.calls[0][0];
+      expect(mail.subject).toMatch(/^🎁 RECOMANDARE · /);
+      expect(mail.html).toContain("fotocabina + QR code GRATUITE");
+      expect(mail.html).toContain("• Foto");
+    });
+
+    test("a normal lead is not flagged as a recommendation", async () => {
+      const { postContact, sendEmail } = await loadRouter();
+      await postContact({ params: { slug: "olx" }, body: { phone: "0745469907" } }, createMockResponse());
+      expect(sendEmail.mock.calls[0][0].subject).not.toContain("RECOMANDARE");
+    });
+
     test("omits the 'Nume' row from the email when no name was given", async () => {
       const { postContact, sendEmail } = await loadRouter();
       const res = createMockResponse();

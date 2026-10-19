@@ -11,14 +11,22 @@ import type { Album } from "./AlbumTypes";
 import AlbumNotFound from "./AlbumNotFound";
 import AlbumPager from "../Portfolio/AlbumPager";
 import DeliveryForm from './DeliveryForm';
-import DeliveryAddressModal from "../DeliveryAddress/AddressList";
+import DeliveryAddressModal, { type DeliveryAddress } from "../DeliveryAddress/AddressList";
 import PhotoLightbox from "./PhotoLightbox";
-import OnboardingWizard from "./Onboardingwizard";
+import OnboardingWizard, { ONBOARDING_STORAGE_KEY } from "./Onboardingwizard";
 import MediaConsentModal, { MediaRetentionReminder } from "./MediaConsentModal";
 import AncaLoader from "../../components/UI/AncaLoader";
 import AncaVisualsPromo from "./AncaVisualsPromo";
 import { OFFER_SERVICES } from "../../../shared/offers/offerServices";
 import { sendLiveEvent } from "../../utils/liveEvent";
+import ShareManagerPanel from "./ShareManagerPanel";
+import AlbumUpdatesSection, { OPEN_ALBUM_UPDATES_EVENT } from "./AlbumUpdatesSection";
+import AlbumActionHub from "./AlbumActionHub";
+import ShareReviewModal from "./ShareReviewModal";
+import SmsSendList from "./SmsSendList";
+import ResetPrintModal from "./ResetPrintModal";
+import { whatsappShareUrl } from "./whatsappShare";
+import { coupleKeyHeaders, useCoupleAccess } from "./coupleAccess";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -231,11 +239,28 @@ function MobileColumnsToggle({
 // ── COMPONENT ────────────────────────────────────────────────────────────────
 
 
+const whatsappButtonStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+  padding: "14px 20px", background: "#25D366", color: "#fff", border: "none", borderRadius: "8px",
+  fontSize: "15px", fontWeight: 800, cursor: "pointer", width: "100%", letterSpacing: "0.04em",
+};
+
+/** Tells the couple, before sending, exactly what guests will (and won't) see. */
+function ShareAnonymityNote() {
+  return (
+    <div style={{ padding: "10px 12px", border: "1px solid #166534", background: "#0d1f0d", borderRadius: "8px", color: "#bbf7d0", fontSize: "13px", lineHeight: 1.5 }}>
+      🔒 <strong>Invitații primesc un link anonim.</strong> Văd <strong>doar pozele alese de tine</strong> și{" "}
+      <strong>nu au acces la albumul vostru</strong>: nu văd restul pozelor, numele albumului sau alte date.
+    </div>
+  );
+}
+
 export default function MediaAlbumPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const isPrintInvitation = searchParams.get("select") === "print";
-  const { auth } = useAuth();
+  const { coupleKey, isCouple, keyRejected } = useCoupleAccess(slug, searchParams, setSearchParams);
+  const { auth, clientPreview, signedInAsAdmin, setClientPreview } = useAuth();
 
   const [moderationMode, setModerationMode] = useState(false);
   const isModerationMode = moderationMode;
@@ -253,9 +278,13 @@ export default function MediaAlbumPage() {
   const [printSaved, setPrintSaved] = useState(false);
   const [notifyingPrint, setNotifyingPrint] = useState(false);
   const [printNotified, setPrintNotified] = useState(false);
+  /** The photographer was told in the last 24 h: "Am terminat" unlocks again at this time (ms). */
+  const [printNotifyUntil, setPrintNotifyUntil] = useState<number | null>(null);
   const [creatingShare, setCreatingShare] = useState(false);
 
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminKeyMode, setIsAdmin] = useState(false);
+  // "👁 Client" view (AdminBar) hides the per-album admin mode too.
+  const isAdmin = adminKeyMode && !clientPreview;
   const [consentGiven, setConsentGiven] = useState(false);
   const [adminKey, setAdminKey] = useState("");
   const [showAdminButton, setShowAdminButton] = useState(false);
@@ -265,9 +294,18 @@ export default function MediaAlbumPage() {
   const [hasDeliveryAddress, setHasDeliveryAddress] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [deliveryEditInitial, setDeliveryEditInitial] = useState<DeliveryAddress | null>(null);
+  const [zipRequest, setZipRequest] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
+  /** Channel whose "check the photos first" overview is open (null = closed). */
+  const [shareReview, setShareReview] = useState<"whatsapp" | "sms" | null>(null);
+  /** Anonymous link whose "send by SMS, one person at a time" list is open. */
+  const [smsListUrl, setSmsListUrl] = useState<string | null>(null);
+  const [showResetPrint, setShowResetPrint] = useState(false);
   const [shareMode, setShareMode] = useState<"selected" | "all">("selected");
+  const [shareListVersion, setShareListVersion] = useState(0);
+  const [shareIntent, setShareIntent] = useState(false);
   const [customUrl, setCustomUrl] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
@@ -305,8 +343,6 @@ export default function MediaAlbumPage() {
   const [invitePanelOpen, setInvitePanelOpen] = useState(false);
 
 
-  const [subscribeEmail, setSubscribeEmail] = useState("");
-  const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [showSaveWarning, setShowSaveWarning] = useState(false);
   const saveWarningTimerRef = useRef<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -382,6 +418,11 @@ export default function MediaAlbumPage() {
     (album?.photos ?? []).forEach((url) => map.set(fileNameFromUrl(url), url));
     return map;
   }, [album?.photos]);
+
+  const shareReviewPhotos = useMemo(
+    () => Array.from(selectedDownload).map((fileName) => ({ fileName, src: previewByName.get(fileName) ?? "" })).filter((photo) => photo.src),
+    [selectedDownload, previewByName],
+  );
 
   const resolveOriginalPhoto = useCallback((url: string) => {
     return originalByName.get(fileNameFromUrl(url)) ?? originalByMediaKey.get(mediaKeyFromUrl(url)) ?? url;
@@ -651,7 +692,9 @@ export default function MediaAlbumPage() {
   };
 
   const openDownloadMode = () => dispatch({ type: "OPEN_DOWNLOAD_MODE", currentPage: safePage });
-  const closeMode = () => dispatch({ type: "CLOSE_MODE", currentPage: safePage });
+  const scrollToPhotos = () => requestAnimationFrame(() => photosTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const closeMode = () => { setShareIntent(false); dispatch({ type: "CLOSE_MODE", currentPage: safePage }); };
 
   const togglePhoto = (src: string) => {
     if (mode !== "print" && mode !== "download") return;
@@ -660,7 +703,7 @@ export default function MediaAlbumPage() {
   };
 
   const onDimmedTap = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (mode === "none") return;
+    if (mode !== "print") return;
     const element = event.target as HTMLElement | null;
     if (!element) return;
     dimTapCountRef.current += 1;
@@ -745,6 +788,18 @@ export default function MediaAlbumPage() {
     form.remove();
   };
 
+  const requestZip = async () => {
+    if (!slug || zipRequest === "sending" || zipRequest === "sent") return;
+    setZipRequest("sending");
+    try {
+      const response = await fetch(`/api/album/${encodeURIComponent(slug)}/zip-request`, { method: "POST" });
+      if (!response.ok) throw new Error(String(response.status));
+      setZipRequest("sent");
+    } catch {
+      setZipRequest("error");
+    }
+  };
+
   const savePrintSelection = async () => {
     if (!slug || savingPrint) return;
     setSavingPrint(true);
@@ -770,13 +825,27 @@ export default function MediaAlbumPage() {
     }
   };
 
+  useEffect(() => {
+    if (!slug) return;
+    fetch(`/api/album/${slug}/print-selection/notify`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { nextAllowedAt?: number | null } | null) => setPrintNotifyUntil(data?.nextAllowedAt ?? null))
+      .catch(() => undefined);
+  }, [slug]);
+
   const notifyPrintSelection = async () => {
     if (!slug || notifyingPrint || printCount === 0) return;
     setNotifyingPrint(true);
     try {
       const response = await fetch(`/api/album/${slug}/print-selection/notify`, { method: "POST" });
+      const data = (await response.json().catch(() => ({}))) as { nextAllowedAt?: number };
+      if (response.status === 429) {
+        setPrintNotifyUntil(data.nextAllowedAt ?? null);
+        return;
+      }
       if (!response.ok) throw new Error("Nu am putut trimite notificarea.");
       setPrintNotified(true);
+      setPrintNotifyUntil(data.nextAllowedAt ?? Date.now() + 24 * 60 * 60 * 1000);
     } catch {
       setPrintSaveError("Nu am putut trimite notificarea. Încearcă din nou.");
     } finally {
@@ -801,14 +870,17 @@ export default function MediaAlbumPage() {
   };
 
   const resetAllPrint = async () => {
-    if (!album || !slug || !window.confirm("Sigur vrei să elimini TOATE pozele din selecția de imprimare?")) return;
+    // Confirmed in ResetPrintModal (the client typed "resetez toată selecția").
+    if (!album || !slug) return;
+    setShowResetPrint(false);
     setAlbum((prev) => (prev ? { ...prev, print: [] } : null));
     try {
-      await fetch(`/api/album/${slug}/print-selection`, {
+      const response = await fetch(`/api/album/${slug}/print-selection`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: [] }),
       });
+      if (!response.ok) throw new Error(String(response.status));
     } catch {
       const refreshed = await fetch(`/api/album/${slug}`).then((res) => res.json());
       setAlbum(refreshed);
@@ -839,8 +911,8 @@ export default function MediaAlbumPage() {
     }
   };
 
-  const createShareLink = async (mode: "selected" | "all" = "selected") => {
-    if (!slug || selectedDownload.size === 0) return;
+  const createShareLink = async (mode: "selected" | "all" = "selected"): Promise<string | null> => {
+    if (!slug || selectedDownload.size === 0) return null;
     setCreatingShare(true);
     dispatch({ type: "SET_SHARE_URL", url: null, error: null });
     try {
@@ -848,7 +920,7 @@ export default function MediaAlbumPage() {
       const allItems = mode === "all" ? (album?.photos ?? []).map(fileNameFromUrl) : undefined;
       const response = await fetch("/api/share", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...coupleKeyHeaders(coupleKey) },
         body: JSON.stringify({
           slug,
           items: priorityItems,
@@ -858,23 +930,48 @@ export default function MediaAlbumPage() {
       const text = await response.text().catch(() => "");
       if (!response.ok) {
         dispatch({ type: "SET_SHARE_URL", url: null, error: `Share failed (${response.status})` });
-        return;
+        return null;
       }
       let data: ShareCreateResponse;
       try { data = JSON.parse(text); } catch {
         dispatch({ type: "SET_SHARE_URL", url: null, error: "Invalid response" });
-        return;
+        return null;
       }
       if (!data?.id) {
         dispatch({ type: "SET_SHARE_URL", url: null, error: "Missing id" });
-        return;
+        return null;
       }
       const url = `${window.location.origin}/share/${data.id}`;
       dispatch({ type: "SET_SHARE_URL", url, error: null });
+      setShareListVersion((v) => v + 1);
+      return url;
     } finally {
       setCreatingShare(false);
     }
   };
+
+  // One tap: create the anonymous link (if needed) and open WhatsApp with it already written.
+  // The tab is opened during the click, otherwise browsers block it after the await.
+  // `reuse` keeps the link already shown in the panel; the main button always makes a fresh
+  // link, so a changed selection never sends the old photos.
+  const sendShare = async (channel: "whatsapp" | "sms", reuse = false) => {
+    const existing = reuse ? shareUrl : null;
+    if (channel === "sms") {
+      const url = existing ?? await createShareLink(shareMode);
+      if (url) setSmsListUrl(url);
+      return;
+    }
+    const popup = existing ? null : window.open("", "_blank");
+    const url = existing ?? await createShareLink(shareMode);
+    if (!url) { popup?.close(); return; }
+    const target = whatsappShareUrl(url);
+    if (popup) popup.location.href = target;
+    else window.open(target, "_blank", "noopener");
+  };
+
+  const closeShareReview = useCallback(() => setShareReview(null), []);
+  const closeSmsList = useCallback(() => setSmsListUrl(null), []);
+  const closeResetPrint = useCallback(() => setShowResetPrint(false), []);
 
   const saveLink = async () => {
     const url = customUrl.trim();
@@ -1021,29 +1118,6 @@ export default function MediaAlbumPage() {
     }
   };
 
-
-  const handleSubscribe = async () => {
-    if (!subscribeEmail.trim()) return;
-    setSubscribeStatus("loading");
-    try {
-      const response = await fetch("/api/album-subscriptions/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ albumSlug: slug, email: subscribeEmail.trim() }),
-      });
-      const data = await response.json() as { ok?: boolean };
-      setSubscribeStatus(data.ok ? "success" : "error");
-      if (data.ok) {
-        sendLiveEvent("form_submitted", {
-          priority: "high",
-          label: "📧 S-a abonat — vrea să fie anunțat când sunt gata pozele",
-          meta: { kind: "subscribe" },
-        });
-      }
-    } catch {
-      setSubscribeStatus("error");
-    }
-  };
 
   const showImageSaveWarning = () => {
     setShowSaveWarning(true);
@@ -1202,7 +1276,7 @@ export default function MediaAlbumPage() {
             isAdmin={isAdmin || auth.authorise}
             onAccepted={() => {
               setConsentGiven(true);
-              if (!isPrintInvitation && hasPhotos && !isAdmin && !auth.authorise && !localStorage.getItem('av:onboarding:done')) {
+              if (!isPrintInvitation && hasPhotos && !isAdmin && !auth.authorise && !localStorage.getItem(ONBOARDING_STORAGE_KEY)) {
                 setTimeout(() => setShowOnboarding(true), 500);
               }
             }}
@@ -1270,12 +1344,22 @@ export default function MediaAlbumPage() {
           <div className={styles.adminTempButton}>
             <button
               className={styles.adminTempBtn}
-              onClick={() => { window.location.href = `/login?redirect=/media/${slug}`; }}
+              onClick={() => { window.location.href = `/login?redirect=${encodeURIComponent(`/media/${slug}`)}`; }}
             >
               🔑 Acces administrare
             </button>
           </div>
         )}
+
+        {/* AncaVisuals wordmark, centred at the very top (same lettering as the site / login). */}
+        {/* Signed in: the floating Admin / Client / Log out bar sits at the top right, so the
+            logo moves down below it instead of hiding under it. */}
+        <a href="/" className={`mb-6 block text-center no-underline ${signedInAsAdmin ? "mt-12" : "mt-2"}`} aria-label="AncaVisuals — pagina principală">
+          <span className="text-xl uppercase tracking-[0.3em] sm:text-2xl">
+            <span className="font-bold text-white">Anca</span>
+            <span className="font-light text-neutral-300">Visuals</span>
+          </span>
+        </a>
 
         <h1
           className={styles.title}
@@ -1317,7 +1401,95 @@ export default function MediaAlbumPage() {
           {album.longvideo ? " · film complet" : ""}
         </p>
 
-        {isPrintInvitation && (
+        {slug && (
+          <div id="album-updates">
+            <AlbumUpdatesSection
+              slug={slug}
+              isAdmin={auth.authorise}
+              accessToken={auth.accessToken ?? null}
+              adminPreviewHidden={signedInAsAdmin && clientPreview}
+              onExitClientPreview={() => setClientPreview(false)}
+            />
+          </div>
+        )}
+
+        {auth.authorise && slug && <PrintSelectionLink key={slug} albumSlug={slug} />}
+
+        {/* Admin view (🛠 Admin in the top bar): admin shortcuts come first. In 👁 Client view
+            auth.authorise is false, so this disappears and the page looks exactly like the client's.
+            The full tools sit next to the photos, where you pick them. */}
+        {auth.authorise && !isModerationMode && (
+          <nav aria-label="Unelte admin" className="mb-5 border border-neutral-700 bg-neutral-950 p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">🛠 Unelte admin <span className="normal-case tracking-normal text-neutral-600">(doar tu le vezi)</span></p>
+              <a href="/admin/image-optimizer" target="_blank" rel="noreferrer" className="text-xs text-[#4ade80] underline underline-offset-4 hover:text-[#86efac]">🖼️ Optimizare poze ↗</a>
+            </div>
+            {(igProposeResult || moderationSubmitResult) && (
+              <p role="status" className="mb-2 text-xs text-[#4ade80]">{igProposeResult || moderationSubmitResult}</p>
+            )}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => { if (slug) window.location.href = `/admin/instagram-proposals?album=${encodeURIComponent(slug)}`; }}
+                className="border border-[#dd2a7b] px-3 py-2.5 text-left text-sm font-bold text-[#f9a8d4] hover:bg-[#2a0a1a]"
+              >
+                👀 Vezi pozele propuse ({igProposals.length})
+                <span className="block text-[11px] font-normal text-neutral-400">
+                  {igProposals.length === 0
+                    ? "Nicio poză propusă încă · deschide Propuneri Media"
+                    : `${igProposals.filter((p) => p.status === "pending").length} în așteptare · în Propuneri Media`}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { closeMode(); setIgProposeMode(true); setIgProposeResult(null); setProposalDestinations(new Set(["instagram", "media_assets"])); setProposalMediaServices(new Set(["photo"])); scrollToPhotos(); }}
+                className="bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#8134af] px-3 py-2.5 text-left text-sm font-bold text-white"
+              >
+                📸 Propune Instagram / Media Assets
+                {igProposals.filter((p) => p.status === "pending").length > 0 && <span className="ml-1.5 bg-black/30 px-1.5 text-xs">{igProposals.filter((p) => p.status === "pending").length}</span>}
+              </button>
+              <button
+                type="button"
+                onClick={() => { closeMode(); setInvitePanelOpen(true); requestAnimationFrame(() => scrollToId("proposal-invites")); }}
+                className="border border-neutral-600 px-3 py-2.5 text-left text-sm font-bold text-white hover:border-white"
+              >
+                🔗 Invită pe cineva să aleagă poze
+                <span className="block text-[11px] font-normal text-neutral-400">Link unic pentru soție, Salomeea…</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { closeMode(); setModerationMode(true); scrollToPhotos(); }}
+                className="border border-amber-800 px-3 py-2.5 text-left text-sm font-bold text-amber-300 hover:border-amber-500"
+              >
+                🗑️ Propune ștergere
+              </button>
+            </div>
+          </nav>
+        )}
+
+        {/* "Ce poți face aici" is the client's menu: not shown in the 🛠 Admin view. */}
+        {!isModerationMode && !auth.authorise && (
+          <AlbumActionHub
+            hasPhotos={hasPhotos}
+            printCount={printCount}
+            hasDeliveryAddress={hasDeliveryAddress}
+            zipReady={Boolean(album.zipReady)}
+            zipRequest={zipRequest}
+            onRequestZip={() => void requestZip()}
+            isCouple={isCouple}
+            onPickAlbumPhotos={() => { openPrintMode(); scrollToPhotos(); }}
+            onShare={() => { openDownloadMode(); setShareIntent(true); scrollToPhotos(); }}
+            onDelivery={() => (hasDeliveryAddress ? setShowDeliveryModal(true) : setIsFormOpen(true))}
+            onDownloadAll={() => (album.zipReady ? downloadAllPhotos() : scrollToPhotos())}
+            onUpdates={() => { window.dispatchEvent(new Event(OPEN_ALBUM_UPDATES_EVENT)); scrollToId("album-updates"); }}
+            onSentPhotos={() => scrollToId("share-manager")}
+            onTutorial={() => { localStorage.removeItem(ONBOARDING_STORAGE_KEY); setShowOnboarding(true); }}
+          />
+        )}
+
+
+        {/* The big white "how to pick your album photos" guide is for the client only. */}
+        {(isPrintInvitation || !isModerationMode) && !auth.authorise && (
           <PrintSelectionGuide
             selecting={mode === "print"} count={selectedPrint.size} savedCount={printCount}
             hasPhotos={hasPhotos} saving={savingPrint} saved={printSaved} error={printSaveError}
@@ -1326,32 +1498,8 @@ export default function MediaAlbumPage() {
               photosTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
             onSave={() => void savePrintSelection()} onDelivery={() => setIsFormOpen(true)}
-            notifying={notifyingPrint} notified={printNotified} onNotify={() => void notifyPrintSelection()}
+            notifying={notifyingPrint} notified={printNotified} notifiedUntil={printNotifyUntil} onNotify={() => void notifyPrintSelection()}
           />
-        )}
-
-        {auth.authorise && slug && <PrintSelectionLink key={slug} albumSlug={slug} />}
-
-        {!isModerationMode && (
-          <div className={styles.actionButtons}>
-            <button className={styles.fillAction} onClick={() => setIsFormOpen(true)}>
-              Completează adresa de livrare
-            </button>
-            {hasDeliveryAddress && (
-              <button className={styles.viewAction} onClick={() => setShowDeliveryModal(true)}>
-                Vezi adresa de livrare
-              </button>
-            )}
-            {!isAdmin && hasPhotos && (
-              <button
-                type="button"
-                onClick={() => { localStorage.removeItem('av:onboarding:done'); setShowOnboarding(true); }}
-                style={{ padding: "9px 22px", background: "#fef08a", border: "1px solid #ca8a04", borderRadius: "999px", color: "#713f12", fontSize: "13px", cursor: "pointer", letterSpacing: "0.05em", fontWeight: 700, boxShadow: "0 2px 10px rgba(250,204,21,0.2)" }}
-              >
-                ? CUM FUNCȚIONEAZĂ?
-              </button>
-            )}
-          </div>
         )}
 
         {isAdmin && (
@@ -1367,12 +1515,40 @@ export default function MediaAlbumPage() {
           </div>
         )}
 
+        {shareReview && mode === "download" && (
+          <ShareReviewModal
+            photos={shareReviewPhotos}
+            channel={shareReview}
+            sending={creatingShare}
+            onRemove={(name) => dispatch({ type: "TOGGLE_PHOTO", mode: "download", name })}
+            onClose={closeShareReview}
+            onConfirm={() => {
+              // sendShare opens the WhatsApp tab synchronously inside this click, then fills it.
+              const channel = shareReview;
+              void sendShare(channel).finally(() => setShareReview(null));
+            }}
+          />
+        )}
+
+        {showResetPrint && <ResetPrintModal count={printCount} onCancel={closeResetPrint} onConfirm={() => void resetAllPrint()} />}
+        {smsListUrl && <SmsSendList shareUrl={smsListUrl} onClose={closeSmsList} />}
+
         {isFormOpen && (
-          <DeliveryForm albumId={slug || "hello"} onClose={() => setIsFormOpen(false)} onSuccess={() => setIsFormOpen(false)} />
+          <DeliveryForm
+            albumId={slug || "hello"}
+            initial={deliveryEditInitial ?? undefined}
+            onClose={() => { setIsFormOpen(false); setDeliveryEditInitial(null); }}
+            onSuccess={() => { setIsFormOpen(false); setDeliveryEditInitial(null); }}
+          />
         )}
 
         {showDeliveryModal && (
-          <DeliveryAddressModal slug={slug || ""} isOpen={showDeliveryModal} onClose={() => setShowDeliveryModal(false)} />
+          <DeliveryAddressModal
+            slug={slug || ""}
+            isOpen={showDeliveryModal}
+            onClose={() => setShowDeliveryModal(false)}
+            onEdit={(address) => { setDeliveryEditInitial(address); setShowDeliveryModal(false); setIsFormOpen(true); }}
+          />
         )}
 
         {showUrlModal && (
@@ -1403,6 +1579,19 @@ export default function MediaAlbumPage() {
 
         <div className={styles.divider} />
 
+        {keyRejected && (
+          <p role="status" style={{ margin: "0 0 16px", padding: "10px 14px", border: "1px solid #5a4a1c", borderRadius: "8px", color: "#e8d4a2", fontSize: "13px" }}>
+            Linkul de miri a fost înlocuit. Cereți-ne pe WhatsApp linkul nou ca să vedeți pozele trimise.
+          </p>
+        )}
+
+        {/* Sending photos to guests is a client thing: hidden in the 🛠 Admin view. */}
+        {isCouple && coupleKey && slug && mode !== "print" && !auth.authorise && (
+          <div id="share-manager">
+            <ShareManagerPanel slug={slug} coupleKey={coupleKey} refreshToken={shareListVersion} />
+          </div>
+        )}
+
         {album.featured?.length > 0 && (
           <>
             <h2 className={styles.sectionTitle}>Selectate</h2>
@@ -1410,42 +1599,8 @@ export default function MediaAlbumPage() {
           </>
         )}
 
-        {mode === "none" && subscribeStatus !== "success" && (
-          <div data-onboarding="subscribe" style={{ margin: "0 0 16px", padding: "12px 16px", background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: "8px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            <p style={{ color: "#888", fontSize: "13px", margin: 0 }}>
-              🔔 Notifică-mă când fotograful adaugă poze noi
-            </p>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <input
-                type="email"
-                value={subscribeEmail}
-                onChange={(event) => setSubscribeEmail(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter") handleSubscribe(); }}
-                placeholder="adresa@email.com"
-                style={{ flex: 1, minWidth: 0, padding: "8px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ccc", fontSize: "13px", outline: "none" }}
-              />
-              <button
-                onClick={handleSubscribe}
-                disabled={subscribeStatus === "loading" || !subscribeEmail.trim()}
-                style={{ padding: "8px 14px", background: subscribeEmail.trim() ? "#fff" : "#222", color: subscribeEmail.trim() ? "#000" : "#555", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: subscribeEmail.trim() ? "pointer" : "not-allowed", whiteSpace: "nowrap", flexShrink: 0 }}
-              >
-                {subscribeStatus === "loading" ? "..." : "Abonează-te"}
-              </button>
-            </div>
-            {subscribeStatus === "error" && (
-              <p style={{ color: "#f87171", fontSize: "12px", margin: 0 }}>A apărut o eroare. Încearcă din nou.</p>
-            )}
-          </div>
-        )}
-
-        {mode === "none" && subscribeStatus === "success" && (
-          <div style={{ margin: "0 0 16px", padding: "12px 16px", background: "#052e16", border: "1px solid #166534", borderRadius: "8px" }}>
-            <p style={{ color: "#4ade80", fontSize: "13px", fontWeight: 600, margin: 0 }}>✓ Te-ai abonat! Vei primi un email când fotograful adaugă poze noi.</p>
-          </div>
-        )}
-
         {auth.authorise && mode === "none" && !igProposeMode && !moderationMode && (
-          <div style={{ margin: "0 0 14px", padding: "14px 16px", background: "#0f0f0f", border: "1px solid #2a2a2a", borderRadius: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div id="proposal-invites" style={{ margin: "0 0 14px", padding: "14px 16px", background: "#0f0f0f", border: "1px solid #2a2a2a", borderRadius: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
             <button
               type="button"
               onClick={() => setInvitePanelOpen((prev) => !prev)}
@@ -1466,39 +1621,6 @@ export default function MediaAlbumPage() {
             </button>
 
             {invitePanelOpen && slug && auth.accessToken && <ProposalLinksPanel slug={slug} accessToken={auth.accessToken} />}
-          </div>
-        )}
-
-        {auth.authorise && mode === "none" && !igProposeMode && !moderationMode && (
-          <div style={{ display: "flex", gap: "8px", margin: "0 0 12px", flexWrap: "wrap" }}>
-            <button
-              onClick={() => window.open("/admin/image-optimizer", "_blank")}
-              style={{ padding: "7px 16px", background: "#1a2a1a", border: "1px solid #166534", borderRadius: "6px", color: "#4ade80", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-            >
-              🖼️ Optimizare Poze
-            </button>
-            <button
-              onClick={() => { setIgProposeMode(true); setIgProposeResult(null); setProposalDestinations(new Set(["instagram", "media_assets"])); setProposalMediaServices(new Set(["photo"])); }}
-              style={{ padding: "7px 16px", background: "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-            >
-              📸 Propune Instagram / Media Assets
-              {igProposals.filter((p) => p.status === "pending").length > 0 && (
-                <span style={{ marginLeft: "6px", background: "rgba(0,0,0,0.3)", borderRadius: "999px", padding: "1px 7px", fontSize: "11px" }}>
-                  {igProposals.filter((p) => p.status === "pending").length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => { setModerationMode(true); }}
-              style={{ padding: "7px 16px", background: "#92400e", border: "none", borderRadius: "6px", color: "#fcd34d", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-            >
-              🗑️ Propune ștergere
-            </button>
-            {(igProposeResult || moderationSubmitResult) && (
-              <span style={{ alignSelf: "center", color: "#4ade80", fontSize: "12px" }}>
-                {igProposeResult || moderationSubmitResult}
-              </span>
-            )}
           </div>
         )}
 
@@ -1575,25 +1697,27 @@ export default function MediaAlbumPage() {
 
               {mode === "none" ? (
                 <div className={styles.rowActions}>
-                  {totalPhotos > 0 && !isModerationMode && (
-                    <button className={styles.pickBtn} type="button" onClick={openPrintMode} data-onboarding="print-btn">
-                      Modifică selecția pentru imprimare
-                    </button>
-                  )}
-                  {!isModerationMode && (
-                    <button className={styles.pickBtnSecondary} type="button" onClick={openDownloadMode}>
-                      Selectează poze pentru descărcare
-                    </button>
-                  )}
                   {!isModerationMode && (
                     album.zipReady ? (
                       <button className={styles.downloadAllPulse} type="button" onClick={downloadAllPhotos} data-onboarding="download-btn">
                         {"DESCARCĂ TOATE POZELE" + (stats ? ` (${fmtBytes(stats.photosBytesTotal)})` : "")}
                       </button>
                     ) : (
-                      <span data-onboarding="download-btn" style={{ fontSize: "13px", color: "#666", padding: "6px 0", display: "inline-block" }}>
-                        Descărcarea tuturor pozelor nu este disponibilă momentan
-                      </span>
+                      <button
+                        type="button"
+                        data-onboarding="download-btn"
+                        className={styles.pickBtnSecondary}
+                        onClick={() => void requestZip()}
+                        disabled={zipRequest === "sending" || zipRequest === "sent"}
+                      >
+                        {zipRequest === "sent"
+                          ? "✓ Fotograful a fost anunțat că lipsește arhiva"
+                          : zipRequest === "sending"
+                            ? "Se trimite…"
+                            : zipRequest === "error"
+                              ? "Nu am putut trimite — încearcă din nou"
+                              : "Arhiva cu toate pozele nu e gata · Anunță fotograful"}
+                      </button>
                     )
                   )}
                 </div>
@@ -1609,17 +1733,26 @@ export default function MediaAlbumPage() {
                       <button className={styles.pickBtn} type="button" onClick={downloadSelected} disabled={downloadCount === 0}>
                         Descarcă selecția
                       </button>
-                      <button
-                        className={styles.pickBtnSecondary}
-                        type="button"
-                        disabled={downloadCount === 0}
-                        onClick={() => {
-                          setSharePanelOpen(true);
-                          dispatch({ type: "SET_SHARE_URL", url: null, error: null });
-                        }}
-                      >
-                        📤 Trimite pozele ({downloadCount})
-                      </button>
+                      {!auth.authorise && (
+                        <>
+                          <button
+                            className={styles.shareGreenBtn}
+                            type="button"
+                            disabled={downloadCount === 0 || creatingShare}
+                            onClick={() => setShareReview("whatsapp")}
+                          >
+                            {creatingShare ? "Se pregătește..." : `🟢 Trimite-le pe WhatsApp (${downloadCount})`}
+                          </button>
+                          <button
+                            className={styles.pickBtnSecondary}
+                            type="button"
+                            disabled={downloadCount === 0 || creatingShare}
+                            onClick={() => setShareReview("sms")}
+                          >
+                            💬 Prin SMS
+                          </button>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -1632,6 +1765,12 @@ export default function MediaAlbumPage() {
               </p>
             )}
             {!isPrintInvitation && printSaveError && <p role="alert">{printSaveError}</p>}
+            {/* The how-to steps only until the first photo is ticked; after that they'd just push the photos down. */}
+            {mode === "download" && shareIntent && downloadCount === 0 && !sharePanelOpen && !shareUrl && !auth.authorise && (
+              <p role="status" style={{ margin: "8px 0 16px", padding: "10px 14px", background: "#0d1f0d", border: "1px solid #166534", borderRadius: "8px", color: "#bbf7d0", fontSize: "13px" }}>
+                📤 <strong>1.</strong> Bifează pozele pe care vrei să le trimiți. <strong>2.</strong> Apasă butonul verde care pulsează, <strong>„Trimite-le pe WhatsApp”</strong> (sau „Prin SMS”) și verifici toate pozele alese; poți scoate oricare. <strong>3.</strong> Confirmi, se deschide WhatsApp: alegi oamenii cărora le trimiți și apeși Trimite. 🔒 Ei primesc un link anonim, doar cu pozele alese, fără acces la albumul vostru.
+              </p>
+            )}
 
             {mode === "download" && (sharePanelOpen || shareUrl || shareError) && (
               <div ref={shareBoxRef} className={styles.shareBox}>
@@ -1645,75 +1784,28 @@ export default function MediaAlbumPage() {
                   >×</button>
                 </div>
 
-                {!shareUrl && !shareError && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {[
-                        { value: "selected" as const, label: `Trimite doar aceste ${downloadCount} ${downloadCount === 1 ? "poză" : "poze"} selectate` },
-                        { value: "all" as const, label: `Trimite toate pozele evenimentului (${totalPhotos}), cu cele selectate primele` },
-                      ].map(({ value, label }) => (
-                        <label
-                          key={value}
-                          style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", fontSize: "13px", color: shareMode === value ? "#fff" : "#888", lineHeight: 1.4 }}
-                        >
-                          <input
-                            type="radio"
-                            name="shareMode"
-                            value={value}
-                            checked={shareMode === value}
-                            onChange={() => setShareMode(value)}
-                            style={{ marginTop: "2px", accentColor: "#c9a96e", flexShrink: 0 }}
-                          />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.pickBtn}
-                      onClick={() => void createShareLink(shareMode)}
-                      disabled={creatingShare}
-                      style={{ width: "fit-content" }}
-                    >
-                      {creatingShare ? "Se generează..." : "Generează link de share"}
-                    </button>
-                  </div>
-                )}
-
                 {shareError && <div className={styles.shareError}>{shareError}</div>}
 
                 {shareUrl && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <ShareAnonymityNote />
+                    <button type="button" onClick={() => void sendShare("whatsapp", true)} style={whatsappButtonStyle}>
+                      🟢 TRIMITE-LE PE WHATSAPP
+                    </button>
+                    <p style={{ margin: 0, fontSize: "12px", color: "#86efac" }}>
+                      Se deschide WhatsApp cu mesajul și linkul deja scrise — tu alegi doar persoanele cărora le trimiți.
+                    </p>
                     <div className={styles.shareRow}>
-                      <input className={styles.shareInput} value={shareUrl} readOnly />
+                      <input className={styles.shareInput} value={shareUrl} readOnly aria-label="Linkul anonim cu pozele alese" />
                       <button className={styles.shareBtn} type="button" onClick={() => navigator.clipboard.writeText(shareUrl!)}>Copiază</button>
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (typeof navigator.share === "function") {
-                          void navigator.share({ title: "Poze eveniment", url: shareUrl });
-                        } else {
-                          void navigator.clipboard.writeText(shareUrl!);
-                        }
-                      }}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                        padding: "13px 20px",
-                        background: "#25D366",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "8px",
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        width: "100%",
-                        letterSpacing: "0.02em",
-                      }}
+                      className={styles.pickBtnSecondary}
+                      onClick={() => void sendShare("sms", true)}
+                      style={{ width: "fit-content" }}
                     >
-                      📤 {typeof navigator !== "undefined" && typeof navigator.share === "function"
-                        ? "Trimite prin WhatsApp / SMS / Email..."
-                        : "Copiază linkul"}
+                      💬 Trimite prin SMS
                     </button>
                   </div>
                 )}
@@ -1835,36 +1927,75 @@ export default function MediaAlbumPage() {
               onMobileColumnsChange={setMobileColumns}
             />
 
+            {/* Same blinking download button as above the photos, for whoever scrolled to the end. */}
+            {mode === "none" && !isModerationMode && album.zipReady && (
+              <div className="mb-8 mt-2 flex justify-center">
+                <button className={styles.downloadAllPulse} type="button" onClick={downloadAllPhotos}>
+                  {"DESCARCĂ TOATE POZELE" + (stats ? ` (${fmtBytes(stats.photosBytesTotal)})` : "")}
+                </button>
+              </div>
+            )}
           </>
         )}
 
-        {!isModerationMode && <div className={mode !== "none" ? styles.dimmedArea : undefined} onPointerDown={onDimmedTap}>
+        {/* Dimmed only while editing the print selection: during "select for download/share" the
+            saved print photos stay usable (download, reset, remove one). */}
+        {!isModerationMode && <div className={mode === "print" ? styles.dimmedArea : undefined} onPointerDown={onDimmedTap}>
           <div data-onboarding="print-section">
-            <div className={styles.sectionRow} data-onboarding="print-zone">
-              <h2 className={styles.sectionTitle}>Poze de imprimat{printCount ? ` (${printCount})` : ""}</h2>
-              <div className={styles.rowActions}>
+            {/* One card in the album-photos colour (sky, like its tile in "Ce poți face aici"):
+                count + progress, the two main actions side by side, show/hide as a full-width
+                toggle, and reset as a quiet link so it is never pressed by mistake. */}
+            <div className="mb-4 border border-[#0c4a6e] bg-[#06141d] p-3 sm:p-4" data-onboarding="print-zone">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-base font-bold text-[#7dd3fc] sm:text-lg">🖼️ Pozele pentru album</h2>
+                <span className="shrink-0 font-mono text-sm text-[#bae6fd]">
+                  <strong className="text-white">{printCount}</strong> / 100
+                </span>
+              </div>
+              <div className="mt-2 h-1.5 bg-[#0c2a3a]" aria-hidden>
+                <div className="h-full bg-[#38bdf8]" style={{ width: `${Math.min(100, printCount)}%` }} />
+              </div>
+              <p className="mt-2 text-xs text-neutral-400">
+                {printCount === 0
+                  ? "Nu ai ales încă poze pentru imprimare."
+                  : printCount < 100
+                    ? `Mai poți alege ${100 - printCount}. Le poți schimba oricând.`
+                    : "Selecția e completă. O poți schimba oricând."}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {totalPhotos > 0 && (
-                  <button className={styles.pickBtn} type="button" onClick={openPrintMode}>
-                    Modifică selecția pentru imprimare
+                  <button
+                    type="button"
+                    onClick={openPrintMode}
+                    className={`${printCount > 0 ? "" : "col-span-2 "}bg-[#0284c7] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#0ea5e9]`}
+                  >
+                    {printCount > 0 ? "✎ Modifică" : "Alege pozele"}
                   </button>
                 )}
                 {printCount > 0 && (
-                  <button type="button" className={styles.resetAllPrintBtn} onClick={resetAllPrint}>
-                    Resetează toate pozele pentru imprimare
+                  <button type="button" onClick={downloadPrintDynamic} className="whitespace-nowrap border border-[#38bdf8] px-3 py-2.5 text-sm font-bold text-[#7dd3fc] hover:bg-[#0c2a3a]">
+                    ⬇ Descarcă tot
                   </button>
                 )}
                 {(printCount > 0 || tutorialPrintPhotos.length > 0) && (
                   <button
                     type="button"
-                    className={styles.collapsePrintBtn}
                     onClick={() => setPrintExpanded(value => !value)}
                     aria-expanded={printExpanded}
                     aria-controls="print-photos-content"
+                    className="col-span-2 flex items-center justify-center gap-2 border border-[#0c4a6e] px-3 py-2 text-sm text-[#bae6fd] hover:border-[#38bdf8]"
                   >
-                    {printExpanded ? "Colapsează pozele" : "Extinde pozele"} <span aria-hidden="true">{printExpanded ? "⌃" : "⌄"}</span>
+                    {printExpanded ? "Ascunde pozele" : "Vezi pozele alese"} <span aria-hidden="true">{printExpanded ? "▲" : "▼"}</span>
                   </button>
                 )}
               </div>
+              {printCount > 0 && (
+                <div className="mt-2 text-right">
+                  <button type="button" onClick={() => setShowResetPrint(true)} className="text-xs text-red-400/80 underline underline-offset-4 hover:text-red-300">
+                    Resetează toată selecția
+                  </button>
+                </div>
+              )}
             </div>
 
             <div id="print-photos-content" hidden={!printExpanded}>
@@ -1920,12 +2051,6 @@ export default function MediaAlbumPage() {
             )}
             </div>
           </div>
-
-          {printCount > 0 && (
-            <button type="button" className={styles.pickBtnSecondary} onClick={downloadPrintDynamic}>
-              Descarcă pozele pentru imprimare
-            </button>
-          )}
 
           {album.shortvideo && (
             <>
@@ -2158,7 +2283,7 @@ export default function MediaAlbumPage() {
 
 
     {auth.authorise && igProposals.length > 0 && (
-      <div style={{ background: "#0a0a0a", borderTop: "1px solid #1a1a1a", padding: "32px 32px 48px", marginTop: "16px" }}>
+      <div id="album-proposals" style={{ background: "#0a0a0a", borderTop: "1px solid #1a1a1a", padding: "32px 32px 48px", marginTop: "16px" }}>
         <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
             <span style={{ fontSize: "18px" }}>📸</span>

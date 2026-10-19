@@ -9,6 +9,7 @@ import useAuth from "../../auth/useAuth";
 import AncaLoader from "../../../../components/UI/AncaLoader";
 import PostEventFollowUp from "../PostEventFollowUp";
 import MementosWidget from "../MementosWidget";
+import PromisesPanel from "../PromisesPanel";
 import EmailFailureBanner from "../EmailFailureBanner";
 import ActivityInbox from "../ActivityInbox";
 import LeadsWidget from "../LeadsWidget";
@@ -353,6 +354,9 @@ const DashboardInner: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Deadlines promised to clients in album updates — highlighted, above everything else */}
+        <PromisesPanel accessToken={auth.accessToken ?? ""} />
 
         {/* Admin inbox — always visible at the top */}
         <div className="mb-5">

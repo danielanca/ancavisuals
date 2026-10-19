@@ -125,6 +125,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: transparent;
@@ -140,8 +141,20 @@
   border-color: rgba(255, 255, 255, 0.32);
 }
 
+.check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid currentColor;
+  font-size: 11px;
+  line-height: 1;
+}
+
 .meta {
   margin-left: auto;
+  white-space: nowrap;
 }
 
 .metaStrong {
@@ -167,7 +180,7 @@
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 0;
   transition: color 0.15s ease, border-color 0.15s ease;
 
   svg {
@@ -181,37 +194,66 @@
   border-color: rgba(255, 255, 255, 0.5);
 }
 
+// Phones: « ‹ [ 1 ] / 64 › » on one line (no "Pagina" word), then "Selectează pagina" on its
+// own full-width line, then "1-20 din 1279" + the 1/2 column toggle — nothing wraps mid-text.
 @media (max-width: 640px) {
   .bar {
-    padding: 10px 10px;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
   }
 
   .left,
   .right {
-    gap: 8px;
+    gap: 6px;
   }
 
   .btn {
-    padding: 10px 10px;
+    padding: 8px 0;
+    width: 40px;
+    min-height: 40px;
   }
 
-  .label {
+  .label,
+  .pgLabel {
     display: none;
   }
 
+  .pg {
+    gap: 6px;
+  }
+
   .pgInput {
-    width: 56px;
+    width: 52px;
+    min-height: 40px;
+    padding: 8px 6px;
   }
 
   .row2 {
-    grid-template-columns: 1fr;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .btnGhost {
-    justify-self: stretch;
+    flex: 1 1 100%;
+    min-height: 40px;
   }
 
   .meta {
-    justify-self: start;
+    margin-left: 0;
+    font-size: 13px;
+  }
+
+  .metaStrong {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .gridToggle {
+    margin-left: auto;
   }
 }

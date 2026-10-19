@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
+import { useLocation } from "react-router-dom";
 import { getCookie, isBrowser, setJWT } from "../../../utils/functions";
 import { whenLandingSettled } from "../../../utils/whenLandingSettled";
 import { loadFirebaseAuth } from "./loadFirebaseAuth";
@@ -10,6 +11,8 @@ const JWT_TTL_HOURS = 24;
 const ADMIN_COOKIE = "av_admin";
 const ADMIN_COOKIE_DAYS = 365;
 
+const CLIENT_PREVIEW_KEY = "av:client-preview";
+
 const SUPREME_ADMIN_EMAIL = "ancadaniel1994@gmail.com";
 const ESTERA_EMAIL = "estera.pop97@gmail.com";
 
@@ -18,6 +21,7 @@ export type UserRole = "admin" | "estera" | "moderator" | null;
 type AuthState = {
   user: User | null;
   accessToken: string;
+  /** Admin features visible. False in "Vezi ca client" mode outside /admin. */
   authorise: boolean;
   loading: boolean;
   role: UserRole;
@@ -25,6 +29,10 @@ type AuthState = {
 
 type Ctx = {
   auth: AuthState;
+  /** Really signed in as admin, even while previewing the site as a client. */
+  signedInAsAdmin: boolean;
+  clientPreview: boolean;
+  setClientPreview: (on: boolean) => void;
   signIn: (email: string, password: string) => Promise<void>;
   logOut: () => Promise<void>;
 };
@@ -39,6 +47,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     loading: true,
     role: null,
   });
+  const { pathname } = useLocation();
+  const [clientPreview, setClientPreviewState] = useState(false);
+
+  useEffect(() => {
+    try { setClientPreviewState(localStorage.getItem(CLIENT_PREVIEW_KEY) === "1"); } catch { /* storage indisponibil */ }
+  }, []);
+
+  const setClientPreview = useCallback((on: boolean) => {
+    setClientPreviewState(on);
+    try {
+      if (on) localStorage.setItem(CLIENT_PREVIEW_KEY, "1");
+      else localStorage.removeItem(CLIENT_PREVIEW_KEY);
+    } catch { /* storage indisponibil */ }
+  }, []);
 
   // If no cookie exists on mount, we know for certain the user is logged out —
   // stop loading immediately instead of waiting for Firebase to confirm.
@@ -92,12 +114,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     await setJWT(JWT_COOKIE, "", -1);
     await setJWT(ADMIN_COOKIE, "", -1);
     try { localStorage.removeItem("av_admin_device"); } catch { /* storage indisponibil */ }
+    setClientPreview(false);
     setState({ user: null, accessToken: "", authorise: false, loading: false, role: null });
-  }, []);
+  }, [setClientPreview]);
+
+  // The admin panel itself never switches to client view — only the public pages do.
+  const hideAdminFeatures = clientPreview && !pathname.startsWith("/admin");
 
   const ctx = useMemo<Ctx>(
-    () => ({ auth: state, signIn, logOut }),
-    [state, signIn, logOut],
+    () => ({
+      auth: hideAdminFeatures ? { ...state, authorise: false } : state,
+      signedInAsAdmin: state.authorise,
+      clientPreview,
+      setClientPreview,
+      signIn,
+      logOut,
+    }),
+    [state, hideAdminFeatures, clientPreview, setClientPreview, signIn, logOut],
   );
 
   return <AuthContext.Provider value={ctx}>{children}</AuthContext.Provider>;

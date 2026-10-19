@@ -7,9 +7,16 @@ import { detectServiceFlags, computeContractTitle, type ContractService } from "
 import { interpolateClauseTokens } from "../services/contractClauseInterpolation";
 import { rewriteContractClause } from "../services/contractClauseAi.service";
 import { SEED_DEFAULT_CLAUSES } from "../services/contractClauseSeedData";
+import {
+  DEFAULT_CLAUSE_SET_EVENT_TYPES,
+  normalizeClauseSetInput,
+  type ClauseSet,
+  type ClauseSetClause,
+} from "../../shared/contractClauseSets";
 
 const router = Router();
 const COLLECTION = "contractClauseTemplates";
+const SETS_COLLECTION = "contractClauseSets";
 
 interface ClauseTemplateDoc {
   key: string;
@@ -140,6 +147,8 @@ router.post("/seed-defaults", requireFirebaseAuth, requireSupremeAdmin, async (r
 
 interface RenderClauseRequest {
   eventType?: string;
+  /** Generate from this saved template instead of the shared library. */
+  setId?: string;
   services?: ContractService[];
   privateClient?: boolean;
   eventDate?: unknown;
@@ -188,11 +197,23 @@ router.post("/render", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
     const privateClient = Boolean(body.privateClient);
 
     const db = firestore();
-    const snapshot = await db.collection(COLLECTION).get();
-    let templates = snapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() } as ClauseTemplateDoc & { id: string }))
-      .filter((t) => t.isActive !== false);
-    templates = templates.filter((t) => t.appliesTo === "all" || t.appliesTo === eventType);
+    let templates: Array<Pick<ClauseTemplateDoc, "key" | "title" | "bodyTemplate" | "order" | "groupKey" | "conditionTag" | "mutexGroup"> & { id: string }>;
+    if (body.setId) {
+      const setDoc = await db.collection(SETS_COLLECTION).doc(String(body.setId)).get();
+      if (!setDoc.exists) {
+        res.status(404).json({ error: "Șablonul de clauze nu mai există. Alege altul." });
+        return;
+      }
+      const clauses = ((setDoc.data()?.clauses ?? []) as ClauseSetClause[]).filter((c) => c.isActive !== false);
+      // templateId must be unique per generated clause and stable for the same template.
+      templates = clauses.map((c) => ({ ...c, id: `set:${setDoc.id}:${c.key}` }));
+    } else {
+      const snapshot = await db.collection(COLLECTION).get();
+      templates = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() } as ClauseTemplateDoc & { id: string }))
+        .filter((t) => t.isActive !== false)
+        .filter((t) => t.appliesTo === "all" || t.appliesTo === eventType);
+    }
     templates.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     const flags = detectServiceFlags(services, eventType);
@@ -230,6 +251,137 @@ router.post("/render", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
     res.json({ clauses });
   } catch (error) {
     console.error("[contract-clause-templates] POST /render failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+/* ---------- Șabloane de clauze (one complete, independent list per kind of event) ---------- */
+
+const tsToIso = (value: unknown) =>
+  typeof (value as Timestamp | undefined)?.toDate === "function" ? (value as Timestamp).toDate().toISOString() : null;
+
+function toClauseSet(id: string, data: Record<string, unknown>): ClauseSet {
+  return {
+    id,
+    name: String(data.name ?? ""),
+    eventType: typeof data.eventType === "string" && data.eventType ? data.eventType : null,
+    clauses: Array.isArray(data.clauses) ? (data.clauses as ClauseSetClause[]) : [],
+    updatedAt: tsToIso(data.updatedAt),
+  };
+}
+
+/** Library clauses (shared + specific to the event type) copied into a template's own list. */
+async function libraryClausesFor(eventType: string): Promise<ClauseSetClause[]> {
+  const snapshot = await firestore().collection(COLLECTION).get();
+  return snapshot.docs
+    .map((doc) => doc.data() as ClauseTemplateDoc)
+    .filter((t) => t.isActive !== false && (t.appliesTo === "all" || t.appliesTo === eventType))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((t, index) => ({
+      key: t.key,
+      title: t.title,
+      bodyTemplate: t.bodyTemplate,
+      order: (index + 1) * 10,
+      groupKey: t.groupKey ?? null,
+      conditionTag: t.conditionTag ?? null,
+      mutexGroup: t.mutexGroup ?? null,
+      isActive: true,
+    }));
+}
+
+router.get("/sets", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const snapshot = await firestore().collection(SETS_COLLECTION).get();
+    const sets = snapshot.docs.map((doc) => toClauseSet(doc.id, doc.data()));
+    sets.sort((a, b) => a.name.localeCompare(b.name, "ro"));
+    res.json({ sets });
+  } catch (error) {
+    console.error("[contract-clause-templates] GET /sets failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /sets — body { name, eventType, clauses } saves a template as given; body { name, eventType, fromLibrary: true }
+// starts it from the current library for that event type; body { fromSetId, name } duplicates another template.
+router.post("/sets", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const payload = { ...(req.body ?? {}) } as Record<string, unknown>;
+    if (typeof payload.fromSetId === "string" && payload.fromSetId) {
+      const source = await db.collection(SETS_COLLECTION).doc(payload.fromSetId).get();
+      if (!source.exists) {
+        res.status(404).json({ error: "Șablonul de copiat nu mai există." });
+        return;
+      }
+      payload.clauses = source.data()?.clauses ?? [];
+      if (payload.eventType === undefined) payload.eventType = null;
+    } else if (payload.fromLibrary === true) {
+      payload.clauses = await libraryClausesFor(String(payload.eventType ?? ""));
+    }
+    const normalized = normalizeClauseSetInput(payload);
+    if ("error" in normalized) {
+      res.status(400).json({ error: normalized.error });
+      return;
+    }
+    const now = Timestamp.now();
+    const ref = await db.collection(SETS_COLLECTION).add({ ...normalized.value, createdAt: now, updatedAt: now });
+    res.status(201).json({ set: { ...normalized.value, id: ref.id, updatedAt: now.toDate().toISOString() } });
+  } catch (error) {
+    console.error("[contract-clause-templates] POST /sets failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /sets/defaults — one template per main event type (Nuntă, Botez, Majorat, Corporate) from the
+// current library; event types that already have a template are left alone.
+router.post("/sets/defaults", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const existing = await db.collection(SETS_COLLECTION).get();
+    const covered = new Set(existing.docs.map((doc) => doc.data()?.eventType).filter(Boolean));
+    const missing = DEFAULT_CLAUSE_SET_EVENT_TYPES.filter((type) => !covered.has(type));
+    const created: string[] = [];
+    const now = Timestamp.now();
+    for (const eventType of missing) {
+      const clauses = await libraryClausesFor(eventType);
+      if (clauses.length === 0) continue;
+      await db.collection(SETS_COLLECTION).add({ name: eventType, eventType, clauses, createdAt: now, updatedAt: now });
+      created.push(eventType);
+    }
+    res.json({ ok: true, created });
+  } catch (error) {
+    console.error("[contract-clause-templates] POST /sets/defaults failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.put("/sets/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const normalized = normalizeClauseSetInput(req.body);
+    if ("error" in normalized) {
+      res.status(400).json({ error: normalized.error });
+      return;
+    }
+    const ref = firestore().collection(SETS_COLLECTION).doc(req.params.id);
+    if (!(await ref.get()).exists) {
+      res.status(404).json({ error: "Șablonul nu mai există." });
+      return;
+    }
+    const now = Timestamp.now();
+    await ref.update({ ...normalized.value, updatedAt: now });
+    res.json({ set: { ...normalized.value, id: req.params.id, updatedAt: now.toDate().toISOString() } });
+  } catch (error) {
+    console.error("[contract-clause-templates] PUT /sets/:id failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+router.delete("/sets/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    await firestore().collection(SETS_COLLECTION).doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[contract-clause-templates] DELETE /sets/:id failed:", error);
     res.status(500).json({ error: String(error) });
   }
 });

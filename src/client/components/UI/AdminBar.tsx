@@ -3,10 +3,21 @@ import { useLocation } from "react-router-dom";
 import useAuth from "../../features/admin/auth/useAuth";
 import { useErrorMonitor } from "../../features/admin/providers/ErrorMonitorContext";
 
-type Subscriber = { email: string; subscribedAt?: string };
+type Subscriber = {
+  id?: string;
+  email: string;
+  phone?: string | null;
+  name?: string | null;
+  channels?: string[];
+  source?: string;
+  subscribedAt?: string;
+};
+
+const CHANNEL_EMOJI: Record<string, string> = { email: "✉️", sms: "💬", whatsapp: "🟢" };
+const subscriberKey = (s: Subscriber) => s.id ?? s.email;
 
 export default function AdminBar() {
-  const { auth, logOut } = useAuth();
+  const { auth, logOut, signedInAsAdmin, clientPreview, setClientPreview } = useAuth();
   const location = useLocation();
   useErrorMonitor();
   const [notifyStatus, setNotifyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -45,23 +56,71 @@ export default function AdminBar() {
     setBellOpen(open => !open);
   };
 
-  const handleDeleteSubscriber = async (email: string) => {
+  const handleDeleteSubscriber = async (subscriber: Subscriber) => {
     if (!albumSlug || !auth.accessToken) return;
-    setDeletingEmail(email);
+    const key = subscriberKey(subscriber);
+    setDeletingEmail(key);
     try {
       await fetch("/api/album-subscriptions/unsubscribe", {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
-        body: JSON.stringify({ albumSlug, email }),
+        body: JSON.stringify(subscriber.id ? { albumSlug, id: subscriber.id } : { albumSlug, email: subscriber.email }),
       });
-      setSubscribers(prev => prev.filter(s => s.email !== email));
+      setSubscribers(prev => prev.filter(s => subscriberKey(s) !== key));
     } finally {
       setDeletingEmail(null);
     }
   };
 
-  if (!auth.authorise) return null;
-  return null; // replaced by ADMIN button in Navbar
+  if (!signedInAsAdmin) return null;
+  // The full bar was replaced by the ADMIN button in Navbar; outside /admin only the
+  // admin/client view switch and the log-out button remain.
+  if (location.pathname.startsWith("/admin")) return null;
+  const pill = (active: boolean): React.CSSProperties => ({
+    padding: "5px 10px", borderRadius: 999, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
+    background: active ? (clientPreview ? "#c9a96e" : "#fff") : "transparent",
+    color: active ? "#0a0a0a" : "#999",
+  });
+  return (
+    <div style={{ position: "fixed", top: 8, right: 8, zIndex: 1000, display: "flex", gap: 6, fontFamily: "sans-serif", alignItems: "center" }}>
+      <div
+        role="group"
+        aria-label="Ce vezi pe pagină"
+        title={clientPreview ? "Vezi pagina exact ca un client. Funcțiile de admin sunt ascunse." : "Vezi și funcțiile de admin."}
+        style={{ display: "flex", padding: 2, borderRadius: 999, border: "1px solid #333", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(6px)" }}
+      >
+        <button type="button" aria-pressed={!clientPreview} onClick={() => setClientPreview(false)} style={pill(!clientPreview)}>🛠 Admin</button>
+        <button type="button" aria-pressed={clientPreview} onClick={() => setClientPreview(true)} style={pill(clientPreview)}>👁 Client</button>
+      </div>
+      {confirmLogout && (
+        <button
+          type="button"
+          onClick={() => setConfirmLogout(false)}
+          style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #333", background: "rgba(10,10,10,0.85)", color: "#999", fontSize: 12, cursor: "pointer" }}
+        >
+          Anulează
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          if (!confirmLogout) { setConfirmLogout(true); return; }
+          setConfirmLogout(false);
+          void logOut();
+        }}
+        aria-label={confirmLogout ? "Confirmă deconectarea" : "Deconectare admin"}
+        style={{
+          padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer",
+          border: `1px solid ${confirmLogout ? "#b91c1c" : "#333"}`,
+          background: confirmLogout ? "#7f1d1d" : "rgba(10,10,10,0.85)",
+          color: confirmLogout ? "#fff" : "#ccc",
+          backdropFilter: "blur(6px)",
+        }}
+      >
+        {confirmLogout ? "Da, ieși din cont" : "⎋ Log out"}
+      </button>
+    </div>
+  );
   // eslint-disable-next-line no-unreachable
 
   const handleNotify = async () => {
@@ -184,21 +243,26 @@ export default function AdminBar() {
                   {subscribers.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       {subscribers.map(subscriber => (
-                        <div key={subscriber.email} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <div key={subscriberKey(subscriber)} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                           <a
-                            href={`mailto:${subscriber.email}`}
-                            style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", color: "#93c5fd", fontSize: "11px", textDecoration: "none", padding: "3px 0", minWidth: 0 }}
+                            href={subscriber.email ? `mailto:${subscriber.email}` : `tel:${subscriber.phone ?? ""}`}
+                            style={{ flex: 1, display: "flex", flexDirection: "column", color: "#93c5fd", fontSize: "11px", textDecoration: "none", padding: "3px 0", minWidth: 0 }}
                           >
-                            <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#3b82f6", flexShrink: 0 }} />
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subscriber.email}</span>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {(subscriber.channels ?? []).map(c => CHANNEL_EMOJI[c] ?? "").join("")} {subscriber.name || subscriber.email || subscriber.phone}
+                            </span>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#777", fontSize: "10px" }}>
+                              {[subscriber.phone, subscriber.name ? subscriber.email : ""].filter(Boolean).join(" · ")}
+                              {subscriber.source === "event-client" && <span style={{ marginLeft: 4, color: "#fbbf24" }}>· din eveniment</span>}
+                            </span>
                           </a>
                           <button
-                            onClick={() => handleDeleteSubscriber(subscriber.email)}
-                            disabled={deletingEmail === subscriber.email}
+                            onClick={() => handleDeleteSubscriber(subscriber)}
+                            disabled={deletingEmail === subscriberKey(subscriber)}
                             title="Șterge abonat"
                             style={{ background: "none", border: "none", color: "#555", fontSize: "11px", cursor: "pointer", padding: "0 2px", flexShrink: 0, lineHeight: 1 }}
                           >
-                            {deletingEmail === subscriber.email ? "…" : "✕"}
+                            {deletingEmail === subscriberKey(subscriber) ? "…" : "✕"}
                           </button>
                         </div>
                       ))}

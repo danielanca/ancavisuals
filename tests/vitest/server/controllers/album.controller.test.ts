@@ -567,6 +567,22 @@ describe("album.controller", () => {
     expect(archiveFinalizeMock).toHaveBeenCalledOnce();
   });
 
+  test("downloadPrintDynamic skips a photo that fails to fetch and still finishes the ZIP", async () => {
+    const { module, dbGetMock, archiveAppendMock, archiveFinalizeMock } = await loadAlbumController();
+    const res = createMockResponse();
+    dbGetMock.mockResolvedValue({ data: () => ({ items: ["a.jpg", "b.jpg"] }) });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({ ok: true, body: makeWebStream(["binary-2"]) }));
+
+    await module.downloadPrintDynamic({ params: { slug: "demo" } }, res);
+
+    expect(archiveAppendMock).toHaveBeenCalledTimes(1);
+    expect(archiveAppendMock.mock.calls[0][1]).toEqual({ name: "b.jpg" });
+    expect(archiveFinalizeMock).toHaveBeenCalledOnce();
+  });
+
   test("addSwissLink validates both slug and link", async () => {
     const { module, addLinkMock } = await loadAlbumController();
     const res = createMockResponse();

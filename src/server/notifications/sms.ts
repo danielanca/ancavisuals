@@ -1,14 +1,44 @@
+/*
+ * SMS goes out through SMSAPI (smsapi.com) when SMSAPI_TOKEN is set, otherwise through Twilio.
+ * SMSAPI: OAuth token from the SMSAPI panel; SMSAPI_SENDER = approved sender name (optional,
+ * the account default is used without it); SMSAPI_BASE_URL only for .pl accounts.
+ */
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID ?? "";
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN ?? "";
 const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER ?? "";
+const SMSAPI_TOKEN = process.env.SMSAPI_TOKEN ?? "";
+const SMSAPI_SENDER = process.env.SMSAPI_SENDER ?? "";
+const SMSAPI_BASE_URL = (process.env.SMSAPI_BASE_URL ?? "https://api.smsapi.com").replace(/\/+$/, "");
 
 export interface SendSmsOptions {
   to: string;
   body: string;
 }
 
+const smsapiConfigured = () => Boolean(SMSAPI_TOKEN);
+const twilioConfigured = () => Boolean(TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM_NUMBER);
+
 export function isSmsConfigured(): boolean {
-  return Boolean(TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM_NUMBER);
+  return smsapiConfigured() || twilioConfigured();
+}
+
+const DIACRITICS: Record<string, string> = { ă: "a", â: "a", î: "i", ș: "s", ş: "s", ț: "t", ţ: "t", Ă: "A", Â: "A", Î: "I", Ș: "S", Ş: "S", Ț: "T", Ţ: "T" };
+
+/**
+ * Plain GSM text: emoji or diacritics switch the whole SMS to Unicode (70 chars per part
+ * instead of 160), so the same message would cost two to three times as much.
+ */
+export function toSmsText(body: string): string {
+  return body
+    .replace(/[ăâîșşțţĂÂÎȘŞȚŢ]/g, (c) => DIACRITICS[c] ?? c)
+    .replace(/[„“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[—–]/g, "-")
+    .replace(/…/g, "...")
+    .replace(/\p{Extended_Pictographic}|\u200d|\ufe0f/gu, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .trim();
 }
 
 export function normalizeRomanianPhoneNumber(value: string): string | null {
@@ -45,7 +75,32 @@ export async function sendSms({ to, body }: SendSmsOptions): Promise<void> {
   if (!isSmsConfigured()) {
     throw new Error("SMS nu este configurat pe server.");
   }
+  const text = toSmsText(body);
+  if (smsapiConfigured()) {
+    await sendViaSmsapi(to, text);
+    return;
+  }
+  await sendViaTwilio(to, text);
+}
 
+async function sendViaSmsapi(to: string, message: string): Promise<void> {
+  const payload = new URLSearchParams({ to: to.replace(/^\+/, ""), message, format: "json", encoding: "utf-8" });
+  if (SMSAPI_SENDER) payload.set("from", SMSAPI_SENDER);
+  const response = await fetch(`${SMSAPI_BASE_URL}/sms.do`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SMSAPI_TOKEN}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: payload.toString(),
+  });
+  const raw = await response.text();
+  let data: { error?: number; message?: string; count?: number } = {};
+  try { data = JSON.parse(raw); } catch { /* non-JSON error page */ }
+  // SMSAPI answers 200 with { error, message } for most failures (bad token, no credit, sender).
+  if (!response.ok || data.error || !data.count) {
+    throw new Error(`SMS trimitere eșuată (SMSAPI ${data.error ?? response.status}): ${(data.message ?? raw).slice(0, 200)}`);
+  }
+}
+
+async function sendViaTwilio(to: string, body: string): Promise<void> {
   const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
   const payload = new URLSearchParams({
     To: to,

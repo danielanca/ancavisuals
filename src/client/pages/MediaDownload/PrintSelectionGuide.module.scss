@@ -1,40 +1,83 @@
+// White, square panel with smaller text (owner: no rounded shapes, no gold on album panels).
 .guide {
   margin: 24px 0;
-  padding: clamp(20px, 4vw, 32px);
-  border: 1px solid #665333;
-  border-radius: 14px;
-  background: #17140f;
-  color: #ddd5c7;
-  line-height: 1.65;
+  padding: clamp(16px, 3.5vw, 26px);
+  border: 1px solid #d4d4d4;
+  border-left: 4px solid #0a0a0a;
+  border-radius: 0;
+  background: #ffffff;
+  color: #262626;
+  font-size: 13px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 
-  h2 { color: #fef3c7; font-size: clamp(20px, 4vw, 28px); line-height: 1.3; margin: 6px 0 14px; }
-  p { margin: 10px 0; }
-  ol { list-style: decimal; padding-left: 24px; margin: 16px 0; }
-  li { padding-left: 4px; margin: 8px 0; }
-  strong { color: #fff3d6; }
+  h2 { color: #0a0a0a; font-size: clamp(16px, 2.6vw, 20px); font-weight: 700; line-height: 1.2; margin: 4px 0 8px; }
+  p { margin: 6px 0; }
+  ol { list-style: decimal; padding-left: 18px; margin: 8px 0; }
+  li { padding-left: 2px; margin: 3px 0; }
+  strong { color: #0a0a0a; }
 }
-.eyebrow { color: #c9a96e; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
-.progress { color: #fef3c7; font-weight: 600; }
+.eyebrow { color: #525252; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.albumNote {
+  margin: 8px 0;
+  padding: 7px 10px;
+  border: 1px solid #0a0a0a;
+  background: #f5f5f5;
+  color: #171717;
+  font-size: 12px;
+  line-height: 1.35;
+  p { margin: 0 !important; }
+  ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  li { margin: 0; padding: 0; }
+}
+.progressRow { margin-top: 10px; }
+.progress { margin: 0 0 4px !important; color: #0a0a0a; font-weight: 700; }
+.progressHint { color: #525252; font-weight: 400; }
+.bar {
+  height: 4px;
+  background: #e5e5e5;
+  > div { height: 100%; background: #0a0a0a; }
+}
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: 12px;
   button {
-    padding: 12px 18px;
-    border: 1px solid #c9a96e;
-    border-radius: 8px;
-    background: #fef3c7;
-    color: #241c0f;
+    padding: 11px 16px;
+    border: 1px solid #0a0a0a;
+    border-radius: 0;
+    background: #0a0a0a;
+    color: #ffffff;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     min-height: 44px;
-    &:disabled { opacity: .6; cursor: wait; }
-    &:focus-visible { outline: 2px solid white; outline-offset: 4px; }
+    &:hover:not(:disabled) { background: #262626; }
+    &:disabled { opacity: .55; cursor: wait; }
+    &:focus-visible { outline: 2px solid #0a0a0a; outline-offset: 3px; }
   }
-  .secondary { background: transparent; color: #fef3c7; }
+  .secondary { background: #ffffff; color: #0a0a0a; &:hover:not(:disabled) { background: #f5f5f5; } }
+  // "Am terminat" — the step the photographer waits for, so it stands out (AncaVisuals green).
+  .done {
+    background: #16a34a;
+    border-color: #16a34a;
+    &:hover:not(:disabled) { background: #15803d; }
+    &:disabled { background: #e5e5e5; border-color: #d4d4d4; color: #737373; opacity: 1; cursor: not-allowed; }
+  }
 }
-.hint { color: #b9af9d; font-size: 13px; }
-.success { color: #86efac; }
-.error { color: #fca5a5; }
+.link {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #262626;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  &:hover { color: #000; }
+}
+.hint { color: #525252; font-size: 11.5px; }
+.success { color: #15803d; font-weight: 600; }
+.error { color: #b91c1c; font-weight: 600; }

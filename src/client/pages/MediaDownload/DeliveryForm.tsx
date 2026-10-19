@@ -7,6 +7,8 @@ type Props = {
     albumId: string;
     onClose:  () => void;
     onSuccess: () => void;
+    /** Saved address to prefill when the client edits it. */
+    initial?: Partial<Record<keyof DeliveryFormState, string | null>>;
 }
 
 const initialForm = {
@@ -28,8 +30,13 @@ type DeliveryFormErrors = {
   city: string;
 };
 
-export default function DeliveryForm({ albumId, onClose, onSuccess }:Props) {
-  const [form, setForm] = useState<DeliveryFormState>(initialForm);
+export default function DeliveryForm({ albumId, onClose, onSuccess, initial }:Props) {
+  const [form, setForm] = useState<DeliveryFormState>(() => {
+    if (!initial) return initialForm;
+    const prefilled = { ...initialForm };
+    for (const key of Object.keys(initialForm) as (keyof DeliveryFormState)[]) prefilled[key] = initial[key] ?? '';
+    return prefilled;
+  });
   const [errors, setErrors] = useState<DeliveryFormErrors>({  fullName :  "",
     phone: "",
     street : "",
@@ -102,7 +109,7 @@ const [showSuccess, setShowSuccess] = useState(false);
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.dialog} onClick={e => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Adresă de livrare</h2>
+          <h2 className={styles.title}>{initial ? 'Modifică adresa de livrare' : 'Adresă de livrare'}</h2>
           <button
             type="button"
             className={styles.closeBtn}

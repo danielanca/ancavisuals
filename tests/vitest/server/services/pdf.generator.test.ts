@@ -131,4 +131,41 @@ describe("custom contract clauses", () => {
     expect(html.split("Text nou salvat.")).toHaveLength(2);
     expect(html).not.toContain("POLITICA DE ANULARE");
   });
+
+  describe("eveniment de zi sau de noapte", () => {
+    test("an unsigned contract shows the empty declaration the client must complete", async () => {
+      const { buildNightEventHtml } = await buildModule();
+      const html = buildNightEventHtml({ eventType: "Nuntă", status: "sent" });
+      expect(html).toContain("☐ ESTE / ☐ NU ESTE eveniment de noapte");
+      expect(html).toContain("Fotografii și videografii trebuie să știe din timp");
+      expect(html).toContain("200 lei pentru fiecare jumătate de oră începută");
+    });
+
+    test("a day event explains the 25-minute tolerance from 00:00", async () => {
+      const { buildNightEventHtml } = await buildModule();
+      const html = buildNightEventHtml({ eventType: "Botez", status: "signed", nightEvent: "nu" });
+      expect(html).toContain("NU ESTE eveniment de noapte");
+      expect(html).toContain("începând cu ora 00:25");
+      expect(html).toContain("până la ora 01:25 — 400 lei");
+    });
+
+    test("a night event includes the declared end time in the price", async () => {
+      const { buildNightEventHtml } = await buildModule();
+      const html = buildNightEventHtml({ eventType: "Nuntă", status: "signed", nightEvent: "da", nightEventEndTime: "03:00" });
+      expect(html).toContain("ESTE eveniment de noapte</span> (se prelungește după ora 00:00), cu ora estimată de final <span class=\"bold\">03:00");
+      expect(html).toContain("până la ora de final declarată este inclusă în prețul contractului");
+    });
+
+    test("contracts signed before the clause existed stay unchanged", async () => {
+      const { buildNightEventHtml, buildContractHTML } = await buildModule();
+      expect(buildNightEventHtml({ eventType: "Nuntă", status: "signed" })).toBe("");
+      expect(buildContractHTML({ eventType: "Nuntă", status: "signed", services: [] })).not.toContain("Eveniment de zi sau de noapte");
+    });
+
+    test("photo sessions and funerals never get the clause", async () => {
+      const { buildNightEventHtml } = await buildModule();
+      expect(buildNightEventHtml({ eventType: "Ședință foto", status: "sent" })).toBe("");
+      expect(buildNightEventHtml({ eventType: "Înmormântare", status: "sent" })).toBe("");
+    });
+  });
 });

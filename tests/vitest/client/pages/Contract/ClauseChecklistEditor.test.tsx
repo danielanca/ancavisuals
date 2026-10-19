@@ -26,7 +26,28 @@ test("adds, edits, deselects and removes a custom clause without fetching or cal
   expect(screen.getByTestId("snapshot")).toHaveTextContent("[]");
   fireEvent.click(screen.getByRole("button", { name: "Șterge clauza" }));
   expect(screen.queryByLabelText("Titlu clauză")).not.toBeInTheDocument();
-  expect(fetchMock).not.toHaveBeenCalled();
+  // Only the template list may load; nothing is generated and no AI is called.
+  expect(fetchMock.mock.calls.filter(([url]) => !String(url).endsWith("/sets"))).toHaveLength(0);
+});
+test("preselects the template made for the event type and generates from it", async () => {
+  const fetchMock = vi.fn(async (url: string) => {
+    if (url.endsWith("/sets")) {
+      return { ok: true, json: async () => ({ sets: [
+        { id: "s-botez", name: "Botez", eventType: "Botez", clauses: [] },
+        { id: "s-nunta", name: "Nuntă", eventType: "Nuntă", clauses: [] },
+      ] }) };
+    }
+    return { ok: true, json: async () => ({ clauses: [] }) };
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<Editor />);
+  const select = await screen.findByLabelText("Șablon clauze");
+  await waitFor(() => expect(select).toHaveValue("s-nunta"));
+  expect(screen.getByRole("option", { name: "Nuntă — recomandat" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Generează clauzele" }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/admin/contract-clause-templates/render", expect.anything()));
+  const renderCall = fetchMock.mock.calls.find(([url]) => url.endsWith("/render"))!;
+  expect(JSON.parse((renderCall[1] as RequestInit).body as string)).toMatchObject({ setId: "s-nunta", eventType: "Nuntă" });
 });
 test("restores custom clauses saved in a draft", () => {
   render(<Editor initial={[{ templateId: "custom:1", key: "custom:1", title: "Clauză proprie", body: "<p>Text salvat</p>", order: 10, groupKey: null }]} />);

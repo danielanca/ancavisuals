@@ -43,7 +43,7 @@ const Login = () => {
     setLoading(true);
     try {
       await signIn(form.email, form.password);
-      navigate(loginDestination(location.state), { replace: true });
+      navigate(loginDestination(location.state, location.search), { replace: true });
     } catch (err: unknown) {
       const code = getErrorCode(err);
       if (code === "auth/invalid-credential" || code === "auth/wrong-password") {

@@ -197,6 +197,7 @@ const ContractListPage: React.FC = () => {
         )
       );
       setSigningId(null);
+      if (data.clientNotified) showToast("Semnat. Clientul primește pe email contractul final, semnat de ambele părți.");
     } catch (e: unknown) {
       setSigError(e instanceof Error ? e.message : "Eroare necunoscută");
     } finally {

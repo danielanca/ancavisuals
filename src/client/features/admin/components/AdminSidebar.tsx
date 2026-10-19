@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { readSidebarUsage, recordSidebarClick, sortByUsage, type SidebarUsage } from "./sidebarUsage";
 import { useLocation, useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import DashboardSearch from "./DashboardSearch";
@@ -129,6 +130,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
   });
 
   // Category drag state
+  // Click counts: inside each category the most used items climb to the top.
+  // Read after mount so the server-rendered and first client render match.
+  const [usage, setUsage] = useState<SidebarUsage>({});
+  useEffect(() => { setUsage(readSidebarUsage()); }, []);
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
@@ -281,6 +286,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Activitate album", path: "/admin/media-activity" },
         { label: "Optimizare poze", path: "/admin/image-optimizer" },
         { label: "Albume", path: "/admin/album-health" },
+        { label: "Noutăți în masă", path: "/admin/album-updates" },
         { label: "Stocare Bunny", path: "/admin/storage-stats" },
       ],
     },
@@ -373,6 +379,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
     : sortedCategories;
 
   const handleNavItem = (path: string) => {
+    setUsage(recordSidebarClick(path));
     navigate(path);
     onClose();
   };
@@ -448,7 +455,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         {/* Categories */}
         <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5 scrollbar-none">
           {categories.map((category) => {
-            const effectiveItems = getEffectiveItems(category.key, category.items);
+            const effectiveItems = sortByUsage(getEffectiveItems(category.key, category.items), usage);
             const isExpanded = expandedCategories.has(category.key);
             const categoryBadge = totalBadge(effectiveItems);
             const hasActiveChild = effectiveItems.some((item) => isActive(item.path));

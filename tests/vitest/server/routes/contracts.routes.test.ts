@@ -38,6 +38,7 @@ async function loadContractsRouter() {
   const generateContractPDFMock = vi.fn().mockResolvedValue(Buffer.from("pdf"));
   const sendContractLinkEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendSignedContractEmailMock = vi.fn().mockResolvedValue(undefined);
+  const sendFullySignedContractEmailMock = vi.fn().mockResolvedValue(undefined);
 
   const eventsGetMock = vi.fn().mockResolvedValue({ docs: [] });
   const eventSetMock = vi.fn();
@@ -96,6 +97,7 @@ async function loadContractsRouter() {
   vi.doMock("src/server/notifications/templates/contractEmail", () => ({
     sendContractLinkEmail: sendContractLinkEmailMock,
     sendSignedContractEmail: sendSignedContractEmailMock,
+    sendFullySignedContractEmail: sendFullySignedContractEmailMock,
   }));
 
   vi.doMock("src/server/constants/firebase", () => ({
@@ -139,6 +141,8 @@ async function loadContractsRouter() {
     generateContractPDFMock,
     sendContractLinkEmailMock,
     sendSignedContractEmailMock,
+    sendFullySignedContractEmailMock,
+    postPrestatorSign: getHandler("post", "/:id/prestator-sign"),
     postCreateEvent: getHandler("post", "/:id/create-event"),
     postCreate: getHandler("post", "/"),
     patchContract: getHandler("patch", "/:id"),
@@ -333,6 +337,7 @@ describe("contracts.routes", () => {
           clientPhone: "  0712345678  ",
           clientIdSeries: "  AB123456  ",
           clientSignatureBase64: "data:image/png;base64,abc",
+          nightEvent: "nu",
         },
       }, res);
 
@@ -404,6 +409,7 @@ describe("contracts.routes", () => {
           clientRepresentativeRole: "administrator",
           clientRepresentativeIdSeries: "AB123456",
           clientSignatureBase64: "data:image/png;base64,abc",
+          nightEvent: "nu",
         },
       }, res);
 
@@ -447,6 +453,7 @@ describe("contracts.routes", () => {
           clientRepresentativeName: "Ion Popescu",
           clientRepresentativeIdSeries: "AB123456",
           clientSignatureBase64: "data:image/png;base64,abc",
+          nightEvent: "nu",
         },
       }, res);
 
@@ -492,7 +499,7 @@ describe("contracts.routes", () => {
   describe("calendar after client signing", () => {
     const body = {
       clientName: "Client Complet", clientEmail: "client@example.com", clientIdSeries: "AB123456",
-      clientPhone: "0712345678", clientAddress: "Cluj", clientSignatureBase64: "data:image/png;base64,abc",
+      clientPhone: "0712345678", clientAddress: "Cluj", clientSignatureBase64: "data:image/png;base64,abc", nightEvent: "nu",
     };
     const request = { params: { token: "token" }, headers: {}, ip: "127.0.0.1", body };
     const contract = { status: "sent", eventType: "Nuntă", eventDate: "2027-05-01",
@@ -534,6 +541,37 @@ describe("contracts.routes", () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(eventSetMock).not.toHaveBeenCalled();
       expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      [{ ...body, nightEvent: undefined }, "Alegeți dacă evenimentul este de zi sau de noapte."],
+      [{ ...body, nightEvent: "da" }, "Pentru un eveniment de noapte, completați ora estimată de final (între 00:00 și 08:00)."],
+      [{ ...body, nightEvent: "da", nightEventEndTime: "21:00" }, "Pentru un eveniment de noapte, completați ora estimată de final (între 00:00 și 08:00)."],
+    ])("signing requires the day/night declaration", async (nightBody, error) => {
+      const { postPublicSign, whereGetMock, updateMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot(contract));
+      const res = createMockResponse();
+      await postPublicSign({ ...request, body: nightBody }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error });
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("a night event stores the declared end time", async () => {
+      const { postPublicSign, whereGetMock, updateMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot(contract));
+      await postPublicSign({ ...request, body: { ...body, nightEvent: "da", nightEventEndTime: "02:30" } }, createMockResponse());
+      const [, payload] = updateMock.mock.calls[0];
+      expect(payload).toMatchObject({ nightEvent: "da", nightEventEndTime: "02:30" });
+      expect(payload.nightEventDeclaredAt).toBeInstanceOf(Timestamp);
+    });
+
+    test("event types without a night question sign without it", async () => {
+      const { postPublicSign, whereGetMock, updateMock } = await loadContractsRouter();
+      whereGetMock.mockResolvedValue(snapshot({ ...contract, eventType: "Ședință foto" }));
+      await postPublicSign({ ...request, body: { ...body, nightEvent: undefined } }, createMockResponse());
+      const [, payload] = updateMock.mock.calls[0];
+      expect(payload).not.toHaveProperty("nightEvent");
     });
 
     test("manual creation remains available for old signed contracts without an event", async () => {
@@ -639,6 +677,7 @@ describe("contracts.routes", () => {
           clientEmail: "client@example.com",
           clientIdSeries: "ab12",
           clientSignatureBase64: "data:image/png;base64,abc",
+          nightEvent: "nu",
         },
       }, res);
 
@@ -704,6 +743,38 @@ describe("contracts.routes", () => {
         eventType: "Nunta",
         clientName: "Ion Popescu",
       }));
+    });
+
+    test("provider signing after the client emails the client the final contract", async () => {
+      const { postPrestatorSign, docGetMock, generateContractPDFMock, sendFullySignedContractEmailMock } = await loadContractsRouter();
+      const res = createMockResponse();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({
+        status: "signed", clientEmail: "client@example.com", eventType: "Nuntă", eventDate: "2026-09-12", clientName: "Ion Popescu", token: "token-1",
+      }) });
+
+      await postPrestatorSign({ params: { id: "contract-1" }, body: { prestatorSignatureBase64: "data:image/png;base64,me" } }, res);
+      expect(res.json).toHaveBeenCalledWith({ ok: true, clientNotified: true });
+
+      await flushPromises();
+      expect(generateContractPDFMock).toHaveBeenCalledWith(expect.objectContaining({ prestatorSignatureBase64: "data:image/png;base64,me" }));
+      expect(sendFullySignedContractEmailMock).toHaveBeenCalledWith(expect.objectContaining({
+        to: "client@example.com", eventType: "Nuntă", clientName: "Ion Popescu", hasPdf: true,
+      }));
+    });
+
+    test.each([
+      ["the client has not signed yet", { status: "sent", clientEmail: "client@example.com" }],
+      ["the provider had already signed before", { status: "signed", clientEmail: "client@example.com", prestatorSignatureBase64: "data:image/png;base64,old" }],
+    ])("provider signing does not email the client when %s", async (_label, data) => {
+      const { postPrestatorSign, docGetMock, sendFullySignedContractEmailMock } = await loadContractsRouter();
+      const res = createMockResponse();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ eventType: "Nuntă", eventDate: "2026-09-12", ...data }) });
+
+      await postPrestatorSign({ params: { id: "contract-1" }, body: { prestatorSignatureBase64: "data:image/png;base64,me" } }, res);
+      await flushPromises();
+
+      expect(res.json).toHaveBeenCalledWith({ ok: true, clientNotified: false });
+      expect(sendFullySignedContractEmailMock).not.toHaveBeenCalled();
     });
 
     test("POST /:id/resend rejects unsigned contracts", async () => {

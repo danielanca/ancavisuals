@@ -1,5 +1,12 @@
 import { estimateContractTransport } from "../../shared/contractTransport";
 import { CUSTOM_CLAUSE_PREFIX } from "../../shared/contractClauses";
+import {
+  NIGHT_EVENT_REASON,
+  NIGHT_HALF_HOUR_FEE_RON,
+  NIGHT_TOLERANCE_MINUTES,
+  nightEventApplies,
+  parseNightEventAnswer,
+} from "../../shared/contractNightEvent";
 import puppeteer from "puppeteer";
 
 // Provider details — fixed
@@ -139,6 +146,35 @@ function eventCrossesMidnight(startTime: unknown, endTime: unknown): boolean {
   return end <= start;
 }
 
+/**
+ * "Eveniment de zi sau de noapte" — declared by the client at signing. Contracts signed before
+ * this clause existed (signed, no answer) keep their original text untouched.
+ */
+export function buildNightEventHtml(contract: Record<string, unknown>): string {
+  if (!nightEventApplies(contract.eventType)) return "";
+  const answer = parseNightEventAnswer(contract.nightEvent);
+  if (!answer && contract.status === "signed") return "";
+  const declaredEnd = typeof contract.nightEventEndTime === "string" ? contract.nightEventEndTime : "";
+
+  const declaration = answer === "da"
+    ? `evenimentul <span class="bold">ESTE eveniment de noapte</span> (se prelungește după ora 00:00), cu ora estimată de final <span class="bold">${esc(declaredEnd || "____")}</span>.`
+    : answer === "nu"
+      ? `evenimentul <span class="bold">NU ESTE eveniment de noapte</span> (este eveniment de zi și se încheie până la ora 00:00).`
+      : `evenimentul ☐ ESTE / ☐ NU ESTE eveniment de noapte <span style="font-size:9pt;color:#555;">(se completează obligatoriu de BENEFICIAR la semnare)</span>.`;
+
+  const tolerance = `primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt oferite de PRESTATOR, fără costuri suplimentare. Dacă prestarea serviciilor continuă și după acestea, BENEFICIARUL va achita PRESTATORULUI suplimentar <span class="bold">${NIGHT_HALF_HOUR_FEE_RON} lei pentru fiecare jumătate de oră începută</span>`;
+
+  const rule = answer === "da"
+    ? `<p>Prestarea serviciilor până la ora de final declarată este inclusă în prețul contractului. Dacă evenimentul se prelungește după ora de final declarată, ${tolerance}, calculată după expirarea celor ${NIGHT_TOLERANCE_MINUTES} de minute.</p>`
+    : `<p>Dacă evenimentul${answer === "nu" ? ", declarat ca eveniment de zi," : ""} sau al cărui program exact nu este cunoscut se prelungește după ora 00:00, ${tolerance}, calculată începând cu ora 00:${NIGHT_TOLERANCE_MINUTES} (exemplu: până la ora 00:55 — ${NIGHT_HALF_HOUR_FEE_RON} lei; până la ora 01:25 — ${NIGHT_HALF_HOUR_FEE_RON * 2} lei).</p>`;
+
+  return `
+        <p><span class="bold">Eveniment de zi sau de noapte.</span> Indiferent dacă intervalul orar exact este cunoscut la data semnării, BENEFICIARUL are obligația de a declara la completarea contractului dacă evenimentul se prelungește după ora 00:00. BENEFICIARUL declară că ${declaration}</p>
+        <p style="font-size:9pt;color:#555;">${esc(NIGHT_EVENT_REASON)}</p>
+        ${rule}
+        <p>Sumele pentru orele suplimentare se achită odată cu restul de plată.</p>`;
+}
+
 export interface ServiceFlags {
   hasFoto: boolean;
   hasVideo: boolean;
@@ -212,6 +248,7 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
         <p>Obiectul acestui contract îl constituie evenimentul din data/perioada de <span class="bold">${eventDateFormatted}</span>, în intervalul orar aproximativ: <span class="bold">${esc(contract.eventStartTime as string || "____")} – ${esc(contract.eventEndTime as string || "____")}</span> <span style="font-size:9pt;color:#555;">(orar orientativ, cu titlu de aproximație)</span>.</p>
         ${eventCrossesMidnight(contract.eventStartTime, contract.eventEndTime) ? `<p style="font-size:9pt;color:#555;"><span class="bold">Notă:</span> evenimentul se prelungește după miezul nopții (ora 00:00), ora de final indicată mai sus aparținând zilei următoare datei evenimentului de mai sus.</p>` : ""}
         <p style="font-size:9pt;color:#555;">PRESTATORUL trebuie să cunoască cu exactitate, cât mai devreme posibil, intervalul orar al evenimentului, întrucât echipa PRESTATORULUI poate avea alte evenimente programate în dimineața următoare. Dacă evenimentul BENEFICIARULUI se prelungește până la ora 02:00–03:00 noaptea, iar echipa are un alt eveniment programat dimineața, la ora 08:00, nu pot fi asigurate condiții decente de odihnă (minimum 8 ore de somn) pentru echipa PRESTATORULUI.</p>
+        ${buildNightEventHtml(contract)}
         ${contract.eventLocation ? `<p>Locația evenimentului: <span class="bold">${esc(contract.eventLocation as string)}</span></p>` : ""}
         ${contract.eventType ? `<p>Tipul evenimentului: <span class="bold">${esc(contract.eventType as string)}</span></p>` : ""}
       `,
