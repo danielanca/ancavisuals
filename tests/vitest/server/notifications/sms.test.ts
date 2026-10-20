@@ -32,7 +32,7 @@ test("sends through SMSAPI with token, sender and number without +", async () =>
   await sms.sendSms({ to: "+40745123456", body: "🤖 Mesaj automat — pozele sunt gata în jurul datei de 23 noiembrie." });
 
   const [url, init] = fetchMock.mock.calls[0];
-  expect(url).toBe("https://api.smsapi.com/sms.do");
+  expect(url).toBe("https://api.smsapi.ro/sms.do");
   expect(init.headers.Authorization).toBe("Bearer tok");
   const body = new URLSearchParams(init.body);
   expect(body.get("to")).toBe("40745123456");

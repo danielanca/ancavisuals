@@ -1,6 +1,7 @@
 import { nullable } from "../lib/claudeStructured";
+import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_VALUES } from "../../shared/finance/expenseCategories";
 
-export const RECEIPT_CATEGORIES = ["combustibil", "echipament", "transport", "software", "cazare", "alimentatie", "marketing", "altele"] as const;
+export const RECEIPT_CATEGORIES: readonly string[] = EXPENSE_CATEGORY_VALUES;
 const RECEIPT_FIELDS = ["date", "supplier", "amount", "currency", "invoiceNumber", "description", "category"] as const;
 
 export type ReceiptField = (typeof RECEIPT_FIELDS)[number];
@@ -16,7 +17,7 @@ export type ScannedReceipt = {
   subtotal: number | null;
   vat: number | null;
   description: string | null;
-  category: (typeof RECEIPT_CATEGORIES)[number];
+  category: string;
   uncertainFields: ReceiptField[];
 };
 
@@ -53,6 +54,8 @@ Reguli:
 - invoiceNumber = seria și numărul exact cum apar (ex. „FA 2024 001”). Pentru bon fiscal fără număr de factură: null.
 - currency = moneda totalului. „LEI” înseamnă RON.
 - description = pe scurt ce s-a cumpărat (max ~8 cuvinte).
+- category = una dintre:
+${EXPENSE_CATEGORIES.map((c) => `  • ${c.value} — ${c.hint}`).join("\n")}
 - Nu inventa și nu ghici: dacă un câmp nu se vede, pune null.
 - uncertainFields = câmpurile pe care le-ai completat, dar a căror citire nu e sigură (cifre neclare, pliuri, text estompat, cerneală ștearsă). Lasă lista goală dacă totul e clar.`;
 }

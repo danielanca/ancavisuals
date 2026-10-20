@@ -22,6 +22,8 @@ import { sendLiveEvent } from "../../utils/liveEvent";
 import ShareManagerPanel from "./ShareManagerPanel";
 import AlbumUpdatesSection, { OPEN_ALBUM_UPDATES_EVENT } from "./AlbumUpdatesSection";
 import AlbumActionHub from "./AlbumActionHub";
+import AlbumVideoLinksSection from "./AlbumVideoLinksSection";
+import PrintReminderPanel from "./PrintReminderPanel";
 import ShareReviewModal from "./ShareReviewModal";
 import SmsSendList from "./SmsSendList";
 import ResetPrintModal from "./ResetPrintModal";
@@ -1414,6 +1416,7 @@ export default function MediaAlbumPage() {
         )}
 
         {auth.authorise && slug && <PrintSelectionLink key={slug} albumSlug={slug} />}
+        {auth.authorise && slug && <PrintReminderPanel key={`reminder-${slug}`} slug={slug} accessToken={auth.accessToken ?? null} />}
 
         {/* Admin view (🛠 Admin in the top bar): admin shortcuts come first. In 👁 Client view
             auth.authorise is false, so this disappears and the page looks exactly like the client's.
@@ -2138,6 +2141,8 @@ export default function MediaAlbumPage() {
               </div>
             </>
           )}
+
+          {slug && <AlbumVideoLinksSection slug={slug} isAdmin={auth.authorise} accessToken={auth.accessToken ?? null} />}
 
         {qrMoments && (qrMoments.photos.length > 0 || qrMoments.videos.length > 0 || qrMoments.audio.length > 0) && (
             <>

@@ -6,6 +6,7 @@ interface HandoverItem {
   token: string;
   status: "draft" | "sent" | "signed" | "expired";
   clientEmail?: string;
+  includeDigitalLink?: boolean;
 }
 
 interface Props {
@@ -14,18 +15,20 @@ interface Props {
   deleting: string | null;
   resending: string | null;
   reminding: string | null;
+  downloadReminding: string | null;
   onPreview: () => void;
   onSend: () => void;
   onCopyLink: () => void;
   onDelete: () => void;
   onResend: () => void;
   onReminder: () => void;
+  onDownloadReminder: () => void;
   onEdit: () => void;
 }
 
 const HandoverActionMenu: React.FC<Props> = ({
-  handover, sending, deleting, resending, reminding,
-  onPreview, onSend, onCopyLink, onDelete, onResend, onReminder, onEdit,
+  handover, sending, deleting, resending, reminding, downloadReminding,
+  onPreview, onSend, onCopyLink, onDelete, onResend, onReminder, onDownloadReminder, onEdit,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -105,6 +108,14 @@ const HandoverActionMenu: React.FC<Props> = ({
                 color="text-emerald-400"
                 loading={resending === handover.id}
               />
+              {hasEmail && handover.includeDigitalLink !== false && (
+                <Item
+                  label="⏰  Reminder descărcare"
+                  onClick={onDownloadReminder}
+                  color="text-sky-400"
+                  loading={downloadReminding === handover.id}
+                />
+              )}
             </>
           )}
           <div className="border-t border-neutral-800 my-1" />

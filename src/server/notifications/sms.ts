@@ -1,14 +1,16 @@
 /*
  * SMS goes out through SMSAPI (smsapi.com) when SMSAPI_TOKEN is set, otherwise through Twilio.
  * SMSAPI: OAuth token from the SMSAPI panel; SMSAPI_SENDER = approved sender name (optional,
- * the account default is used without it); SMSAPI_BASE_URL only for .pl accounts.
+ * the account default is used without it). The account lives on portal.smsapi.ro, so the API host
+ * is api.smsapi.ro (a .ro token is rejected by api.smsapi.com with error 101); SMSAPI_BASE_URL overrides it.
  */
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID ?? "";
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN ?? "";
 const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER ?? "";
-const SMSAPI_TOKEN = process.env.SMSAPI_TOKEN ?? "";
+// SMS_API_KEY = the name used in the server .env for the same SMSAPI OAuth token.
+const SMSAPI_TOKEN = process.env.SMSAPI_TOKEN || process.env.SMS_API_KEY || "";
 const SMSAPI_SENDER = process.env.SMSAPI_SENDER ?? "";
-const SMSAPI_BASE_URL = (process.env.SMSAPI_BASE_URL ?? "https://api.smsapi.com").replace(/\/+$/, "");
+const SMSAPI_BASE_URL = (process.env.SMSAPI_BASE_URL || "https://api.smsapi.ro").replace(/\/+$/, "");
 
 export interface SendSmsOptions {
   to: string;

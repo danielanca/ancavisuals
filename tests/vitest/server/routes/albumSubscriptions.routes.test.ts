@@ -119,6 +119,21 @@ describe("albumSubscriptions.routes", () => {
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
 
+    test("emails the new subscriber a confirmation with the album link and unsubscribe link", async () => {
+      const { handlers, getMock } = await loadRouter();
+      const { sendEmail } = await import("src/server/notifications/mailer");
+      const res = createMockResponse();
+      getMock.mockResolvedValueOnce({ empty: true });
+
+      await handlers["POST /subscribe"]({ body: { albumSlug: "nunta-ana", email: "ana@test.com", name: "Ana Pop" } }, res);
+
+      const confirmation = vi.mocked(sendEmail).mock.calls.find(([options]) => options.to === "ana@test.com")?.[0];
+      expect(confirmation?.subject).toContain("Te-ai abonat");
+      expect(confirmation?.html).toContain("Bună, Ana!");
+      expect(confirmation?.html).toContain("https://example.com/media/nunta-ana");
+      expect(confirmation?.html).toMatch(/\/api\/album-subscriptions\/stop\/[0-9a-f]{24}/);
+    });
+
     test("returns ok:true with alreadySubscribed when email exists", async () => {
       const { handlers, getMock, addMock } = await loadRouter();
       const subscribe = handlers["POST /subscribe"];

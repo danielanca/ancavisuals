@@ -8,6 +8,7 @@ import { isReverseChargeSupplier, STANDARD_VAT_RATE } from "../../../../../share
 import { findExpenseDuplicate } from "../../../../../shared/finance/expenseDuplicates";
 import { SMIN_2026, calcPfaTax, calcSetAside } from "../../../../../shared/finance/pfaTax";
 import { fiscalizedEventsToInvoice } from "../../../../../shared/finance/taxProjection";
+import { EXPENSE_CATEGORIES, summarizeExpensesByCategory } from "../../../../../shared/finance/expenseCategories";
 import AiContextChat from "../AiContextChat";
 import { useSearchable } from "../dashboardSearchRegistry";
 
@@ -250,16 +251,6 @@ function reducer(state: State, action: Action): State {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const EXPENSE_CATEGORIES = [
-  { value: "combustibil", label: "Combustibil",          emoji: "⛽", color: "bg-orange-500/15 text-orange-400 border-orange-500/30",   defaultDeductibility: 50  },
-  { value: "echipament",  label: "Echipament foto/video", emoji: "📷", color: "bg-blue-500/15 text-blue-400 border-blue-500/30",         defaultDeductibility: 100 },
-  { value: "transport",   label: "Transport",             emoji: "🚗", color: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",         defaultDeductibility: 100 },
-  { value: "software",    label: "Software / Abo.",       emoji: "💻", color: "bg-violet-500/15 text-violet-400 border-violet-500/30",   defaultDeductibility: 100 },
-  { value: "cazare",      label: "Cazare",                emoji: "🏨", color: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",   defaultDeductibility: 100 },
-  { value: "alimentatie", label: "Alimentație",           emoji: "🍽️", color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", defaultDeductibility: 50  },
-  { value: "marketing",   label: "Marketing",             emoji: "📣", color: "bg-pink-500/15 text-pink-400 border-pink-500/30",         defaultDeductibility: 100 },
-  { value: "altele",      label: "Alte cheltuieli",       emoji: "📦", color: "bg-neutral-700/50 text-neutral-400 border-neutral-600/30", defaultDeductibility: 50  },
-];
 
 const MONTHS = ["Toate", "Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -395,6 +386,67 @@ function CategoryBadge({ value }: { value: string }) {
     <span className={`text-xs px-1.5 py-0.5 rounded border font-medium ${cat?.color ?? "bg-neutral-800 text-neutral-400 border-neutral-700"}`}>
       {cat?.emoji} {cat?.label ?? value}
     </span>
+  );
+}
+
+/** Cât s-a cheltuit pe fiecare categorie (RON), cu partea deductibilă. Click pe un rând filtrează lista. */
+function ExpenseCategoryStats({ stats, open, onToggle, selected, onSelect }: {
+  stats: ReturnType<typeof summarizeExpensesByCategory>;
+  open: boolean;
+  onToggle: () => void;
+  selected: string | null;
+  onSelect: (value: string) => void;
+}) {
+  const nonDeductible = Math.max(0, stats.total - stats.deductible);
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl">
+      <button type="button" onClick={onToggle} aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left">
+        <span className="text-sm font-medium text-white">📊 Cheltuieli pe categorii</span>
+        <span className="text-xs text-neutral-500">{stats.rows.length} categorii · {open ? "ascunde" : "arată"}</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3">
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="rounded-lg bg-neutral-950/60 px-3 py-2">
+              <div className="text-neutral-500">Cheltuit</div>
+              <div className="text-white font-medium">{fmtCurrency(stats.total)}</div>
+            </div>
+            <div className="rounded-lg bg-neutral-950/60 px-3 py-2">
+              <div className="text-neutral-500">Deductibil</div>
+              <div className="text-emerald-400 font-medium">{fmtCurrency(stats.deductible)}</div>
+            </div>
+            <div className="rounded-lg bg-neutral-950/60 px-3 py-2">
+              <div className="text-neutral-500">Nedeductibil</div>
+              <div className="text-neutral-300 font-medium">{fmtCurrency(nonDeductible)}</div>
+            </div>
+          </div>
+          <div className="space-y-1">
+            {stats.rows.map((row) => {
+              const isSelected = selected === row.value;
+              return (
+                <button key={row.value} type="button" onClick={() => onSelect(row.value)} aria-pressed={isSelected}
+                  className={`w-full rounded-lg px-2 py-2 text-left transition-colors ${isSelected ? "bg-neutral-800" : "hover:bg-neutral-800/60"} ${selected && !isSelected ? "opacity-50" : ""}`}>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate text-neutral-200">
+                      {row.emoji} {row.label} <span className="text-xs text-neutral-500">· {row.count}</span>
+                    </span>
+                    <span className="shrink-0 text-white font-medium">{fmtCurrency(row.total)}</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full rounded-full bg-neutral-800 overflow-hidden">
+                    <div className={`h-full ${row.bar}`} style={{ width: `${Math.max(row.share * 100, 1)}%` }} />
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-neutral-500">
+                    <span>{Math.round(row.share * 100)}% din total</span>
+                    <span>deductibil <span className="text-emerald-400">{fmtCurrency(row.deductible)}</span></span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1905,6 +1957,19 @@ const FinancialPage: React.FC = () => {
     });
   }, [state.expenses, state.expenseSearch, state.expenseDateFrom, state.expenseDateTo]);
 
+  // Statisticile pe categorii urmează căutarea și intervalul de mai sus, dar NU filtrul
+  // de categorie — altfel, la click pe o categorie, celelalte ar dispărea din tabel.
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = React.useState<string | null>(null);
+  const [showCategoryStats, setShowCategoryStats] = React.useState(true);
+  const categoryStats = useMemo(
+    () => summarizeExpensesByCategory(filteredExpenses, (amount, currency, dateIso) => (currency === "EUR" ? amount * rateForDate(dateIso) : amount)),
+    [filteredExpenses, rateForDate],
+  );
+  const visibleExpenses = useMemo(
+    () => (expenseCategoryFilter ? filteredExpenses.filter((exp) => exp.category === expenseCategoryFilter) : filteredExpenses),
+    [filteredExpenses, expenseCategoryFilter],
+  );
+
   const filteredInvoices = useMemo(() => {
     const q = state.invoiceSearch.trim();
     if (!q) return state.invoices;
@@ -2506,12 +2571,25 @@ const FinancialPage: React.FC = () => {
               </div>
             ) : (
               <>
-                <div className="flex gap-4 text-sm px-1">
-                  <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(filteredExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.amount * rateForDate(e.date) : e.amount), 0), "RON")}</span></span>
-                  <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(filteredExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.deductibleAmount * rateForDate(e.date) : e.deductibleAmount), 0), "RON")}</span></span>
+                <ExpenseCategoryStats
+                  stats={categoryStats}
+                  open={showCategoryStats}
+                  onToggle={() => setShowCategoryStats((v) => !v)}
+                  selected={expenseCategoryFilter}
+                  onSelect={(value) => setExpenseCategoryFilter((current) => (current === value ? null : value))}
+                />
+                <div className="flex gap-4 text-sm px-1 flex-wrap">
+                  <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(visibleExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.amount * rateForDate(e.date) : e.amount), 0), "RON")}</span></span>
+                  <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(visibleExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.deductibleAmount * rateForDate(e.date) : e.deductibleAmount), 0), "RON")}</span></span>
+                  {expenseCategoryFilter && (
+                    <button type="button" onClick={() => setExpenseCategoryFilter(null)}
+                      className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors">
+                      <CategoryBadge value={expenseCategoryFilter} /> ✕ toate categoriile
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  {filteredExpenses.map((expense) => (
+                  {visibleExpenses.map((expense) => (
                     <div key={expense.id} id={`expense-${expense.id}`}
                       className={`rounded-xl p-4 border transition-colors duration-500 ${state.highlightedExpenseId === expense.id ? "bg-amber-500/10 border-amber-500/50" : "bg-neutral-900 border-neutral-800"}`}>
                       <div className="flex items-start justify-between gap-3">

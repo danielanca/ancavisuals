@@ -39,6 +39,7 @@ async function loadHandoverRouter() {
   const sendHandoverLinkEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendSignedHandoverEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendHandoverReminderEmailMock = vi.fn().mockResolvedValue(undefined);
+  const sendDownloadReminderEmailMock = vi.fn().mockResolvedValue(undefined);
 
   const collectionMock = vi.fn(() => ({
     add: addMock,
@@ -78,6 +79,7 @@ async function loadHandoverRouter() {
     sendHandoverLinkEmail: sendHandoverLinkEmailMock,
     sendSignedHandoverEmail: sendSignedHandoverEmailMock,
     sendHandoverReminderEmail: sendHandoverReminderEmailMock,
+    sendDownloadReminderEmail: sendDownloadReminderEmailMock,
   }));
 
   vi.doMock("src/server/constants/firebase", () => ({
@@ -116,6 +118,8 @@ async function loadHandoverRouter() {
     generateHandoverPDFMock,
     sendHandoverLinkEmailMock,
     sendSignedHandoverEmailMock,
+    sendDownloadReminderEmailMock,
+    postDownloadReminder: getHandler("post", "/:id/download-reminder"),
     postCreate: getHandler("post", "/"),
     getList: getHandler("get", "/"),
     getPublicSign: getHandler("get", "/sign/:token"),
@@ -497,6 +501,63 @@ describe("handover.routes", () => {
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({ error: "Proces verbal negăsit." });
+    });
+  });
+
+  describe("download reminder", () => {
+    const signed = {
+      status: "signed",
+      token: "token-1",
+      clientEmail: "client@example.com",
+      eventType: "Nuntă",
+      eventDate: "2026-08-08",
+      digitalLinkExpiryDays: 15,
+      downloadReminderCount: 1,
+    };
+
+    test("emails the client with the links deadline and records the reminder", async () => {
+      process.env.APP_BASE_URL = "https://ancavisuals.ro";
+      const { postDownloadReminder, docGetMock, updateMock, sendDownloadReminderEmailMock } = await loadHandoverRouter();
+      const res = createMockResponse();
+      const signedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ ...signed, signedAt: Timestamp.fromDate(signedAt) }) });
+
+      await postDownloadReminder({ params: { id: "handover-1" } }, res);
+
+      expect(sendDownloadReminderEmailMock).toHaveBeenCalledWith({
+        to: "client@example.com",
+        token: "token-1",
+        eventType: "Nuntă",
+        eventDate: "2026-08-08",
+        baseUrl: "https://ancavisuals.ro",
+        linksValidUntil: new Date(signedAt.getTime() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      const [, payload] = updateMock.mock.calls[0];
+      expect(payload.downloadReminderSentAt).toBeInstanceOf(Timestamp);
+      expect(payload.downloadReminderCount).toBe(2);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true, downloadReminderCount: 2 }));
+    });
+
+    test("omits the deadline once the links have expired", async () => {
+      const { postDownloadReminder, docGetMock, sendDownloadReminderEmailMock } = await loadHandoverRouter();
+      const res = createMockResponse();
+      docGetMock.mockResolvedValue({ exists: true, data: () => ({ ...signed, signedAt: Timestamp.fromDate(new Date("2026-01-01")) }) });
+
+      await postDownloadReminder({ params: { id: "handover-1" } }, res);
+
+      expect(sendDownloadReminderEmailMock).toHaveBeenCalledWith(expect.objectContaining({ linksValidUntil: null }));
+    });
+
+    test("refuses unsigned protocols, protocols without a digital link and clients without email", async () => {
+      const { postDownloadReminder, docGetMock, updateMock, sendDownloadReminderEmailMock } = await loadHandoverRouter();
+      for (const data of [{ ...signed, status: "sent" }, { ...signed, includeDigitalLink: false }, { ...signed, clientEmail: " " }]) {
+        const res = createMockResponse();
+        docGetMock.mockResolvedValue({ exists: true, data: () => data });
+        await postDownloadReminder({ params: { id: "handover-1" } }, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+      }
+      expect(sendDownloadReminderEmailMock).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
     });
   });
 });

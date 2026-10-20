@@ -187,3 +187,54 @@ export async function sendHandoverReminderEmail(options: HandoverReminderEmailOp
     html,
   });
 }
+
+interface DownloadReminderEmailOptions {
+  to: string;
+  token: string;
+  eventType: string;
+  eventDate: string;
+  baseUrl: string;
+  /** ISO date until which the digital links stay valid; omitted when unknown or already past. */
+  linksValidUntil?: string | null;
+}
+
+export async function sendDownloadReminderEmail(options: DownloadReminderEmailOptions): Promise<void> {
+  const { to, token, eventType, eventDate, baseUrl, linksValidUntil } = options;
+  const link = `${baseUrl}/proces-verbal/${token}`;
+  const formattedDate = formatRoDate(eventDate);
+
+  const html = emailWrap(`
+    <p style="color: #333; margin-bottom: 12px;">Bună ziua,</p>
+    <p style="color: #333; margin-bottom: 12px;">
+      Vă trimitem un scurt reminder să descărcați materialele de la evenimentul
+      <strong>${eventType}</strong> din data de <strong>${formattedDate}</strong>.
+    </p>
+    ${linksValidUntil ? `<p style="color: #333; margin-bottom: 12px;">
+      Link-urile de descărcare sunt valabile până pe <strong>${formatRoDate(linksValidUntil)}</strong>.
+    </p>` : ""}
+    <p style="color: #555; margin-bottom: 28px;">
+      După descărcare, vă recomandăm să păstrați cel puțin o copie de rezervă (de exemplu pe un hard disk extern sau în cloud).
+    </p>
+    <div style="text-align: center; margin-bottom: 28px;">
+      <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Descarcă materialele</a>
+    </div>
+    <p style="color: #aaa; font-size: 11px; text-align: center;">
+      Sau accesați direct:<br/>
+      <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
+    </p>
+  `);
+
+  await mailer.sendMail({
+    from: emailAuth.email,
+    to,
+    subject: `Reminder: descărcați materialele — ${eventType} ${formattedDate}`,
+    html,
+  });
+
+  await mailer.sendMail({
+    from: emailAuth.email,
+    to: adminUser.email,
+    subject: `[Copie] Reminder descărcare trimis — ${eventType} ${formattedDate} — ${to}`,
+    html,
+  });
+}

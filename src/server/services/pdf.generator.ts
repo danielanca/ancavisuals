@@ -183,6 +183,16 @@ export interface ServiceFlags {
   hasPhotoVideo: boolean;
 }
 
+// Clauza „Compatibilitatea materialelor video” a apărut la această dată. Contractele legacy
+// semnate înainte se regenerează fără ea — clientul nu a semnat-o.
+const VIDEO_COMPATIBILITY_CLAUSE_SINCE = "2026-10-21T00:00:00+03:00";
+
+function videoCompatibilityClauseApplies(contract: Record<string, unknown>): boolean {
+  if (contract.status !== "signed") return true;
+  const signedAt = toIsoString(contract.signedAt);
+  return !!signedAt && new Date(signedAt).getTime() >= new Date(VIDEO_COMPATIBILITY_CLAUSE_SINCE).getTime();
+}
+
 export function detectServiceFlags(services: ContractService[], contractType?: string): ServiceFlags {
   const labels = services.map((s) => s.label.toLowerCase());
   const type = (contractType ?? "").toLowerCase();
@@ -311,6 +321,18 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
         <p>Materialele video vor fi realizate la rezoluție <span class="bold">4K</span>. <span class="bold">Filmul lung</span> (after movie complet) va avea o durată cuprinsă între <span class="bold">4 și 6 ore</span>, realizat în stil documentar/vlog — filmat natural, fără intervenții artistice.</p>
         <p><span class="bold">Videoul scurt</span> (teaser), acolo unde este inclus în pachet, va fi realizat în stil cinematic/artistic, cu montaj profesional și coloană sonoră adecvată.</p>
         <p>Materialele video finale se livrează în format digital, pe platformă online securizată, accesibilă exclusiv BENEFICIARULUI.</p>
+      `,
+    } : null,
+
+    // ── 5b. Video playback compatibility (if video service exists) ──────────
+    hasVideo && videoCompatibilityClauseApplies(contract) ? {
+      title: "Compatibilitatea materialelor video — redare pe laptop/PC, nu pe televizor",
+      body: `
+        <p>Materialele video finale se livrează în format <span class="bold">MP4</span>, cu encodare <span class="bold">H.264</span>, rezoluție <span class="bold">4K</span> și un bitrate de <span class="bold">30 Mbps</span>. PRESTATORUL răspunde exclusiv de faptul că materialele video pot fi deschise și vizualizate corect pe un <span class="bold">laptop sau calculator (PC)</span>.</p>
+        <p>PRESTATORUL nu asigură și nu garantează redarea materialelor video pe televizoare (inclusiv Smart TV), videoproiectoare sau alte dispozitive de redare. Modelele de televizoare diferă de la un producător la altul și de la un an la altul: unele acceptă doar formatul Full HD (1080p), altele și formatul 4K, iar existența unui port USB pe televizor nu înseamnă că acesta are și funcție de redare a fișierelor video.</p>
+        <p>Este obligația BENEFICIARULUI să verifice dacă televizorul sau dispozitivul pe care dorește să vizioneze materialele este compatibil cu formatul descris mai sus (MP4, H.264, 4K, 30 Mbps).</p>
+        <p>În cazul în care pachetul contractat include un stick USB, PRESTATORUL nu garantează că acesta va fi recunoscut sau că materialele de pe el vor putea fi redate pe orice televizor. Materialele de pe stick se consideră conforme dacă pot fi deschise și vizualizate pe un laptop sau PC.</p>
+        <p>La cererea BENEFICIARULUI, PRESTATORUL poate converti materialele video din 4K în format Full HD (1080p), pentru o compatibilitate mai largă cu televizoarele. Aceasta este singura adaptare de format pe care PRESTATORUL o oferă. Incompatibilitatea unui televizor sau a unui alt dispozitiv de redare cu materialele livrate nu reprezintă o neîndeplinire a obligațiilor PRESTATORULUI și nu poate fi invocată ca temei pentru reclamații, reținerea plății sau solicitarea de despăgubiri.</p>
       `,
     } : null,
 
@@ -498,12 +520,13 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
 
   let finalArticles: { title: string; body: string }[];
   if (storedClauses.some((clause) => !clause.key?.startsWith(CUSTOM_CLAUSE_PREFIX))) {
-    // Indici ficși în array-ul de mai sus: 0=părți, 1=obiect, 2=tabel servicii, 9=preț&plată —
-    // sunt singurele 4 secțiuni mereu prezente (obiecte, nu ternare) înaintea clauzei de exhaustivitate.
+    // Indici ficși în array-ul de mai sus: 0=părți, 1=obiect, 2=tabel servicii — mereu prezente
+    // (obiecte, nu ternare). Preț&plată se caută după titlu: poziția lui se mută când se adaugă
+    // clauze legacy înaintea lui.
     const partiesArticle = articles[0] as { title: string; body: string };
     const subjectArticle = articles[1] as { title: string; body: string };
     const servicesTableArticle = articles[2] as { title: string; body: string };
-    const priceAndPaymentArticle = articles[9] as { title: string; body: string };
+    const priceAndPaymentArticle = articles.find((a) => a?.title === "Prețul contractului și modalitatea de plată") as { title: string; body: string };
     const additionalNotesArticle = contract.eventDetails
       ? { title: "Mențiuni suplimentare", body: `<p>${esc(contract.eventDetails as string)}</p>` }
       : null;

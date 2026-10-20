@@ -6,6 +6,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { getBnrYearRates } from "../services/bnrExchangeRate.service";
+import { EXPENSE_CATEGORY_VALUES } from "../../shared/finance/expenseCategories";
 
 // Asistent AI pentru zona Financiar. Spre deosebire de asistentul generic (care vede doar
 // rezumatul text trimis de pagină), acesta are unelte read-only peste Firestore: facturi,
@@ -116,7 +117,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "list_expenses",
-    description: "Cheltuielile dintr-un an, opțional dintr-o lună, categorie sau furnizor. Categorii: combustibil, echipament, transport, software, cazare, alimentatie, marketing, altele. Întoarce totaluri (total și deductibil, în RON) și rândurile.",
+    description: `Cheltuielile dintr-un an, opțional dintr-o lună, categorie sau furnizor. Categorii: ${EXPENSE_CATEGORY_VALUES.join(", ")}. Întoarce totaluri (total și deductibil, în RON) și rândurile.`,
     input_schema: {
       type: "object",
       properties: {

@@ -2,7 +2,8 @@ import { Router } from "express";
 import express from "express";
 import type { Request, Response } from "express";
 import { getAlbum, downloadSelectedPhotos, postPrintSelection, downloadAll, deletePhoto, downloadPrintDynamic, addDeliveryAddress, getDeliveryAddress, addSwissLink } from "../controllers/album.controller";
-import { readPrintSelection } from "../services/printSelection.store";
+import { readPrintSelection, readVideoLinks, saveVideoLinks } from "../services/printSelection.store";
+import { ALBUM_VIDEO_KINDS, normalizeVideoLink, type AlbumVideoLinks } from "../../shared/albumVideoLinks";
 import { getAlbumStats } from "../services/albumStats.service";
 import { loadAlbum, resolveAlbumSlug } from "../services/album.service";
 import { logActivity } from "../services/activity.service";
@@ -12,6 +13,16 @@ import { sendEmail } from "../notifications/mailer";
 import { firestore } from "../firestore";
 import { adminUser } from "../constants/credentials";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
+import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from "../notifications/sms";
+import { APP_BASE_URL } from "../constants/domain";
+import {
+  PRINT_REMINDER_COOLDOWN_MS,
+  printReminderMessage,
+  whatsappReminderUrl,
+  type PrintReminderRecipient,
+  type PrintReminderResult,
+  type PrintReminderStatus,
+} from "../../shared/printSelectionReminder";
 
 const ADMIN_EMAIL = adminUser.email;
 
@@ -182,6 +193,98 @@ router.post("/:slug/print-selection/notify", async (req: Request, res: Response)
     return res.status(500).json({ error: "notification_failed" });
   }
 });
+
+// Admin → client: "alege pozele pentru album". Recipients = the client(s) of every event linked
+// to this album; email + SMS go out automatically, WhatsApp comes back as wa.me links.
+const printReminderRef = (slug: string) => firestore().collection("printSelectionReminders").doc(slug);
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+
+async function printReminderRecipients(slug: string): Promise<PrintReminderRecipient[]> {
+  const events = await firestore().collection("adminEvents").where("albumSlug", "==", slug).get();
+  const seen = new Set<string>();
+  const recipients: PrintReminderRecipient[] = [];
+  events.docs.forEach((doc) => {
+    const client = (doc.data().client ?? {}) as { fullName?: string; email?: string; phone?: string };
+    const email = String(client.email ?? "").trim().toLowerCase() || null;
+    const phone = normalizeRomanianPhoneNumber(String(client.phone ?? ""));
+    const key = email ?? phone;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    recipients.push({ name: String(client.fullName ?? "").trim(), email: email && email.includes("@") ? email : null, phone });
+  });
+  return recipients;
+}
+
+async function printReminderLastSentAt(slug: string): Promise<number | null> {
+  return ((await printReminderRef(slug).get()).data() as { lastSentAt?: number } | undefined)?.lastSentAt ?? null;
+}
+
+const nextReminderAt = (last: number | null, now = Date.now()) =>
+  last !== null && now - last < PRINT_REMINDER_COOLDOWN_MS ? last + PRINT_REMINDER_COOLDOWN_MS : null;
+
+router.get("/:slug/print-reminder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const slug = String(req.params.slug || "");
+    const [items, recipients, lastSentAt] = await Promise.all([
+      readPrintSelection(slug),
+      printReminderRecipients(slug),
+      printReminderLastSentAt(slug),
+    ]);
+    const status: PrintReminderStatus = { selectedCount: items.length, recipients, lastSentAt, nextAllowedAt: nextReminderAt(lastSentAt) };
+    return res.json(status);
+  } catch (error) {
+    console.error("[album] print reminder status failed:", error);
+    return res.status(500).json({ error: "print_reminder_failed" });
+  }
+});
+
+router.post("/:slug/print-reminder", requireFirebaseAuth, requireSupremeAdmin, express.json(), async (req: Request, res: Response) => {
+  try {
+    const slug = String(req.params.slug || "");
+    const wantEmail = req.body?.email !== false;
+    const wantSms = req.body?.sms !== false;
+    const now = Date.now();
+    const lastSentAt = await printReminderLastSentAt(slug);
+    const blockedUntil = nextReminderAt(lastSentAt, now);
+    if (blockedUntil) return res.status(429).json({ error: "already_sent", lastSentAt, nextAllowedAt: blockedUntil });
+
+    const [items, recipients] = await Promise.all([readPrintSelection(slug), printReminderRecipients(slug)]);
+    if (recipients.length === 0) return res.status(400).json({ error: "no_recipients" });
+
+    const selectUrl = `${APP_BASE_URL}/media/${encodeURIComponent(slug)}?select=print`;
+    const smsReady = isSmsConfigured();
+    const result: PrintReminderResult = {
+      emailed: 0, smsSent: 0, smsFailed: 0, smsSkipped: wantSms && !smsReady, whatsapp: [], lastSentAt: now, nextAllowedAt: now + PRINT_REMINDER_COOLDOWN_MS,
+    };
+
+    for (const recipient of recipients) {
+      const message = printReminderMessage(recipient.name, items.length, selectUrl);
+      if (wantEmail && recipient.email) {
+        await sendEmail({
+          to: recipient.email,
+          source: "print-selection-reminder",
+          subject: "[Mesaj automat] Alege pozele pentru albumul tău",
+          html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+            ${message.split("\n\n").map((p) => `<p style="color:#333;">${escapeHtml(p).replace(escapeHtml(selectUrl), "")}</p>`).join("")}
+            <p style="margin-top:24px;"><a href="${selectUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 20px;text-decoration:none;font-weight:600;">Alege pozele pentru album</a></p>
+          </div>`,
+        }).then(() => { result.emailed++; }, (error) => console.error("[album] print reminder email failed:", error));
+      }
+      if (wantSms && smsReady && recipient.phone) {
+        try { await sendSms({ to: recipient.phone, body: message }); result.smsSent++; }
+        catch (error) { result.smsFailed++; console.error("[album] print reminder SMS failed:", error); }
+      }
+      if (recipient.phone) result.whatsapp.push({ name: recipient.name, url: whatsappReminderUrl(recipient.phone, message) });
+    }
+
+    await printReminderRef(slug).set({ lastSentAt: now, selectedCount: items.length, emailed: result.emailed, smsSent: result.smsSent }, { merge: true });
+    return res.json(result);
+  } catch (error) {
+    console.error("[album] print reminder failed:", error);
+    return res.status(500).json({ error: "print_reminder_failed" });
+  }
+});
 // POST /:slug/zip-request — a client found no "download all" ZIP and asks for it. Emails the
 // admin at most once per album every 6 h (repeated clicks only refresh the inbox entry).
 const ZIP_REQUEST_COOLDOWN_MS = 6 * 60 * 60 * 1000;
@@ -232,6 +335,31 @@ router.post("/:slug/download-print-dynamic", downloadPrintDynamic);
 router.post("/:slug/delivery-address", express.json(), addDeliveryAddress);
 router.get("/:slug/delivery-address", getDeliveryAddress);
 router.post("/:slug/swisslink", requireFirebaseAuth, requireSupremeAdmin, express.json(), addSwissLink);
+
+router.get("/:slug/video-links", async (req: Request, res: Response) => {
+  try {
+    return res.json({ links: await readVideoLinks(req.params.slug) });
+  } catch (error) {
+    console.error("[album] video links read failed:", error);
+    return res.status(500).json({ error: "video_links_failed" });
+  }
+});
+
+router.put("/:slug/video-links", requireFirebaseAuth, requireSupremeAdmin, express.json(), async (req: Request, res: Response) => {
+  const links: AlbumVideoLinks = {};
+  for (const kind of ALBUM_VIDEO_KINDS) {
+    const link = normalizeVideoLink(req.body?.[kind]);
+    if (link === null) return res.status(400).json({ error: "invalid_link", kind });
+    if (link) links[kind] = link;
+  }
+  try {
+    await saveVideoLinks(req.params.slug, links);
+    return res.json({ links });
+  } catch (error) {
+    console.error("[album] video links save failed:", error);
+    return res.status(500).json({ error: "video_links_failed" });
+  }
+});
 
 router.get("/:slug/qr-moments", async (req: Request, res: Response) => {
   try {

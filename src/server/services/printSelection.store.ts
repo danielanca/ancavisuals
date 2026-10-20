@@ -3,6 +3,7 @@
  * addresses and Swiss links associated with album slugs.
  */
 import { firestore } from "../firestore";
+import type { AlbumVideoLinks } from "../../shared/albumVideoLinks";
 
 const COL = "printSelections";
 
@@ -22,6 +23,7 @@ type PrintSelectionDocument = {
   deliveryAddressUpdatedAt?: number;
   updatedAt?: number;
   swissLink?: string;
+  videoLinks?: AlbumVideoLinks;
   retentionNotifications?: AlbumRetentionNotificationState;
 };
 
@@ -90,6 +92,19 @@ export async function addLink(slug: string,link: string): Promise<void> {
     .catch((err) => {
       throw err;
     });
+}
+
+export async function readVideoLinks(slug: string): Promise<AlbumVideoLinks> {
+  const snap = await firestore().collection(COL).doc(slug).get();
+  if (!snap.exists) return {};
+  const data = (snap.data() as PrintSelectionDocument | undefined) ?? {};
+  return data.videoLinks ?? {};
+}
+
+/** Replaces both links; an empty kind is dropped, so the client stops seeing that section. */
+export async function saveVideoLinks(slug: string, links: AlbumVideoLinks): Promise<void> {
+  const videoLinks = Object.fromEntries(Object.entries(links).filter(([, link]) => Boolean(link)));
+  await firestore().collection(COL).doc(slug).set({ slug, videoLinks }, { mergeFields: ["slug", "videoLinks"] });
 }
 
 export async function readRetentionNotifications(slug: string): Promise<AlbumRetentionNotificationState> {

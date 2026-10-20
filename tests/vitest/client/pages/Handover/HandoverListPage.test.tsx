@@ -57,3 +57,12 @@ test("does not show an association when saving fails", async () => {
   await waitFor(() => expect(screen.getByText("Asocierea a eșuat")).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: /Eveniment: Ana și Ion/ })).not.toBeInTheDocument();
 });
+test("shows the download deadline, the last reminder and a WhatsApp download reminder for signed protocols", async () => {
+  const signedAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+  mockData([{ ...protocol, eventId: event.id, signedAt, digitalLinkExpiryDays: 15, downloadReminderSentAt: "2026-10-18", downloadReminderCount: 2 }],
+    [{ ...event, client: { ...event.client, phone: "0712345678" } }]);
+  const reminder = await screen.findByRole("link", { name: /Reminder descărcare/ });
+  expect(decodeURIComponent(reminder.getAttribute("href")!)).toContain("reminder să descărcați materialele");
+  expect(screen.getByText(/Link-uri valabile până:/)).toHaveTextContent("10 zile rămase");
+  expect(screen.getByText(/Reminder descărcare trimis:/)).toHaveTextContent("2×");
+});

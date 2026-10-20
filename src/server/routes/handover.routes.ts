@@ -6,16 +6,16 @@ import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestore";
 import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateHandoverPDF, buildHandoverHTML } from "../services/pdf.generator";
-import { sendHandoverLinkEmail, sendSignedHandoverEmail, sendHandoverReminderEmail } from "../notifications/templates/handoverEmail";
+import { sendHandoverLinkEmail, sendSignedHandoverEmail, sendHandoverReminderEmail, sendDownloadReminderEmail } from "../notifications/templates/handoverEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { APP_BASE_URL } from "../constants/domain";
+import { DEFAULT_DIGITAL_LINK_EXPIRY_DAYS, digitalLinksValidUntil } from "../../shared/handoverDownload";
 
 const router = Router();
 
 const DEFAULT_COURIER_DELIVERY_DAYS = 7;
 const DEFAULT_MATERIALS_REPORT_WINDOW_DAYS = 7;
-const DEFAULT_DIGITAL_LINK_EXPIRY_DAYS = 15;
 
 // Labels are fine to show before signing ("what you'll receive"), but the actual URLs must stay
 // hidden until after signing — they're delivered by email right after.
@@ -106,6 +106,7 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, 
         createdAt: tsToISO(data.createdAt),
         signedAt: tsToISO(data.signedAt),
         sentAt: tsToISO(data.sentAt),
+        ...(data.downloadReminderSentAt ? { downloadReminderSentAt: tsToISO(data.downloadReminderSentAt) } : {}),
       };
     });
 
@@ -454,6 +455,46 @@ router.post("/:id/reminder", requireFirebaseAuth, requireSupremeAdmin, async (re
   } catch (error) {
     console.error("[handover] POST /:id/reminder failed:", error);
     res.status(500).json({ error: "Nu s-a putut trimite reminder-ul." });
+  }
+});
+
+// POST /api/handover/:id/download-reminder — remind client to download the materials (admin)
+router.post("/:id/download-reminder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const ref = db.collection("materialsHandover").doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: "Proces verbal negăsit." });
+
+    const handover = doc.data()!;
+    if (handover.status !== "signed") {
+      return res.status(400).json({ error: "Reminder-ul de descărcare se poate trimite doar după semnarea procesului verbal." });
+    }
+    if (handover.includeDigitalLink === false) {
+      return res.status(400).json({ error: "Procesul verbal nu include link digital." });
+    }
+    if (!String(handover.clientEmail ?? "").trim()) {
+      return res.status(400).json({ error: "Clientul nu are adresă de email." });
+    }
+
+    const validUntil = digitalLinksValidUntil(tsToISO(handover.signedAt), handover.digitalLinkExpiryDays);
+    await sendDownloadReminderEmail({
+      to: handover.clientEmail,
+      token: handover.token,
+      eventType: handover.eventType,
+      eventDate: handover.eventDate,
+      baseUrl: APP_BASE_URL,
+      linksValidUntil: validUntil && validUntil.getTime() > Date.now() ? validUntil.toISOString() : null,
+    });
+
+    const sentAt = Timestamp.now();
+    const count = (typeof handover.downloadReminderCount === "number" ? handover.downloadReminderCount : 0) + 1;
+    await ref.update({ downloadReminderSentAt: sentAt, downloadReminderCount: count });
+
+    res.json({ ok: true, downloadReminderSentAt: sentAt.toDate().toISOString(), downloadReminderCount: count });
+  } catch (error) {
+    console.error("[handover] POST /:id/download-reminder failed:", error);
+    res.status(500).json({ error: "Nu s-a putut trimite reminder-ul de descărcare." });
   }
 });
 

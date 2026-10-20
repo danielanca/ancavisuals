@@ -168,4 +168,24 @@ describe("custom contract clauses", () => {
       expect(buildNightEventHtml({ eventType: "Înmormântare", status: "sent" })).toBe("");
     });
   });
+
+  describe("video playback compatibility clause", () => {
+    const video = [{ label: "Video 4K", price: 1000 }];
+
+    test("video contracts state MP4/H.264/4K and laptop/PC-only responsibility", async () => {
+      const { buildContractHTML } = await buildModule();
+      const html = buildContractHTML({ eventType: "Nuntă", status: "sent", services: video });
+      expect(html).toContain("COMPATIBILITATEA MATERIALELOR VIDEO");
+      expect(html).toContain("H.264");
+      expect(html).toContain("30 Mbps");
+      expect(html).toContain("din 4K în format Full HD");
+    });
+
+    test("photo-only contracts and contracts signed before the clause existed don't get it", async () => {
+      const { buildContractHTML } = await buildModule();
+      expect(buildContractHTML({ eventType: "Nuntă", status: "sent", services: [{ label: "Foto", price: 500 }] })).not.toContain("COMPATIBILITATEA MATERIALELOR VIDEO");
+      expect(buildContractHTML({ eventType: "Nuntă", status: "signed", signedAt: "2026-09-01T10:00:00.000Z", services: video })).not.toContain("COMPATIBILITATEA MATERIALELOR VIDEO");
+      expect(buildContractHTML({ eventType: "Nuntă", status: "signed", signedAt: "2026-10-22T10:00:00.000Z", services: video })).toContain("COMPATIBILITATEA MATERIALELOR VIDEO");
+    });
+  });
 });

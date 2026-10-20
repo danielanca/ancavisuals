@@ -76,7 +76,10 @@ function parseSubscribeBody(raw: unknown): SubscribeInput | { error: string } {
 }
 
 /** Same email/phone on the album → merge channels instead of creating a duplicate. */
-async function upsertSubscriber(input: SubscribeInput, source: "form" | "admin"): Promise<{ created: boolean; channels: SubscribeChannel[] }> {
+async function upsertSubscriber(
+  input: SubscribeInput,
+  source: "form" | "admin",
+): Promise<{ created: boolean; channels: SubscribeChannel[]; unsubscribeToken?: string }> {
   const { albumSlug, channels, email, phone, name } = input;
   const collection = firestore().collection(COLLECTION);
   const [byEmail, byPhone] = await Promise.all([
@@ -95,6 +98,7 @@ async function upsertSubscriber(input: SubscribeInput, source: "form" | "admin")
     });
     return { created: false, channels: merged };
   }
+  const unsubscribeToken = crypto.randomBytes(12).toString("hex");
   await collection.add({
     albumSlug,
     email: email || null,
@@ -102,10 +106,10 @@ async function upsertSubscriber(input: SubscribeInput, source: "form" | "admin")
     name,
     channels,
     ...(source === "admin" ? { source } : {}),
-    unsubscribeToken: crypto.randomBytes(12).toString("hex"),
+    unsubscribeToken,
     subscribedAt: Timestamp.now(),
   });
-  return { created: true, channels };
+  return { created: true, channels, unsubscribeToken };
 }
 
 router.post("/subscribe", async (req: Request, res: Response) => {
@@ -121,6 +125,16 @@ router.post("/subscribe", async (req: Request, res: Response) => {
     if (!result.created) {
       res.json({ ok: true, alreadySubscribed: true, channels: result.channels });
       return;
+    }
+
+    // Confirmation to the subscriber — email only: a public form must not be able to spend SMS credit.
+    if (normalizedEmail) {
+      sendEmail({
+        to: normalizedEmail,
+        source: "album-subscribe-confirmation",
+        subject: "[Mesaj automat] ✅ Te-ai abonat la noutățile albumului — Anca Visuals",
+        html: subscribeConfirmationEmail(albumSlug, result.channels, parsed.name, result.unsubscribeToken),
+      }).catch((error) => console.error("[album-subscriptions] confirmation email failed:", error));
     }
 
     // Log to activity inbox
@@ -393,6 +407,29 @@ router.get("/updates/:slug", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Nu am putut încărca noutățile." });
   }
 });
+
+export function subscribeConfirmationEmail(
+  slug: string,
+  channels: readonly SubscribeChannel[],
+  name: string | null | undefined,
+  token: string | undefined,
+): string {
+  const albumUrl = `${BASE_URL}/media/${encodeURIComponent(slug)}`;
+  const stop = unsubscribeUrl(token);
+  const firstName = name?.trim().split(/\s+/)[0];
+  const channelList = channels.map((c) => SUBSCRIBE_CHANNEL_META[c].label).join(", ");
+  return `
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff;">
+      <p style="color:#999;font-size:12px;line-height:1.5;border-left:2px solid #c9a96e;padding:2px 0 2px 10px;margin:0 0 20px;">${AUTOMATED_MESSAGE_LABEL}</p>
+      <p style="color:#c9a96e;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:0 0 8px;">✅ Abonare confirmată</p>
+      <h1 style="font-size:22px;font-weight:500;margin:0 0 12px;">${firstName ? `Bună, ${escHtml(firstName)}!` : "Bună!"}</h1>
+      <p style="color:#ddd;font-size:15px;line-height:1.6;margin:0 0 12px;">Te-ai abonat la noutățile albumului <strong>${escHtml(slug)}</strong>.</p>
+      <p style="color:#ddd;font-size:15px;line-height:1.6;margin:0 0 24px;">Îți scriem pe <strong>${escHtml(channelList)}</strong> când apar poze noi, o estimare de livrare sau un anunț de la fotograf.</p>
+      <a href="${albumUrl}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">Vezi albumul →</a>
+      <hr style="border:none;border-top:1px solid #222;margin:32px 0;" />
+      <p style="color:#555;font-size:12px;">Nu te-ai abonat tu? Poți ignora acest mesaj${stop ? ` sau te poți <a href="${stop}" style="color:#777;">dezabona aici</a>` : ""}. Pentru întrebări, scrie-ne pe WhatsApp la ${CONTACT_PHONE_DISPLAY}.</p>
+    </div>`;
+}
 
 function albumUpdateEmail(update: AlbumUpdate, slug: string, subscriber: SubscriberDoc): string {
   const meta = ALBUM_UPDATE_META[update.kind];

@@ -8,6 +8,7 @@ import EditHandoverModal from "./EditHandoverModal";
 import { getPublicAppOrigin } from "./publicOrigin";
 import { openAuthedInNewTab } from "../../providers/authFetch";
 import { whatsappUrl } from "../../whatsappUrl";
+import { daysUntil, digitalLinksValidUntil } from "../../../../../shared/handoverDownload";
 
 interface HandoverItem {
   id: string;
@@ -29,6 +30,8 @@ interface HandoverItem {
   digitalLinkExpiryDays?: number;
   createdAt: string;
   signedAt?: string;
+  downloadReminderSentAt?: string | null;
+  downloadReminderCount?: number;
 }
 
 interface LinkedEvent {
@@ -55,6 +58,18 @@ function handoverWhatsAppMessage(token: string): string {
   return `Salutare! Aici se află materialele: ${getPublicAppOrigin()}/proces-verbal/${token}`;
 }
 
+function downloadReminderWhatsAppMessage(token: string, validUntil: Date | null): string {
+  const deadline = validUntil && daysUntil(validUntil) > 0
+    ? ` Link-urile sunt valabile până pe ${validUntil.toLocaleDateString("ro-RO", { day: "2-digit", month: "long" })}.`
+    : "";
+  return `Salutare! Un mic reminder să descărcați materialele de la eveniment.${deadline} Le găsiți aici: ${getPublicAppOrigin()}/proces-verbal/${token}\nDupă descărcare, vă recomandăm să păstrați și o copie de rezervă. Mulțumim!`;
+}
+
+// Signed handovers with a digital link are the only ones where "download your materials" makes sense
+function canRemindDownload(item: HandoverItem): boolean {
+  return item.status === "signed" && item.includeDigitalLink !== false;
+}
+
 const HandoverListPage: React.FC = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
@@ -72,6 +87,7 @@ const HandoverListPage: React.FC = () => {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [resending, setResending] = useState<string | null>(null);
   const [reminding, setReminding] = useState<string | null>(null);
+  const [downloadReminding, setDownloadReminding] = useState<string | null>(null);
 
   type PendingAction = { type: "delete" | "send"; id: string; label: string } | null;
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -181,6 +197,27 @@ const HandoverListPage: React.FC = () => {
     }
   };
 
+  const handleDownloadReminder = async (id: string) => {
+    setDownloadReminding(id);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/handover/${id}/download-reminder`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setItems((prev) => prev.map((it) => (it.id === id
+        ? { ...it, downloadReminderSentAt: data.downloadReminderSentAt, downloadReminderCount: data.downloadReminderCount }
+        : it)));
+      showToast("Reminder de descărcare trimis clientului.");
+    } catch (e: unknown) {
+      setActionError("Eroare la reminder descărcare: " + (e instanceof Error ? e.message : "necunoscută"));
+    } finally {
+      setDownloadReminding(null);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     setDeleting(id);
     setActionError(null);
@@ -275,6 +312,9 @@ const HandoverListPage: React.FC = () => {
             {items.map((item) => {
               const statusInfo = STATUS_LABELS[item.status] ?? STATUS_LABELS.draft;
               const event = linkedEvent(item);
+              const remindDownload = canRemindDownload(item);
+              const validUntil = remindDownload ? digitalLinksValidUntil(item.signedAt, item.digitalLinkExpiryDays) : null;
+              const daysLeft = validUntil ? daysUntil(validUntil) : null;
               return (
                 <div key={item.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -330,11 +370,31 @@ const HandoverListPage: React.FC = () => {
                             className="px-2 py-0.5 rounded-md bg-green-700/60 hover:bg-green-600/70 text-white transition-colors">
                             WhatsApp
                           </a>}
+                          {remindDownload && whatsappUrl(event.client.phone) && <a href={whatsappUrl(event.client.phone, downloadReminderWhatsAppMessage(item.token, validUntil))!} target="_blank" rel="noopener noreferrer"
+                            className="px-2 py-0.5 rounded-md border border-green-700/70 text-green-300 hover:bg-green-700/30 transition-colors">
+                            ⏰ Reminder descărcare
+                          </a>}
                         </span>}
                         <span>Creat: {formatDate(item.createdAt)}</span>
                         {item.signedAt && <span>Semnat: {formatDate(item.signedAt)}</span>}
                         {item.awb && <span>AWB: {item.awb}</span>}
                       </div>
+                      {remindDownload && (validUntil || item.downloadReminderSentAt) && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs">
+                          {validUntil && daysLeft !== null && (
+                            <span className={daysLeft <= 0 ? "text-red-400" : daysLeft <= 3 ? "text-amber-400" : "text-neutral-400"}>
+                              Link-uri valabile până: {formatDate(validUntil.toISOString())}
+                              {daysLeft <= 0 ? " · expirate" : ` · ${daysLeft === 1 ? "o zi rămasă" : `${daysLeft} zile rămase`}`}
+                            </span>
+                          )}
+                          {item.downloadReminderSentAt && (
+                            <span className="text-sky-400">
+                              Reminder descărcare trimis: {formatDate(item.downloadReminderSentAt)}
+                              {(item.downloadReminderCount ?? 0) > 1 && ` · ${item.downloadReminderCount}×`}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <HandoverActionMenu
@@ -343,6 +403,7 @@ const HandoverListPage: React.FC = () => {
                       deleting={deleting}
                       resending={resending}
                       reminding={reminding}
+                      downloadReminding={downloadReminding}
                       onPreview={() => { void openAuthedInNewTab(`/api/handover/${item.id}/preview`).catch(() => {}); }}
                       onSend={() => confirmAction("send", item.id, `${item.eventType} — ${item.clientEmail || item.clientName || "client"}`)}
                       onCopyLink={() => {
@@ -353,6 +414,7 @@ const HandoverListPage: React.FC = () => {
                       onDelete={() => confirmAction("delete", item.id, `${item.eventType} — ${item.clientEmail || item.clientName || "client"}`)}
                       onResend={() => handleResend(item.id)}
                       onReminder={() => handleReminder(item.id)}
+                      onDownloadReminder={() => handleDownloadReminder(item.id)}
                       onEdit={() => setEditingItem(item)}
                     />
                   </div>

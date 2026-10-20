@@ -68,6 +68,22 @@ export const SEED_DEFAULT_CLAUSES: SeedClause[] = [
     `,
   },
   {
+    key: "video-compatibilitate",
+    title: "Compatibilitatea materialelor video — redare pe laptop/PC, nu pe televizor",
+    appliesTo: "all",
+    order: 35,
+    groupKey: null,
+    conditionTag: "hasVideo",
+    mutexGroup: null,
+    bodyTemplate: `
+      <p>Materialele video finale se livrează în format <span class="bold">MP4</span>, cu encodare <span class="bold">H.264</span>, rezoluție <span class="bold">4K</span> și un bitrate de <span class="bold">30 Mbps</span>. PRESTATORUL răspunde exclusiv de faptul că materialele video pot fi deschise și vizualizate corect pe un <span class="bold">laptop sau calculator (PC)</span>.</p>
+      <p>PRESTATORUL nu asigură și nu garantează redarea materialelor video pe televizoare (inclusiv Smart TV), videoproiectoare sau alte dispozitive de redare. Modelele de televizoare diferă de la un producător la altul și de la un an la altul: unele acceptă doar formatul Full HD (1080p), altele și formatul 4K, iar existența unui port USB pe televizor nu înseamnă că acesta are și funcție de redare a fișierelor video.</p>
+      <p>Este obligația BENEFICIARULUI să verifice dacă televizorul sau dispozitivul pe care dorește să vizioneze materialele este compatibil cu formatul descris mai sus (MP4, H.264, 4K, 30 Mbps).</p>
+      <p>În cazul în care pachetul contractat include un stick USB, PRESTATORUL nu garantează că acesta va fi recunoscut sau că materialele de pe el vor putea fi redate pe orice televizor. Materialele de pe stick se consideră conforme dacă pot fi deschise și vizualizate pe un laptop sau PC.</p>
+      <p>La cererea BENEFICIARULUI, PRESTATORUL poate converti materialele video din 4K în format Full HD (1080p), pentru o compatibilitate mai largă cu televizoarele. Aceasta este singura adaptare de format pe care PRESTATORUL o oferă. Incompatibilitatea unui televizor sau a unui alt dispozitiv de redare cu materialele livrate nu reprezintă o neîndeplinire a obligațiilor PRESTATORULUI și nu poate fi invocată ca temei pentru reclamații, reținerea plății sau solicitarea de despăgubiri.</p>
+    `,
+  },
+  {
     key: "photobooth-specs",
     title: "Produsul livrat — specificații fotocabină / photo booth",
     appliesTo: "all",

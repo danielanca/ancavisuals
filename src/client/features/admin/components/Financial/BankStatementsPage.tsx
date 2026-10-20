@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 import { ROMANIAN_COUNTIES, getCitiesForCounty } from "../../../../data/romaniaLocations";
+import { EXPENSE_CATEGORIES } from "../../../../../shared/finance/expenseCategories";
 
 interface ReviewCandidate {
   type: "invoice" | "expense";
@@ -580,16 +581,6 @@ function QuickAddInvoiceModal({ accessToken, entry, onClose, onAdded }: QuickAdd
   );
 }
 
-const EXPENSE_CATEGORIES = [
-  { value: "combustibil", label: "Combustibil" },
-  { value: "echipament", label: "Echipament" },
-  { value: "transport", label: "Transport" },
-  { value: "software", label: "Software" },
-  { value: "cazare", label: "Cazare" },
-  { value: "alimentatie", label: "Alimentație" },
-  { value: "marketing", label: "Marketing" },
-  { value: "altele", label: "Altele" },
-];
 
 interface QuickAddExpenseModalProps {
   accessToken: string;
