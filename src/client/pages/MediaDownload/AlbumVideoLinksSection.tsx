@@ -1,7 +1,10 @@
 /*
  * Purpose: "Video lung" / "Video scurt" at the end of /media/:slug, after the photos.
  * The admin always sees both sections with a link field; the client only sees a section once
- * its link is saved (YouTube / Vimeo / Drive play inline, any other https link opens in a new tab).
+ * its link is saved. "Video scurt" plays inline (YouTube / Vimeo / Drive); "Video lung" is never
+ * played on the page — the client only gets a download button that opens the link.
+ * "Video scurt" is edited in the uploaded-video section (AlbumShortVideoManager); here it only plays
+ * the link, and only while no file is uploaded — the uploaded file wins.
  */
 import { useEffect, useState } from "react";
 import {
@@ -19,15 +22,16 @@ type Props = {
   slug: string;
   isAdmin: boolean;
   accessToken: string | null;
+  hasUploadedShort: boolean;
 };
 
-function VideoPlayer({ link, title }: { link: string; title: string }) {
-  const embed = videoEmbedUrl(link);
+function VideoPlayer({ link, title, playable }: { link: string; title: string; playable: boolean }) {
+  const embed = playable ? videoEmbedUrl(link) : null;
   if (!embed) {
     return (
       <div className={styles.actions}>
         <a className={styles.downloadBtn} href={link} target="_blank" rel="noopener noreferrer">
-          ▶ DESCHIDE {title.toUpperCase()}
+          {playable ? "▶ DESCHIDE" : "⬇ DESCARCĂ"} {title.toUpperCase()}
         </a>
       </div>
     );
@@ -117,7 +121,7 @@ function AdminVideoLinkForm({
   );
 }
 
-export default function AlbumVideoLinksSection({ slug, isAdmin, accessToken }: Props) {
+export default function AlbumVideoLinksSection({ slug, isAdmin, accessToken, hasUploadedShort }: Props) {
   const [links, setLinks] = useState<AlbumVideoLinks>({});
 
   useEffect(() => {
@@ -134,7 +138,7 @@ export default function AlbumVideoLinksSection({ slug, isAdmin, accessToken }: P
       const response = await fetch(`/api/album/${encodeURIComponent(slug)}/video-links`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken ?? ""}` },
-        body: JSON.stringify({ ...links, [kind]: link.trim() }),
+        body: JSON.stringify({ [kind]: link.trim() }),
       });
       if (!response.ok) return response.status === 400 ? "Link invalid." : "Nu s-a putut salva. Încearcă din nou.";
       const data = await response.json() as { links?: AlbumVideoLinks };
@@ -145,7 +149,8 @@ export default function AlbumVideoLinksSection({ slug, isAdmin, accessToken }: P
     }
   };
 
-  const visible = ALBUM_VIDEO_KINDS.filter((kind) => isAdmin || Boolean(links[kind]));
+  const visible = ALBUM_VIDEO_KINDS.filter((kind) =>
+    kind === "short" ? Boolean(links.short) && !hasUploadedShort : isAdmin || Boolean(links[kind]));
   if (visible.length === 0) return null;
 
   return (
@@ -156,8 +161,8 @@ export default function AlbumVideoLinksSection({ slug, isAdmin, accessToken }: P
         return (
           <div key={kind} data-testid={`album-video-${kind}`}>
             <h2 className={styles.sectionTitle}>{title}</h2>
-            {link && <VideoPlayer link={link} title={title} />}
-            {isAdmin && <AdminVideoLinkForm kind={kind} saved={link} onSave={save} />}
+            {link && <VideoPlayer link={link} title={title} playable={kind === "short"} />}
+            {isAdmin && kind !== "short" && <AdminVideoLinkForm kind={kind} saved={link} onSave={save} />}
           </div>
         );
       })}

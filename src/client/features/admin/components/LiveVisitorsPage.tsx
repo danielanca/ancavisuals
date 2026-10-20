@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useAuth from "../auth/useAuth";
 import Breadcrumb from "./Breadcrumb";
+import { notificationSourceFromAttribution } from "../../../../shared/albumNotificationSource";
 import { visitDay, visitDayBounds, visitStatus, observedDuration, visitSource, isAlbumVisit, type VisitSource } from "../../../../shared/liveVisits";
 import { eventTypeLabel } from "../../../../shared/eventTypes";
 import "./LiveVisitorsPage.css";
@@ -100,6 +101,8 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
       return `Un vizitator${src} a intrat pe site${where !== "Acasă" ? ` — pe ${where}` : ""}.`;
     case "page_view":
       return `A trecut pe pagina ${where}.`;
+    case "album_notification_opened":
+      return `👀 A deschis albumul din ${ev.label || "o notificare"}.`;
     case "scroll_depth": {
       const d = ev.meta?.depth;
       return d ? `A dat scroll ${d}% pe ${where}.` : `Derulează pagina ${where}.`;
@@ -437,7 +440,7 @@ export default function LiveVisitorsPage() {
               const source = visitSource(s.attribution, s.isGoogleAds);
               return <button key={s.sessionId} className={`lv-session ${selected?.sessionId === s.sessionId ? "is-selected" : ""}`} aria-pressed={selected?.sessionId === s.sessionId} onClick={() => setSelectedId(s.sessionId)}>
                 <div className="lv-session-top"><strong>Vizitator {visitorLabel(s)}</strong><time>{shortTime(s.firstSeenAt).slice(0, 5)}</time></div>
-                <div className="lv-session-tags"><span className={`lv-source source-${source}`}>{SOURCE_BADGE[source].label}</span>{isAlbumVisit(s) && <span className="lv-client">Client · Album</span>}{!isAlbumVisit(s) && s.path.some((p) => /^\/blog(?:\/|$)/.test(p.page)) && <span className="lv-client">{source === "direct" ? "Blog · sursă necunoscută" : "Blog"}</span>}<span className={`lv-status state-${state}`}>{STATUS_LABEL[state]}</span></div>
+                <div className="lv-session-tags"><span className={`lv-source source-${source}`}>{SOURCE_BADGE[source].label}</span>{isAlbumVisit(s) && <span className="lv-client">Client · Album</span>}{notificationSourceFromAttribution(s.attribution) && <span className="lv-client">din {notificationSourceFromAttribution(s.attribution)!.label}</span>}{!isAlbumVisit(s) && s.path.some((p) => /^\/blog(?:\/|$)/.test(p.page)) && <span className="lv-client">{source === "direct" ? "Blog · sursă necunoscută" : "Blog"}</span>}<span className={`lv-status state-${state}`}>{STATUS_LABEL[state]}</span></div>
                 <p className="lv-session-page" title={s.currentPage}>{s.currentPage}</p>
                 <div className="lv-session-bottom"><span>{s.city || s.country || "Locație necunoscută"} · {s.deviceType === "mobile" ? "Mobil" : s.deviceType === "tablet" ? "Tabletă" : "Desktop"}</span><span>{s.pageCount} pag. · {compactDuration(observedDuration(s))}</span></div>
                 {(isLead(s) || hasIntent(s)) && !isAlbumVisit(s) && <span className="lv-intent">{isLead(s) ? "✓ Formular de contact" : "↗ Interes de contact"}</span>}
@@ -480,6 +483,8 @@ function compactDuration(seconds: number): string {
   return `${value}s`;
 }
 function originLabel(s: LiveSession): string {
+  const notification = notificationSourceFromAttribution(s.attribution);
+  if (notification) return notification.label;
   if (s.attribution.utmSource) return s.attribution.utmSource;
   try { return new URL(s.attribution.referrer || "").hostname; } catch { return visitSource(s.attribution, s.isGoogleAds) === "google_ads" ? "Identificator Google Ads" : "Fără referrer / UTM"; }
 }

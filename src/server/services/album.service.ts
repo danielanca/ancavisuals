@@ -7,6 +7,7 @@ import {
   getBunnyStorageKey,
 } from "../constants/bunny.js";
 import { firestore } from "../firestore.js";
+import { isShortVideoObject } from "../../shared/albumShortVideo.js";
 import { FieldValue } from "firebase-admin/firestore";
 import type { Album } from "./../../client/pages/MediaDownload/AlbumTypes.js";
 
@@ -14,7 +15,7 @@ const storageKey = getBunnyStorageKey();
 const FIRESTORE_CACHE_COL = "album_index";
 const FIRESTORE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 oră
 
-type BunnyObject = { ObjectName: string };
+type BunnyObject = { ObjectName: string; IsDirectory?: boolean };
 type AlbumMediaList = string[];
 type AlbumVideo = string | null;
 
@@ -147,9 +148,8 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
 
   const loadVideo = async (section: string): Promise<AlbumVideo> => {
     try {
-      const objects = await listFiles(`${slug}/${section}`);
-      if (!objects.length) return null;
-      return signBunnyUrl(`/${slug}/${section}/${(objects[0] as BunnyObject).ObjectName}`);
+      const video = (await listFiles(`${slug}/${section}`) as BunnyObject[]).find(isShortVideoObject);
+      return video ? signBunnyUrl(`/${slug}/${section}/${video.ObjectName}`) : null;
     } catch { return null; }
   };
 

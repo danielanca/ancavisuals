@@ -2571,13 +2571,6 @@ const FinancialPage: React.FC = () => {
               </div>
             ) : (
               <>
-                <ExpenseCategoryStats
-                  stats={categoryStats}
-                  open={showCategoryStats}
-                  onToggle={() => setShowCategoryStats((v) => !v)}
-                  selected={expenseCategoryFilter}
-                  onSelect={(value) => setExpenseCategoryFilter((current) => (current === value ? null : value))}
-                />
                 <div className="flex gap-4 text-sm px-1 flex-wrap">
                   <span className="text-neutral-400">Total: <span className="text-white font-medium">{fmtCurrency(visibleExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.amount * rateForDate(e.date) : e.amount), 0), "RON")}</span></span>
                   <span className="text-neutral-400">Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(visibleExpenses.reduce((s, e) => s + (e.currency === "EUR" ? e.deductibleAmount * rateForDate(e.date) : e.deductibleAmount), 0), "RON")}</span></span>
@@ -2642,6 +2635,14 @@ const FinancialPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                {/* Below the list: the expenses are what you open this tab for; the stats are a summary. */}
+                <ExpenseCategoryStats
+                  stats={categoryStats}
+                  open={showCategoryStats}
+                  onToggle={() => setShowCategoryStats((v) => !v)}
+                  selected={expenseCategoryFilter}
+                  onSelect={(value) => setExpenseCategoryFilter((current) => (current === value ? null : value))}
+                />
               </>
             )}
           </div>

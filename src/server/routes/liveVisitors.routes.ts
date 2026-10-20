@@ -7,7 +7,10 @@ import { firestore } from "../firestore";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { isLocalIp } from "../controllers/triggerEvent.controller";
 import { BOT_UA, isCrawlerIp } from "../utils/botUa";
-import { logActivity } from "../services/activity.service";
+import { logActivity, createActivityOnce } from "../services/activity.service";
+import { sendEmail } from "../notifications/mailer";
+import { APP_BASE_URL } from "../constants/domain";
+import { parseNotificationSource } from "../../shared/albumNotificationSource";
 import { blockEmail, sendViaFunnel, type BlockCode, type FunnelEmail } from "../notifications/emailFunnel";
 import { adminUser } from "../constants/credentials";
 import { isNotifiableCountry } from "../utils/geoFilter";
@@ -240,6 +243,36 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
         },
         emailSent: false,
       }).catch(() => {});
+    }
+
+    // A client opened the album from our SMS / WhatsApp / email: once per album, source and day in
+    // Activitate + an email to the owner (asked for; the only page view that emails).
+    if (body.event === "album_notification_opened") {
+      const notification = parseNotificationSource(`${meta.channel ?? ""}-${meta.kind ?? ""}`);
+      const slug = /^\/media\/([^/?#]+)/.exec(event.page)?.[1];
+      if (notification && slug) {
+        const day = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Bucharest" });
+        const geoLabel = [session.city, session.country].filter(Boolean).join(", ") || "locație necunoscută";
+        let albumSlug = slug;
+        try { albumSlug = decodeURIComponent(slug); } catch { /* malformed escape: keep it raw */ }
+        // The update email's button already emails the owner with the subscriber's address (/click).
+        const emailed = !(notification.channel === "email" && notification.kind === "nou");
+        createActivityOnce(`album-open:${slug}:${notification.channel}-${notification.kind}:${day}`, {
+          type: "album_opened",
+          title: `👀 Album deschis din ${notification.label}`,
+          description: `${albumSlug} · ${geoLabel}`,
+          metadata: { albumSlug, channel: notification.channel, kind: notification.kind, route: `/media/${slug}` },
+          emailSent: emailed,
+        }).then(({ created }) => {
+          if (!created || !emailed) return;
+          return sendEmail({
+            to: adminUser.email,
+            source: "album-notification-opened",
+            subject: `👀 Clientul a deschis albumul ${albumSlug} din ${notification.label}`,
+            html: albumOpenedEmail(albumSlug, notification.label, geoLabel, session.deviceType),
+          });
+        }).catch((error) => console.error("[live-visitors] album open log/email failed:", error));
+      }
     }
 
     if (isEmailWorthy(body.event, formKind)) {
@@ -490,3 +523,21 @@ liveVisitorsAdminRouter.post(
     }
   },
 );
+
+const DEVICE_LABEL = { mobile: "telefon", tablet: "tabletă", desktop: "calculator" } as const;
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+
+function albumOpenedEmail(slug: string, sourceLabel: string, geoLabel: string, device: keyof typeof DEVICE_LABEL): string {
+  const at = new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" });
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:8px 0;color:#666;width:120px;">${label}</td><td style="color:#111;font-weight:600;">${escapeHtml(value)}</td></tr>`;
+  return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="color:#111;margin:0 0 16px;">Clientul a deschis albumul din notificare</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      ${row("Album", slug)}${row("A venit din", sourceLabel)}${row("Când", at)}${row("Locație", geoLabel)}${row("Dispozitiv", DEVICE_LABEL[device] ?? device)}
+    </table>
+    <p style="margin:20px 0 0;color:#666;font-size:13px;">Primești un singur email pe zi pentru fiecare album și sursă.</p>
+    <p style="margin:16px 0 0;"><a href="${APP_BASE_URL}/media/${encodeURIComponent(slug)}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;text-decoration:none;">Deschide albumul</a></p>
+  </div>`;
+}

@@ -69,3 +69,22 @@ test("client options can be found by the written event date", async () => {
   expect(eventDateSearchLabel(null)).toBe("fără dată");
   expect(eventDateSearchLabel("nu e dată")).toBe("fără dată");
 });
+
+test("„Încep” puts the task on the timeline at the current Bucharest time", async () => {
+  vi.useRealTimers();
+  vi.useFakeTimers({ now: new Date("2026-10-20T11:37:00Z"), toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] }); // 14:37 in Bucharest (EEST)
+  tasksResponses = [
+    () => Promise.resolve(ok({ tasks: [{ ...task, durationMin: 45 }] })),
+    () => Promise.resolve(ok({ task: { ...task, durationMin: 45, status: "doing", plannedFor: "2026-10-20", scheduledStart: "14:37" } })),
+  ];
+  render(<TasksPage />);
+  await advance(0);
+  fireEvent.click(screen.getByRole("tab", { name: "De făcut (1)" }));
+  fireEvent.click(screen.getByRole("button", { name: "Încep" }));
+  await advance(0);
+  const patch = vi.mocked(fetch).mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
+  expect(patch?.[0]).toBe("/api/admin/tasks/t1");
+  expect(JSON.parse(String((patch?.[1] as RequestInit).body))).toEqual({
+    status: "doing", plannedFor: "2026-10-20", scheduledStart: "14:37", durationMin: 45,
+  });
+});

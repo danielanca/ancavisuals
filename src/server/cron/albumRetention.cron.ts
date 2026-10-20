@@ -7,6 +7,7 @@ import { markRetentionNotificationSent } from "../services/printSelection.store"
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 import { APP_BASE_URL as BASE_URL } from "../constants/domain";
+import { albumNotificationUrl } from "../../shared/albumNotificationSource";
 
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString("ro-RO", {
@@ -55,7 +56,7 @@ async function sendSubscriberReminder(slug: string, expiresAt: string, daysLeft:
             <p style="color:#aaa;font-size:14px;line-height:1.6;margin:0 0 24px;">
               Albumul <strong style="color:#fff">${slug}</strong> este programat pentru expirare la <strong style="color:#fff">${formatDateTime(expiresAt)}</strong>.
             </p>
-            <a href="${BASE_URL}/media/${encodeURIComponent(slug)}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
+            <a href="${albumNotificationUrl(BASE_URL, slug, "email", "expira")}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
               Deschide albumul
             </a>
             <hr style="border:none;border-top:1px solid #222;margin:32px 0;" />

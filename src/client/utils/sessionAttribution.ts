@@ -1,4 +1,5 @@
 import { isBrowser } from "./functions";
+import { NOTIFICATION_MEDIUM, NOTIFICATION_SOURCE_PARAM, parseNotificationSource } from "../../shared/albumNotificationSource";
 
 const LANDING_KEY = "av_landing_meta";
 
@@ -38,12 +39,14 @@ export function captureLandingMeta(): void {
   try {
     if (sessionStorage.getItem(LANDING_KEY)) return;
     const params = new URLSearchParams(window.location.search);
+    // Album links from our SMS / WhatsApp / email carry a short `?s=sms-nou` instead of utm_*.
+    const notification = params.get("utm_source") ? null : parseNotificationSource(params.get(NOTIFICATION_SOURCE_PARAM));
     const meta: LandingMeta = {
       landingPath: window.location.pathname + window.location.search,
       referrer: document.referrer || "direct",
-      utmSource: params.get("utm_source")?.trim() || undefined,
-      utmMedium: params.get("utm_medium")?.trim() || undefined,
-      utmCampaign: params.get("utm_campaign")?.trim() || undefined,
+      utmSource: params.get("utm_source")?.trim() || notification?.channel || undefined,
+      utmMedium: params.get("utm_medium")?.trim() || (notification ? NOTIFICATION_MEDIUM : undefined),
+      utmCampaign: params.get("utm_campaign")?.trim() || notification?.kind || undefined,
       utmContent: params.get("utm_content")?.trim() || undefined,
       utmTerm: params.get("utm_term")?.trim() || undefined,
       keyword: params.get("q")?.trim() || params.get("query")?.trim() || undefined,

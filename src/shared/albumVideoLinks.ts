@@ -9,7 +9,8 @@ export type AlbumVideoKind = (typeof ALBUM_VIDEO_KINDS)[number];
 export type AlbumVideoLinks = Partial<Record<AlbumVideoKind, string>>;
 
 export const ALBUM_VIDEO_META: Record<AlbumVideoKind, { title: string; placeholder: string }> = {
-  long: { title: "Video lung", placeholder: "https://youtube.com/... sau link Drive / Vimeo" },
+  // Long videos are download-only on /media (no inline player).
+  long: { title: "Video lung", placeholder: "Link de descărcare: SwissTransfer / WeTransfer / Drive" },
   short: { title: "Video scurt", placeholder: "https://youtube.com/shorts/... sau link Drive / Vimeo" },
 };
 

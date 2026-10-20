@@ -4,7 +4,8 @@ import EmailDiagnostics from "./EmailDiagnostics";
 import useAuth from "../auth/useAuth";
 
 type ActivityType = "contact" | "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit"
-  | "task_overdue" | "upload_incomplete" | "processing_failed" | "processing_complete" | "album_zip" | "email_failed";
+  | "task_overdue" | "upload_incomplete" | "processing_failed" | "processing_complete" | "album_zip" | "email_failed"
+  | "album_opened";
 
 interface Activity {
   id: string;
@@ -40,6 +41,7 @@ const TYPE_ICON: Record<ActivityType, string> = {
   processing_complete: "✅",
   album_zip: "📦",
   email_failed: "✉️",
+  album_opened: "👀",
 };
 
 const TYPE_COLOR: Record<ActivityType, string> = {
@@ -55,6 +57,7 @@ const TYPE_COLOR: Record<ActivityType, string> = {
   processing_complete: "#22c55e",
   album_zip: "#38bdf8",
   email_failed: "#fb7185",
+  album_opened: "#a3e635",
 };
 
 const TYPE_LABEL: Record<ActivityType, string> = {
@@ -70,6 +73,7 @@ const TYPE_LABEL: Record<ActivityType, string> = {
   processing_complete: "Procesare finalizată",
   album_zip: "ZIP album",
   email_failed: "Email eșuat",
+  album_opened: "Album deschis",
 };
 
 const SETTING_LABELS: (keyof NotificationSettings["email"])[] = [
@@ -261,7 +265,7 @@ export default function ActivityInbox() {
 
       {/* Filter tabs */}
       <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #1a1a1a", overflowX: "auto" }}>
-        {(["all", "lead", "task_overdue", "processing_failed", "processing_complete", "album_zip", "email_failed", "contact", "subscribe", "offer_viewed"] as const).map((f) => (
+        {(["all", "lead", "task_overdue", "processing_failed", "processing_complete", "album_zip", "album_opened", "email_failed", "contact", "subscribe", "offer_viewed"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

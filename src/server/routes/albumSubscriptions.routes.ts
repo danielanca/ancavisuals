@@ -10,10 +10,12 @@ import { logActivity, getNotificationSettings } from "../services/activity.servi
 import crypto from "node:crypto";
 import { listOpenPromises, markPromiseDone } from "../services/albumPromises";
 import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from "../notifications/sms";
+import { albumNotificationUrl, type NotificationChannel } from "../../shared/albumNotificationSource";
 import {
   ALBUM_UPDATE_META,
   ALBUM_UPDATE_TEXT_MAX,
   AUTOMATED_MESSAGE_LABEL,
+  messageGreeting,
   CONTACT_PHONE_DISPLAY,
   SUBSCRIBE_CHANNEL_META,
   albumUpdateMessage,
@@ -133,7 +135,7 @@ router.post("/subscribe", async (req: Request, res: Response) => {
         to: normalizedEmail,
         source: "album-subscribe-confirmation",
         subject: "[Mesaj automat] ✅ Te-ai abonat la noutățile albumului — Anca Visuals",
-        html: subscribeConfirmationEmail(albumSlug, result.channels, parsed.name, result.unsubscribeToken),
+        html: subscribeConfirmationEmail(albumSlug, result.channels, result.unsubscribeToken),
       }).catch((error) => console.error("[album-subscriptions] confirmation email failed:", error));
     }
 
@@ -181,7 +183,8 @@ router.post("/subscribe", async (req: Request, res: Response) => {
 router.get("/click/:slug", async (req: Request, res: Response) => {
   const { slug } = req.params;
   const email = typeof req.query.email === "string" ? req.query.email.trim().toLowerCase() : "";
-  const albumUrl = `${BASE_URL}/media/${slug}`;
+  // Only the update email links here, so the album sees it as `email-nou`.
+  const albumUrl = albumNotificationUrl(BASE_URL, slug, "email", "nou");
 
   if (!slug || !email) {
     res.redirect(albumUrl);
@@ -411,22 +414,20 @@ router.get("/updates/:slug", async (req: Request, res: Response) => {
 export function subscribeConfirmationEmail(
   slug: string,
   channels: readonly SubscribeChannel[],
-  name: string | null | undefined,
   token: string | undefined,
 ): string {
-  const albumUrl = `${BASE_URL}/media/${encodeURIComponent(slug)}`;
+  const albumUrl = albumNotificationUrl(BASE_URL, slug, "email", "abonare");
   const stop = unsubscribeUrl(token);
-  const firstName = name?.trim().split(/\s+/)[0];
   const channelList = channels.map((c) => SUBSCRIBE_CHANNEL_META[c].label).join(", ");
   return `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff;">
-      <p style="color:#999;font-size:12px;line-height:1.5;border-left:2px solid #c9a96e;padding:2px 0 2px 10px;margin:0 0 20px;">${AUTOMATED_MESSAGE_LABEL}</p>
+      <p style="color:#ddd;font-size:15px;line-height:1.6;margin:0 0 16px;">${escHtml(messageGreeting(slug))}</p>
       <p style="color:#c9a96e;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:0 0 8px;">✅ Abonare confirmată</p>
-      <h1 style="font-size:22px;font-weight:500;margin:0 0 12px;">${firstName ? `Bună, ${escHtml(firstName)}!` : "Bună!"}</h1>
       <p style="color:#ddd;font-size:15px;line-height:1.6;margin:0 0 12px;">Te-ai abonat la noutățile albumului <strong>${escHtml(slug)}</strong>.</p>
       <p style="color:#ddd;font-size:15px;line-height:1.6;margin:0 0 24px;">Îți scriem pe <strong>${escHtml(channelList)}</strong> când apar poze noi, o estimare de livrare sau un anunț de la fotograf.</p>
       <a href="${albumUrl}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">Vezi albumul →</a>
       <hr style="border:none;border-top:1px solid #222;margin:32px 0;" />
+      <p style="color:#999;font-size:12px;margin:0 0 8px;">${AUTOMATED_MESSAGE_LABEL}</p>
       <p style="color:#555;font-size:12px;">Nu te-ai abonat tu? Poți ignora acest mesaj${stop ? ` sau te poți <a href="${stop}" style="color:#777;">dezabona aici</a>` : ""}. Pentru întrebări, scrie-ne pe WhatsApp la ${CONTACT_PHONE_DISPLAY}.</p>
     </div>`;
 }
@@ -437,12 +438,13 @@ function albumUpdateEmail(update: AlbumUpdate, slug: string, subscriber: Subscri
   const stop = unsubscribeUrl(subscriber.unsubscribeToken);
   return `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff;">
-      <p style="color:#999;font-size:12px;line-height:1.5;border-left:2px solid #c9a96e;padding:2px 0 2px 10px;margin:0 0 20px;">${AUTOMATED_MESSAGE_LABEL}</p>
+      <p style="color:#ddd;font-size:15px;line-height:1.6;margin:0 0 16px;">${escHtml(messageGreeting(slug))}</p>
       <p style="color:#c9a96e;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:0 0 8px;">${meta.emoji} ${meta.label}</p>
       ${update.estimateDate ? `<h1 style="font-size:22px;font-weight:500;margin:0 0 12px;">${escHtml(formatEstimateDate(update.estimateDate))}</h1>` : ""}
       <p style="color:#ddd;font-size:15px;line-height:1.6;margin:0 0 24px;white-space:pre-line;">${escHtml(update.text)}</p>
       <a href="${clickUrl}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">Vezi albumul →</a>
       <hr style="border:none;border-top:1px solid #222;margin:32px 0;" />
+      <p style="color:#999;font-size:12px;margin:0 0 8px;">${AUTOMATED_MESSAGE_LABEL}</p>
       <p style="color:#555;font-size:12px;">Ai primit acest mesaj pentru că te-ai abonat la noutățile albumului <em>${escHtml(slug)}</em>. Pentru întrebări, scrie-ne pe WhatsApp la ${CONTACT_PHONE_DISPLAY}.${stop ? ` <a href="${stop}" style="color:#777;">Dezabonare</a>` : ""}</p>
     </div>`;
 }
@@ -515,8 +517,10 @@ async function publishAlbumUpdate(slug: string, body: PublishBody, { emailAdminW
   let message = "";
 
   if (body.notify === true) {
-    const albumUrl = `${BASE_URL}/media/${encodeURIComponent(slug)}`;
-    message = albumUpdateMessage(update, albumUrl);
+    // Each channel gets its own link (`?s=sms-nou` / `?s=wa-nou`) so an open tells where it came from.
+    const messageFor = (channel: NotificationChannel) => albumUpdateMessage(update, albumNotificationUrl(BASE_URL, slug, channel, "nou"), slug);
+    message = messageFor("wa");
+    const smsMessage = messageFor("sms");
     const snapshot = await db.collection(COLLECTION).where("albumSlug", "==", slug).get();
     const smsReady = isSmsConfigured();
     await Promise.all(snapshot.docs.map(async (doc) => {
@@ -532,7 +536,7 @@ async function publishAlbumUpdate(slug: string, body: PublishBody, { emailAdminW
       if (phoneChannels.includes("sms") && subscriber.phone) {
         if (!smsReady) smsSkipped = true;
         else {
-          try { await sendSms({ to: subscriber.phone, body: `${message}\nDezabonare: ${unsubscribeUrl(subscriber.unsubscribeToken)}` }); sent.sms++; }
+          try { await sendSms({ to: subscriber.phone, body: `${smsMessage}\nDezabonare: ${unsubscribeUrl(subscriber.unsubscribeToken)}` }); sent.sms++; }
           catch (error) { sent.failed++; console.error("[albumUpdates] SMS failed:", error instanceof Error ? error.message : error); }
         }
       }

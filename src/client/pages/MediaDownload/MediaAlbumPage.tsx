@@ -19,10 +19,14 @@ import AncaLoader from "../../components/UI/AncaLoader";
 import AncaVisualsPromo from "./AncaVisualsPromo";
 import { OFFER_SERVICES } from "../../../shared/offers/offerServices";
 import { sendLiveEvent } from "../../utils/liveEvent";
+import { NOTIFICATION_SOURCE_PARAM, parseNotificationSource } from "../../../shared/albumNotificationSource";
 import ShareManagerPanel from "./ShareManagerPanel";
 import AlbumUpdatesSection, { OPEN_ALBUM_UPDATES_EVENT } from "./AlbumUpdatesSection";
 import AlbumActionHub from "./AlbumActionHub";
 import AlbumVideoLinksSection from "./AlbumVideoLinksSection";
+import MediaAdminPhotoUpload from "./MediaAdminPhotoUpload";
+import ShortVideoPlayer from "./ShortVideoPlayer";
+import AlbumShortVideoManager from "../../features/admin/components/AlbumShortVideoManager";
 import PrintReminderPanel from "./PrintReminderPanel";
 import ShareReviewModal from "./ShareReviewModal";
 import SmsSendList from "./SmsSendList";
@@ -298,7 +302,6 @@ export default function MediaAlbumPage() {
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [deliveryEditInitial, setDeliveryEditInitial] = useState<DeliveryAddress | null>(null);
   const [zipRequest, setZipRequest] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [showUrlModal, setShowUrlModal] = useState(false);
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
   /** Channel whose "check the photos first" overview is open (null = closed). */
   const [shareReview, setShareReview] = useState<"whatsapp" | "sms" | null>(null);
@@ -308,7 +311,6 @@ export default function MediaAlbumPage() {
   const [shareMode, setShareMode] = useState<"selected" | "all">("selected");
   const [shareListVersion, setShareListVersion] = useState(0);
   const [shareIntent, setShareIntent] = useState(false);
-  const [customUrl, setCustomUrl] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
   const [printExpanded, setPrintExpanded] = useState(false);
@@ -383,6 +385,7 @@ export default function MediaAlbumPage() {
   // ── DERIVED STATE ──────────────────────────────────────────────────────────
 
   const { mode, browsePage, printPage, downloadPage, selectedPrint, selectedDownload, shareUrl, shareError } = gallery;
+  const selectingPhotos = mode !== "none" || igProposeMode || moderationMode;
 
   const totalPhotos = album?.photos?.length ?? 0;
   const hasPhotos = totalPhotos > 0;
@@ -463,6 +466,21 @@ export default function MediaAlbumPage() {
   const downloadCount = selectedDownload.size;
 
   // ── EFFECTS ────────────────────────────────────────────────────────────────
+
+  // Opened from one of our notifications (`?s=sms-nou`…): tell /admin/live and Activitate which one.
+  // Once per tab per link, so refreshing the page does not report it again. The admin is not tracked.
+  useEffect(() => {
+    if (!slug || auth.authorise) return;
+    const source = parseNotificationSource(new URLSearchParams(window.location.search).get(NOTIFICATION_SOURCE_PARAM));
+    if (!source) return;
+    const key = `av_notification_open_${slug}_${source.channel}-${source.kind}`;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); } catch { /* still report */ }
+    sendLiveEvent("album_notification_opened", {
+      priority: "high",
+      label: source.label,
+      meta: { slug, channel: source.channel, kind: source.kind },
+    });
+  }, [slug, auth.authorise]);
 
   useEffect(() => {
     if (!slug) return;
@@ -667,6 +685,15 @@ export default function MediaAlbumPage() {
       }
     })();
   }, [slug]);
+
+  // After an admin upload from this page (photos / short video): the server already dropped its album cache.
+  const reloadAlbum = () => {
+    if (!slug) return;
+    fetch(`/api/album/${slug}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setAlbum(data); })
+      .catch(() => {});
+  };
 
   // ── HANDLERS ───────────────────────────────────────────────────────────────
 
@@ -974,20 +1001,6 @@ export default function MediaAlbumPage() {
   const closeShareReview = useCallback(() => setShareReview(null), []);
   const closeSmsList = useCallback(() => setSmsListUrl(null), []);
   const closeResetPrint = useCallback(() => setShowResetPrint(false), []);
-
-  const saveLink = async () => {
-    const url = customUrl.trim();
-    try {
-      const response = await fetch(`/api/album/${slug}/swisslink`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ link: url }),
-      });
-      if (response.ok) setShowUrlModal(false);
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   useEffect(() => {
     if (!auth.authorise || !auth.accessToken || !slug) return;
@@ -1470,6 +1483,10 @@ export default function MediaAlbumPage() {
           </nav>
         )}
 
+        {auth.authorise && !isModerationMode && slug && auth.accessToken && (
+          <MediaAdminPhotoUpload slug={slug} accessToken={auth.accessToken} onUploaded={reloadAlbum} />
+        )}
+
         {/* "Ce poți face aici" is the client's menu: not shown in the 🛠 Admin view. */}
         {!isModerationMode && !auth.authorise && (
           <AlbumActionHub
@@ -1507,9 +1524,6 @@ export default function MediaAlbumPage() {
 
         {isAdmin && (
           <div className={styles.actionButtons}>
-            <button type="button" className={styles.viewAction} onClick={() => setShowUrlModal(true)}>
-              Adaugă link Swiss Transfer
-            </button>
             {printCount > 0 && (
               <button type="button" className={styles.pickBtn} onClick={downloadPrintDynamic}>
                 ⬇ Descarcă selecția de imprimat ({printCount})
@@ -1552,32 +1566,6 @@ export default function MediaAlbumPage() {
             onClose={() => setShowDeliveryModal(false)}
             onEdit={(address) => { setDeliveryEditInitial(address); setShowDeliveryModal(false); setIsFormOpen(true); }}
           />
-        )}
-
-        {showUrlModal && (
-          <div className={styles.modalOverlay} onClick={() => setShowUrlModal(false)}>
-            <div className={styles.urlModal} onClick={(event) => event.stopPropagation()}>
-              <div className={styles.modalHeader}>
-                <h3>Link descărcare</h3>
-                <button className={styles.closeBtn} onClick={() => setShowUrlModal(false)} aria-label="Închide">×</button>
-              </div>
-              <div className={styles.modalBody}>
-                <p className={styles.modalHint}>Lipește sau editează link-ul direct de descărcare:</p>
-                <input
-                  type="url"
-                  value={customUrl}
-                  onChange={(event) => setCustomUrl(event.target.value)}
-                  placeholder="https://example.com/file.mp4"
-                  className={styles.urlInput}
-                  autoFocus
-                />
-                <div className={styles.modalFooter}>
-                  <button className={styles.btnSecondary} onClick={() => setShowUrlModal(false)}>Anulează</button>
-                  <button className={styles.btnPrimary} onClick={saveLink} disabled={!customUrl.trim()}>Salvează link</button>
-                </div>
-              </div>
-            </div>
-          </div>
         )}
 
         <div className={styles.divider} />
@@ -2055,20 +2043,23 @@ export default function MediaAlbumPage() {
             </div>
           </div>
 
-          {album.shortvideo && (
+          {(album.shortvideo || auth.authorise) && (
             <>
-              <h2 className={styles.sectionTitle}>Video scurt</h2>
-              <div className={styles.mediaCenter}>
-                <div className={styles.videoWrap}>
-                  <video className={styles.video} controls playsInline preload="metadata" src={album.shortvideo} />
+              {album.shortvideo ? (
+                <ShortVideoPlayer slug={album.slug} fallbackSrc={album.shortvideo} />
+              ) : (
+                <h2 className={styles.sectionTitle}>Video scurt</h2>
+              )}
+              {auth.authorise && slug && (
+                <div className="mb-6 mt-3">
+                  <AlbumShortVideoManager
+                    slug={slug}
+                    accessToken={auth.accessToken}
+                    onChanged={reloadAlbum}
+                  />
                 </div>
-              </div>
-              <div className={styles.actions}>
-                <a className={styles.downloadBtn} href={swissLink!}>
-                  {"DESCARCĂ VIDEO" + (stats?.shortVideoBytes ? ` (${fmtBytes(stats.shortVideoBytes)})` : "")}
-                </a>
-              </div>
-              {auth.authorise && (
+              )}
+              {auth.authorise && album.shortvideo && (
                 <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-start" }}>
                   {videoImportResult && (
                     <span style={{ fontSize: "12px", color: "#6ee7b7" }}>{videoImportResult}</span>
@@ -2142,7 +2133,7 @@ export default function MediaAlbumPage() {
             </>
           )}
 
-          {slug && <AlbumVideoLinksSection slug={slug} isAdmin={auth.authorise} accessToken={auth.accessToken ?? null} />}
+          {slug && <AlbumVideoLinksSection slug={slug} isAdmin={auth.authorise} accessToken={auth.accessToken ?? null} hasUploadedShort={Boolean(album.shortvideo)} />}
 
         {qrMoments && (qrMoments.photos.length > 0 || qrMoments.videos.length > 0 || qrMoments.audio.length > 0) && (
             <>
@@ -2284,7 +2275,9 @@ export default function MediaAlbumPage() {
       </div>
     </div>
 
-    <AncaVisualsPromo />
+    {/* While picking photos (album, download, Instagram / Media Assets, deletion) the portfolio
+        photos below would look like part of the album and get in the way: hide them. */}
+    {!selectingPhotos && <AncaVisualsPromo />}
 
 
     {auth.authorise && igProposals.length > 0 && (

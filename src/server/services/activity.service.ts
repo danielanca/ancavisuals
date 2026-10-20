@@ -3,7 +3,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { firestore } from "../firestore.js";
 
 export type ActivityType = "contact" | "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit"
-  | "task_overdue" | "upload_incomplete" | "processing_failed" | "processing_complete" | "album_zip" | "email_failed";
+  | "task_overdue" | "upload_incomplete" | "processing_failed" | "processing_complete" | "album_zip" | "email_failed"
+  | "album_opened";
 
 export interface ActivityRecord {
   id?: string;
@@ -53,14 +54,21 @@ export async function logActivity(record: Omit<ActivityRecord, "id" | "read" | "
 
 /** Log a durable operational event once. The key should identify one incident, not a recurring check. */
 export async function logActivityOnce(key: string, record: Omit<ActivityRecord, "id" | "read" | "createdAt">): Promise<string> {
+  return (await createActivityOnce(key, record)).id;
+}
+
+/** Same as logActivityOnce; `created` is false when the key was already logged (e.g. to send an email only once). */
+export async function createActivityOnce(key: string, record: Omit<ActivityRecord, "id" | "read" | "createdAt">): Promise<{ id: string; created: boolean }> {
   const db = firestore();
   const id = `system_${Buffer.from(key).toString("base64url").slice(0, 120)}`;
   const ref = db.collection(COLLECTION).doc(id);
-  await db.runTransaction(async (transaction) => {
+  const created = await db.runTransaction(async (transaction) => {
     const existing = await transaction.get(ref);
-    if (!existing.exists) transaction.create(ref, { ...record, read: false, createdAt: FieldValue.serverTimestamp() });
+    if (existing.exists) return false;
+    transaction.create(ref, { ...record, read: false, createdAt: FieldValue.serverTimestamp() });
+    return true;
   });
-  return id;
+  return { id, created };
 }
 
 export async function getActivities(limit = 60): Promise<ActivityRecord[]> {

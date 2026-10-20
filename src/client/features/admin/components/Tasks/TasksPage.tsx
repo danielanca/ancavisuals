@@ -303,6 +303,12 @@ export default function TasksPage() {
     const { day, time } = splitAbsolute(start, today);
     return updateTask(id, { plannedFor: day, scheduledStart: time, durationMin: durationMin ?? tasks.find((task) => task.id === id)?.durationMin ?? DEFAULT_DURATION_MIN });
   };
+  // „Încep” = îl faci acum: apare pe timeline la ora curentă, cu durata estimată (sau implicită).
+  const startTask = (id: string) => {
+    const { day, time } = splitAbsolute(bucharestMinutes(), bucharestDay());
+    const durationMin = tasks.find((task) => task.id === id)?.durationMin ?? DEFAULT_DURATION_MIN;
+    return updateTask(id, { status: "doing", plannedFor: day, scheduledStart: time, durationMin });
+  };
   const timelineTasks = useMemo(
     () =>
       tasks.filter(
@@ -321,6 +327,7 @@ export default function TasksPage() {
     onEdit: setEditingId,
     onUpdate: updateTask,
     onDelete: deleteTask,
+    onStart: startTask,
   };
 
   return (
@@ -748,6 +755,7 @@ function TaskRow({
   onDelete,
   order,
   onSchedule,
+  onStart,
 }: {
   task: ClientTask;
   today: string;
@@ -760,6 +768,8 @@ function TaskRow({
   order?: RowOrder;
   /** Doar în „Azi”: pune taskul pe o oră din timeline (null = scoate). */
   onSchedule?: (start: number | null, durationMin?: number) => void;
+  /** „Încep”: status „În lucru” + pus pe timeline la ora curentă. */
+  onStart: (id: string) => void;
 }) {
   const [priorityOpen, setPriorityOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -892,7 +902,7 @@ function TaskRow({
           <>
             <button
               type="button"
-              onClick={() => onUpdate(task.id, { status: task.status === "doing" ? "todo" : "doing" })}
+              onClick={() => (task.status === "doing" ? onUpdate(task.id, { status: "todo" }) : onStart(task.id))}
               className="px-2 py-1 rounded-md text-xs text-neutral-400 hover:text-white hover:bg-neutral-800"
             >
               {task.status === "doing" ? "Pauză" : "Încep"}

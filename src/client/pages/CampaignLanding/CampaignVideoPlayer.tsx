@@ -8,6 +8,9 @@
  * Adaptive quality: an HLS link (Bunny Stream `…/playlist.m3u8`) switches between the
  * encoded resolutions by the visitor's real bandwidth — natively on Safari (iPhone/Mac),
  * through hls.js elsewhere, loaded only on the first play. Plain MP4 links play as before.
+ *
+ * `variant="mono"` is the album look (/media: square, black & white, no gold) and fits the whole
+ * frame instead of cropping, since a client's short video may be vertical.
  */
 import React, { useEffect, useRef, useState } from "react";
 import { sendLiveEvent } from "../../utils/liveEvent";
@@ -20,7 +23,13 @@ const STYLES = `
     background: linear-gradient(to right, #c9a96e var(--cvp-progress, 0%), rgba(255,255,255,.25) var(--cvp-progress, 0%)); }
   .cvp-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 9999px; background: #e8c97a; border: 0; }
   .cvp-range::-moz-range-thumb { width: 14px; height: 14px; border-radius: 9999px; background: #e8c97a; border: 0; }
+  .cvp-mono.cvp-range { border-radius: 0; height: 3px;
+    background: linear-gradient(to right, #fff var(--cvp-progress, 0%), rgba(255,255,255,.25) var(--cvp-progress, 0%)); }
+  .cvp-mono.cvp-range::-webkit-slider-thumb { border-radius: 0; width: 4px; height: 14px; background: #fff; }
+  .cvp-mono.cvp-range::-moz-range-thumb { border-radius: 0; width: 4px; height: 14px; background: #fff; }
 `;
+
+type Variant = "gold" | "mono";
 
 const formatTime = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -45,7 +54,8 @@ const hlsThumbnail = (url: string) => url.replace(/playlist\.m3u8.*$/i, "thumbna
 
 type HlsInstance = { loadSource: (url: string) => void; attachMedia: (video: HTMLMediaElement) => void; destroy: () => void };
 
-export default function CampaignVideoPlayer({ src, poster, label }: { src: string; poster?: string; label?: string }) {
+export default function CampaignVideoPlayer({ src, poster, label, variant = "gold" }: { src: string; poster?: string; label?: string; variant?: Variant }) {
+  const mono = variant === "mono";
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const isHls = isHlsUrl(src);
@@ -149,7 +159,7 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onDurationChange={(e) => setDuration(e.currentTarget.duration)}
         onClick={togglePlay}
-        className="block aspect-video w-full object-cover"
+        className={`block aspect-video w-full ${mono ? "object-contain" : "object-cover"}`}
       />
 
       {/* Not playing (before the start or paused): the big gold play button, above the bar. */}
@@ -162,10 +172,10 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
           // button centred in the picture above the bar.
           className={`group absolute inset-0 flex flex-col items-center justify-center gap-4 ${started ? "bg-black/20" : "bg-black/25"}`}
         >
-          <BigPlay />
+          <BigPlay variant={variant} />
           {!started && (
             <span className="text-xs font-medium uppercase tracking-[0.25em] text-white/80">
-              Apasă pentru play
+              {mono ? "Play" : "Apasă pentru play"}
             </span>
           )}
         </button>
@@ -178,8 +188,8 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
           // A long, soft fade (no visible top edge) so the controls read on bright footage too.
           style={{ background: "linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.45) 40%, rgba(0,0,0,.15) 75%, rgba(0,0,0,0) 100%)" }}
         >
-          <ControlButton label={playing ? "Pauză" : "Play"} onClick={togglePlay} d={playing ? ICONS.pause : ICONS.play} />
-          <ControlButton label={muted ? "Pornește sunetul" : "Oprește sunetul"} onClick={toggleMute} d={muted ? ICONS.soundOff : ICONS.soundOn} />
+          <ControlButton variant={variant} label={playing ? "Pauză" : "Play"} onClick={togglePlay} d={playing ? ICONS.pause : ICONS.play} />
+          <ControlButton variant={variant} label={muted ? "Pornește sunetul" : "Oprește sunetul"} onClick={toggleMute} d={muted ? ICONS.soundOff : ICONS.soundOn} />
           <input
             type="range"
             min={0}
@@ -188,18 +198,27 @@ export default function CampaignVideoPlayer({ src, poster, label }: { src: strin
             value={time}
             onChange={(e) => seek(Number(e.target.value))}
             aria-label="Poziția în videoclip"
-            className="cvp-range mx-1 min-w-0 flex-1"
+            className={`cvp-range mx-1 min-w-0 flex-1 ${mono ? "cvp-mono" : ""}`}
             style={{ "--cvp-progress": progress } as React.CSSProperties}
           />
           <span className="shrink-0 text-[11px] tabular-nums text-white/85 sm:text-xs">{formatTime(time)} / {formatTime(duration)}</span>
-          <ControlButton label="Ecran complet" onClick={fullscreen} d={ICONS.fullscreen} />
+          <ControlButton variant={variant} label="Ecran complet" onClick={fullscreen} d={ICONS.fullscreen} />
         </div>
       )}
     </div>
   );
 }
 
-function BigPlay() {
+function BigPlay({ variant }: { variant: Variant }) {
+  if (variant === "mono") {
+    return (
+      <span className="flex h-16 w-16 items-center justify-center border border-white/70 bg-black/40 text-white backdrop-blur-sm transition-colors duration-300 group-hover:bg-white group-hover:text-black sm:h-20 sm:w-20">
+        <svg viewBox="1.25 0 24 24" className="h-7 w-7 fill-current sm:h-8 sm:w-8" aria-hidden="true">
+          <path d={ICONS.play} />
+        </svg>
+      </span>
+    );
+  }
   return (
     <span className="relative flex h-20 w-20 items-center justify-center sm:h-24 sm:w-24">
       <span className="cvp-ping absolute inset-0 rounded-full bg-[#c9a96e]" />
@@ -214,13 +233,16 @@ function BigPlay() {
   );
 }
 
-function ControlButton({ label, onClick, d }: { label: string; onClick: () => void; d: string }) {
+function ControlButton({ label, onClick, d, variant }: { label: string; onClick: () => void; d: string; variant: Variant }) {
+  const look = variant === "mono"
+    ? "text-white focus-visible:outline-white"
+    : "rounded-full text-[#e8c97a] focus-visible:outline-[#e8c97a]";
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#e8c97a] transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#e8c97a] sm:h-10 sm:w-10"
+      className={`flex h-9 w-9 shrink-0 items-center justify-center transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 sm:h-10 sm:w-10 ${look}`}
     >
       <Icon d={d} />
     </button>

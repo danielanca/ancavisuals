@@ -96,13 +96,29 @@ export function formatEstimateDate(iso: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("ro-RO", { day: "numeric", month: "long", year: "numeric" });
 }
 
-/** Every message to subscribers says up front that it is automatic. */
-export const AUTOMATED_MESSAGE_LABEL = "🤖 Acest mesaj este automat și a fost trimis de sistemul ancavisuals.ro — fotograful de la evenimentul tău.";
+/** Every message to subscribers ends by saying it is automatic. */
+export const AUTOMATED_MESSAGE_LABEL = "🤖 Acest mesaj este automat și a fost trimis de sistemul ancavisuals.ro.";
 export const CONTACT_PHONE_DISPLAY = "0745 469 907";
 
-/** Text used for SMS / WhatsApp: automatic-message label, the update, the album link. */
-export function albumUpdateMessage(update: Pick<AlbumUpdate, "kind" | "text" | "estimateDate">, albumUrl: string): string {
+const RO_MONTHS = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
+
+/** Album slugs are the event date ("25iulie2026", "08august2026") → "25 iulie 2026"; anything else → null. */
+export function eventDateFromSlug(slug: string): string | null {
+  const match = /^(\d{1,2})([a-z]+)(\d{4})/.exec(slug.toLowerCase());
+  if (!match || !RO_MONTHS.includes(match[2])) return null;
+  const day = Number(match[1]);
+  return day >= 1 && day <= 31 ? `${day} ${match[2]} ${match[3]}` : null;
+}
+
+/** Opening line of every message: people remember us as the event's photo-video team, not by name. */
+export function messageGreeting(slug: string): string {
+  const date = eventDateFromSlug(slug);
+  return `Bună ziua! Suntem echipa foto-video de la evenimentul ${date ? `din data de ${date}` : "vostru"}.`;
+}
+
+/** Text used for SMS / WhatsApp: greeting, the update, the album link, automatic-message label. */
+export function albumUpdateMessage(update: Pick<AlbumUpdate, "kind" | "text" | "estimateDate">, albumUrl: string, slug: string): string {
   const meta = ALBUM_UPDATE_META[update.kind];
   const date = update.estimateDate ? ` (${formatEstimateDate(update.estimateDate)})` : "";
-  return `${AUTOMATED_MESSAGE_LABEL}\n\n${meta.emoji} ${meta.label}${date}: ${update.text.trim()}\n\nAlbumul: ${albumUrl}`;
+  return `${messageGreeting(slug)}\n\n${meta.emoji} ${meta.label}${date}: ${update.text.trim()}\n\nAlbumul: ${albumUrl}\n\n${AUTOMATED_MESSAGE_LABEL}`;
 }

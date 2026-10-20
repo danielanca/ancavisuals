@@ -5,7 +5,22 @@ import { getAlbum, downloadSelectedPhotos, postPrintSelection, downloadAll, dele
 import { readPrintSelection, readVideoLinks, saveVideoLinks } from "../services/printSelection.store";
 import { ALBUM_VIDEO_KINDS, normalizeVideoLink, type AlbumVideoLinks } from "../../shared/albumVideoLinks";
 import { getAlbumStats } from "../services/albumStats.service";
-import { loadAlbum, resolveAlbumSlug } from "../services/album.service";
+import { invalidateAlbumCache, loadAlbum, resolveAlbumSlug } from "../services/album.service";
+import nodeFetch from "node-fetch";
+import { Transform } from "node:stream";
+import { BUNNY_ACCESS_KEY_HEADER, buildBunnyDirectoryUrl, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
+import { signBunnyUrl } from "../utils/signBunnyUrl";
+import { albumNotificationUrl, type NotificationChannel } from "../../shared/albumNotificationSource";
+import { isValidEmail } from "../../shared/albumUpdates";
+import { getShortVideoStream, removeShortVideoStream, startShortVideoStream } from "../services/albumShortVideoStream.service";
+import {
+  SHORT_VIDEO_FOLDER,
+  SHORT_VIDEO_MAX_BYTES,
+  isShortVideoObject,
+  sanitizeShortVideoName,
+  shortVideoContentType,
+  type AlbumShortVideo,
+} from "../../shared/albumShortVideo";
 import { logActivity } from "../services/activity.service";
 import { getAlbumRetentionBySlug } from "../services/albumRetention.service";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
@@ -17,6 +32,8 @@ import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from "../notif
 import { APP_BASE_URL } from "../constants/domain";
 import {
   PRINT_REMINDER_COOLDOWN_MS,
+  PRINT_REMINDER_FORCE_GAP_MS,
+  isPrintSelectionComplete,
   printReminderMessage,
   whatsappReminderUrl,
   type PrintReminderRecipient,
@@ -244,38 +261,55 @@ router.post("/:slug/print-reminder", requireFirebaseAuth, requireSupremeAdmin, e
     const slug = String(req.params.slug || "");
     const wantEmail = req.body?.email !== false;
     const wantSms = req.body?.sms !== false;
+    const force = req.body?.force === true;
     const now = Date.now();
     const lastSentAt = await printReminderLastSentAt(slug);
-    const blockedUntil = nextReminderAt(lastSentAt, now);
+    const blockedUntil = force
+      ? (lastSentAt !== null && now - lastSentAt < PRINT_REMINDER_FORCE_GAP_MS ? lastSentAt + PRINT_REMINDER_FORCE_GAP_MS : null)
+      : nextReminderAt(lastSentAt, now);
     if (blockedUntil) return res.status(429).json({ error: "already_sent", lastSentAt, nextAllowedAt: blockedUntil });
 
+    // A contact typed by hand in the panel, for this send only (the event is not changed).
+    const manualEmailRaw = typeof req.body?.manualEmail === "string" ? req.body.manualEmail.trim() : "";
+    const manualPhoneRaw = typeof req.body?.manualPhone === "string" ? req.body.manualPhone.trim() : "";
+    const manualEmail = manualEmailRaw && isValidEmail(manualEmailRaw) ? manualEmailRaw.toLowerCase() : null;
+    const manualPhone = manualPhoneRaw ? normalizeRomanianPhoneNumber(manualPhoneRaw) : null;
+    if (manualEmailRaw && !manualEmail) return res.status(400).json({ error: "invalid_manual_email" });
+    if (manualPhoneRaw && !manualPhone) return res.status(400).json({ error: "invalid_manual_phone" });
+
     const [items, recipients] = await Promise.all([readPrintSelection(slug), printReminderRecipients(slug)]);
+    if (isPrintSelectionComplete(items.length)) return res.status(409).json({ error: "selection_complete", selectedCount: items.length });
+    const known = new Set(recipients.flatMap((r) => [r.email, r.phone]).filter(Boolean));
+    const extra = { name: "contact manual", email: manualEmail && !known.has(manualEmail) ? manualEmail : null, phone: manualPhone && !known.has(manualPhone) ? manualPhone : null };
+    if (extra.email || extra.phone) recipients.push(extra);
     if (recipients.length === 0) return res.status(400).json({ error: "no_recipients" });
 
-    const selectUrl = `${APP_BASE_URL}/media/${encodeURIComponent(slug)}?select=print`;
+    // One link per channel: `?s=<canal>-poze` tells which reminder the client came from.
+    const selectUrl = (channel: NotificationChannel) => albumNotificationUrl(APP_BASE_URL, slug, channel, "poze", { select: "print" });
     const smsReady = isSmsConfigured();
     const result: PrintReminderResult = {
       emailed: 0, smsSent: 0, smsFailed: 0, smsSkipped: wantSms && !smsReady, whatsapp: [], lastSentAt: now, nextAllowedAt: now + PRINT_REMINDER_COOLDOWN_MS,
     };
 
     for (const recipient of recipients) {
-      const message = printReminderMessage(recipient.name, items.length, selectUrl);
+      const message = (channel: NotificationChannel) => printReminderMessage(slug, items.length, selectUrl(channel));
       if (wantEmail && recipient.email) {
+        const emailUrl = selectUrl("email");
         await sendEmail({
           to: recipient.email,
           source: "print-selection-reminder",
           subject: "[Mesaj automat] Alege pozele pentru albumul tău",
           html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-            ${message.split("\n\n").map((p) => `<p style="color:#333;">${escapeHtml(p).replace(escapeHtml(selectUrl), "")}</p>`).join("")}
-            <p style="margin-top:24px;"><a href="${selectUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 20px;text-decoration:none;font-weight:600;">Alege pozele pentru album</a></p>
+            ${message("email").split("\n\n").map((p) => `<p style="color:#333;">${escapeHtml(p).replace(escapeHtml(emailUrl), "")}</p>`).join("")}
+            <p style="margin-top:24px;"><a href="${emailUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 20px;text-decoration:none;font-weight:600;">Alege pozele pentru album</a></p>
           </div>`,
         }).then(() => { result.emailed++; }, (error) => console.error("[album] print reminder email failed:", error));
       }
       if (wantSms && smsReady && recipient.phone) {
-        try { await sendSms({ to: recipient.phone, body: message }); result.smsSent++; }
+        try { await sendSms({ to: recipient.phone, body: message("sms") }); result.smsSent++; }
         catch (error) { result.smsFailed++; console.error("[album] print reminder SMS failed:", error); }
       }
-      if (recipient.phone) result.whatsapp.push({ name: recipient.name, url: whatsappReminderUrl(recipient.phone, message) });
+      if (recipient.phone) result.whatsapp.push({ name: recipient.name, url: whatsappReminderUrl(recipient.phone, message("wa")) });
     }
 
     await printReminderRef(slug).set({ lastSentAt: now, selectedCount: items.length, emailed: result.emailed, smsSent: result.smsSent }, { merge: true });
@@ -346,18 +380,170 @@ router.get("/:slug/video-links", async (req: Request, res: Response) => {
 });
 
 router.put("/:slug/video-links", requireFirebaseAuth, requireSupremeAdmin, express.json(), async (req: Request, res: Response) => {
-  const links: AlbumVideoLinks = {};
+  const updates: AlbumVideoLinks = {};
   for (const kind of ALBUM_VIDEO_KINDS) {
-    const link = normalizeVideoLink(req.body?.[kind]);
+    // A kind missing from the body is kept: /media and EventCard each edit one link at a time.
+    if (req.body?.[kind] === undefined) continue;
+    const link = normalizeVideoLink(req.body[kind]);
     if (link === null) return res.status(400).json({ error: "invalid_link", kind });
-    if (link) links[kind] = link;
+    updates[kind] = link;
   }
   try {
+    const merged = { ...await readVideoLinks(req.params.slug), ...updates };
+    const links: AlbumVideoLinks = Object.fromEntries(Object.entries(merged).filter(([, link]) => Boolean(link)));
     await saveVideoLinks(req.params.slug, links);
     return res.json({ links });
   } catch (error) {
     console.error("[album] video links save failed:", error);
     return res.status(500).json({ error: "video_links_failed" });
+  }
+});
+
+// /media/:slug (🛠 Admin) urcă poze prin aceleași rute ca EventCard, care cer id-ul evenimentului.
+router.get("/:slug/admin-event", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const events = await firestore().collection("adminEvents").where("albumSlug", "==", req.params.slug).limit(1).get();
+    const doc = events.docs[0];
+    if (!doc) return res.status(404).json({ error: "Albumul nu e legat de niciun eveniment din dashboard." });
+    return res.json({ eventId: doc.id });
+  } catch (error) {
+    console.error("[album] admin event lookup failed:", error);
+    return res.status(500).json({ error: "admin_event_failed" });
+  }
+});
+
+// ── Video scurt încărcat direct (Bunny {slug}/shortvideo/) ────────────────────
+// Un singur fișier: uploadul nou îl înlocuiește pe cel vechi. Bunny nu are upload presemnat,
+// deci fișierul trece în stream prin server (nimic pe discul VPS), ca photos.zip.
+
+type BunnyEntry = { ObjectName: string; IsDirectory?: boolean; Length?: number };
+
+async function listShortVideos(slug: string): Promise<BunnyEntry[]> {
+  const response = await nodeFetch(buildBunnyDirectoryUrl(slug, SHORT_VIDEO_FOLDER), {
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, signal: AbortSignal.timeout(30_000),
+  });
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Bunny list ${response.status}`);
+  return (await response.json() as BunnyEntry[]).filter(isShortVideoObject);
+}
+
+async function deleteShortVideo(slug: string, fileName: string): Promise<void> {
+  const response = await nodeFetch(buildBunnyStorageUrl(slug, SHORT_VIDEO_FOLDER, fileName), {
+    method: "DELETE", headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
+  });
+  if (!response.ok && response.status !== 404) throw new Error(`Bunny delete ${response.status}`);
+}
+
+router.get("/:slug/short-video", async (req: Request, res: Response) => {
+  try {
+    const [video] = await listShortVideos(req.params.slug);
+    const result: AlbumShortVideo | null = video
+      ? {
+        fileName: video.ObjectName,
+        size: video.Length ?? null,
+        url: signBunnyUrl(`/${req.params.slug}/${SHORT_VIDEO_FOLDER}/${video.ObjectName}`),
+        stream: await getShortVideoStream(req.params.slug, video.ObjectName).catch(() => null),
+      }
+      : null;
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ video: result });
+  } catch (error) {
+    console.error("[album] short video read failed:", error);
+    return res.status(502).json({ error: "short_video_failed" });
+  }
+});
+
+router.get("/:slug/short-video/download", async (req: Request, res: Response) => {
+  try {
+    const [video] = await listShortVideos(req.params.slug);
+    if (!video) return res.status(404).json({ error: "Albumul nu are video scurt." });
+    const bunnyRes = await nodeFetch(buildBunnyStorageUrl(req.params.slug, SHORT_VIDEO_FOLDER, video.ObjectName), {
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
+    });
+    if (!bunnyRes.ok || !bunnyRes.body) return res.status(502).json({ error: "Videoul nu poate fi descărcat acum." });
+    res.setHeader("Content-Type", shortVideoContentType(video.ObjectName));
+    const length = bunnyRes.headers.get("content-length");
+    if (length) res.setHeader("Content-Length", length);
+    // Files put straight into Bunny may have diacritics: an ASCII fallback + the UTF-8 name.
+    const asciiName = video.ObjectName.normalize("NFD").replace(/[^\x20-\x7e]/g, "").replace(/["\\]/g, "") || "video-scurt.mp4";
+    res.setHeader("Content-Disposition", `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(video.ObjectName)}`);
+    res.setHeader("Cache-Control", "no-store");
+    bunnyRes.body.on("error", () => res.destroy());
+    bunnyRes.body.pipe(res);
+  } catch (error) {
+    console.error("[album] short video download failed:", error);
+    if (!res.headersSent) res.status(502).json({ error: "Videoul nu poate fi descărcat acum." });
+  }
+});
+
+router.put("/:slug/short-video", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { slug } = req.params;
+  const size = Number(req.headers["content-length"]);
+  let fileName: string | null = null;
+  try { fileName = sanitizeShortVideoName(decodeURIComponent(String(req.headers["x-file-name"] ?? ""))); } catch { /* invalid header */ }
+  if (!fileName) return res.status(400).json({ error: "Format acceptat: MP4, MOV, M4V sau WEBM." });
+  if (!Number.isSafeInteger(size) || size <= 0) return res.status(400).json({ error: "Fișier gol sau dimensiune lipsă." });
+  if (size > SHORT_VIDEO_MAX_BYTES) return res.status(413).json({ error: "Videoul depășește 4 GB." });
+  // A unique name per upload: the CDN (and Stream's fetch through it) would otherwise serve the old file.
+  fileName = fileName.replace(/(\.[a-z0-9]+)$/, `-${Date.now().toString(36)}$1`);
+  try {
+    const previous = await listShortVideos(slug);
+
+    // Abort only when the browser stops sending: a large video legitimately takes longer than any fixed limit.
+    const stalled = new AbortController();
+    let idle = setTimeout(() => stalled.abort(), 180_000);
+    const body = req.pipe(new Transform({
+      transform(chunk, _encoding, callback) {
+        clearTimeout(idle);
+        idle = setTimeout(() => stalled.abort(), 180_000);
+        callback(null, chunk);
+      },
+    }));
+    let uploadRes;
+    try {
+      uploadRes = await nodeFetch(buildBunnyStorageUrl(slug, SHORT_VIDEO_FOLDER, fileName), {
+        method: "PUT",
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(), "Content-Type": shortVideoContentType(fileName), "Content-Length": String(size) },
+        body, signal: stalled.signal,
+      });
+    } finally {
+      clearTimeout(idle);
+    }
+    if (!uploadRes.ok) {
+      console.error(`[album] short video Bunny ${uploadRes.status}: ${await uploadRes.text().catch(() => "")}`);
+      return res.status(502).json({ error: `Bunny a respins videoul (${uploadRes.status}).` });
+    }
+
+    const uploaded = (await listShortVideos(slug)).find((entry) => entry.ObjectName === fileName);
+    if (!uploaded || (uploaded.Length !== undefined && uploaded.Length !== size)) {
+      return res.status(502).json({ error: "Videoul din Bunny are altă dimensiune decât cel trimis. Reîncearcă." });
+    }
+    // Only after the new file is verified, so a failed upload never leaves the album without a video.
+    await Promise.all(previous.filter((entry) => entry.ObjectName !== fileName).map((entry) => deleteShortVideo(slug, entry.ObjectName)));
+    invalidateAlbumCache(slug);
+    // Stream pulls its own copy from Storage and transcodes it; until then /media plays the original.
+    await startShortVideoStream(slug, fileName);
+    const video: AlbumShortVideo = {
+      fileName, size, url: signBunnyUrl(`/${slug}/${SHORT_VIDEO_FOLDER}/${fileName}`),
+      stream: await getShortVideoStream(slug, fileName).catch(() => null),
+    };
+    return res.json({ video });
+  } catch (error) {
+    console.error("[album] short video upload failed:", error);
+    if (!res.headersSent) res.status(502).json({ error: "Încărcarea videoului a eșuat. Reîncearcă." });
+  }
+});
+
+router.delete("/:slug/short-video", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const videos = await listShortVideos(req.params.slug);
+    await Promise.all(videos.map((entry) => deleteShortVideo(req.params.slug, entry.ObjectName)));
+    await removeShortVideoStream(req.params.slug);
+    invalidateAlbumCache(req.params.slug);
+    return res.json({ video: null });
+  } catch (error) {
+    console.error("[album] short video delete failed:", error);
+    return res.status(502).json({ error: "Videoul nu a putut fi șters." });
   }
 });
 

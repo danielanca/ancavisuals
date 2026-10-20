@@ -25,6 +25,7 @@ async function loadRouter() {
   const ping = vi.fn();
   const endSession = vi.fn();
   const logActivity = vi.fn().mockResolvedValue(undefined);
+  const createActivityOnce = vi.fn().mockResolvedValue({ id: "a1", created: true });
   const sendEmail = vi.fn().mockResolvedValue(undefined);
 
   vi.doMock("src/server/services/liveVisitors.service", () => ({
@@ -37,7 +38,7 @@ async function loadRouter() {
     sessionNeedsGeo: vi.fn().mockReturnValue(false),
     liveVisitorsEmitter: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
   }));
-  vi.doMock("src/server/services/activity.service", () => ({ logActivity }));
+  vi.doMock("src/server/services/activity.service", () => ({ logActivity, createActivityOnce }));
   vi.doMock("src/server/notifications/mailer", () => ({ sendEmail }));
   vi.doMock("src/server/constants/credentials", () => ({ adminUser: { email: "admin@test.ro" } }));
   vi.doMock("src/server/utils/ipinfo", () => ({
@@ -78,7 +79,7 @@ async function loadRouter() {
   };
 
   return {
-    recordEvent, ping, endSession, logActivity, sendEmail,
+    recordEvent, ping, endSession, logActivity, createActivityOnce, sendEmail,
     query, historyGet, numberingGet, cursorGet,
     getHistory: getHandler("get", "/analytics/live/history"),
     getContactStats: getHandler("get", "/analytics/live/contact-stats"),
@@ -124,6 +125,48 @@ describe("liveVisitors.routes", () => {
   });
 
   describe("POST /live/event", () => {
+    const albumOpen = (meta: Record<string, string>) => ({
+      body: { sessionId: "s1", event: "album_notification_opened", page: "/media/08august2026", meta },
+      headers: { "user-agent": realUa },
+    });
+
+    test("an album opened from an SMS goes to Activitate and emails the owner once", async () => {
+      const { postEvent, recordEvent, createActivityOnce, sendEmail } = await loadRouter();
+      recordEvent.mockReturnValueOnce({
+        session: { visitorNumber: 1, city: "Cluj", country: "RO", source: "referral", deviceType: "mobile", attribution: {} },
+        event: { page: "/media/08august2026", priority: "high", at: Date.now() },
+      });
+      await postEvent(albumOpen({ channel: "sms", kind: "nou" }), createMockResponse());
+      await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledOnce());
+      expect(createActivityOnce.mock.calls[0][0]).toMatch(/^album-open:08august2026:sms-nou:\d{4}-\d{2}-\d{2}$/);
+      expect(createActivityOnce.mock.calls[0][1]).toMatchObject({ type: "album_opened", title: "👀 Album deschis din SMS · noutate album" });
+      expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: "admin@test.ro", subject: "👀 Clientul a deschis albumul 08august2026 din SMS · noutate album" });
+      expect(sendEmail.mock.calls[0][0].html).toContain("telefon");
+    });
+
+    test("an album already reported today does not email again", async () => {
+      const { postEvent, recordEvent, createActivityOnce, sendEmail } = await loadRouter();
+      recordEvent.mockReturnValueOnce({
+        session: { visitorNumber: 1, country: "RO", deviceType: "mobile", attribution: {} },
+        event: { page: "/media/08august2026", priority: "high", at: Date.now() },
+      });
+      createActivityOnce.mockResolvedValueOnce({ id: "a1", created: false });
+      await postEvent(albumOpen({ channel: "wa", kind: "poze" }), createMockResponse());
+      await vi.waitFor(() => expect(createActivityOnce).toHaveBeenCalledOnce());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(sendEmail).not.toHaveBeenCalled();
+    });
+
+    test("an unknown source is ignored", async () => {
+      const { postEvent, recordEvent, createActivityOnce } = await loadRouter();
+      recordEvent.mockReturnValueOnce({
+        session: { visitorNumber: 1, country: "RO", deviceType: "mobile", attribution: {} },
+        event: { page: "/media/08august2026", priority: "high", at: Date.now() },
+      });
+      await postEvent(albumOpen({ channel: "fax", kind: "nou" }), createMockResponse());
+      expect(createActivityOnce).not.toHaveBeenCalled();
+    });
+
     test("records a valid event from a real browser", async () => {
       const { postEvent, recordEvent } = await loadRouter();
       const res = createMockResponse();

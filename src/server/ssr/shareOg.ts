@@ -14,7 +14,7 @@ export const shareIdFromPath = (path: string): string | null => SHARE_PATH.exec(
 
 const escAttr = (value: string) => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-function setMeta(html: string, attr: "property" | "name", key: string, content: string): string {
+export function setMeta(html: string, attr: "property" | "name", key: string, content: string): string {
   const tag = `<meta ${attr}="${key}" content="${escAttr(content)}" />`;
   const existing = new RegExp(`<meta\\s+${attr}="${key.replace(/[.:]/g, "\\$&")}"[^>]*>`, "i");
   return existing.test(html) ? html.replace(existing, tag) : html.replace("</head>", `${tag}\n</head>`);

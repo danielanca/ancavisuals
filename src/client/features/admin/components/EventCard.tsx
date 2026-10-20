@@ -13,6 +13,7 @@ import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
 import PhotoboothUploader from "./PhotoboothUploader";
 import AlbumPhotoUploader from "./AlbumPhotoUploader";
+import AlbumShortVideoManager from "./AlbumShortVideoManager";
 import ConfirmModal from "./ConfirmModal";
 import { slugify } from "../../../utils/slugify";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
@@ -1126,6 +1127,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                         onComplete={() => { setShowAlbumUploader(false); handleProcessAlbum(); }}
                       />
                     )}
+
+                    <AlbumShortVideoManager key={`short-video-${albumSlug}`} slug={albumSlug} accessToken={auth.auth.accessToken} />
 
                     {/* Album subscribers */}
                     {subscriberCount !== null && (

@@ -129,7 +129,7 @@ describe("albumSubscriptions.routes", () => {
 
       const confirmation = vi.mocked(sendEmail).mock.calls.find(([options]) => options.to === "ana@test.com")?.[0];
       expect(confirmation?.subject).toContain("Te-ai abonat");
-      expect(confirmation?.html).toContain("Bună, Ana!");
+      expect(confirmation?.html).toContain("Bună ziua! Suntem echipa foto-video de la evenimentul vostru.");
       expect(confirmation?.html).toContain("https://example.com/media/nunta-ana");
       expect(confirmation?.html).toMatch(/\/api\/album-subscriptions\/stop\/[0-9a-f]{24}/);
     });
@@ -419,10 +419,12 @@ describe("albumSubscriptions.routes", () => {
       expect(decodeURIComponent(payload.whatsapp[0].link)).toContain("📅 Estimare (15 noiembrie 2099): Pozele editate sunt aproape gata.");
       expect(refUpdate).toHaveBeenCalledWith({ sent: { email: 1, sms: 0, failed: 0, whatsapp: 1 }, phoneDelivery: "subscriber", email: true });
       // Every channel says the message is automatic.
-      expect(decodeURIComponent(payload.whatsapp[0].link)).toContain("🤖 Acest mesaj este automat și a fost trimis de sistemul ancavisuals.ro — fotograful de la evenimentul tău.\n\n📅 Estimare");
+      expect(decodeURIComponent(payload.whatsapp[0].link)).toContain("Bună ziua! Suntem echipa foto-video de la evenimentul vostru.\n\n📅 Estimare");
+      expect(decodeURIComponent(payload.whatsapp[0].link)).toContain("\n\n🤖 Acest mesaj este automat și a fost trimis de sistemul ancavisuals.ro.");
       const clientEmail = sendEmail.mock.calls.find(([opts]: [{ to: string }]) => opts.to === "ana@test.com")[0];
       expect(clientEmail.subject).toMatch(/^\[Mesaj automat\]/);
-      expect(clientEmail.html).toContain("Acest mesaj este automat și a fost trimis de sistemul ancavisuals.ro — fotograful de la evenimentul tău.");
+      expect(clientEmail.html).toContain("Acest mesaj este automat și a fost trimis de sistemul ancavisuals.ro.");
+      expect(clientEmail.html.indexOf("Bună ziua!")).toBeLessThan(clientEmail.html.indexOf("Acest mesaj este automat"));
       // The admin gets the WhatsApp preview + one-click send buttons by email.
       const adminEmail = sendEmail.mock.calls.find(([opts]: [{ to: string }]) => opts.to === "ancadaniel1994@gmail.com")[0];
       expect(adminEmail.subject).toContain("De trimis pe WhatsApp (1)");
