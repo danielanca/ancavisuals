@@ -8,6 +8,7 @@ import { markRetentionNotificationSent } from "../services/printSelection.store"
 const DAY_MS = 24 * 60 * 60 * 1000;
 import { APP_BASE_URL as BASE_URL } from "../constants/domain";
 import { albumNotificationUrl } from "../../shared/albumNotificationSource";
+import { isValidEmail } from "../../shared/albumUpdates";
 
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString("ro-RO", {
@@ -27,7 +28,8 @@ async function getSubscriberEmails(slug: string): Promise<string[]> {
 
   return snapshot.docs
     .map((doc) => (doc.data() as { email?: string }).email?.trim().toLowerCase() ?? "")
-    .filter(Boolean);
+    // Phone-only subscribers and typos must not reach the mailer.
+    .filter((email) => isValidEmail(email));
 }
 
 async function sendSubscriberReminder(slug: string, expiresAt: string, daysLeft: 7 | 1) {
@@ -73,6 +75,10 @@ async function sendSubscriberReminder(slug: string, expiresAt: string, daysLeft:
 }
 
 async function sendAdminExpiryNotice(slug: string, expiresAt: string) {
+  if (!adminUser.email) {
+    console.warn(`[album retention cron] adminUser.email not configured, skipping expiry notice for ${slug}`);
+    return;
+  }
   await sendEmail({
     to: adminUser.email,
     subject: `🗃️ Album expirat: ${slug}`,
