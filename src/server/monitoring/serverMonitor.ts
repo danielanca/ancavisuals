@@ -2,11 +2,14 @@ import { firestore } from "../firestore";
 import admin from "firebase-admin";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
+import { categorizeError, errorFingerprint } from "../../shared/errorCategories";
 
 export const ERRORS_COLLECTION = "serverErrors";
 
 type Severity = "error" | "warn";
 type Source = "server" | "client";
+/** What the browser tells about where the error happened. */
+export type ClientErrorExtra = { userAgent?: string; admin?: boolean };
 
 let originalConsoleError: typeof console.error | null = null;
 let originalConsoleWarn: typeof console.warn | null = null;
@@ -28,7 +31,9 @@ async function saveError(
   page = "",
   ip?: string,
   geo?: { city?: string; region?: string; country?: string },
+  extra: ClientErrorExtra = {},
 ): Promise<void> {
+  const category = categorizeError({ message, stack, page, source });
   try {
     await firestore().collection(ERRORS_COLLECTION).add({
       message,
@@ -36,8 +41,12 @@ async function saveError(
       source,
       severity,
       page,
+      category,
+      fingerprint: errorFingerprint(category, message, page),
       ...(ip ? { ip } : {}),
       ...(geo ? { geo } : {}),
+      ...(extra.userAgent ? { userAgent: extra.userAgent.slice(0, 300) } : {}),
+      ...(extra.admin ? { admin: true } : {}),
       seen: false,
       capturedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -58,8 +67,9 @@ export function captureClientError(
   page: string,
   ip?: string,
   geo?: { city?: string; region?: string; country?: string },
+  extra: ClientErrorExtra = {},
 ): void {
-  saveError("error", message, "client", stack, page, ip, geo).catch(() => {});
+  saveError("error", message, "client", stack, page, ip, geo, extra).catch(() => {});
 }
 
 async function sendCrashEmail(message: string): Promise<void> {

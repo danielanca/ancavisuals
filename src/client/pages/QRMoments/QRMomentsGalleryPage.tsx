@@ -5,8 +5,10 @@ import { getHostRoleLabel, normalizeQrEventType, type QrEventType } from '../../
 
 interface Upload {
   id: string;
-  type: 'photo' | 'video' | 'audio';
+  type: 'photo' | 'video' | 'audio' | 'text';
   bunnyUrl: string;
+  /** Only for type 'text': the wish the guest wrote. */
+  text?: string;
   mimeType: string;
   originalName: string;
   createdAt: string;
@@ -111,11 +113,13 @@ function GalleryUpdatesSignup({ eventSlug, pin, hidden }: { eventSlug: string; p
   );
 }
 
-function DownloadPhotoButton({ upload, eventSlug, pin, adminToken }: {
+function DownloadPhotoButton({ upload, eventSlug, pin, adminToken, variant = 'grid' }: {
   upload: Upload;
   eventSlug: string;
   pin: string;
   adminToken?: string;
+  /** "viewer" = the white square button in the opened photo. */
+  variant?: 'grid' | 'viewer';
 }) {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState(false);
@@ -147,15 +151,17 @@ function DownloadPhotoButton({ upload, eventSlug, pin, adminToken }: {
   };
 
   return (
-    <div className="mt-2">
+    <div className={variant === 'viewer' ? '' : 'mt-2'}>
       <button
         type="button"
         onClick={download}
         disabled={downloading}
         aria-label={`Descarcă poza ${upload.originalName}`}
-        className="flex min-h-[44px] w-full items-center justify-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-2 text-xs text-amber-200 transition-colors hover:bg-amber-400/20 disabled:opacity-50"
+        className={variant === 'viewer'
+          ? 'flex min-h-[44px] w-full items-center justify-center gap-1 border border-white bg-white px-2 text-xs font-bold uppercase tracking-wide text-black transition-colors hover:bg-neutral-200 disabled:opacity-50'
+          : 'flex min-h-[44px] w-full items-center justify-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-2 text-xs text-amber-200 transition-colors hover:bg-amber-400/20 disabled:opacity-50'}
       >
-        <span aria-hidden="true">↓</span> {downloading ? 'Se descarcă…' : 'Descarcă poza'}
+        <span aria-hidden="true">↓</span> {downloading ? 'Se descarcă…' : variant === 'viewer' ? 'Descarcă' : 'Descarcă poza'}
       </button>
       {error && <p role="alert" className="mt-1 text-xs text-red-400">Nu am putut descărca poza. Încearcă din nou.</p>}
     </div>
@@ -188,6 +194,14 @@ function MediaThumbnail({ upload, onClick }: { upload: Upload; onClick: () => vo
       </button>
     );
   }
+  if (upload.type === 'text') {
+    return (
+      <button onClick={onClick} aria-label="Deschide urarea scrisă" className="aspect-square rounded-lg border border-amber-400/20 bg-amber-400/5 flex flex-col gap-1 p-2 text-left hover:bg-amber-400/10 transition-colors w-full overflow-hidden">
+        <span className="text-base leading-none">✍️</span>
+        <span className="text-neutral-300 text-[11px] leading-snug line-clamp-4 break-words">{upload.text}</span>
+      </button>
+    );
+  }
   return (
     <button onClick={onClick} aria-label={`Deschide ${upload.originalName}`} className="aspect-square rounded-lg bg-neutral-800 flex flex-col items-center justify-center gap-2 hover:bg-neutral-700 transition-colors w-full">
       <span className="text-2xl">🎙</span>
@@ -217,6 +231,7 @@ function ThankModal({
   const [hostRole, setHostRole] = useState<'bride' | 'groom'>('bride');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [emailSkipped, setEmailSkipped] = useState(false);
 
   const send = async (text: string) => {
     if (!text.trim() || sending) return;
@@ -231,8 +246,9 @@ function ThankModal({
       }).then((response) => response.json());
       if (!result.error) {
         setSent(true);
+        setEmailSkipped(result.emailSkipped === true);
         onThanked(upload.id, result.thankedAt ?? new Date().toISOString());
-        setTimeout(onClose, 1500);
+        setTimeout(onClose, result.emailSkipped ? 3000 : 1500);
       }
     } finally {
       setSending(false);
@@ -245,7 +261,12 @@ function ThankModal({
         {sent ? (
           <div className="text-center py-6">
             <div className="text-4xl mb-3">✓</div>
-            <p className="text-amber-300 font-medium">Mulțumire trimisă!</p>
+            <p className="text-amber-300 font-medium">{emailSkipped ? 'Mulțumire salvată!' : 'Mulțumire trimisă!'}</p>
+            {emailSkipped && (
+              <p className="mt-2 text-xs leading-relaxed text-neutral-400">
+                A primit deja un email de mulțumire de la voi, așa că nu i-am mai trimis încă unul.
+              </p>
+            )}
           </div>
         ) : (
           <>
@@ -313,9 +334,16 @@ function ThankModal({
   );
 }
 
+/*
+ * The opened photo / video / voice message / wish: full screen, dark, black and white, square.
+ * The media takes the whole free space (never cropped, never scrolled); who sent it, the download
+ * and thank-you buttons and the comments sit beside it (below it on phones). Only the comment list
+ * scrolls, inside its own panel.
+ */
 function AssetModal({
   upload,
   allUploads,
+  guest,
   eventSlug,
   pin,
   adminToken,
@@ -324,9 +352,11 @@ function AssetModal({
   eventInfo,
   onClose,
   onNavigate,
+  onThank,
 }: {
   upload: Upload;
   allUploads: Upload[];
+  guest: GuestGroup['guest'] | null;
   eventSlug: string;
   pin: string;
   adminToken?: string;
@@ -335,6 +365,7 @@ function AssetModal({
   eventInfo: GalleryEventInfo | null;
   onClose: () => void;
   onNavigate: (upload: Upload) => void;
+  onThank: (upload: Upload) => void;
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
@@ -350,10 +381,11 @@ function AssetModal({
   const currentIndex = allUploads.findIndex((item) => item.id === upload.id);
   const previousUpload = currentIndex > 0 ? allUploads[currentIndex - 1] : null;
   const nextUpload = currentIndex >= 0 && currentIndex < allUploads.length - 1 ? allUploads[currentIndex + 1] : null;
+  const typeLabel = upload.type === 'photo' ? 'Poză' : upload.type === 'video' ? 'Video' : upload.type === 'audio' ? 'Mesaj vocal' : 'Urare scrisă';
 
-  // Fire view notification once when photo is opened; video/audio use onPlay
+  // Fire view notification once when a photo or written wish is opened; video/audio use onPlay
   useEffect(() => {
-    if (upload.type !== 'photo') return;
+    if (upload.type !== 'photo' && upload.type !== 'text') return;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
     fetch(`/api/qr-moments/view-notify/${upload.id}`, {
@@ -364,6 +396,8 @@ function AssetModal({
   }, [upload.id, upload.mimeType, adminToken, eventSlug, pin]);
 
   useEffect(() => {
+    setCommentsLoading(true);
+    setVideoPlaying(false);
     const headers: Record<string, string> = {};
     const url = adminToken
       ? `/api/qr-moments/comment/${upload.id}?eventSlug=${encodeURIComponent(eventSlug)}`
@@ -379,18 +413,27 @@ function AssetModal({
 
   useEffect(() => {
     if (typeof bottomRef.current?.scrollIntoView === 'function') {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+      bottomRef.current.scrollIntoView({ block: 'nearest' });
     }
   }, [comments]);
 
+  // The page behind does not scroll while the viewer is open.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement) return;
       if (event.key === 'ArrowLeft' && previousUpload) onNavigate(previousUpload);
       if (event.key === 'ArrowRight' && nextUpload) onNavigate(nextUpload);
+      if (event.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextUpload, onNavigate, previousUpload]);
+  }, [nextUpload, onClose, onNavigate, previousUpload]);
 
   const firePlayNotification = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -426,71 +469,45 @@ function AssetModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[55] bg-black/90 flex flex-col" onClick={onClose}>
-      <div
-        className={`h-full min-h-0 flex flex-col max-w-lg mx-auto w-full overflow-hidden ${hasAdminBar ? 'pt-12' : ''}`}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-neutral-950/95 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4">
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => previousUpload && onNavigate(previousUpload)}
-              disabled={!previousUpload}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-neutral-300 shadow-lg shadow-black/20 transition-all hover:border-amber-300/50 hover:bg-amber-300/10 hover:text-amber-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25"
-              aria-label="Upload anterior"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => nextUpload && onNavigate(nextUpload)}
-              disabled={!nextUpload}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-neutral-300 shadow-lg shadow-black/20 transition-all hover:border-amber-300/50 hover:bg-amber-300/10 hover:text-amber-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25"
-              aria-label="Upload următor"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
-            </button>
-            <div className="ml-1">
-              <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-amber-200/70">QR Moments</p>
-              <p className="mt-0.5 text-xs text-neutral-400">{currentIndex + 1} din {allUploads.length} · {formatTime(upload.createdAt)}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Închide materialul"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-2xl font-light leading-none text-neutral-400 transition-all hover:border-white/25 hover:bg-white/10 hover:text-white active:scale-95"
-          >
-            ×
-          </button>
-        </div>
+  const navButton = 'flex h-10 w-10 items-center justify-center border border-neutral-700 text-white transition-colors hover:border-white disabled:cursor-not-allowed disabled:opacity-25';
 
-        <div className="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <div className="p-3 sm:p-4">
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${typeLabel} de la ${guest?.name ?? 'invitat'}`}
+      className={`fixed inset-0 z-[55] flex flex-col bg-black text-white ${hasAdminBar ? 'pt-12' : ''}`}
+    >
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-neutral-800 px-3 sm:px-4">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => previousUpload && onNavigate(previousUpload)} disabled={!previousUpload} className={navButton} aria-label="Upload anterior">‹</button>
+          <span className="min-w-[4.5rem] text-center text-xs tabular-nums text-neutral-400">{currentIndex + 1} / {allUploads.length}</span>
+          <button type="button" onClick={() => nextUpload && onNavigate(nextUpload)} disabled={!nextUpload} className={navButton} aria-label="Upload următor">›</button>
+        </div>
+        <p className="hidden text-sm font-light uppercase tracking-[0.34em] sm:block">Anca Visuals</p>
+        <button type="button" onClick={onClose} aria-label="Închide materialul" className={`${navButton} text-xl font-light`}>×</button>
+      </header>
+
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,auto)] lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-1">
+        <div className="relative flex min-h-0 items-center justify-center bg-black p-2 sm:p-4" onClick={onClose}>
+          <div className="flex h-full w-full items-center justify-center" onClick={(event) => event.stopPropagation()}>
             {upload.type === 'photo' && isHeicUpload(upload) && (
-              <div className="bg-neutral-900 rounded-lg p-6 text-center space-y-3">
-                <span className="text-3xl block">🖼️</span>
-                <p className="text-neutral-400 text-sm">
-                  Această poză e în format HEIC și nu poate fi previzualizată direct în browser.
-                </p>
+              <div className="max-w-sm border border-neutral-800 p-6 text-center">
+                <span className="block text-3xl">🖼️</span>
+                <p className="mt-3 text-sm text-neutral-400">Această poză e în format HEIC și nu poate fi previzualizată în browser. O poți descărca.</p>
               </div>
             )}
             {upload.type === 'photo' && !isHeicUpload(upload) && (
-              <img src={upload.bunnyUrl} alt="" className="w-full rounded-lg" />
-            )}
-            {upload.type === 'photo' && (
-              <DownloadPhotoButton key={upload.id} upload={upload} eventSlug={eventSlug} pin={pin} adminToken={adminToken} />
+              <img src={upload.bunnyUrl} alt={`Poză de la ${guest?.name ?? 'invitat'}`} className="max-h-full max-w-full object-contain" />
             )}
             {upload.type === 'video' && (
-              <div className="relative flex h-[38dvh] min-h-[220px] max-h-[420px] justify-center overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/30 sm:h-[min(65vh,520px)]">
+              <div className="relative flex h-full w-full items-center justify-center">
                 <video
                   ref={videoRef}
                   src={upload.bunnyUrl}
                   controls
                   playsInline
-                  className="h-full w-full object-contain"
+                  className="max-h-full max-w-full object-contain"
                   onPlay={() => { setVideoPlaying(true); firePlayNotification(); }}
                   onPause={() => setVideoPlaying(false)}
                   onEnded={() => setVideoPlaying(false)}
@@ -500,7 +517,7 @@ function AssetModal({
                     type="button"
                     aria-label="Redă videoclipul"
                     onClick={() => { void videoRef.current?.play(); }}
-                    className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-amber-500 text-3xl text-black shadow-xl transition-transform hover:scale-105"
+                    className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center border border-white bg-black/70 text-2xl text-white transition-colors hover:bg-white hover:text-black"
                   >
                     ▶
                   </button>
@@ -508,130 +525,129 @@ function AssetModal({
               </div>
             )}
             {upload.type === 'audio' && (
-              <div className="bg-neutral-900 rounded-lg p-4">
-                <audio
-                  src={upload.bunnyUrl}
-                  controls
-                  className="w-full"
-                  onPlay={firePlayNotification}
-                />
+              <div className="w-full max-w-md border border-neutral-800 p-5">
+                <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-neutral-500">🎙 Mesaj vocal</p>
+                <audio src={upload.bunnyUrl} controls className="w-full" onPlay={firePlayNotification} />
               </div>
             )}
-            {!(upload.type === 'photo' && isHeicUpload(upload)) && (
-              <a
-                href={upload.bunnyUrl}
-                download={upload.originalName}
-                className="mt-3 inline-block px-4 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm hover:border-neutral-500 hover:text-white transition-colors"
-              >
-                Descarcă {upload.type === 'photo' ? 'poza' : upload.type === 'video' ? 'video-ul' : 'mesajul vocal'}
-              </a>
+            {upload.type === 'text' && (
+              <div className="max-h-full w-full max-w-xl overflow-y-auto border border-neutral-800 px-6 py-8">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">✍️ Urare scrisă</p>
+                <p className="mt-4 whitespace-pre-wrap break-words text-lg leading-relaxed text-white">{upload.text}</p>
+              </div>
             )}
-          </div>
-
-          <div className="px-3 pb-3 sm:px-4 sm:pb-4">
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/70">
-              <div className="border-b border-neutral-800 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-neutral-500">Comentarii</p>
-              </div>
-              <div className="max-h-64 overflow-y-auto px-4 py-3 space-y-2">
-                {commentsLoading ? (
-                  <p className="text-neutral-600 text-xs">Se încarcă comentariile…</p>
-                ) : comments.length === 0 ? (
-                  <p className="text-neutral-700 text-xs">Niciun comentariu încă.</p>
-                ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className={`rounded-lg px-3 py-2 text-sm ${comment.fromHost ? 'bg-amber-500/10 border border-amber-500/20 text-amber-100' : 'bg-neutral-800 text-neutral-300'}`}>
-                      {comment.fromHost && (
-                        <p className="mb-1 text-[11px] uppercase tracking-wide text-amber-300/80">
-                          {comment.hostRole === 'groom'
-                            ? (eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom'))
-                            : (eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride'))}
-                        </p>
-                      )}
-                      <p>{comment.text}</p>
-                      <p className="text-xs text-neutral-600 mt-0.5">{formatTime(comment.createdAt)}</p>
-                    </div>
-                  ))
-                )}
-                <div ref={bottomRef} />
-              </div>
-            </div>
           </div>
         </div>
 
-        <div className="shrink-0 max-h-[45dvh] overflow-y-auto border-t border-neutral-800 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-3 sm:max-h-none sm:overflow-visible sm:p-4">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => previousUpload && onNavigate(previousUpload)}
-              disabled={!previousUpload}
-              className="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300 disabled:opacity-30"
-            >
-              ‹ Anterior
-            </button>
-            <span className="text-[10px] text-neutral-600">Navighează între materiale</span>
-            <button
-              type="button"
-              onClick={() => nextUpload && onNavigate(nextUpload)}
-              disabled={!nextUpload}
-              className="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300 disabled:opacity-30"
-            >
-              Următor ›
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wide text-neutral-500">Trimite ca</span>
-            <div className="inline-flex rounded-full border border-neutral-800 bg-neutral-900 p-1">
-              {([
-                { value: 'bride', label: eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride') },
-                ...(normalizeQrEventType(eventInfo?.eventType) === 'corporate' ? [] : [
-                  { value: 'groom', label: eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom') },
-                ]),
-              ] as const).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setHostRole(option.value as 'bride' | 'groom')}
-                  className={`rounded-full px-3 py-1 text-xs transition-colors ${
-                    hostRole === option.value
-                      ? 'bg-amber-500 text-black'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
+        <aside className="flex max-h-[45dvh] min-h-0 flex-col border-t border-neutral-800 bg-neutral-950 lg:max-h-none lg:border-l lg:border-t-0">
+          <div className="shrink-0 space-y-3 border-b border-neutral-800 p-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.12em]">{guest?.name ?? 'Invitat'}</p>
+              <p className="mt-0.5 text-xs text-neutral-500">{typeLabel} · {formatTime(upload.createdAt)}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {upload.type === 'photo' ? (
+                <DownloadPhotoButton key={upload.id} upload={upload} eventSlug={eventSlug} pin={pin} adminToken={adminToken} variant="viewer" />
+              ) : upload.type !== 'text' ? (
+                <a
+                  href={upload.bunnyUrl}
+                  download={upload.originalName}
+                  className="flex min-h-[44px] items-center justify-center border border-white bg-white px-2 text-xs font-bold uppercase tracking-wide text-black no-underline hover:bg-neutral-200"
                 >
-                  {option.label}
+                  ↓ Descarcă
+                </a>
+              ) : null}
+              {guest?.hasEmail && (
+                <button
+                  type="button"
+                  onClick={() => onThank(upload)}
+                  disabled={!!upload.thankedAt}
+                  className={`flex min-h-[44px] items-center justify-center border px-2 text-xs font-bold uppercase tracking-wide transition-colors disabled:cursor-default ${upload.thankedAt ? 'border-neutral-700 text-neutral-400' : 'border-white text-white hover:bg-white hover:text-black'} ${upload.type === 'text' ? 'col-span-2' : ''}`}
+                >
+                  {upload.thankedAt ? '✓ Mulțumire trimisă' : '✉ Mulțumește'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Comentarii</p>
+            {commentsLoading ? (
+              <p className="text-xs text-neutral-600">Se încarcă comentariile…</p>
+            ) : comments.length === 0 ? (
+              <p className="text-xs text-neutral-600">Niciun comentariu încă.</p>
+            ) : (
+              comments.map((comment) => (
+                <div key={comment.id} className={`border px-3 py-2 text-sm ${comment.fromHost ? 'border-neutral-600 bg-neutral-900 text-white' : 'border-neutral-800 text-neutral-300'}`}>
+                  {comment.fromHost && (
+                    <p className="mb-1 text-[10px] uppercase tracking-[0.16em] text-neutral-400">
+                      {comment.hostRole === 'groom'
+                        ? (eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom'))
+                        : (eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride'))}
+                    </p>
+                  )}
+                  <p>{comment.text}</p>
+                  <p className="mt-0.5 text-[11px] text-neutral-600">{formatTime(comment.createdAt)}</p>
+                </div>
+              ))
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          <div className="shrink-0 space-y-2 border-t border-neutral-800 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">Scrii ca</span>
+              <div className="inline-flex border border-neutral-700">
+                {([
+                  { value: 'bride', label: eventInfo?.bride?.trim() || getHostRoleLabel(eventInfo?.eventType, 'bride') },
+                  ...(normalizeQrEventType(eventInfo?.eventType) === 'corporate' ? [] : [
+                    { value: 'groom', label: eventInfo?.groom?.trim() || getHostRoleLabel(eventInfo?.eventType, 'groom') },
+                  ]),
+                ] as const).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setHostRole(option.value as 'bride' | 'groom')}
+                    className={`px-3 py-1 text-xs transition-colors ${hostRole === option.value ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {(quickReplies.length ? quickReplies : QUICK_REPLIES_FALLBACK).map((reply) => (
+                <button
+                  key={reply}
+                  type="button"
+                  onClick={() => sendComment(reply)}
+                  disabled={sendingComment}
+                  className="shrink-0 border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300 transition-colors hover:border-white hover:text-white disabled:opacity-50"
+                >
+                  {reply}
                 </button>
               ))}
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(quickReplies.length ? quickReplies : QUICK_REPLIES_FALLBACK).map((reply) => (
+            <div className="flex gap-2">
+              <input
+                value={commentText}
+                onChange={(event) => setCommentText(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') sendComment(commentText); }}
+                placeholder={`Scrie un mesaj ca ${selectedHostName}…`}
+                aria-label="Comentariu"
+                className="min-w-0 flex-1 border border-neutral-700 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-white focus:outline-none"
+              />
               <button
-                key={reply}
-                onClick={() => sendComment(reply)}
-                disabled={sendingComment}
-                className="px-3 py-1.5 rounded-full border border-neutral-700 text-neutral-400 text-xs hover:border-amber-500/40 hover:text-amber-300 disabled:opacity-50 transition-colors"
+                type="button"
+                onClick={() => sendComment(commentText)}
+                disabled={!commentText.trim() || sendingComment}
+                className="border border-white bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-black disabled:opacity-40"
               >
-                {reply}
+                Trimite
               </button>
-            ))}
+            </div>
           </div>
-          <div className="flex gap-2">
-            <input
-              value={commentText}
-              onChange={(event) => setCommentText(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') sendComment(commentText); }}
-              placeholder={`Scrie un mesaj ca ${selectedHostName}…`}
-              className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
-            />
-            <button
-              onClick={() => sendComment(commentText)}
-              disabled={!commentText.trim() || sendingComment}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black text-sm font-medium rounded-lg transition-colors"
-            >
-              Trimite
-            </button>
-          </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
@@ -797,8 +813,11 @@ export default function QRMomentsGalleryPage() {
     <>
       {selectedUpload && (
         <AssetModal
-          upload={selectedUpload}
+          // The fresh copy, so "✓ Mulțumire trimisă" shows right after thanking from the viewer.
+          upload={allUploads.find((item) => item.id === selectedUpload.id) ?? selectedUpload}
           allUploads={allUploads}
+          guest={groups.find((group) => group.uploads.some((item) => item.id === selectedUpload.id))?.guest ?? null}
+          onThank={setThankTarget}
           eventSlug={eventSlug ?? ''}
           pin={pin}
           adminToken={auth.authorise ? auth.accessToken : undefined}

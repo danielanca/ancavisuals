@@ -2,12 +2,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import useAuth from '../../features/admin/auth/useAuth';
 import { getHeadlineText, getHostsPairLabel, normalizeQrEventType, type QrEventType } from '../../../shared/qrMoments/hostRoles';
-import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../../shared/qrMoments/uploadLimits';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB, MAX_WISH_LENGTH } from '../../../shared/qrMoments/uploadLimits';
 import { UPLOAD_ORIGIN } from '../../utils/address';
 import PortfolioGallery from '../Portfolio/PortfolioGallery';
+import QrReferralCta from './QrReferralCta';
+import QrBrandHeader from './QrBrandHeader';
+import QrBrideCta, { QR_BRIDE_OFFER_PATH } from './QrBrideCta';
+import { referralWhatsappUrl } from '../MediaDownload/WeddingCta';
+import { sendLiveEvent } from '../../utils/liveEvent';
 
 type Step = 'loading' | 'closed' | 'not-found' | 'form' | 'upload' | 'success';
-type MediaTab = 'photo' | 'video' | 'audio';
+type MediaTab = 'photo' | 'video' | 'audio' | 'text';
 
 interface EventInfo {
   bride: string | null;
@@ -42,15 +47,16 @@ const WhatsAppHelp = ({ message }: { message?: string }) => (
     href={`${WHATSAPP_SUPPORT}?text=${encodeURIComponent(message ?? 'Bună! Am o problemă cu QR Moments.')}`}
     target="_blank"
     rel="noopener noreferrer"
-    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-colors"
+    className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-colors"
   >
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.136.561 4.14 1.535 5.874L.057 23.943l6.235-1.635A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.369l-.36-.214-3.7.97.988-3.608-.234-.372A9.818 9.818 0 0112 2.182c5.424 0 9.818 4.394 9.818 9.818 0 5.425-4.394 9.818-9.818 9.818z"/></svg>
     Trimite pe WhatsApp
   </a>
 );
 
+// The photos at the end of the page are the ones of the main offer (/oferta → /oferta/olx).
+const QR_GALLERY_OFFER_SLUG = 'olx';
 const SUBHEAD_TEXT = 'Creăm experiențe complete pentru evenimente: foto, video, fotocabină, video booth 360 și QR Moments.';
-const REFERRAL_TEXT = 'Recomandă-ne mai departe și primești o ședință foto cadou.';
 
 function mapQrApiError(error: string): string {
   if (error === 'Acces interzis.') {
@@ -70,7 +76,7 @@ export default function QRMomentsPage() {
   const [searchParams] = useSearchParams();
   const eventSlug = routeEventSlug ?? '';
   const pass = searchParams.get('pass') ?? '';
-  const { auth } = useAuth();
+  const { auth, signedInAsAdmin } = useAuth();
 
   const [step, setStep] = useState<Step>('loading');
   const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
@@ -85,7 +91,7 @@ export default function QRMomentsPage() {
   const [guestId, setGuestId] = useState<string | null>(null);
   const [mediaTab, setMediaTab] = useState<MediaTab>('photo');
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
-  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const [wishText, setWishText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgressEntry>>({});
@@ -236,17 +242,17 @@ export default function QRMomentsPage() {
       analyser.getByteTimeDomainData(data);
 
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = 'rgba(38, 38, 38, 0.92)';
+      ctx.fillStyle = '#fafafa';
       ctx.fillRect(0, 0, width, height);
 
-      ctx.strokeStyle = 'rgba(245, 158, 11, 0.16)';
+      ctx.strokeStyle = 'rgba(10, 10, 10, 0.12)';
       ctx.lineWidth = Math.max(1, dpr);
       ctx.beginPath();
       ctx.moveTo(0, height / 2);
       ctx.lineTo(width, height / 2);
       ctx.stroke();
 
-      ctx.strokeStyle = '#f59e0b';
+      ctx.strokeStyle = '#0a0a0a';
       ctx.lineWidth = Math.max(2, dpr * 1.6);
       ctx.beginPath();
 
@@ -741,23 +747,67 @@ export default function QRMomentsPage() {
       : `${retryMessage} Verifică conexiunea și încearcă din nou.`);
   };
 
+  const sendWish = async () => {
+    const text = wishText.trim();
+    if (!text || !guestId || uploading) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth.authorise && auth.accessToken) headers.Authorization = `Bearer ${auth.accessToken}`;
+      const response = await fetch(`/api/qr-moments/${eventSlug}/wish`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ guestId, pass, text }),
+      });
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(data.error ? mapQrApiError(data.error) : `Status ${response.status}`);
+      setWishText('');
+      setStep('success');
+    } catch (error) {
+      reportQrDebug('Wish send failed', { length: text.length, error: serializeDebugValue(error) });
+      setUploadError(error instanceof Error && !error.message.startsWith('Status')
+        ? error.message
+        : 'Urarea nu s-a trimis. Verifică internetul și apasă din nou „Trimite urarea”.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const formatSeconds = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-  const renderPromoBanner = () => (
+  // After sending: 9 of the offer's photos right under the thank-you, then everything the upload page has below.
+  const QR_THANK_YOU_TOP_PHOTOS = 9;
+  const renderThankYouGallery = () => (
+    <div className="relative left-1/2 w-screen -translate-x-1/2">
+      <PortfolioGallery light dense limit={QR_THANK_YOU_TOP_PHOTOS} offerSlug={QR_GALLERY_OFFER_SLUG} altBase="fotografie și videografie Anca Visuals" />
+    </div>
+  );
+
+  // `withCtas: false` on the thank-you page, which already asks the same question under its title:
+  // there only the gallery is left, without the promo headline and the two cards.
+  const renderPromoBanner = (galleryOffset = 0, withCtas = true) => (
     <div className="relative left-1/2 mt-8 w-screen -translate-x-1/2">
-      <div className="mx-auto max-w-sm px-4 text-center">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300/75">AncaVisuals</p>
-        <h2 className="mt-2 text-lg font-light leading-tight text-white">{getHeadlineText(eventInfo?.eventType)}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-neutral-300">{SUBHEAD_TEXT}</p>
-        <p className="mt-1 text-xs leading-relaxed text-amber-100/80">{REFERRAL_TEXT}</p>
-        <a
-          href="/contact"
-          className="mt-3 inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-medium text-black transition-colors hover:bg-amber-200"
-        >
-          Hai să povestim
-        </a>
-      </div>
-      <PortfolioGallery altBase="fotografie și videografie Anca Visuals" />
+      {withCtas && (
+        <div className="mx-auto max-w-sm px-4 text-center">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-neutral-500">AncaVisuals</p>
+          <h2 className="mt-2 text-lg font-light leading-tight text-neutral-950">{getHeadlineText(eventInfo?.eventType)}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-neutral-600">{SUBHEAD_TEXT}</p>
+          <a
+            href="/contact"
+            className="mt-3 inline-flex bg-neutral-950 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-neutral-800"
+          >
+            Hai să povestim
+          </a>
+        </div>
+      )}
+      <PortfolioGallery light dense offset={galleryOffset} offerSlug={QR_GALLERY_OFFER_SLUG} altBase="fotografie și videografie Anca Visuals" />
+      {withCtas && (
+        <div className="mx-auto max-w-sm space-y-6 px-4 pb-10">
+          <QrBrideCta />
+          <QrReferralCta />
+        </div>
+      )}
     </div>
   );
 
@@ -777,8 +827,8 @@ export default function QRMomentsPage() {
 
   if (step === 'loading') {
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-        <svg className="animate-spin text-neutral-600" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <div className="min-h-screen bg-[#f4f2ee] flex items-center justify-center">
+        <svg className="animate-spin text-neutral-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="12" cy="12" r="10" strokeOpacity=".25" /><path d="M12 2a10 10 0 0 1 10 10" />
         </svg>
       </div>
@@ -787,12 +837,12 @@ export default function QRMomentsPage() {
 
   if (step === 'not-found') {
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-[#f4f2ee] flex items-center justify-center px-4">
         <div className="text-center space-y-4">
           <div className="text-4xl">🔍</div>
-          <p className="text-neutral-400 text-sm">Evenimentul nu există sau link-ul este invalid.</p>
+          <p className="text-neutral-600 text-sm">Evenimentul nu există sau link-ul este invalid.</p>
           <WhatsAppHelp message="Bună! Am scanat codul QR dar primesc eroare că evenimentul nu există." />
-          <a href="/" className="block text-xs text-neutral-600 underline underline-offset-4">Înapoi acasă</a>
+          <a href="/" className="block text-xs text-neutral-500 underline underline-offset-4">Înapoi acasă</a>
         </div>
       </div>
     );
@@ -800,13 +850,13 @@ export default function QRMomentsPage() {
 
   if (step === 'closed') {
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-[#f4f2ee] flex items-center justify-center px-4">
         <div className="max-w-sm text-center space-y-4">
           <div className="text-4xl">📸</div>
-          <h1 className="text-white text-lg font-light">Perioada de upload s-a închis</h1>
-          <p className="text-neutral-400 text-sm leading-relaxed">
+          <h1 className="text-neutral-950 text-lg font-light">Perioada de upload s-a închis</h1>
+          <p className="text-neutral-600 text-sm leading-relaxed">
             Timpul alocat încărcării amintirilor a trecut. Dacă dorești să încarci în continuare, ne poți contacta pe Instagram{' '}
-            <a href="https://instagram.com/ancavisuals" className="text-amber-400 hover:text-amber-300" target="_blank" rel="noopener noreferrer">@ancavisuals</a>.
+            <a href="https://instagram.com/ancavisuals" className="text-neutral-950 underline hover:text-neutral-600" target="_blank" rel="noopener noreferrer">@ancavisuals</a>.
           </p>
         </div>
       </div>
@@ -815,12 +865,12 @@ export default function QRMomentsPage() {
 
   if (step === 'success') {
     const confetti = [
-      ['8%', '#34d399', '0s'], ['18%', '#fbbf24', '0.18s'], ['29%', '#fb7185', '0.35s'],
-      ['41%', '#60a5fa', '0.1s'], ['53%', '#a78bfa', '0.42s'], ['65%', '#34d399', '0.25s'],
-      ['77%', '#fbbf24', '0.5s'], ['89%', '#fb7185', '0.12s'],
+      ['8%', '#0a0a0a', '0s'], ['18%', '#a3a3a3', '0.18s'], ['29%', '#404040', '0.35s'],
+      ['41%', '#d4d4d4', '0.1s'], ['53%', '#0a0a0a', '0.42s'], ['65%', '#737373', '0.25s'],
+      ['77%', '#262626', '0.5s'], ['89%', '#a3a3a3', '0.12s'],
     ];
     return (
-      <div className="relative min-h-screen overflow-hidden bg-neutral-950 flex items-center justify-center px-4">
+      <div className={`relative min-h-screen overflow-hidden bg-[#f4f2ee] flex justify-center px-4 pb-12 ${signedInAsAdmin ? 'pt-24' : 'pt-8'}`}>
         <style>{`@keyframes qr-confetti-fall { 0% { transform: translateY(-12vh) rotate(0deg); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(112vh) rotate(540deg); opacity: 0; } }`}</style>
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-full overflow-hidden">
           {confetti.map(([left, color, delay], index) => (
@@ -832,21 +882,34 @@ export default function QRMomentsPage() {
           ))}
         </div>
         <div className="max-w-sm text-center space-y-6">
+          <QrBrandHeader />
           <div className="text-5xl">🎉</div>
-          <div className="space-y-2">
-            <h1 className="text-white text-3xl font-semibold tracking-wide">MATERIALE ÎNCĂRCATE</h1>
-            <p className="text-emerald-400 text-sm font-medium">Mulțumim!</p>
-            <p className="text-neutral-400 text-sm leading-relaxed">
-              Fișierele tale au ajuns la miri. Dacă lasă un comentariu, vei primi un email.
-            </p>
+          <h1 className="text-neutral-950 text-xl font-semibold leading-snug">
+            {mediaTab === 'text' ? 'Urarea a fost trimisă!' : 'Materialele au fost încărcate!'}
+          </h1>
+          <div className="space-y-3">
+            <h2 className="text-neutral-950 text-base font-medium leading-snug">Urmează să fii mireasă sau mire sau cunoști pe cineva?</h2>
+            <div className="flex flex-wrap justify-center gap-2">
+              <a
+                href={QR_BRIDE_OFFER_PATH}
+                onClick={() => sendLiveEvent('contact_clicked', { label: 'QR Moments mulțumire: mire/mireasă → configurator', meta: { source: 'qr-moments' } })}
+                className="bg-neutral-950 px-4 py-3 text-xs font-bold uppercase tracking-wide text-white no-underline hover:bg-neutral-800"
+              >
+                Calculează oferta
+              </a>
+              <a
+                href={referralWhatsappUrl(typeof window === 'undefined' ? 'https://ancavisuals.ro' : window.location.origin)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => sendLiveEvent('referral_clicked', { label: 'QR Moments mulțumire: recomandă-ne pe WhatsApp', meta: { source: 'qr-moments' } })}
+                className="border border-neutral-950 px-4 py-3 text-xs font-bold uppercase tracking-wide text-neutral-950 no-underline hover:bg-neutral-200"
+              >
+                Recomandă-ne
+              </a>
+            </div>
           </div>
-          <button
-            onClick={() => { setStep('upload'); setSelectedFiles([]); clearAudio(); }}
-            className="text-xs text-neutral-500 underline underline-offset-4 hover:text-neutral-300 transition-colors"
-          >
-            Trimite mai multe
-          </button>
-          {renderPromoBanner()}
+          {renderThankYouGallery()}
+          {renderPromoBanner(QR_THANK_YOU_TOP_PHOTOS, false)}
         </div>
       </div>
     );
@@ -857,38 +920,39 @@ export default function QRMomentsPage() {
 
   if (step === 'form') {
     return (
-      <div className="min-h-screen bg-neutral-950 px-4 py-12 flex items-center justify-center">
+      <div className="min-h-screen bg-[#f4f2ee] px-4 py-12 flex items-center justify-center">
         <div className="w-full max-w-sm space-y-6">
+          <QrBrandHeader />
           <div className="text-center space-y-1">
             <div className="text-3xl mb-3">✨</div>
-            <h1 className="text-white text-xl font-light">QR Moments</h1>
+            <h1 className="text-neutral-950 text-xl font-light tracking-[0.08em] uppercase">QR Moments</h1>
             <p className="text-neutral-500 text-sm">{coupleLabel}</p>
-            {eventInfo?.deadline && <p className="text-neutral-700 text-xs">Upload deschis până la {new Date(eventInfo.deadline).toLocaleString('ro-RO')}</p>}
+            {eventInfo?.deadline && <p className="text-neutral-400 text-xs">Upload deschis până la {new Date(eventInfo.deadline).toLocaleString('ro-RO')}</p>}
           </div>
 
           <div className="space-y-3">
             <div>
-              <label htmlFor="qr-guest-name" className="text-neutral-400 text-xs mb-1 block">Numele tău *</label>
+              <label htmlFor="qr-guest-name" className="text-neutral-600 text-xs mb-1 block">Numele tău *</label>
               <input
                 id="qr-guest-name"
                 type="text"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Maria Ionescu"
-                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+                className="w-full bg-white border border-neutral-300 px-3 py-2.5 text-neutral-950 text-sm placeholder:text-neutral-400 focus:outline-none focus:border-neutral-950"
               />
             </div>
             <div>
-              <label htmlFor="qr-guest-email" className="text-neutral-400 text-xs mb-1 block">Email *</label>
+              <label htmlFor="qr-guest-email" className="text-neutral-600 text-xs mb-1 block">Email *</label>
               <input
                 id="qr-guest-email"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="maria@exemplu.ro"
-                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+                className="w-full bg-white border border-neutral-300 px-3 py-2.5 text-neutral-950 text-sm placeholder:text-neutral-400 focus:outline-none focus:border-neutral-950"
               />
-              <p className="text-neutral-600 text-xs mt-1">Necesar pentru a primi răspunsul mirilor.</p>
+              <p className="text-neutral-500 text-xs mt-1">Necesar pentru a primi răspunsul mirilor.</p>
             </div>
           </div>
 
@@ -899,11 +963,11 @@ export default function QRMomentsPage() {
                 aria-label="Accept prelucrarea datelor cu caracter personal *"
                 checked={gdprConsent}
                 onChange={(event) => setGdprConsent(event.target.checked)}
-                className="mt-0.5 accent-amber-400"
+                className="mt-0.5 accent-neutral-950"
               />
               <div>
-                <p className="text-neutral-300 text-xs">Accept prelucrarea datelor cu caracter personal *</p>
-                <p className="text-neutral-600 text-xs mt-0.5">
+                <p className="text-neutral-800 text-xs">Accept prelucrarea datelor cu caracter personal *</p>
+                <p className="text-neutral-500 text-xs mt-0.5">
                   Numele și emailul sunt folosite exclusiv pentru funcționarea acestui serviciu. Nu sunt transmise terților. Responsabil: AncaVisuals. (GDPR Art. 6.1.a)
                 </p>
               </div>
@@ -914,11 +978,11 @@ export default function QRMomentsPage() {
                 aria-label="Sunt de acord să primesc notificări prin email (opțional)"
                 checked={emailConsent}
                 onChange={(event) => setEmailConsent(event.target.checked)}
-                className="mt-0.5 accent-amber-400"
+                className="mt-0.5 accent-neutral-950"
               />
               <div>
-                <p className="text-neutral-300 text-xs">Sunt de acord să primesc notificări prin email <span className="text-neutral-500">(opțional)</span></p>
-                <p className="text-neutral-600 text-xs mt-0.5">
+                <p className="text-neutral-800 text-xs">Sunt de acord să primesc notificări prin email <span className="text-neutral-500">(opțional)</span></p>
+                <p className="text-neutral-500 text-xs mt-0.5">
                   Vei primi un email când mirii comentează la ce ai încărcat. Te poți dezabona oricând. (Directiva ePrivacy + GDPR Art. 7)
                 </p>
               </div>
@@ -927,7 +991,7 @@ export default function QRMomentsPage() {
 
           {formError && (
             <div className="space-y-2">
-              <p className="text-red-400 text-xs">{formError}</p>
+              <p className="text-red-600 text-xs">{formError}</p>
               <WhatsAppHelp message="Bună! Am o problemă la înregistrarea pe QR Moments." />
             </div>
           )}
@@ -935,7 +999,7 @@ export default function QRMomentsPage() {
           <button
             onClick={handleFormSubmit}
             disabled={formLoading}
-            className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-medium rounded-xl text-sm transition-colors"
+            className="w-full py-3.5 bg-neutral-950 hover:bg-neutral-800 disabled:opacity-40 text-white font-semibold uppercase tracking-[0.12em] text-xs transition-colors"
           >
             {formLoading ? 'Se verifică...' : 'Continuă →'}
           </button>
@@ -945,92 +1009,38 @@ export default function QRMomentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 px-4 py-10">
+    <div className="min-h-screen bg-[#f4f2ee] px-4 py-10">
       <div className="max-w-sm mx-auto space-y-6">
+        <QrBrandHeader />
         <div className="text-center space-y-1">
-          <h1 className="text-white text-xl font-light">QR Moments</h1>
+          <h1 className="text-neutral-950 text-xl font-light tracking-[0.08em] uppercase">QR Moments</h1>
           <p className="text-neutral-500 text-sm">{coupleLabel}</p>
         </div>
 
-        <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-4 text-center space-y-1">
-          <p className="text-amber-200 text-sm font-medium">Lasă o amintire pentru {getHostsPairLabel(eventInfo?.eventType)} 💛</p>
-          <p className="text-neutral-400 text-xs leading-relaxed">
+        <div className="border border-neutral-950 bg-white px-4 py-4 text-center space-y-1">
+          <p className="text-neutral-950 text-sm font-semibold">Lasă o amintire pentru {getHostsPairLabel(eventInfo?.eventType)} 💛</p>
+          <p className="text-neutral-600 text-xs leading-relaxed">
             {normalizedEventType === 'corporate'
               ? 'Încarcă fotografii, videoclipuri sau un mesaj despre eveniment.'
-              : 'Ei se vor bucura să vadă o urare video sau vocală pe care tu o faci din toată inima pentru ei.'}
+              : 'Ei se vor bucura să vadă o urare video, vocală sau scrisă pe care tu o faci din toată inima pentru ei.'}
           </p>
         </div>
 
-        {(normalizedEventType === 'nunta' || normalizedEventType === 'botez') && (() => {
-          const weddingSuggestions = [
-            { emoji: "🏡", title: "Urare de casă de piatră", desc: "Spune-le ce îți dorești pentru căminul lor nou." },
-            { emoji: "📖", title: "O amintire cu ei", desc: "Povestește un moment pe care l-ai trăit alături de ei." },
-            { emoji: "🥂", title: "Un toast din suflet", desc: "Ridică paharul și spune câteva cuvinte sincere." },
-            { emoji: "💌", title: "Mesaj pentru viitor", desc: "Ce le dorești să trăiască împreună peste 10 ani?" },
-            { emoji: "👶", title: "Copii frumoși și sănătoși", desc: "Urează-le să aibă copii cu ochii mari și inima bună." },
-            { emoji: "🌟", title: "Sfatul tău de viață", desc: "Ce lecție despre dragoste ai vrea să le transmiți?" },
-            { emoji: "😂", title: "O glumă sau amintire haioasă", desc: "Fă-i să râdă — cele mai bune momente sunt cele cu zâmbet." },
-          ];
-          const baptismSuggestions = [
-            { emoji: "👶", title: "Urare pentru cel mic", desc: "Spune-i ce îi dorești pentru viața care abia începe." },
-            { emoji: "🙏", title: "O binecuvântare", desc: "Lasă-le un gând bun sau o rugăciune pentru copil și părinți." },
-            { emoji: "📖", title: "O amintire cu părinții", desc: "Povestește un moment frumos trăit alături de ei." },
-            { emoji: "🥂", title: "Un toast din suflet", desc: "Ridică paharul și spune câteva cuvinte sincere pentru familie." },
-            { emoji: "💌", title: "Mesaj pentru viitor", desc: "Ce speri să trăiască el/ea peste 20 de ani?" },
-            { emoji: "🌟", title: "Sfatul tău de viață", desc: "Ce lecție ai vrea să-i transmiți celui mic când va crește?" },
-            { emoji: "😂", title: "O glumă sau amintire haioasă", desc: "Fă-i să râdă — cele mai bune momente sunt cele cu zâmbet." },
-          ];
-          const suggestions = normalizedEventType === 'botez' ? baptismSuggestions : weddingSuggestions;
-          const current = suggestions[suggestionIndex % suggestions.length];
-          return (
-            <div className="space-y-2">
-              <p className="text-neutral-500 text-[10px] uppercase tracking-widest font-medium px-1">Sugestii de încărcat</p>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 px-4 py-4">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setSuggestionIndex((i) => (i - 1 + suggestions.length) % suggestions.length)}
-                    className="text-neutral-600 hover:text-neutral-300 transition-colors text-lg shrink-0 w-7 text-center"
-                  >
-                    ‹
-                  </button>
-                  <div className="flex-1 text-center space-y-1.5 min-h-[72px] flex flex-col justify-center">
-                    <span className="text-2xl">{current.emoji}</span>
-                    <p className="text-white text-xs font-medium leading-tight">{current.title}</p>
-                    <p className="text-neutral-500 text-[11px] leading-snug">{current.desc}</p>
-                  </div>
-                  <button
-                    onClick={() => setSuggestionIndex((i) => (i + 1) % suggestions.length)}
-                    className="text-neutral-600 hover:text-neutral-300 transition-colors text-lg shrink-0 w-7 text-center"
-                  >
-                    ›
-                  </button>
-                </div>
-                <div className="flex justify-center gap-1.5 mt-3">
-                  {suggestions.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSuggestionIndex(i)}
-                      className={`w-1.5 h-1.5 rounded-full transition-colors ${i === suggestionIndex ? 'bg-neutral-300' : 'bg-neutral-700'}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
-        <div className="flex gap-1 bg-neutral-900 rounded-xl p-1">
-          {(['photo', 'video', 'audio'] as MediaTab[]).map((tab) => (
+        <div className="grid grid-cols-4 border border-neutral-950">
+          {(['photo', 'video', 'audio', 'text'] as MediaTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => { setMediaTab(tab); clearSelectedFiles(); clearAudio(); }}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${mediaTab === tab ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+              className={`py-2.5 text-xs font-medium transition-colors ${mediaTab === tab ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950'}`}
             >
-              {tab === 'photo' ? '📸 Poze' : tab === 'video' ? '🎥 Video' : '🎤 Mesaj'}
+              {tab === 'photo' ? '📸 Poze' : tab === 'video' ? '🎥 Video' : tab === 'audio' ? '🎤 Mesaj' : '✍️ Urare'}
             </button>
           ))}
         </div>
 
+        {/* Same height whichever tab is open (the tallest, "Urare", is ~308px), so the page does not jump when switching. */}
+        <div data-testid="qr-tab-panel" className="space-y-6 min-h-[19.5rem]">
         {(mediaTab === 'photo' || mediaTab === 'video') && (
           <div className="space-y-4">
             <button
@@ -1039,14 +1049,14 @@ export default function QRMomentsPage() {
                 ? 'image/*,.heic,.heif,.jpg,.jpeg,.png,.webp'
                 : 'video/*,.mov,.hevc,.m4v,.mp4,.avi,.mkv'
               )}
-              className="qr-file-picker-button w-full py-8 border border-dashed border-emerald-500/50 bg-emerald-500/5 rounded-xl text-emerald-300 text-sm font-medium hover:border-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors disabled:opacity-50"
+              className="qr-file-picker-button w-full py-8 border border-dashed border-neutral-950 bg-white text-neutral-950 text-sm font-semibold hover:bg-neutral-50 transition-colors disabled:opacity-50"
             >
               {mediaTab === 'photo' ? '+ Alege poze' : '+ Alege clipuri'}
             </button>
-            <p className="text-center text-neutral-600 text-[11px]">
+            <p className="text-center text-neutral-500 text-[11px]">
               Limită: maximum {MAX_UPLOAD_FILE_SIZE_MB} MB pentru fiecare fișier. Nu există limită totală pentru selecție.
             </p>
-            <p className="text-center text-amber-200/70 text-[11px] leading-snug">
+            <p className="text-center text-neutral-600 text-[11px] leading-snug">
               {mediaTab === 'photo'
                 ? '📶 Pozele se trimit una câte una și pot dura. Încarcă dintr-un loc cu semnal bun sau pe Wi-Fi, ține pagina deschisă până termină și nu bloca ecranul.'
                 : '📶 Clipurile se trimit unul câte unul și pot dura. Încarcă dintr-un loc cu semnal bun sau pe Wi-Fi, ține pagina deschisă până termină și nu bloca ecranul.'}
@@ -1059,7 +1069,7 @@ export default function QRMomentsPage() {
                   {selectedFiles.map(({ id, file, previewUrl }) => {
                     const progress = uploadProgress[id];
                     return (
-                      <div key={id} className="relative aspect-square rounded-lg overflow-hidden bg-neutral-800">
+                      <div key={id} className="relative aspect-square overflow-hidden bg-neutral-100">
                         {DISPLAYABLE_IMAGE.includes(file.type) ? (
                           <img src={previewUrl} alt="" className="w-full h-full object-cover" />
                         ) : DISPLAYABLE_VIDEO.includes(file.type) ? (
@@ -1070,9 +1080,9 @@ export default function QRMomentsPage() {
 
                         {progress?.status === 'uploading' && (
                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1.5 px-2">
-                            <div className="w-4/5 h-1 rounded-full bg-white/20 overflow-hidden">
+                            <div className="w-4/5 h-1 bg-white/30 overflow-hidden">
                               <div
-                                className="h-full bg-amber-400 transition-all duration-150"
+                                className="h-full bg-neutral-950 transition-all duration-150"
                                 style={{ width: `${progress.progress}%` }}
                               />
                             </div>
@@ -1082,19 +1092,19 @@ export default function QRMomentsPage() {
 
                         {progress?.status === 'retrying' && (
                           <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1.5 px-2">
-                            <span className="h-4 w-4 rounded-full border-2 border-amber-300/40 border-t-amber-300 animate-spin" />
-                            <span className="text-amber-200 text-[9px] font-medium text-center leading-tight">{progress.error ?? 'Reîncerc…'}</span>
+                            <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                            <span className="text-white text-[9px] font-medium text-center leading-tight">{progress.error ?? 'Reîncerc…'}</span>
                           </div>
                         )}
 
                         {progress?.status === 'error' && (
                           <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 px-2">
-                            <span className="text-red-300 text-[10px] font-medium text-center leading-tight">Eroare la upload</span>
+                            <span className="text-red-200 text-[10px] font-medium text-center leading-tight">Eroare la upload</span>
                             <button
                               type="button"
                               onClick={() => retryFile(id)}
                               disabled={uploading}
-                              className="rounded-md bg-emerald-500 px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-950 transition-colors hover:bg-emerald-400 disabled:opacity-50"
+                              className="bg-white px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-950 transition-colors hover:bg-neutral-200 disabled:opacity-50"
                             >
                               REÎNCEARCĂ
                             </button>
@@ -1103,14 +1113,14 @@ export default function QRMomentsPage() {
 
                         {progress?.status === 'done' && (
                           <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                            <span className="w-6 h-6 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center">✓</span>
+                            <span className="w-6 h-6 bg-neutral-950 text-white text-xs flex items-center justify-center">✓</span>
                           </div>
                         )}
 
                         {!uploading && (
                           <button
                             onClick={() => removeFile(id)}
-                            className="absolute top-1 right-1 w-5 h-5 bg-black/70 rounded-full text-white text-xs flex items-center justify-center"
+                            className="absolute top-1 right-1 w-5 h-5 bg-black/70 text-white text-xs flex items-center justify-center"
                             aria-label="Elimină"
                           >
                             ×
@@ -1128,8 +1138,8 @@ export default function QRMomentsPage() {
         {mediaTab === 'audio' && (
           <div className="space-y-4">
             {audioPermission === 'denied' && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 space-y-3">
-                <p className="text-red-400 text-xs">Accesul la microfon este blocat. Activează-l din setările browserului sau contactează-ne.</p>
+              <div className="bg-red-50 border border-red-200 px-4 py-3 space-y-3">
+                <p className="text-red-600 text-xs">Accesul la microfon este blocat. Activează-l din setările browserului sau contactează-ne.</p>
                 <WhatsAppHelp message="Bună! Nu pot activa microfonul pe QR Moments. Mă poți ajuta?" />
               </div>
             )}
@@ -1137,7 +1147,7 @@ export default function QRMomentsPage() {
             {audioPermission === 'unknown' && !isRecording && !audioBlob && (
               <button
                 onClick={requestMicPermission}
-                className="w-full py-8 border border-dashed border-emerald-600/50 rounded-xl text-emerald-400 text-sm hover:border-emerald-500 hover:bg-emerald-500/5 transition-colors"
+                className="w-full py-8 border border-dashed border-neutral-950 text-neutral-950 text-sm hover:bg-neutral-50 transition-colors"
               >
                 🎤 Permite accesul la microfon
               </button>
@@ -1146,7 +1156,7 @@ export default function QRMomentsPage() {
             {audioPermission === 'granted' && !isRecording && !audioBlob && (
               <button
                 onClick={startRecording}
-                className="w-full py-8 border border-dashed border-neutral-700 rounded-xl text-neutral-400 text-sm hover:border-amber-500/40 hover:text-amber-400 transition-colors"
+                className="w-full py-8 border border-dashed border-neutral-400 text-neutral-700 text-sm hover:border-neutral-950 hover:text-neutral-950 transition-colors"
               >
                 🎙 Începe înregistrarea
               </button>
@@ -1156,9 +1166,9 @@ export default function QRMomentsPage() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 justify-center">
                   <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  <span className="text-red-400 text-sm">Se înregistrează… {recordingSecondsLeft}s</span>
+                  <span className="text-red-600 text-sm">Se înregistrează… {recordingSecondsLeft}s</span>
                 </div>
-                <div className="overflow-hidden rounded-xl border border-amber-500/20 bg-neutral-900 shadow-[0_0_0_1px_rgba(245,158,11,0.04)]">
+                <div className="overflow-hidden border border-neutral-300 bg-neutral-50">
                   <canvas
                     ref={waveformCanvasRef}
                     className="block h-28 w-full"
@@ -1170,7 +1180,7 @@ export default function QRMomentsPage() {
                 </p>
                 <button
                   onClick={stopRecording}
-                  className="w-full py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-neutral-300 text-sm hover:border-neutral-500 transition-colors"
+                  className="w-full py-3 bg-white border border-neutral-950 text-neutral-950 text-sm font-medium hover:bg-neutral-50 transition-colors"
                 >
                   Stop & Previzualizare
                 </button>
@@ -1179,8 +1189,8 @@ export default function QRMomentsPage() {
 
             {audioBlob && audioPreviewUrl && (
               <div className="space-y-3">
-                <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-4 space-y-3">
-                  <p className="text-neutral-400 text-xs">Previzualizare mesaj vocal</p>
+                <div className="bg-white border border-neutral-300 p-4 space-y-3">
+                  <p className="text-neutral-600 text-xs">Previzualizare mesaj vocal</p>
                   <audio
                     ref={audioPlayerRef}
                     src={audioPreviewUrl}
@@ -1195,7 +1205,7 @@ export default function QRMomentsPage() {
                         else { audioPlayerRef.current?.play(); }
                         setIsPlayingAudio(!isPlayingAudio);
                       }}
-                      className="w-8 h-8 flex items-center justify-center bg-neutral-800 rounded-full text-white text-xs hover:bg-neutral-700 transition-colors"
+                      className="w-8 h-8 flex items-center justify-center bg-neutral-950 text-white text-xs hover:bg-neutral-800 transition-colors"
                     >
                       {isPlayingAudio ? '❚❚' : '▶'}
                     </button>
@@ -1204,9 +1214,9 @@ export default function QRMomentsPage() {
 
                   {uploadProgress.audio?.status === 'uploading' && (
                     <div className="space-y-1">
-                      <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
+                      <div className="w-full h-1 bg-neutral-200 overflow-hidden">
                         <div
-                          className="h-full bg-amber-400 transition-all duration-150"
+                          className="h-full bg-neutral-950 transition-all duration-150"
                           style={{ width: `${uploadProgress.audio.progress}%` }}
                         />
                       </div>
@@ -1214,17 +1224,17 @@ export default function QRMomentsPage() {
                     </div>
                   )}
                   {uploadProgress.audio?.status === 'retrying' && (
-                    <p className="text-amber-300 text-[10px]">{uploadProgress.audio.error ?? 'Semnal slab — reîncerc automat…'}</p>
+                    <p className="text-neutral-600 text-[10px]">{uploadProgress.audio.error ?? 'Semnal slab — reîncerc automat…'}</p>
                   )}
                   {uploadProgress.audio?.status === 'error' && (
-                    <p className="text-red-400 text-[10px]">Eroare la trimitere, apasă din nou pe „Trimite”.</p>
+                    <p className="text-red-600 text-[10px]">Eroare la trimitere, apasă din nou pe „Trimite”.</p>
                   )}
                   {uploadProgress.audio?.status === 'done' && (
-                    <p className="text-emerald-400 text-[10px]">✓ Trimis</p>
+                    <p className="text-neutral-950 text-[10px] font-medium">✓ Trimis</p>
                   )}
                 </div>
                 {!uploading && (
-                  <button onClick={clearAudio} className="text-xs text-neutral-600 underline underline-offset-4 hover:text-neutral-400 transition-colors">
+                  <button onClick={clearAudio} className="text-xs text-neutral-500 underline underline-offset-4 hover:text-neutral-950 transition-colors">
                     Înregistrează din nou
                   </button>
                 )}
@@ -1233,24 +1243,55 @@ export default function QRMomentsPage() {
           </div>
         )}
 
+        {mediaTab === 'text' && (
+          <div className="space-y-2">
+            <label htmlFor="qr-wish" className="block text-neutral-600 text-xs">
+              {normalizedEventType === 'corporate' ? 'Mesajul tău' : `Urarea ta pentru ${getHostsPairLabel(eventInfo?.eventType)}`}
+            </label>
+            <textarea
+              id="qr-wish"
+              value={wishText}
+              onChange={(event) => setWishText(event.target.value.slice(0, MAX_WISH_LENGTH))}
+              disabled={uploading}
+              rows={7}
+              maxLength={MAX_WISH_LENGTH}
+              placeholder={normalizedEventType === 'corporate' ? 'Scrie un gând despre eveniment…' : 'Scrie-le ce le dorești din suflet… 💛'}
+              className="w-full resize-none bg-white border border-neutral-300 px-4 py-3 text-neutral-950 text-sm leading-relaxed placeholder:text-neutral-400 focus:outline-none focus:border-neutral-950 disabled:opacity-60"
+            />
+            <p className="text-right text-neutral-500 text-[11px]">{wishText.length}/{MAX_WISH_LENGTH}</p>
+          </div>
+        )}
+
         {uploadError && (
           <div className="space-y-2">
-            <p className="text-red-400 text-xs">{uploadError}</p>
+            <p className="text-red-600 text-xs">{uploadError}</p>
             <WhatsAppHelp message="Bună! Am o problemă la încărcarea fișierelor pe QR Moments." />
           </div>
         )}
 
-        {(selectedFiles.length > 0 || audioBlob) && (
+        {mediaTab === 'text' && (
+          <button
+            onClick={sendWish}
+            disabled={uploading || !wishText.trim()}
+            className="w-full py-3.5 bg-neutral-950 hover:bg-neutral-800 disabled:opacity-40 text-white font-semibold uppercase tracking-[0.12em] text-xs transition-colors"
+          >
+            {uploading ? 'Se trimite…' : 'Trimite urarea'}
+          </button>
+        )}
+
+        {mediaTab !== 'text' && (selectedFiles.length > 0 || audioBlob) && (
           <button
             onClick={handleUpload}
             disabled={uploading}
-            className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-medium rounded-xl text-sm transition-colors"
+            className="w-full py-3.5 bg-neutral-950 hover:bg-neutral-800 disabled:opacity-40 text-white font-semibold uppercase tracking-[0.12em] text-xs transition-colors"
           >
             {uploading ? 'Se trimite…' : `Trimite ${audioBlob ? 'mesajul vocal' : `${selectedFiles.length} fișier(e)`}`}
           </button>
         )}
 
-        <p className="text-neutral-700 text-xs text-center">
+        </div>
+
+        <p className="text-neutral-400 text-xs text-center">
           Creat cu drag de <span className="text-neutral-500">AncaVisuals</span>
         </p>
 

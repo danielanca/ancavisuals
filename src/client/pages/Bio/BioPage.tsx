@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
-import { useDatePrices, usePriceSeasons, useStartingPrices } from "../../hooks/useStartingPrices";
+import { useDatePrices, usePriceSeasons, useStartingPrices, useYearPrices } from "../../hooks/useStartingPrices";
 import { seasonalStartingPrice } from "../../../shared/pricing/seasonalPricing";
+import { startingPricesForDate } from "../../../shared/pricing/yearPricing";
 import { reportAvailabilityCheck } from "../../utils/liveEvent";
 import { destination } from "../../utils/address";
 
@@ -119,6 +120,7 @@ const BioPage: React.FC = () => {
   const startingPrices = useStartingPrices();
   const priceSeasons = usePriceSeasons();
   const datePrices = useDatePrices();
+  const yearPrices = useYearPrices();
   const [eventDate, setEventDate] = useState(toIso(defaultDate.day, defaultDate.month, defaultDate.year));
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [availStatus, setAvailStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
@@ -290,7 +292,7 @@ const BioPage: React.FC = () => {
             {availStatus === "available" && (
               <div className="mt-3 rounded-xl border border-green-700/40 bg-green-900/25 p-3.5">
                 <p className="text-sm font-medium text-green-300">🎉 Suntem disponibili pe {formatDateRo(eventDate)}!</p>
-                <p className="mt-1 text-sm text-white">Pachetele foto-video încep de la <span className="font-semibold text-amber-300">{seasonalStartingPrice(eventType, startingPrices, priceSeasons, eventDate, datePrices)} €</span>.</p>
+                <p className="mt-1 text-sm text-white">Pachetele foto-video încep de la <span className="font-semibold text-amber-300">{seasonalStartingPrice(eventType, startingPricesForDate(startingPrices, yearPrices, eventDate), priceSeasons, eventDate, datePrices)} €</span>.</p>
                 <a
                   href={WHATSAPP_LINK}
                   target="_blank"

@@ -130,7 +130,20 @@ export const SEED_DEFAULT_CLAUSES: SeedClause[] = [
     groupKey: null,
     conditionTag: "hasPhotoVideoAndNotPrivate",
     mutexGroup: "drepturi-imagine",
-    bodyTemplate: `<p>PRESTATORUL își rezervă dreptul de a utiliza imaginile foto și/sau video realizate în cadrul acestui Contract pentru promovarea activității sale, inclusiv pe rețelele de socializare, portofoliu online, marketing, târguri sau concursuri. Imaginile vor fi alese de PRESTATOR dintre cele mai reprezentative din perspectivă artistică. În cazul în care BENEFICIARUL dorește confidențialitate totală asupra materialelor, acesta trebuie să notifice PRESTATORUL în scris, anterior semnării contractului.</p>`,
+    bodyTemplate: `<p>PRESTATORUL își rezervă dreptul de a utiliza o selecție de fotografii și cadre video realizate în cadrul acestui Contract pentru promovarea activității sale în mediul online (rețele de socializare, portofoliu online), exclusiv în limitele prevăzute la clauza „Proprietatea materialelor și publicarea online”. Imaginile vor fi alese de PRESTATOR dintre cele mai reprezentative din perspectivă artistică. În cazul în care BENEFICIARUL dorește confidențialitate totală asupra materialelor, acesta trebuie să notifice PRESTATORUL în scris, anterior semnării contractului.</p>`,
+  },
+  {
+    key: "proprietate-materiale",
+    title: "Proprietatea materialelor și publicarea online",
+    appliesTo: "all",
+    order: 52,
+    groupKey: null,
+    conditionTag: "hasPhotoVideoAndNotPrivate",
+    mutexGroup: null,
+    bodyTemplate: `
+      <p>PRESTATORUL nu va publica și nu va transmite nimănui fotografiile sau materialele video realizate la evenimentul privat al BENEFICIARULUI, cu excepția celor prevăzute în prezenta clauză. <span class="bold">Filmarea completă și galeria completă de fotografii sunt proprietatea integrală a BENEFICIARULUI.</span></p>
+      <p>Singurul drept pe care PRESTATORUL și-l rezervă este de a folosi în mediul online, pentru prezentarea activității sale, <span class="bold">între 10 și 20 de fotografii</span> și anumite cadre video, într-un material video cu o durată de <span class="bold">maximum 3 minute</span>.</p>
+    `,
   },
   {
     key: "drepturi-imagine-privat",

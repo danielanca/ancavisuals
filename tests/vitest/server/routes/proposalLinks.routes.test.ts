@@ -270,6 +270,8 @@ describe("proposal links", () => {
       subject: expect.stringContaining("Ana a terminat"),
       html: expect.stringContaining("40"),
     }));
+    // The email opens the album itself, on the proposal links panel.
+    expect(sendViaFunnel.mock.calls[0][0].html).toContain(`https://ancavisuals.ro/media/${encodeURIComponent(link.albumSlug)}#proposal-invites`);
 
     // Later activity never reopens a finished task.
     await progress(60);

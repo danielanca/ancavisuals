@@ -32,7 +32,7 @@ type OfferServiceSection = {
   assetsMobile: OfferAsset[];
 };
 
-type Offer = {
+export type Offer = {
   id: string;
   slug: string;
   clientName: string;
@@ -50,7 +50,7 @@ type Offer = {
 
 const toGalleryItem = (asset: OfferAsset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id, sizeBytes: asset.sizeBytes });
 
-function offerToCampaign(offer: Offer): CampaignPage {
+export function offerToCampaign(offer: Offer): CampaignPage {
   const assets = offer.serviceSections.flatMap((section) => section.assets);
   const images = assets.filter((asset) => asset.kind === "image");
   const videos = assets.filter((asset) => asset.kind === "video");

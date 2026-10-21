@@ -7,7 +7,8 @@ import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { renderChatbotLeadTemplate } from "../notifications/templates/chatbotLeadTemplate";
 import { renderDateCheckTemplate } from "../notifications/templates/dateCheckTemplate";
-import { getDatePrices, getPriceSeasons, getStartingPrices } from "./startingPrices.routes";
+import { getDatePrices, getPriceSeasons, getStartingPrices, getYearPrices } from "./startingPrices.routes";
+import { startingPricesForDate } from "../../shared/pricing/yearPricing";
 import { datePercent, SEASONAL_EVENT_TYPES, seasonalStartingPrice } from "../../shared/pricing/seasonalPricing";
 
 /** ============================================================
@@ -48,7 +49,8 @@ export function parseDate(input: string): string | null {
 
 /** "Nuntă de la 1.140 €, botez de la 275 €…" for the date (/admin/preturi: seasons + special weekend dates). */
 async function startingPricesLine(dateKey: string): Promise<string> {
-  const [prices, seasons, dates] = await Promise.all([getStartingPrices(), getPriceSeasons(), getDatePrices()]);
+  const [standardPrices, seasons, dates, yearPrices] = await Promise.all([getStartingPrices(), getPriceSeasons(), getDatePrices(), getYearPrices()]);
+  const prices = startingPricesForDate(standardPrices, yearPrices, dateKey);
   const parts = SEASONAL_EVENT_TYPES.map(({ label }) =>
     `${label.toLowerCase()} de la ${seasonalStartingPrice(label, prices, seasons, dateKey, dates).toLocaleString("ro-RO")} €`);
   const special = SEASONAL_EVENT_TYPES.some(({ key }) => datePercent(dates, key, dateKey) !== 0);

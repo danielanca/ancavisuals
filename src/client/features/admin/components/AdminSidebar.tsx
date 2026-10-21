@@ -331,6 +331,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Vizitatori live", path: "/admin/live" },
         { label: "Statistici contact", path: "/admin/statistici-contact" },
         { label: "Lead-uri & emailuri", path: "/admin/leads" },
+        { label: "Email log", path: "/admin/email-log" },
       ],
     },
     {

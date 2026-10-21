@@ -23,6 +23,15 @@ export interface EmailLogEntry {
   error?: string;
   leadId?: string;
   deliveryId?: string;
+  messageId?: string;
+  /** Missing on everything the site sent; "in" = a reply received in the site's mailbox. */
+  direction?: "out" | "in";
+  from?: string;
+  /** Replies: the plain text, shown without opening the HTML preview. */
+  text?: string;
+  attachments?: string[];
+  /** Replies: the emailLog id of the email they answer, when known. */
+  inReplyToLogId?: string | null;
 }
 
 /** Never throws: logging must not break or delay the email it describes. */
@@ -52,7 +61,10 @@ export async function updateEmailLog(id: string | null, patch: Partial<EmailLogE
 
 const EMAIL_LOG_LIST_FIELDS = [
   "to", "subject", "status", "severity", "source", "reason", "error", "leadId", "deliveryId", "createdAt", "updatedAt",
+  "direction", "from", "attachments", "inReplyToLogId",
 ] as const;
+
+export const EMAIL_LOG_MAX_LIST = 3000;
 
 export async function getEmailLog(limit = 100) {
   // The list omits bodies (up to 200 KB each); select() keeps Firestore from

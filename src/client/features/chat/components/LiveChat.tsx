@@ -47,9 +47,9 @@ export function isTidioBlockedForThisDevice(): boolean {
   }
 }
 
-/** Loads the Tidio script (hidden — nothing opens). Safe to call many times. */
-export function loadTidio(): void {
-  if (!isLiveChatConfigured() || isTidioBlockedForThisDevice() || document.getElementById("tidio-script")) return;
+/** Loads the Tidio script (hidden — nothing opens). Safe to call many times. `force` skips the owner-device block. */
+export function loadTidio(force = false): void {
+  if (!isLiveChatConfigured() || (!force && isTidioBlockedForThisDevice()) || document.getElementById("tidio-script")) return;
   const script = document.createElement("script");
   script.id = "tidio-script";
   script.async = true;
@@ -161,15 +161,17 @@ let openRequested = false;
 /**
  * Loads Tidio on demand (only when the visitor asks to talk, from <ChatWithUs />) and
  * opens its chat window. Tidio's floating launcher stays hidden; the window hides again
- * on close. Resolves once the chat is open, so the button can show a loading state.
+ * on close. Resolves `true` once the chat is open, so the button can show a loading state, or
+ * `false` right away on the owner's own device (localhost / admin), where Tidio stays off unless
+ * `force` — the owner chose to open it anyway, and is then counted as a Tidio visitor once.
  */
-export function openLiveChat(): Promise<void> {
-  if (isTidioBlockedForThisDevice()) {
+export function openLiveChat({ force = false }: { force?: boolean } = {}): Promise<boolean> {
+  if (!force && isTidioBlockedForThisDevice()) {
     console.info("[LiveChat] Tidio dezactivat pe acest dispozitiv (localhost/admin). Adaugă ?tidio=1 în URL ca să-l testezi.");
-    return Promise.resolve();
+    return Promise.resolve(false);
   }
   openRequested = true;
-  loadTidio();
+  loadTidio(true);
   return new Promise((resolve) => {
     whenTidioReady((api) => {
       if (!closeHookInstalled && api.on) {
@@ -180,7 +182,7 @@ export function openLiveChat(): Promise<void> {
       api.show();
       api.open?.();
       installHeaderCloseButton(api);
-      resolve();
+      resolve(true);
     });
   });
 }

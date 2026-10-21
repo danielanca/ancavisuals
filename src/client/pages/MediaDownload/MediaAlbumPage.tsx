@@ -345,6 +345,12 @@ export default function MediaAlbumPage() {
   const [videoImporting, setVideoImporting] = useState(false);
   const [videoImportResult, setVideoImportResult] = useState<string | null>(null);
   const [invitePanelOpen, setInvitePanelOpen] = useState(false);
+  // The "a terminat de ales poze" email links to /media/:slug#proposal-invites: open the panel there.
+  useEffect(() => {
+    if (!album || !auth.authorise || window.location.hash !== "#proposal-invites") return;
+    setInvitePanelOpen(true);
+    requestAnimationFrame(() => document.getElementById("proposal-invites")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [album?.slug, auth.authorise]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const [showSaveWarning, setShowSaveWarning] = useState(false);

@@ -161,6 +161,10 @@ describe("QRMomentsPage", () => {
       return document.createElementNS("http://www.w3.org/1999/xhtml", tagName);
     });
 
+    // The upload page shows "getting married?" and the referral block once each.
+    expect(screen.getAllByRole("heading", { name: /Urmează să fii mire sau mireasă/ })).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { name: /Cunoști pe cineva care se căsătorește/ })).toHaveLength(1);
+
     fireEvent.click(uploadButton);
     fireEvent.click(await screen.findByRole("button", { name: /Trimite 1 fișier/i }));
 
@@ -173,9 +177,53 @@ describe("QRMomentsPage", () => {
     expect(uploadRequest.url).toBe(`${UPLOAD_ORIGIN}/api/qr-moments/27martie2028/upload`);
     expect(uploadRequest.body?.get("guestId")).toBe("guest-1");
     expect(uploadRequest.body?.get("pass")).toBe("SECRET");
-    expect(await screen.findByText(/Fișierele tale au ajuns la miri/i)).toBeInTheDocument();
+    expect(await screen.findByText("Materialele au fost încărcate!")).toBeInTheDocument();
+    expect(screen.queryByText(/au ajuns la miri/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Trimite mai multe" })).not.toBeInTheDocument();
+    // Right under the title: the "getting married or know someone?" question with the offer and referral links.
+    expect(screen.getByRole("heading", { name: "Urmează să fii mireasă sau mire sau cunoști pe cineva?" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Calculează oferta" })).toHaveAttribute("href", "/oferta?utm_source=qr-moments&utm_medium=guest#configurator");
+    expect(screen.getByRole("link", { name: "Recomandă-ne" })).toHaveAttribute("target", "_blank");
+    // The question is asked once: the big "getting married?" and referral cards are not repeated below the gallery.
+    expect(screen.queryByRole("heading", { name: /Urmează să fii mire sau mireasă/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Cunoști pe cineva care se căsătorește/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Hai să povestim" })).not.toBeInTheDocument();
 
     createElementSpy.mockRestore();
+  });
+
+  test("sends a written wish from the Urare tab", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ bride: "Ana", groom: "Dan", isOpen: true, deadline: "2028-03-28T01:00:00.000Z" }) })
+      .mockResolvedValueOnce({ json: async () => ({ guestId: "guest-1" }) })
+      .mockImplementation(async (url: string) => (url.endsWith("/wish")
+        ? { ok: true, status: 201, json: async () => ({ uploadedCount: 1, uploadIds: ["wish-1"] }) }
+        : { json: async () => ({ desktop: [], mobile: [] }) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderUploadPage();
+
+    fireEvent.change(await screen.findByLabelText("Numele tău *"), { target: { value: "Maria" } });
+    fireEvent.change(screen.getByLabelText("Email *"), { target: { value: "maria@example.com" } });
+    fireEvent.click(screen.getByLabelText("Accept prelucrarea datelor cu caracter personal *"));
+    fireEvent.click(screen.getByRole("button", { name: /Continuă/i }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "✍️ Urare" }));
+    const send = screen.getByRole("button", { name: "Trimite urarea" });
+    expect(send).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Urarea ta/), { target: { value: "  Casă de piatră! 💛 " } });
+    fireEvent.click(send);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/qr-moments/27martie2028/wish",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ guestId: "guest-1", pass: "SECRET", text: "Casă de piatră! 💛" }),
+        }),
+      );
+    });
+    expect(await screen.findByText("Urarea a fost trimisă!")).toBeInTheDocument();
   });
 
   test("keeps only the failed file selected for retry after a partial upload failure", async () => {

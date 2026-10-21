@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import QRCoupleSmsPanel from "./QRCoupleSmsPanel";
 import { Link } from "react-router-dom";
 import { destination, isProd } from "../../../utils/address";
 import Breadcrumb from "./Breadcrumb";
@@ -47,8 +48,10 @@ type QRUpload = {
   eventSlug: string;
   guestId: string;
   guestName: string;
-  type: "photo" | "video" | "audio";
+  type: "photo" | "video" | "audio" | "text";
   bunnyUrl: string;
+  /** Only for type "text": the written wish. */
+  text?: string;
   fileName: string;
   originalName: string;
   visible: boolean;
@@ -89,7 +92,7 @@ type QREmailGroup = {
   }>;
 };
 
-type QRMaterialType = "all" | "photo" | "video" | "audio";
+type QRMaterialType = "all" | "photo" | "video" | "audio" | "text";
 
 type QREventFormValues = {
   adminEventId: string;
@@ -113,6 +116,7 @@ function QRMaterialDownloadButtons({
     { type: "photo", label: "Foto" },
     { type: "video", label: "Video" },
     { type: "audio", label: "Audio voice" },
+    { type: "text", label: "Urări scrise" },
   ];
 
   return (
@@ -450,6 +454,10 @@ function EventEditorModal({
 }
 
 function MediaPreview({ upload }: { upload: QRUpload }) {
+  if (upload.type === "text") {
+    return <div className="w-16 h-16 rounded-lg bg-neutral-900 flex items-center justify-center text-xl">✍️</div>;
+  }
+
   if (DISPLAYABLE_IMAGE.includes(upload.mimeType)) {
     return <img src={upload.bunnyUrl} alt="" className="w-16 h-16 rounded-lg object-cover bg-neutral-900" />;
   }
@@ -507,7 +515,10 @@ export default function QRMomentsAdminPage() {
       }
       const nextEvents = result.events ?? [];
       setEvents(nextEvents);
-      setSelectedEventSlug((current) => current || nextEvents[0]?.eventSlug || "");
+      // `?event=<slug>` (link from the upload email's SMS reminder) opens that event.
+      const requested = new URLSearchParams(window.location.search).get("event");
+      const linked = nextEvents.find((event: QREventListItem) => event.eventSlug === requested)?.eventSlug;
+      setSelectedEventSlug((current) => current || linked || nextEvents[0]?.eventSlug || "");
     } catch {
       setError("Nu am putut încărca evenimentele QR Moments.");
     } finally {
@@ -1108,6 +1119,9 @@ export default function QRMomentsAdminPage() {
                       downloading={downloadingMaterials?.eventSlug === selectedEvent.eventSlug ? downloadingMaterials.type : null}
                     />
                   </div>
+                  <div className="mt-4">
+                    <QRCoupleSmsPanel key={selectedEvent.eventSlug} eventSlug={selectedEvent.eventSlug} authHeader={authHeader} />
+                  </div>
                 </div>
               )}
 
@@ -1149,8 +1163,13 @@ export default function QRMomentsAdminPage() {
                             <span className="rounded-full bg-neutral-900 px-2 py-1 text-[11px] uppercase tracking-wide text-neutral-400">{upload.type}</span>
                           </div>
                           <p className="text-neutral-500 text-xs mt-1">{upload.guestName} · {formatDate(upload.createdAt)}</p>
-                          <p className="text-neutral-600 text-xs mt-1 font-mono break-all">{upload.mimeType}</p>
+                          {upload.type === "text" ? (
+                            <p className="text-neutral-200 text-sm mt-2 whitespace-pre-wrap break-words">{upload.text}</p>
+                          ) : (
+                            <p className="text-neutral-600 text-xs mt-1 font-mono break-all">{upload.mimeType}</p>
+                          )}
                           <div className="mt-3 flex flex-wrap gap-2">
+                            {upload.type !== "text" && (<>
                             <a
                               href={upload.bunnyUrl}
                               target="_blank"
@@ -1166,6 +1185,7 @@ export default function QRMomentsAdminPage() {
                             >
                               Descarcă
                             </a>
+                            </>)}
                             <button
                               onClick={() => setDeleteUploadConfirmation(upload)}
                               disabled={busyUploadId === upload.id}

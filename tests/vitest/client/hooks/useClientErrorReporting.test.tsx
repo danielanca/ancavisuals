@@ -1,7 +1,7 @@
 /*
  * Purpose: verifies that useClientErrorReporting attaches error listeners,
- * forwards events to the monitoring endpoint, skips reporting for admins,
- * and removes listeners on unmount.
+ * forwards events to the monitoring endpoint (admin errors flagged, repeats
+ * sent once per page load), and removes listeners on unmount.
  */
 import { renderHook, act } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -42,15 +42,17 @@ describe("useClientErrorReporting", () => {
     expect(body.page).toBe(window.location.pathname);
   });
 
-  test("does not report errors when admin cookie is set", async () => {
+  test("reports the admin's errors too, flagged as admin, and each distinct error once", async () => {
     getCookieMock.mockReturnValue("1");
     renderHook(() => useClientErrorReporting());
 
     await act(async () => {
       window.dispatchEvent(new ErrorEvent("error", { message: "Admin error" }));
+      window.dispatchEvent(new ErrorEvent("error", { message: "Admin error" }));
     });
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).admin).toBe(true);
   });
 
   test("removes event listeners on unmount", async () => {

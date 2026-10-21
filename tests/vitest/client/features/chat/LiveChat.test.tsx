@@ -40,6 +40,18 @@ describe("Tidio stays off for the owner's own visits", () => {
     expect(document.getElementById("tidio-script")).toBeNull();
   });
 
+  test("on the owner's device openLiveChat reports it did not open, unless forced", async () => {
+    localStorage.setItem("av_admin_device", "1");
+    await expect(openLiveChat()).resolves.toBe(false);
+    expect(document.getElementById("tidio-script")).toBeNull();
+
+    // "Deschide oricum" (openLiveChat({ force: true })) loads it through the forced path.
+    loadTidio(true);
+    expect(document.getElementById("tidio-script")).not.toBeNull();
+    document.getElementById("tidio-script")?.remove();
+    localStorage.removeItem("av_admin_device");
+  });
+
   test("?tidio=1 forces it on for testing", () => {
     setLocation("localhost", "?tidio=1");
     loadTidio();

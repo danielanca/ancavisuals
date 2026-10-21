@@ -99,7 +99,7 @@ export function buildCompletionEmail(link: Pick<ProposalLink, "albumSlug" | "lab
       <div style="font-family:Arial,sans-serif;font-size:14px;color:#111;">
         <p><strong>${escapeHtml(visitor.name)}</strong> a apăsat „Am terminat” pe linkul de propuneri pentru <strong>${escapeHtml(where)}</strong>.</p>
         <p>Poze propuse: <strong>${proposed}</strong><br>Poze răsfoite: ${seen}</p>
-        <p style="margin:18px 0 0;"><a href="https://ancavisuals.ro/admin/instagram-proposals" style="color:#c9a96e;">Vezi propunerile →</a></p>
+        <p style="margin:18px 0 0;"><a href="https://ancavisuals.ro/media/${encodeURIComponent(link.albumSlug)}#proposal-invites" style="color:#c9a96e;">Vezi propunerile în album →</a></p>
       </div>`,
   };
 }

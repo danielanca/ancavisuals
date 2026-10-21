@@ -68,6 +68,7 @@ import { useVisitorNotification } from "./hooks/useVisitorNotification";
 import { useLiveVisitor } from "./hooks/useLiveVisitor";
 import { captureLandingMeta } from "./utils/sessionAttribution";
 import { installAdsContactClickTracking } from "./utils/googleAds";
+import { installNoNumberStepping } from "./utils/noNumberStepping";
 // City pages load on demand, but the server sends them fully rendered — their gallery's
 // styles must already be in the main CSS, not arrive with the page's code a moment later.
 import "./pages/Portfolio/PortfolioGallery.scss";
@@ -103,15 +104,16 @@ export const App = () => {
   const location = useLocation();
   const [mediaPromoVisible, setMediaPromoVisible] = useState(false);
   const liveChatVisible = !HIDE_LIVE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
-  // Campaign landings (/oferta/:slug) render <ChatWithUs /> themselves, above their
+  // Campaign landings (/oferta/:slug) and /contact render <ChatWithUs /> themselves, above their
   // footer, so "Setări cookie" stays the last thing on the page.
-  const chatWithUsInPage = location.pathname.startsWith("/oferta/") && location.pathname !== "/oferta/inmormantari";
+  const chatWithUsInPage = (location.pathname.startsWith("/oferta/") && location.pathname !== "/oferta/inmormantari") || location.pathname === "/contact";
   const isMediaPage = location.pathname.startsWith("/media/");
   const baseChatAllowed = !HIDE_CHAT_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
   const showChat = isMediaPage ? mediaPromoVisible : baseChatAllowed;
-  const isErrorReportingEnabled = location.pathname.startsWith("/admin") || location.pathname.startsWith("/media");
+  // Every page sends its JS errors to /admin/errors; the red error tab shows only inside /admin.
+  const isAdminArea = location.pathname.startsWith("/admin");
   usePageTracking();
-  useClientErrorReporting(isErrorReportingEnabled);
+  useClientErrorReporting(true);
   useVisitorNotification();
   useLiveVisitor();
 
@@ -120,6 +122,7 @@ export const App = () => {
   }, []);
 
   useEffect(() => installAdsContactClickTracking(), []);
+  useEffect(() => installNoNumberStepping(), []);
 
   const suppressCookieBot = location.pathname.startsWith("/media") || location.pathname.startsWith("/admin") || location.pathname.startsWith("/bio");
 
@@ -171,7 +174,7 @@ export const App = () => {
       <AuthProvider>
           <AdminBar />
           <ErrorMonitorPanel />
-          <ClientDebugBadge />
+          {isAdminArea && <ClientDebugBadge />}
           <ChunkErrorBoundary>
           <Suspense fallback={<AncaLoader reportSlowLoad />}>
             {isLiveChatConfigured()

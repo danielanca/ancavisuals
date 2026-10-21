@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useDatePrices, usePriceBook, usePriceSeasons } from "../../hooks/useStartingPrices";
+import { useDatePrices, usePriceBook, usePriceSeasons, useYearPrices } from "../../hooks/useStartingPrices";
 import { priceDependsOnDate, seasonalPriceBook } from "../../../shared/pricing/seasonalPricing";
+import { priceBookForYear } from "../../../shared/pricing/yearPricing";
 import { sendLiveEvent } from "../../utils/liveEvent";
+import { saveConfiguratorOffer } from "../../features/chat/configuratorOffer";
 import LocationField from "../Contact/LocationField";
 import { guessCounty } from "../../data/romaniaLocations";
 import {
   CONFIGURATOR_EVENTS,
   EXTRAS,
   GUEST_TIERS,
+  SERVICES,
   buildQuote,
   extraPrice,
   guestTierPrice,
@@ -206,17 +209,19 @@ export default function PriceConfigurator({
   const standardPrices = usePriceBook();
   const seasons = usePriceSeasons();
   const datePrices = useDatePrices();
+  const yearPrices = useYearPrices();
   const [eventKey, setEventKey] = useState<ConfiguratorEventKey>(initialEvent);
   const event = eventByKey(eventKey) ?? CONFIGURATOR_EVENTS[0];
-  // Prices depend on the event's month (/admin/preturi → sezoane) and on special weekend dates;
-  // until the date is complete, the cheapest still possible.
+  // Prices depend on the event's year (/admin/preturi → prețuri pe ani), month (sezoane) and on
+  // special weekend dates; until the date is complete, the cheapest still possible.
   const eventMonth = dateParts.month === null ? null : dateParts.month + 1;
   const exactDate = eventDate || null;
   const prices = useMemo(
-    () => seasonalPriceBook(standardPrices, seasons, event.startingKey, eventMonth, exactDate, datePrices),
-    [standardPrices, seasons, event.startingKey, eventMonth, exactDate, datePrices],
+    () => seasonalPriceBook(priceBookForYear(standardPrices, yearPrices, dateParts.year), seasons, event.startingKey, eventMonth, exactDate, datePrices),
+    [standardPrices, yearPrices, dateParts.year, seasons, event.startingKey, eventMonth, exactDate, datePrices],
   );
-  const priceFromLowestMonth = priceDependsOnDate(seasons, datePrices, event.startingKey, exactDate, eventMonth);
+  const priceFromLowestMonth = priceDependsOnDate(seasons, datePrices, event.startingKey, exactDate, eventMonth)
+    || (dateParts.year === null && Object.keys(yearPrices).length > 0);
   const rates = hourlyRates(event, prices);
   const [service, setService] = useState<ServiceKey>(() => defaultService(event));
   const [extras, setExtras] = useState<ExtraKey[]>([]);
@@ -371,6 +376,20 @@ export default function PriceConfigurator({
         ? "Pe site apare că data e liberă — aș vrea să o rezervăm."
         : "Pe site apare că data e ocupată — mai aveți vreo variantă?",
   ].join("\n");
+
+  // Remembered for the WhatsApp box at the end of the page ("Adaugă în mesaj oferta configurată"),
+  // once the visitor chose something themselves — not the untouched default configuration.
+  const offerSummary = [
+    `Oferta configurată pe site: ${event.label.toLocaleLowerCase("ro-RO")}${eventDate ? `, pe ${formatDate(eventDate)}` : ""}${place ? ` (locația: ${place})` : ""}`,
+    ...quote.lines.map((line) => `• ${line.label}${line.waived ? " (ofertă: gratuit)" : ` — ${formatAmount(line.amount)} €`}`),
+    `Estimare: ${priceFromLowestMonth ? "de la " : ""}${formatAmount(quote.total)} €`,
+  ].join("\n");
+  const offerPicks = [SERVICES.find((s) => s.key === service)?.label, ...extras.map((key) => EXTRAS[key].label)].filter((pick): pick is string => Boolean(pick));
+  const offerPicksKey = offerPicks.join("|");
+  useEffect(() => {
+    if (!eventDate && !optionChosen) return;
+    saveConfiguratorOffer({ text: offerSummary, event: event.label, picks: offerPicks });
+  }, [offerSummary, offerPicksKey, event.label, eventDate, optionChosen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step 5 — phone only, GDPR consent required.
   const [phone, setPhone] = useState("");

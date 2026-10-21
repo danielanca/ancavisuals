@@ -7,6 +7,7 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { BOT_UA } from "../utils/botUa";
+import { categorizeError, errorFingerprint, isNoiseError, ERROR_CATEGORY_LABELS, type ErrorCategory } from "../../shared/errorCategories";
 
 const router = Router();
 
@@ -188,13 +189,87 @@ async function sendQrDebugEmail(message: string, stack: string, page: string, ip
   });
 }
 
+// Every page now reports its errors: a broken script could fire on each visit, so one IP gets
+// at most CLIENT_ERROR_IP_LIMIT reports per window (the rest are dropped, not stored).
+const CLIENT_ERROR_IP_WINDOW_MS = 10 * 60_000;
+const CLIENT_ERROR_IP_LIMIT = 30;
+const clientErrorsByIp = new Map<string, { count: number; since: number }>();
+
+function allowClientError(ip: string): boolean {
+  const now = Date.now();
+  const entry = clientErrorsByIp.get(ip);
+  if (!entry || now - entry.since > CLIENT_ERROR_IP_WINDOW_MS) {
+    clientErrorsByIp.set(ip, { count: 1, since: now });
+    if (clientErrorsByIp.size > 5000) {
+      for (const [key, value] of clientErrorsByIp) if (now - value.since > CLIENT_ERROR_IP_WINDOW_MS) clientErrorsByIp.delete(key);
+    }
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= CLIENT_ERROR_IP_LIMIT;
+}
+
+// "A new kind of error appeared": one email per fingerprint per day, at most
+// NEW_ERROR_EMAILS_PER_HOUR in total. Categories with their own emails (QR, slow load,
+// images, 404) and errors seen by the admin are left out — all of them stay in /admin/errors.
+const NEW_ERROR_EMAIL_CATEGORIES = new Set<ErrorCategory>(["js", "promise", "chunk", "network", "hydration"]);
+const NEW_ERROR_FINGERPRINT_COOLDOWN_MS = 24 * 60 * 60_000;
+const NEW_ERROR_EMAILS_PER_HOUR = 5;
+const newErrorEmailLastSent = new Map<string, number>();
+let newErrorEmailTimes: number[] = [];
+
+function shouldSendNewErrorEmail(fingerprint: string): boolean {
+  const now = Date.now();
+  const last = newErrorEmailLastSent.get(fingerprint);
+  if (last && now - last < NEW_ERROR_FINGERPRINT_COOLDOWN_MS) return false;
+  newErrorEmailTimes = newErrorEmailTimes.filter((time) => now - time < 60 * 60_000);
+  if (newErrorEmailTimes.length >= NEW_ERROR_EMAILS_PER_HOUR) return false;
+  newErrorEmailLastSent.set(fingerprint, now);
+  newErrorEmailTimes.push(now);
+  for (const [key, time] of newErrorEmailLastSent) if (now - time > NEW_ERROR_FINGERPRINT_COOLDOWN_MS) newErrorEmailLastSent.delete(key);
+  return true;
+}
+
+async function sendNewClientErrorEmail(
+  category: ErrorCategory,
+  message: string,
+  stack: string,
+  page: string,
+  userAgent: string,
+  geo?: { city?: string; region?: string; country?: string },
+) {
+  const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const location = geo ? [geo.city, geo.region, geo.country].filter(Boolean).join(", ") : "";
+  await sendEmail({
+    to: adminUser.email,
+    subject: `🐞 Eroare nouă pe ancavisuals.ro — ${ERROR_CATEGORY_LABELS[category]} · ${page || "/"}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5;border-radius:12px;">
+        <h2 style="color:#f87171;margin:0 0 8px;">🐞 Un vizitator a dat de o eroare nouă</h2>
+        <p style="color:#a3a3a3;margin:0 0 16px;font-size:13px;">Categoria: <strong style="color:#f5f5f5;">${safe(ERROR_CATEGORY_LABELS[category])}</strong></p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:6px 0;color:#737373;width:110px;">Pagină</td><td style="color:#f5f5f5;word-break:break-all;">${safe(page || "/")}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">Locație IP</td><td style="color:#f5f5f5;">${safe(location || "—")}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">Device</td><td style="color:#a3a3a3;font-size:11px;word-break:break-all;">${safe((userAgent || "—").slice(0, 160))}</td></tr>
+        </table>
+        <div style="background:#171717;border:1px solid #262626;border-radius:8px;padding:14px 16px;margin-top:16px;">
+          <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:#f5f5f5;font-size:12px;">${safe(`${message}\n\n${stack}`.slice(0, 2000))}</pre>
+        </div>
+        <p style="margin:16px 0 0;"><a href="https://ancavisuals.ro/admin/errors" style="color:#60a5fa;">Vezi toate erorile în admin →</a></p>
+        <p style="color:#444;font-size:11px;margin:20px 0 0;">Trimis automat · max. 1 email / zi pentru aceeași eroare, max. ${NEW_ERROR_EMAILS_PER_HOUR} / oră</p>
+      </div>
+    `,
+  });
+}
+
 // Public — trimis din browser
 router.post("/client-error", async (req: Request, res: Response) => {
   try {
-    const { message, stack = "", page = "" } = req.body as {
+    const { message, stack = "", page = "", admin = false } = req.body as {
       message: string;
       stack: string;
       page: string;
+      admin?: boolean;
     };
 
     if (!message || typeof message !== "string") {
@@ -202,18 +277,34 @@ router.post("/client-error", async (req: Request, res: Response) => {
       return;
     }
 
-    if (isExtensionError(message, stack)) {
+    if (isExtensionError(message, stack) || isNoiseError(message, String(stack))) {
+      res.json({ ok: true, ignored: true });
+      return;
+    }
+
+    const userAgent = String(req.headers?.["user-agent"] ?? "");
+    if (BOT_UA.test(userAgent)) {
       res.json({ ok: true, ignored: true });
       return;
     }
 
     const ip = getClientIp(req);
+    if (!allowClientError(ip || "-")) {
+      res.json({ ok: true, ignored: true });
+      return;
+    }
     const geoData = await fetchIpInfo(ip).catch(() => null);
     const geo = geoData
       ? { city: geoData.city, region: geoData.region, country: geoData.country }
       : undefined;
 
-    captureClientError(message, stack, page, ip || undefined, geo);
+    const trimmedMessage = message.slice(0, 2000);
+    const trimmedStack = String(stack).slice(0, 8000);
+    captureClientError(trimmedMessage, trimmedStack, page, ip || undefined, geo, { userAgent, admin: admin === true });
+    const category = categorizeError({ message: trimmedMessage, stack: trimmedStack, page });
+    if (admin !== true && NEW_ERROR_EMAIL_CATEGORIES.has(category) && shouldSendNewErrorEmail(errorFingerprint(category, trimmedMessage, page))) {
+      sendNewClientErrorEmail(category, trimmedMessage, trimmedStack, page, userAgent, geo).catch(() => {});
+    }
     if (isQrDebugError(message, page) && shouldSendQrDebugEmail(page, ip || undefined)) {
       sendQrDebugEmail(message, stack, page, ip || undefined, geo).catch(() => {});
     }
@@ -294,11 +385,15 @@ router.get("/errors", requireFirebaseAuth, requireSupremeAdmin, async (_req: Req
     const snapshot = await firestore()
       .collection(ERRORS_COLLECTION)
       .orderBy("capturedAt", "desc")
-      .limit(200)
+      .limit(500)
       .get();
 
     const errors = snapshot.docs.map((doc) => {
       const data = doc.data();
+      // Errors saved before categories existed get theirs from the message.
+      const category: ErrorCategory = data.category ?? categorizeError({
+        message: String(data.message ?? ""), stack: String(data.stack ?? ""), page: String(data.page ?? ""), source: data.source,
+      });
       return {
         id: doc.id,
         message: data.message,
@@ -307,6 +402,10 @@ router.get("/errors", requireFirebaseAuth, requireSupremeAdmin, async (_req: Req
         severity: data.severity,
         page: data.page,
         seen: data.seen,
+        category,
+        fingerprint: data.fingerprint ?? errorFingerprint(category, String(data.message ?? ""), String(data.page ?? "")),
+        userAgent: data.userAgent ?? null,
+        admin: data.admin === true,
         ip: data.ip ?? null,
         geo: data.geo ?? null,
         capturedAt: (data.capturedAt as Timestamp)?.toDate().toISOString() ?? null,

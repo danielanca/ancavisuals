@@ -1,9 +1,18 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Navbar/Footer";
 
 const Terms = () => {
+  // Links like /terms#recomandare (the referral CTA in emails) open at that section; the app's
+  // scroll-to-top on navigation would otherwise keep the page at the top.
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    const timer = window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: "start" }), 150);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar />
@@ -13,7 +22,7 @@ const Terms = () => {
           Termeni și Condiții
         </h1>
         <p className="text-gray-500 text-sm tracking-widest uppercase mb-16">
-          Ultima actualizare: Aprilie 2026
+          Ultima actualizare: Octombrie 2026
         </p>
 
         <div className="space-y-12 text-gray-300 leading-relaxed">
@@ -188,9 +197,33 @@ const Terms = () => {
             </p>
           </section>
 
+          <section id="recomandare" className="scroll-mt-32">
+            <h2 className="text-lg font-light tracking-[0.15em] uppercase text-white mb-4">
+              10. Promoția de recomandare
+            </h2>
+            <p className="mb-4">
+              Dacă ne recomanzi unor viitori miri, folosind linkul sau mesajul de recomandare primit
+              de la noi (de exemplu, din emailurile QR Code Moments sau din paginile cu poze):
+            </p>
+            <ul className="space-y-3">
+              {[
+                "Persoanele recomandate primesc fotocabina gratuit, inclusă în contractul încheiat cu Anca Visuals pentru evenimentul lor.",
+                "Persoana care a făcut recomandarea primește o ședință foto gratuită doar după ce persoanele recomandate semnează contractul cu Anca Visuals.",
+                "Costul deplasării la locația ședinței foto se achită de beneficiarul ședinței (persoana care a făcut recomandarea).",
+                "Ca să știm de la cine vine recomandarea, persoanele recomandate trebuie să ne spună numele tău înainte de semnarea contractului.",
+                "Data și locul ședinței foto se stabilesc de comun acord, în funcție de disponibilitate. Ședința nu poate fi transformată în bani.",
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="text-gray-600 mt-1">—</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <section>
             <h2 className="text-lg font-light tracking-[0.15em] uppercase text-white mb-4">
-              10. Legea aplicabilă
+              11. Legea aplicabilă
             </h2>
             <p>
               Acești termeni sunt guvernați de legislația română. Orice litigiu se va soluționa pe
@@ -201,7 +234,7 @@ const Terms = () => {
 
           <section>
             <h2 className="text-lg font-light tracking-[0.15em] uppercase text-white mb-4">
-              11. Contact
+              12. Contact
             </h2>
             <p>
               Întrebări despre acești termeni? Scrie-ne la{" "}

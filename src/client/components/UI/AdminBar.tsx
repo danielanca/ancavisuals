@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { useLocation } from "react-router-dom";
 import useAuth from "../../features/admin/auth/useAuth";
 import { useErrorMonitor } from "../../features/admin/providers/ErrorMonitorContext";
@@ -16,8 +16,78 @@ type Subscriber = {
 const CHANNEL_EMOJI: Record<string, string> = { email: "✉️", sms: "💬", whatsapp: "🟢" };
 const subscriberKey = (s: Subscriber) => s.id ?? s.email;
 
+// Pages with the site Navbar show these controls in the Navbar's admin strip instead: while a
+// Navbar is mounted (useNavbarHostsAdminControls), the floating bar stays hidden.
+let navbarHosts = 0;
+const navbarHostListeners = new Set<() => void>();
+const emitNavbarHosts = () => navbarHostListeners.forEach((listener) => listener());
+const subscribeNavbarHosts = (listener: () => void) => {
+  navbarHostListeners.add(listener);
+  return () => { navbarHostListeners.delete(listener); };
+};
+export function useNavbarHostsAdminControls(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    navbarHosts += 1;
+    emitNavbarHosts();
+    return () => { navbarHosts -= 1; emitNavbarHosts(); };
+  }, [active]);
+}
+
+/** The admin/client view switch and the log-out button (with its confirm step). */
+export function AdminViewControls() {
+  const { logOut, clientPreview, setClientPreview } = useAuth();
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const pill = (active: boolean): React.CSSProperties => ({
+    padding: "5px 10px", borderRadius: 999, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
+    background: active ? (clientPreview ? "#c9a96e" : "#fff") : "transparent",
+    color: active ? "#0a0a0a" : "#999",
+  });
+  return (
+    <>
+      <div
+        role="group"
+        aria-label="Ce vezi pe pagină"
+        title={clientPreview ? "Vezi pagina exact ca un client. Funcțiile de admin sunt ascunse." : "Vezi și funcțiile de admin."}
+        style={{ display: "flex", padding: 2, borderRadius: 999, border: "1px solid #333", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(6px)" }}
+      >
+        <button type="button" aria-pressed={!clientPreview} onClick={() => setClientPreview(false)} style={pill(!clientPreview)}>🛠 Admin</button>
+        <button type="button" aria-pressed={clientPreview} onClick={() => setClientPreview(true)} style={pill(clientPreview)}>👁 Client</button>
+      </div>
+      {confirmLogout && (
+        <button
+          type="button"
+          onClick={() => setConfirmLogout(false)}
+          style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #333", background: "rgba(10,10,10,0.85)", color: "#999", fontSize: 12, cursor: "pointer" }}
+        >
+          Anulează
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          if (!confirmLogout) { setConfirmLogout(true); return; }
+          setConfirmLogout(false);
+          void logOut();
+        }}
+        aria-label={confirmLogout ? "Confirmă deconectarea" : "Deconectare admin"}
+        style={{
+          padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer",
+          border: `1px solid ${confirmLogout ? "#b91c1c" : "#333"}`,
+          background: confirmLogout ? "#7f1d1d" : "rgba(10,10,10,0.85)",
+          color: confirmLogout ? "#fff" : "#ccc",
+          backdropFilter: "blur(6px)",
+        }}
+      >
+        {confirmLogout ? "Da, ieși din cont" : "⎋ Log out"}
+      </button>
+    </>
+  );
+}
+
 export default function AdminBar() {
-  const { auth, logOut, signedInAsAdmin, clientPreview, setClientPreview } = useAuth();
+  const { auth, logOut, signedInAsAdmin } = useAuth();
+  const shownInNavbar = useSyncExternalStore(subscribeNavbarHosts, () => navbarHosts > 0, () => false);
   const location = useLocation();
   useErrorMonitor();
   const [notifyStatus, setNotifyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -76,49 +146,10 @@ export default function AdminBar() {
   // The full bar was replaced by the ADMIN button in Navbar; outside /admin only the
   // admin/client view switch and the log-out button remain.
   if (location.pathname.startsWith("/admin")) return null;
-  const pill = (active: boolean): React.CSSProperties => ({
-    padding: "5px 10px", borderRadius: 999, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
-    background: active ? (clientPreview ? "#c9a96e" : "#fff") : "transparent",
-    color: active ? "#0a0a0a" : "#999",
-  });
+  if (shownInNavbar) return null;
   return (
     <div style={{ position: "fixed", top: 8, right: 8, zIndex: 1000, display: "flex", gap: 6, fontFamily: "sans-serif", alignItems: "center" }}>
-      <div
-        role="group"
-        aria-label="Ce vezi pe pagină"
-        title={clientPreview ? "Vezi pagina exact ca un client. Funcțiile de admin sunt ascunse." : "Vezi și funcțiile de admin."}
-        style={{ display: "flex", padding: 2, borderRadius: 999, border: "1px solid #333", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(6px)" }}
-      >
-        <button type="button" aria-pressed={!clientPreview} onClick={() => setClientPreview(false)} style={pill(!clientPreview)}>🛠 Admin</button>
-        <button type="button" aria-pressed={clientPreview} onClick={() => setClientPreview(true)} style={pill(clientPreview)}>👁 Client</button>
-      </div>
-      {confirmLogout && (
-        <button
-          type="button"
-          onClick={() => setConfirmLogout(false)}
-          style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #333", background: "rgba(10,10,10,0.85)", color: "#999", fontSize: 12, cursor: "pointer" }}
-        >
-          Anulează
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={() => {
-          if (!confirmLogout) { setConfirmLogout(true); return; }
-          setConfirmLogout(false);
-          void logOut();
-        }}
-        aria-label={confirmLogout ? "Confirmă deconectarea" : "Deconectare admin"}
-        style={{
-          padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer",
-          border: `1px solid ${confirmLogout ? "#b91c1c" : "#333"}`,
-          background: confirmLogout ? "#7f1d1d" : "rgba(10,10,10,0.85)",
-          color: confirmLogout ? "#fff" : "#ccc",
-          backdropFilter: "blur(6px)",
-        }}
-      >
-        {confirmLogout ? "Da, ieși din cont" : "⎋ Log out"}
-      </button>
+      <AdminViewControls />
     </div>
   );
   // eslint-disable-next-line no-unreachable

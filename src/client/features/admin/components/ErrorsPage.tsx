@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
+import { ERROR_CATEGORIES, ERROR_CATEGORY_LABELS, type ErrorCategory } from "../../../../shared/errorCategories";
 
 interface ServerError {
   id: string;
@@ -15,6 +16,12 @@ interface ServerError {
   ip: string | null;
   geo: { city?: string; region?: string; country?: string } | null;
   capturedAt: string | null;
+  category: ErrorCategory;
+  /** The same error from different visitors shares it (see shared/errorCategories). */
+  fingerprint: string;
+  userAgent: string | null;
+  /** Reported from the admin's own browser. */
+  admin: boolean;
 }
 
 type CompactErrorRow = [0 | 1, number, number, number, number];
@@ -183,8 +190,29 @@ export default function ErrorsPage() {
       .catch(() => dispatch({ type: "loaded", errors: [] }));
   }, [auth.accessToken]);
 
+  const [category, setCategory] = useState<ErrorCategory | "all">("all");
+  const [grouped, setGrouped] = useState(true);
+  // How many times each kind of error was seen (among the loaded ones).
+  const occurrences = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const error of state.errors) counts.set(error.fingerprint, (counts.get(error.fingerprint) ?? 0) + 1);
+    return counts;
+  }, [state.errors]);
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<ErrorCategory, number>();
+    for (const error of state.errors) counts.set(error.category, (counts.get(error.category) ?? 0) + 1);
+    return counts;
+  }, [state.errors]);
+
   const filtered = useMemo(() => {
+    const seenFingerprints = new Set<string>();
     return state.errors.filter((error) => {
+      if (category !== "all" && error.category !== category) return false;
+      // Grouped: only the newest of each kind (the list is newest first).
+      if (grouped) {
+        if (seenFingerprints.has(error.fingerprint)) return false;
+        seenFingerprints.add(error.fingerprint);
+      }
       if (state.filter === "unseen") return !error.seen;
       if (state.filter === "qr") return isQrError(error);
       if (state.filter === "error") return error.severity === "error";
@@ -193,7 +221,7 @@ export default function ErrorsPage() {
       if (state.filter === "client") return error.source === "client";
       return true;
     });
-  }, [state.errors, state.filter]);
+  }, [state.errors, state.filter, category, grouped]);
 
   const unseenCount = useMemo(() => state.errors.filter((e) => !e.seen).length, [state.errors]);
   const qrCount = useMemo(() => state.errors.filter((error) => isQrError(error)).length, [state.errors]);
@@ -250,14 +278,15 @@ export default function ErrorsPage() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-white text-2xl font-light tracking-tight">Erori server</h1>
+            <h1 className="text-white text-2xl font-light tracking-tight">Erori server și site</h1>
             <p className="text-neutral-500 text-sm mt-1">
               {unseenCount > 0
                 ? `${unseenCount} erori nevăzute din ${state.errors.length} total`
                 : `${state.errors.length} erori total — toate văzute`}
             </p>
             <p className="text-neutral-600 text-xs mt-1">
-              Aici sunt centralizate erorile de server, client și QR Moments.
+              Aici sunt centralizate erorile de server și cele din browserul vizitatorilor (toate paginile), pe categorii.
+              La un tip nou de eroare de la un vizitator primești și email.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -304,6 +333,29 @@ export default function ErrorsPage() {
           ))}
         </div>
 
+        {/* Categories */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setCategory("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${category === "all" ? "bg-sky-600 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"}`}
+          >
+            Toate categoriile
+          </button>
+          {ERROR_CATEGORIES.filter((value) => categoryCounts.has(value)).map((value) => (
+            <button
+              key={value}
+              onClick={() => setCategory(value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${category === value ? "bg-sky-600 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"}`}
+            >
+              {ERROR_CATEGORY_LABELS[value]} <span className="ml-1 text-neutral-300">{categoryCounts.get(value)}</span>
+            </button>
+          ))}
+          <label className="ml-auto flex items-center gap-2 text-xs text-neutral-400">
+            <input type="checkbox" checked={grouped} onChange={(event) => setGrouped(event.target.checked)} />
+            Grupează aceeași eroare
+          </label>
+        </div>
+
         {/* List */}
         {filtered.length === 0 ? (
           <div className="text-center py-20 text-neutral-600 text-sm">
@@ -315,6 +367,7 @@ export default function ErrorsPage() {
               <ErrorRow
                 key={error.id}
                 error={error}
+                occurrences={grouped ? occurrences.get(error.fingerprint) ?? 1 : 1}
                 expanded={state.expandedId === error.id}
                 onToggle={() => dispatch({ type: "toggle_expand", id: error.id })}
               />
@@ -380,7 +433,7 @@ export default function ErrorsPage() {
   );
 }
 
-function ErrorRow({ error, expanded, onToggle }: { error: ServerError; expanded: boolean; onToggle: () => void }) {
+function ErrorRow({ error, occurrences, expanded, onToggle }: { error: ServerError; occurrences: number; expanded: boolean; onToggle: () => void }) {
   const severityColor = error.severity === "error" ? "text-red-400" : "text-amber-400";
   const severityBg = error.severity === "error" ? "bg-red-500/10 border-red-500/20" : "bg-amber-500/10 border-amber-500/20";
   const sourceColor = error.source === "client" ? "text-blue-400" : "text-violet-400";
@@ -412,6 +465,9 @@ function ErrorRow({ error, expanded, onToggle }: { error: ServerError; expanded:
           <span className={`text-xs font-bold uppercase ${severityColor}`}>{error.severity}</span>
           <span className={`text-xs uppercase ${sourceColor}`}>{error.source}</span>
           {qrError && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20">QR</span>}
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/20">{ERROR_CATEGORY_LABELS[error.category]}</span>
+          {error.admin && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-neutral-700 text-neutral-300">admin</span>}
+          {occurrences > 1 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">×{occurrences}</span>}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-neutral-200 text-sm font-mono truncate">{shortMessage}</p>
@@ -425,7 +481,7 @@ function ErrorRow({ error, expanded, onToggle }: { error: ServerError; expanded:
 
       {expanded && (
         <div className="px-4 pb-4 border-t border-neutral-800">
-          {error.source === "client" && (error.ip || error.geo) && (
+          {error.source === "client" && (error.ip || error.geo || error.userAgent) && (
             <div className="mt-3 flex flex-wrap gap-3 text-xs">
               {error.ip && (
                 <span className="bg-neutral-800 text-neutral-300 px-2 py-1 rounded font-mono">
@@ -436,6 +492,9 @@ function ErrorRow({ error, expanded, onToggle }: { error: ServerError; expanded:
                 <span className="bg-neutral-800 text-neutral-300 px-2 py-1 rounded">
                   📍 {[error.geo.city, error.geo.region, error.geo.country].filter(Boolean).join(", ")}
                 </span>
+              )}
+              {error.userAgent && (
+                <span className="bg-neutral-800 text-neutral-400 px-2 py-1 rounded break-all">{error.userAgent}</span>
               )}
             </div>
           )}

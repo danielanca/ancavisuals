@@ -16,11 +16,23 @@ import {
   getBunnyStorageKey,
 } from '../constants/bunny';
 import { sendEmail } from '../notifications/mailer';
+import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from '../notifications/sms';
+import {
+  COUPLE_SMS_GAP_MS,
+  coupleSmsMessage,
+  emptyQrUploadCounts,
+  smsLink,
+  type CoupleSmsRecipient,
+  type CoupleSmsResult,
+  type CoupleSmsStatus,
+  type QrUploadCounts,
+} from '../../shared/qrMoments/coupleSms';
+import { loadAdPhotos, renderOfferAd, renderReferralCta } from '../notifications/qrViewEmailAd';
 import { listQrParticipants } from '../services/qrParticipants.service';
 import { adminUser } from '../constants/credentials';
 import { APP_BASE_URL } from '../constants/domain';
 import { getHeadlineText, getHostRoleLabel, getHostsFallbackName, normalizeQrEventType, type QrEventType } from '../../shared/qrMoments/hostRoles';
-import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../shared/qrMoments/uploadLimits';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB, MAX_WISH_LENGTH } from '../../shared/qrMoments/uploadLimits';
 import { downloadBunnyOriginal } from '../utils/downloadBunnyOriginal';
 import { applyCORSpolicy } from '../constants/cors';
 
@@ -52,6 +64,8 @@ const QR_GUESTS = 'qr_guests';
 const QR_UPLOADS = 'qr_uploads';
 const QR_COMMENTS = 'qr_comments';
 const QR_GALLERY_SUBSCRIBERS = 'qr_gallery_subscribers';
+/** One doc per guest and event: who already got the couple's "💌 Mulțumim pentru amintire" email. */
+export const QR_THANK_YOU_EMAILS = 'qr_thank_you_emails';
 
 const UPLOAD_CLOSE_HOUR = 4;
 const UPLOAD_WINDOW_DAYS = 30;
@@ -222,6 +236,42 @@ function buildUnsubscribeUrl(guestId: string): string {
   return `${base}/qr-moments/unsubscribe/${guestId}`;
 }
 
+export const thankYouEmailDocId = (eventSlug: string, guestId: string) => `${eventSlug}__${guestId}`;
+
+/**
+ * A guest gets the couple's thank-you email once per event, however many of their photos the
+ * couple thanks. Returns true when this call may send it (and records it), false when the guest
+ * already got one — also for thank-yous sent before this record existed (another upload of theirs
+ * already has `thankedAt`).
+ */
+export async function claimThankYouEmail(
+  eventSlug: string,
+  guest: { id: string; email: string; name: string },
+  uploadId: string,
+): Promise<boolean> {
+  const ref = firestore().collection(QR_THANK_YOU_EMAILS).doc(thankYouEmailDocId(eventSlug, guest.id));
+  const record = { eventSlug, guestId: guest.id, email: guest.email, name: guest.name };
+  const existing = await ref.get();
+  if (existing.exists) {
+    await ref.update({ skippedCount: FieldValue.increment(1), lastSkippedAt: Timestamp.now() }).catch(() => {});
+    return false;
+  }
+  const earlier = await firestore().collection(QR_UPLOADS)
+    .where('eventSlug', '==', eventSlug)
+    .where('guestId', '==', guest.id)
+    .get();
+  if (earlier.docs.some((doc) => doc.id !== uploadId && doc.data().thankedAt)) {
+    await ref.set({ ...record, firstSentAt: null, backfilled: true, skippedCount: 1, lastSkippedAt: Timestamp.now() }, { merge: true });
+    return false;
+  }
+  try {
+    await ref.create({ ...record, uploadId, firstSentAt: Timestamp.now(), skippedCount: 0 });
+    return true;
+  } catch {
+    return false; // two thank-yous at the same moment: the other one sends it
+  }
+}
+
 async function sendThankYouEmail(
   guestEmail: string,
   guestName: string,
@@ -260,18 +310,24 @@ async function sendThankYouEmail(
   });
 }
 
-export async function sendViewNotificationEmail(
-  guestEmail: string,
+const BRAND_SERVICES = 'Foto · Video · Fotocabină · Video booth 360 · QR Moments';
+
+/**
+ * The "👀 Ana și Dan au vizualizat poza încărcată de tine" email (without the shared contact
+ * footer): AncaVisuals header, the message, then the ad with `adPhotos` → /oferta configurator.
+ */
+export function buildViewNotificationEmail(
   guestName: string,
   hostDisplayName: string,
   guestId: string,
   thumbnailUrl: string | null,
   mediaLabel: string,
   eventType: QrEventType,
-): Promise<void> {
+  adPhotos: string[] = [],
+): { subject: string; html: string } {
   const unsubscribeUrl = buildUnsubscribeUrl(guestId);
   const thumbnailHtml = thumbnailUrl
-    ? `<img src="${thumbnailUrl}" alt="Fișierul tău" style="display:block;max-width:280px;width:100%;border-radius:12px;border:1px solid #eadfce;margin:12px 0;">`
+    ? `<img src="${thumbnailUrl}" alt="Fișierul tău" style="display:block;max-width:280px;width:100%;border:1px solid #e5e5e5;margin:12px 0;">`
     : '';
   const viewedAt = new Date().toLocaleTimeString('ro-RO', {
     timeZone: 'Europe/Bucharest',
@@ -281,25 +337,45 @@ export async function sendViewNotificationEmail(
   });
 
   const viewVerb = eventType === 'corporate' ? 'a vizualizat' : 'au vizualizat';
-  await sendEmail({
-    to: guestEmail,
+  return {
     subject: `👀 ${hostDisplayName} ${viewVerb} ${mediaLabel} de tine · ${viewedAt}`,
     html: `
-      <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
-        <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
-          <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
-          <h2 style="color:#241f1a;margin:0 0 6px;font-size:24px;font-weight:600;">Bună, ${escapeHtml(guestName)}!</h2>
-          <p style="color:#6b5b4d;margin:0 0 12px;">${escapeHtml(hostDisplayName)} ${viewVerb} ${mediaLabel} la eveniment. ${eventType === 'corporate' ? 'Mulțumim că ai surprins energia echipei!' : 'Mulțumim că ai imortalizat aceste momente!'}</p>
+      <div style="margin:0;padding:28px 16px;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;color:#111111;">
+        <div style="max-width:560px;margin:0 auto 18px;text-align:center;">
+          <a href="${APP_BASE_URL}" style="text-decoration:none;color:#111111;">
+            <span style="display:block;font-size:22px;letter-spacing:0.34em;font-weight:300;color:#111111;">ANCA VISUALS</span>
+          </a>
+          <p style="margin:8px 0 0;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#737373;">${BRAND_SERVICES}</p>
+        </div>
+        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e5e5;padding:28px 24px;">
+          <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:#737373;">✨ QR Code Moments</p>
+          <h2 style="color:#111111;margin:0 0 8px;font-size:24px;font-weight:600;">Bună, ${escapeHtml(guestName)}!</h2>
+          <p style="color:#404040;margin:0 0 12px;line-height:1.55;">${escapeHtml(hostDisplayName)} ${viewVerb} ${mediaLabel} la eveniment. ${eventType === 'corporate' ? 'Mulțumim că ai surprins energia echipei!' : 'Mulțumim că ai imortalizat aceste momente!'}</p>
           ${thumbnailHtml}
-          <hr style="border:none;border-top:1px solid #eadfce;margin:16px 0;">
-          <p style="font-size:12px;color:#7b6a5a;margin:0 0 8px;">
+          <hr style="border:none;border-top:1px solid #e5e5e5;margin:18px 0;">
+          <p style="font-size:12px;color:#737373;margin:0;">
             Nu mai vrei să primești notificări?
-            <a href="${unsubscribeUrl}" style="color:#8c5a16;text-decoration:underline;">Dezabonează-te</a>.
+            <a href="${unsubscribeUrl}" style="color:#111111;text-decoration:underline;">Dezabonează-te</a>.
           </p>
         </div>
+        ${renderOfferAd(adPhotos, eventType)}
+        ${renderReferralCta()}
       </div>
     `,
-  });
+  };
+}
+
+export async function sendViewNotificationEmail(
+  guestEmail: string,
+  guestName: string,
+  hostDisplayName: string,
+  guestId: string,
+  thumbnailUrl: string | null,
+  mediaLabel: string,
+  eventType: QrEventType,
+): Promise<void> {
+  const adPhotos = await loadAdPhotos();
+  await sendEmail({ to: guestEmail, ...buildViewNotificationEmail(guestName, hostDisplayName, guestId, thumbnailUrl, mediaLabel, eventType, adPhotos) });
 }
 
 async function sendCommentNotification(
@@ -359,22 +435,37 @@ function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
 }
 
-function describeUploadCounts(typeCounts: { photo: number; video: number; audio: number }): string {
+type UploadCounts = QrUploadCounts;
+const emptyUploadCounts = emptyQrUploadCounts;
+
+function describeUploadCounts(typeCounts: UploadCounts): string {
   const parts: string[] = [];
   if (typeCounts.photo > 0) parts.push(pluralize(typeCounts.photo, 'poză', 'poze'));
   if (typeCounts.video > 0) parts.push(pluralize(typeCounts.video, 'videoclip', 'videoclipuri'));
   if (typeCounts.audio > 0) parts.push(pluralize(typeCounts.audio, 'mesaj vocal', 'mesaje vocale'));
+  if (typeCounts.text > 0) parts.push(typeCounts.text === 1 ? 'o urare scrisă' : `${typeCounts.text} urări scrise`);
 
   if (parts.length === 0) return 'un fișier nou';
   if (parts.length === 1) return parts[0];
   return `${parts.slice(0, -1).join(', ')} și ${parts[parts.length - 1]}`;
 }
 
+/** Owner only: the nudge to tell the couple by SMS (the couple may be gallery subscribers too). */
+function coupleSmsReminderHtml(eventSlug: string): string {
+  const adminUrl = `${APP_BASE_URL}/admin/qr-moments?event=${encodeURIComponent(eventSlug)}#couple-sms`;
+  return `
+          <div style="margin-top:22px;padding:14px 16px;border:1px solid #111111;background:#ffffff;">
+            <p style="margin:0 0 6px;font-weight:700;color:#111111;">📱 Nu uita să anunți mirii prin SMS</p>
+            <p style="margin:0 0 10px;color:#404040;font-size:14px;line-height:1.5;">Spune-le că invitații le-au lăsat amintiri în QR Code Moments. Numărul e cel din eveniment, mesajul e gata scris.</p>
+            <a href="${adminUrl}" style="display:inline-block;background:#111111;color:#ffffff;padding:10px 18px;text-decoration:none;font-weight:700;">Trimite SMS mirilor →</a>
+          </div>`;
+}
+
 async function sendUploadNotification(
   notificationEmail: string,
   eventSlug: string,
   guestName: string,
-  typeCounts: { photo: number; video: number; audio: number },
+  typeCounts: UploadCounts,
 ): Promise<void> {
   const uploadLabel = describeUploadCounts(typeCounts);
   const galleryUrl = `${APP_BASE_URL}/qr-moments/${eventSlug}/gallery`;
@@ -391,13 +482,13 @@ async function sendUploadNotification(
           <a href="${galleryUrl}" style="display:inline-block;background:#e0a13b;color:#241f1a;padding:11px 22px;border-radius:999px;text-decoration:none;font-weight:700;margin-top:18px;">
             Deschide galeria
           </a>
+          ${notificationEmail.trim().toLowerCase() === SUPREME_ADMIN_EMAIL ? coupleSmsReminderHtml(eventSlug) : ''}
         </div>
       </div>
     `,
   });
 }
 
-type UploadCounts = { photo: number; video: number; audio: number };
 type PendingUploadNotification = {
   eventSlug: string;
   guestName: string;
@@ -431,6 +522,7 @@ function queueUploadNotification(
     existing.counts.photo += counts.photo;
     existing.counts.video += counts.video;
     existing.counts.audio += counts.audio;
+    existing.counts.text += counts.text;
     clearTimeout(existing.timer);
     existing.timer = setTimeout(() => flushUploadNotification(batchId, notificationEmails), 15_000);
     return;
@@ -597,6 +689,72 @@ router.post('/guest/register', async (request: Request, response: Response) => {
   }
 });
 
+type GuestUploadAccess = {
+  eventDoc: FirebaseFirestore.DocumentSnapshot;
+  guestDoc: FirebaseFirestore.DocumentSnapshot;
+};
+
+/**
+ * Shared checks for anything a guest sends (files or a written wish): the event exists, the PIN
+ * matches (the supreme admin skips it), the guest belongs to the event and the upload window is
+ * still open. Responds with the error itself and returns null when one fails.
+ */
+async function authorizeGuestUpload(
+  request: Request,
+  response: Response,
+  eventSlug: string,
+  guestId: string,
+  pass: string | undefined,
+): Promise<GuestUploadAccess | null> {
+  const isAdmin = await isSupremeAdminRequest(request.headers.authorization);
+
+  const [eventDoc, guestDoc] = await Promise.all([
+    getEventBySlug(eventSlug),
+    firestore().collection(QR_GUESTS).doc(guestId).get(),
+  ]);
+
+  if (!eventDoc.exists) {
+    response.status(404).json({ error: 'Evenimentul nu există.' });
+    return null;
+  }
+
+  if (!isAdmin && eventDoc.data()!.pin !== pass) {
+    response.status(403).json({ error: 'Acces interzis.' });
+    return null;
+  }
+
+  if (!guestDoc.exists || guestDoc.data()!.eventSlug !== eventSlug) {
+    response.status(403).json({ error: 'Invitat invalid pentru acest eveniment.' });
+    return null;
+  }
+
+  const eventDateRaw = eventDoc.data()!.eventDate as Timestamp | undefined;
+  if (!eventDateRaw) {
+    console.error(`[qr-moments] upload: eventDate lipsă pentru ${eventSlug}`);
+    response.status(500).json({ error: 'Configurare eveniment incompletă.' });
+    return null;
+  }
+  if (!isAdmin && !isUploadWindowOpen(eventDateRaw.toDate())) {
+    response.status(403).json({ error: 'Perioada de upload s-a închis.' });
+    return null;
+  }
+
+  return { eventDoc, guestDoc };
+}
+
+/** Everyone told about new uploads: the event's notification email plus the gallery subscribers. */
+async function resolveUploadNotificationEmails(eventSlug: string, eventNotificationEmail: unknown): Promise<string[]> {
+  const notificationEmail = resolveUploadNotificationEmail(eventNotificationEmail);
+  const subscriberEmails = await getGallerySubscriberEmails(eventSlug).catch((error) => {
+    console.error(`[qr-moments] could not load gallery subscribers for ${eventSlug}:`, error);
+    return [];
+  });
+  return Array.from(new Set([
+    ...(notificationEmail ? [notificationEmail] : []),
+    ...subscriberEmails,
+  ]));
+}
+
 // ─── Public: upload asset ────────────────────────────────────────────────────
 // Uploads pentru fișiere mari (video) sunt trimise către un subdomeniu
 // separat (upload.ancavisuals.ro, DNS-only în Cloudflare) ca să ocolească
@@ -631,48 +789,10 @@ router.post(
       return;
     }
 
-    // Admin flow bypasses the PIN check for uploads as well.
-    let isAdmin = false;
-    const authHeader = request.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      try {
-        const decoded = await getAuth().verifyIdToken(authHeader.slice(7));
-        isAdmin = decoded.email === SUPREME_ADMIN_EMAIL;
-      } catch { }
-    }
-
     try {
-      const [eventDoc, guestDoc] = await Promise.all([
-        getEventBySlug(eventSlug),
-        firestore().collection(QR_GUESTS).doc(guestId).get(),
-      ]);
-
-      if (!eventDoc.exists) {
-        response.status(404).json({ error: 'Evenimentul nu există.' });
-        return;
-      }
-
-      if (!isAdmin && eventDoc.data()!.pin !== pass) {
-        response.status(403).json({ error: 'Acces interzis.' });
-        return;
-      }
-
-      if (!guestDoc.exists || guestDoc.data()!.eventSlug !== eventSlug) {
-        response.status(403).json({ error: 'Invitat invalid pentru acest eveniment.' });
-        return;
-      }
-
-      const eventDateRaw = eventDoc.data()!.eventDate as Timestamp | undefined;
-      if (!eventDateRaw) {
-        console.error(`[qr-moments] upload: eventDate lipsă pentru ${eventSlug}`);
-        response.status(500).json({ error: 'Configurare eveniment incompletă.' });
-        return;
-      }
-      const eventDate = eventDateRaw.toDate();
-      if (!isAdmin && !isUploadWindowOpen(eventDate)) {
-        response.status(403).json({ error: 'Perioada de upload s-a închis.' });
-        return;
-      }
+      const access = await authorizeGuestUpload(request, response, eventSlug, guestId, pass);
+      if (!access) return;
+      const { eventDoc, guestDoc } = access;
 
       const eventData = eventDoc.data()!;
       const adminEventId = eventData.adminEventId as string | null | undefined;
@@ -734,22 +854,14 @@ router.post(
         });
 
       const guestName = guestDoc.data()!.name as string;
-      const notificationEmail = resolveUploadNotificationEmail(eventDoc.data()!.notificationEmail);
-      const subscriberEmails = await getGallerySubscriberEmails(eventSlug).catch((error) => {
-        console.error(`[qr-moments] could not load gallery subscribers for ${eventSlug}:`, error);
-        return [];
-      });
-      const notificationEmails = Array.from(new Set([
-        ...(notificationEmail ? [notificationEmail] : []),
-        ...subscriberEmails,
-      ]));
+      const notificationEmails = await resolveUploadNotificationEmails(eventSlug, eventDoc.data()!.notificationEmail);
       if (notificationEmails.length > 0) {
         const typeCounts = uploadResults.reduce(
           (counts, result) => {
             counts[result.type] += 1;
             return counts;
           },
-          { photo: 0, video: 0, audio: 0 },
+          emptyUploadCounts(),
         );
         queueUploadNotification(batchId, notificationEmails, eventSlug, guestName, typeCounts);
       }
@@ -761,6 +873,56 @@ router.post(
     }
   },
 );
+
+// ─── Public: written wish ────────────────────────────────────────────────────
+// Stored in qr_uploads like a file (type 'text', no Bunny object), so the gallery, the admin
+// lists, comments, thank-yous and the view notification work for it unchanged.
+
+router.post('/:eventSlug/wish', async (request: Request, response: Response) => {
+  const { eventSlug } = request.params;
+  const { guestId, pass, text } = (request.body ?? {}) as { guestId?: string; pass?: string; text?: unknown };
+  const wish = typeof text === 'string' ? text.trim() : '';
+
+  if (!guestId || !wish) {
+    response.status(400).json({ error: 'Scrie urarea înainte să o trimiți.' });
+    return;
+  }
+  if (wish.length > MAX_WISH_LENGTH) {
+    response.status(400).json({ error: `Urarea poate avea maximum ${MAX_WISH_LENGTH} de caractere.` });
+    return;
+  }
+
+  try {
+    const access = await authorizeGuestUpload(request, response, eventSlug, guestId, pass);
+    if (!access) return;
+    const { eventDoc, guestDoc } = access;
+
+    const guestName = String(guestDoc.data()!.name ?? 'Invitat');
+    const uploadDoc = await firestore().collection(QR_UPLOADS).add({
+      eventSlug,
+      guestId,
+      type: 'text',
+      text: wish,
+      bunnyUrl: '',
+      mimeType: 'text/plain',
+      originalName: `urare-${guestName}.txt`,
+      visible: true,
+      createdAt: Timestamp.now(),
+    });
+
+    await firestore().collection(QR_GUESTS).doc(guestId).update({
+      uploadIds: FieldValue.arrayUnion(uploadDoc.id),
+    });
+
+    const notificationEmails = await resolveUploadNotificationEmails(eventSlug, eventDoc.data()!.notificationEmail);
+    queueUploadNotification(undefined, notificationEmails, eventSlug, guestName, { ...emptyUploadCounts(), text: 1 });
+
+    response.status(201).json({ uploadedCount: 1, uploadIds: [uploadDoc.id] });
+  } catch (error) {
+    console.error(`[qr-moments] wish failed for ${eventSlug}:`, error);
+    response.status(500).json({ error: 'Urarea nu s-a putut trimite. Încearcă din nou.' });
+  }
+});
 
 // ─── Gallery: get uploads grouped by guest (PIN protected) ──────────────────
 
@@ -866,6 +1028,7 @@ router.get('/:eventSlug/gallery', async (request: Request, response: Response) =
         bunnyUrl: data.bunnyUrl,
         mimeType: data.mimeType,
         originalName: data.originalName,
+        ...(data.type === 'text' ? { text: data.text ?? '' } : {}),
         createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
         thankedAt: data.thankedAt ? (data.thankedAt as Timestamp).toDate().toISOString() : null,
       });
@@ -1058,7 +1221,13 @@ router.post('/thank/:uploadId', async (request: Request, response: Response) => 
     await uploadRef.update({ thankedAt, thankMessage: message.trim() });
 
     const guestDoc = await firestore().collection(QR_GUESTS).doc(uploadDoc.data()!.guestId as string).get();
-    if (guestDoc.exists && guestDoc.data()!.email && guestDoc.data()!.emailConsent === true) {
+    const canEmailGuest = guestDoc.exists && !!guestDoc.data()!.email && guestDoc.data()!.emailConsent === true;
+    const emailNow = canEmailGuest && await claimThankYouEmail(
+      eventSlug,
+      { id: guestDoc.id, email: String(guestDoc.data()!.email), name: String(guestDoc.data()!.name ?? '') },
+      uploadId,
+    );
+    if (emailNow) {
       const guestData = guestDoc.data()!;
       const eventData = eventDoc.data()!;
       const eventType = normalizeQrEventType(eventData.eventType);
@@ -1074,10 +1243,19 @@ router.post('/thank/:uploadId', async (request: Request, response: Response) => 
         hostDisplayName,
         guestDoc.id,
         eventType,
-      ).catch(() => {});
+      ).catch((error) => {
+        console.error(`[qr-moments] thank-you email failed for ${eventSlug}/${guestDoc.id}:`, error);
+        // Not delivered: let the next thank-you try again.
+        firestore().collection(QR_THANK_YOU_EMAILS).doc(thankYouEmailDocId(eventSlug, guestDoc.id)).delete().catch(() => {});
+      });
     }
 
-    response.json({ ok: true, thankedAt: thankedAt.toDate().toISOString() });
+    response.json({
+      ok: true,
+      thankedAt: thankedAt.toDate().toISOString(),
+      // The guest already got the couple's email: the thank-you is saved, no second email.
+      ...(canEmailGuest && !emailNow ? { emailSkipped: true } : {}),
+    });
   } catch {
     response.status(500).json({ error: 'Eroare server.' });
   }
@@ -1163,8 +1341,11 @@ router.post('/view-notify/:uploadId', async (request: Request, response: Respons
     const hostDisplayName = eventType === 'corporate'
       ? brideName || getHostsFallbackName(eventType)
       : `${brideName} și ${groomName}`;
-    const mediaType = uploadData.type as 'photo' | 'video' | 'audio';
-    const mediaLabel = mediaType === 'photo' ? 'poza încărcată' : mediaType === 'video' ? 'videoclipul încărcat' : 'mesajul vocal încărcat';
+    const mediaType = uploadData.type as 'photo' | 'video' | 'audio' | 'text';
+    const mediaLabel = mediaType === 'photo' ? 'poza încărcată'
+      : mediaType === 'video' ? 'videoclipul încărcat'
+      : mediaType === 'text' ? 'urarea scrisă'
+      : 'mesajul vocal încărcat';
     const thumbnailUrl = mediaType === 'photo' ? (uploadData.bunnyUrl as string) : null;
     const guestEmail = String(guestData.email ?? '').trim().toLowerCase();
     const guestName = String(guestData.name ?? 'un invitat');
@@ -1308,10 +1489,10 @@ router.get('/admin/:eventSlug/uploads', requireFirebaseAuth, requireSupremeAdmin
 router.get('/admin/:eventSlug/download', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
   const { eventSlug } = request.params;
   const requestedType = String(request.query.type ?? 'all').toLowerCase();
-  const allowedTypes = new Set(['all', 'photo', 'video', 'audio']);
+  const allowedTypes = new Set(['all', 'photo', 'video', 'audio', 'text']);
 
   if (!allowedTypes.has(requestedType)) {
-    response.status(400).json({ error: 'Categoria invalidă. Folosește all, photo, video sau audio.' });
+    response.status(400).json({ error: 'Categoria invalidă. Folosește all, photo, video, audio sau text.' });
     return;
   }
 
@@ -1333,6 +1514,7 @@ router.get('/admin/:eventSlug/download', requireFirebaseAuth, requireSupremeAdmi
       originalName?: string;
       fileName?: string;
       bunnyUrl?: string;
+      text?: string;
     };
     const uploads: DownloadUpload[] = uploadsSnapshot.docs
       .map((doc) => ({ id: doc.id, ...doc.data() }) as DownloadUpload)
@@ -1356,7 +1538,7 @@ router.get('/admin/:eventSlug/download', requireFirebaseAuth, requireSupremeAdmi
     archive.pipe(response);
 
     const usedNames = new Set<string>();
-    const categoryFolder = (type: string) => type === 'photo' ? 'foto' : type === 'video' ? 'video' : 'audio';
+    const categoryFolder = (type: string) => type === 'photo' ? 'foto' : type === 'video' ? 'video' : type === 'text' ? 'urari' : 'audio';
     const safeName = (value: unknown, fallback: string) => {
       const base = String(value ?? fallback)
         .replace(/[\\/:*?"<>|]/g, '_')
@@ -1379,6 +1561,10 @@ router.get('/admin/:eventSlug/download', requireFirebaseAuth, requireSupremeAdmi
       const type = String(upload.type ?? 'audio');
       const originalName = safeName(upload.originalName ?? upload.fileName, `${upload.id}`);
       const entryName = `${categoryFolder(type)}/${originalName}`;
+      if (type === 'text') {
+        archive.append(`${String(upload.text ?? '')}\n`, { name: entryName });
+        continue;
+      }
       try {
         const fileResponse = await fetch(String(upload.bunnyUrl ?? ''));
         if (!fileResponse.ok) throw new Error(`HTTP ${fileResponse.status}`);
@@ -1605,15 +1791,17 @@ router.delete('/admin/:eventSlug', requireFirebaseAuth, requireSupremeAdmin, asy
       return;
     }
 
-    const [uploadsSnapshot, guestsSnapshot, commentsSnapshot] = await Promise.all([
+    const [uploadsSnapshot, guestsSnapshot, commentsSnapshot, thankYouSnapshot] = await Promise.all([
       firestore().collection(QR_UPLOADS).where('eventSlug', '==', eventSlug).get(),
       firestore().collection(QR_GUESTS).where('eventSlug', '==', eventSlug).get(),
       firestore().collection(QR_COMMENTS).where('eventSlug', '==', eventSlug).get(),
+      firestore().collection(QR_THANK_YOU_EMAILS).where('eventSlug', '==', eventSlug).get(),
     ]);
 
     const accessKey = getBunnyStorageKey();
     await Promise.all(uploadsSnapshot.docs.map(async (doc) => {
       const data = doc.data();
+      if (!data.fileName) return; // written wish, nothing in Bunny
       const storedAlbumSlug = data.albumSlug as string | undefined;
       const storageUrl = storedAlbumSlug
         ? buildBunnyUploadUrl(storedAlbumSlug, data.guestId as string, data.fileName as string)
@@ -1625,6 +1813,7 @@ router.delete('/admin/:eventSlug', requireFirebaseAuth, requireSupremeAdmin, asy
       ...uploadsSnapshot.docs.map((doc) => doc.ref.delete()),
       ...guestsSnapshot.docs.map((doc) => doc.ref.delete()),
       ...commentsSnapshot.docs.map((doc) => doc.ref.delete()),
+      ...thankYouSnapshot.docs.map((doc) => doc.ref.delete()),
     ];
     await Promise.all(batchDeletes);
     await eventRef.delete();
@@ -1846,6 +2035,7 @@ router.get('/admin/:eventSlug/overview', requireFirebaseAuth, requireSupremeAdmi
       originalName: doc.data().originalName,
       visible: doc.data().visible,
       mimeType: doc.data().mimeType,
+      ...(doc.data().type === 'text' ? { text: doc.data().text ?? '' } : {}),
       createdAt: (doc.data().createdAt as Timestamp).toDate().toISOString(),
     })).sort((firstUpload, secondUpload) => secondUpload.createdAt.localeCompare(firstUpload.createdAt));
 
@@ -1884,6 +2074,138 @@ router.get('/admin/:eventSlug/overview', requireFirebaseAuth, requireSupremeAdmi
   }
 });
 
+// ─── Admin: SMS to the couple ("invitații v-au lăsat poze") ──────────────────
+
+async function coupleSmsRecipients(eventData: FirebaseFirestore.DocumentData, eventSlug: string): Promise<CoupleSmsRecipient[]> {
+  const adminEventId = eventData.adminEventId as string | null | undefined;
+  const docs = adminEventId
+    ? [await firestore().collection('adminEvents').doc(adminEventId).get()].filter((doc) => doc.exists)
+    : (await firestore().collection('adminEvents').where('albumSlug', '==', await resolveQrAlbumSlug(eventData, eventSlug) ?? eventSlug).get()).docs;
+  const seen = new Set<string>();
+  const recipients: CoupleSmsRecipient[] = [];
+  for (const doc of docs) {
+    const client = (doc.data()?.client ?? {}) as { fullName?: string; phone?: string };
+    const phone = normalizeRomanianPhoneNumber(String(client.phone ?? ''));
+    if (!phone || seen.has(phone)) continue;
+    seen.add(phone);
+    recipients.push({ name: String(client.fullName ?? '').trim(), phone });
+  }
+  return recipients;
+}
+
+async function coupleSmsState(eventSlug: string) {
+  const eventDoc = await getEventBySlug(eventSlug);
+  if (!eventDoc.exists) return null;
+  const eventData = eventDoc.data()!;
+  const lastSentAt = typeof eventData.coupleSmsLastSentAt === 'number' ? eventData.coupleSmsLastSentAt : null;
+  const [recipients, uploadsSnapshot] = await Promise.all([
+    coupleSmsRecipients(eventData, eventSlug),
+    firestore().collection(QR_UPLOADS).where('eventSlug', '==', eventSlug).where('visible', '==', true).get(),
+  ]);
+  const newCounts = emptyUploadCounts();
+  uploadsSnapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : 0;
+    const type = data.type as keyof UploadCounts;
+    if (type in newCounts && (lastSentAt === null || createdAt > lastSentAt)) newCounts[type] += 1;
+  });
+  const galleryUrl = `${APP_BASE_URL}/qr-moments/${eventSlug}/gallery?pin=${eventData.pin ?? ''}`;
+  return { eventDoc, lastSentAt, recipients, newCounts, message: coupleSmsMessage(eventSlug, newCounts, galleryUrl) };
+}
+
+router.get('/admin/:eventSlug/couple-sms', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
+  try {
+    const state = await coupleSmsState(request.params.eventSlug);
+    if (!state) {
+      response.status(404).json({ error: 'Evenimentul nu există.' });
+      return;
+    }
+    const status: CoupleSmsStatus = {
+      recipients: state.recipients,
+      lastSentAt: state.lastSentAt,
+      newCounts: state.newCounts,
+      message: state.message,
+      smsConfigured: isSmsConfigured(),
+    };
+    response.json(status);
+  } catch (error) {
+    console.error('[qr-moments] couple SMS status failed:', error);
+    response.status(500).json({ error: 'Eroare server.' });
+  }
+});
+
+router.post('/admin/:eventSlug/couple-sms', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
+  try {
+    const { eventSlug } = request.params;
+    const state = await coupleSmsState(eventSlug);
+    if (!state) {
+      response.status(404).json({ error: 'Evenimentul nu există.' });
+      return;
+    }
+    const now = Date.now();
+    if (state.lastSentAt !== null && now - state.lastSentAt < COUPLE_SMS_GAP_MS) {
+      response.status(429).json({ error: 'SMS-ul tocmai a fost trimis.', lastSentAt: state.lastSentAt });
+      return;
+    }
+
+    // A number typed by hand in the panel, for this send only (the event is not changed).
+    const manualPhoneRaw = typeof request.body?.manualPhone === 'string' ? request.body.manualPhone.trim() : '';
+    const manualPhone = manualPhoneRaw ? normalizeRomanianPhoneNumber(manualPhoneRaw) : null;
+    if (manualPhoneRaw && !manualPhone) {
+      response.status(400).json({ error: 'Numărul de telefon nu e valid.' });
+      return;
+    }
+    const recipients = [...state.recipients];
+    if (manualPhone && !recipients.some((recipient) => recipient.phone === manualPhone)) {
+      recipients.push({ name: 'număr introdus manual', phone: manualPhone });
+    }
+    if (recipients.length === 0) {
+      response.status(400).json({ error: 'Evenimentul nu are un număr de telefon. Adaugă-l în eveniment sau scrie-l mai jos.' });
+      return;
+    }
+
+    const smsReady = isSmsConfigured();
+    const result: CoupleSmsResult = { smsSent: 0, smsFailed: 0, smsSkipped: !smsReady, manual: [], lastSentAt: now };
+    for (const recipient of recipients) {
+      result.manual.push({ name: recipient.name, url: smsLink(recipient.phone, state.message) });
+      if (!smsReady) continue;
+      try {
+        await sendSms({ to: recipient.phone, body: state.message });
+        result.smsSent += 1;
+      } catch (error) {
+        result.smsFailed += 1;
+        console.error(`[qr-moments] couple SMS failed for ${eventSlug}:`, error);
+      }
+    }
+
+    // Only a real send counts: with SMSAPI off, the owner sends from the phone and the counter stays.
+    if (result.smsSent > 0) await state.eventDoc.ref.update({ coupleSmsLastSentAt: now });
+    else result.lastSentAt = state.lastSentAt ?? 0;
+    response.json(result);
+  } catch (error) {
+    console.error('[qr-moments] couple SMS failed:', error);
+    response.status(500).json({ error: 'SMS-ul nu s-a putut trimite.' });
+  }
+});
+
+// ─── Admin: mark the couple SMS as sent from the phone ──────────────────────
+
+router.post('/admin/:eventSlug/couple-sms/sent', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
+  try {
+    const eventDoc = await getEventBySlug(request.params.eventSlug);
+    if (!eventDoc.exists) {
+      response.status(404).json({ error: 'Evenimentul nu există.' });
+      return;
+    }
+    const now = Date.now();
+    await eventDoc.ref.update({ coupleSmsLastSentAt: now });
+    response.json({ lastSentAt: now });
+  } catch (error) {
+    console.error('[qr-moments] couple SMS mark failed:', error);
+    response.status(500).json({ error: 'Eroare server.' });
+  }
+});
+
 // ─── Admin: delete upload ────────────────────────────────────────────────────
 
 router.delete('/admin/upload/:uploadId', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
@@ -1895,16 +2217,19 @@ router.delete('/admin/upload/:uploadId', requireFirebaseAuth, requireSupremeAdmi
     }
 
     const data = uploadDoc.data()!;
-    const accessKey = getBunnyStorageKey();
-    const storedAlbumSlug = data.albumSlug as string | undefined;
-    const storageUrl = storedAlbumSlug
-      ? buildBunnyUploadUrl(storedAlbumSlug, data.guestId as string, data.fileName as string)
-      : buildBunnyStorageUrl('qr-moments', data.eventSlug as string, data.guestId as string, data.fileName as string);
+    // A written wish has no file in Bunny.
+    if (data.fileName) {
+      const accessKey = getBunnyStorageKey();
+      const storedAlbumSlug = data.albumSlug as string | undefined;
+      const storageUrl = storedAlbumSlug
+        ? buildBunnyUploadUrl(storedAlbumSlug, data.guestId as string, data.fileName as string)
+        : buildBunnyStorageUrl('qr-moments', data.eventSlug as string, data.guestId as string, data.fileName as string);
 
-    await fetch(storageUrl, {
-      method: 'DELETE',
-      headers: { [BUNNY_ACCESS_KEY_HEADER]: accessKey },
-    });
+      await fetch(storageUrl, {
+        method: 'DELETE',
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: accessKey },
+      });
+    }
 
     await Promise.all([
       firestore().collection(QR_UPLOADS).doc(request.params.uploadId).delete(),
@@ -1946,6 +2271,7 @@ router.delete('/admin/:eventSlug/guest/:guestId/uploads', requireFirebaseAuth, r
     // the Firestore cleanup.
     await Promise.all(uploadsSnapshot.docs.map(async (doc) => {
       const data = doc.data();
+      if (!data.fileName) return; // written wish, nothing in Bunny
       const storedAlbumSlug = data.albumSlug as string | undefined;
       const storageUrl = storedAlbumSlug
         ? buildBunnyUploadUrl(storedAlbumSlug, data.guestId as string, data.fileName as string)
@@ -2028,9 +2354,9 @@ router.post('/admin/:eventSlug/send-gallery-email', requireFirebaseAuth, require
     const coupleLabel = bride && groom ? `${bride} & ${groom}` : (bride || groom || getHostsFallbackName(eventType));
 
     const uploadsSnapshot = await firestore().collection(QR_UPLOADS).where('eventSlug', '==', eventSlug).get();
-    const typeCounts = { photo: 0, video: 0, audio: 0 };
+    const typeCounts = emptyUploadCounts();
     uploadsSnapshot.docs.forEach((doc) => {
-      const type = doc.data().type as 'photo' | 'video' | 'audio';
+      const type = doc.data().type as keyof UploadCounts;
       if (type in typeCounts) typeCounts[type] += 1;
     });
     const uploadLabel = describeUploadCounts(typeCounts);

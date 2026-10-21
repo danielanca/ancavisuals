@@ -2,6 +2,7 @@ import { captureLandingMeta, getLandingMeta } from "./sessionAttribution";
 import { isBrowser } from "./functions";
 import { fireAdsAvailabilityMicroConversion } from "./googleAds";
 import { getSessionId, getVisitorId } from "./visitorSession";
+import { saveCheckedDate } from "../features/chat/configuratorOffer";
 
 type Priority = "low" | "normal" | "high" | "critical";
 
@@ -42,7 +43,8 @@ export function sendLiveEvent(event: string, extra: LiveEventExtra = {}): void {
 /**
  * Someone checked whether a date is free: shows in /admin/live and sends the
  * Google Ads "Verificare disponibilitate" micro-conversion from every checker
- * (landing, /contact configurator, /bio).
+ * (landing, /contact configurator, /bio). Also remembered in this browser, so the WhatsApp box
+ * at the end of the page can open with "Data de … este liberă".
  */
 export function reportAvailabilityCheck(
   humanDate: string,
@@ -51,6 +53,7 @@ export function reportAvailabilityCheck(
   eventType?: string,
 ): void {
   fireAdsAvailabilityMicroConversion();
+  saveCheckedDate({ label: humanDate, available, ...(eventType ? { eventType } : {}) });
   sendLiveEvent("availability_checked", {
     priority: "high",
     label: humanDate,

@@ -12,8 +12,9 @@ import {
 import { getLandingMeta } from "../../utils/sessionAttribution";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 import ReviewsGrid from "../../components/Reviews/ReviewsGrid";
-import { useDatePrices, usePriceSeasons, useStartingPrices } from "../../hooks/useStartingPrices";
+import { useDatePrices, usePriceSeasons, useStartingPrices, useYearPrices } from "../../hooks/useStartingPrices";
 import { seasonalStartingPrice } from "../../../shared/pricing/seasonalPricing";
+import { startingPricesForDate } from "../../../shared/pricing/yearPricing";
 import PriceConfigurator, { type DatePick } from "./PriceConfigurator";
 import LazySection from "./LazySection";
 import SectionSkeleton from "./SectionSkeleton";
@@ -33,7 +34,7 @@ import { useReferral } from "../../utils/referral";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
-function formatDateRo(iso: string): string {
+export function formatDateRo(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return iso;
   return `${Number(m[3])} ${MONTHS_RO[Number(m[2]) - 1]} ${m[1]}`;
@@ -42,8 +43,8 @@ function formatDateRo(iso: string): string {
 // fără ultimele HERO_VIDEO_LOOP_END_MARGIN secunde (acolo e credits-ul).
 const HERO_VIDEO_LOOP_START = 59;
 const HERO_VIDEO_LOOP_END_MARGIN = 6;
-const daysInMonth = (year: number, monthZeroBased: number) => new Date(year, monthZeroBased + 1, 0).getDate();
-const toIso = (day: number, monthZeroBased: number, year: number) =>
+export const daysInMonth = (year: number, monthZeroBased: number) => new Date(year, monthZeroBased + 1, 0).getDate();
+export const toIso = (day: number, monthZeroBased: number, year: number) =>
   `${year}-${String(monthZeroBased + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
 // Free wedding guide (Bunny: offers-assets/pdfs) — only on wedding campaigns.
@@ -153,7 +154,7 @@ function InstagramIcon() {
   );
 }
 
-function isEmbedVideoUrl(url: string) {
+export function isEmbedVideoUrl(url: string) {
   return /^https?:\/\/iframe\.mediadelivery\.net\//.test(url);
 }
 
@@ -164,6 +165,10 @@ function ArrowIcon() {
     </svg>
   );
 }
+
+// Real, fixed promo deadline — does not reset per visit/session, unlike the
+// old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
+export const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
 
 const CONFIGURATOR_SEEN_KEY = "configurator-seen";
 
@@ -185,6 +190,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   const startingPrices = useStartingPrices();
   const priceSeasons = usePriceSeasons();
   const datePrices = useDatePrices();
+  const yearPrices = useYearPrices();
   // With the availability section off, "check the date" links go to the configurator's date step.
   const availabilityHref = SHOW_AVAILABILITY_SECTION || !CONFIGURATOR_SLUGS.has(page.slug) ? "#verifica-data" : "#configurator-data";
 
@@ -306,9 +312,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     ? (page.galleryMobile?.length ? page.galleryMobile : page.gallery)
     : (page.galleryDesktop?.length ? page.galleryDesktop : page.gallery);
   const promoAtPageEnd = page.slug === "olx";
-  // Real, fixed promo deadline — does not reset per visit/session, unlike the
-  // old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
-  const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     // Only decides whether the promo is still on (no countdown on screen) — once a minute is enough.
@@ -954,7 +957,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               const waText = free
                 ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? (referral ? ", cu fotocabina gratuită și QR code (am venit prin recomandare)" : ", cu fotocabina gratuită") : ""}.`
                 : `Bună! Am văzut că ${dateLabel} e ocupată. Aveți o soluție pentru ${event}?`;
-              const startingPrice = `${seasonalStartingPrice(form.eventType, startingPrices, priceSeasons, form.eventDate, datePrices)} €`;
+              const startingPrice = `${seasonalStartingPrice(form.eventType, startingPricesForDate(startingPrices, yearPrices, form.eventDate), priceSeasons, form.eventDate, datePrices)} €`;
               return (
                 <div className={`mt-4 rounded-xl border p-4 ${free ? "border-green-700/40 bg-green-900/25" : "border-amber-700/40 bg-amber-900/20"}`}>
                   <p className={`text-sm font-medium ${free ? "text-green-300" : "text-amber-200"}`}>

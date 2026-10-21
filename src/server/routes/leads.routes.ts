@@ -1,7 +1,8 @@
 import express, { type Request, type Response } from "express";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth.js";
 import { archiveLead, deleteLead, getLeads } from "../services/leads.service.js";
-import { getEmailLog, getEmailLogEntry } from "../services/emailLog.service.js";
+import { EMAIL_LOG_MAX_LIST, getEmailLog, getEmailLogEntry } from "../services/emailLog.service.js";
+import { getInboxSyncState, syncEmailInbox } from "../services/emailInbox.service.js";
 
 const router = express.Router();
 
@@ -39,12 +40,33 @@ router.delete("/leads/:id", requireFirebaseAuth, requireSupremeAdmin, async (req
 });
 
 // GET /api/admin/email-log
-router.get("/email-log", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+// ?all=1 → the whole log (without bodies) for /admin/email-log; the leads page keeps the last 150.
+router.get("/email-log", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
-    res.json({ emails: await getEmailLog(150) });
+    res.json({ emails: await getEmailLog(req.query.all === "1" ? EMAIL_LOG_MAX_LIST : 150) });
   } catch (error) {
     console.error("[email-log] GET /email-log failed:", error);
     res.status(500).json({ error: "Nu s-a putut încărca jurnalul de emailuri." });
+  }
+});
+
+// GET /api/admin/email-inbox-sync — when the mailbox was last read for replies, and the last error.
+router.get("/email-inbox-sync", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    res.json({ state: await getInboxSyncState() });
+  } catch (error) {
+    console.error("[email-log] GET /email-inbox-sync failed:", error);
+    res.status(500).json({ error: "Nu s-a putut citi starea sincronizării." });
+  }
+});
+
+// POST /api/admin/email-inbox-sync — read the mailbox now ("Verifică răspunsurile").
+router.post("/email-inbox-sync", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    res.json({ result: await syncEmailInbox() });
+  } catch (error) {
+    console.error("[email-log] inbox sync failed:", error);
+    res.status(502).json({ error: `Căsuța de email nu a putut fi citită: ${error instanceof Error ? error.message : "eroare necunoscută"}` });
   }
 });
 

@@ -20,6 +20,7 @@ const LABELS: Record<string, string> = {
   "media-activity": "Activitate Media",
   "qr-moments": "QR Moments",
   "qr-participants": "Participanți QR Moments",
+  "email-log": "Email log",
   "instagram-proposals": "Propuneri Media",
   "selectie-comuna": "Selecție comună",
   "image-optimizer": "Optimizare Poze",

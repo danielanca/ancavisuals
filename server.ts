@@ -83,6 +83,7 @@ import { startReverseChargeVatCron } from "./src/server/cron/reverseChargeVat.cr
 // import { startHealthStepsReminderCron } from "./src/server/cron/healthStepsReminder.cron"; // dezactivat — health tracker nu mai e folosit
 import { startPhotoboothNotifyCron } from "./src/server/cron/photoboothNotify.cron";
 import { startSeoRadarWeeklyScanCron } from "./src/server/cron/seoRadarWeeklyScan.cron";
+import { startEmailInboxCron } from "./src/server/cron/emailInbox.cron";
 import adminAiAssistantRouter from "./src/server/routes/adminAiAssistant.routes";
 import financeAssistantRouter from "./src/server/routes/financeAssistant.routes";
 import reviewsRouter from "./src/server/routes/reviews.routes";
@@ -286,6 +287,7 @@ async function createServer() {
   startLiveVisitorsSweeper();
   startReverseChargeVatCron();
   startSeoRadarWeeklyScanCron();
+  startEmailInboxCron();
 
   if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · album promises · errors · collaborator invites · photobooth notify · reverse-charge VAT · seo radar weekly scan");
 

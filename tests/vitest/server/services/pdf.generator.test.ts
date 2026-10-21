@@ -188,4 +188,28 @@ describe("custom contract clauses", () => {
       expect(buildContractHTML({ eventType: "Nuntă", status: "signed", signedAt: "2026-10-22T10:00:00.000Z", services: video })).toContain("COMPATIBILITATEA MATERIALELOR VIDEO");
     });
   });
+
+  describe("material ownership clause", () => {
+    const photoVideo = [{ label: "Foto", price: 500 }, { label: "Video", price: 500 }];
+
+    test("the full gallery and film belong to the client; online use is 10-20 photos and max 3 minutes of video", async () => {
+      const { buildContractHTML } = await buildModule();
+      const html = buildContractHTML({ eventType: "Botez", status: "sent", services: photoVideo });
+      expect(html).toContain("PROPRIETATEA MATERIALELOR ȘI PUBLICAREA ONLINE");
+      expect(html).toContain("proprietatea integrală a <strong>BENEFICIARULUI</strong>");
+      expect(html).toContain("între 10 și 20 de fotografii");
+      expect(html).toContain("maximum 3 minute");
+      expect(html).not.toContain("marketing, târguri sau concursuri");
+    });
+
+    test("private clients keep total confidentiality; contracts signed before keep their old wording", async () => {
+      const { buildContractHTML } = await buildModule();
+      const privateHtml = buildContractHTML({ eventType: "Nuntă", status: "sent", privateClient: true, services: photoVideo });
+      expect(privateHtml).not.toContain("PROPRIETATEA MATERIALELOR");
+      expect(privateHtml).toContain("Confidențialitate totală");
+      const oldSigned = buildContractHTML({ eventType: "Nuntă", status: "signed", signedAt: "2026-09-01T10:00:00.000Z", services: photoVideo });
+      expect(oldSigned).not.toContain("PROPRIETATEA MATERIALELOR");
+      expect(oldSigned).toContain("marketing, târguri sau concursuri");
+    });
+  });
 });

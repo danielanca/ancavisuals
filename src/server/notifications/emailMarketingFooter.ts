@@ -1,4 +1,5 @@
 import { firestore } from "../firestore";
+import { NO_MARKETING_FOOTER_MARK } from "./qrViewEmailAd";
 
 const ADMIN_ONLY_EMAIL = "ancadaniel1994@gmail.com";
 const CONFIG_DOC = "global";
@@ -59,7 +60,8 @@ function renderFooter(images: string[]): string {
 
 export async function appendEmailFooters(html: string, recipient: string): Promise<string> {
   const normalized = recipient.trim().toLowerCase();
-  const marketing = normalized === ADMIN_ONLY_EMAIL ? "" : renderFooter(await getSelectedImages());
+  // An email with its own ad (QR Moments "au vizualizat") skips this one.
+  const marketing = normalized === ADMIN_ONLY_EMAIL || html.includes(NO_MARKETING_FOOTER_MARK) ? "" : renderFooter(await getSelectedImages());
   const additions = `${marketing}${CONTACT_FOOTER}`;
   if (html.trimStart().startsWith("<!DOCTYPE")) {
     if (/<\/body\s*>/i.test(html)) return html.replace(/<\/body\s*>/i, `${additions}</body>`);

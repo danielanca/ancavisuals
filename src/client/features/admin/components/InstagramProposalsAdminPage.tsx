@@ -7,9 +7,10 @@ import galleryStyles from "../../../components/Media/PhotoReviewGallery.module.s
 import UploadQueuePanel from "./UploadQueuePanel";
 import { useUploadQueue } from "./useUploadQueue";
 import type { PhotoVote } from "../../../../shared/media/proposalConsensus";
+import { formatDate, personKey, personLabel, proposalsByPerson } from "./proposalPeople";
 
 type ProposalStatus = "pending" | "accepted" | "archived" | "rejected";
-type Tab = "pending" | "all" | "accepted" | "rejected" | "archived";
+type Tab = "pending" | "all" | "people" | "accepted" | "rejected" | "archived";
 type ProposalDestination = "instagram" | "media_assets";
 
 type InstagramProposal = PhotoVote & {
@@ -20,6 +21,7 @@ type InstagramProposal = PhotoVote & {
   originalPhotoUrl?: string;
   fileName: string;
   proposedBy: string;
+  proposedByUid?: string;
   proposedAt: string;
   status: ProposalStatus;
   destinations?: ProposalDestination[];
@@ -429,6 +431,7 @@ export default function InstagramProposalsAdminPage() {
   const [allStatusFilter, setAllStatusFilter] = useState<ProposalStatus | "all">("all");
   const [destinationFilter, setDestinationFilter] = useState<ProposalDestination | "all">("all");
   const [allAlbumFilter, setAllAlbumFilter] = useState(albumParam || "all");
+  const [allPersonFilter, setAllPersonFilter] = useState("all");
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const [acceptedInSession, setAcceptedInSession] = useState<Set<string>>(new Set());
   // Acceptările (cu import în Media Assets) trec printr-o coadă: câte 2 deodată, ca pe server,
@@ -629,10 +632,23 @@ export default function InstagramProposalsAdminPage() {
       const matchesStatus = allStatusFilter === "all" || p.status === allStatusFilter;
       const matchesDestination = destinationFilter === "all" || (p.destinations ?? ["instagram"]).includes(destinationFilter);
       const matchesAlbum = allAlbumFilter === "all" || p.albumSlug === allAlbumFilter;
-      return matchesStatus && matchesDestination && matchesAlbum;
+      const matchesPerson = allPersonFilter === "all" || personKey(p.proposedBy) === allPersonFilter;
+      return matchesStatus && matchesDestination && matchesAlbum && matchesPerson;
     }),
-    [proposals, allStatusFilter, destinationFilter, allAlbumFilter],
+    [proposals, allStatusFilter, destinationFilter, allAlbumFilter, allPersonFilter],
   );
+
+  const people = useMemo(() => proposalsByPerson(proposals), [proposals]);
+
+  /** From "Persoane": the photos one person proposed (optionally in one album), in "Toate". */
+  const showPersonProposals = (person: string, album = "all") => {
+    setAllPersonFilter(person);
+    setAllAlbumFilter(album);
+    setAllStatusFilter("all");
+    setDestinationFilter("all");
+    setTab("all");
+    tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const counts = {
     pending:  byStatus("pending").length,
@@ -644,6 +660,7 @@ export default function InstagramProposalsAdminPage() {
   const TABS: { key: Tab; label: string; count?: number; accentBg?: string }[] = [
     { key: "pending",  label: "În așteptare", count: counts.pending,  accentBg: "bg-orange-500" },
     { key: "all",      label: "Toate" },
+    { key: "people",   label: "Persoane",     count: people.length },
     { key: "accepted", label: "Acceptate",    count: counts.accepted,  accentBg: "bg-cyan-500" },
     { key: "rejected", label: "Respinse",     count: counts.rejected,  accentBg: "bg-red-500" },
     { key: "archived", label: "Arhivate",     count: counts.archived },
@@ -1021,6 +1038,78 @@ export default function InstagramProposalsAdminPage() {
         })()}
 
         {/* ── TOATE ── */}
+        {/* ── PERSOANE ── who proposed, in which albums and how many */}
+        {!loading && tab === "people" && (
+          people.length === 0 ? (
+            <div className="text-center py-16 text-neutral-600 text-sm">Nicio propunere încă.</div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {people.map((person) => (
+                <section key={person.key} aria-label={person.label} className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
+                  <header className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+                        <span className="truncate">{person.label}</span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${person.viaLink ? "bg-sky-950 text-sky-300" : "bg-neutral-800 text-neutral-400"}`}>
+                          {person.viaLink ? "prin link" : "echipă"}
+                        </span>
+                      </h2>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        {person.total} {person.total === 1 ? "poză propusă" : "poze propuse"} · {person.albums.length} {person.albums.length === 1 ? "album" : "albume"} · ultima {formatDate(person.lastAt)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => showPersonProposals(person.key)}
+                      className="shrink-0 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white"
+                    >
+                      Vezi toate pozele
+                    </button>
+                  </header>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                    {(["pending", "accepted", "archived", "rejected"] as ProposalStatus[])
+                      .filter((status) => person.byStatus[status] > 0)
+                      .map((status) => (
+                        <span key={status} className={`rounded-full px-2 py-0.5 font-bold ${STATUS_BADGE[status]}`}>
+                          {person.byStatus[status]} {STATUS_LABEL[status].toLowerCase()}
+                        </span>
+                      ))}
+                  </div>
+                  <ul className="mt-3 divide-y divide-neutral-800 border-t border-neutral-800">
+                    {person.albums.map((album) => (
+                      <li key={album.albumSlug} className="flex items-center justify-between gap-2 py-2">
+                        <div className="min-w-0">
+                          <a
+                            href={`/media/${album.albumSlug}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block truncate text-xs font-semibold text-indigo-400 hover:text-indigo-300"
+                          >
+                            {album.albumSlug}
+                          </a>
+                          <p className="text-[11px] text-neutral-500">
+                            {album.total} {album.total === 1 ? "poză" : "poze"}
+                            {album.byStatus.pending > 0 && <> · <span className="text-orange-400">{album.byStatus.pending} în așteptare</span></>}
+                            {album.byStatus.accepted > 0 && <> · {album.byStatus.accepted} acceptate</>}
+                            {" "}· {formatDate(album.lastAt)}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => showPersonProposals(person.key, album.albumSlug)}
+                          className="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                        >
+                          Vezi pozele →
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )
+        )}
+
         {!loading && tab === "all" && (
           <>
             {/* Filters */}
@@ -1064,6 +1153,18 @@ export default function InstagramProposalsAdminPage() {
                 </select>
               )}
 
+              {people.length > 1 && (
+                <select
+                  value={allPersonFilter}
+                  onChange={(e) => setAllPersonFilter(e.target.value)}
+                  aria-label="Filtrează după persoană"
+                  className="px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-xl text-neutral-400 text-xs focus:outline-none focus:border-neutral-600"
+                >
+                  <option value="all">Toate persoanele</option>
+                  {people.map((person) => <option key={person.key} value={person.key}>{person.label}</option>)}
+                </select>
+              )}
+
               <span className="text-neutral-600 text-xs self-center sm:ml-auto">
                 {allFiltered.length} propuneri
               </span>
@@ -1099,7 +1200,14 @@ export default function InstagramProposalsAdminPage() {
                       >
                         {proposal.albumSlug}
                       </a>
-                      <p className="text-neutral-600 text-xs truncate">{proposal.proposedBy}</p>
+                      <button
+                        type="button"
+                        onClick={() => showPersonProposals(personKey(proposal.proposedBy))}
+                        className="text-left text-neutral-500 text-xs truncate hover:text-white"
+                        title="Vezi tot ce a propus această persoană"
+                      >
+                        {personLabel(proposal.proposedBy)}
+                      </button>
                       <div className="flex gap-1.5 flex-wrap">
                         {(proposal.destinations ?? ["instagram"]).map((destination) => (
                           <span

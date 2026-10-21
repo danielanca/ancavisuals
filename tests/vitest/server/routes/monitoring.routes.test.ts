@@ -148,8 +148,39 @@ describe("monitoring.routes", () => {
         "/gallery",
         undefined,
         undefined,
+        { userAgent: "", admin: false },
       );
       expect(res.json).toHaveBeenCalledWith({ ok: true });
+    });
+
+    test("emails the admin once about a new kind of visitor error, not about repeats or admin errors", async () => {
+      const { postClientError, captureClientError, sendEmailMock } = await loadMonitoringRouter({ ip: "1.2.3.4" });
+      const send = (message: string, page: string, admin = false) =>
+        postClientError({ body: { message, stack: "at x.js:1", page, admin }, headers: { "user-agent": "Mozilla/5.0 (iPhone)" } }, createMockResponse());
+
+      await send("TypeError: a.b is undefined (id 123)", "/contact");
+      await send("TypeError: a.b is undefined (id 456)", "/contact");
+      expect(sendEmailMock).toHaveBeenCalledTimes(1);
+      expect(sendEmailMock.mock.calls[0][0].subject).toContain("Eroare JavaScript");
+
+      await send("ReferenceError: other is not defined", "/contact", true);
+      expect(sendEmailMock).toHaveBeenCalledTimes(1);
+      expect(captureClientError).toHaveBeenLastCalledWith(
+        "ReferenceError: other is not defined", "at x.js:1", "/contact", "1.2.3.4", undefined,
+        { userAgent: "Mozilla/5.0 (iPhone)", admin: true },
+      );
+    });
+
+    test("drops browser noise and stops storing after 30 reports from one IP in ten minutes", async () => {
+      const { postClientError, captureClientError } = await loadMonitoringRouter({ ip: "5.6.7.8" });
+      const noise = createMockResponse();
+      await postClientError({ body: { message: "ResizeObserver loop limit exceeded", page: "/" } }, noise);
+      expect(noise.json).toHaveBeenCalledWith({ ok: true, ignored: true });
+
+      for (let index = 0; index < 35; index += 1) {
+        await postClientError({ body: { message: `[IMAGE LOAD FAILED] photo-${index}`, page: "/" } }, createMockResponse());
+      }
+      expect(captureClientError).toHaveBeenCalledTimes(30);
     });
 
     test("silently ignores chrome extension errors", async () => {
@@ -334,6 +365,10 @@ describe("monitoring.routes", () => {
             severity: "error",
             page: "/gallery",
             seen: false,
+            category: "js",
+            fingerprint: "js|/gallery|ReferenceError: foo is not defined",
+            userAgent: null,
+            admin: false,
             ip: null,
             geo: null,
             capturedAt: new Date("2026-04-20T10:00:00.000Z").toISOString(),

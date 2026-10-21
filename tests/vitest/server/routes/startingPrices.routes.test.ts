@@ -42,6 +42,7 @@ describe("starting prices API", () => {
       configurator: DEFAULT_CONFIGURATOR_PRICES,
       seasons: [],
       datePrices: [],
+      yearPrices: {},
     });
   });
 
@@ -50,7 +51,7 @@ describe("starting prices API", () => {
     const res = createMockResponse();
     await put({ body: { prices: full } }, res);
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ prices: full, configurator: DEFAULT_CONFIGURATOR_PRICES }));
-    expect(res.json).toHaveBeenCalledWith({ prices: full, configurator: DEFAULT_CONFIGURATOR_PRICES, seasons: [], datePrices: [] });
+    expect(res.json).toHaveBeenCalledWith({ prices: full, configurator: DEFAULT_CONFIGURATOR_PRICES, seasons: [], datePrices: [], yearPrices: {} });
   });
 
   test("public read returns the stored configurator prices", async () => {
@@ -66,7 +67,7 @@ describe("starting prices API", () => {
     const res = createMockResponse();
     await put({ body: { prices: full, configurator } }, res);
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ prices: full, configurator }));
-    expect(res.json).toHaveBeenCalledWith({ prices: full, configurator, seasons: [], datePrices: [] });
+    expect(res.json).toHaveBeenCalledWith({ prices: full, configurator, seasons: [], datePrices: [], yearPrices: {} });
   });
 
   test("admin save rejects an incomplete or invalid configurator set", async () => {
@@ -155,6 +156,28 @@ describe("starting prices API", () => {
       ]) {
         const res = createMockResponse();
         await put({ body: { prices: full, datePrices } }, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+      }
+      expect(set).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("year prices", () => {
+    const book2028 = { ...full, ...DEFAULT_CONFIGURATOR_PRICES, nunta: 1150, nunta_foto: 750 };
+
+    test("admin save stores a year's full price book and keeps it on later saves without it", async () => {
+      const { put, set } = await loadRouter();
+      await put({ body: { prices: full, yearPrices: { 2028: book2028 } } }, createMockResponse());
+      expect(set).toHaveBeenLastCalledWith(expect.objectContaining({ yearPrices: { 2028: book2028 } }));
+      await put({ body: { prices: full } }, createMockResponse());
+      expect(set).toHaveBeenLastCalledWith(expect.objectContaining({ yearPrices: { 2028: book2028 } }));
+    });
+
+    test("admin save rejects a bad year or an incomplete year", async () => {
+      const { put, set } = await loadRouter();
+      for (const yearPrices of [{ 1999: book2028 }, { 2028: { ...book2028, nunta: 0 } }, { 2028: { nunta: 1150 } }, []]) {
+        const res = createMockResponse();
+        await put({ body: { prices: full, yearPrices } }, res);
         expect(res.status).toHaveBeenCalledWith(400);
       }
       expect(set).not.toHaveBeenCalled();

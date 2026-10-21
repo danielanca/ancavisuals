@@ -81,12 +81,14 @@ export async function sendEmail({ to, subject, html, from, source, leadId }: Sen
   const id = randomUUID();
   await recordEmailDelivery(id, { to, subject, status: "pending", attempts: 0,
     transport: testEmailMode && testTransport ? "test" : "production", createdAt: new Date().toISOString() });
-  const logId = await logEmail({ to, subject, html, status: "pending", deliveryId: id, ...(source ? { source } : {}), ...(leadId ? { leadId } : {}) });
+  // The log keeps the HTML exactly as the recipient gets it (with the footers), for the full preview in /admin/email-log.
+  const sentHtml = await appendEmailFooters(html, to);
+  const logId = await logEmail({ to, subject, html: sentHtml, status: "pending", deliveryId: id, ...(source ? { source } : {}), ...(leadId ? { leadId } : {}) });
   for (let attempt = 1; attempt <= 3; attempt++) {
     await recordEmailDelivery(id, { attempts: attempt });
     let info: SMTPTransport.SentMessageInfo;
     try {
-      info = await activeTransport.sendMail({ from: activeFrom, to, subject, html: await appendEmailFooters(html, to) });
+      info = await activeTransport.sendMail({ from: activeFrom, to, subject, html: sentHtml });
     } catch (error) {
       await raiseEmailAlert({ id: randomUUID(), error: describeEmailError(error), diagnostic: emailErrorDiagnostic(error), subject, to });
       if (canRetryEmail(error) && attempt < 3) {
@@ -112,7 +114,8 @@ export async function sendEmail({ to, subject, html, from, source, leadId }: Sen
       throw new Error("SMTP recipient acceptance incomplete");
     }
     await recordEmailDelivery(id, { status: "accepted", messageId: String(info.messageId ?? ""), error: null });
-    await updateEmailLog(logId, { status: "sent", severity: "ok" });
+    // messageId lets the inbox sync recognise replies to this email (In-Reply-To).
+    await updateEmailLog(logId, { status: "sent", severity: "ok", ...(info.messageId ? { messageId: String(info.messageId) } : {}) });
     return;
   }
 }

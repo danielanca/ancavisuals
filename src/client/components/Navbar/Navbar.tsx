@@ -2,13 +2,15 @@ import React, { useRef, useEffect } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../../features/admin/auth/useAuth";
+import { AdminViewControls, useNavbarHostsAdminControls } from "../UI/AdminBar";
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
-  const { auth, logOut } = useAuth();
+  const { auth, logOut, signedInAsAdmin } = useAuth();
   const navigate = useNavigate();
   const adminMenuRef = useRef<HTMLDivElement>(null);
+  useNavbarHostsAdminControls(signedInAsAdmin);
 
   useEffect(() => {
     if (!adminMenuOpen) return;
@@ -22,163 +24,172 @@ const Navbar = () => {
   }, [adminMenuOpen]);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 p-4 md:p-8 bg-black/20 backdrop-blur-sm text-white">
-      <div className="flex justify-between items-center max-w-7xl mx-auto">
-        {/* Left Navigation - Hidden on mobile, visible on tablet+ */}
-        <div className="hidden lg:flex space-x-6 xl:space-x-8">
-          <Link
-            to="/despre"
-            className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-black/20 backdrop-blur-sm text-white">
+      <div className="p-4 md:p-8">
+        <div className="flex justify-between items-center max-w-7xl mx-auto">
+          {/* Left Navigation - Hidden on mobile, visible on tablet+ */}
+          <div className="hidden lg:flex space-x-6 xl:space-x-8">
+            <Link
+              to="/despre"
+              className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
+            >
+              Despre
+            </Link>
+            {/* <Link
+                          to="/pricing"
+                          className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
+                      >
+                          Pricing
+                      </Link>  */}
+            <Link
+              to="/portofoliu"
+              className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
+            >
+              PORTOFOLIU
+            </Link>
+          </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            className="lg:hidden relative w-10 h-10 flex items-center justify-center group z-50"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle navigation menu"
           >
-            Despre
-          </Link>
-          {/* <Link
-                        to="/pricing"
-                        className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
-                    >
-                        Pricing
-                    </Link>  */}
-          <Link
-            to="/portofoliu"
-            className="text-xs md:text-sm font-light tracking-[0.2em] uppercase hover:text-gray-300 transition-colors"
-          >
-            PORTOFOLIU
-          </Link>
-        </div>
-
-        {/* Mobile Menu Button */}
-        <button
-          className="lg:hidden relative w-10 h-10 flex items-center justify-center group z-50"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label="Toggle navigation menu"
-        >
-          <div className="relative w-6 h-6 flex flex-col justify-center items-center">
-            <span
-              className={`block absolute h-0.5 w-6 bg-white transform transition duration-300 ease-in-out ${
-                isMobileMenuOpen ? "rotate-45" : "-translate-y-1.5"
-              }`}
-            ></span>
-            <span
-              className={`block absolute h-0.5 w-6 bg-white transform transition duration-300 ease-in-out ${
-                isMobileMenuOpen ? "opacity-0" : ""
-              }`}
-            ></span>
-            <span
-              className={`block absolute h-0.5 w-6 bg-white transform transition duration-300 ease-in-out ${
-                isMobileMenuOpen ? "-rotate-45" : "translate-y-1.5"
-              }`}
-            ></span>
-          </div>
-        </button>
-
-        {/* Center Logo */}
-        <Link to="/" className="text-center absolute left-1/2 transform -translate-x-1/2">
-          <div className="text-lg md:text-xl lg:text-2xl tracking-[0.2em] md:tracking-[0.3em] uppercase mb-1">
-            <span className="font-bold text-white">Anca</span>
-            <span className="font-light text-gray-300">Visuals</span>
-          </div>
-          <p className="text-xs md:text-base tracking-widest uppercase text-gray-400 italic">
-            You feel it. We frame it.
-          </p>
-        </Link>
-
-        {/* Right Side - Social & Inquire */}
-        <div className="flex items-center space-x-3 md:space-x-4 lg:space-x-6">
-          <div className="hidden sm:flex space-x-3 md:space-x-4">
-            <a href="https://instagram.com/ancavisuals" className="hover:text-gray-300 transition-colors">
-              <svg className="w-4 h-4 md:w-5 md:h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-              </svg>
-            </a>
-          </div>
-
-          {/* ADMIN button — visible only when logged in as admin */}
-          {auth.authorise && (
-            <div ref={adminMenuRef} style={{ position: "relative" }}>
-              <button
-                onClick={() => setAdminMenuOpen((prev) => !prev)}
-                style={{
-                  background: "#dc2626",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "4px",
-                  padding: "5px 10px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  letterSpacing: "0.12em",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                }}
-              >
-                ADMIN
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.8, transform: adminMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
-                  <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-
-              {adminMenuOpen && (
-                <div style={{
-                  position: "absolute",
-                  top: "calc(100% + 8px)",
-                  right: 0,
-                  background: "#111",
-                  border: "1px solid #2a2a2a",
-                  borderRadius: "8px",
-                  overflow: "hidden",
-                  minWidth: "160px",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.8)",
-                  zIndex: 100,
-                }}>
-                  <button
-                    onClick={() => { setAdminMenuOpen(false); navigate("/admin"); }}
-                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#ddd", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-                    </svg>
-                    Dashboard
-                  </button>
-                  <div style={{ height: "1px", background: "#1f1f1f", margin: "0 10px" }} />
-                  <button
-                    onClick={() => { setAdminMenuOpen(false); window.location.reload(); }}
-                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#ddd", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-                    </svg>
-                    Reîncarcă
-                  </button>
-                  <div style={{ height: "1px", background: "#1f1f1f", margin: "0 10px" }} />
-                  <button
-                    onClick={() => { setAdminMenuOpen(false); void logOut(); }}
-                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#f87171", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
-                    Delogheaza-te
-                  </button>
-                </div>
-              )}
+            <div className="relative w-6 h-6 flex flex-col justify-center items-center">
+              <span
+                className={`block absolute h-0.5 w-6 bg-white transform transition duration-300 ease-in-out ${
+                  isMobileMenuOpen ? "rotate-45" : "-translate-y-1.5"
+                }`}
+              ></span>
+              <span
+                className={`block absolute h-0.5 w-6 bg-white transform transition duration-300 ease-in-out ${
+                  isMobileMenuOpen ? "opacity-0" : ""
+                }`}
+              ></span>
+              <span
+                className={`block absolute h-0.5 w-6 bg-white transform transition duration-300 ease-in-out ${
+                  isMobileMenuOpen ? "-rotate-45" : "translate-y-1.5"
+                }`}
+              ></span>
             </div>
-          )}
+          </button>
 
-          <Link
-            to="/contact"
-            className="text-xs md:text-sm font-light tracking-[0.15em] md:tracking-[0.2em] uppercase border-b border-white pb-1 hover:border-gray-300 transition-colors"
-          >
-            SOLICITA
+          {/* Center Logo */}
+          <Link to="/" className="text-center absolute left-1/2 transform -translate-x-1/2">
+            <div className="text-lg md:text-xl lg:text-2xl tracking-[0.2em] md:tracking-[0.3em] uppercase mb-1">
+              <span className="font-bold text-white">Anca</span>
+              <span className="font-light text-gray-300">Visuals</span>
+            </div>
+            <p className="text-xs md:text-base tracking-widest uppercase text-gray-400 italic">
+              You feel it. We frame it.
+            </p>
           </Link>
+
+          {/* Right Side - Social & Inquire */}
+          <div className="flex items-center space-x-3 md:space-x-4 lg:space-x-6">
+            <div className="hidden sm:flex space-x-3 md:space-x-4">
+              <a href="https://instagram.com/ancavisuals" className="hover:text-gray-300 transition-colors">
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                </svg>
+              </a>
+            </div>
+
+            <Link
+              to="/contact"
+              className="text-xs md:text-sm font-light tracking-[0.15em] md:tracking-[0.2em] uppercase border-b border-white pb-1 hover:border-gray-300 transition-colors"
+            >
+              SOLICITA
+            </Link>
+          </div>
         </div>
       </div>
+
+      {/* Signed in as admin: a red ADMIN strip under the header, with the admin menu, the
+          admin/client view switch, log out and who is signed in (AdminBar hides its floating copy). */}
+      {signedInAsAdmin && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-red-600 px-4 py-1.5 font-sans md:px-8">
+          <div ref={adminMenuRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setAdminMenuOpen((prev) => !prev)}
+              style={{
+                background: "transparent",
+                color: "#fff",
+                border: "none",
+                borderRadius: "4px",
+                padding: "5px 10px",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+              }}
+            >
+              ADMIN
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.8, transform: adminMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+                <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            {adminMenuOpen && (
+              <div style={{
+                position: "absolute",
+                top: "calc(100% + 8px)",
+                left: 0,
+                background: "#111",
+                border: "1px solid #2a2a2a",
+                borderRadius: "8px",
+                overflow: "hidden",
+                minWidth: "160px",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.8)",
+                zIndex: 100,
+              }}>
+                <button
+                  onClick={() => { setAdminMenuOpen(false); navigate("/admin"); }}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#ddd", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                  </svg>
+                  Dashboard
+                </button>
+                <div style={{ height: "1px", background: "#1f1f1f", margin: "0 10px" }} />
+                <button
+                  onClick={() => { setAdminMenuOpen(false); window.location.reload(); }}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#ddd", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                  </svg>
+                  Reîncarcă
+                </button>
+                <div style={{ height: "1px", background: "#1f1f1f", margin: "0 10px" }} />
+                <button
+                  onClick={() => { setAdminMenuOpen(false); void logOut(); }}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "11px 16px", background: "none", border: "none", color: "#f87171", fontSize: "12px", cursor: "pointer", textAlign: "left", letterSpacing: "0.05em" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                  Delogheaza-te
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <AdminViewControls />
+          </div>
+          {auth.user?.email && <span className="ml-auto truncate text-xs text-white/85">{auth.user.email}</span>}
+        </div>
+      )}
 
       {/* Mobile Menu Overlay - Full Screen Background */}
       <div
@@ -240,6 +251,23 @@ const Navbar = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </Link>
+
+            {/* A full page load, so the browser lands right on the configurator of /oferta/olx. */}
+            <a
+              href="/oferta/olx#configurator"
+              className="flex items-center justify-between whitespace-nowrap text-xl font-light tracking-[0.2em] uppercase text-white hover:text-gray-300 transition-colors group"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <span>SIMULEAZĂ PREȚUL</span>
+              <svg
+                className="h-6 w-6 ml-4 transform group-hover:translate-x-1 transition-transform"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
           </nav>
 
           {/* Bottom Section */}

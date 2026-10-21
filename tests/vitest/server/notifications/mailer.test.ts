@@ -89,8 +89,10 @@ describe("sendEmail", () => {
     const { sendEmail, logSetMock } = await buildMailer();
     await sendEmail({ to: "client@example.com", subject: "Test", html: "private body", source: "lead", leadId: "lead-1" });
     expect(logSetMock).toHaveBeenCalledWith(expect.objectContaining({
-      to: "client@example.com", subject: "Test", html: "private body", status: "pending", source: "lead", leadId: "lead-1",
+      to: "client@example.com", subject: "Test", html: expect.stringContaining("private body"), status: "pending", source: "lead", leadId: "lead-1",
     }), { merge: true });
+    // The log keeps the HTML as sent, footers included (full preview in /admin/email-log).
+    expect(logSetMock).toHaveBeenCalledWith(expect.objectContaining({ html: expect.stringContaining("info@ancavisuals.ro") }), { merge: true });
     expect(logSetMock).toHaveBeenLastCalledWith(expect.objectContaining({ status: "sent" }), { merge: true });
   });
 

@@ -31,6 +31,7 @@ const QrParticipantsPage = loadable(() => import("../features/admin/components/Q
 const AnalyticsPage = loadable(() => import("../features/admin/components/AnalyticsPage"), opts);
 const LiveVisitorsPage = loadable(() => import("../features/admin/components/LiveVisitorsPage"), opts);
 const LeadsPage = loadable(() => import("../features/admin/components/LeadsPage"), opts);
+const EmailLogPage = loadable(() => import("../features/admin/components/EmailLogPage"), opts);
 const ContactStatsPage = loadable(() => import("../features/admin/components/ContactStatsPage"), opts);
 const StartingPricesPage = loadable(() => import("../features/admin/components/StartingPricesPage"), opts);
 const ImageOptimizerPage = loadable(() => import("../features/admin/components/ImageOptimizerPage"), opts);
@@ -105,6 +106,7 @@ export const adminRoutes = [
       <Route path="/admin/analytics" element={<AnalyticsPage />} />
       <Route path="/admin/live" element={<LiveVisitorsPage />} />
       <Route path="/admin/leads" element={<LeadsPage />} />
+      <Route path="/admin/email-log" element={<EmailLogPage />} />
       <Route path="/admin/statistici-contact" element={<ContactStatsPage />} />
       <Route path="/admin/preturi" element={<StartingPricesPage />} />
       <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />

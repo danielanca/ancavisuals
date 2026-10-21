@@ -193,6 +193,16 @@ function videoCompatibilityClauseApplies(contract: Record<string, unknown>): boo
   return !!signedAt && new Date(signedAt).getTime() >= new Date(VIDEO_COMPATIBILITY_CLAUSE_SINCE).getTime();
 }
 
+// Clauza „Proprietatea materialelor și publicarea online” (și textul restrâns al clauzei
+// „Drepturi asupra imaginilor”) a apărut la această dată; contractele semnate înainte rămân cum au fost semnate.
+const MATERIAL_OWNERSHIP_CLAUSE_SINCE = "2026-10-22T00:00:00+03:00";
+
+function materialOwnershipClauseApplies(contract: Record<string, unknown>): boolean {
+  if (contract.status !== "signed") return true;
+  const signedAt = toIsoString(contract.signedAt);
+  return !!signedAt && new Date(signedAt).getTime() >= new Date(MATERIAL_OWNERSHIP_CLAUSE_SINCE).getTime();
+}
+
 export function detectServiceFlags(services: ContractService[], contractType?: string): ServiceFlags {
   const labels = services.map((s) => s.label.toLowerCase());
   const type = (contractType ?? "").toLowerCase();
@@ -367,7 +377,18 @@ export function buildContractHTML(contract: Record<string, unknown>): string {
       title: "Drepturi asupra imaginilor foto/video",
       body: contract.privateClient
         ? `<p><span class="bold">Confidențialitate totală:</span> La solicitarea expresă a BENEFICIARULUI, toate materialele foto și video realizate în cadrul acestui Contract sunt strict confidențiale și destinate exclusiv uzului personal al acestuia. PRESTATORUL nu va publica, distribui sau utiliza în niciun scop public (portofoliu, social media, marketing, târguri, concursuri sau orice alt canal) niciuna dintre imaginile sau materialele video rezultate. Această clauză este obligatorie și are caracter permanent.</p>`
-        : `<p>PRESTATORUL își rezervă dreptul de a utiliza imaginile foto și/sau video realizate în cadrul acestui Contract pentru promovarea activității sale, inclusiv pe rețelele de socializare, portofoliu online, marketing, târguri sau concursuri. Imaginile vor fi alese de PRESTATOR dintre cele mai reprezentative din perspectivă artistică. În cazul în care BENEFICIARUL dorește confidențialitate totală asupra materialelor, acesta trebuie să notifice PRESTATORUL în scris, anterior semnării contractului.</p>`,
+        : materialOwnershipClauseApplies(contract)
+          ? `<p>PRESTATORUL își rezervă dreptul de a utiliza o selecție de fotografii și cadre video realizate în cadrul acestui Contract pentru promovarea activității sale în mediul online (rețele de socializare, portofoliu online), exclusiv în limitele prevăzute la clauza „Proprietatea materialelor și publicarea online”. Imaginile vor fi alese de PRESTATOR dintre cele mai reprezentative din perspectivă artistică. În cazul în care BENEFICIARUL dorește confidențialitate totală asupra materialelor, acesta trebuie să notifice PRESTATORUL în scris, anterior semnării contractului.</p>`
+          : `<p>PRESTATORUL își rezervă dreptul de a utiliza imaginile foto și/sau video realizate în cadrul acestui Contract pentru promovarea activității sale, inclusiv pe rețelele de socializare, portofoliu online, marketing, târguri sau concursuri. Imaginile vor fi alese de PRESTATOR dintre cele mai reprezentative din perspectivă artistică. În cazul în care BENEFICIARUL dorește confidențialitate totală asupra materialelor, acesta trebuie să notifice PRESTATORUL în scris, anterior semnării contractului.</p>`,
+    } : null,
+
+    // ── 7a. Full gallery/film belong to the client; online use limited (not for private clients) ──
+    hasPhotoVideo && !contract.privateClient && materialOwnershipClauseApplies(contract) ? {
+      title: "Proprietatea materialelor și publicarea online",
+      body: `
+      <p>PRESTATORUL nu va publica și nu va transmite nimănui fotografiile sau materialele video realizate la evenimentul privat al BENEFICIARULUI, cu excepția celor prevăzute în prezenta clauză. <span class="bold">Filmarea completă și galeria completă de fotografii sunt proprietatea integrală a BENEFICIARULUI.</span></p>
+      <p>Singurul drept pe care PRESTATORUL și-l rezervă este de a folosi în mediul online, pentru prezentarea activității sale, <span class="bold">între 10 și 20 de fotografii</span> și anumite cadre video, într-un material video cu o durată de <span class="bold">maximum 3 minute</span>.</p>
+      `,
     } : null,
 
     // ── 7b. Acceptance of artistic style ──────────────────────────────────────
