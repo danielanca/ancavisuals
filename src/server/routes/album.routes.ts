@@ -520,7 +520,7 @@ router.put("/:slug/short-video", requireFirebaseAuth, requireSupremeAdmin, async
     }
     // Only after the new file is verified, so a failed upload never leaves the album without a video.
     await Promise.all(previous.filter((entry) => entry.ObjectName !== fileName).map((entry) => deleteShortVideo(slug, entry.ObjectName)));
-    invalidateAlbumCache(slug);
+    await invalidateAlbumCache(slug);
     // Stream pulls its own copy from Storage and transcodes it; until then /media plays the original.
     await startShortVideoStream(slug, fileName);
     const video: AlbumShortVideo = {
@@ -539,7 +539,7 @@ router.delete("/:slug/short-video", requireFirebaseAuth, requireSupremeAdmin, as
     const videos = await listShortVideos(req.params.slug);
     await Promise.all(videos.map((entry) => deleteShortVideo(req.params.slug, entry.ObjectName)));
     await removeShortVideoStream(req.params.slug);
-    invalidateAlbumCache(req.params.slug);
+    await invalidateAlbumCache(req.params.slug);
     return res.json({ video: null });
   } catch (error) {
     console.error("[album] short video delete failed:", error);

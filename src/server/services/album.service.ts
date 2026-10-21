@@ -59,10 +59,18 @@ async function setFirestoreCache(slug: string, album: Album): Promise<void> {
   }
 }
 
-export function invalidateAlbumCache(slug: string): void {
+// Bumped on every invalidation: a load that started before it must not write its (stale) album back.
+const cacheGeneration = new Map<string, number>();
+
+/**
+ * Drops both caches. Await it before reading the album again (e.g. right after deleting the short
+ * video): otherwise the next load can still find the old Firestore copy and cache it for 5 more minutes.
+ */
+export async function invalidateAlbumCache(slug: string): Promise<void> {
   memCache.delete(slug);
-  firestore().collection(FIRESTORE_CACHE_COL).doc(slug).delete().catch(() => {});
+  cacheGeneration.set(slug, (cacheGeneration.get(slug) ?? 0) + 1);
   console.log(`[album-cache] invalidat: ${slug}`);
+  await firestore().collection(FIRESTORE_CACHE_COL).doc(slug).delete().catch(() => {});
 }
 
 // ── Slug canonicalizare (8august2026 ⇄ 08august2026) ─────────────────────────
@@ -126,9 +134,12 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
   const mem = getMemCache(slug);
   if (mem) { console.log(`[album] cache HIT mem: ${slug}`); return mem; }
 
+  const generation = cacheGeneration.get(slug) ?? 0;
+  const stillCurrent = () => (cacheGeneration.get(slug) ?? 0) === generation;
+
   // 2. Firestore cache (~100ms, supraviețuiește restart)
   const fs = await getFirestoreCache(slug);
-  if (fs) {
+  if (fs && stillCurrent()) {
     console.log(`[album] cache HIT firestore: ${slug}`);
     setMemCache(slug, fs);
     return fs;
@@ -179,9 +190,11 @@ export async function loadAlbum(slug: string): Promise<Album | null> {
     zipReady,
   };
 
-  // Salvează în ambele cache-uri (fire-and-forget pentru Firestore)
-  setMemCache(slug, album);
-  setFirestoreCache(slug, album).catch(() => {});
+  // Salvează în ambele cache-uri (fire-and-forget pentru Firestore) — doar dacă nu s-a invalidat între timp.
+  if (stillCurrent()) {
+    setMemCache(slug, album);
+    setFirestoreCache(slug, album).catch(() => {});
+  }
 
   return album;
 }

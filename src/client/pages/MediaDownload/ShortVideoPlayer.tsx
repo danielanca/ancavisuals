@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import CampaignVideoPlayer from "../CampaignLanding/CampaignVideoPlayer";
+import FramedVideoSection from "../CampaignLanding/FramedVideoSection";
 import type { AlbumShortVideo } from "../../../shared/albumShortVideo";
 
 type Props = { slug: string; fallbackSrc: string };
@@ -31,15 +32,30 @@ export default function ShortVideoPlayer({ slug, fallbackSrc }: Props) {
   const adaptive = Boolean(stream?.hlsUrl || stream?.embedUrl);
 
   return (
-    <section aria-labelledby="short-video-title" className="mx-auto my-10 w-full max-w-5xl">
-      <header className="mb-5 text-center">
-        <h2 id="short-video-title" className="text-2xl font-extralight uppercase tracking-[0.18em] text-white sm:text-3xl">
-          Video scurt
-        </h2>
-        <p className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-500">[ ziua voastră, în câteva minute ]</p>
-      </header>
-
-      <div className="border border-white/15 bg-black p-1 sm:p-2">
+    <FramedVideoSection
+      id="short-video"
+      title="Video scurt"
+      subtitle="ziua voastră, în câteva minute"
+      className="my-10"
+      footer={
+        <div className="mt-4 flex flex-col items-center gap-4 border-b border-white/10 pb-6 sm:flex-row sm:justify-between">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-500">
+            {adaptive ? "Calitate automată după internetul tău" : "Calitate originală"}
+            {video?.size ? <span className="text-neutral-600"> · {fmtSize(video.size)}</span> : null}
+          </p>
+          <a
+            href={`/api/album/${encodeURIComponent(slug)}/short-video/download`}
+            download
+            className="inline-flex items-center gap-3 border border-white bg-white px-6 py-3 text-xs font-medium uppercase tracking-[0.2em] text-black transition-colors hover:bg-transparent hover:text-white"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="1.6" aria-hidden="true">
+              <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" strokeLinecap="square" />
+            </svg>
+            Descarcă videoul
+          </a>
+        </div>
+      }
+    >
         {stream?.hlsUrl ? (
           <CampaignVideoPlayer variant="mono" src={stream.hlsUrl} label="Video scurt album" />
         ) : stream?.embedUrl ? (
@@ -57,24 +73,6 @@ export default function ShortVideoPlayer({ slug, fallbackSrc }: Props) {
         ) : (
           <CampaignVideoPlayer variant="mono" src={fallbackSrc} label="Video scurt album" />
         )}
-      </div>
-
-      <div className="mt-4 flex flex-col items-center gap-4 border-b border-white/10 pb-6 sm:flex-row sm:justify-between">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-500">
-          {adaptive ? "Calitate automată după internetul tău" : "Calitate originală"}
-          {video?.size ? <span className="text-neutral-600"> · {fmtSize(video.size)}</span> : null}
-        </p>
-        <a
-          href={`/api/album/${encodeURIComponent(slug)}/short-video/download`}
-          download
-          className="inline-flex items-center gap-3 border border-white bg-white px-6 py-3 text-xs font-medium uppercase tracking-[0.2em] text-black transition-colors hover:bg-transparent hover:text-white"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="1.6" aria-hidden="true">
-            <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" strokeLinecap="square" />
-          </svg>
-          Descarcă videoul
-        </a>
-      </div>
-    </section>
+    </FramedVideoSection>
   );
 }

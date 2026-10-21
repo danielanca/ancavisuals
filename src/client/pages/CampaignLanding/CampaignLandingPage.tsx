@@ -20,6 +20,7 @@ import SectionSkeleton from "./SectionSkeleton";
 import QRMomentsPromo from "./QRMomentsPromo";
 import PhotobookPromo from "./PhotobookPromo";
 import HeroVideo from "./HeroVideo";
+import FramedVideoSection from "./FramedVideoSection";
 import FreePhotoboothContracts from "./FreePhotoboothContracts";
 import { AboutSummary, AncaVisualsPromo, CampaignPackages, CampaignVideoPlayer, GuideBook, PortfolioParallaxGallery, preloadGroup } from "./lazyParts";
 import ChatWithUs from "../../features/chat/components/ChatWithUs";
@@ -50,6 +51,8 @@ const WEDDING_GUIDE_URL = "https://ancavisuals.b-cdn.net/offers-assets/pdfs/Ghid
 const WEDDING_GUIDE_SLUGS = new Set(["olx"]);
 // Price configurator (Nuntă / Botez / Majorat / Corporate) — Ads traffic also asks for christenings.
 const CONFIGURATOR_SLUGS = new Set(["olx"]);
+// Landings whose "Vezi-ne la lucru" uses the album's square black-and-white video frame.
+const FRAMED_VIDEO_SLUGS = new Set(["olx"]);
 // "Verifică disponibilitatea" (#verifica-data) is switched off for now (owner, 2026-10-03):
 // the configurator checks the date itself. Set to true to bring the section back.
 const SHOW_AVAILABILITY_SECTION = false;
@@ -697,33 +700,60 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
       {(page.videoUrl || page.heroVideoUrl) && (
         <LazySection height={stableVh(60)} onShow={() => preloadGroup(1)}>
-        <section id="film" className="scroll-mt-6 py-20 sm:py-24 border-b border-white/10">
-          <div className="mx-auto mb-8 w-full max-w-5xl px-6 text-center">
-            <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
-            <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
+        {FRAMED_VIDEO_SLUGS.has(page.slug) ? (
+          // /oferta/olx: the album's "Video scurt" frame — square, black and white, play only, no download.
+          <div className="border-b border-white/10 px-4 py-20 sm:px-6 sm:py-24">
+            <FramedVideoSection id="film" title="Vezi-ne la lucru" subtitle="o zi reală, filmată de noi" className="scroll-mt-6">
+              {isEmbedVideoUrl(page.videoUrl ?? "") ? (
+                <div className="aspect-video w-full bg-black">
+                  <iframe
+                    src={page.videoUrl}
+                    title="Vezi-ne la lucru"
+                    className="h-full w-full"
+                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
+                    allowFullScreen
+                  />
+                </div>
+              ) : (
+                <CampaignVideoPlayer
+                  variant="mono"
+                  fallback={<div aria-hidden="true" className="aspect-video w-full animate-pulse bg-white/[0.06] motion-reduce:animate-none" />}
+                  src={(page.videoUrl || page.heroVideoUrl) as string}
+                  poster={page.videoThumbnailUrl || undefined}
+                  label="Vezi-ne la lucru"
+                />
+              )}
+            </FramedVideoSection>
           </div>
-          {/* Phones: edge to edge (no padding, corners or border). Desktop: a framed, narrower player — full width was too wide. */}
-          <div className="mx-auto w-full max-w-5xl sm:px-6">
-          <div className="md:overflow-hidden md:rounded-2xl md:shadow-2xl md:shadow-black/60 md:ring-1 md:ring-white/10">
-          {isEmbedVideoUrl(page.videoUrl ?? "") ? (
-            <div className="aspect-video w-full bg-black">
-              <iframe
-                src={page.videoUrl}
-                className="h-full w-full"
-                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                allowFullScreen
-              />
+        ) : (
+          <section id="film" className="scroll-mt-6 py-20 sm:py-24 border-b border-white/10">
+            <div className="mx-auto mb-8 w-full max-w-5xl px-6 text-center">
+              <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
+              <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
             </div>
-          ) : (
-            <CampaignVideoPlayer
-              fallback={<div aria-hidden="true" className="aspect-video w-full animate-pulse bg-white/[0.06] motion-reduce:animate-none" />}
-              src={(page.videoUrl || page.heroVideoUrl) as string}
-              poster={page.videoThumbnailUrl || undefined}
-            />
-          )}
-          </div>
-          </div>
-        </section>
+            {/* Phones: edge to edge (no padding, corners or border). Desktop: a framed, narrower player — full width was too wide. */}
+            <div className="mx-auto w-full max-w-5xl sm:px-6">
+            <div className="md:overflow-hidden md:rounded-2xl md:shadow-2xl md:shadow-black/60 md:ring-1 md:ring-white/10">
+            {isEmbedVideoUrl(page.videoUrl ?? "") ? (
+              <div className="aspect-video w-full bg-black">
+                <iframe
+                  src={page.videoUrl}
+                  className="h-full w-full"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <CampaignVideoPlayer
+                fallback={<div aria-hidden="true" className="aspect-video w-full animate-pulse bg-white/[0.06] motion-reduce:animate-none" />}
+                src={(page.videoUrl || page.heroVideoUrl) as string}
+                poster={page.videoThumbnailUrl || undefined}
+              />
+            )}
+            </div>
+            </div>
+          </section>
+        )}
         </LazySection>
       )}
 
