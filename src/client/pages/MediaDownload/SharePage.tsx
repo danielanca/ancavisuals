@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
+import AlbumPager from "../Portfolio/AlbumPager";
 import styles from "./MediaAlbumPage.module.scss";
 import AncaLoader from "../../components/UI/AncaLoader";
 import useAuth from "../../features/admin/auth/useAuth";
@@ -57,6 +58,46 @@ export default function SharePage() {
   const [expired, setExpired] = useState<"expired" | "revoked" | null>(null);
   const [importModal, setImportModal] = useState<ImportModal>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  // Pages like on /media (the gallery alone stops at its first 90 photos).
+  const [page, setPage] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
+  const photosTopRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const onChange = () => setIsMobile(mediaQuery.matches);
+    onChange();
+    mediaQuery.addEventListener("change", onChange);
+    return () => mediaQuery.removeEventListener("change", onChange);
+  }, []);
+
+  const photos = data?.photos ?? [];
+  const pageSize = isMobile ? 20 : 30;
+  const totalPages = Math.max(1, Math.ceil(photos.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagePhotos = useMemo(() => photos.slice((safePage - 1) * pageSize, safePage * pageSize), [photos, safePage, pageSize]);
+  const goToPage = (next: number) => {
+    setPage(Math.min(Math.max(1, next), totalPages));
+    photosTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  // « Primul · ‹ Anterior · Pagina x / n · Următorul › · Ultimul » — the /media pager, without selection.
+  const pager = (
+    <AlbumPager
+      mode="none"
+      currentPage={safePage}
+      totalPages={totalPages}
+      pageSize={pageSize}
+      totalItems={photos.length}
+      shownCount={pagePhotos.length}
+      allOnPageSelected={false}
+      onFirst={() => goToPage(1)}
+      onPrev={() => goToPage(safePage - 1)}
+      onNext={() => goToPage(safePage + 1)}
+      onLast={() => goToPage(totalPages)}
+      onGoTo={goToPage}
+      onToggleSelectPage={() => {}}
+    />
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -278,7 +319,10 @@ export default function SharePage() {
           </div>
         )}
 
-        <BunnyPhotoGallery orgPhoto={data.photos} photos={data.photos} variant="plain" />
+        <div ref={photosTopRef} className="scroll-mt-4" />
+        {totalPages > 1 && pager}
+        <BunnyPhotoGallery key={safePage} orgPhoto={pagePhotos} photos={pagePhotos} variant="plain" />
+        {totalPages > 1 && pager}
 
         {/* Guests are the next clients: ask straight away whether they (or someone they know) are
             getting married, with one tap to check the date or recommend us on WhatsApp. */}
