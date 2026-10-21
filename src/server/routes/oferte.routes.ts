@@ -24,7 +24,7 @@ import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } fro
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { loadAlbum } from "../services/album.service";
 import { generateRomanianAlt } from "../lib/imageAlt";
-import { remoteFileSizes } from "../utils/remoteFileSize";
+import { remoteImageInfos } from "../utils/remoteFileSize";
 import { shrinkPhoto, webpName } from "../utils/shrinkPhoto";
 import { createMediaAssetPreview } from "../utils/mediaAssetPreview";
 import { invalidateEmailMarketingFooterCache } from "../notifications/emailMarketingFooter";
@@ -59,7 +59,47 @@ type StoredOfferMediaAsset = OfferMediaAsset & {
   sourceAlbumSlug?: string;
   sourcePhotoUrl?: string;
   displayUrl?: string;
+  /** The shown file, measured once and saved: size + pixels, for the masonry layout. */
+  shownFile?: ShownFile;
 };
+
+type ShownFile = { url: string; bytes?: number; width?: number; height?: number };
+
+/**
+ * Size and pixel dimensions of each photo's shown file (WebP / album preview). Saved on the
+ * asset (`shownFile`) the first time they are measured, so the masonry layout is known in
+ * advance on every later request — even after a restart — without touching the CDN. A photo
+ * whose shown file changed is measured again.
+ */
+async function shownFileInfos(
+  assets: Array<{ id: string; kind: string; url: string; displayUrl?: string; shownFile?: ShownFile }>,
+  waitMs: number,
+): Promise<Map<string, ShownFile>> {
+  const result = new Map<string, ShownFile>();
+  const toMeasure = new Map<string, string>(); // asset id → url
+  for (const asset of assets) {
+    if (asset.kind !== "image") continue;
+    const url = asset.displayUrl ?? asset.url;
+    const saved = asset.shownFile;
+    if (saved?.url === url && saved.width && saved.height && saved.bytes) result.set(asset.id, saved);
+    else toMeasure.set(asset.id, url);
+  }
+  if (toMeasure.size === 0) return result;
+  const infos = await remoteImageInfos([...new Set(toMeasure.values())], waitMs);
+  const batch = firestore().batch();
+  let writes = 0;
+  for (const [id, url] of toMeasure) {
+    const info = infos.get(url) ?? {};
+    const file: ShownFile = { url, ...info };
+    result.set(id, file);
+    if (info.bytes && info.width && info.height && writes < 400) {
+      batch.set(firestore().collection("offer_media_assets").doc(id), { shownFile: file }, { merge: true });
+      writes += 1;
+    }
+  }
+  if (writes > 0) batch.commit().catch((error) => console.warn("[oferte] saving photo dimensions failed:", error));
+  return result;
+}
 
 async function uploadToBunny(buffer: Buffer, bunnyPath: string, contentType: string): Promise<void> {
   const key = getBunnyStorageKey();
@@ -268,14 +308,19 @@ export async function getPublicOffer(slug: string, sizeWaitMs?: number): Promise
     resolvedAssets,
   ).filter(service => selectedServices.includes(service.id));
 
-  // Each photo's size: the landing hides heavy ones (> 1 MB) from visitors and flags them for the admin.
+  // Each photo's size (the landing hides heavy ones, > 1 MB, from visitors and flags them for the
+  // admin) and pixel dimensions (the masonry puts very wide photos across the whole row).
   type SectionAsset = (typeof serviceSections)[number]["assets"][number];
-  const shownUrl = (asset: SectionAsset) => asset.displayUrl ?? asset.url;
-  const imageUrls = serviceSections.flatMap(section =>
-    [...section.assets, ...(section.assetsMobile ?? [])].filter(asset => asset.kind === "image").map(shownUrl));
-  const sizes = await remoteFileSizes(imageUrls, sizeWaitMs);
-  const withSize = (asset: SectionAsset) =>
-    asset.kind === "image" ? { ...asset, sizeBytes: sizes.get(shownUrl(asset)) } : asset;
+  const files = await shownFileInfos(
+    serviceSections.flatMap(section => [...section.assets, ...(section.assetsMobile ?? [])]) as StoredOfferMediaAsset[],
+    sizeWaitMs ?? 1500,
+  );
+  const withSize = (asset: SectionAsset) => {
+    if (asset.kind !== "image") return asset;
+    const { shownFile: _shownFile, ...rest } = asset as StoredOfferMediaAsset;
+    const file = files.get(asset.id);
+    return { ...rest, sizeBytes: file?.bytes, width: file?.width, height: file?.height };
+  };
   const sizedSections = serviceSections.map(section => ({
     ...section,
     assets: section.assets.map(withSize),
@@ -462,13 +507,17 @@ router.get("/admin/template-showcase", requireFirebaseAuth, requireSupremeAdmin,
       const resolved = resolveTemplateAssets([service.id], showcase, allAssets)[service.id];
       return { ...service, assets: resolved?.desktop ?? [], assetsMobile: resolved?.mobile ?? [] };
     });
-    // Mărimea fiecărei poze, ca organizatorul să arate ce ascunde site-ul vizitatorilor
-    // (> MAX_PHOTO_BYTES) — aceeași măsurare (cu cache) ca oferta publică.
+    // Mărimea și dimensiunile fiecărei poze, ca organizatorul să arate ce ascunde site-ul
+    // vizitatorilor (> MAX_PHOTO_BYTES) și cum le așază masonry-ul pe mobil — aceleași date
+    // (salvate pe poză) ca oferta publică.
     type ShowcaseAsset = (typeof services)[number]["assets"][number];
-    const shownUrl = (asset: ShowcaseAsset) => asset.displayUrl ?? asset.url;
-    const imageUrls = services.flatMap(service => [...service.assets, ...service.assetsMobile].filter(asset => asset.kind === "image").map(shownUrl));
-    const sizes = await remoteFileSizes([...new Set(imageUrls)], 4000);
-    const withSize = (asset: ShowcaseAsset) => (asset.kind === "image" ? { ...asset, sizeBytes: sizes.get(shownUrl(asset)) } : asset);
+    const files = await shownFileInfos(services.flatMap(service => [...service.assets, ...service.assetsMobile]) as StoredOfferMediaAsset[], 4000);
+    const withSize = (asset: ShowcaseAsset) => {
+      if (asset.kind !== "image") return asset;
+      const { shownFile: _shownFile, ...rest } = asset as StoredOfferMediaAsset;
+      const file = files.get(asset.id);
+      return { ...rest, sizeBytes: file?.bytes, width: file?.width, height: file?.height };
+    };
     res.json({
       services: services.map(service => ({ ...service, assets: service.assets.map(withSize), assetsMobile: service.assetsMobile.map(withSize) })),
     });

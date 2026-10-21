@@ -25,6 +25,11 @@ const GROUP_EVENT: Record<string, string> = { Nuntă: "nunta", Botez: "botez", M
 const euro = (n: number) => `${n.toLocaleString("ro-RO")} €`;
 const longDate = (iso: string) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+/** "Octombrie 2026" — the heading above each month's dates. */
+const monthHeading = (iso: string) => {
+  const label = new Date(`${iso}T12:00:00Z`).toLocaleDateString("ro-RO", { month: "long", year: "numeric", timeZone: "UTC" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
 
 /** Exact prices per service for one date; empty = the normal price (season + weekend percent). */
 function FixedPriceEditor({
@@ -210,11 +215,19 @@ export default function BookedDatesPricing({
       {booked && bookedByDate.size === 0 && <p className="text-neutral-500 text-sm">Nicio dată ocupată de azi încolo.</p>}
 
       <div className="space-y-2">
-        {[...bookedByDate].map(([date, entries]) => {
+        {[...bookedByDate].map(([date, entries], index, all) => {
           const offered = entries.every((e) => e.excludeFromCalendar);
           const count = fixedCount(date);
+          // The dates are sorted: a new month starts when its yyyy-mm differs from the previous date's.
+          const newMonth = index === 0 || all[index - 1][0].slice(0, 7) !== date.slice(0, 7);
           return (
-            <div key={date} className={`rounded-xl border p-3 space-y-3 ${offered ? "border-emerald-500/40 bg-emerald-950/10" : "border-neutral-800 bg-neutral-900/30"}`}>
+            <React.Fragment key={date}>
+            {newMonth && (
+              <h3 className={`text-neutral-300 text-sm font-medium uppercase tracking-[0.15em] border-b border-neutral-800 pb-1.5 ${index === 0 ? "" : "pt-4"}`}>
+                {monthHeading(date)}
+              </h3>
+            )}
+            <div className={`rounded-xl border p-3 space-y-3 ${offered ? "border-emerald-500/40 bg-emerald-950/10" : "border-neutral-800 bg-neutral-900/30"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-white text-sm font-medium first-letter:uppercase">{longDate(date)}</p>
@@ -253,6 +266,7 @@ export default function BookedDatesPricing({
               </div>
               {open === date && editor(date)}
             </div>
+            </React.Fragment>
           );
         })}
       </div>

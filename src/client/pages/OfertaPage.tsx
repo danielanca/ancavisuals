@@ -21,6 +21,9 @@ type OfferAsset = {
   alt?: string;
   /** Size of the shown file, from the server (unknown = undefined). */
   sizeBytes?: number;
+  /** Pixel size of the shown file, from the server (for the masonry layout). */
+  width?: number;
+  height?: number;
 };
 
 type OfferServiceSection = {
@@ -48,12 +51,17 @@ export type Offer = {
   heroVideo?: OfferHeroVideo;
 };
 
-const toGalleryItem = (asset: OfferAsset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id, sizeBytes: asset.sizeBytes });
+const toGalleryItem = (asset: OfferAsset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id, sizeBytes: asset.sizeBytes, width: asset.width, height: asset.height });
+
+/** The template section whose photos make the portfolio gallery of /oferta/olx. */
+export const PORTFOLIO_SECTION_ID = "photo";
 
 export function offerToCampaign(offer: Offer): CampaignPage {
   const assets = offer.serviceSections.flatMap((section) => section.assets);
   const images = assets.filter((asset) => asset.kind === "image");
   const videos = assets.filter((asset) => asset.kind === "video");
+  const photoSections = offer.serviceSections.filter((section) => section.id === PORTFOLIO_SECTION_ID);
+  const portfolioSections = photoSections.length ? photoSections : offer.serviceSections;
   return {
     slug: offer.slug,
     title: "Pachet foto-video pentru nunta ta",
@@ -73,11 +81,12 @@ export function offerToCampaign(offer: Offer): CampaignPage {
     videoThumbnailUrl: offer.heroVideo?.filmUrl ? offer.heroVideo.filmPosterUrl : undefined,
     heroClipUrl: offer.heroVideo?.clipUrl,
     heroClipHdUrl: offer.heroVideo?.clipHdUrl,
-    gallery: images.map(toGalleryItem),
-    // Ordinea aranjată separat pentru desktop / mobil în /admin/template-oferte/<serviciu>
-    // (un serviciu fără listă de mobil o folosește pe cea de desktop).
-    galleryDesktop: images.map(toGalleryItem),
-    galleryMobile: offer.serviceSections
+    // The portfolio is the "Fotografie" section only, in the order set for desktop / mobile in
+    // /admin/template-oferte/photo (no mobile list = the desktop one). The other sections' photos
+    // (album, QR Moments) used to be appended and showed up at the end once there was no cap.
+    gallery: portfolioSections.flatMap((section) => section.assets).filter((asset) => asset.kind === "image").map(toGalleryItem),
+    galleryDesktop: portfolioSections.flatMap((section) => section.assets).filter((asset) => asset.kind === "image").map(toGalleryItem),
+    galleryMobile: portfolioSections
       .flatMap((section) => (section.assetsMobile?.length ? section.assetsMobile : section.assets))
       .filter((asset) => asset.kind === "image")
       .map(toGalleryItem),

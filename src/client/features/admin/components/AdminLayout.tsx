@@ -6,7 +6,7 @@ const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-neutral-950">
+    <div className="admin-dark-scrollbars flex min-h-screen bg-neutral-950">
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content — offset by sidebar width on desktop */}

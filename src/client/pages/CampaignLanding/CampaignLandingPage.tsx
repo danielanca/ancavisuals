@@ -31,6 +31,7 @@ import { whenLandingSettled } from "../../utils/whenLandingSettled";
 import { stableVh } from "../../utils/stableViewport";
 import { demoReviews } from "./ReviewsPreviewPage";
 import { useReferral } from "../../utils/referral";
+import { GALLERY_REVEAL_DESKTOP, GALLERY_REVEAL_MOBILE } from "../Portfolio/galleryLimits";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
@@ -57,6 +58,9 @@ const FRAMED_VIDEO_SLUGS = new Set(["olx"]);
 // "Verifică disponibilitatea" (#verifica-data) is switched off for now (owner, 2026-10-03):
 // the configurator checks the date itself. Set to true to bring the section back.
 const SHOW_AVAILABILITY_SECTION = false;
+// The admin-only "Editează pozele portofoliului" button over the gallery is hidden for now
+// (owner, 2026-10-21). Set to true to bring it back.
+const SHOW_GALLERY_EDIT_LINK = false;
 // "Pachete" is switched off for now too (owner, 2026-10-03) — the configurator shows the prices.
 const SHOW_PACKAGES_SECTION = false;
 const WEDDING_GUIDE_HIGHLIGHTS = [
@@ -92,6 +96,14 @@ export interface CampaignGalleryItem {
   bunnyPath: string;
   /** Known only for offer photos (sent by /api/oferte/:slug). */
   sizeBytes?: number;
+  /** Pixel size of the shown file (offer photos): the masonry layout is known before loading. */
+  width?: number;
+  height?: number;
+}
+
+/** Each photo's width / height by URL, for PortfolioParallaxGallery's `ratios`. */
+export function galleryRatios(items: CampaignGalleryItem[]): Record<string, number> {
+  return Object.fromEntries(items.filter((item) => item.width && item.height).map((item) => [item.url, item.width! / item.height!]));
 }
 
 export { isHeavyPhoto } from "../../../shared/media/photoWeight";
@@ -340,6 +352,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     [deviceGalleryItems, isAdmin],
   );
   const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
+  const galleryImageRatios = useMemo(() => galleryRatios(galleryItems), [galleryItems]);
   const galleryWarnings = useMemo(() => {
     const heavy = isAdmin ? galleryItems.filter((item) => isHeavyPhoto(item.sizeBytes)) : [];
     return heavy.length
@@ -555,11 +568,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           <p className="text-amber-200 text-xs tracking-[0.3em] uppercase mb-4 font-medium">
             Foto & video pentru povești reale
           </p>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light leading-tight text-white mb-4 max-w-2xl">
+          {/* All capitals, thin and spaced out like the "ANCA VISUALS" logo; system font, so
+              nothing extra downloads before the first screen. Capitals are wider: smaller sizes. */}
+          <h1 className="text-[1.65rem] sm:text-4xl lg:text-5xl font-light uppercase tracking-[0.12em] leading-[1.15] text-white mb-5 max-w-3xl">
             {page.title}
           </h1>
           {page.subtitle && (
-            <p className="text-neutral-300 text-lg font-light max-w-xl mb-10 leading-relaxed">
+            <p className="text-neutral-300 text-lg font-light max-w-xl mb-10 leading-snug">
               {page.subtitle}
             </p>
           )}
@@ -600,9 +615,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       </section>
 
       {/* ── PORTFOLIO — rămâne sus, imediat după hero ── */}
-      {(galleryItems.length > 0 || showAdminTools) && (
+      {(galleryItems.length > 0 || (SHOW_GALLERY_EDIT_LINK && showAdminTools)) && (
         <div className="relative">
-          {showAdminTools && (
+          {SHOW_GALLERY_EDIT_LINK && showAdminTools && (
             <Link
               to={galleryEditorUrl}
               className="absolute right-4 top-4 z-30 flex items-center gap-1.5 rounded-full border border-amber-300/50 bg-neutral-950/90 px-4 py-2 text-xs font-semibold text-amber-200 shadow-xl shadow-black/40 backdrop-blur hover:bg-neutral-900"
@@ -617,7 +632,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <PortfolioParallaxGallery
               fallback={<SectionSkeleton height={stableVh(100)} />}
               images={galleryImageUrls}
+              ratios={galleryImageRatios}
               batchSize={12}
+              revealLimit={isMobile ? GALLERY_REVEAL_MOBILE : GALLERY_REVEAL_DESKTOP}
               warnings={galleryWarnings}
               altBase="fotografie și videografie Anca Visuals"
             />
@@ -631,7 +648,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {/* ── FILM — same full-bleed look as the hero: a photo, then the clip once it has
           downloaded (only while this section is on screen) ── */}
       {(page.heroClipUrl || galleryImageUrls.length > 1) && (
-        <section className="relative flex min-h-[calc(var(--stable-vh,1vh)*30)] items-end overflow-hidden bg-neutral-950 text-white sm:min-h-[calc(var(--stable-vh,1vh)*90)] lg:mx-auto lg:my-12 lg:h-[min(90vh,760px)] lg:min-h-0 lg:max-w-[1280px] lg:rounded-[2rem] lg:shadow-2xl lg:shadow-black/50">
+        <section className="relative flex min-h-[calc(var(--stable-vh,1vh)*30)] items-end overflow-hidden bg-neutral-950 text-white sm:min-h-[calc(var(--stable-vh,1vh)*90)] lg:mx-auto lg:my-12 lg:h-[min(90vh,760px)] lg:min-h-0 lg:max-w-[1280px] lg:shadow-2xl lg:shadow-black/50">
           {(galleryImageUrls[1] || page.heroImageUrl) && (
             <img
               src={galleryImageUrls[1] || page.heroImageUrl}

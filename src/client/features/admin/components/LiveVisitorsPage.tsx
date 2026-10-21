@@ -153,6 +153,8 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
       return `⏱️ Configurator: a ales ${ev.label || "numărul de ore"}.`;
     case "configurator_option_selected":
       return `🧮 Configurator: a selectat ${ev.label || "o variantă"}.`;
+    case "gallery_more_clicked":
+      return `🖼️ A apăsat „Vezi mai multe poze” în galerie${ev.label ? ` (${ev.label})` : ""}.`;
     case "gallery_seen_all":
       return `🖼️ S-a uitat la toate pozele din galerie${ev.label ? ` (${ev.label})` : ""}.`;
     case "video_played":

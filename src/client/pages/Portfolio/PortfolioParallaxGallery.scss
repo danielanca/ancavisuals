@@ -43,6 +43,19 @@
   will-change: transform;
 }
 
+// Phones with very wide photos: rows of two columns, broken by photos across the whole row.
+.ppg-grid--blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ppg-block {
+  display: grid;
+  gap: 10px;
+  align-items: start;
+}
+
 .ppg-item {
   overflow: hidden;
   border-radius: 6px;
@@ -54,6 +67,103 @@
 .ppg-slot {
   aspect-ratio: 2 / 3;
   animation: ppgSlotPulse 1.6s ease-in-out infinite;
+}
+
+// The photos after the first ones, until "Vezi mai multe poze" is clicked. The photos themselves
+// stay untouched: the layer on top (.ppg-more) blurs and darkens them, more and more downwards.
+.ppg-peek .ppg-img {
+  opacity: 1;
+}
+
+.ppg-more {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 540px; // until the blurred photos are measured; then `top` comes from the component
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 72px;
+  z-index: 2;
+
+  &[style*="top"] {
+    height: auto;
+  }
+
+  // Darkening on top of the blur: clear at the top, black at the bottom.
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(10, 10, 10, 0) 0%, rgba(10, 10, 10, 0.25) 30%, rgba(10, 10, 10, 0.6) 55%, rgba(10, 10, 10, 0.88) 78%, #0a0a0a 100%);
+  }
+}
+
+// The blur sits on each "there is more" photo, clipped to it: a single layer over the whole
+// gallery blurred the black gaps between photos into their edges (dark smudges). Four bands,
+// each a bit stronger lower down, with overlapping masks so the change is gradual; the second
+// row ("is-far") starts where the first one ends.
+.ppg-peek {
+  position: relative;
+}
+
+.ppg-peek-blur {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+
+  span {
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(var(--b));
+    -webkit-backdrop-filter: blur(var(--b));
+  }
+
+  span:nth-child(1) { --b: 0.5px; mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 35%, transparent 50%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 35%, transparent 50%); }
+  span:nth-child(2) { --b: 1.5px; mask-image: linear-gradient(to bottom, transparent 25%, #000 40%, #000 60%, transparent 75%); -webkit-mask-image: linear-gradient(to bottom, transparent 25%, #000 40%, #000 60%, transparent 75%); }
+  span:nth-child(3) { --b: 3px; mask-image: linear-gradient(to bottom, transparent 50%, #000 65%, #000 85%, transparent 95%); -webkit-mask-image: linear-gradient(to bottom, transparent 50%, #000 65%, #000 85%, transparent 95%); }
+  span:nth-child(4) { --b: 4px; mask-image: linear-gradient(to bottom, transparent 75%, #000 90%); -webkit-mask-image: linear-gradient(to bottom, transparent 75%, #000 90%); }
+
+  &.is-far span:nth-child(1) { --b: 4px; }
+  &.is-far span:nth-child(2) { --b: 6px; }
+  &.is-far span:nth-child(3) { --b: 8px; }
+  &.is-far span:nth-child(4) { --b: 10px; }
+}
+
+.ppg-more-btn {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  padding: 14px 28px;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 200ms ease, color 200ms ease;
+
+  // Switches between white and black once a second, so the eye catches it.
+  animation: ppgMoreBlink 2s steps(1, end) infinite;
+
+  &:hover {
+    animation: none;
+    background: #fff;
+    color: #000;
+  }
+}
+
+@keyframes ppgMoreBlink {
+  0% { background: #fff; color: #000; border-color: #fff; }
+  50% { background: #000; color: #fff; border-color: rgba(255, 255, 255, 0.85); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppg-more-btn {
+    animation: none;
+  }
 }
 
 @keyframes ppgSlotPulse {

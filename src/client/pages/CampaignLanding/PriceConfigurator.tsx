@@ -821,9 +821,6 @@ export default function PriceConfigurator({
                     <span className="text-6xl font-normal leading-none tabular-nums">{formatAmount(shownTotal)}</span>
                     <span className="text-2xl font-normal text-white/60">€</span>
                   </p>
-                  {priceFromLowestMonth && (
-                    <p className="mx-auto mt-3 max-w-[15rem] text-xs leading-relaxed text-amber-200/80 [text-wrap:balance]">Prețul depinde de luna evenimentului — alege data pentru prețul exact.</p>
-                  )}
                   <p className="mx-auto mt-3 max-w-[15rem] text-xs leading-relaxed text-white/50 [text-wrap:balance]">Prețul final îl confirmăm împreună, după ce discutăm detaliile.</p>
                 </div>
 

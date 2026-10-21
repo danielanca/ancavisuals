@@ -7,7 +7,8 @@ import { getRegisteredSearchables, subscribeSearchables } from "./dashboardSearc
 
 type SearchItem = { label: string; path: string; category: string; icon: string; keywords?: string };
 
-const SEARCH_ITEMS: SearchItem[] = [
+// Also the page map of the Dashboard guide (AdminGuideChat): keep every admin page listed here.
+export const SEARCH_ITEMS: SearchItem[] = [
   // Sistem
   { label: "AI Logs", path: "/admin/ai-usage", category: "Sistem", icon: "📊", keywords: "anthropic claude openai gpt tokenuri cost consum istoric ai logs loguri" },
   { label: "Dashboard", path: "/admin", category: "Sistem", icon: "🏠", keywords: "acasa home principal" },
@@ -18,6 +19,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Mementouri", path: "/admin/mementos", category: "Evenimente", icon: "🔔", keywords: "remindere notificari" },
   { label: "Taskuri clienți", path: "/admin/taskuri", category: "Evenimente", icon: "✅", keywords: "todo de facut azi progres organizator" },
   { label: "Moderare albume", path: "/admin/moderare", category: "Evenimente", icon: "🖼️", keywords: "album moderat aprobare" },
+  { label: "Livrare preview", path: "/admin/livrare-preview", category: "Evenimente", icon: "🚚", keywords: "preview livrare termen intarziat poze trimise clienti" },
   // Contracte & Oferte
   { label: "Contracte", path: "/admin/contracts", category: "Contracte & Oferte", icon: "📝", keywords: "semnat client acord" },
   { label: "Contract nou", path: "/admin/contracts/create", category: "Contracte & Oferte", icon: "➕", keywords: "creeaza contract nou" },
@@ -26,6 +28,7 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Proces verbal nou", path: "/admin/handover/new", category: "Contracte & Oferte", icon: "➕", keywords: "creeaza predare preluare" },
   { label: "Oferte", path: "/admin/oferte", category: "Contracte & Oferte", icon: "💼", keywords: "pret pachet propunere" },
   { label: "Template Oferte", path: "/admin/template-oferte", category: "Contracte & Oferte", icon: "📋", keywords: "sablon model oferta" },
+  { label: "Prețuri de pornire", path: "/admin/preturi", category: "Contracte & Oferte", icon: "🏷️", keywords: "preturi pret pornire configurator sezon weekend date ocupate pret fix disponibila din nou calendar preturi" },
   // Media
   { label: "Selecție comună de poze", path: "/admin/instagram-proposals/selectie-comuna", category: "Media", icon: "📸", keywords: "poze comune similare voturi daniel estera salomeea" },
   { label: "Propuneri Media", path: "/admin/instagram-proposals", category: "Media", icon: "📸", keywords: "instagram propuneri poze social" },
@@ -49,6 +52,8 @@ const SEARCH_ITEMS: SearchItem[] = [
   { label: "Inspirație", path: "/admin/inspiration", category: "Marketing & Web", icon: "✨", keywords: "moodboard idei stil" },
   { label: "Analytics", path: "/admin/analytics", category: "Marketing & Web", icon: "📈", keywords: "vizitatori trafic statistici seo" },
   { label: "Vizitatori live", path: "/admin/live", category: "Marketing & Web", icon: "👁️", keywords: "live visitors realtime vizitatori acum" },
+  { label: "Statistici contact", path: "/admin/statistici-contact", category: "Marketing & Web", icon: "📞", keywords: "statistici contact whatsapp telefon click disponibilitate verificari surse google ads conversii" },
+  { label: "Lead-uri & emailuri", path: "/admin/leads", category: "Marketing & Web", icon: "🎯", keywords: "leaduri lead cereri clienti noi formular telefon configurator emailuri" },
   { label: "Bibliotecă Media", path: "/admin/showcase", category: "Marketing & Web", icon: "🖼️", keywords: "poze homepage ultimele evenimente galerie portofoliu parallax video promo footer banner zone showcase oferte campanii organizeaza" },
   { label: "PDF-uri & Ghiduri", path: "/admin/pdf-resources", category: "Marketing & Web", icon: "📄", keywords: "pdf ghid brosura upload bunny bio link special" },
   { label: "SEO Generator", path: "/admin/seo-generator", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },

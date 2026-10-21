@@ -8,6 +8,31 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Admin dashboard: dark, thin scrollbars instead of the browser's white ones. */
+.admin-dark-scrollbars,
+.admin-dark-scrollbars * {
+  color-scheme: dark;
+  scrollbar-color: #3a3a3a transparent;
+  scrollbar-width: thin;
+}
+.admin-dark-scrollbars ::-webkit-scrollbar {
+  width: 8px;
+  height: 6px;
+}
+.admin-dark-scrollbars ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-dark-scrollbars ::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 0;
+}
+.admin-dark-scrollbars ::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+.admin-dark-scrollbars ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Numbers are typed, never stepped: no up/down arrows on number fields anywhere (owner's choice). */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

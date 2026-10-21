@@ -19,6 +19,7 @@ import { PrivacyModeProvider, usePrivacyMode } from "../../context/PrivacyModeCo
 import AlbumHealthWidget from "../AlbumHealthWidget";
 import DeliveryDeadlineOverview from "../DeliveryDeadlineOverview";
 import DashboardSearch from "../DashboardSearch";
+import AdminGuideChat from "../AdminGuideChat";
 import VisitorsSnapshotWidget from "../VisitorsSnapshotWidget";
 import { fetchGetWithRetry } from "../../../../utils/fetchGetWithRetry";
 
@@ -301,6 +302,9 @@ const DashboardInner: React.FC = () => {
     <>
     <div className="min-h-screen bg-neutral-950 px-4 py-10">
       <div className="max-w-4xl mx-auto space-y-8">
+        {/* AI guide, first thing on the Dashboard: "where do I find X" → place in the menu + link */}
+        <AdminGuideChat accessToken={auth.accessToken ?? ""} />
+
         <EmailFailureBanner accessToken={auth.accessToken ?? ""} getToken={getEmailAlertToken} />
 
         {/* Header */}
