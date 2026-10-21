@@ -280,7 +280,7 @@ Același principiu se aplică și pentru căutări în codul sursă:
 #CMD  test:e2e headed:    npm run test:e2e:headed
 #CMD  test:e2e report:    npm run test:e2e:report
 #CMD  coverage open:      npm run coverage:open
-#CMD  build:              npm run build  (rulează și `postbuild` → `pm2 start all` la final; sărit când `CI` e setat, de ex. în GitHub Actions; dacă pm2 eșuează, build-ul nu pică, doar afișează un avertisment)
+#CMD  build:              npm run build  (rulează `prebuild` → `pm2 stop all` la început, ca build-ul să aibă RAM, și `postbuild` → `pm2 start all` la final — cerut de owner 2026-10-21; dacă build-ul pică, postbuild NU rulează → serverele rămân oprite, pornește-le cu `pm2 start all`; sărit când `CI` e setat, de ex. în GitHub Actions; dacă pm2 eșuează, build-ul nu pică, doar afișează un avertisment)
 #CMD  înainte de build:    npm install apoi npm run build, ca să se prindă dependențe noi sau lockfile changes în scripts #CMD
 #CMD  lint:               npm run lint
 #CMD  pm2 serve:          npm run serve:pm2
