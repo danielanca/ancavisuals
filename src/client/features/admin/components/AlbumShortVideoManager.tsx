@@ -200,11 +200,21 @@ export default function AlbumShortVideoManager({ slug, accessToken, onChanged, s
           />
           <button
             type="submit"
-            disabled={busy || linkDraft.trim() === (links.short ?? "")}
+            disabled={busy || !linkDraft.trim() || linkDraft.trim() === (links.short ?? "")}
             className="border border-neutral-500 px-3 py-1.5 text-xs text-white disabled:opacity-40"
           >
-            Salvează link
+            {links.short ? "Înlocuiește link" : "Salvează link"}
           </button>
+          {links.short && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => { if (window.confirm("Ștergi linkul videoului scurt?")) void saveLink(""); }}
+              className="border border-neutral-600 px-3 py-1.5 text-xs text-neutral-300 hover:border-white disabled:opacity-40"
+            >
+              Șterge link
+            </button>
+          )}
         </form>
       )}
       {video && links.short && showLinkForm && (

@@ -103,13 +103,13 @@ function AdminVideoLinkForm({
           disabled={busy || draft.trim() === saved}
           className="border border-white bg-white px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
         >
-          {busy ? "Se salvează..." : "Salvează"}
+          {busy ? "Se salvează..." : saved ? "Înlocuiește" : "Salvează"}
         </button>
         {saved && (
           <button
             type="button"
             disabled={busy}
-            onClick={() => { setDraft(""); void submit(""); }}
+            onClick={() => { if (!window.confirm(`Ștergi linkul pentru ${ALBUM_VIDEO_META[kind].title}?`)) return; setDraft(""); void submit(""); }}
             className="border border-neutral-600 px-4 py-2 text-sm text-neutral-300 hover:border-white disabled:opacity-40"
           >
             Șterge
