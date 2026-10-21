@@ -178,10 +178,22 @@ describe("share.controller", () => {
     expect(res.json).toHaveBeenCalledWith({ id: "share-1", expiresAt: 123456, count: 2 });
   });
 
-  test("createShare rejects more than 200 safe files", async () => {
+  test("createShare accepts a big selection (209 picked photos)", async () => {
     const { module, createShareRecordMock } = await loadShareController();
     const res = createMockResponse();
-    const files = Array.from({ length: 201 }, (_, index) => `file-${index}.jpg`);
+    const files = Array.from({ length: 209 }, (_, index) => `file-${index}.jpg`);
+    createShareRecordMock.mockResolvedValue({ id: "share-209", slug: "event-3", items: files, expiresAt: 123456 });
+
+    await module.createShare({ body: { slug: "event-3", items: files } }, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(413);
+    expect(res.json).toHaveBeenCalledWith({ id: "share-209", expiresAt: 123456, count: 209 });
+  });
+
+  test("createShare rejects more than 2000 safe files", async () => {
+    const { module, createShareRecordMock } = await loadShareController();
+    const res = createMockResponse();
+    const files = Array.from({ length: 2001 }, (_, index) => `file-${index}.jpg`);
 
     await module.createShare({ body: { slug: "event-3", items: files } }, res);
 

@@ -35,7 +35,9 @@ import {
 } from "../constants/bunny";
 
 const storageKey = getBunnyStorageKey();
-const MAX_SHARED_FILES = 200;
+// One cap for both: "all photos" already allowed 2000, so a lower cap on the picked ones
+// only blocked big selections (209 ticked → 413) without protecting anything.
+const MAX_SHARED_FILES = 2000;
 const MAX_SHARED_FILES_ALL = 2000;
 const SHARE_EXPIRY_DAYS = 365 * 100;
 

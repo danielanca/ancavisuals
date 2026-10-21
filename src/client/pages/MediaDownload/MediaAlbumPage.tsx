@@ -964,7 +964,10 @@ export default function MediaAlbumPage() {
       });
       const text = await response.text().catch(() => "");
       if (!response.ok) {
-        dispatch({ type: "SET_SHARE_URL", url: null, error: `Share failed (${response.status})` });
+        const error = response.status === 413
+          ? "Prea multe poze într-un singur link (maximum 2000). Debifează câteva și încearcă din nou."
+          : `Share failed (${response.status})`;
+        dispatch({ type: "SET_SHARE_URL", url: null, error });
         return null;
       }
       let data: ShareCreateResponse;
@@ -1478,6 +1481,15 @@ export default function MediaAlbumPage() {
                 🔗 Invită pe cineva să aleagă poze
                 <span className="block text-[11px] font-normal text-neutral-400">Link unic pentru soție, Salomeea…</span>
               </button>
+              {/* The client's "Trimite poze invitaților", here too: no switching to 👁 Client to send photos. */}
+              <button
+                type="button"
+                onClick={() => { closeMode(); openDownloadMode(); setShareIntent(true); scrollToPhotos(); }}
+                className="border border-[#166534] px-3 py-2.5 text-left text-sm font-bold text-[#4ade80] hover:border-[#4ade80]"
+              >
+                📤 Trimite poze cuiva
+                <span className="block text-[11px] font-normal text-neutral-400">Bifezi pozele → link anonim pe WhatsApp / SMS</span>
+              </button>
               <button
                 type="button"
                 onClick={() => { closeMode(); setModerationMode(true); scrollToPhotos(); }}
@@ -1730,26 +1742,22 @@ export default function MediaAlbumPage() {
                       <button className={styles.pickBtn} type="button" onClick={downloadSelected} disabled={downloadCount === 0}>
                         Descarcă selecția
                       </button>
-                      {!auth.authorise && (
-                        <>
-                          <button
-                            className={styles.shareGreenBtn}
-                            type="button"
-                            disabled={downloadCount === 0 || creatingShare}
-                            onClick={() => setShareReview("whatsapp")}
-                          >
-                            {creatingShare ? "Se pregătește..." : `🟢 Trimite-le pe WhatsApp (${downloadCount})`}
-                          </button>
-                          <button
-                            className={styles.pickBtnSecondary}
-                            type="button"
-                            disabled={downloadCount === 0 || creatingShare}
-                            onClick={() => setShareReview("sms")}
-                          >
-                            💬 Prin SMS
-                          </button>
-                        </>
-                      )}
+                      <button
+                        className={styles.shareGreenBtn}
+                        type="button"
+                        disabled={downloadCount === 0 || creatingShare}
+                        onClick={() => setShareReview("whatsapp")}
+                      >
+                        {creatingShare ? "Se pregătește..." : `🟢 Trimite-le pe WhatsApp (${downloadCount})`}
+                      </button>
+                      <button
+                        className={styles.pickBtnSecondary}
+                        type="button"
+                        disabled={downloadCount === 0 || creatingShare}
+                        onClick={() => setShareReview("sms")}
+                      >
+                        💬 Prin SMS
+                      </button>
                     </>
                   )}
                 </div>
@@ -1763,7 +1771,7 @@ export default function MediaAlbumPage() {
             )}
             {!isPrintInvitation && printSaveError && <p role="alert">{printSaveError}</p>}
             {/* The how-to steps only until the first photo is ticked; after that they'd just push the photos down. */}
-            {mode === "download" && shareIntent && downloadCount === 0 && !sharePanelOpen && !shareUrl && !auth.authorise && (
+            {mode === "download" && shareIntent && downloadCount === 0 && !sharePanelOpen && !shareUrl && (
               <p role="status" style={{ margin: "8px 0 16px", padding: "10px 14px", background: "#0d1f0d", border: "1px solid #166534", borderRadius: "8px", color: "#bbf7d0", fontSize: "13px" }}>
                 📤 <strong>1.</strong> Bifează pozele pe care vrei să le trimiți. <strong>2.</strong> Apasă butonul verde care pulsează, <strong>„Trimite-le pe WhatsApp”</strong> (sau „Prin SMS”) și verifici toate pozele alese; poți scoate oricare. <strong>3.</strong> Confirmi, se deschide WhatsApp: alegi oamenii cărora le trimiți și apeși Trimite. 🔒 Ei primesc un link anonim, doar cu pozele alese, fără acces la albumul vostru.
               </p>

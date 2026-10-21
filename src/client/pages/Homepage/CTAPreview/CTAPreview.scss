@@ -1,3 +1,5 @@
+@use "sass:color";
+
 /* =========================
    Configurator Teaser
    Match vizual Booking & availability
@@ -291,13 +293,13 @@ $config-btn-grey-border: #3a3a3a;
     &:hover {
       transform: translateY(-1px);
       box-shadow: 0 20px 52px rgba(0, 0, 0, 1);
-      background: lighten($config-gold, 4%);
+      background: color.adjust($config-gold, $lightness: 4%);
     }
 
     &:active {
       transform: translateY(1px);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9);
-      background: darken($config-gold, 4%);
+      background: color.adjust($config-gold, $lightness: -4%);
     }
   }
 

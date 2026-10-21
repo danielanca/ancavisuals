@@ -39,27 +39,32 @@ const UC_HIDE_STYLE_ID = "uc-hide-privacy-button";
 
 // The floating fingerprint button lives inside Usercentrics' shadow DOM, so a
 // stylesheet in <head> can't reach it — the rule has to go into the shadow root.
-// Only the collapsed state (.privacyButton) is hidden; the footer's
-// "Cookie Settings" link still reopens the full dialog.
-const injectPrivacyButtonStyle = (): boolean => {
-  const root = document.getElementById(UC_HOST_ID)?.shadowRoot;
-  if (!root) return false;
-  if (!root.getElementById(UC_HIDE_STYLE_ID)) {
-    const style = document.createElement("style");
-    style.id = UC_HIDE_STYLE_ID;
-    style.textContent = "#uc-main-dialog.privacyButton { display: none !important; }";
-    root.appendChild(style);
-  }
-  return true;
+// Only the collapsed state (.privacyButton) is hidden, never the banner; the
+// footer's "Cookie Settings" / "Setări cookie" link still reopens the full dialog.
+const injectPrivacyButtonStyle = (root: ShadowRoot) => {
+  if (root.getElementById(UC_HIDE_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = UC_HIDE_STYLE_ID;
+  style.textContent = "#uc-main-dialog.privacyButton { display: none !important; }";
+  root.appendChild(style);
 };
 
-const hidePrivacyButton = () => {
-  if (injectPrivacyButtonStyle()) return;
-  const observer = new MutationObserver(() => {
-    if (injectPrivacyButtonStyle()) observer.disconnect();
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-  window.setTimeout(() => observer.disconnect(), 15_000);
+// Usercentrics replaces its shadow root's children after every choice (Accept All
+// & co.), dropping a style added once — so it is re-added whenever they change.
+const keepPrivacyButtonHidden = () => {
+  let watchedRoot: ShadowRoot | null = null;
+  const rootObserver = new MutationObserver(() => { if (watchedRoot) injectPrivacyButtonStyle(watchedRoot); });
+  const watch = () => {
+    const root = document.getElementById(UC_HOST_ID)?.shadowRoot;
+    if (!root || root === watchedRoot) return;
+    watchedRoot = root;
+    injectPrivacyButtonStyle(root);
+    rootObserver.disconnect();
+    rootObserver.observe(root, { childList: true });
+  };
+  watch();
+  // The host is a direct child of <body>.
+  new MutationObserver(watch).observe(document.body, { childList: true });
 };
 
 const UC_EVENT_TO_CONSENT_ACTION: Record<string, string> = {
@@ -101,21 +106,9 @@ const reportConsentAction = async (ucType: string) => {
 };
 
 const setupUcConsentListener = () => {
-  // Hide after user accepts/saves/denies in current session
   window.addEventListener("UC_UI_CMP_EVENT", (event: Event) => {
     const detail = (event as CustomEvent<{ type: string }>).detail;
     if (detail?.type) void reportConsentAction(detail.type);
-    if (["ACCEPT_ALL", "DENY_ALL", "SAVE"].includes(detail?.type)) {
-      hidePrivacyButton();
-    }
-  });
-
-  // Hide if the visitor already decided (accept, deny or custom) in a previous session
-  window.addEventListener("UC_UI_INITIALIZED", () => {
-    const ucUi = (window as unknown as Record<string, unknown>)["UC_UI"] as { isConsentRequired?: () => boolean } | undefined;
-    if (ucUi?.isConsentRequired?.() === false) {
-      hidePrivacyButton();
-    }
   });
 };
 
@@ -140,6 +133,7 @@ const bootstrapUsercentrics = () => {
   }
 
   setupUcConsentListener();
+  keepPrivacyButtonHidden();
 
   const script = document.createElement("script");
   script.id = USERCENTRICS_SCRIPT_ID;

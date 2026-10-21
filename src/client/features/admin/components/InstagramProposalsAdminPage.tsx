@@ -161,15 +161,16 @@ function PendingCard({
             alt={group.fileName} enabled={selectionEnabled} busy={busy}
             // Un singur clic: acceptă direct cu destinațiile bifate dedesubt (fără pas „Confirmă”).
             onAccept={canModerate && !accepted && acceptDests.size > 0 ? () => onAccept(Array.from(acceptDests)) : undefined}
-            onReject={canModerate && !accepted ? onReject : undefined} />
+            onReject={canModerate && !accepted ? onReject : undefined}>
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+          {/* Not on phones: it covered the photo there (the bulk "alt-uri lipsa" button stays). */}
           {!accepted && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onGenerateAlt(); }}
               disabled={generatingAlt}
               title={group.alt ? "Regenereaza alt (AI)" : "Genereaza alt (AI)"}
-              className="absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/75 text-[10px] font-bold text-white hover:bg-violet-600 transition-colors disabled:opacity-60"
+              className="absolute left-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-black/75 text-[10px] font-bold text-white hover:bg-violet-600 transition-colors disabled:opacity-60 sm:flex"
             >
               {generatingAlt ? "…" : "AI"}
             </button>
@@ -200,17 +201,11 @@ function PendingCard({
               {nameDisplay}
             </span>
           ))}
+          </PhotoReviewImage>
         </div>
 
-        <div className="flex-1 flex flex-col justify-between p-3 gap-2 sm:p-2.5">
-          <a
-            href={`/media/${group.albumSlug}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-indigo-400 text-xs font-semibold truncate hover:text-indigo-300 transition-colors"
-          >
-            {group.albumSlug}
-          </a>
+        {/* No album date here: the album's header above the photos already shows it. */}
+        <div className="flex-1 flex flex-col justify-between p-2 gap-1.5 sm:p-2.5 sm:gap-2">
           {group.alt && <p className="truncate text-[10px] text-neutral-500" title={group.alt}>{group.alt}</p>}
 
           {accepted ? (
@@ -222,17 +217,17 @@ function PendingCard({
                     destination === "media_assets" ? "bg-teal-950/60 text-teal-300" : "bg-fuchsia-950/60 text-fuchsia-300"
                   }`}
                 >
-                  {destination === "media_assets" ? "Media Assets" : "Instagram"}
+                  <DestinationLabel destination={destination} />
                 </span>
               ))}
             </div>
           ) : (
-            <>
+            <div className="flex items-center gap-1.5">
               {/* Destinațiile se aleg direct aici (presetate cu ce a propus persoana); „Acceptă” de pe poză le folosește. */}
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex flex-1 gap-1.5 flex-wrap">
                 {(["instagram", "media_assets"] as ProposalDestination[]).map(dest => {
                   const active = acceptDests.has(dest);
-                  const label = dest === "media_assets" ? "Media Assets" : "Instagram";
+                  const label = <DestinationLabel destination={dest} />;
                   const style = dest === "media_assets"
                     ? active ? "bg-teal-900/60 text-teal-300 border-teal-700" : "bg-transparent text-teal-700 border-teal-900"
                     : active ? "bg-fuchsia-900/60 text-fuchsia-300 border-fuchsia-700" : "bg-transparent text-fuchsia-800 border-fuchsia-950";
@@ -243,6 +238,7 @@ function PendingCard({
                       onClick={() => toggleDest(dest)}
                       disabled={busy}
                       aria-pressed={active}
+                      aria-label={dest === "media_assets" ? "Media Assets" : "Instagram"}
                       className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer disabled:opacity-40 ${style}`}
                     >
                       {label}
@@ -252,21 +248,30 @@ function PendingCard({
                   ) : null;
                 })}
               </div>
-              <div className="flex gap-2 sm:gap-1.5">
-                <button
-                  onClick={onDelete}
-                  disabled={busy}
-                  className="px-3 py-2.5 sm:py-2 rounded-lg text-xs text-neutral-600 hover:text-red-400 hover:bg-neutral-800 transition-colors disabled:opacity-40"
-                  title="Șterge"
-                >
-                  ✕
-                </button>
-              </div>
-            </>
+              <button
+                onClick={onDelete}
+                disabled={busy}
+                className="px-2.5 py-1.5 rounded-lg text-xs text-neutral-600 hover:text-red-400 hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                title="Șterge"
+              >
+                ✕
+              </button>
+            </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** "Instagram" / "Media Assets" — just "I" / "M" on phones, where the full words took the photo's room. */
+function DestinationLabel({ destination }: { destination: ProposalDestination }) {
+  const full = destination === "media_assets" ? "Media Assets" : "Instagram";
+  return (
+    <>
+      <abbr title={full} className="no-underline sm:hidden">{full[0]}</abbr>
+      <span className="hidden sm:inline">{full}</span>
+    </>
   );
 }
 
@@ -299,29 +304,22 @@ function AcceptedCard({
     <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
       <div className="relative">
         <PhotoReviewImage src={proposal.previewPhotoUrl ?? proposal.photoUrl} original={proposal.originalPhotoUrl ?? proposal.photoUrl}
-          alt={proposal.fileName} enabled={selectionEnabled} busy={busy} onReject={onReject} />
-        <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-900/70 text-cyan-300">
-          Acceptat
-        </span>
-        <button
-          type="button"
-          onClick={onGenerateAlt}
-          disabled={generatingAlt}
-          title={proposal.alt ? "Regenereaza alt (AI)" : "Genereaza alt (AI)"}
-          className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/75 text-[10px] font-bold text-white hover:bg-violet-600 transition-colors disabled:opacity-60"
-        >
-          {generatingAlt ? "…" : "AI"}
-        </button>
+          alt={proposal.fileName} enabled={selectionEnabled} busy={busy} onReject={onReject}>
+          <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-900/70 text-cyan-300">
+            Acceptat
+          </span>
+          <button
+            type="button"
+            onClick={onGenerateAlt}
+            disabled={generatingAlt}
+            title={proposal.alt ? "Regenereaza alt (AI)" : "Genereaza alt (AI)"}
+            className="absolute left-2 top-2 hidden h-6 w-6 items-center justify-center rounded-full bg-black/75 text-[10px] font-bold text-white hover:bg-violet-600 transition-colors disabled:opacity-60 sm:flex"
+          >
+            {generatingAlt ? "…" : "AI"}
+          </button>
+        </PhotoReviewImage>
       </div>
       <div className="p-3 flex flex-col gap-2 flex-1">
-        <a
-          href={`/media/${proposal.albumSlug}`}
-          target="_blank"
-          rel="noreferrer"
-          className="text-indigo-400 text-xs font-semibold truncate hover:text-indigo-300 transition-colors"
-        >
-          {proposal.albumSlug}
-        </a>
         {proposal.alt && <p className="truncate text-[10px] text-neutral-500" title={proposal.alt}>{proposal.alt}</p>}
         <div className="flex gap-1 flex-wrap">
           {(proposal.destinations ?? ["instagram"]).map((destination) => (
@@ -331,7 +329,7 @@ function AcceptedCard({
                 destination === "media_assets" ? "bg-teal-950/60 text-teal-300" : "bg-fuchsia-950/60 text-fuchsia-300"
               }`}
             >
-              {destination === "media_assets" ? "Media Assets" : "Instagram"}
+              <DestinationLabel destination={destination} />
             </span>
           ))}
         </div>
@@ -1216,7 +1214,7 @@ export default function InstagramProposalsAdminPage() {
                               destination === "media_assets" ? "bg-teal-950/60 text-teal-300" : "bg-fuchsia-950/60 text-fuchsia-300"
                             }`}
                           >
-                            {destination === "media_assets" ? "Media Assets" : "Instagram"}
+                            <DestinationLabel destination={destination} />
                           </span>
                         ))}
                       </div>

@@ -6,6 +6,7 @@
   @media (min-width: 1024px) { column-count: 4; }
 }
 .photo { position: relative; }
+.frame { position: relative; }
 .image { display: block; width: 100%; height: auto; }
 .actions {
   position: absolute;
@@ -20,6 +21,10 @@
   transition: opacity .15s;
   button { padding: 8px 4px; font-size: 11px; border-radius: 6px; color: white; }
   button:last-child { grid-column: 1 / -1; }
+}
+// Phones (no hover): the buttons sit under the photo, so the whole photo stays visible.
+@media (hover: none), (pointer: coarse) {
+  .actions { position: static; background: none; padding: 6px 6px 0; }
 }
 @media (hover: hover) and (pointer: fine) {
   .actions { opacity: 0; pointer-events: none; }

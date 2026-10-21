@@ -1,3 +1,5 @@
+@use "sass:color";
+
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
 
 // ── TOKENS ──────────────────────────────────────────────
@@ -136,7 +138,7 @@ $font-body:       'DM Sans', sans-serif;
   color: #ffffff;
 
   &:hover:not(:disabled) {
-    background-color: darken($danger, 8%);
+    background-color: color.adjust($danger, $lightness: -8%);
   }
 }
 
