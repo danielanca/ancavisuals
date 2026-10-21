@@ -10,7 +10,7 @@ import LazySection from "../CampaignLanding/LazySection";
 import SectionSkeleton from "../CampaignLanding/SectionSkeleton";
 import FramedVideoSection from "../CampaignLanding/FramedVideoSection";
 import { CampaignVideoPlayer, PortfolioParallaxGallery } from "../CampaignLanding/lazyParts";
-import { PROMO_DEADLINE, daysInMonth, formatDateRo, galleryRatios, isEmbedVideoUrl, isHeavyPhoto, toIso, type CampaignPage } from "../CampaignLanding/CampaignLandingPage";
+import { PROMO_DEADLINE, daysInMonth, formatDateRo, galleryOriginals, galleryRatios, isEmbedVideoUrl, isHeavyPhoto, toIso, type CampaignPage } from "../CampaignLanding/CampaignLandingPage";
 import { offerToCampaign, type Offer } from "../OfertaPage";
 import { measureOaiq } from "../../utils/oaiq";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
@@ -73,6 +73,7 @@ const ContactPage = () => {
   }, [page, isMobile]);
   const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
   const galleryImageRatios = useMemo(() => galleryRatios(galleryItems), [galleryItems]);
+  const galleryImageOriginals = useMemo(() => galleryOriginals(galleryItems), [galleryItems]);
 
   const setDatePart = (patch: Partial<DatePick>) => {
     const today = new Date();
@@ -226,6 +227,7 @@ const ContactPage = () => {
             fallback={<SectionSkeleton height={stableVh(100)} />}
             images={galleryImageUrls}
             ratios={galleryImageRatios}
+            originals={galleryImageOriginals}
             batchSize={12}
             altBase="fotografie și videografie Anca Visuals"
           />

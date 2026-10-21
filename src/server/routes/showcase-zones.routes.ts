@@ -5,6 +5,7 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { isKnownMissing, remoteFileSizes } from "../utils/remoteFileSize";
 import { MAX_PHOTO_BYTES } from "../../shared/media/photoWeight";
+import { loadAlbum } from "../services/album.service";
 
 const router = express.Router();
 const COLLECTION = "showcase_zones";
@@ -28,14 +29,47 @@ const ALBUM_ORIGINAL = /^\/([^/]+)\/photos\/([^/]+)\.(?:jpe?g|png|webp)$/i;
 // A Media Assets photo (offers-assets/<service>/<name>.<ext>) has its compressed copy next to it
 // as <name>.preview.webp (made on upload / by „Generează copii WebP”).
 const MEDIA_ASSET_ORIGINAL = /^\/offers-assets\/(.+?)(?<!\.preview)\.(?:jpe?g|png|webp)$/i;
+// A photo picked as the album's optimized copy: its original sits in /<album>/photos/ under the
+// same name, with an extension only the album listing knows (.jpg/.jpeg/.png).
+const ALBUM_PREVIEW = /^\/([^/]+)\/photos_preview\/([^/]+)\.webp$/i;
+// How long a zone read waits for an album listing (a cold one can take seconds) before it
+// answers without that album's originals.
+const ALBUM_ORIGINALS_WAIT_MS = 800;
 // Zones can hold videos too (homepage_videos) — those are always large and stay.
 const VIDEO_FILE = /\.(?:mp4|mov|webm|m4v)$/i;
+
+const baseName = (pathname: string) => decodeURIComponent(pathname.split("/").pop() ?? "").replace(/\.[^.]+$/, "");
+
+/** The full-resolution original of each album preview (preview pathname → signed original), when the album lists it in time. */
+async function albumOriginals(previewPaths: string[]): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const bySlug = new Map<string, string[]>();
+  for (const pathname of previewPaths) {
+    const match = ALBUM_PREVIEW.exec(pathname);
+    if (match) bySlug.set(match[1], [...(bySlug.get(match[1]) ?? []), pathname]);
+  }
+  await Promise.all([...bySlug].map(async ([slug, paths]) => {
+    const album = await Promise.race([
+      loadAlbum(slug).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), ALBUM_ORIGINALS_WAIT_MS)),
+    ]);
+    const originalByName = new Map<string, string>();
+    for (const url of album?.originalPhoto ?? []) {
+      try { originalByName.set(baseName(new URL(url).pathname), url); } catch { /* not a URL */ }
+    }
+    for (const pathname of paths) {
+      const original = originalByName.get(baseName(pathname));
+      if (original) result.set(pathname, refreshBunnyUrl(original));
+    }
+  }));
+  return result;
+}
 
 /**
  * Swaps album originals and Media Assets originals for their optimized copy and drops photos still over
  * MAX_PHOTO_BYTES — for the admin they stay, listed in `heavy` (URL → bytes) to flag them.
  */
-async function lightPhotoUrls(storedUrls: string[], keepHeavy: boolean): Promise<{ urls: string[]; heavy: Record<string, number> }> {
+async function lightPhotoUrls(storedUrls: string[], keepHeavy: boolean): Promise<{ urls: string[]; heavy: Record<string, number>; originals: Record<string, string> }> {
   const cdnBase = process.env.BUNNY_CDN_DOMAIN ?? "";
   // Sizes are looked up on the token-less URL: tokens change on every read, the file doesn't.
   const plain = (url: string) => {
@@ -56,7 +90,11 @@ async function lightPhotoUrls(storedUrls: string[], keepHeavy: boolean): Promise
     [...storedUrls.map(plain).filter((url) => !VIDEO_FILE.test(url)), ...previews.filter((url): url is string => Boolean(url))],
     800,
   );
+  const pathOf = (url: string) => { try { return new URL(url).pathname; } catch { return ""; } };
+  const pickedPreviews = await albumOriginals(storedUrls.filter((url) => cdnBase && url.startsWith(cdnBase)).map(pathOf));
   const heavy: Record<string, number> = {};
+  // Shown (light) URL → its full-resolution original, opened when a visitor clicks the photo.
+  const originals: Record<string, string> = {};
   const urls = storedUrls.flatMap((url, i) => {
     const preview = previews[i];
     // The album preview wins unless it is known to be missing: a size still loading (cold
@@ -69,9 +107,11 @@ async function lightPhotoUrls(storedUrls: string[], keepHeavy: boolean): Promise
       if (!keepHeavy) return [];
       heavy[signed] = size;
     }
+    const original = source !== url ? refreshBunnyUrl(url) : pickedPreviews.get(pathOf(url));
+    if (original) originals[signed] = original;
     return [signed];
   });
-  return { urls, heavy };
+  return { urls, heavy, originals };
 }
 
 router.get("/:id/sources", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
@@ -143,6 +183,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       photos: photos.urls,
       desktop: desktop.urls,
       mobile: mobile.urls,
+      originals: { ...photos.originals, ...desktop.originals, ...mobile.originals },
       // Admin only: photos over the limit, to flag on the page.
       ...(isAdmin ? { heavy: { ...photos.heavy, ...desktop.heavy, ...mobile.heavy } } : {}),
     });

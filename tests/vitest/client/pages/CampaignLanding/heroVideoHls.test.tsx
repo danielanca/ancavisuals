@@ -2,7 +2,8 @@
  * Purpose: the hero clip as an adaptive Bunny Stream loop — `#t=start,end` picks the looped
  * segment of the full film; nothing streams before the hero is on screen or on 2G / data
  * saver (the photo stays); hls.js starts loading at the loop start with size-capped auto
- * quality; Safari streams natively; reaching the end jumps back to the loop start.
+ * quality; Safari streams natively; reaching the end jumps back to the loop start; an autoplay
+ * refused (iPhone Low Power Mode) starts on the visitor's next tap anywhere.
  */
 import React from "react";
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
@@ -79,5 +80,24 @@ describe("HeroVideo with a Bunny Stream playlist", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(video()).toBeNull();
     expect(hls.instances).toHaveLength(0);
+  });
+
+  test("autoplay refused (iPhone Low Power Mode): plays on the next tap anywhere, until one works", async () => {
+    canPlayHls = "maybe";
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockRejectedValue(new Error("NotAllowedError"));
+    render(<HeroVideo src={`${playlist}#t=59,127`} />);
+    showHero(true);
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+    await act(async () => { await Promise.resolve(); });
+
+    fireEvent.touchEnd(document.body); // a scroll: still refused
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+    play.mockResolvedValue(undefined);
+    fireEvent.click(document.body);
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(3));
+    await act(async () => { await Promise.resolve(); });
+
+    fireEvent.click(document.body); // playing: taps no longer touch the video
+    expect(play).toHaveBeenCalledTimes(3);
   });
 });

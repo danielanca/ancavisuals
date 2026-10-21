@@ -32,6 +32,11 @@ async function load(urls: string[], sizes: Record<string, number> = SIZES) {
     remoteFileSizes: async (list: string[]) => new Map(list.map((url) => [url, sizes[url]])),
     isKnownMissing: (url: string) => MISSING.has(url),
   }));
+  vi.doMock("src/server/services/album.service", () => ({
+    loadAlbum: async (slug: string) => (slug === "27iunie2026"
+      ? { originalPhoto: [`${CDN}/27iunie2026/photos/Picture-0518.JPG?token=old`, `${CDN}/27iunie2026/photos/Picture-0544.jpeg`] }
+      : null),
+  }));
   vi.doMock("src/server/middleware/requireFirebaseAuth", () => ({ requireFirebaseAuth: vi.fn(), requireSupremeAdmin: vi.fn() }));
   const get = vi.fn().mockResolvedValue({ exists: true, data: () => ({ photos: urls.map((url) => ({ url })) }) });
   vi.doMock("src/server/firestore", () => ({ firestore: () => ({ collection: () => ({ doc: () => ({ get }) }) }) }));
@@ -44,7 +49,7 @@ const call = async (handler: any, cookie = "") => {
   const res: any = { json: vi.fn(), status: vi.fn() };
   res.status.mockReturnValue(res);
   await handler({ params: { id: "media_footer" }, headers: { cookie } }, res);
-  return res.json.mock.calls[0][0] as { photos: string[]; heavy?: Record<string, number> };
+  return res.json.mock.calls[0][0] as { photos: string[]; heavy?: Record<string, number>; originals: Record<string, string> };
 };
 
 const stored = [
@@ -94,5 +99,19 @@ describe("showcase zones: light photos", () => {
       `${CDN}/offers-assets/photo/big.preview.webp?token=t`,
       `${CDN}/offers-assets/photo/big.preview.webp?token=t`,
     ]);
+  });
+
+  test("each light photo comes with its full-resolution original, opened on click", async () => {
+    const { photos, originals } = await call(await load([
+      `${CDN}/album/photos/A.jpg?token=x`, // original swapped for its preview
+      `${CDN}/27iunie2026/photos_preview/Picture-0518.webp`, // preview picked: original from the album listing
+      `${CDN}/27iunie2026/photos_preview/Picture-0599.webp`, // not in the album: no original
+      `${CDN}/offers-assets/photo/small.jpg`, // already the original
+    ], { ...SIZES, [`${CDN}/27iunie2026/photos_preview/Picture-0518.webp`]: 90_000 }));
+    expect(photos).toHaveLength(4);
+    expect(originals).toEqual({
+      [`${CDN}/album/photos_preview/A.webp?token=t`]: `${CDN}/album/photos/A.jpg?token=t`,
+      [`${CDN}/27iunie2026/photos_preview/Picture-0518.webp?token=t`]: `${CDN}/27iunie2026/photos/Picture-0518.JPG?token=t`,
+    });
   });
 });

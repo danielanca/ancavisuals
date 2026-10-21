@@ -171,6 +171,16 @@
   50% { opacity: 0.5; }
 }
 
+// Each photo opens bigger (its original) on click.
+.ppg-trigger {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+
 // Photos fade in once loaded — no blur, no zoom. Until then they keep a typical
 // portrait height instead of 0, then take their own.
 .ppg-img {

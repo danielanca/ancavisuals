@@ -99,11 +99,18 @@ export interface CampaignGalleryItem {
   /** Pixel size of the shown file (offer photos): the masonry layout is known before loading. */
   width?: number;
   height?: number;
+  /** The full-resolution file when `url` is its compressed copy (offer photos): opens on click. */
+  originalUrl?: string;
 }
 
 /** Each photo's width / height by URL, for PortfolioParallaxGallery's `ratios`. */
 export function galleryRatios(items: CampaignGalleryItem[]): Record<string, number> {
   return Object.fromEntries(items.filter((item) => item.width && item.height).map((item) => [item.url, item.width! / item.height!]));
+}
+
+/** Each photo's original by URL, for PortfolioParallaxGallery's `originals`. */
+export function galleryOriginals(items: CampaignGalleryItem[]): Record<string, string> {
+  return Object.fromEntries(items.filter((item) => item.originalUrl).map((item) => [item.url, item.originalUrl!]));
 }
 
 export { isHeavyPhoto } from "../../../shared/media/photoWeight";
@@ -353,6 +360,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   );
   const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
   const galleryImageRatios = useMemo(() => galleryRatios(galleryItems), [galleryItems]);
+  const galleryImageOriginals = useMemo(() => galleryOriginals(galleryItems), [galleryItems]);
   const galleryWarnings = useMemo(() => {
     const heavy = isAdmin ? galleryItems.filter((item) => isHeavyPhoto(item.sizeBytes)) : [];
     return heavy.length
@@ -517,13 +525,16 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         {/* A photo, not the video: the hero video is hundreds of MB and autoplayed on phones.
             The video stays the fallback for a landing without a hero photo. */}
         {page.heroImageUrl ? (
+          // The photo's subject (the "Team Bride" robe) sits mid-frame, right under the text: on
+          // phones it takes the top of the hero and the text starts below it; on laptops it moves
+          // to the right of the text. Both edges fade into the page. The clip still covers it all.
           <img
             src={page.heroImageUrl}
             alt={page.title}
             // Lowercase attribute: React 18's types don't know fetchPriority yet.
             {...{ fetchpriority: "high" }}
             decoding="async"
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-x-0 top-0 h-[calc(var(--stable-vh,1vh)*52)] w-full object-cover object-[48%_50%] [mask-image:linear-gradient(to_bottom,#000_62%,transparent)] lg:inset-y-0 lg:left-auto lg:right-0 lg:h-full lg:w-[64%] lg:[mask-image:linear-gradient(to_right,transparent,#000_30%)]"
           />
         ) : page.heroVideoUrl && !page.heroClipUrl ? (
           <video
@@ -564,7 +575,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
 
-        <div className="relative w-full max-w-6xl mx-auto px-6 pb-16 pt-32">
+        <div className={`relative w-full max-w-6xl mx-auto px-6 pb-16 ${page.heroImageUrl ? "pt-[calc(var(--stable-vh,1vh)*40)] lg:pt-32" : "pt-32"}`}>
           <p className="text-amber-200 text-xs tracking-[0.3em] uppercase mb-4 font-medium">
             Foto & video pentru povești reale
           </p>
@@ -633,6 +644,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               fallback={<SectionSkeleton height={stableVh(100)} />}
               images={galleryImageUrls}
               ratios={galleryImageRatios}
+              originals={galleryImageOriginals}
               batchSize={12}
               revealLimit={isMobile ? GALLERY_REVEAL_MOBILE : GALLERY_REVEAL_DESKTOP}
               warnings={galleryWarnings}

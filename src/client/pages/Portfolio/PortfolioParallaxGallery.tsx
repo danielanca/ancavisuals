@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
+import Lightbox from "yet-another-react-lightbox";
+import "yet-another-react-lightbox/styles.css";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import { buildSeoImageAlt } from "../../utils/imageAltLabel";
@@ -34,6 +36,8 @@ type PortfolioParallaxGalleryProps = {
    * layout is known before anything loads, and on phones very wide photos take the whole row.
    */
   ratios?: Record<string, number>;
+  /** The full-resolution original of a shown (compressed) photo, by its URL: what opens on click. */
+  originals?: Record<string, string>;
 };
 
 
@@ -65,9 +69,13 @@ export default function PortfolioParallaxGallery({
   warnings: warningsProp,
   revealLimit,
   ratios,
+  originals: originalsProp,
 }: PortfolioParallaxGalleryProps) {
   const [zoneData, setZoneData] = useState<{ desktop: string[]; mobile: string[] }>({ desktop: [], mobile: [] });
   const [loading, setLoading] = useState(!imagesProp);
+  const [zoneOriginals, setZoneOriginals] = useState<Record<string, string>>({});
+  const originals = originalsProp ?? zoneOriginals;
+  const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [columnCount, setColumnCount] = useState(() =>
     getColumnCount(typeof window !== "undefined" ? window.innerWidth : 1280)
   );
@@ -97,8 +105,9 @@ export default function PortfolioParallaxGallery({
     if (imagesProp) return;
     fetch("/api/showcase-zones/portfolio_gallery")
       .then((response) => response.json())
-      .then(async (data: { desktop?: string[]; mobile?: string[]; heavy?: Record<string, number> }) => {
+      .then(async (data: { desktop?: string[]; mobile?: string[]; heavy?: Record<string, number>; originals?: Record<string, string> }) => {
         if (data.heavy) setZoneHeavy(data.heavy);
+        if (data.originals) setZoneOriginals(data.originals);
         const desktop = data.desktop ?? [];
         const mobile = data.mobile ?? [];
         // Zona nu a fost curatoriata inca din admin pentru dispozitivul curent —
@@ -304,6 +313,7 @@ export default function PortfolioParallaxGallery({
   }, [parking, columnCount]);
 
   // Laid out once for ALL photos (not only the open ones), so a photo never moves when more open.
+  const lightboxSlides = useMemo(() => pool.slice(0, limit).map((src) => ({ src: originals[src] ?? src })), [pool, limit, originals]);
   const blocks = useMemo(() => galleryBlocks(pool.map((src) => ratios?.[src]), columnCount), [pool, ratios, columnCount]);
   // Blocks = rows of columns broken by full-width photos (phones, with very wide photos).
   const spanning = blocks.some((block) => block.kind === "wide");
@@ -419,12 +429,14 @@ export default function PortfolioParallaxGallery({
             {warnings[src]}
           </span>
         )}
-        <FadeInImage
-          src={src}
-          // Its shape while it loads (or is redrawn after parking), so its place never moves.
-          ratio={parkedRatios.current.get(index) ?? knownRatio(src)}
-          alt={catalogAlt ? catalogAlt(src, buildSeoImageAlt(altBase, index)) : buildSeoImageAlt(altBase, index)}
-        />
+        <button type="button" className="ppg-trigger" onClick={() => setLightboxIndex(index)} aria-label="Deschide fotografia">
+          <FadeInImage
+            src={src}
+            // Its shape while it loads (or is redrawn after parking), so its place never moves.
+            ratio={parkedRatios.current.get(index) ?? knownRatio(src)}
+            alt={catalogAlt ? catalogAlt(src, buildSeoImageAlt(altBase, index)) : buildSeoImageAlt(altBase, index)}
+          />
+        </button>
       </div>
     );
   };
@@ -485,6 +497,13 @@ export default function PortfolioParallaxGallery({
             )}
           </div>
           <div ref={endRef} className="ppg-spacer" aria-hidden="true" />
+          {/* The photos opened so far (not the blurred ones), each at its original resolution. */}
+          <Lightbox
+            open={lightboxIndex >= 0}
+            index={lightboxIndex}
+            close={() => setLightboxIndex(-1)}
+            slides={lightboxSlides}
+          />
         </>
       )}
     </section>

@@ -158,3 +158,12 @@ describe("gallery: very wide photos on a phone", () => {
     expect(slots.every((slot) => slot.style.aspectRatio !== "")).toBe(true);
   });
 });
+
+describe("gallery: a click shows the photo bigger", () => {
+  test("opens the lightbox with the photo's original (or the photo itself when it has none)", () => {
+    const list = photos(3);
+    render(<PortfolioParallaxGallery images={list} originals={{ [list[1]]: "https://cdn.test/p1-original.jpg" }} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Deschide fotografia" })[1]);
+    expect(document.querySelector('.yarl__slide_current img')?.getAttribute("src")).toBe("https://cdn.test/p1-original.jpg");
+  });
+});

@@ -19,6 +19,28 @@ function clipForConnection(src: string, hdSrc?: string): string | null {
 const downloaded = new Map<string, string>();
 
 /**
+ * iPhone in Low Power Mode refuses every autoplay, muted or not, but allows a play() inside
+ * the visitor's tap: a refused play() retries on the next tap anywhere on the page.
+ * Returns the cleanup for the waiting listeners.
+ */
+function playOrWaitForTap(video: HTMLVideoElement): () => void {
+  // A touch that scrolls the page doesn't count as a tap for iOS, so keep listening until a play works.
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+    document.removeEventListener("touchend", retry, true);
+    document.removeEventListener("click", retry, true);
+  };
+  const retry = () => { if (document.visibilityState === "visible") video.play().then(stop, () => {}); };
+  video.play().catch(() => {
+    if (stopped) return; // the hero left the screen meanwhile
+    document.addEventListener("touchend", retry, { capture: true, passive: true });
+    document.addEventListener("click", retry, true);
+  });
+  return stop;
+}
+
+/**
  * The hero clip, layered over a photo (the hero, and the film section after the
  * portfolio), and only ever busy while its section is on screen: it downloads (after the page has loaded, on a good connection) only while
  * the visitor can see the hero — scrolling away pauses the download, coming back
@@ -100,13 +122,16 @@ function Mp4HeroVideo({ src, hdSrc }: { src: string; hdSrc?: string }) {
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !blobUrl) return;
+    let stopWaiting = () => {};
     const sync = () => {
-      if (visible && document.visibilityState === "visible") void video.play().catch(() => {});
+      stopWaiting();
+      stopWaiting = () => {};
+      if (visible && document.visibilityState === "visible") stopWaiting = playOrWaitForTap(video);
       else video.pause();
     };
     sync();
     document.addEventListener("visibilitychange", sync);
-    return () => document.removeEventListener("visibilitychange", sync);
+    return () => { stopWaiting(); document.removeEventListener("visibilitychange", sync); };
   }, [visible, blobUrl]);
 
   return (
@@ -206,13 +231,16 @@ function HlsHeroLoop({ src }: { src: string }) {
   useEffect(() => {
     const video = videoRef.current;
     if (!active || !video) return;
+    let stopWaiting = () => {};
     const sync = () => {
-      if (visible && document.visibilityState === "visible") void video.play().catch(() => {});
+      stopWaiting();
+      stopWaiting = () => {};
+      if (visible && document.visibilityState === "visible") stopWaiting = playOrWaitForTap(video);
       else video.pause();
     };
     sync();
     document.addEventListener("visibilitychange", sync);
-    return () => document.removeEventListener("visibilitychange", sync);
+    return () => { stopWaiting(); document.removeEventListener("visibilitychange", sync); };
   }, [active, visible]);
 
   const backToStart = (video: HTMLVideoElement) => {
