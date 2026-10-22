@@ -2,7 +2,7 @@ import { estimateContractTransport } from "../../shared/contractTransport";
 import { CUSTOM_CLAUSE_PREFIX } from "../../shared/contractClauses";
 import {
   NIGHT_EVENT_REASON,
-  NIGHT_HALF_HOUR_FEE_RON,
+  NIGHT_HOUR_FEE_RON,
   NIGHT_TOLERANCE_MINUTES,
   nightEventApplies,
   parseNightEventAnswer,
@@ -162,11 +162,11 @@ export function buildNightEventHtml(contract: Record<string, unknown>): string {
       ? `evenimentul <span class="bold">NU ESTE eveniment de noapte</span> (este eveniment de zi și se încheie până la ora 00:00).`
       : `evenimentul ☐ ESTE / ☐ NU ESTE eveniment de noapte <span style="font-size:9pt;color:#555;">(se completează obligatoriu de BENEFICIAR la semnare)</span>.`;
 
-  const tolerance = `primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt oferite de PRESTATOR, fără costuri suplimentare. Dacă prestarea serviciilor continuă și după acestea, BENEFICIARUL va achita PRESTATORULUI suplimentar <span class="bold">${NIGHT_HALF_HOUR_FEE_RON} lei pentru fiecare jumătate de oră începută</span>`;
+  const tolerance = `primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt oferite de PRESTATOR, fără costuri suplimentare. Dacă prestarea serviciilor continuă și după acestea, BENEFICIARUL va achita PRESTATORULUI suplimentar <span class="bold">${NIGHT_HOUR_FEE_RON} lei pentru fiecare oră începută</span>`;
 
   const rule = answer === "da"
     ? `<p>Prestarea serviciilor până la ora de final declarată este inclusă în prețul contractului. Dacă evenimentul se prelungește după ora de final declarată, ${tolerance}, calculată după expirarea celor ${NIGHT_TOLERANCE_MINUTES} de minute.</p>`
-    : `<p>Dacă evenimentul${answer === "nu" ? ", declarat ca eveniment de zi," : ""} sau al cărui program exact nu este cunoscut se prelungește după ora 00:00, ${tolerance}, calculată începând cu ora 00:${NIGHT_TOLERANCE_MINUTES} (exemplu: până la ora 00:55 — ${NIGHT_HALF_HOUR_FEE_RON} lei; până la ora 01:25 — ${NIGHT_HALF_HOUR_FEE_RON * 2} lei).</p>`;
+    : `<p>Dacă evenimentul${answer === "nu" ? ", declarat ca eveniment de zi," : ""} sau al cărui program exact nu este cunoscut se prelungește după ora 00:00, ${tolerance}, calculată începând cu ora 00:${NIGHT_TOLERANCE_MINUTES} (exemplu: până la ora 01:25 — ${NIGHT_HOUR_FEE_RON} lei; până la ora 02:25 — ${NIGHT_HOUR_FEE_RON * 2} lei).</p>`;
 
   return `
         <p><span class="bold">Eveniment de zi sau de noapte.</span> Indiferent dacă intervalul orar exact este cunoscut la data semnării, BENEFICIARUL are obligația de a declara la completarea contractului dacă evenimentul se prelungește după ora 00:00. BENEFICIARUL declară că ${declaration}</p>

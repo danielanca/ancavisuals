@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   NIGHT_EVENT_REASON,
-  NIGHT_HALF_HOUR_FEE_RON,
+  NIGHT_HOUR_FEE_RON,
   NIGHT_LATEST_END,
   NIGHT_TOLERANCE_MINUTES,
   isValidNightEndTime,
@@ -531,8 +531,8 @@ const ContractSignPage: React.FC = () => {
               <p style={{ fontSize: 12, color: "#555", margin: "12px 0 0", lineHeight: 1.6, background: "#faf7f2", borderRadius: 6, padding: "10px 12px" }}>
                 <strong>Ce se întâmplă dacă evenimentul se prelungește?</strong>{" "}
                 {nightEvent === "da"
-                  ? `După ora de final declarată, primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt din partea noastră. Peste ele se achită ${NIGHT_HALF_HOUR_FEE_RON} lei pentru fiecare jumătate de oră începută.`
-                  : `Dacă evenimentul trece de ora 00:00, primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt din partea noastră. După ora 00:${NIGHT_TOLERANCE_MINUTES} se achită ${NIGHT_HALF_HOUR_FEE_RON} lei pentru fiecare jumătate de oră începută (ex.: până la 00:55 — ${NIGHT_HALF_HOUR_FEE_RON} lei, până la 01:25 — ${NIGHT_HALF_HOUR_FEE_RON * 2} lei).`}
+                  ? `După ora de final declarată, primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt din partea noastră. Peste ele se achită ${NIGHT_HOUR_FEE_RON} lei pentru fiecare oră începută.`
+                  : `Dacă evenimentul trece de ora 00:00, primele ${NIGHT_TOLERANCE_MINUTES} de minute sunt din partea noastră. După ora 00:${NIGHT_TOLERANCE_MINUTES} se achită ${NIGHT_HOUR_FEE_RON} lei pentru fiecare oră începută (ex.: până la 01:25 — ${NIGHT_HOUR_FEE_RON} lei, până la 02:25 — ${NIGHT_HOUR_FEE_RON * 2} lei).`}
               </p>
             </Section>
           )}

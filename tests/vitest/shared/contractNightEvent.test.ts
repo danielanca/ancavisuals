@@ -7,9 +7,10 @@ describe("nightOvertimeFee", () => {
     ["00:25", 0],
     ["00:26", 200],
     ["00:55", 200],
-    ["00:56", 400],
-    ["01:25", 400],
-    ["01:26", 600],
+    ["01:25", 200],
+    ["01:26", 400],
+    ["02:25", 400],
+    ["02:26", 600],
     ["23:40", 0],
   ])("day event ending at %s costs %i lei extra", (end, fee) => {
     expect(nightOvertimeFee("nu", end)).toBe(fee);
@@ -18,7 +19,8 @@ describe("nightOvertimeFee", () => {
   test("a night event counts from the declared end time", () => {
     expect(nightOvertimeFee("da", "02:20", "02:00")).toBe(0);
     expect(nightOvertimeFee("da", "02:26", "02:00")).toBe(200);
-    expect(nightOvertimeFee("da", "03:00", "02:00")).toBe(400);
+    expect(nightOvertimeFee("da", "03:25", "02:00")).toBe(200);
+    expect(nightOvertimeFee("da", "03:26", "02:00")).toBe(400);
   });
 });
 

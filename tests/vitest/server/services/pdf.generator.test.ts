@@ -138,7 +138,7 @@ describe("custom contract clauses", () => {
       const html = buildNightEventHtml({ eventType: "Nuntă", status: "sent" });
       expect(html).toContain("☐ ESTE / ☐ NU ESTE eveniment de noapte");
       expect(html).toContain("Fotografii și videografii trebuie să știe din timp");
-      expect(html).toContain("200 lei pentru fiecare jumătate de oră începută");
+      expect(html).toContain("200 lei pentru fiecare oră începută");
     });
 
     test("a day event explains the 25-minute tolerance from 00:00", async () => {
@@ -146,7 +146,7 @@ describe("custom contract clauses", () => {
       const html = buildNightEventHtml({ eventType: "Botez", status: "signed", nightEvent: "nu" });
       expect(html).toContain("NU ESTE eveniment de noapte");
       expect(html).toContain("începând cu ora 00:25");
-      expect(html).toContain("până la ora 01:25 — 400 lei");
+      expect(html).toContain("până la ora 02:25 — 400 lei");
     });
 
     test("a night event includes the declared end time in the price", async () => {
