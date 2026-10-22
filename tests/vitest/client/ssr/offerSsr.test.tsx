@@ -41,6 +41,14 @@ describe("offer page server render", () => {
     expect(appHtml).toContain("https://cdn.test/hero.webp");
   });
 
+  test("inline <style> blocks reach the HTML unescaped (escaped CSS = hydration error #425)", async () => {
+    const { appHtml } = await render("/oferta/olx", { slug: "olx", offer });
+    expect(appHtml).toContain(".configurator-glow::after");
+    for (const [, css] of appHtml.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)) {
+      expect(css).not.toMatch(/&(quot|#x27|gt|lt|amp);/);
+    }
+  });
+
   test("without data it still renders (the browser loads it as before)", async () => {
     const { appHtml } = await render("/oferta/olx", null);
     expect(appHtml).toContain("animate-spin");

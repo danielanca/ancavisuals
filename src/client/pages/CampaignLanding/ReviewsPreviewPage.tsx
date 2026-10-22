@@ -38,7 +38,8 @@ export const demoReviews: Review[] = [
 export default function ReviewsPreviewPage() {
   return (
     <main className="reviews-preview min-h-screen bg-[#faf9f7] text-neutral-950">
-      <style>{`
+      {/* As HTML: a text child gets its quotes and ">" escaped on the server and hydration fails. */}
+      <style dangerouslySetInnerHTML={{ __html: `
         [data-review-tone="light"] article { background: #fff; border-color: #e5e5e5; box-shadow: 0 12px 30px rgba(17, 17, 17, .06); }
         [data-review-tone="light"] article:hover { border-color: #cfcfcf; }
         [data-review-tone="light"] article h3, [data-review-tone="light"] article p { color: #171717; }
@@ -65,7 +66,7 @@ export default function ReviewsPreviewPage() {
           [data-review-tone="light"].fixed > div > div:last-child p.whitespace-pre-line { max-width: 34rem; }
         }
         [data-review-tone="light"].fixed > div > div:first-child > img { min-height: 0; object-fit: contain; }
-      `}</style>
+      ` }} />
       <Helmet>
         <title>Previzualizare recenzii OLX | Anca Visuals</title>
         <meta name="robots" content="noindex, nofollow" />

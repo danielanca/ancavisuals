@@ -420,7 +420,8 @@ export default function PriceConfigurator({
 
   return (
     <section ref={sectionRef} id="configurator" data-live-clicks="off" className="scroll-mt-6 bg-white px-6 py-20 text-neutral-950 sm:py-24">
-      <style>{STYLES}</style>
+      {/* As HTML, not a text child: the server escapes the quotes in `content: ""` and hydration then fails (#425). */}
+      <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto mb-12 max-w-2xl text-center sm:mb-14">
           <p className="flex items-center justify-center gap-4 text-[11px] uppercase tracking-[0.35em] text-neutral-500">
