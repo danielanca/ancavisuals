@@ -165,7 +165,9 @@ async function createServer() {
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN'); // no clickjacking of admin/contract pages
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // Locally no referrer: Bunny Stream's allowed domains refuse localhost (403 on the player's poster
+    // and playlist) but let requests without a referrer through.
+    res.setHeader('Referrer-Policy', isProd ? 'strict-origin-when-cross-origin' : 'no-referrer');
     if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     next();
   });
