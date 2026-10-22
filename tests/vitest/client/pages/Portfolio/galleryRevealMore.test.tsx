@@ -167,3 +167,30 @@ describe("gallery: a click shows the photo bigger", () => {
     expect(document.querySelector('.yarl__slide_current img')?.getAttribute("src")).toBe("https://cdn.test/p1-original.jpg");
   });
 });
+
+describe("gallery: batches while scrolling fast", () => {
+  test("the next batch comes even when the visitor already scrolled past its first empty tile", () => {
+    const observers: Array<{ callback: IntersectionObserverCallback; options?: IntersectionObserverInit; targets: Element[] }> = [];
+    class FakeObserver {
+      targets: Element[] = [];
+      constructor(public callback: IntersectionObserverCallback, public options?: IntersectionObserverInit) { observers.push(this); }
+      observe(target: Element) { this.targets.push(target); }
+      unobserve() {}
+      disconnect() {}
+      takeRecords() { return []; }
+    }
+    vi.stubGlobal("IntersectionObserver", FakeObserver);
+    const list = photos(30);
+    // Shapes known (as on the offer pages): no waiting for the batch's photos to download.
+    render(<PortfolioParallaxGallery images={list} batchSize={12} ratios={Object.fromEntries(list.map((src) => [src, 2 / 3]))} />);
+    expect(document.querySelectorAll(".ppg-item img").length).toBe(12);
+
+    const slot = document.querySelector(".ppg-slot")!;
+    const watcher = observers.filter((observer) => observer.options?.rootMargin === "600px 0px" && observer.targets.includes(slot)).pop()!;
+    // Far above the screen and not intersecting: the visitor is already below it.
+    const passed = { target: slot, isIntersecting: false, boundingClientRect: { top: -3000, bottom: -2700 } as DOMRect } as unknown as IntersectionObserverEntry;
+    act(() => watcher.callback([passed], {} as IntersectionObserver));
+    expect(document.querySelectorAll(".ppg-item img").length).toBe(24);
+    vi.unstubAllGlobals();
+  });
+});

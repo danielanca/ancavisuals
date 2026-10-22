@@ -20,6 +20,7 @@ import assistantChatRouter from "./src/server/routes/assistantChat.routes";
 import adminCalendarRouter from "./src/server/routes/adminCalendar.routes";
 import publicBookedDatesRouter from "./src/server/routes/publicBookedDates.routes";
 import { startingPricesAdminRouter, startingPricesPublicRouter } from "./src/server/routes/startingPrices.routes";
+import { uploadOriginCors } from "./src/server/middleware/uploadOriginCors";
 import adminEventsRouter, { startAlbumProcessingQueue } from "./src/server/routes/adminEvents.routes";
 import { startAlbumUploadNotifications } from "./src/server/services/albumUploadNotifications";
 import chatbotRouter from "./src/server/routes/chatbot.routes";
@@ -168,6 +169,8 @@ async function createServer() {
     if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     next();
   });
+  // Uploads are sent to upload.ancavisuals.ro from the pages on the main domain (see the middleware).
+  app.use(uploadOriginCors);
   app.use(express.json({ limit: BODY_PAYLOAD_LIMIT }));
   app.use(express.urlencoded({ extended: true, limit: BODY_PAYLOAD_LIMIT }));
 

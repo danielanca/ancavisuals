@@ -6,11 +6,13 @@
 import { useEffect, useRef, useState } from "react";
 import {
   SHORT_VIDEO_ACCEPT,
+  SHORT_VIDEO_CHUNK_BYTES,
   SHORT_VIDEO_MAX_BYTES,
   sanitizeShortVideoName,
   type AlbumShortVideo,
 } from "../../../../shared/albumShortVideo";
 import { normalizeVideoLink, type AlbumVideoLinks } from "../../../../shared/albumVideoLinks";
+import { uploadUrl } from "../../../utils/address";
 
 type Props = {
   slug: string;
@@ -59,37 +61,72 @@ export default function AlbumShortVideoManager({ slug, accessToken, onChanged, s
     return () => { cancelled = true; xhrRef.current?.abort(); };
   }, [base, showLinkForm]);
 
-  const upload = (file: File) => {
+  // Sent to upload.ancavisuals.ro (Cloudflare refuses any request over 100 MB on the main domain,
+  // and the browser then just sits at 0%), in SHORT_VIDEO_CHUNK_BYTES pieces so no single request
+  // nears a limit; the server writes them, in order, into one upload to Bunny.
+  const sendChunk = (url: string, chunk: Blob, onProgress: (loaded: number) => void) =>
+    new Promise<{ status: number; data: { video?: AlbumShortVideo; error?: string } }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhrRef.current = xhr;
+      xhr.open("PUT", url);
+      xhr.setRequestHeader("Authorization", `Bearer ${accessToken ?? ""}`);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.upload.onprogress = (e) => onProgress(e.loaded);
+      xhr.onload = () => {
+        let data: { video?: AlbumShortVideo; error?: string } = {};
+        try { data = JSON.parse(xhr.responseText); } catch { /* proxy HTML error page */ }
+        resolve({ status: xhr.status, data });
+      };
+      xhr.onerror = () => reject(new Error("network"));
+      xhr.onabort = () => reject(new Error("abort"));
+      xhr.send(chunk);
+    });
+
+  const upload = async (file: File) => {
     const fileName = sanitizeShortVideoName(file.name);
     if (!fileName) { setMessage({ ok: false, text: "Format acceptat: MP4, MOV, M4V sau WEBM." }); return; }
     if (file.size > SHORT_VIDEO_MAX_BYTES) { setMessage({ ok: false, text: "Videoul depășește 4 GB." }); return; }
     setMessage(null);
     setProgress(0);
-    const xhr = new XMLHttpRequest();
-    xhrRef.current = xhr;
-    xhr.open("PUT", `${base}/short-video`);
-    xhr.setRequestHeader("Authorization", `Bearer ${accessToken ?? ""}`);
-    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-    xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
-    xhr.upload.onprogress = (e) => { if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100)); };
-    xhr.onload = () => {
-      setProgress(null);
-      xhrRef.current = null;
-      let data: { video?: AlbumShortVideo; error?: string } = {};
-      try { data = JSON.parse(xhr.responseText); } catch { /* nginx HTML error page */ }
-      if (xhr.status >= 200 && xhr.status < 300 && data.video) {
-        setVideo(data.video);
-        setMessage({ ok: true, text: "Video încărcat — clientul îl vede și îl poate descărca." });
-        onChanged?.(data.video);
-      } else if (xhr.status === 413 && !data.error) {
-        setMessage({ ok: false, text: "nginx a respins fișierul (413): mărește client_max_body_size pentru /api/album/*/short-video." });
-      } else {
-        setMessage({ ok: false, text: data.error ?? `Încărcarea a eșuat (${xhr.status}). Reîncearcă.` });
+    let uploadTarget: string | null = null;
+    try {
+      // upload.ancavisuals.ro: DNS-only in Cloudflare, so the video goes straight to the VPS.
+      const started = await fetch(uploadUrl(`${base}/short-video/uploads`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken ?? ""}` },
+        body: JSON.stringify({ name: file.name, size: file.size }),
+      });
+      const session = await started.json().catch(() => ({})) as { uploadId?: string; chunkBytes?: number; error?: string };
+      if (!started.ok || !session.uploadId) throw new Error(session.error ?? `Încărcarea nu a putut porni (${started.status}). Reîncearcă.`);
+      uploadTarget = uploadUrl(`${base}/short-video/uploads/${encodeURIComponent(session.uploadId)}`);
+      const chunkBytes = Math.min(session.chunkBytes ?? SHORT_VIDEO_CHUNK_BYTES, SHORT_VIDEO_CHUNK_BYTES);
+      for (let offset = 0; offset < file.size; offset += chunkBytes) {
+        const { status, data } = await sendChunk(
+          `${uploadTarget}?offset=${offset}`,
+          file.slice(offset, offset + chunkBytes),
+          (loaded) => setProgress(Math.min(99, Math.round(((offset + loaded) / file.size) * 100))),
+        );
+        if (status < 200 || status >= 300) {
+          throw new Error(data.error ?? (status === 413 ? "Fișierul a fost respins ca prea mare (413)." : `Încărcarea a eșuat (${status}). Reîncearcă.`));
+        }
+        if (data.video) {
+          uploadTarget = null;
+          setVideo(data.video);
+          setMessage({ ok: true, text: "Video încărcat — clientul îl vede și îl poate descărca." });
+          onChanged?.(data.video);
+        }
       }
-    };
-    xhr.onerror = () => { setProgress(null); xhrRef.current = null; setMessage({ ok: false, text: "Conexiunea s-a întrerupt. Reîncearcă." }); };
-    xhr.onabort = () => { setProgress(null); xhrRef.current = null; };
-    xhr.send(file);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (reason !== "abort") {
+        setMessage({ ok: false, text: reason === "network" ? "Conexiunea s-a întrerupt. Reîncearcă." : reason || "Încărcarea a eșuat. Reîncearcă." });
+      }
+      // Frees the server's open upload to Bunny right away instead of after its idle timeout.
+      if (uploadTarget) void fetch(uploadTarget, { method: "DELETE", headers: { Authorization: `Bearer ${accessToken ?? ""}` } }).catch(() => {});
+    } finally {
+      xhrRef.current = null;
+      setProgress(null);
+    }
   };
 
   const remove = async () => {
@@ -149,7 +186,7 @@ export default function AlbumShortVideoManager({ slug, accessToken, onChanged, s
           type="file"
           accept={SHORT_VIDEO_ACCEPT}
           className="hidden"
-          onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upload(file); }}
+          onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }}
         />
         <button
           type="button"

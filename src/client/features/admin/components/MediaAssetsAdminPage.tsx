@@ -3,6 +3,7 @@ import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import { OFFER_SERVICES, type OfferAssetKind } from "../../../../shared/offers/offerServices";
+import { uploadUrl } from "../../../utils/address";
 
 type OfferMediaAsset = {
   id: string;
@@ -135,7 +136,7 @@ export default function MediaAssetsAdminPage() {
     try {
       const formData = new FormData();
       files.forEach(file => formData.append("files", file));
-      const response = await fetch(`/api/oferte/admin/media-assets/upload/${serviceId}`, {
+      const response = await fetch(uploadUrl(`/api/oferte/admin/media-assets/upload/${serviceId}`), {
         method: "POST",
         headers: { Authorization: `Bearer ${auth.accessToken}` },
         body: formData,

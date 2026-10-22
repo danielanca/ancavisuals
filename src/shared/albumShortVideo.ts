@@ -5,6 +5,8 @@
 
 export const SHORT_VIDEO_FOLDER = "shortvideo";
 export const SHORT_VIDEO_MAX_BYTES = 4 * 1024 * 1024 * 1024;
+/** One piece of a chunked upload: Cloudflare (in front of the site) refuses requests over 100 MB. */
+export const SHORT_VIDEO_CHUNK_BYTES = 50 * 1024 * 1024;
 export const SHORT_VIDEO_ACCEPT = ".mp4,.mov,.m4v,.webm,video/mp4,video/quicktime,video/webm";
 
 const EXTENSIONS: Record<string, string> = {

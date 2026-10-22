@@ -798,7 +798,8 @@ router.post("/events/:id/album-zip/check", requireFirebaseAuth, requireSupremeAd
 });
 
 // POST /api/admin/events/:id/upload-album-zip — stream pass-through browser → VPS → Bunny {slug}/photos.zip.
-// Nothing touches the VPS disk. nginx needs `client_max_body_size 0; proxy_request_buffering off;` for this path.
+// Nothing touches the VPS disk. Sent to upload.ancavisuals.ro (Cloudflare refuses > 100 MB on the
+// main domain), whose nginx needs `client_max_body_size 0; proxy_request_buffering off;` for GB ZIPs.
 router.post("/events/:id/upload-album-zip", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const size = Number(req.headers["content-length"]);
   const manifestHash = String(req.headers["x-album-zip-manifest"] ?? "");

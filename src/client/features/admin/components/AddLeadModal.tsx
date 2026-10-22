@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import type { ClientEvent, EventType } from "../types";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 import useAuth from "../auth/useAuth";
+import { uploadUrl } from "../../../utils/address";
 
 interface Props {
   onClose: () => void;
@@ -74,7 +75,7 @@ const AddLeadModal: React.FC<Props> = ({ onClose, onAdded }) => {
 
     try {
       const imageBase64 = await fileToBase64(scanFile);
-      const response = await fetch("/api/admin/leads/extract-from-image", {
+      const response = await fetch(uploadUrl("/api/admin/leads/extract-from-image"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

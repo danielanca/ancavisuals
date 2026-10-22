@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { uploadUrl } from "../../../utils/address";
 
 interface CompanyDocument {
   id: string;
@@ -66,7 +67,7 @@ function AddDocumentModal({ accessToken, onClose, onAdded }: AddDocumentModalPro
       formData.append("label", label.trim());
       if (notes.trim()) formData.append("notes", notes.trim());
 
-      const response = await fetch("/api/admin/company-documents/upload", {
+      const response = await fetch(uploadUrl("/api/admin/company-documents/upload"), {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
         body: formData,

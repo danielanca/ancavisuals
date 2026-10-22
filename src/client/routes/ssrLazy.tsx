@@ -17,17 +17,29 @@ const renderedKeys = new Set<string>();
 export function ssrLazy<P extends object>(key: string, load: () => Promise<{ default: ComponentType<P> }>): ComponentType<P> {
   let Loaded: ComponentType<P> | null = null;
   let pending: Promise<void> | null = null;
-  const preload = () => (pending ??= load().then((module) => { Loaded = module.default; }));
+  // A failed download (flaky network, a deploy that removed the old file) is not kept, so
+  // the next attempt fetches again instead of replaying the same rejection.
+  const preload = () => (pending ??= load().then(
+    (module) => { Loaded = module.default; },
+    (error) => { pending = null; throw error; },
+  ));
   preloaders.set(key, preload);
 
   function SsrLazy(props: P) {
     const [Component, setComponent] = useState<ComponentType<P> | null>(() => Loaded);
+    const [failure, setFailure] = useState<unknown>(null);
     useEffect(() => {
       if (Component) return;
       let active = true;
-      void preload().then(() => { if (active) setComponent(() => Loaded); });
+      preload().then(
+        () => { if (active) setComponent(() => Loaded); },
+        (error) => { if (active) setFailure(() => error); },
+      );
       return () => { active = false; };
     }, [Component]);
+    // Thrown in render so App's ChunkErrorBoundary reloads the page once, instead of an
+    // unhandled rejection and the loader spinning forever.
+    if (failure) throw failure;
     if (!Component) return <AncaLoader />;
     if (typeof window === "undefined") renderedKeys.add(key);
     return <Component {...props} />;

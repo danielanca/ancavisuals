@@ -7,13 +7,15 @@ import { ALBUM_VIDEO_KINDS, normalizeVideoLink, type AlbumVideoLinks } from "../
 import { getAlbumStats } from "../services/albumStats.service";
 import { invalidateAlbumCache, loadAlbum, resolveAlbumSlug } from "../services/album.service";
 import nodeFetch from "node-fetch";
-import { Transform } from "node:stream";
+import { PassThrough, Transform } from "node:stream";
+import { randomUUID } from "node:crypto";
 import { BUNNY_ACCESS_KEY_HEADER, buildBunnyDirectoryUrl, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
 import { signBunnyUrl } from "../utils/signBunnyUrl";
 import { albumNotificationUrl, type NotificationChannel } from "../../shared/albumNotificationSource";
 import { isValidEmail } from "../../shared/albumUpdates";
 import { getShortVideoStream, removeShortVideoStream, startShortVideoStream } from "../services/albumShortVideoStream.service";
 import {
+  SHORT_VIDEO_CHUNK_BYTES,
   SHORT_VIDEO_FOLDER,
   SHORT_VIDEO_MAX_BYTES,
   isShortVideoObject,
@@ -476,6 +478,154 @@ router.get("/:slug/short-video/download", async (req: Request, res: Response) =>
   }
 });
 
+/**
+ * After the file is in Bunny: checks its size, then replaces the previous video and starts Stream.
+ * Null when Bunny holds a different size than was sent.
+ */
+async function finishShortVideoUpload(slug: string, fileName: string, size: number, previous: BunnyEntry[]): Promise<AlbumShortVideo | null> {
+  const uploaded = (await listShortVideos(slug)).find((entry) => entry.ObjectName === fileName);
+  if (!uploaded || (uploaded.Length !== undefined && uploaded.Length !== size)) return null;
+  // Only after the new file is verified, so a failed upload never leaves the album without a video.
+  await Promise.all(previous.filter((entry) => entry.ObjectName !== fileName).map((entry) => deleteShortVideo(slug, entry.ObjectName)));
+  await invalidateAlbumCache(slug);
+  // Stream pulls its own copy from Storage and transcodes it; until then /media plays the original.
+  await startShortVideoStream(slug, fileName);
+  return {
+    fileName, size, url: signBunnyUrl(`/${slug}/${SHORT_VIDEO_FOLDER}/${fileName}`),
+    stream: await getShortVideoStream(slug, fileName).catch(() => null),
+  };
+}
+
+/** A unique name per upload: the CDN (and Stream's fetch through it) would otherwise serve the old file. */
+const uniqueShortVideoName = (fileName: string) => fileName.replace(/(\.[a-z0-9]+)$/, `-${Date.now().toString(36)}$1`);
+
+// Chunked upload: Cloudflare (in front of ancavisuals.ro) refuses any request over 100 MB with a
+// 413 — and the browser then sits at 0%. The browser sends the video in SHORT_VIDEO_CHUNK_BYTES
+// pieces, in order; each one is written into a single open PUT to Bunny, so nothing lands on
+// the VPS disk. A session idle for SHORT_VIDEO_SESSION_IDLE_MS is dropped (and so is the PUT).
+type ShortVideoSession = {
+  slug: string;
+  fileName: string;
+  size: number;
+  received: number;
+  busy: boolean;
+  previous: BunnyEntry[];
+  body: PassThrough;
+  bunny: Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
+  abort: AbortController;
+  idle: ReturnType<typeof setTimeout>;
+};
+const SHORT_VIDEO_SESSION_IDLE_MS = 180_000;
+const shortVideoSessions = new Map<string, ShortVideoSession>();
+
+function dropShortVideoSession(id: string) {
+  const session = shortVideoSessions.get(id);
+  if (!session) return;
+  shortVideoSessions.delete(id);
+  clearTimeout(session.idle);
+  session.abort.abort();
+  session.body.destroy();
+}
+
+function touchShortVideoSession(id: string, session: ShortVideoSession) {
+  clearTimeout(session.idle);
+  session.idle = setTimeout(() => dropShortVideoSession(id), SHORT_VIDEO_SESSION_IDLE_MS);
+}
+
+router.post("/:slug/short-video/uploads", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { slug } = req.params;
+  const { name, size } = (req.body ?? {}) as { name?: unknown; size?: unknown };
+  const sanitized = sanitizeShortVideoName(String(name ?? ""));
+  if (!sanitized) return res.status(400).json({ error: "Format acceptat: MP4, MOV, M4V sau WEBM." });
+  if (!Number.isSafeInteger(size) || (size as number) <= 0) return res.status(400).json({ error: "Fișier gol sau dimensiune lipsă." });
+  if ((size as number) > SHORT_VIDEO_MAX_BYTES) return res.status(413).json({ error: "Videoul depășește 4 GB." });
+  try {
+    const fileName = uniqueShortVideoName(sanitized);
+    const previous = await listShortVideos(slug);
+    const body = new PassThrough();
+    const abort = new AbortController();
+    const bunny = nodeFetch(buildBunnyStorageUrl(slug, SHORT_VIDEO_FOLDER, fileName), {
+      method: "PUT",
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(), "Content-Type": shortVideoContentType(fileName), "Content-Length": String(size) },
+      body, signal: abort.signal,
+    });
+    const id = randomUUID();
+    const session: ShortVideoSession = { slug, fileName, size: size as number, received: 0, busy: false, previous, body, bunny, abort, idle: setTimeout(() => undefined, 0) };
+    // Bunny answering (or failing) before the last piece: nothing more can be written — end the
+    // session, so a piece in progress fails at once instead of hanging. The last piece awaits it.
+    const early = () => { if (session.received < session.size) dropShortVideoSession(id); };
+    bunny.then(early, early);
+    shortVideoSessions.set(id, session);
+    touchShortVideoSession(id, session);
+    return res.json({ uploadId: id, chunkBytes: SHORT_VIDEO_CHUNK_BYTES });
+  } catch (error) {
+    console.error("[album] short video upload start failed:", error);
+    return res.status(502).json({ error: "Încărcarea videoului nu a putut porni. Reîncearcă." });
+  }
+});
+
+router.put("/:slug/short-video/uploads/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { slug, id } = req.params;
+  const session = shortVideoSessions.get(id);
+  if (!session || session.slug !== slug) return res.status(404).json({ error: "Încărcarea a expirat. Pornește din nou." });
+  const offset = Number(req.query.offset);
+  const length = Number(req.headers["content-length"]);
+  if (session.busy || offset !== session.received) return res.status(409).json({ error: "Bucăți trimise în altă ordine. Pornește din nou.", received: session.received });
+  if (!Number.isSafeInteger(length) || length <= 0 || length > SHORT_VIDEO_CHUNK_BYTES || offset + length > session.size) {
+    dropShortVideoSession(id);
+    return res.status(400).json({ error: "Bucată de fișier invalidă. Pornește din nou." });
+  }
+  session.busy = true;
+  touchShortVideoSession(id, session);
+  try {
+    let got = 0;
+    const counter = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        got += chunk.length;
+        touchShortVideoSession(id, session);
+        callback(null, chunk);
+      },
+    });
+    await new Promise<void>((resolve, reject) => {
+      const closed = () => reject(new Error("upload session closed"));
+      session.body.once("close", closed);
+      counter.on("end", () => { session.body.off("close", closed); resolve(); });
+      req.on("error", reject);
+      req.on("aborted", () => reject(new Error("aborted")));
+      // end: false — the Bunny PUT stays open for the next piece.
+      req.pipe(counter).pipe(session.body, { end: false });
+    });
+    if (got !== length) throw new Error(`chunk ${got} of ${length} bytes`);
+    session.received += got;
+    session.busy = false;
+    if (session.received < session.size) return res.json({ received: session.received });
+
+    // Last piece: close the PUT and wait for Bunny to confirm the whole file.
+    session.body.end();
+    clearTimeout(session.idle);
+    const uploadRes = await session.bunny;
+    shortVideoSessions.delete(id);
+    if (!uploadRes.ok) {
+      console.error(`[album] short video Bunny ${uploadRes.status}: ${await uploadRes.text().catch(() => "")}`);
+      return res.status(502).json({ error: `Bunny a respins videoul (${uploadRes.status}).` });
+    }
+    const video = await finishShortVideoUpload(slug, session.fileName, session.size, session.previous);
+    if (!video) return res.status(502).json({ error: "Videoul din Bunny are altă dimensiune decât cel trimis. Reîncearcă." });
+    return res.json({ video });
+  } catch (error) {
+    // A piece cut half-way already went to Bunny: this upload cannot continue.
+    console.error("[album] short video chunk failed:", error);
+    dropShortVideoSession(id);
+    if (!res.headersSent) return res.status(502).json({ error: "Încărcarea videoului s-a întrerupt. Reîncearcă." });
+  }
+});
+
+router.delete("/:slug/short-video/uploads/:id", requireFirebaseAuth, requireSupremeAdmin, (req: Request, res: Response) => {
+  const session = shortVideoSessions.get(req.params.id);
+  if (session?.slug === req.params.slug) dropShortVideoSession(req.params.id);
+  res.json({ ok: true });
+});
+
 router.put("/:slug/short-video", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { slug } = req.params;
   const size = Number(req.headers["content-length"]);
@@ -484,8 +634,7 @@ router.put("/:slug/short-video", requireFirebaseAuth, requireSupremeAdmin, async
   if (!fileName) return res.status(400).json({ error: "Format acceptat: MP4, MOV, M4V sau WEBM." });
   if (!Number.isSafeInteger(size) || size <= 0) return res.status(400).json({ error: "Fișier gol sau dimensiune lipsă." });
   if (size > SHORT_VIDEO_MAX_BYTES) return res.status(413).json({ error: "Videoul depășește 4 GB." });
-  // A unique name per upload: the CDN (and Stream's fetch through it) would otherwise serve the old file.
-  fileName = fileName.replace(/(\.[a-z0-9]+)$/, `-${Date.now().toString(36)}$1`);
+  fileName = uniqueShortVideoName(fileName);
   try {
     const previous = await listShortVideos(slug);
 
@@ -514,19 +663,8 @@ router.put("/:slug/short-video", requireFirebaseAuth, requireSupremeAdmin, async
       return res.status(502).json({ error: `Bunny a respins videoul (${uploadRes.status}).` });
     }
 
-    const uploaded = (await listShortVideos(slug)).find((entry) => entry.ObjectName === fileName);
-    if (!uploaded || (uploaded.Length !== undefined && uploaded.Length !== size)) {
-      return res.status(502).json({ error: "Videoul din Bunny are altă dimensiune decât cel trimis. Reîncearcă." });
-    }
-    // Only after the new file is verified, so a failed upload never leaves the album without a video.
-    await Promise.all(previous.filter((entry) => entry.ObjectName !== fileName).map((entry) => deleteShortVideo(slug, entry.ObjectName)));
-    await invalidateAlbumCache(slug);
-    // Stream pulls its own copy from Storage and transcodes it; until then /media plays the original.
-    await startShortVideoStream(slug, fileName);
-    const video: AlbumShortVideo = {
-      fileName, size, url: signBunnyUrl(`/${slug}/${SHORT_VIDEO_FOLDER}/${fileName}`),
-      stream: await getShortVideoStream(slug, fileName).catch(() => null),
-    };
+    const video = await finishShortVideoUpload(slug, fileName, size, previous);
+    if (!video) return res.status(502).json({ error: "Videoul din Bunny are altă dimensiune decât cel trimis. Reîncearcă." });
     return res.json({ video });
   } catch (error) {
     console.error("[album] short video upload failed:", error);

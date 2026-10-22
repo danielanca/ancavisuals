@@ -55,6 +55,8 @@ const PARALLAX_PIXELS_MOBILE = 18;
 const PARK_AFTER_PHOTOS = 36;
 const PARK_DISTANCE_SCREENS = 3;
 const PARALLAX_PIXELS_DESKTOP = 50;
+// The longest the next batch waits for the photos of the current one to finish loading.
+const BATCH_WAIT_MS = 2500;
 
 function getColumnCount(width: number) {
   if (width < 640) return 2;
@@ -216,7 +218,9 @@ export default function PortfolioParallaxGallery({
     const more = moreRef.current;
     if (!batchSize || allShown || loadedCount < visible.length || !more || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting) setShown((n) => n + batchSize);
+      // Also when the visitor already scrolled past it (fast scroll): it would never come back
+      // into view and every photo below would stay an empty tile.
+      if (entry?.isIntersecting || (entry && entry.boundingClientRect.bottom < 0)) setShown((n) => n + batchSize);
     }, { rootMargin: "600px 0px" });
     observer.observe(more);
     return () => observer.disconnect();
@@ -257,16 +261,24 @@ export default function PortfolioParallaxGallery({
   useEffect(() => {
     if (!batchSize || !containerRef.current) return;
     const count = visible.length;
-    const settled = () => { refreshGalleryScroll(); setLoadedCount(count); };
+    let done = false;
+    const settled = () => { if (done) return; done = true; refreshGalleryScroll(); setLoadedCount(count); };
     const pending = [...containerRef.current.querySelectorAll("img")].filter((img) => !img.complete);
-    if (!pending.length) { settled(); return; }
+    // With every photo's shape known, the tiles already have their final height: nothing to wait for.
+    if (!pending.length || pool.every((src) => ratios?.[src])) { settled(); return; }
     let remaining = pending.length;
     const onDone = () => { remaining -= 1; if (remaining <= 0) settled(); };
     pending.forEach((img) => {
       img.addEventListener("load", onDone, { once: true });
       img.addEventListener("error", onDone, { once: true });
     });
-  }, [batchSize, visible.length]);
+    // A lazy photo the visitor scrolled past may never download: don't let it hold back the rest.
+    const timer = window.setTimeout(settled, BATCH_WAIT_MS);
+    return () => {
+      window.clearTimeout(timer);
+      pending.forEach((img) => { img.removeEventListener("load", onDone); img.removeEventListener("error", onDone); });
+    };
+  }, [batchSize, visible.length, pool, ratios]);
 
   // Every photo gets its slot from the start; photos of later batches show as skeleton
   // tiles until their batch comes, so the gallery doesn't grow (and the scrollbar

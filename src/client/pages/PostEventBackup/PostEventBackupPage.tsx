@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { uploadUrl } from "../../utils/address";
 
 type BackupStatusResponse = {
   event?: {
@@ -77,7 +78,7 @@ export default function PostEventBackupPage() {
       formData.append("token", token);
       if (selectedFile) formData.append("proof", selectedFile);
 
-      const res = await fetch(`/api/admin/events/${eventId}/post-event-backup/submit`, {
+      const res = await fetch(uploadUrl(`/api/admin/events/${eventId}/post-event-backup/submit`), {
         method: "POST",
         body: formData,
       });

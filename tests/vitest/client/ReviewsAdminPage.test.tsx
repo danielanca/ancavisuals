@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 import ReviewsAdminPage from "src/client/features/admin/components/ReviewsAdminPage";
+import { uploadUrl } from "src/client/utils/address";
 vi.mock("src/client/features/admin/auth/useAuth", () => ({ default: () => ({ auth: { accessToken: "admin-test" } }) }));
 vi.mock("src/client/features/admin/components/Breadcrumb", () => ({ default: () => null }));
 const fetchMock = vi.fn();
@@ -22,7 +23,7 @@ test("accepting feedback opens an editable draft and publishes only when the own
   fireEvent.click(screen.getByRole("button", { name: "Acceptă și publică recenzia" }));
   await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options.method === "POST")).toBe(true));
   const [url, options] = fetchMock.mock.calls.find(([, options]) => options.method === "POST")!;
-  expect(url).toBe("/api/reviews/admin");
+  expect(url).toBe(uploadUrl("/api/reviews/admin")); // photos: sent through upload.ancavisuals.ro
   expect(options.body.get("sourceFeedbackId")).toBe(feedback.id);
   expect(options.body.get("text")).toBe("Text public verificat");
   expect(options.body.get("rating")).toBe("0");

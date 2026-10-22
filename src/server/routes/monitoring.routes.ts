@@ -7,6 +7,7 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { BOT_UA } from "../utils/botUa";
+import { isNotifiableCountry } from "../utils/geoFilter";
 import { categorizeError, errorFingerprint, isNoiseError, ERROR_CATEGORY_LABELS, type ErrorCategory } from "../../shared/errorCategories";
 
 const router = Router();
@@ -301,6 +302,12 @@ router.post("/client-error", async (req: Request, res: Response) => {
     const trimmedMessage = message.slice(0, 2000);
     const trimmedStack = String(stack).slice(0, 8000);
     captureClientError(trimmedMessage, trimmedStack, page, ip || undefined, geo, { userAgent, admin: admin === true });
+    // Visitors outside Europe are almost always bots and scrapers (an unknown location still counts):
+    // their errors stay in /admin/errors, but send no email (owner, 2026-10-22).
+    if (!isNotifiableCountry(geo?.country)) {
+      res.json({ ok: true });
+      return;
+    }
     const category = categorizeError({ message: trimmedMessage, stack: trimmedStack, page });
     if (admin !== true && NEW_ERROR_EMAIL_CATEGORIES.has(category) && shouldSendNewErrorEmail(errorFingerprint(category, trimmedMessage, page))) {
       sendNewClientErrorEmail(category, trimmedMessage, trimmedStack, page, userAgent, geo).catch(() => {});

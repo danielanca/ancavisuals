@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import AlbumPhotoUploader from "src/client/features/admin/components/AlbumPhotoUploader";
 import { createAlbumPreview } from "src/client/features/admin/components/createAlbumPreview";
 import { buildAlbumZip, uploadAlbumZip } from "src/client/features/admin/components/albumZip";
+import { UPLOAD_ORIGIN } from "src/client/utils/address";
 
 vi.mock("src/client/features/admin/components/createAlbumPreview", () => ({ createAlbumPreview: vi.fn() }));
 vi.mock("src/client/features/admin/components/albumZip", () => ({
@@ -184,7 +185,8 @@ describe("local album preview uploads", () => {
     expect(JSON.parse(zipCheckMock.mock.calls[0][1].body).files).toEqual(["a.jpg", "b.jpg", "c.jpg"]);
     expect(vi.mocked(buildAlbumZip).mock.calls[0][0]).toEqual(files.map((file) => ({ name: file.name, file })));
     const [url, , headers] = vi.mocked(uploadAlbumZip).mock.calls[0];
-    expect(url).toBe("/api/admin/events/e1/upload-album-zip");
+    // Through upload.ancavisuals.ro (UPLOAD_ORIGIN; localhost in tests): Cloudflare caps the main domain at 100 MB.
+    expect(url).toBe(`${UPLOAD_ORIGIN}/api/admin/events/e1/upload-album-zip`);
     expect(headers["X-Album-Zip-Manifest"]).toBe("a".repeat(64));
     expect(headers.Authorization).toBe("Bearer fresh-token");
     expect(screen.getByText(/photos.zip urcat și verificat/)).toBeTruthy();

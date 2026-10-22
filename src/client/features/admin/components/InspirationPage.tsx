@@ -6,6 +6,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../firebase";
 import AncaLoader from "../../../components/UI/AncaLoader";
 import useAuth from "../auth/useAuth";
+import { uploadUrl } from "../../../utils/address";
 
 interface InspirationPhoto {
   id: string;
@@ -999,7 +1000,7 @@ function UploadModal({
     updatePhoto(index, { aiLoading: true });
     try {
       const base64 = await getBase64(photo.file);
-      const res = await fetch("/api/admin/inspiration/suggest-tags-from-image", {
+      const res = await fetch(uploadUrl("/api/admin/inspiration/suggest-tags-from-image"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mediaType: photo.file.type || "image/jpeg", availableTags: PRESET_TAGS }),
@@ -1028,7 +1029,7 @@ function UploadModal({
       updatePhoto(i, { aiLoading: true });
       try {
         const base64 = await getBase64(photo.file);
-        const res = await fetch("/api/admin/inspiration/suggest-tags-from-image", {
+        const res = await fetch(uploadUrl("/api/admin/inspiration/suggest-tags-from-image"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageBase64: base64, mediaType: photo.file.type || "image/jpeg", availableTags: PRESET_TAGS }),

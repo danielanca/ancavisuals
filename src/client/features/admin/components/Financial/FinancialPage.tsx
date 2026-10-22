@@ -11,6 +11,7 @@ import { fiscalizedEventsToInvoice } from "../../../../../shared/finance/taxProj
 import { EXPENSE_CATEGORIES, summarizeExpensesByCategory } from "../../../../../shared/finance/expenseCategories";
 import AiContextChat from "../AiContextChat";
 import { useSearchable } from "../dashboardSearchRegistry";
+import { uploadUrl } from "../../../../utils/address";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -473,7 +474,7 @@ async function uploadExpenseFile(file: File, date: string, accessToken: string):
   formData.append("file", file);
   formData.append("year", String(year));
   formData.append("month", String(month));
-  const response = await fetch("/api/admin/expenses/upload-doc", {
+  const response = await fetch(uploadUrl("/api/admin/expenses/upload-doc"), {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}` },
     body: formData,
@@ -605,7 +606,7 @@ export function AddExpenseModal({ expense, accessToken, existingExpenses: allExp
     const timeoutId = setTimeout(() => controller.abort(), 90_000);
     try {
       const base64 = await fileToBase64(slot.file);
-      const response = await fetch("/api/admin/expenses/scan-receipt", {
+      const response = await fetch(uploadUrl("/api/admin/expenses/scan-receipt"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ fileBase64: base64, mediaType: slot.file.type }),

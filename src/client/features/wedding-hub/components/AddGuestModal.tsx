@@ -2,6 +2,7 @@ import React, { useReducer, useState } from "react";
 import { useWeddingHubAuth } from "../context/WeddingHubAuthContext";
 import type { WeddingGuest } from "../types";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
+import { uploadUrl } from "../../../utils/address";
 
 interface AddGuestModalProps {
   onClose: () => void;
@@ -123,7 +124,7 @@ const AddGuestModal: React.FC<AddGuestModalProps> = ({ onClose, onGuestAdded }) 
 
     try {
       const { base64, mediaType } = await readFileAsBase64(importFile);
-      const response = await fetch("/api/wedding-hub/guests/extract-from-image", {
+      const response = await fetch(uploadUrl("/api/wedding-hub/guests/extract-from-image"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

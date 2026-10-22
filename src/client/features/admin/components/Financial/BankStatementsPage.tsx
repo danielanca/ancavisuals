@@ -4,6 +4,7 @@ import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 import { ROMANIAN_COUNTIES, getCitiesForCounty } from "../../../../data/romaniaLocations";
 import { EXPENSE_CATEGORIES } from "../../../../../shared/finance/expenseCategories";
+import { uploadUrl } from "../../../../utils/address";
 
 interface ReviewCandidate {
   type: "invoice" | "expense";
@@ -260,7 +261,7 @@ function AddBankStatementModal({ accessToken, selectedYear, knownAccounts, defau
   function uploadAndAnalyzeStatement(formData: FormData, labelPrefix: string): Promise<BankStatement> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/admin/bank-statements/upload-analyze");
+      xhr.open("POST", uploadUrl("/api/admin/bank-statements/upload-analyze"));
       xhr.responseType = "json";
       xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
 
@@ -614,7 +615,7 @@ function QuickAddExpenseModal({ accessToken, entry, onClose, onAdded }: QuickAdd
         formData.append("file", docFile);
         formData.append("year", String(year));
         formData.append("month", String(month));
-        const uploadRes = await fetch("/api/admin/expenses/upload-doc", {
+        const uploadRes = await fetch(uploadUrl("/api/admin/expenses/upload-doc"), {
           method: "POST",
           headers: { Authorization: `Bearer ${accessToken}` },
           body: formData,

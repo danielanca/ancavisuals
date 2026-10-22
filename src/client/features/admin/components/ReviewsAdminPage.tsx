@@ -3,6 +3,7 @@ import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { ClientFeedback } from "../../../../shared/feedback/feedback";
+import { uploadUrl } from "../../../utils/address";
 
 const MAX_REVIEW_PHOTOS = 15;
 
@@ -268,7 +269,7 @@ const ReviewsAdminPage: React.FC = () => {
       if (editingId) body.set("keepPhotoUrls", JSON.stringify(form.selectedPhotos.filter(item => item.source === "existing").map(item => item.photo?.url).filter(Boolean)));
 
       const url = editingId ? `/api/reviews/admin/${editingId}` : "/api/reviews/admin";
-      const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers: authHeader, body });
+      const res = await fetch(uploadUrl(url), { method: editingId ? "PUT" : "POST", headers: authHeader, body });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Recenzia nu a putut fi salvată.");
       setShowForm(false);

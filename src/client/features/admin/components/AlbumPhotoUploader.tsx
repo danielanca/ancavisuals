@@ -3,6 +3,7 @@ import { createAlbumPreview } from "./createAlbumPreview";
 import { albumZipManifestHash, buildAlbumZip, uploadAlbumZip } from "./albumZip";
 import { loadFirebaseAuth } from "../providers/loadFirebaseAuth";
 import { sanitizeAlbumPhotoName } from "../../../../shared/albumPhotoName";
+import { uploadUrl } from "../../../utils/address";
 
 interface AlbumPhotoUploaderProps {
   eventId: string;
@@ -90,7 +91,7 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
   const uploadOriginal = async (file: File, index: number, signal: AbortSignal, sessionId: string): Promise<boolean> => {
     try {
       const res = await uploadRequest(
-        `/api/admin/events/${eventId}/upload-photo?name=${encodeURIComponent(file.name)}`,
+        uploadUrl(`/api/admin/events/${eventId}/upload-photo?name=${encodeURIComponent(file.name)}`),
         {
           method: "POST",
           headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/octet-stream", "X-Album-Upload-Session": sessionId },
@@ -110,7 +111,7 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
   const uploadPreview = async (file: File, name: string, signal: AbortSignal): Promise<boolean> => {
     try {
       const preview = await createAlbumPreview(file, signal);
-      const uploaded = await uploadRequest(`/api/admin/events/${eventId}/upload-photo-preview?name=${encodeURIComponent(name)}`, {
+      const uploaded = await uploadRequest(uploadUrl(`/api/admin/events/${eventId}/upload-photo-preview?name=${encodeURIComponent(name)}`), {
         method: "POST",
         headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "image/webp" },
         body: preview,
@@ -221,7 +222,7 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
 
       setZip({ stage: "uploading", done: 0, total: archive.size });
       const uploaded = await uploadAlbumZip(
-        `/api/admin/events/${eventId}/upload-album-zip`,
+        uploadUrl(`/api/admin/events/${eventId}/upload-album-zip`),
         archive,
         { Authorization: `Bearer ${await token()}`, "Content-Type": "application/zip", "X-Album-Zip-Manifest": manifest },
         controller.signal,
@@ -229,7 +230,7 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
       );
       if (!uploaded.ok) {
         throw new Error(uploaded.status === 413
-          ? "nginx a respins ZIP-ul (413): pe VPS lipsește `client_max_body_size 0` pentru /upload-album-zip."
+          ? "nginx a respins ZIP-ul (413): pe VPS, în upload.ancavisuals.conf, lipsește `client_max_body_size 0` pentru /upload-album-zip."
           : uploaded.error ?? `Serverul a răspuns ${uploaded.status}.`);
       }
       setZip({ stage: "done", done: archive.size, total: archive.size });

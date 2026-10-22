@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
+import { uploadUrl } from "../../../utils/address";
 
 interface PdfResource {
   id: string;
@@ -43,7 +44,7 @@ function AddPdfModal({ accessToken, onClose, onAdded }: AddPdfModalProps) {
       formData.append("file", file);
       formData.append("title", title.trim());
 
-      const response = await fetch("/api/pdf-resources", {
+      const response = await fetch(uploadUrl("/api/pdf-resources"), {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
         body: formData,

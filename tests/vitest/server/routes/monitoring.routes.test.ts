@@ -171,6 +171,27 @@ describe("monitoring.routes", () => {
       );
     });
 
+    test("errors from outside Europe are saved for /admin/errors but send no email", async () => {
+      const { postClientError, captureClientError, sendEmailMock } = await loadMonitoringRouter({
+        ip: "1.2.3.4",
+        ipInfo: { city: "Taiyuan", region: "Shanxi", country: "CN" },
+      });
+      await postClientError({ body: { message: "Minified React error #418", stack: "at Eg (index.js:1)", page: "/foto-video-inmormantare-cugir" }, headers: { "user-agent": "Mozilla/5.0" } }, createMockResponse());
+      await Promise.resolve();
+      expect(captureClientError).toHaveBeenCalledTimes(1);
+      expect(sendEmailMock).not.toHaveBeenCalled();
+    });
+
+    test("a European visitor's new error is still emailed", async () => {
+      const { postClientError, sendEmailMock } = await loadMonitoringRouter({
+        ip: "82.77.154.81",
+        ipInfo: { city: "Cluj-Napoca", region: "Cluj", country: "RO" },
+      });
+      await postClientError({ body: { message: "TypeError: x is undefined", stack: "at x.js:1", page: "/contact" }, headers: { "user-agent": "Mozilla/5.0" } }, createMockResponse());
+      await Promise.resolve();
+      expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    });
+
     test("drops browser noise and stops storing after 30 reports from one IP in ten minutes", async () => {
       const { postClientError, captureClientError } = await loadMonitoringRouter({ ip: "5.6.7.8" });
       const noise = createMockResponse();

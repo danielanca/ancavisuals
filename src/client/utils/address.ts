@@ -14,3 +14,9 @@ export const destination: string = isProd ? PROD_ORIGIN : LOCAL_ORIGIN;
 // doar pentru upload-uri mari (ex: video QR Moments) ca să ocolească plafonul
 // de 100MB pe care Cloudflare îl impune peste tot altundeva pe domeniul principal.
 export const UPLOAD_ORIGIN: string = isProd ? "https://upload.ancavisuals.ro" : LOCAL_ORIGIN;
+
+/**
+ * Every upload (files, photos, videos, documents) goes here, never to the main domain: Cloudflare
+ * refuses requests over 100 MB there. Cross-origin is allowed server-side (`uploadOriginCors`).
+ */
+export const uploadUrl = (path: string): string => `${UPLOAD_ORIGIN}${path}`;

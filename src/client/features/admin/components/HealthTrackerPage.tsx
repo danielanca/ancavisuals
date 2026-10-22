@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
+import { uploadUrl } from "../../../utils/address";
 
 // ── Theme ──────────────────────────────────────────────────────────────────────
 
@@ -832,7 +833,7 @@ function StepSection({
     setError(null);
     try {
       const photoBase64 = base64;
-      const res = await fetch(`/api/admin/health/activity/${userId}`, {
+      const res = await fetch(uploadUrl(`/api/admin/health/activity/${userId}`), {
         method: "POST",
         headers: { ...authHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({ photoBase64, date: today }),

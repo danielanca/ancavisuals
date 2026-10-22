@@ -4,6 +4,7 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebas
 import { storage } from "../../firebase";
 import useAuth from "../admin/auth/useAuth";
 import AncaLoader from "../../components/UI/AncaLoader";
+import { uploadUrl } from "../../utils/address";
 
 const PRESET_TAGS = [
   "nuntă", "botez", "cununia civilă", "logodnă", "cununie",
@@ -258,7 +259,7 @@ export default function CollaboratorPage() {
     dispatch({ type: "UPDATE_DRAFT", index, updates: { aiLoading: true } });
     try {
       const base64 = await getBase64(draft.file);
-      const response = await fetch("/api/admin/inspiration/suggest-tags-from-image", {
+      const response = await fetch(uploadUrl("/api/admin/inspiration/suggest-tags-from-image"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
         body: JSON.stringify({

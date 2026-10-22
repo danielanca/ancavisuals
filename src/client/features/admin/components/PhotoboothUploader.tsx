@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { uploadUrl } from "../../../utils/address";
 
 interface PhotoboothUploaderProps {
   eventId: string;
@@ -40,7 +41,7 @@ export default function PhotoboothUploader({ eventId, accessToken, galleryUrl }:
       batch.forEach((file) => formData.append("files", file));
 
       try {
-        const response = await fetch(`/api/admin/events/${eventId}/photobooth-upload`, {
+        const response = await fetch(uploadUrl(`/api/admin/events/${eventId}/photobooth-upload`), {
           method: "POST",
           headers: { Authorization: `Bearer ${accessToken}` },
           body: formData,

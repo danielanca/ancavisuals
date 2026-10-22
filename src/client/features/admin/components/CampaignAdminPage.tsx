@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import Breadcrumb from "./Breadcrumb";
 import type { CampaignPage, CampaignPackage } from "../../../pages/CampaignLanding/CampaignLandingPage";
 import ReorderableMediaGrid, { type ReorderableMediaItem } from "./shared/ReorderableMediaGrid";
+import { uploadUrl } from "../../../utils/address";
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ async function apiUploadFile(path: string, file: File): Promise<{ url: string; b
   const token = await getAuth().currentUser?.getIdToken();
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(path, {
+  const response = await fetch(uploadUrl(path), {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
