@@ -82,6 +82,11 @@ const STYLES = `
 `;
 
 const formatAmount = (n: number) => n.toLocaleString("ro-RO");
+/** Paid when the contract is signed — the booking advance. */
+const CONTRACT_ADVANCE_EUR = 200;
+/** Weddings and baptisms book with the fixed advance; smaller events with 20% of the total (rounded to 5 €, never above the fixed one). */
+const contractAdvance = (eventKey: ConfiguratorEventKey, total: number) =>
+  eventKey === "nunta" || eventKey === "botez" ? CONTRACT_ADVANCE_EUR : Math.min(Math.round((total * 0.2) / 5) * 5, CONTRACT_ADVANCE_EUR);
 
 const MONTHS = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 
@@ -244,6 +249,7 @@ export default function PriceConfigurator({
     () => buildQuote({ event: eventKey, service, extras, guestTier, hours, albumVariant }, prices, { photoboothFree: freeBooth }),
     [eventKey, service, extras, guestTier, hours, albumVariant, prices, freeBooth],
   );
+  const advance = contractAdvance(eventKey, quote.total);
   const shownTotal = useCountUp(quote.total);
   // Restart the pulse on every new total.
   const [pulse, setPulse] = useState(0);
@@ -370,6 +376,7 @@ export default function PriceConfigurator({
     `Bună! Mi-am făcut configurația pe site pentru ${event.label.toLocaleLowerCase("ro-RO")}${eventDate ? `, pe ${formatDate(eventDate)}` : ""}${place ? ` (locația: ${place})` : ""}:`,
     ...quote.lines.map((line) => `• ${line.label}${line.waived ? " (ofertă: gratuit)" : ` — ${formatAmount(line.amount)} €`}`),
     `Estimare: ${priceFromLowestMonth ? "de la " : ""}${formatAmount(quote.total)} €.`,
+    `Avans la semnarea contractului: ${formatAmount(advance)} €.`,
     available === null
       ? "Aș dori să verificăm disponibilitatea și detaliile."
       : available
@@ -816,11 +823,24 @@ export default function PriceConfigurator({
                 </ul>
 
                 <div className="mt-6 text-center">
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">{priceFromLowestMonth ? "Estimare · de la" : "Estimare"}</p>
-                  <p key={pulse} className={`mt-1 flex items-baseline justify-center gap-1.5 ${pulse ? "configurator-pulse" : ""}`} aria-live="polite">
-                    <span className="text-6xl font-normal leading-none tabular-nums">{formatAmount(shownTotal)}</span>
-                    <span className="text-2xl font-normal text-white/60">€</span>
+                  {/* Lead with the small amount due now; the full estimate stays visible but quieter. */}
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/75">La semnarea contractului achitați</p>
+                  <p className="mt-1 flex items-baseline justify-center gap-1.5 text-green-500">
+                    <span className="text-5xl font-semibold leading-none tabular-nums">{formatAmount(advance)}</span>
+                    <span className="text-xl font-semibold">€</span>
                   </p>
+                  <p className="mt-2 text-xs text-white/80">avans</p>
+                  {/* Advance → rest → total, each step quieter than the one before. */}
+                  <dl className="mx-auto mt-5 max-w-[17rem] space-y-2 border-t border-white/15 pt-4 text-left">
+                    <div className="flex items-baseline justify-between gap-4 text-white/85">
+                      <dt className="text-sm">Restul, la finalul evenimentului</dt>
+                      <dd className="shrink-0 whitespace-nowrap text-lg tabular-nums">{formatAmount(Math.max(shownTotal - advance, 0))} €</dd>
+                    </div>
+                    <div key={pulse} className={`flex items-baseline justify-between gap-4 text-white/55 ${pulse ? "configurator-pulse" : ""}`} aria-live="polite">
+                      <dt className="text-xs">{priceFromLowestMonth ? "Total estimat, de la" : "Total estimat"}</dt>
+                      <dd className="shrink-0 whitespace-nowrap text-xs tabular-nums">{formatAmount(shownTotal)} €</dd>
+                    </div>
+                  </dl>
                   <p className="mx-auto mt-3 max-w-[15rem] text-xs leading-relaxed text-white/50 [text-wrap:balance]">Prețul final îl confirmăm împreună, după ce discutăm detaliile.</p>
                 </div>
 

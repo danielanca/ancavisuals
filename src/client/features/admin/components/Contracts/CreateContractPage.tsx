@@ -28,6 +28,9 @@ interface ServiceEntry {
 
 const TRANSPORT_SERVICE_ID = "transport";
 const FREE_BOOTH_SERVICE_IDS = ["photobooth", "videobooth"];
+const QR_MOMENTS_SERVICE_ID = "qr_moments";
+// Checked on every new contract and kept checked by the event-type templates (owner: QR Moments is always free).
+const ALWAYS_INCLUDED_SERVICE_IDS = [QR_MOMENTS_SERVICE_ID];
 
 // Pre-filled prices
 const DEFAULT_SERVICES: ServiceEntry[] = [
@@ -41,6 +44,7 @@ const DEFAULT_SERVICES: ServiceEntry[] = [
   { id: "usb",        label: "USB Stick cu toate materialele",            included: false, priceRaw: ""     },
   { id: "photobooth", label: "Fotocabină / Photo Booth",                 included: false, priceRaw: "250"  },
   { id: "videobooth", label: "Video Cabină 360 / VideoBooth",            included: false, priceRaw: "250"  },
+  { id: QR_MOMENTS_SERVICE_ID, label: "QR Code Moments (invitații încarcă poze prin cod QR)", included: true, priceRaw: "GRATUIT" },
   { id: "teaser",     label: "Teaser video (1–2 min)",                   included: false, priceRaw: ""     },
   { id: TRANSPORT_SERVICE_ID,  label: "Taxă transport spre și de la eveniment",   included: false, priceRaw: ""     },
 ];
@@ -311,7 +315,8 @@ const CreateContractPage: React.FC = () => {
       if (draft.eventStartTime !== undefined) setEventStartTime(draft.eventStartTime);
       if (draft.eventEndTime !== undefined) setEventEndTime(draft.eventEndTime);
       if (draft.eventDetails !== undefined) setEventDetails(draft.eventDetails);
-      if (draft.services !== undefined) setServices(draft.services);
+      // Drafts saved before a service existed get it back in its default place and state.
+      if (draft.services !== undefined) setServices(DEFAULT_SERVICES.map((d) => (draft.services as ServiceEntry[]).find((s) => s.id === d.id) ?? d));
       if (draft.customServices !== undefined) setCustomServices(draft.customServices);
       if (draft.currency !== undefined) setCurrency(draft.currency);
       if (draft.manualTotal !== undefined) setManualTotal(draft.manualTotal);
@@ -431,7 +436,7 @@ const CreateContractPage: React.FC = () => {
 
   const applyTemplate = (type: string) => {
     const templateIds = SERVICE_TEMPLATES[type] ?? [];
-    setServices((prev) => prev.map((s) => ({ ...s, included: templateIds.includes(s.id) })));
+    setServices((prev) => prev.map((s) => ({ ...s, included: templateIds.includes(s.id) || ALWAYS_INCLUDED_SERVICE_IDS.includes(s.id) })));
     setLastAppliedTemplate(type);
     setServiceErrors(new Set());
   };
@@ -664,7 +669,7 @@ const CreateContractPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setServices(DEFAULT_SERVICES.map((s) => ({ ...s, included: false })));
+                    setServices(DEFAULT_SERVICES.map((s) => ({ ...s, included: ALWAYS_INCLUDED_SERVICE_IDS.includes(s.id) })));
                     setLastAppliedTemplate(null);
                   }}
                   className="text-xs text-neutral-500 hover:text-neutral-300 ml-3 shrink-0 transition-colors"

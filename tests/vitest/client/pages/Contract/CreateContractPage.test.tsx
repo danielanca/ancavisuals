@@ -106,7 +106,10 @@ describe("CreateContractPage", () => {
       const call = fetchMock.mock.calls.find(([url, options]) => url === "/api/contracts" && options?.method === "POST");
       expect(call).toBeDefined();
       const payload = JSON.parse(call![1].body);
-      expect(payload.services).toEqual([expect.objectContaining({ isTransport: true, price: 20 })]);
+      expect(payload.services).toEqual([
+        expect.objectContaining({ label: "QR Code Moments (invitații încarcă poze prin cod QR)", gratuit: true }),
+        expect.objectContaining({ isTransport: true, price: 20 }),
+      ]);
       expect(payload.priceTotal).toBe(20);
     });
   });
@@ -147,7 +150,7 @@ describe("CreateContractPage", () => {
 
       renderPage();
 
-      // "Altul" has no template — all services start unchecked, no transport complications
+      // "Altul" has no template — only QR Moments (always free) stays checked, no transport complications
       fireEvent.change(getEventTypeSelect(), { target: { value: "Altul" } });
 
       const futureDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
@@ -155,7 +158,7 @@ describe("CreateContractPage", () => {
 
       // Click first service checkbox (foto_video) to include it, then set price
       fireEvent.click(screen.getAllByRole("checkbox")[0]);
-      fireEvent.change(screen.getByPlaceholderText("Preț / GRATUIT"), {
+      fireEvent.change(screen.getAllByPlaceholderText("Preț / GRATUIT")[0], {
         target: { value: "GRATUIT" },
       });
 
@@ -163,7 +166,7 @@ describe("CreateContractPage", () => {
       fireEvent.change(screen.getByPlaceholderText("Denumire serviciu"), {
         target: { value: "Dronă" },
       });
-      fireEvent.change(screen.getAllByPlaceholderText("Preț / GRATUIT")[1], {
+      fireEvent.change(screen.getAllByPlaceholderText("Preț / GRATUIT")[2], {
         target: { value: "250" },
       });
 
@@ -192,6 +195,7 @@ describe("CreateContractPage", () => {
         eventDetails: "",
         services: [
           { label: "Foto + Video (1 fotograf + 1 videograf)", price: 0, gratuit: true },
+          { label: "QR Code Moments (invitații încarcă poze prin cod QR)", price: 0, gratuit: true },
           { label: "Dronă", price: 250, gratuit: false },
         ],
         currency: "RON",
@@ -281,7 +285,7 @@ describe("CreateContractPage", () => {
       });
 
       fireEvent.click(screen.getAllByRole("checkbox")[0]);
-      fireEvent.change(screen.getByPlaceholderText("Preț / GRATUIT"), {
+      fireEvent.change(screen.getAllByPlaceholderText("Preț / GRATUIT")[0], {
         target: { value: "" },
       });
 
@@ -309,7 +313,7 @@ describe("CreateContractPage", () => {
       });
 
       fireEvent.click(screen.getAllByRole("checkbox")[0]);
-      fireEvent.change(screen.getByPlaceholderText("Preț / GRATUIT"), {
+      fireEvent.change(screen.getAllByPlaceholderText("Preț / GRATUIT")[0], {
         target: { value: "500" },
       });
 
