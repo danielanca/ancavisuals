@@ -33,6 +33,8 @@ interface PriceConfiguratorProps {
   onWhatsAppClick: (position: string) => void;
   /** Free photo booth promo (weddings only, while the countdown runs). */
   photoboothFree: boolean;
+  /** Under the photobooth's "🎁 Cadou · Gratuit" badge: why it is free and until when. */
+  photoboothNote?: string;
   /** The page's own date picker state — one date for the configurator and the availability form. */
   dateParts: DatePick;
   onDatePart: (patch: Partial<DatePick>) => void;
@@ -209,7 +211,7 @@ function initialEvent(): ConfiguratorEventKey {
 }
 
 export default function PriceConfigurator({
-  waLink, onWhatsAppClick, photoboothFree, dateParts, onDatePart, eventDate, bookedDates, onDateChecked, onPriceConfigured, onEventChange, onBook, onLocationChange, onSubmitLead,
+  waLink, onWhatsAppClick, photoboothFree, photoboothNote, dateParts, onDatePart, eventDate, bookedDates, onDateChecked, onPriceConfigured, onEventChange, onBook, onLocationChange, onSubmitLead,
 }: PriceConfiguratorProps) {
   const standardPrices = usePriceBook();
   const seasons = usePriceSeasons();
@@ -661,7 +663,7 @@ export default function PriceConfigurator({
                           </span>
                           <span className="mt-0.5 block text-xs text-neutral-600">{extra.note}</span>
                           {free && (
-                            <span className="mt-1 block text-xs font-semibold text-amber-700">{event.giftNote ?? "3 din 5 locuri s-au ocupat · Mai sunt 2 disponibile"}</span>
+                            <span className="mt-1 block text-xs font-semibold text-amber-700">{event.giftNote ?? photoboothNote ?? "3 din 5 locuri s-au ocupat · Mai sunt 2 disponibile"}</span>
                           )}
                         </span>
                         <span className="shrink-0 text-right text-sm">

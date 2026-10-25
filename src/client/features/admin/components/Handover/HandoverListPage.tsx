@@ -9,6 +9,7 @@ import { getPublicAppOrigin } from "./publicOrigin";
 import { openAuthedInNewTab } from "../../providers/authFetch";
 import { whatsappUrl } from "../../whatsappUrl";
 import { daysUntil, digitalLinksValidUntil } from "../../../../../shared/handoverDownload";
+import { AUTO_SIGN_REMINDER_INTERVAL_DAYS, AUTO_SIGN_REMINDER_MAX, nextAutoSignReminderAt } from "../../../../../shared/handoverSignReminder";
 
 interface HandoverItem {
   id: string;
@@ -32,6 +33,12 @@ interface HandoverItem {
   signedAt?: string;
   downloadReminderSentAt?: string | null;
   downloadReminderCount?: number;
+  sentAt?: string | null;
+  signReminderSentAt?: string | null;
+  signReminderCount?: number;
+  signReminderChannels?: string[];
+  autoSignReminder?: boolean;
+  autoSignReminderCount?: number;
 }
 
 interface LinkedEvent {
@@ -40,7 +47,7 @@ interface LinkedEvent {
   typeLabel?: string;
   eventDate?: string | null;
   handoverId?: string;
-  client?: { fullName?: string; phone?: string };
+  client?: { fullName?: string; phone?: string; email?: string };
 }
 
 const DeliveryBadge: React.FC<{ label: string }> = ({ label }) => (
@@ -58,11 +65,8 @@ function handoverWhatsAppMessage(token: string): string {
   return `Salutare! Aici se află materialele: ${getPublicAppOrigin()}/proces-verbal/${token}`;
 }
 
-function downloadReminderWhatsAppMessage(token: string, validUntil: Date | null): string {
-  const deadline = validUntil && daysUntil(validUntil) > 0
-    ? ` Link-urile sunt valabile până pe ${validUntil.toLocaleDateString("ro-RO", { day: "2-digit", month: "long" })}.`
-    : "";
-  return `Salutare! Un mic reminder să descărcați materialele de la eveniment.${deadline} Le găsiți aici: ${getPublicAppOrigin()}/proces-verbal/${token}\nDupă descărcare, vă recomandăm să păstrați și o copie de rezervă. Mulțumim!`;
+function channelsLabel(channels: string[]): string {
+  return channels.map((c) => (c === "sms" ? "SMS" : c)).join(" + ");
 }
 
 // Signed handovers with a digital link are the only ones where "download your materials" makes sense
@@ -87,7 +91,7 @@ const HandoverListPage: React.FC = () => {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [resending, setResending] = useState<string | null>(null);
   const [reminding, setReminding] = useState<string | null>(null);
-  const [downloadReminding, setDownloadReminding] = useState<string | null>(null);
+  const [autoToggling, setAutoToggling] = useState<string | null>(null);
 
   type PendingAction = { type: "delete" | "send"; id: string; label: string } | null;
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -185,11 +189,17 @@ const HandoverListPage: React.FC = () => {
     try {
       const res = await fetch(`/api/handover/${id}/reminder`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${auth.accessToken}` },
+        headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: true, sms: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      showToast("Email de re-amintire trimis clientului.");
+      const channels = [data.emailed && "email", data.smsSent && "sms"].filter(Boolean) as string[];
+      setItems((prev) => prev.map((it) => (it.id === id
+        ? { ...it, signReminderSentAt: data.signReminderSentAt, signReminderCount: data.signReminderCount, signReminderChannels: channels }
+        : it)));
+      showToast(`Reminder trimis clientului pe ${channelsLabel(channels)}.`);
+      if (data.smsError) setActionError(`Emailul a plecat, dar SMS-ul nu: ${data.smsError}`);
     } catch (e: unknown) {
       setActionError("Eroare la reminder: " + (e instanceof Error ? e.message : "necunoscută"));
     } finally {
@@ -197,24 +207,22 @@ const HandoverListPage: React.FC = () => {
     }
   };
 
-  const handleDownloadReminder = async (id: string) => {
-    setDownloadReminding(id);
+  const handleAutoReminderToggle = async (id: string, enabled: boolean) => {
+    setAutoToggling(id);
     setActionError(null);
     try {
-      const res = await fetch(`/api/handover/${id}/download-reminder`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      const res = await fetch(`/api/handover/${id}/auto-reminder`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setItems((prev) => prev.map((it) => (it.id === id
-        ? { ...it, downloadReminderSentAt: data.downloadReminderSentAt, downloadReminderCount: data.downloadReminderCount }
-        : it)));
-      showToast("Reminder de descărcare trimis clientului.");
+      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, autoSignReminder: enabled } : it)));
     } catch (e: unknown) {
-      setActionError("Eroare la reminder descărcare: " + (e instanceof Error ? e.message : "necunoscută"));
+      setActionError("Eroare la reminderul automat: " + (e instanceof Error ? e.message : "necunoscută"));
     } finally {
-      setDownloadReminding(null);
+      setAutoToggling(null);
     }
   };
 
@@ -315,6 +323,13 @@ const HandoverListPage: React.FC = () => {
               const remindDownload = canRemindDownload(item);
               const validUntil = remindDownload ? digitalLinksValidUntil(item.signedAt, item.digitalLinkExpiryDays) : null;
               const daysLeft = validUntil ? daysUntil(validUntil) : null;
+              const awaitingSignature = item.status === "sent";
+              const reminderEmail = Boolean(item.clientEmail?.trim() || event?.client?.email?.trim());
+              const reminderPhone = Boolean(event?.client?.phone?.trim());
+              const reminderChannels = [reminderEmail && "email", reminderPhone && "sms"].filter(Boolean) as string[];
+              const nextAutoReminder = awaitingSignature ? nextAutoSignReminderAt({
+                sentAt: item.sentAt, lastReminderAt: item.signReminderSentAt, autoCount: item.autoSignReminderCount, enabled: item.autoSignReminder,
+              }) : null;
               return (
                 <div key={item.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -370,15 +385,39 @@ const HandoverListPage: React.FC = () => {
                             className="px-2 py-0.5 rounded-md bg-green-700/60 hover:bg-green-600/70 text-white transition-colors">
                             WhatsApp
                           </a>}
-                          {remindDownload && whatsappUrl(event.client.phone) && <a href={whatsappUrl(event.client.phone, downloadReminderWhatsAppMessage(item.token, validUntil))!} target="_blank" rel="noopener noreferrer"
-                            className="px-2 py-0.5 rounded-md border border-green-700/70 text-green-300 hover:bg-green-700/30 transition-colors">
-                            ⏰ Reminder descărcare
-                          </a>}
                         </span>}
                         <span>Creat: {formatDate(item.createdAt)}</span>
                         {item.signedAt && <span>Semnat: {formatDate(item.signedAt)}</span>}
                         {item.awb && <span>AWB: {item.awb}</span>}
                       </div>
+                      {awaitingSignature && (
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-3 text-xs">
+                          <button type="button" disabled={reminderChannels.length === 0 || reminding !== null}
+                            onClick={() => void handleReminder(item.id)}
+                            className="px-3 py-1.5 rounded-lg border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 disabled:opacity-40 transition-colors">
+                            {reminding === item.id ? "Se trimite…"
+                              : reminderChannels.length === 0 ? "⏰ Reminder (fără email / telefon)"
+                              : `${item.signReminderSentAt ? "🔁 Trimite din nou reminder" : "⏰ Trimite reminder"} (${channelsLabel(reminderChannels)})`}
+                          </button>
+                          {item.signReminderSentAt && (
+                            <span className="text-sky-400">
+                              Ultimul reminder: {formatDate(item.signReminderSentAt)}
+                              {(item.signReminderCount ?? 0) > 1 && ` · ${item.signReminderCount}×`}
+                              {(item.signReminderChannels?.length ?? 0) > 0 && ` · ${channelsLabel(item.signReminderChannels!)}`}
+                            </span>
+                          )}
+                          <span className={item.autoSignReminder === false ? "text-neutral-600" : "text-neutral-400"}>
+                            🤖 {item.autoSignReminder === false ? "Reminder automat oprit"
+                              : nextAutoReminder ? `Automat la ${AUTO_SIGN_REMINDER_INTERVAL_DAYS} zile (max ${AUTO_SIGN_REMINDER_MAX}) · următorul: ${formatDate(nextAutoReminder.toISOString())}`
+                              : `Cele ${AUTO_SIGN_REMINDER_MAX} remindere automate au fost trimise`}
+                            {" · "}
+                            <button type="button" disabled={autoToggling === item.id} onClick={() => void handleAutoReminderToggle(item.id, item.autoSignReminder === false)}
+                              className="underline underline-offset-2 hover:text-white disabled:opacity-50">
+                              {item.autoSignReminder === false ? "Pornește" : "Oprește"}
+                            </button>
+                          </span>
+                        </div>
+                      )}
                       {remindDownload && (validUntil || item.downloadReminderSentAt) && (
                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs">
                           {validUntil && daysLeft !== null && (
@@ -402,8 +441,6 @@ const HandoverListPage: React.FC = () => {
                       sending={sending}
                       deleting={deleting}
                       resending={resending}
-                      reminding={reminding}
-                      downloadReminding={downloadReminding}
                       onPreview={() => { void openAuthedInNewTab(`/api/handover/${item.id}/preview`).catch(() => {}); }}
                       onSend={() => confirmAction("send", item.id, `${item.eventType} — ${item.clientEmail || item.clientName || "client"}`)}
                       onCopyLink={() => {
@@ -413,8 +450,6 @@ const HandoverListPage: React.FC = () => {
                       }}
                       onDelete={() => confirmAction("delete", item.id, `${item.eventType} — ${item.clientEmail || item.clientName || "client"}`)}
                       onResend={() => handleResend(item.id)}
-                      onReminder={() => handleReminder(item.id)}
-                      onDownloadReminder={() => handleDownloadReminder(item.id)}
                       onEdit={() => setEditingItem(item)}
                     />
                   </div>

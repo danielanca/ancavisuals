@@ -55,6 +55,10 @@
 
         // Google tag — nu este necesar în admin.
         if (!isAdminPath) {
+          // Microsoft Clarity se încarcă din GTM, iar un tag GTM apelează window.clarity(...)
+          // uneori înainte de script (sau când e blocat) → „window.clarity is not a function”.
+          // Stub-ul oficial pune apelurile în coadă; Clarity le preia când se încarcă.
+          window.clarity=window.clarity||function(){(window.clarity.q=window.clarity.q||[]).push(arguments)};
           // Google Tag Manager
           (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
           new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],

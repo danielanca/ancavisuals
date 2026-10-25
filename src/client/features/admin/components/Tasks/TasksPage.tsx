@@ -99,17 +99,45 @@ function formatDay(day: string): string {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("ro-RO", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
+const splitMinutes = (value: string) => {
+  const total = Number(value);
+  return value === "" || !Number.isFinite(total)
+    ? { hours: "", minutes: "" }
+    : { hours: total >= 60 ? String(Math.floor(total / 60)) : "", minutes: total % 60 ? String(total % 60) : "" };
+};
+
+// Ore + minute în două căsuțe text (fără săgețile de la type=number); în afară rămâne totalul în minute.
 function EstimatedTimeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [parts, setParts] = useState(() => splitMinutes(value));
+  const compose = (next: { hours: string; minutes: string }) =>
+    next.hours === "" && next.minutes === "" ? "" : String(Number(next.hours || 0) * 60 + Number(next.minutes || 0));
+  // Valoarea schimbată din afară (golire după „Adaugă”, alt task în editor) reîncarcă căsuțele.
+  useEffect(() => {
+    if (compose(parts) !== value) setParts(splitMinutes(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- doar când se schimbă valoarea din afară
+  }, [value]);
+  const update = (key: "hours" | "minutes", raw: string) => {
+    const next = { ...parts, [key]: raw.replace(/\D/g, "").slice(0, key === "hours" ? 3 : 2) };
+    setParts(next);
+    onChange(compose(next));
+  };
+  const total = Number(value);
+  const valid = value !== "" && total >= 5 && total <= MAX_DURATION_MIN;
+  const digitClass = `${inputClass} w-20 text-center tabular-nums`;
   return (
-    <label className="block text-xs text-neutral-400 space-y-1">
-      <span>Timp estimat (minute, opțional)</span>
-      <input type="number" min={5} max={MAX_DURATION_MIN} step={1} value={value}
-        onChange={(event) => onChange(event.target.value)} aria-label="Timp estimat (minute)"
-        placeholder="ex: 120"
-        className={`${inputClass} w-full [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-      />
-      {Number(value) >= 5 && Number(value) <= MAX_DURATION_MIN && <span className="block text-neutral-500">{formatDuration(Number(value))}</span>}
-    </label>
+    <div className="text-xs text-neutral-400 space-y-1">
+      <span className="block">Timp estimat (opțional)</span>
+      <div className="flex items-center gap-2">
+        <input type="text" inputMode="numeric" value={parts.hours} onChange={(event) => update("hours", event.target.value)}
+          aria-label="Timp estimat (ore)" placeholder="0" className={digitClass} />
+        <span>ore</span>
+        <input type="text" inputMode="numeric" value={parts.minutes} onChange={(event) => update("minutes", event.target.value)}
+          aria-label="Timp estimat (minute)" placeholder="0" className={digitClass} />
+        <span>minute</span>
+        {valid && <span className="ml-2 text-neutral-500">= {formatDuration(total)}</span>}
+        {value !== "" && !valid && <span className="ml-2 text-red-400">{total < 5 ? "minim 5 minute" : "prea mult"}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -394,6 +422,7 @@ export default function TasksPage() {
                   onUnschedule={(id) => scheduleTask(id, null)}
                   onComplete={(id) => updateTask(id, { status: "done" })}
                   onExternalDragOver={() => setDropIndex(null)}
+                  dragDurationMin={(dragIndex !== null ? todayTasks[dragIndex]?.durationMin : null) ?? DEFAULT_DURATION_MIN}
                 />
               </div>
               <div className="space-y-5">

@@ -90,6 +90,9 @@ export default function MediaAssetsAdminPage() {
   const [reprocessSummary, setReprocessSummary] = useState<string | null>(null);
   const [generatingAltIds, setGeneratingAltIds] = useState<Set<string>>(new Set());
   const [bulkAltProgress, setBulkAltProgress] = useState<{ done: number; total: number } | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [downloading, setDownloading] = useState(false);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -242,6 +245,59 @@ export default function MediaAssetsAdminPage() {
     });
   }
 
+  function toggleSelected(assetId: string) {
+    setSelectedIds(current => {
+      const next = new Set(current);
+      next.has(assetId) ? next.delete(assetId) : next.add(assetId);
+      return next;
+    });
+  }
+
+  function toggleGroupSelected(groupAssets: OfferMediaAsset[]) {
+    setSelectedIds(current => {
+      const next = new Set(current);
+      const allSelected = groupAssets.every(asset => next.has(asset.id));
+      for (const asset of groupAssets) allSelected ? next.delete(asset.id) : next.add(asset.id);
+      return next;
+    });
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  async function downloadSelected() {
+    if (selectedIds.size === 0) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/oferte/admin/media-assets/download-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({ assetIds: Array.from(selectedIds) }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(data?.error ?? `Descarcarea a esuat (${response.status}).`);
+      }
+      const blob = await response.blob();
+      const fileName = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? "media-assets.zip";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : String(downloadError));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   async function openImportModal(serviceId: string) {
     const isVideo = serviceId === "video";
     setImportModal({
@@ -367,7 +423,7 @@ export default function MediaAssetsAdminPage() {
   return (
     <div>
       <Breadcrumb />
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-6">
+      <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-6 ${selectMode ? "pb-24" : ""}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-xl font-light text-white">Media Assets</h1>
@@ -376,6 +432,16 @@ export default function MediaAssetsAdminPage() {
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              disabled={assets.length === 0}
+              className={`rounded-lg border px-4 py-2 text-sm transition-colors disabled:border-neutral-800 disabled:text-neutral-600 ${
+                selectMode ? "border-white bg-white text-black" : "border-neutral-700 text-neutral-200 hover:border-neutral-500"
+              }`}
+            >
+              {selectMode ? "Iesi din selectie" : "Selecteaza pentru descarcare"}
+            </button>
             <a href="/admin/instagram-proposals/selectie-comuna?destination=media_assets" className="rounded-lg border border-emerald-800 px-4 py-2 text-sm text-emerald-300 hover:border-emerald-600">
               Selecția comună de poze
             </a>
@@ -502,7 +568,18 @@ export default function MediaAssetsAdminPage() {
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
                               <span className="text-xs text-neutral-600">{groupAssets.length}</span>
-                              {groupKey !== DIRECT_SOURCE && (
+                              {selectMode && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => { e.stopPropagation(); toggleGroupSelected(groupAssets); }}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); toggleGroupSelected(groupAssets); } }}
+                                  className="rounded-md border border-neutral-700 px-2 py-0.5 text-[11px] text-neutral-300 hover:border-neutral-500 hover:text-white transition-colors"
+                                >
+                                  {groupAssets.every(asset => selectedIds.has(asset.id)) ? "Deselecteaza tot" : "Selecteaza tot"}
+                                </span>
+                              )}
+                              {!selectMode && groupKey !== DIRECT_SOURCE && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -521,14 +598,37 @@ export default function MediaAssetsAdminPage() {
 
                           {!isCollapsed && (
                             <div className="columns-2 gap-3 px-4 pb-4 sm:columns-3 lg:columns-4 xl:columns-5">
-                              {groupAssets.map(asset => (
-                                <article key={asset.id} className="group mb-3 break-inside-avoid overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900">
-                                  <div className="relative bg-neutral-900 cursor-zoom-in" onClick={() => setLightbox(asset)}>
+                              {groupAssets.map(asset => {
+                                const isSelected = selectedIds.has(asset.id);
+                                return (
+                                <article
+                                  key={asset.id}
+                                  className={`group mb-3 break-inside-avoid overflow-hidden rounded-2xl border bg-neutral-900 ${isSelected ? "border-white" : "border-neutral-800"}`}
+                                >
+                                  <div
+                                    className={`relative bg-neutral-900 ${selectMode ? "cursor-pointer" : "cursor-zoom-in"}`}
+                                    onClick={() => (selectMode ? toggleSelected(asset.id) : setLightbox(asset))}
+                                    role={selectMode ? "checkbox" : undefined}
+                                    aria-checked={selectMode ? isSelected : undefined}
+                                  >
                                     {asset.kind === "video" ? (
                                       <video src={assetUrl(asset)} className="w-full" muted draggable={false} />
                                     ) : (
                                       <img src={assetUrl(asset)} alt={asset.alt || asset.label} className="w-full" loading="lazy" draggable={false} />
                                     )}
+                                    {selectMode && (
+                                      <>
+                                        {isSelected && <div className="pointer-events-none absolute inset-0 bg-white/15" />}
+                                        <span
+                                          className={`pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-bold ${
+                                            isSelected ? "border-white bg-white text-black" : "border-white/80 bg-black/50 text-transparent"
+                                          }`}
+                                        >
+                                          ✓
+                                        </span>
+                                      </>
+                                    )}
+                                    {!selectMode && (
                                     <button
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); void deleteAsset(asset.id); }}
@@ -537,7 +637,8 @@ export default function MediaAssetsAdminPage() {
                                     >
                                       ×
                                     </button>
-                                    {asset.kind === "image" && (
+                                    )}
+                                    {!selectMode && asset.kind === "image" && (
                                       <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); void generateAlt(asset.id); }}
@@ -555,7 +656,8 @@ export default function MediaAssetsAdminPage() {
                                     </p>
                                   )}
                                 </article>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -574,6 +676,43 @@ export default function MediaAssetsAdminPage() {
           })}
         </div>
       </div>
+
+      {selectMode && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-neutral-300">
+              {selectedIds.size > 0
+                ? `${selectedIds.size} ${selectedIds.size === 1 ? "asset selectat" : "asset-uri selectate"}`
+                : "Apasa pe poze ca sa le selectezi"}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set(assets.map(asset => asset.id)))}
+                className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:border-neutral-500"
+              >
+                Toate ({assets.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                disabled={selectedIds.size === 0}
+                className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:border-neutral-500 disabled:border-neutral-800 disabled:text-neutral-600"
+              >
+                Goleste
+              </button>
+              <button
+                type="button"
+                onClick={() => void downloadSelected()}
+                disabled={selectedIds.size === 0 || downloading}
+                className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-neutral-200 disabled:bg-neutral-800 disabled:text-neutral-500"
+              >
+                {downloading ? "Se pregateste arhiva..." : `Descarca ZIP (${selectedIds.size})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete group modal */}
       {deleteGroupModal && (

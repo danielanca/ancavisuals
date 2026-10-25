@@ -23,6 +23,7 @@ import PhotobookPromo from "./PhotobookPromo";
 import HeroVideo from "./HeroVideo";
 import FramedVideoSection from "./FramedVideoSection";
 import FreePhotoboothContracts from "./FreePhotoboothContracts";
+import WeddingGuideLeadMagnet from "./WeddingGuideLeadMagnet";
 import { AboutSummary, AncaVisualsPromo, CampaignPackages, CampaignVideoPlayer, GuideBook, PortfolioParallaxGallery, preloadGroup } from "./lazyParts";
 import ChatWithUs from "../../features/chat/components/ChatWithUs";
 import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
@@ -49,7 +50,6 @@ export const toIso = (day: number, monthZeroBased: number, year: number) =>
   `${year}-${String(monthZeroBased + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
 // Free wedding guide (Bunny: offers-assets/pdfs) — only on wedding campaigns.
-const WEDDING_GUIDE_URL = "https://ancavisuals.b-cdn.net/offers-assets/pdfs/Ghidul-Mirilor.pdf";
 const WEDDING_GUIDE_SLUGS = new Set(["olx"]);
 // Price configurator (Nuntă / Botez / Majorat / Corporate) — Ads traffic also asks for christenings.
 const CONFIGURATOR_SLUGS = new Set(["olx"]);
@@ -63,14 +63,6 @@ const SHOW_AVAILABILITY_SECTION = false;
 const SHOW_GALLERY_EDIT_LINK = false;
 // "Pachete" is switched off for now too (owner, 2026-10-03) — the configurator shows the prices.
 const SHOW_PACKAGES_SECTION = false;
-const WEDDING_GUIDE_HIGHLIGHTS = [
-  "În ce ordine rezervați furnizorii",
-  "Actele pentru cununia civilă și religioasă",
-  "Calendarul organizării, lună cu lună",
-  "Desfășurătorul zilei nunții",
-  "Sfaturi pentru poze și film frumoase",
-  "Trusa de urgență pentru ziua nunții",
-];
 
 
 
@@ -400,10 +392,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     notifyInteraction("form");
     measureOaiq("form_started", { page_path: `/oferta/${page.slug}` });
   };
-  const trackGuideDownload = () => {
-    sendLiveEvent("guide_downloaded", { label: "Ghidul Mirilor", meta: { file: "Ghidul-Mirilor.pdf" } });
-    measureOaiq("guide_downloaded", { page_path: `/oferta/${page.slug}` });
-  };
   const trackQrMomentsInterest = () => {
     sendLiveEvent("qr_moments_interest", { label: "QR Code Moments", meta: { source: "oferta/olx" } });
     measureOaiq("qr_moments_interest", { page_path: `/oferta/${page.slug}` });
@@ -683,52 +671,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {/* ── MEDIA PROMO FOOTER (a doua galerie rămâne sus pe celelalte campanii) ── */}
       {!promoAtPageEnd && <LazySection height={stableVh(100)}><AncaVisualsPromo fallback={<SectionSkeleton height={stableVh(100)} />} /></LazySection>}
 
-      {/* ── OFERTĂ FOTOCABINĂ — short: what, for whom, until when (no countdown) ── */}
-      <section className="bg-white px-6 py-16 text-neutral-950 sm:py-20">
-        <div className="mx-auto max-w-lg text-center">
-          <p className="flex items-center justify-center gap-4 text-[11px] uppercase tracking-[0.35em] text-neutral-500">
-            <span className="h-px w-10 bg-neutral-300/60" />
-            Ofertă limitată
-            <span className="h-px w-10 bg-neutral-300/60" />
-          </p>
-          <h2 className="mt-5 text-4xl font-normal uppercase leading-tight tracking-[0.05em] sm:text-5xl">🎁 Fotocabina e gratuită</h2>
-          {referral ? (
-            <>
-              <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-neutral-600 sm:text-base">
-                Ai venit prin recomandarea cuiva, așa că fotocabina și QR code-ul pentru pozele invitaților sunt <strong className="text-neutral-950">gratuite</strong> la nunta ta.
-              </p>
-              <div>
-                <a
-                  href={availabilityHref}
-                  className="mt-7 inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-6 py-3.5 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-neutral-800"
-                >
-                  Verifică disponibilitatea
-                </a>
-              </div>
-            </>
-          ) : promoExpired ? (
-            <p className="mt-4 text-sm text-neutral-600">Oferta s-a încheiat.</p>
-          ) : (
-            <>
-              <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-neutral-600 sm:text-base">Am oferit fotocabina gratuită pentru 5 nunți. 3 locuri s-au ocupat deja.</p>
-              <p className="mt-3 text-lg font-semibold text-neutral-950">Au mai rămas doar 2 locuri disponibile.</p>
-              <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-neutral-950/15 bg-neutral-100 px-5 py-2.5 text-sm text-neutral-950">
-                Până pe <strong className="font-semibold">30 octombrie 2026</strong>
-              </p>
-              <div>
-                <a
-                  href={availabilityHref}
-                  className="mt-7 inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-6 py-3.5 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-neutral-800"
-                >
-                  Verifică disponibilitatea
-                </a>
-              </div>
-            </>
-          )}
-          {page.slug === "olx" && <FreePhotoboothContracts />}
-        </div>
-      </section>
-
       {/* ── VIDEO PLAYER ──────────────────────────────────────────── */}
       {(page.videoUrl || page.heroVideoUrl) && (
         <LazySection height={stableVh(60)} onShow={() => preloadGroup(1)}>
@@ -789,70 +731,15 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </LazySection>
       )}
 
-      {/* ── RESURSE GRATUITE — înaintea configuratorului ──────────── */}
-      {WEDDING_GUIDE_SLUGS.has(page.slug) && (
-        <LazySection height={stableVh(70)}>
-          <section className="bg-[#f6f2ea] px-6 py-16 text-[#2f2a24] sm:py-20">
-            <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-14">
-              <GuideBook />
-
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">PDF gratuit · 15 pagini</p>
-                <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">Ghidul Mirilor</h2>
-                <p className="mt-4 text-base leading-relaxed text-[#5c5348]">
-                  Tot ce ne-ar fi plăcut să știe toți mirii de la început, adunat din zecile de nunți la care am fost alături de cupluri.
-                </p>
-                <ul className="mt-6 grid gap-2.5 text-sm sm:grid-cols-2">
-                  {WEDDING_GUIDE_HIGHLIGHTS.map((item) => (
-                    <li key={item} className="flex items-start gap-2.5">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f2a24] text-[11px] text-[#f6f2ea]">✓</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-                <a
-                  href={WEDDING_GUIDE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={trackGuideDownload}
-                  className="mt-8 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2f2a24] px-6 py-4 text-sm font-semibold text-[#f6f2ea] transition-colors hover:bg-black sm:w-auto"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 3v12" />
-                    <path d="m7 10 5 5 5-5" />
-                    <path d="M5 21h14" />
-                  </svg>
-                  Descarcă ghidul gratuit
-                </a>
-                <p className="mt-3 text-xs text-[#5c5348]/80">Fără email, fără înregistrare — se deschide direct.</p>
-              </div>
-            </div>
-          </section>
-        </LazySection>
-      )}
-
-      {page.slug === "olx" && (
-        <LazySection height={stableVh(80)}>
-          <QRMomentsPromo
-            whatsappHref={waLink("Bună! Sunt interesat(ă) de QR Code Moments pentru nunta mea.")}
-            onCta={trackQrMomentsInterest}
-          />
-        </LazySection>
-      )}
-
-      {page.slug === "olx" && (
-        <LazySection height={stableVh(90)}>
-          <PhotobookPromo
-          />
-        </LazySection>
-      )}
-
       {/* ── CONFIGURATOR — preț pe loc, apoi verificarea datei ───────── */}
       {CONFIGURATOR_SLUGS.has(page.slug) && (
         <PriceConfigurator
           waLink={waLink}
           onWhatsAppClick={(position) => trackClick("click_whatsapp", position)}
           photoboothFree={photoboothFree}
+          photoboothNote={referral
+            ? "Ai venit prin recomandare: fotocabina și QR code-ul sunt gratuite"
+            : "Până pe 30 octombrie · 3 din 5 locuri s-au ocupat, mai sunt 2"}
           dateParts={dateParts}
           onDatePart={setDatePart}
           eventDate={form.eventDate}
@@ -873,6 +760,30 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             document.getElementById(SHOW_AVAILABILITY_SECTION ? "verifica-data" : "configurator-contact")?.scrollIntoView({ behavior: "smooth" });
           }}
         />
+      )}
+
+      {/* ── DUPĂ PREȚ: cine a prins fotocabina gratuită, apoi QR Moments (inclus) și fotocartea.
+           Înainte de configurator erau patru „cadouri” la rând — diluau oferta și amânau „cât costă?”. */}
+      {page.slug === "olx" && !referral && (
+        <section className="bg-white px-6 pb-4 text-neutral-950">
+          <div className="mx-auto max-w-lg"><FreePhotoboothContracts /></div>
+        </section>
+      )}
+
+      {page.slug === "olx" && (
+        <LazySection height={stableVh(80)}>
+          <QRMomentsPromo
+            whatsappHref={waLink("Bună! Sunt interesat(ă) de QR Code Moments pentru nunta mea.")}
+            onCta={trackQrMomentsInterest}
+          />
+        </LazySection>
+      )}
+
+      {page.slug === "olx" && (
+        <LazySection height={stableVh(90)}>
+          <PhotobookPromo
+          />
+        </LazySection>
       )}
 
       {/* ── AVAILABILITY CHECK — off for now, see SHOW_AVAILABILITY_SECTION ── */}
@@ -981,7 +892,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               const free = availStatus === "available";
               const dateLabel = formatDateRo(form.eventDate);
               const event = form.eventType.toLowerCase();
-              // Same terms as the "Ofertă limitată" section: first 2 weddings, until PROMO_DEADLINE.
+              // Same terms as the configurator's photobooth badge: first 2 weddings, until PROMO_DEADLINE.
               const photoboothGift = free && photoboothFree && form.eventType === "Nuntă";
               const waText = free
                 ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? (referral ? ", cu fotocabina gratuită și QR code (am venit prin recomandare)" : ", cu fotocabina gratuită") : ""}.`
@@ -1096,6 +1007,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             ))}
           </div>
         </section>
+      )}
+
+      {/* ── GHIDUL MIRILOR — la final, ca lead magnet (email / telefon / WhatsApp) ── */}
+      {WEDDING_GUIDE_SLUGS.has(page.slug) && (
+        <LazySection height={stableVh(70)}>
+          <WeddingGuideLeadMagnet book={<GuideBook />} pagePath={`/oferta/${page.slug}`} whatsappNumber={page.whatsappNumber} />
+        </LazySection>
       )}
 
       {/* ── FINAL CTA ──────────────────────────────────────────────── */}

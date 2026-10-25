@@ -58,12 +58,32 @@ export function installAuthFetch(): void {
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     if (!apiPath(input)) return original(input, init);
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-    if (headers.has("Authorization")) return original(input, init);
-    const token = await tokenForRequest();
-    if (!token) return original(input, init);
-    headers.set("Authorization", `Bearer ${token}`);
+    if (!headers.has("Authorization")) {
+      const token = await tokenForRequest();
+      if (!token) return original(input, init);
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    const response = await original(input, { ...init, headers });
+    // Pages that pass `auth.accessToken` themselves can hold an expired token (tab asleep for an
+    // hour, laptop lid closed) → the server answers 401 "Token invalid". Retry once with a fresh one.
+    if (response.status !== 401 || !currentUser || !headers.get("Authorization")?.startsWith("Bearer ") || !replayableBody(init?.body)) {
+      return response;
+    }
+    let fresh: string;
+    try {
+      fresh = await currentUser.getIdToken(true);
+    } catch {
+      return response;
+    }
+    if (headers.get("Authorization") === `Bearer ${fresh}`) return response;
+    headers.set("Authorization", `Bearer ${fresh}`);
     return original(input, { ...init, headers });
   };
+}
+
+// A stream body is consumed by the first attempt, so it can't be sent again.
+function replayableBody(body: BodyInit | null | undefined): boolean {
+  return !(typeof ReadableStream !== "undefined" && body instanceof ReadableStream);
 }
 
 /** Opens an authenticated PDF/HTML response in a new tab (window.open can't send headers). */

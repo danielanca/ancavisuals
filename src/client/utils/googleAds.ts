@@ -107,6 +107,8 @@ export function installAdsContactClickTracking(): () => void {
   const onClick = (e: MouseEvent) => {
     if (CONTACT_TRACKING_EXCLUDED.test(window.location.pathname)) return;
     const link = (e.target as Element | null)?.closest?.("a[href]");
+    // e.g. "cereți Ghidul Mirilor pe WhatsApp": a contact, but not a request for an offer.
+    if (link?.getAttribute("data-ads-contact") === "off") return;
     const href = link?.getAttribute("href") ?? "";
     if (isWhatsAppHref(href) || href.toLowerCase().startsWith("tel:")) fireAdsContactClickConversion();
     if (isWhatsAppHref(href) && OLX_OFFER_PATH.test(window.location.pathname) && firstThisSession("olx-whatsapp")) {

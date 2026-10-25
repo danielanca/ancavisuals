@@ -57,12 +57,32 @@ test("does not show an association when saving fails", async () => {
   await waitFor(() => expect(screen.getByText("Asocierea a eșuat")).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: /Eveniment: Ana și Ion/ })).not.toBeInTheDocument();
 });
-test("shows the download deadline, the last reminder and a WhatsApp download reminder for signed protocols", async () => {
+test("signed protocols show the download deadline but no reminder button", async () => {
   const signedAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
-  mockData([{ ...protocol, eventId: event.id, signedAt, digitalLinkExpiryDays: 15, downloadReminderSentAt: "2026-10-18", downloadReminderCount: 2 }],
+  mockData([{ ...protocol, eventId: event.id, signedAt, digitalLinkExpiryDays: 15 }],
     [{ ...event, client: { ...event.client, phone: "0712345678" } }]);
-  const reminder = await screen.findByRole("link", { name: /Reminder descărcare/ });
-  expect(decodeURIComponent(reminder.getAttribute("href")!)).toContain("reminder să descărcați materialele");
-  expect(screen.getByText(/Link-uri valabile până:/)).toHaveTextContent("10 zile rămase");
-  expect(screen.getByText(/Reminder descărcare trimis:/)).toHaveTextContent("2×");
+  expect(await screen.findByText(/Link-uri valabile până:/)).toHaveTextContent("10 zile rămase");
+  expect(screen.queryByRole("button", { name: /reminder/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /Reminder/ })).not.toBeInTheDocument();
+});
+test("an unsigned protocol can be reminded by email + SMS, again and again", async () => {
+  const pending = { ...protocol, status: "sent", eventId: event.id, clientEmail: "ana@example.com", sentAt: new Date().toISOString() };
+  let posts = 0;
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => ({
+    ok: true,
+    json: async () => init?.method === "POST"
+      ? { ok: true, emailed: true, smsSent: true, signReminderSentAt: new Date().toISOString(), signReminderCount: ++posts }
+      : url === "/api/handover" ? { items: [pending] } : { events: [{ ...event, client: { ...event.client, phone: "0712345678" } }] },
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<MemoryRouter><HandoverListPage /></MemoryRouter>);
+  expect(await screen.findByText(/Automat la 3 zile \(max 4\)/)).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: "⏰ Trimite reminder (email + SMS)" }));
+  fireEvent.click(await screen.findByRole("button", { name: "🔁 Trimite din nou reminder (email + SMS)" }));
+  await waitFor(() => expect(screen.getByText(/Ultimul reminder:/)).toHaveTextContent("2×"));
+  expect(fetchMock.mock.calls.filter(([url]) => url === "/api/handover/pv-1/reminder")).toHaveLength(2);
+});
+test("the reminder button is disabled without email and phone", async () => {
+  mockData([{ ...protocol, status: "sent", eventId: event.id }], [event]);
+  expect(await screen.findByRole("button", { name: /fără email \/ telefon/ })).toBeDisabled();
 });

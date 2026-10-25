@@ -17,7 +17,6 @@ vi.mock("src/client/utils/googleAds", () => ({
 vi.mock("src/client/utils/oaiq", () => ({ measureOaiq: vi.fn() }));
 
 import CampaignLandingPage, { type CampaignPage } from "src/client/pages/CampaignLanding/CampaignLandingPage";
-import { sendLiveEvent } from "src/client/utils/liveEvent";
 
 const nextYear = new Date().getFullYear() + 1;
 const page: CampaignPage = {
@@ -108,12 +107,14 @@ describe("availability result", () => {
     expect(availability.queryByText("950 €")).not.toBeInTheDocument();
   });
 
-  test("the olx landing offers the free wedding guide; other campaigns don't", () => {
+  test("the olx landing offers the wedding guide for an email/phone, after the price; other campaigns don't", () => {
     const { unmount } = render(<MemoryRouter><CampaignLandingPage page={page} /></MemoryRouter>);
-    const guide = screen.getByRole("link", { name: /Descarcă ghidul gratuit/ });
-    expect(guide.getAttribute("href")).toBe("https://ancavisuals.b-cdn.net/offers-assets/pdfs/Ghidul-Mirilor.pdf");
-    fireEvent.click(guide);
-    expect(sendLiveEvent).toHaveBeenCalledWith("guide_downloaded", expect.objectContaining({ label: "Ghidul Mirilor" }));
+    const field = screen.getByLabelText("Unde vă trimitem ghidul?");
+    expect(screen.queryByRole("link", { name: /Deschide Ghidul Mirilor/ })).not.toBeInTheDocument();
+    // The guide (and every promo) comes after the configurator, not before the price.
+    const configurator = document.getElementById("configurator-data") ?? document.querySelector("[id^='configurator']");
+    if (configurator) expect(configurator.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/Fotocabina e gratuită/)).not.toBeInTheDocument();
     unmount();
 
     render(<MemoryRouter><CampaignLandingPage page={{ ...page, slug: "botez" }} /></MemoryRouter>);

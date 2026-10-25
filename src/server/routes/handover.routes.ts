@@ -6,8 +6,9 @@ import { getStorage } from "firebase-admin/storage";
 import { firestore } from "../firestore";
 import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateHandoverPDF, buildHandoverHTML } from "../services/pdf.generator";
-import { sendHandoverLinkEmail, sendSignedHandoverEmail, sendHandoverReminderEmail, sendDownloadReminderEmail } from "../notifications/templates/handoverEmail";
+import { sendHandoverLinkEmail, sendSignedHandoverEmail, sendDownloadReminderEmail } from "../notifications/templates/handoverEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
+import { SignReminderError, sendHandoverSignReminder } from "../services/handoverSignReminder";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { APP_BASE_URL } from "../constants/domain";
 import { DEFAULT_DIGITAL_LINK_EXPIRY_DAYS, digitalLinksValidUntil } from "../../shared/handoverDownload";
@@ -106,6 +107,7 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, 
         createdAt: tsToISO(data.createdAt),
         signedAt: tsToISO(data.signedAt),
         sentAt: tsToISO(data.sentAt),
+        ...(data.signReminderSentAt ? { signReminderSentAt: tsToISO(data.signReminderSentAt) } : {}),
         ...(data.downloadReminderSentAt ? { downloadReminderSentAt: tsToISO(data.downloadReminderSentAt) } : {}),
       };
     });
@@ -431,30 +433,35 @@ router.post("/:id/resend", requireFirebaseAuth, requireSupremeAdmin, async (req:
   }
 });
 
-// POST /api/handover/:id/reminder — remind client to sign (admin)
+// POST /api/handover/:id/reminder — remind client to sign (admin), as many times as needed.
+// body { email?: boolean, sms?: boolean } — both default to true; each goes out only if we have the contact.
 router.post("/:id/reminder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {
-    const db = firestore();
-    const doc = await db.collection("materialsHandover").doc(req.params.id).get();
+    const ref = firestore().collection("materialsHandover").doc(req.params.id);
+    const doc = await ref.get();
     if (!doc.exists) return res.status(404).json({ error: "Proces verbal negăsit." });
 
-    const handover = doc.data()!;
-    if (handover.status !== "sent") {
-      return res.status(400).json({ error: "Reminder-ul se poate trimite doar pentru procese verbale netrimise spre semnare (status: trimis)." });
-    }
-
-    await sendHandoverReminderEmail({
-      to: handover.clientEmail,
-      token: handover.token,
-      eventType: handover.eventType,
-      eventDate: handover.eventDate,
-      baseUrl: APP_BASE_URL,
-    });
-
-    res.json({ ok: true });
+    const result = await sendHandoverSignReminder(ref, doc.data()!, { email: req.body?.email !== false, sms: req.body?.sms !== false });
+    res.json({ ok: true, ...result });
   } catch (error) {
+    if (error instanceof SignReminderError) return res.status(400).json({ error: error.message });
     console.error("[handover] POST /:id/reminder failed:", error);
     res.status(500).json({ error: "Nu s-a putut trimite reminder-ul." });
+  }
+});
+
+// PATCH /api/handover/:id/auto-reminder — { enabled: boolean } turns the automatic sign reminders on/off (admin)
+router.patch("/:id/auto-reminder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  if (typeof req.body?.enabled !== "boolean") return res.status(400).json({ error: "Câmpul enabled lipsește." });
+  try {
+    const ref = firestore().collection("materialsHandover").doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: "Proces verbal negăsit." });
+    await ref.update({ autoSignReminder: req.body.enabled });
+    res.json({ ok: true, autoSignReminder: req.body.enabled });
+  } catch (error) {
+    console.error("[handover] PATCH /:id/auto-reminder failed:", error);
+    res.status(500).json({ error: "Eroare server." });
   }
 });
 

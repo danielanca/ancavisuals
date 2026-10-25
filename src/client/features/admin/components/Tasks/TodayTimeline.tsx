@@ -63,18 +63,22 @@ export default function TodayTimeline({
   onUnschedule,
   onComplete,
   onExternalDragOver,
+  dragDurationMin = DEFAULT_DURATION_MIN,
 }: {
   /** Taskuri programate pe ore (plannedFor + scheduledStart), deschise sau făcute azi. */
   tasks: ClientTask[];
   today: string;
   /** Minutul curent al zilei de azi (București). */
   now: number;
-  /** `start` e minut absolut față de azi 00:00. */
-  onSchedule: (id: string, start: number, durationMin: number) => void;
+  /** `start` e minut absolut față de azi 00:00. durationMin lipsește când taskul tras nu e încă
+   * pe timeline: părintele folosește estimarea lui. */
+  onSchedule: (id: string, start: number, durationMin?: number) => void;
   onUnschedule: (id: string) => void;
   onComplete: (id: string) => void;
   /** Anunță pagina că un task din listă e tras deasupra timeline-ului (nu e reordonare). */
   onExternalDragOver: () => void;
+  /** Durata taskului tras din listă, ca umbra de pe timeline să aibă lungimea lui. */
+  dragDurationMin?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -228,7 +232,9 @@ export default function TodayTimeline({
             const task = tasks.find((candidate) => candidate.id === id);
             const at = snap(minutesAtClientX(event.clientX));
             setGhost(null);
-            if (id) onSchedule(id, at, task?.durationMin ?? DEFAULT_DURATION_MIN);
+            // Taskurile din listă nu sunt în `tasks` (doar cele programate): fără durată aici,
+            // altfel estimarea lor (ex. 3h) ar fi suprascrisă cu 1h.
+            if (id) onSchedule(id, at, task?.durationMin ?? undefined);
           }}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -280,7 +286,7 @@ export default function TodayTimeline({
           {ghost !== null && (
             <div
               className="absolute rounded-md border-2 border-dashed border-violet-400/70 bg-violet-500/10 pointer-events-none"
-              style={{ left: xOf(ghost), width: DEFAULT_DURATION_MIN * PX_PER_MIN, top: RULER_HEIGHT + LANE_GAP, bottom: LANE_GAP }}
+              style={{ left: xOf(ghost), width: dragDurationMin * PX_PER_MIN, top: RULER_HEIGHT + LANE_GAP, bottom: LANE_GAP }}
             >
               <span className="absolute left-1.5 top-1 whitespace-nowrap text-[11px] text-violet-200">{whenLabel(ghost)}</span>
             </div>

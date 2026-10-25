@@ -40,6 +40,7 @@ async function loadHandoverRouter() {
   const sendSignedHandoverEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendHandoverReminderEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendDownloadReminderEmailMock = vi.fn().mockResolvedValue(undefined);
+  const sendSmsMock = vi.fn().mockResolvedValue(undefined);
 
   const collectionMock = vi.fn(() => ({
     add: addMock,
@@ -52,6 +53,7 @@ async function loadHandoverRouter() {
       })),
     })),
     doc: vi.fn((id: string) => ({
+      id,
       get: () => docGetMock(id),
       update: (payload: Record<string, unknown>) => updateMock(id, payload),
       delete: () => deleteMock(id),
@@ -80,6 +82,12 @@ async function loadHandoverRouter() {
     sendSignedHandoverEmail: sendSignedHandoverEmailMock,
     sendHandoverReminderEmail: sendHandoverReminderEmailMock,
     sendDownloadReminderEmail: sendDownloadReminderEmailMock,
+  }));
+
+  vi.doMock("src/server/notifications/sms", () => ({
+    sendSms: sendSmsMock,
+    isSmsConfigured: () => true,
+    normalizeRomanianPhoneNumber: (value: string) => (value.trim() ? `+40${value.trim().replace(/^0/, "")}` : null),
   }));
 
   vi.doMock("src/server/constants/firebase", () => ({
@@ -119,6 +127,9 @@ async function loadHandoverRouter() {
     sendHandoverLinkEmailMock,
     sendSignedHandoverEmailMock,
     sendDownloadReminderEmailMock,
+    sendHandoverReminderEmailMock,
+    sendSmsMock,
+    postReminder: getHandler("post", "/:id/reminder"),
     postDownloadReminder: getHandler("post", "/:id/download-reminder"),
     postCreate: getHandler("post", "/"),
     getList: getHandler("get", "/"),
@@ -557,6 +568,53 @@ describe("handover.routes", () => {
         expect(res.status).toHaveBeenCalledWith(400);
       }
       expect(sendDownloadReminderEmailMock).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("sign reminder (PV sent, not signed yet)", () => {
+    const pending = { status: "sent", token: "token-1", clientEmail: "", eventType: "Nuntă", eventDate: "2026-08-08", eventId: "event-1", signReminderCount: 1 };
+    const withEvent = (data: Record<string, unknown>, client: Record<string, unknown>) => async (id: string) =>
+      id === "event-1" ? { exists: true, data: () => ({ client }) } : { exists: true, data: () => data };
+
+    test("texts the event's phone when there is no email, and can be sent again", async () => {
+      process.env.APP_BASE_URL = "https://ancavisuals.ro";
+      const { postReminder, docGetMock, updateMock, sendHandoverReminderEmailMock, sendSmsMock } = await loadHandoverRouter();
+      docGetMock.mockImplementation(withEvent(pending, { phone: "0712345678" }));
+
+      for (let i = 0; i < 2; i++) {
+        const res = createMockResponse();
+        await postReminder({ params: { id: "pv-1" }, body: {} }, res);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true, emailed: false, smsSent: true }));
+      }
+
+      expect(sendHandoverReminderEmailMock).not.toHaveBeenCalled();
+      expect(sendSmsMock).toHaveBeenCalledTimes(2);
+      expect(sendSmsMock.mock.calls[0][0]).toEqual({ to: "+40712345678", body: expect.stringContaining("https://ancavisuals.ro/proces-verbal/token-1") });
+      expect(sendSmsMock.mock.calls[0][0].body).toContain("evenimentul din data de 8 august 2026");
+      expect(updateMock.mock.calls[0][1]).toMatchObject({ signReminderCount: 2, signReminderChannels: ["sms"] });
+    });
+
+    test("emails and texts when both exist; a failed SMS doesn't fail the reminder", async () => {
+      const { postReminder, docGetMock, sendHandoverReminderEmailMock, sendSmsMock } = await loadHandoverRouter();
+      docGetMock.mockImplementation(withEvent(pending, { email: "ana@example.com", phone: "0712345678" }));
+      sendSmsMock.mockRejectedValueOnce(new Error("no credit"));
+      const res = createMockResponse();
+
+      await postReminder({ params: { id: "pv-1" }, body: {} }, res);
+
+      expect(sendHandoverReminderEmailMock).toHaveBeenCalledWith(expect.objectContaining({ to: "ana@example.com", token: "token-1" }));
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true, emailed: true, smsSent: false, smsError: "no credit" }));
+    });
+
+    test("refuses signed PVs and clients with neither email nor phone", async () => {
+      const { postReminder, docGetMock, updateMock } = await loadHandoverRouter();
+      for (const [data, client] of [[{ ...pending, status: "signed" }, { phone: "0712345678" }], [pending, {}]] as const) {
+        docGetMock.mockImplementation(withEvent(data, client));
+        const res = createMockResponse();
+        await postReminder({ params: { id: "pv-1" }, body: {} }, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+      }
       expect(updateMock).not.toHaveBeenCalled();
     });
   });

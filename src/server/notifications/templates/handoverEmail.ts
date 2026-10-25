@@ -162,7 +162,8 @@ export async function sendHandoverReminderEmail(options: HandoverReminderEmailOp
       <strong>${eventType}</strong> din data de <strong>${formattedDate}</strong> nu a fost semnat încă.
     </p>
     <p style="color: #555; margin-bottom: 28px;">
-      Vă rugăm să accesați link-ul de mai jos pentru a semna. Procesul durează doar câteva minute.
+      Vă rugăm să accesați link-ul de mai jos pentru a semna. Procesul durează doar câteva minute,
+      iar imediat după semnare primiți materialele de la eveniment.
     </p>
     <div style="text-align: center; margin-bottom: 28px;">
       <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Procesul Verbal</a>

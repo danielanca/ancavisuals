@@ -77,6 +77,7 @@ import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
 import { startAlbumPromisesCron } from "./src/server/cron/albumPromises.cron";
+import { startHandoverSignReminderCron } from "./src/server/cron/handoverSignReminder.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
@@ -284,6 +285,7 @@ async function createServer() {
   startAlbumRetentionCron();
   startPostEventBackupCron();
   startAlbumPromisesCron();
+  startHandoverSignReminderCron();
   startErrorsCron();
   startRemindersCron();
   startAlbumZipCheckCron();
@@ -294,7 +296,7 @@ async function createServer() {
   startSeoRadarWeeklyScanCron();
   startEmailInboxCron();
 
-  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · album promises · errors · collaborator invites · photobooth notify · reverse-charge VAT · seo radar weekly scan");
+  if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · album promises · handover sign reminders · errors · collaborator invites · photobooth notify · reverse-charge VAT · seo radar weekly scan");
 
   let vite: ViteDevServer | undefined;
   let template: string;

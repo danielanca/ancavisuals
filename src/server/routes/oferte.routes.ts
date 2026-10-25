@@ -1,6 +1,9 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import multer from "multer";
+import archiver from "archiver";
+import { Readable } from "stream";
+import type { ReadableStream as NodeReadableStream } from "stream/web";
 import { firestore } from "../firestore";
 import { adminUser } from "../constants/credentials";
 import { sendEmail } from "../notifications/mailer";
@@ -20,7 +23,7 @@ import {
   normalizeOfferDeviceShowcase,
   normalizeOfferHeroVideo,
 } from "../../shared/offers/offerServices";
-import { BUNNY_ACCESS_KEY_HEADER, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
+import { BUNNY_ACCESS_KEY_HEADER, ZIP_COMPRESSION_STANDARD, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
 import { downloadBunnyOriginal } from "../utils/downloadBunnyOriginal";
 import { loadAlbum } from "../services/album.service";
 import { generateRomanianAlt } from "../lib/imageAlt";
@@ -716,7 +719,76 @@ router.post("/admin/media-assets/reprocess-originals", requireFirebaseAuth, requ
   }
 });
 
-router.delete("/admin/media-assets/by-source", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+const MAX_MEDIA_ASSET_DOWNLOAD = 300;
+
+function safeDecode(value: string): string {
+  try { return decodeURIComponent(value); } catch { return value; }
+}
+
+function uniqueZipEntryName(rawName: string, used: Set<string>): string {
+  const clean = rawName.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_").trim() || "asset";
+  const dot = clean.lastIndexOf(".");
+  const base = dot > 0 ? clean.slice(0, dot) : clean;
+  const ext = dot > 0 ? clean.slice(dot) : "";
+  let name = clean;
+  for (let i = 2; used.has(name.toLowerCase()); i++) name = `${base}-${i}${ext}`;
+  used.add(name.toLowerCase());
+  return name;
+}
+
+// POST /admin/media-assets/download-zip { assetIds } — ZIP cu originalele asset-urilor selectate
+router.post("/admin/media-assets/download-zip", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const assetIds = Array.isArray(req.body?.assetIds)
+    ? Array.from(new Set((req.body.assetIds as unknown[]).map(String).filter(Boolean)))
+    : [];
+  if (assetIds.length === 0) return res.status(400).json({ error: "Nu ai selectat niciun asset." });
+  if (assetIds.length > MAX_MEDIA_ASSET_DOWNLOAD) {
+    return res.status(413).json({ error: `Poti descarca maxim ${MAX_MEDIA_ASSET_DOWNLOAD} asset-uri odata.` });
+  }
+
+  try {
+    const collection = firestore().collection("offer_media_assets");
+    const docs = await firestore().getAll(...assetIds.map(id => collection.doc(id)));
+    const assets = docs.filter(doc => doc.exists).map(doc => ({ id: doc.id, ...doc.data() }) as StoredOfferMediaAsset);
+    if (assets.length === 0) return res.status(404).json({ error: "Asset-urile nu au fost gasite." });
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="media-assets-${new Date().toISOString().slice(0, 10)}.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: ZIP_COMPRESSION_STANDARD } });
+    archive.on("error", error => {
+      console.error("[oferte] media-assets zip failed:", error);
+      res.destroy(error);
+    });
+    archive.pipe(res);
+
+    const usedNames = new Set<string>();
+    for (const asset of assets) {
+      const sourceName = (asset.bunnyPath ?? asset.url).split("?")[0].split("/").pop() || asset.label || asset.id;
+      try {
+        const response = asset.bunnyPath
+          ? await fetch(buildBunnyStorageUrl(asset.bunnyPath), { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() } })
+          : await fetch(asset.url);
+        if (!response.ok || !response.body) {
+          console.error(`[oferte] media-assets zip: ${asset.id} -> HTTP ${response.status}`);
+          continue;
+        }
+        archive.append(Readable.fromWeb(response.body as unknown as NodeReadableStream), {
+          name: uniqueZipEntryName(safeDecode(sourceName), usedNames),
+        });
+      } catch (error) {
+        console.error(`[oferte] media-assets zip: ${asset.id} failed`, error);
+      }
+    }
+
+    await archive.finalize();
+  } catch (error) {
+    console.error("[oferte] POST /admin/media-assets/download-zip failed:", error);
+    if (!res.headersSent) res.status(500).json({ error: "Nu am putut genera arhiva." });
+  }
+});
+
+router.delete("/admin/media-assets/by-source",requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   const { sourceAlbumSlug, serviceId } = req.body as { sourceAlbumSlug?: string; serviceId?: string };
 
   if (!sourceAlbumSlug && !serviceId) { res.status(400).json({ error: "Lipsesc parametrii." }); return; }

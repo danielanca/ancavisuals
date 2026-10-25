@@ -6,7 +6,6 @@ interface HandoverItem {
   token: string;
   status: "draft" | "sent" | "signed" | "expired";
   clientEmail?: string;
-  includeDigitalLink?: boolean;
 }
 
 interface Props {
@@ -14,21 +13,17 @@ interface Props {
   sending: string | null;
   deleting: string | null;
   resending: string | null;
-  reminding: string | null;
-  downloadReminding: string | null;
   onPreview: () => void;
   onSend: () => void;
   onCopyLink: () => void;
   onDelete: () => void;
   onResend: () => void;
-  onReminder: () => void;
-  onDownloadReminder: () => void;
   onEdit: () => void;
 }
 
 const HandoverActionMenu: React.FC<Props> = ({
-  handover, sending, deleting, resending, reminding, downloadReminding,
-  onPreview, onSend, onCopyLink, onDelete, onResend, onReminder, onDownloadReminder, onEdit,
+  handover, sending, deleting, resending,
+  onPreview, onSend, onCopyLink, onDelete, onResend, onEdit,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -85,14 +80,6 @@ const HandoverActionMenu: React.FC<Props> = ({
               loading={sending === handover.id}
             />
           )}
-          {handover.status === "sent" && hasEmail && (
-            <Item
-              label="📩  Email re-amintire"
-              onClick={onReminder}
-              color="text-sky-400"
-              loading={reminding === handover.id}
-            />
-          )}
           <Item label="🔗  Copiază link" onClick={onCopyLink} />
           {handover.status === "signed" && (
             <>
@@ -108,14 +95,6 @@ const HandoverActionMenu: React.FC<Props> = ({
                 color="text-emerald-400"
                 loading={resending === handover.id}
               />
-              {hasEmail && handover.includeDigitalLink !== false && (
-                <Item
-                  label="⏰  Reminder descărcare"
-                  onClick={onDownloadReminder}
-                  color="text-sky-400"
-                  loading={downloadReminding === handover.id}
-                />
-              )}
             </>
           )}
           <div className="border-t border-neutral-800 my-1" />
