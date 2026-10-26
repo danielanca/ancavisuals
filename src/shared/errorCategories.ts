@@ -42,6 +42,8 @@ const NOISE_PATTERNS = [
   /ResizeObserver loop/,
   /instantSearchSDKJSBridgeClearHighlight/,
   /__gCrWeb/,
+  // Crypto-wallet scripts injected by the browser (Brave on iPhone); the site never uses it.
+  /window\.ethereum/,
 ];
 
 export function isNoiseError(message: string, stack = ""): boolean {

@@ -31,6 +31,8 @@ describe("errorCategories", () => {
     expect(isNoiseError("ResizeObserver loop completed with undelivered notifications.")).toBe(true);
     expect(isNoiseError("Script error.")).toBe(true);
     expect(isNoiseError("x", "at chrome-extension://abc/content.js:1")).toBe(true);
+    // Brave's built-in crypto wallet script on iPhone (no window.ethereum there).
+    expect(isNoiseError("TypeError: undefined is not an object (evaluating 'window.ethereum.selectedAddress = undefined')")).toBe(true);
     expect(isNoiseError("TypeError: a is undefined")).toBe(false);
   });
 });
