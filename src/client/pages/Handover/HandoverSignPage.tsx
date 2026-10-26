@@ -62,7 +62,9 @@ const HandoverSignPage: React.FC = () => {
   useEffect(() => {
     if (!token) { setPageState("not_found"); return; }
 
-    fetch(`/api/handover/sign/${token}`)
+    // `?s=sms` = opened from the SMS we sent; passed on so the server can tell the owner.
+    const source = new URLSearchParams(window.location.search).get("s");
+    fetch(`/api/handover/sign/${token}${source ? `?s=${encodeURIComponent(source)}` : ""}`)
       .then(async (res) => {
         const data = await res.json();
         if (res.status === 410) {

@@ -118,7 +118,7 @@ describe("campaign.routes — public landing-page flow", () => {
       await postContact({ params: { slug: "olx" }, body: { phone: "0745469907", message: "• Foto", referral: true } }, res);
       const mail = sendEmail.mock.calls[0][0];
       expect(mail.subject).toMatch(/^🎁 RECOMANDARE · /);
-      expect(mail.html).toContain("fotocabina + QR code GRATUITE");
+      expect(mail.html).toContain("fotocabina SAU videobooth-ul (la alegere) GRATUIT + QR code");
       expect(mail.html).toContain("• Foto");
     });
 
@@ -312,7 +312,24 @@ describe("campaign free photobooth endpoint", () => {
     const res = createMockResponse();
     await getFreeBooth({}, res);
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
-    expect(res.json).toHaveBeenCalledWith({ contracts: [] });
+    expect(res.json).toHaveBeenCalledWith({ contracts: [], totalSlots: 10, remaining: 10 });
+  });
+  test("counts the remaining slots from the listed contracts and never goes below zero", async () => {
+    const { getFreeBooth, contractsGet } = await loadRouter();
+    const signed = (i: number) => ({ data: () => ({
+      status: "signed", clientName: `Client${i} Nume`, clientCity: "Sibiu", signedAt: `2026-10-${String(i).padStart(2, "0")}T10:00:00Z`,
+      services: [{ label: "Fotocabină", gratuit: true }],
+    }) });
+    contractsGet.mockResolvedValueOnce({ docs: [1, 2, 3].map(signed) });
+    const res = createMockResponse();
+    await getFreeBooth({}, res);
+    expect(res.json.mock.calls[0][0]).toMatchObject({ totalSlots: 10, remaining: 7 });
+    expect(res.json.mock.calls[0][0].contracts).toHaveLength(3);
+
+    contractsGet.mockResolvedValueOnce({ docs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(signed) });
+    const full = createMockResponse();
+    await getFreeBooth({}, full);
+    expect(full.json.mock.calls[0][0]).toMatchObject({ totalSlots: 10, remaining: 0 });
   });
   test("returns a generic error when storage fails", async () => {
     const { getFreeBooth, contractsGet } = await loadRouter();

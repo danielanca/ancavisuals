@@ -61,7 +61,7 @@ export default function CampaignPackages({ packages, waLink, onWhatsAppClick }: 
             <span className="h-px w-10 bg-[#b8955a]/60" />
           </p>
           <h2 className="mt-5 font-serif text-4xl leading-tight sm:text-5xl">
-            Alege experiența care vi se <em className="text-[#8a6d3b]">potrivește</em>.
+            Alegeți experiența care vi se <em className="text-[#8a6d3b]">potrivește</em>.
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-[#5c5348] sm:text-base">
             Fiecare pachet este un punct de plecare. Ne adaptăm poveștii, ritmului și oamenilor care fac ziua voastră unică.
@@ -166,7 +166,7 @@ export default function CampaignPackages({ packages, waLink, onWhatsAppClick }: 
                     }`}
                   >
                     <WhatsAppIcon />
-                    Alege {name}
+                    Alegeți {name}
                   </a>
                 </div>
               </article>

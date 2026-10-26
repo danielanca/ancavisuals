@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const book = () => screen.getByRole("button", { name: "Răsfoiește Ghidul Mirilor" });
+const book = () => screen.getByRole("button", { name: "Răsfoiți Ghidul Mirilor" });
 const bold = () => screen.getAllByRole("listitem").filter((li) => li.className.includes("font-bold")).map((li) => li.textContent);
 
 describe("GuideBook", () => {

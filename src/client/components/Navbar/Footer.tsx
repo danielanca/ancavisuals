@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { openCookieSettings } from "../../utils/cookieConsent";
+import LegalIdentity from "../Legal/LegalIdentity";
 
 const Footer = () => {
   return (
@@ -49,26 +49,7 @@ const Footer = () => {
             </div>
             <p>© {new Date().getFullYear()} AncaVisuals Film Photography. All rights reserved.</p>
             <p>Licensed and insured professional photographer serving worldwide.</p>
-            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-2 mt-4">
-              <Link to="/privacy" className="hover:text-white transition-colors whitespace-nowrap">
-                Politică de Confidențialitate
-              </Link>
-              <span className="text-gray-700">•</span>
-              <Link to="/terms" className="hover:text-white transition-colors whitespace-nowrap">
-                Termeni și Condiții
-              </Link>
-              <span className="text-gray-700">•</span>
-              <Link to="/copyright" className="hover:text-white transition-colors whitespace-nowrap">
-                Copyright
-              </Link>
-              <span className="text-gray-700">•</span>
-              <button
-                onClick={openCookieSettings}
-                className="hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0 text-gray-500 text-[11px] uppercase tracking-[0.18em] whitespace-nowrap"
-              >
-                Cookie Settings
-              </button>
-            </div>
+            <LegalIdentity className="mt-4" />
           </div>
         </div>
       </div>

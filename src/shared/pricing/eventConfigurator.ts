@@ -184,15 +184,24 @@ export function defaultService(event: ConfiguratorEvent): ServiceKey {
   return servicesFor(event).find((s) => event.services[s.key] === "start")?.key ?? servicesFor(event)[0].key;
 }
 
-/** The extra that is free right now: the photo booth during the wedding promo, or the event's gift. */
+/** The wedding promo gift: the couple picks the photo booth or the videobooth (owner, 2026-10-26). */
+export const PROMO_GIFT_ONE_OF: ExtraKey[] = ["fotocabina", "videobooth"];
+
+/** Extras that can be the free one: the promo's booths, else the event's own gift. */
+export function giftCandidates(event: ConfiguratorEvent, options: { photoboothFree?: boolean } = {}): ExtraKey[] {
+  if (options.photoboothFree) return PROMO_GIFT_ONE_OF.filter((k) => event.extras.includes(k));
+  return event.giftOneOf ?? [];
+}
+
+/** The extra that is free right now: one booth during the wedding promo, or the event's gift. */
 export function giftedExtra(
   event: ConfiguratorEvent,
   extras: ExtraKey[],
   options: { photoboothFree?: boolean } = {},
 ): ExtraKey | undefined {
-  if (options.photoboothFree && event.extras.includes("fotocabina") && extras.includes("fotocabina")) return "fotocabina";
+  const candidates = giftCandidates(event, options);
   // `extras` is in pick order — the gift stays on whichever the visitor turned on first.
-  return extras.find((k) => event.giftOneOf?.includes(k));
+  return extras.find((k) => candidates.includes(k));
 }
 
 export function buildQuote(

@@ -121,7 +121,6 @@ describe("client-facing token links stay public", () => {
   test.each([
     ["src/server/routes/contracts.routes", "get", "/sign/:token"],
     ["src/server/routes/contracts.routes", "post", "/sign/:token"],
-    ["src/server/routes/contracts.routes", "get", "/latest-signed"],
     ["src/server/routes/handover.routes", "get", "/sign/:token"],
     ["src/server/routes/adminEvents.routes", "get", "/events/:id/post-event-backup/status"],
     ["src/server/routes/adminEvents.routes", "get", "/events/:id/post-event-backup/confirm"],

@@ -19,6 +19,7 @@ import {
   eventByKey,
   servicePrice,
   servicesFor,
+  giftCandidates,
   giftedExtra,
   clampHours,
   type ConfiguratorEventKey,
@@ -28,10 +29,13 @@ import {
 
 export type DatePick = { day: number | null; month: number | null; year: number | null };
 
+/** What the visitor ticked, for the "Ce primiți" block below the configurator. */
+export type PackageSelection = { event: ConfiguratorEventKey; service: ServiceKey; extras: ExtraKey[]; albumVariant: number; gift?: ExtraKey };
+
 interface PriceConfiguratorProps {
   waLink: (text: string) => string;
   onWhatsAppClick: (position: string) => void;
-  /** Free photo booth promo (weddings only, while the countdown runs). */
+  /** Free photo booth or videobooth promo, the couple's pick (weddings only, while the countdown runs). */
   photoboothFree: boolean;
   /** Under the photobooth's "🎁 Cadou · Gratuit" badge: why it is free and until when. */
   photoboothNote?: string;
@@ -53,6 +57,8 @@ interface PriceConfiguratorProps {
   onLocationChange: (location: string) => void;
   /** Step 5: saves the lead (email, Ads, live panel) with the configuration as its message. */
   onSubmitLead: (contact: { name: string; phone: string; message?: string }) => Promise<boolean>;
+  /** Every change of event / service / extras, so the page can list exactly what is in the package. */
+  onSelectionChange?: (selection: PackageSelection) => void;
 }
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string | undefined;
@@ -84,11 +90,10 @@ const STYLES = `
 `;
 
 const formatAmount = (n: number) => n.toLocaleString("ro-RO");
-/** Paid when the contract is signed — the booking advance. */
-const CONTRACT_ADVANCE_EUR = 200;
-/** Weddings and baptisms book with the fixed advance; smaller events with 20% of the total (rounded to 5 €, never above the fixed one). */
-const contractAdvance = (eventKey: ConfiguratorEventKey, total: number) =>
-  eventKey === "nunta" || eventKey === "botez" ? CONTRACT_ADVANCE_EUR : Math.min(Math.round((total * 0.2) / 5) * 5, CONTRACT_ADVANCE_EUR);
+/** Paid when the contract is signed — the booking advance: 200 € for a wedding, 100 € for everything else (owner, 2026-10-26). */
+const WEDDING_ADVANCE_EUR = 200;
+const OTHER_ADVANCE_EUR = 100;
+const contractAdvance = (eventKey: ConfiguratorEventKey) => (eventKey === "nunta" ? WEDDING_ADVANCE_EUR : OTHER_ADVANCE_EUR);
 
 const MONTHS = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 
@@ -211,7 +216,7 @@ function initialEvent(): ConfiguratorEventKey {
 }
 
 export default function PriceConfigurator({
-  waLink, onWhatsAppClick, photoboothFree, photoboothNote, dateParts, onDatePart, eventDate, bookedDates, onDateChecked, onPriceConfigured, onEventChange, onBook, onLocationChange, onSubmitLead,
+  waLink, onWhatsAppClick, photoboothFree, photoboothNote, dateParts, onDatePart, eventDate, bookedDates, onDateChecked, onPriceConfigured, onEventChange, onBook, onLocationChange, onSubmitLead, onSelectionChange,
 }: PriceConfiguratorProps) {
   const standardPrices = usePriceBook();
   const seasons = usePriceSeasons();
@@ -251,7 +256,11 @@ export default function PriceConfigurator({
     () => buildQuote({ event: eventKey, service, extras, guestTier, hours, albumVariant }, prices, { photoboothFree: freeBooth }),
     [eventKey, service, extras, guestTier, hours, albumVariant, prices, freeBooth],
   );
-  const advance = contractAdvance(eventKey, quote.total);
+  const gift = giftedExtra(event, extras, { photoboothFree: freeBooth });
+  useEffect(() => {
+    onSelectionChange?.({ event: eventKey, service, extras, albumVariant, gift });
+  }, [eventKey, service, extras, albumVariant, gift]); // eslint-disable-line react-hooks/exhaustive-deps
+  const advance = contractAdvance(eventKey);
   const shownTotal = useCountUp(quote.total);
   // Restart the pulse on every new total.
   const [pulse, setPulse] = useState(0);
@@ -377,7 +386,7 @@ export default function PriceConfigurator({
   const whatsappMessage = [
     `Bună! Mi-am făcut configurația pe site pentru ${event.label.toLocaleLowerCase("ro-RO")}${eventDate ? `, pe ${formatDate(eventDate)}` : ""}${place ? ` (locația: ${place})` : ""}:`,
     ...quote.lines.map((line) => `• ${line.label}${line.waived ? " (ofertă: gratuit)" : ` — ${formatAmount(line.amount)} €`}`),
-    `Estimare: ${priceFromLowestMonth ? "de la " : ""}${formatAmount(quote.total)} €.`,
+    `Total: ${formatAmount(quote.total)} €${priceFromLowestMonth ? " (prețul exact după alegerea datei)" : ""}.`,
     `Avans la semnarea contractului: ${formatAmount(advance)} €.`,
     available === null
       ? "Aș dori să verificăm disponibilitatea și detaliile."
@@ -391,7 +400,7 @@ export default function PriceConfigurator({
   const offerSummary = [
     `Oferta configurată pe site: ${event.label.toLocaleLowerCase("ro-RO")}${eventDate ? `, pe ${formatDate(eventDate)}` : ""}${place ? ` (locația: ${place})` : ""}`,
     ...quote.lines.map((line) => `• ${line.label}${line.waived ? " (ofertă: gratuit)" : ` — ${formatAmount(line.amount)} €`}`),
-    `Estimare: ${priceFromLowestMonth ? "de la " : ""}${formatAmount(quote.total)} €`,
+    `Total: ${formatAmount(quote.total)} €${priceFromLowestMonth ? " (prețul exact după alegerea datei)" : ""}`,
   ].join("\n");
   const offerPicks = [SERVICES.find((s) => s.key === service)?.label, ...extras.map((key) => EXTRAS[key].label)].filter((pick): pick is string => Boolean(pick));
   const offerPicksKey = offerPicks.join("|");
@@ -412,7 +421,7 @@ export default function PriceConfigurator({
     const message = [
       "Configurație trimisă din configuratorul de preț:",
       ...quote.lines.map((line) => `• ${line.label}${line.waived ? " — gratuit (cadou/ofertă)" : ` — ${formatAmount(line.amount)} €`}`),
-      `Estimare: ${priceFromLowestMonth ? "de la " : ""}${formatAmount(quote.total)} €`,
+      `Total: ${formatAmount(quote.total)} €${priceFromLowestMonth ? " (prețul exact după alegerea datei)" : ""}`,
       "Acord GDPR: da — a cerut să fie contactat",
     ].join("\n");
     setLeadStatus((await onSubmitLead({ name: "", phone: phone.trim(), message })) ? "sent" : "error");
@@ -432,12 +441,12 @@ export default function PriceConfigurator({
             <span className="h-px w-10 bg-neutral-300/60" />
           </p>
           <h2 className="mt-5 text-4xl font-normal uppercase leading-tight tracking-[0.05em] sm:text-5xl">
-            Află prețul
+            Aflați prețul
             <br />
             <span className="text-2xl text-neutral-400 sm:text-3xl">[în 30 de secunde]</span>
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-neutral-600 sm:text-base">
-            Alege evenimentul, data și ce vă doriți. Verificăm calendarul și calculăm prețul pe loc — fără formular, fără număr de telefon.
+            Alegeți evenimentul, data și ce vă doriți. Verificăm calendarul și calculăm prețul pe loc — fără formular, fără număr de telefon.
           </p>
         </div>
 
@@ -478,7 +487,7 @@ export default function PriceConfigurator({
               <div className="rounded-2xl border-2 border-amber-300/80 bg-amber-50/70 p-4 shadow-[0_12px_30px_-18px_rgba(217,119,6,0.55)] sm:p-5">
                 <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-800">
                   <span className="rounded-full bg-amber-200 px-2.5 py-1">Important</span>
-                  <span>Completează data pentru verificarea disponibilității</span>
+                  <span>Completați data pentru verificarea disponibilității</span>
                 </div>
                 <StepTitle n={2}>Când și unde are loc evenimentul?</StepTitle>
                 <div className="mt-5 grid grid-cols-[0.8fr_1.8fr_1fr] gap-2 sm:grid-cols-[90px_minmax(150px,1fr)_110px]">
@@ -489,7 +498,7 @@ export default function PriceConfigurator({
                 {monthHint && <p className="mt-2 text-xs text-neutral-500">{monthHint}</p>}
                 <div key={eventDate || "none"} className="configurator-in mt-3" aria-live="polite">
                   {available === null ? (
-                    <p className="text-xs text-neutral-500">Alege ziua, luna și anul — verificăm calendarul pe loc.</p>
+                    <p className="text-xs text-neutral-500">Alegeți ziua, luna și anul — verificăm calendarul pe loc.</p>
                   ) : available ? (
                     <p className="flex items-start gap-2.5 rounded-xl bg-emerald-600/10 px-4 py-3 text-sm text-emerald-800">
                       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[11px] text-white">✓</span>
@@ -498,7 +507,7 @@ export default function PriceConfigurator({
                   ) : (
                     <p className="flex items-start gap-2.5 rounded-xl bg-red-600/10 px-4 py-3 text-sm text-red-800">
                       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-600 text-[11px] text-white">✕</span>
-                      <span><strong className="font-semibold">{formatDate(eventDate)} este deja rezervată.</strong> Scrie-ne totuși — uneori avem o a doua echipă disponibilă.</span>
+                      <span><strong className="font-semibold">{formatDate(eventDate)} este deja rezervată.</strong> Scrieți-ne totuși — uneori avem o a doua echipă disponibilă.</span>
                     </p>
                   )}
                 </div>
@@ -558,7 +567,7 @@ export default function PriceConfigurator({
                 </div>
               </div>
               {countyFromPlace && county && (
-                <p className="configurator-in mt-2 text-xs text-neutral-500">Județul {county} a fost completat din locație — îl poți schimba.</p>
+                <p className="configurator-in mt-2 text-xs text-neutral-500">Județul {county} a fost completat din locație — îl puteți schimba.</p>
               )}
             </div>
 
@@ -640,9 +649,9 @@ export default function PriceConfigurator({
                 {event.extras.map((key) => {
                   const extra = EXTRAS[key];
                   const on = extras.includes(key);
-                  // Free = the wedding promo booth, or the event's gift while it is still up for grabs.
-                  const gift = giftedExtra(event, extras, { photoboothFree: freeBooth });
-                  const free = (key === "fotocabina" && freeBooth) || (event.giftOneOf?.includes(key) && (!gift || gift === key));
+                  // Free = the promo booth / the event's gift, while it is still up for grabs.
+                  const candidate = giftCandidates(event, { photoboothFree: freeBooth }).includes(key);
+                  const free = candidate && (!gift || gift === key);
                   return (
                     <div key={key} className={`rounded-2xl border bg-white transition-colors duration-300 ${free ? "configurator-glow" : on ? "border-neutral-950/70" : "border-neutral-950/10"}`}>
                       <button
@@ -657,13 +666,16 @@ export default function PriceConfigurator({
                             {extra.label}
                             {free && (
                               <span className="rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-950 shadow-sm shadow-amber-500/40">
-                                🎁 Cadou · Gratuit
+                                {gift ? "🎁 Cadou · Gratuit" : "🎁 Cadou · una la alegere"}
                               </span>
                             )}
                           </span>
                           <span className="mt-0.5 block text-xs text-neutral-600">{extra.note}</span>
                           {free && (
-                            <span className="mt-1 block text-xs font-semibold text-amber-700">{event.giftNote ?? photoboothNote ?? "3 din 5 locuri s-au ocupat · Mai sunt 2 disponibile"}</span>
+                            <span className="mt-1 block text-xs font-semibold text-amber-700">{freeBooth ? photoboothNote : event.giftNote}</span>
+                          )}
+                          {candidate && !free && gift && (
+                            <span className="mt-1 block text-xs text-neutral-500">Doar una e cadou, iar cadoul l-ați ales deja: {EXTRAS[gift].label}.</span>
                           )}
                         </span>
                         <span className="shrink-0 text-right text-sm">
@@ -684,7 +696,7 @@ export default function PriceConfigurator({
                       </button>
                       {extra.variants && on && (
                         <div className="configurator-in border-t border-neutral-950/10 px-4 pb-4 pt-3 sm:px-5">
-                          <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-500">Alege varianta</p>
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-500">Alegeți varianta</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {extra.variants.map((variant, i) => (
                               <button
@@ -764,7 +776,7 @@ export default function PriceConfigurator({
                       disabled={!phoneOk || !consent || leadStatus === "sending"}
                       className="rounded-xl bg-neutral-950 px-6 py-3.5 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
                     >
-                      {leadStatus === "sending" ? "Se trimite…" : "Contactați-mă"}
+                      {leadStatus === "sending" ? "Se trimite…" : "Vreau să mă sunați"}
                     </button>
                   </div>
                   <label className="mt-4 flex cursor-pointer items-start gap-3 text-xs leading-relaxed text-neutral-600">
@@ -827,7 +839,7 @@ export default function PriceConfigurator({
 
                 <div className="mt-6 text-center">
                   {/* Lead with the small amount due now; the full estimate stays visible but quieter. */}
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/75">La semnarea contractului achitați</p>
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/75">La semnarea contractului plătiți</p>
                   <p className="mt-1 flex items-baseline justify-center gap-1.5 text-green-500">
                     <span className="text-5xl font-semibold leading-none tabular-nums">{formatAmount(advance)}</span>
                     <span className="text-xl font-semibold">€</span>
@@ -840,11 +852,13 @@ export default function PriceConfigurator({
                       <dd className="shrink-0 whitespace-nowrap text-lg tabular-nums">{formatAmount(Math.max(shownTotal - advance, 0))} €</dd>
                     </div>
                     <div key={pulse} className={`flex items-baseline justify-between gap-4 text-white/55 ${pulse ? "configurator-pulse" : ""}`} aria-live="polite">
-                      <dt className="text-xs">{priceFromLowestMonth ? "Total estimat, de la" : "Total estimat"}</dt>
+                      <dt className="text-xs">Total</dt>
                       <dd className="shrink-0 whitespace-nowrap text-xs tabular-nums">{formatAmount(shownTotal)} €</dd>
                     </div>
                   </dl>
-                  <p className="mx-auto mt-3 max-w-[15rem] text-xs leading-relaxed text-white/50 [text-wrap:balance]">Prețul final îl confirmăm împreună, după ce discutăm detaliile.</p>
+                  {priceFromLowestMonth && (
+                    <p className="mx-auto mt-3 max-w-[16rem] text-xs leading-relaxed text-white/60 [text-wrap:balance]">Fără dată aleasă, arătăm prețul celei mai ieftine perioade. Alegeți data și vedeți prețul exact.</p>
+                  )}
                 </div>
 
                 <a
@@ -855,7 +869,7 @@ export default function PriceConfigurator({
                   className="mt-7 flex items-center justify-center gap-2.5 rounded-full [text-wrap:balance] bg-green-500 px-4 py-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-white transition-colors hover:bg-green-400 sm:px-6 sm:text-xs sm:tracking-[0.18em]"
                 >
                   <WhatsAppIcon />
-                  Trimite pe WhatsApp
+                  Trimiteți pe WhatsApp
                 </a>
                 {available && (
                   <button
@@ -863,7 +877,7 @@ export default function PriceConfigurator({
                     onClick={onBook}
                     className="mt-3 w-full rounded-full [text-wrap:balance] border border-white/25 px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-white transition-colors hover:bg-white hover:text-neutral-950 sm:px-6 sm:text-xs sm:tracking-[0.18em]"
                   >
-                    Lasă-ne numărul tău
+                    Lăsați-ne numărul
                   </button>
                 )}
               </div>

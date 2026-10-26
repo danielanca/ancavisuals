@@ -32,3 +32,19 @@ function roDate(value: string): string {
 export function signReminderSmsText(args: { eventDate: string; link: string; automatedLabel: string }): string {
   return `Bună ziua! Suntem echipa foto-video de la evenimentul din data de ${roDate(args.eventDate)}. Materialele vă așteaptă: semnați procesul verbal de predare și le primiți imediat: ${args.link}\n\n${args.automatedLabel}`;
 }
+
+/** Marks a PV link sent by SMS (`?s=sms`), so the owner is told when the client opens it. Short on purpose: SMS is billed per segment. */
+export const HANDOVER_SMS_SOURCE = "sms";
+
+export function handoverSmsLink(origin: string, token: string): string {
+  return `${origin.replace(/\/+$/, "")}/proces-verbal/${token}?s=${HANDOVER_SMS_SOURCE}`;
+}
+
+/** The text pre-filled in the admin's "Trimite prin SMS" pop-up; the admin can edit it before sending. */
+export function handoverSmsText(args: { eventDate: string; link: string; signed: boolean; includeDigitalLink: boolean }): string {
+  const greeting = `Bună ziua! Suntem echipa foto-video de la evenimentul din data de ${roDate(args.eventDate)}.`;
+  if (args.signed) return `${greeting} Aici găsiți procesul verbal semnat și materialele: ${args.link}`;
+  return args.includeDigitalLink
+    ? `${greeting} Materialele sunt gata: semnați procesul verbal de predare și le primiți imediat: ${args.link}`
+    : `${greeting} Vă rugăm să semnați procesul verbal de predare a materialelor: ${args.link}`;
+}

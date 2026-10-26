@@ -4,13 +4,11 @@
  */
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
-let status: "online" | "offline" = "online";
 vi.mock("src/client/features/chat/components/LiveChat", () => ({
   openLiveChat: vi.fn(() => Promise.resolve(true)),
   loadTidio: vi.fn(),
-  subscribeToLiveChatStatus: (callback: (value: string) => void) => { callback(status); return () => {}; },
 }));
 vi.mock("src/client/utils/liveEvent", () => ({ sendLiveEvent: vi.fn() }));
 
@@ -19,12 +17,9 @@ import { openLiveChat } from "src/client/features/chat/components/LiveChat";
 import { sendLiveEvent } from "src/client/utils/liveEvent";
 
 describe("ChatWithUs", () => {
-  afterEach(() => { status = "online"; });
-
   test("opens the live chat and offers WhatsApp as a fallback", () => {
     render(<ChatWithUs />);
     expect(screen.getByRole("heading", { name: /Povestiți-ne despre ziua voastră/ })).toBeInTheDocument();
-    expect(screen.getByText("Suntem online")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Scrie-ne acum/ }));
     expect(openLiveChat).toHaveBeenCalledTimes(1);
@@ -33,12 +28,11 @@ describe("ChatWithUs", () => {
     expect(screen.getByRole("link", { name: /sau pe WhatsApp/ }).getAttribute("href")).toContain("wa.me/40745469907");
   });
 
-  test("shows offline when nobody is available in the Tidio app", () => {
-    status = "offline";
+  test("promises a realistic reply time instead of a fake online status or clock", () => {
     render(<ChatWithUs />);
-    expect(screen.getByText("Suntem offline")).toBeInTheDocument();
-    expect(screen.getByText(/vă răspundem imediat ce revenim online/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Scrie-ne acum/ })).toBeInTheDocument();
+    expect(screen.getByText(/Estera sau Dani îți răspund de obicei în 1–2 ore/)).toBeInTheDocument();
+    expect(screen.queryByText(/online/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^AZI,/)).not.toBeInTheDocument();
   });
 
   test("on the owner's device it explains why the chat did not open and can open it anyway", async () => {

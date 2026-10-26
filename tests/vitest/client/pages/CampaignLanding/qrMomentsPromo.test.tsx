@@ -10,7 +10,7 @@ describe("QRMomentsPromo", () => {
     render(<QRMomentsPromo whatsappHref="https://wa.me/40745469907" onCta={onCta} />);
 
     expect(screen.getByRole("heading", { name: "QR Code Moments" })).toBeInTheDocument();
-    expect(screen.getByText("Inclus în preț")).toBeInTheDocument();
+    expect(screen.getByText("Inclus în pachet")).toBeInTheDocument();
     expect(screen.queryByText(/gratuit/i)).not.toBeInTheDocument();
     expect(screen.getByAltText("Card QR Code Moments pentru eveniment")).toHaveAttribute(
       "src",

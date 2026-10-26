@@ -4,7 +4,7 @@ import { firestore } from "../firestore.js";
 
 export type ActivityType = "contact" | "visitor" | "subscribe" | "lead" | "offer_viewed" | "seo_visit"
   | "task_overdue" | "upload_incomplete" | "processing_failed" | "processing_complete" | "album_zip" | "email_failed"
-  | "album_opened";
+  | "album_opened" | "handover_opened";
 
 export interface ActivityRecord {
   id?: string;

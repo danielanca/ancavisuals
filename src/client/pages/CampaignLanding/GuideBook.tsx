@@ -114,7 +114,7 @@ export default function GuideBook() {
       onClick={() => { if (!isStatic()) setClicks((n) => n + 1); }}
       onMouseEnter={() => { if (!isStatic()) setHovered(true); }}
       onMouseLeave={() => setHovered(false)}
-      aria-label="Răsfoiește Ghidul Mirilor"
+      aria-label="Răsfoiți Ghidul Mirilor"
       className={`guide-book mx-auto block w-full max-w-[250px] text-left md:cursor-pointer ${open ? "guide-book--open" : ""}`}
     >
       <style>{STYLES}</style>

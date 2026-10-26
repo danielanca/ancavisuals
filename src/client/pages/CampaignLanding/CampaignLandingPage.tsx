@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
-import { openCookieSettings } from "../../utils/cookieConsent";
+import LegalIdentity from "../../components/Legal/LegalIdentity";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
 import {
   fireAdsContactClickConversion,
@@ -15,14 +15,16 @@ import ReviewsGrid from "../../components/Reviews/ReviewsGrid";
 import { useDatePrices, usePriceSeasons, useStartingPrices, useYearPrices } from "../../hooks/useStartingPrices";
 import { seasonalStartingPrice } from "../../../shared/pricing/seasonalPricing";
 import { startingPricesForDate } from "../../../shared/pricing/yearPricing";
-import PriceConfigurator, { type DatePick } from "./PriceConfigurator";
+import PriceConfigurator, { type DatePick, type PackageSelection } from "./PriceConfigurator";
 import LazySection from "./LazySection";
 import SectionSkeleton from "./SectionSkeleton";
-import QRMomentsPromo from "./QRMomentsPromo";
-import PhotobookPromo from "./PhotobookPromo";
 import HeroVideo from "./HeroVideo";
 import FramedVideoSection from "./FramedVideoSection";
-import FreePhotoboothContracts from "./FreePhotoboothContracts";
+import WeddingPackageIncludes from "./WeddingPackageIncludes";
+import MeetTheTeamStrip from "./MeetTheTeamStrip";
+import QRMomentsPromo from "./QRMomentsPromo";
+import PhotobookPromo from "./PhotobookPromo";
+import { PROMO_DEADLINE, isPromoOpen, remainingSlotsNote, useFreePhotoboothOffer } from "./freePhotoboothOffer";
 import WeddingGuideLeadMagnet from "./WeddingGuideLeadMagnet";
 import { AboutSummary, AncaVisualsPromo, CampaignPackages, CampaignVideoPlayer, GuideBook, PortfolioParallaxGallery, preloadGroup } from "./lazyParts";
 import ChatWithUs from "../../features/chat/components/ChatWithUs";
@@ -53,7 +55,7 @@ export const toIso = (day: number, monthZeroBased: number, year: number) =>
 const WEDDING_GUIDE_SLUGS = new Set(["olx"]);
 // Price configurator (Nuntă / Botez / Majorat / Corporate) — Ads traffic also asks for christenings.
 const CONFIGURATOR_SLUGS = new Set(["olx"]);
-// Landings whose "Vezi-ne la lucru" uses the album's square black-and-white video frame.
+// Landings whose "Vedeți-ne la lucru" uses the album's square black-and-white video frame.
 const FRAMED_VIDEO_SLUGS = new Set(["olx"]);
 // "Verifică disponibilitatea" (#verifica-data) is switched off for now (owner, 2026-10-03):
 // the configurator checks the date itself. Set to true to bring the section back.
@@ -177,11 +179,7 @@ function ArrowIcon() {
   );
 }
 
-// Real, fixed promo deadline — does not reset per visit/session, unlike the
-// old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
-export const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
-
-const CONFIGURATOR_SEEN_KEY = "configurator-seen";
+export { PROMO_DEADLINE };
 
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
   const location = useLocation();
@@ -213,35 +211,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     return () => window.removeEventListener("load", start);
   }, []);
 
-  // "Află prețul" shows in the hero only for someone who scrolled down, never got the
-  // configurator on screen (on any visit — remembered in this browser), and came back
-  // up to the top. Once shown, it stays.
-  const [showPriceCta, setShowPriceCta] = useState(false);
-  useEffect(() => {
-    if (!CONFIGURATOR_SLUGS.has(page.slug)) return;
-    const configurator = document.getElementById("configurator");
-    if (!configurator || typeof IntersectionObserver === "undefined") return;
-    try { if (localStorage.getItem(CONFIGURATOR_SEEN_KEY)) return; } catch { /* storage blocked: decide per visit */ }
-    let wentDown = false;
-    const stop = () => { observer.disconnect(); window.removeEventListener("scroll", onScroll); };
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!entry?.isIntersecting) return;
-      try { localStorage.setItem(CONFIGURATOR_SEEN_KEY, "1"); } catch { /* storage blocked */ }
-      stop();
-    }, { threshold: 0.15 });
-    const onScroll = () => {
-      const top = window.scrollY;
-      if (top > window.innerHeight) wentDown = true;
-      else if (wentDown && top < window.innerHeight * 0.4) {
-        setShowPriceCta(true);
-        sendLiveEvent("configurator_cta_shown", { label: "Află prețul în 30 de secunde", meta: { source: "hero" } });
-        stop();
-      }
-    };
-    observer.observe(configurator);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return stop;
-  }, [page.slug]);
+  // The offer's hero (audit 2026-10, variant B): one button to the price + availability configurator.
+  const offerHero = CONFIGURATOR_SLUGS.has(page.slug);
 
   const todayForDate = new Date();
   const todayYear = todayForDate.getFullYear();
@@ -273,34 +244,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       .then((d: { dates?: string[] }) => setBookedDates(d.dates ?? []))
       .catch(() => setBookedDates([]));
   }), []);
-  // Real social-proof note: most recently signed contract, name masked
-  // server-side. Shown once per page load after a short delay, dismissible —
-  // not a repeating/fake "someone just booked" spam pattern.
-  const [latestContract, setLatestContract] = useState<{ maskedName: string; signedAt: string } | null>(null);
-  const [showLatestContract, setShowLatestContract] = useState(false);
-  const [latestContractVisible, setLatestContractVisible] = useState(false);
-  const dismissLatestContract = () => {
-    setLatestContractVisible(false);
-    window.setTimeout(() => setShowLatestContract(false), 300);
-  };
-  useEffect(() => whenLandingSettled(() => {
-    fetch("/api/contracts/latest-signed")
-      .then((r) => r.json())
-      .then((d: { contract?: { maskedName: string; signedAt: string } | null }) => {
-        if (!d.contract) return;
-        setLatestContract(d.contract);
-        window.setTimeout(() => {
-          setShowLatestContract(true);
-          window.setTimeout(() => setLatestContractVisible(true), 20);
-        }, 50_000);
-      })
-      .catch(() => {});
-  }), []);
-  useEffect(() => {
-    if (!latestContractVisible) return;
-    const timer = window.setTimeout(() => dismissLatestContract(), 7000);
-    return () => window.clearTimeout(timer);
-  }, [latestContractVisible]);
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 640);
@@ -392,21 +335,24 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     notifyInteraction("form");
     measureOaiq("form_started", { page_path: `/oferta/${page.slug}` });
   };
-  const trackQrMomentsInterest = () => {
-    sendLiveEvent("qr_moments_interest", { label: "QR Code Moments", meta: { source: "oferta/olx" } });
-    measureOaiq("qr_moments_interest", { page_path: `/oferta/${page.slug}` });
-  };
   const trackClick = (eventName: "click_whatsapp" | "click_phone", position: string) => {
     measureOaiq(eventName, { cta_position: position, page_path: `/oferta/${page.slug}` });
     // WhatsApp links are counted by the site-wide listener; the phone reveal is a button, not a link.
     if (eventName === "click_phone") fireAdsContactClickConversion();
   };
 
-  const promoExpired = PROMO_DEADLINE - now <= 0;
   // Came through a guest's recommendation (utm_source=recomandare): the photobooth + QR code
   // are free no matter whether the public promo is still on.
   const referral = useReferral();
-  const photoboothFree = referral || !promoExpired;
+  // Free-slot count comes from the signed contracts listed further down — never hardcoded.
+  const photoboothOffer = useFreePhotoboothOffer();
+  const photoboothFree = referral || isPromoOpen(photoboothOffer, now);
+  // What is ticked in the configurator — "Ce primiți" lists exactly that.
+  const [packageSelection, setPackageSelection] = useState<PackageSelection>();
+  const trackQrMomentsInterest = () => {
+    sendLiveEvent("qr_moments_interest", { label: "QR Code Moments", meta: { source: "oferta/olx" } });
+    measureOaiq("qr_moments_interest", { page_path: `/oferta/${page.slug}` });
+  };
 
   const checkAvailability = (e: React.FormEvent) => {
     e.preventDefault();
@@ -475,27 +421,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       <style>{`@keyframes promoRainbow { 0%, 24.99% { color: #ef4444; } 25%, 49.99% { color: #facc15; } 50%, 74.99% { color: #22c55e; } 75%, 99.99% { color: #3b82f6; } } .promo-rainbow-text { animation: promoRainbow 2.8s steps(1, end) infinite; }`}</style>
       {adminNotice && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full border border-amber-300/40 bg-neutral-900/95 px-4 py-2 text-xs font-semibold text-amber-200 shadow-xl shadow-black/30">Ești admin — notificările sunt dezactivate.</div>}
 
-      {showLatestContract && latestContract && (
-        <div
-          className={`fixed bottom-4 right-4 z-40 flex max-w-xs items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-xl shadow-black/10 transition-all duration-300 ease-out ${
-            latestContractVisible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
-          }`}
-        >
-          <span aria-hidden="true" className="text-lg">🎉</span>
-          <p className="flex-1 text-sm text-neutral-600">
-            <span className="font-semibold text-neutral-900">{latestContract.maskedName}</span> a semnat contractul pe {formatDateRo(latestContract.signedAt.slice(0, 10))}
-          </p>
-          <button
-            type="button"
-            onClick={dismissLatestContract}
-            aria-label="Închide"
-            className="text-neutral-400 transition-colors hover:text-neutral-700"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       <header className="absolute top-0 inset-x-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
           <Link to="/" className="text-xs tracking-[0.28em] uppercase font-bold sm:font-medium text-white">Anca Visuals</Link>
@@ -503,7 +428,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             href={availabilityHref}
             className="hidden sm:inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold tracking-wide text-black transition-colors hover:bg-neutral-100"
           >
-            Verifică disponibilitatea <ArrowIcon />
+            Verificați data <ArrowIcon />
           </a>
         </div>
       </header>
@@ -565,7 +490,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
         <div className={`relative w-full max-w-6xl mx-auto px-6 pb-16 ${page.heroImageUrl ? "pt-[calc(var(--stable-vh,1vh)*40)] lg:pt-32" : "pt-32"}`}>
           <p className="text-amber-200 text-xs tracking-[0.3em] uppercase mb-4 font-medium">
-            Foto & video pentru povești reale
+            {offerHero
+              // From September on, couples are booking next year's weddings.
+              ? `Nunți în ${visitorCity ? `${visitorCity} și Transilvania` : "Transilvania"} · ${todayMonth >= 8 ? todayYear + 1 : todayYear}`
+              : "Foto & video pentru povești reale"}
           </p>
           {/* All capitals, thin and spaced out like the "ANCA VISUALS" logo; system font, so
               nothing extra downloads before the first screen. Capitals are wider: smaller sizes. */}
@@ -573,28 +501,35 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             {page.title}
           </h1>
           {page.subtitle && (
-            <p className="text-neutral-300 text-lg font-light max-w-xl mb-10 leading-snug">
+            <p className={`text-neutral-300 text-lg font-light max-w-xl leading-snug ${offerHero ? "mb-6" : "mb-10"}`}>
               {page.subtitle}
             </p>
           )}
-          {showPriceCta && (
-            <a
-              href="#configurator"
-              onClick={() => sendLiveEvent("configurator_cta_clicked", { label: "Află prețul în 30 de secunde", meta: { source: "hero" } })}
-              className="price-cta-in mb-3 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-white px-7 py-4 text-sm font-bold uppercase tracking-[0.1em] text-neutral-950 shadow-lg shadow-black/40 transition-colors hover:bg-neutral-100 active:scale-[0.98] sm:w-auto"
-            >
-              Află prețul în 30 de secunde <ArrowIcon />
-              <style>{"@keyframes priceCtaIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}.price-cta-in{animation:priceCtaIn .45s ease-out both}@media (prefers-reduced-motion:reduce){.price-cta-in{animation:none}}"}</style>
-            </a>
+          {offerHero && (
+            // On phones the button comes before the ticks, so it stays on the first screen.
+            <div className="flex flex-col gap-6 sm:flex-col-reverse">
+              <a
+                href="#configurator"
+                onClick={() => sendLiveEvent("configurator_cta_clicked", { label: "Aflați prețul și disponibilitatea", meta: { source: "hero" } })}
+                className="inline-flex w-full items-center justify-center gap-2.5 bg-white px-7 py-4 text-sm font-bold uppercase tracking-[0.1em] text-neutral-950 shadow-lg shadow-black/40 transition-colors hover:bg-neutral-100 active:scale-[0.98] sm:w-auto sm:self-start"
+              >
+                Aflați prețul și disponibilitatea <ArrowIcon />
+              </a>
+              <ul className="space-y-1.5 text-sm text-white/80">
+                <li>✓ Vă ghidăm când trebuie și ne facem nevăzuți în rest</li>
+                <li>✓ Livrare în galerie online privată</li>
+              </ul>
+            </div>
           )}
           {/* Pe mobil, bara fixă de jos are deja "Verifică data" + WhatsApp —
               butoanele astea două ar dubla acțiunea și aglomerau hero-ul. */}
+          {!offerHero && (<>
           <div className="hidden sm:flex flex-col sm:flex-row gap-3">
             <a
               href={availabilityHref}
               className="inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-7 py-4 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-green-900/40"
             >
-              Verifică dacă data ta este disponibilă <ArrowIcon />
+              Verificați data <ArrowIcon />
             </a>
             <PhoneNumberReveal
               phone={page.phoneNumber}
@@ -610,8 +545,12 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <span>✓ Echipă foto-video pentru nunți în {visitorCity ? `${visitorCity} și Transilvania` : "Transilvania"}</span>
             <span>✓ Îți personalizăm oferta</span>
           </div>
+          </>)}
         </div>
       </section>
+
+      {/* ── CINE SUNTEM — banda scurtă cu noi, imediat după hero; povestea completă e mai jos (AboutSummary) ── */}
+      {page.slug === "olx" && <MeetTheTeamStrip />}
 
       {/* ── PORTFOLIO — rămâne sus, imediat după hero ── */}
       {(galleryItems.length > 0 || (SHOW_GALLERY_EDIT_LINK && showAdminTools)) && (
@@ -643,6 +582,65 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <div className="h-20" />
           )}
         </div>
+      )}
+
+      {/* ── CONFIGURATOR — direct după portofoliu (owner, 2026-10-26): preț pe loc, apoi verificarea datei ── */}
+      {CONFIGURATOR_SLUGS.has(page.slug) && (
+        <PriceConfigurator
+          waLink={waLink}
+          onWhatsAppClick={(position) => trackClick("click_whatsapp", position)}
+          onSelectionChange={setPackageSelection}
+          photoboothFree={photoboothFree}
+          photoboothNote={referral
+            ? "Ați venit prin recomandare: una dintre ele, fotocabina sau videobooth-ul, e gratuită"
+            : remainingSlotsNote(photoboothOffer)}
+          dateParts={dateParts}
+          onDatePart={setDatePart}
+          eventDate={form.eventDate}
+          bookedDates={bookedDates}
+          onEventChange={(eventType) => setForm((c) => (c.eventType === eventType ? c : { ...c, eventType }))}
+          onDateChecked={(eventDate, available, eventType) => {
+            trackFormStart();
+            trackFormAction();
+            reportAvailabilityCheck(formatDateRo(eventDate), eventDate, available, eventType);
+            measureOaiq("availability_checked", { page_path: `/oferta/${page.slug}` });
+          }}
+          onPriceConfigured={() => fireAdsOlxConfiguratorConversion()}
+          onSubmitLead={(contact) => submitLead(contact, "configurator")}
+          onLocationChange={(location) => setForm((c) => (c.location === location ? c : { ...c, location }))}
+          onBook={() => {
+            setAvailStatus(bookedDates.includes(form.eventDate) ? "unavailable" : "available");
+            // Phone form: the availability section, or the configurator's own step 5 while it is off.
+            document.getElementById(SHOW_AVAILABILITY_SECTION ? "verifica-data" : "configurator-contact")?.scrollIntoView({ behavior: "smooth" });
+          }}
+        />
+      )}
+
+      {/* ── DUPĂ PREȚ: un singur bloc „Ce primiți” (QR Moments, fotocabina-bonus, fotocartea, lista de rezervări).
+           Erau trei secțiuni separate, fiecare cu stilul și butonul ei — oferta părea de bazar, nu premium. */}
+      {page.slug === "olx" && (
+        <WeddingPackageIncludes
+          offer={photoboothOffer}
+          now={now}
+          referral={referral}
+          selection={packageSelection}
+          whatsappHref={waLink("Bună! Aș vrea detalii despre pachetul Foto + Video pentru nunta mea.")}
+          onCta={() => trackClick("click_whatsapp", "pachet")}
+        />
+      )}
+      {/* QR Moments și fotocartea, cu pozele lor — readuse la cererea owner-ului (2026-10-26), marcate „Inclus în pachet”, nu „gratuit”. */}
+      {page.slug === "olx" && (
+        <LazySection height={stableVh(80)}>
+          <QRMomentsPromo
+            whatsappHref={waLink("Bună! Aș vrea detalii despre QR Code Moments pentru nunta noastră.")}
+            onCta={trackQrMomentsInterest}
+          />
+        </LazySection>
+      )}
+      {page.slug === "olx" && (
+        <LazySection height={stableVh(90)}>
+          <PhotobookPromo />
+        </LazySection>
       )}
 
       {/* ── FILM — same full-bleed look as the hero: a photo, then the clip once it has
@@ -677,12 +675,12 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         {FRAMED_VIDEO_SLUGS.has(page.slug) ? (
           // /oferta/olx: the album's "Video scurt" frame — square, black and white, play only, no download.
           <div className="border-b border-white/10 px-4 py-20 sm:px-6 sm:py-24">
-            <FramedVideoSection id="film" title="Vezi-ne la lucru" subtitle="o zi reală, filmată de noi" className="scroll-mt-6">
+            <FramedVideoSection id="film" title="Vedeți-ne la lucru" subtitle="o zi reală, filmată de noi" className="scroll-mt-6">
               {isEmbedVideoUrl(page.videoUrl ?? "") ? (
                 <div className="aspect-video w-full bg-black">
                   <iframe
                     src={page.videoUrl}
-                    title="Vezi-ne la lucru"
+                    title="Vedeți-ne la lucru"
                     className="h-full w-full"
                     allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
                     allowFullScreen
@@ -694,7 +692,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   fallback={<div aria-hidden="true" className="aspect-video w-full animate-pulse bg-white/[0.06] motion-reduce:animate-none" />}
                   src={(page.videoUrl || page.heroVideoUrl) as string}
                   poster={page.videoThumbnailUrl || undefined}
-                  label="Vezi-ne la lucru"
+                  label="Vedeți-ne la lucru"
                 />
               )}
             </FramedVideoSection>
@@ -703,7 +701,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           <section id="film" className="scroll-mt-6 py-20 sm:py-24 border-b border-white/10">
             <div className="mx-auto mb-8 w-full max-w-5xl px-6 text-center">
               <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Video</p>
-              <h2 className="text-3xl font-light">Vezi-ne la lucru</h2>
+              <h2 className="text-3xl font-light">Vedeți-ne la lucru</h2>
             </div>
             {/* Phones: edge to edge (no padding, corners or border). Desktop: a framed, narrower player — full width was too wide. */}
             <div className="mx-auto w-full max-w-5xl sm:px-6">
@@ -731,68 +729,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </LazySection>
       )}
 
-      {/* ── CONFIGURATOR — preț pe loc, apoi verificarea datei ───────── */}
-      {CONFIGURATOR_SLUGS.has(page.slug) && (
-        <PriceConfigurator
-          waLink={waLink}
-          onWhatsAppClick={(position) => trackClick("click_whatsapp", position)}
-          photoboothFree={photoboothFree}
-          photoboothNote={referral
-            ? "Ai venit prin recomandare: fotocabina și QR code-ul sunt gratuite"
-            : "Până pe 30 octombrie · 3 din 5 locuri s-au ocupat, mai sunt 2"}
-          dateParts={dateParts}
-          onDatePart={setDatePart}
-          eventDate={form.eventDate}
-          bookedDates={bookedDates}
-          onEventChange={(eventType) => setForm((c) => (c.eventType === eventType ? c : { ...c, eventType }))}
-          onDateChecked={(eventDate, available, eventType) => {
-            trackFormStart();
-            trackFormAction();
-            reportAvailabilityCheck(formatDateRo(eventDate), eventDate, available, eventType);
-            measureOaiq("availability_checked", { page_path: `/oferta/${page.slug}` });
-          }}
-          onPriceConfigured={() => fireAdsOlxConfiguratorConversion()}
-          onSubmitLead={(contact) => submitLead(contact, "configurator")}
-          onLocationChange={(location) => setForm((c) => (c.location === location ? c : { ...c, location }))}
-          onBook={() => {
-            setAvailStatus(bookedDates.includes(form.eventDate) ? "unavailable" : "available");
-            // Phone form: the availability section, or the configurator's own step 5 while it is off.
-            document.getElementById(SHOW_AVAILABILITY_SECTION ? "verifica-data" : "configurator-contact")?.scrollIntoView({ behavior: "smooth" });
-          }}
-        />
-      )}
-
-      {/* ── DUPĂ PREȚ: cine a prins fotocabina gratuită, apoi QR Moments (inclus) și fotocartea.
-           Înainte de configurator erau patru „cadouri” la rând — diluau oferta și amânau „cât costă?”. */}
-      {page.slug === "olx" && !referral && (
-        <section className="bg-white px-6 pb-4 text-neutral-950">
-          <div className="mx-auto max-w-lg"><FreePhotoboothContracts /></div>
-        </section>
-      )}
-
-      {page.slug === "olx" && (
-        <LazySection height={stableVh(80)}>
-          <QRMomentsPromo
-            whatsappHref={waLink("Bună! Sunt interesat(ă) de QR Code Moments pentru nunta mea.")}
-            onCta={trackQrMomentsInterest}
-          />
-        </LazySection>
-      )}
-
-      {page.slug === "olx" && (
-        <LazySection height={stableVh(90)}>
-          <PhotobookPromo
-          />
-        </LazySection>
-      )}
-
       {/* ── AVAILABILITY CHECK — off for now, see SHOW_AVAILABILITY_SECTION ── */}
       {(SHOW_AVAILABILITY_SECTION || !CONFIGURATOR_SLUGS.has(page.slug)) && (
       <section id="verifica-data" className="scroll-mt-6 border-b border-white/10 bg-neutral-900 px-6 py-16 sm:py-20">
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:items-center">
           <div>
-            <p className="mb-3 text-xs uppercase tracking-[0.25em] text-amber-200">Verifică disponibilitatea</p>
-            <h2 className="max-w-xl text-3xl font-light leading-tight sm:text-4xl">Spune-ne tipul evenimentului și data.</h2>
+            <p className="mb-3 text-xs uppercase tracking-[0.25em] text-amber-200">Verificați data</p>
+            <h2 className="max-w-xl text-3xl font-light leading-tight sm:text-4xl">Spuneți-ne tipul evenimentului și data.</h2>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-400">Îți spunem pe loc dacă suntem liberi. Fără să lași date de contact.</p>
           </div>
 
@@ -860,7 +803,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 disabled={availStatus === "checking" || !form.eventDate}
                 className="w-full rounded-xl bg-amber-600 py-4 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
               >
-                {availStatus === "checking" ? "Se verifică…" : form.eventDate ? "Verifică disponibilitatea" : "Alege data evenimentului"}
+                {availStatus === "checking" ? "Se verifică…" : form.eventDate ? "Verificați data" : "Alegeți data evenimentului"}
               </button>
             </form>
 
@@ -870,7 +813,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                 <PhoneNumberReveal
                   phone={page.phoneNumber}
                   buttonLabel="Afișează numărul de telefon"
-                  revealedPrefix="Sună — "
+                  revealedPrefix="Sunați-ne — "
                   context={`campanie ${page.slug} · verificare disponibilitate`}
                   onRevealed={() => trackClick("click_phone", "availability")}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
@@ -883,7 +826,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   onClick={() => trackClick("click_whatsapp", "availability")}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"
                 >
-                  <WhatsAppIcon /> Scrie-ne pe WhatsApp
+                  <WhatsAppIcon /> Scrieți-ne pe WhatsApp
                 </a>
               </div>
             </div>
@@ -892,16 +835,16 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               const free = availStatus === "available";
               const dateLabel = formatDateRo(form.eventDate);
               const event = form.eventType.toLowerCase();
-              // Same terms as the configurator's photobooth badge: first 2 weddings, until PROMO_DEADLINE.
+              // Same terms as the configurator's photobooth badge: while slots are left, until PROMO_DEADLINE.
               const photoboothGift = free && photoboothFree && form.eventType === "Nuntă";
               const waText = free
-                ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? (referral ? ", cu fotocabina gratuită și QR code (am venit prin recomandare)" : ", cu fotocabina gratuită") : ""}.`
+                ? `Bună! Am văzut că data de ${dateLabel} e liberă. Aș dori oferta pentru ${event}${photoboothGift ? (referral ? ", cu fotocabina sau videobooth-ul gratuit (am venit prin recomandare)" : ", cu fotocabina sau videobooth-ul gratuit") : ""}.`
                 : `Bună! Am văzut că ${dateLabel} e ocupată. Aveți o soluție pentru ${event}?`;
               const startingPrice = `${seasonalStartingPrice(form.eventType, startingPricesForDate(startingPrices, yearPrices, form.eventDate), priceSeasons, form.eventDate, datePrices)} €`;
               return (
                 <div className={`mt-4 rounded-xl border p-4 ${free ? "border-green-700/40 bg-green-900/25" : "border-amber-700/40 bg-amber-900/20"}`}>
                   <p className={`text-sm font-medium ${free ? "text-green-300" : "text-amber-200"}`}>
-                    {free ? `🎉 Data ta, ${dateLabel}, e liberă!` : `Data ${dateLabel} pare deja rezervată.`}
+                    {free ? `🎉 Data voastră, ${dateLabel}, e liberă!` : `Data ${dateLabel} pare deja rezervată.`}
                   </p>
                   {free && (
                     <p className="mt-1 text-sm text-white">Pachetele foto-video încep de la <span className="font-semibold text-amber-300">{startingPrice}</span>.</p>
@@ -909,11 +852,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   {photoboothGift && (
                     <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
                       {referral
-                        ? <>🎁 <span className="font-semibold">+ Fotocabina și QR code sunt gratuite</span> pentru tine, pentru că ai venit prin recomandarea cuiva.</>
-                        : <>🎁 <span className="font-semibold">+ Fotocabina e gratuită</span> dacă rezervi până pe 30 octombrie — 3 din 5 locuri s-au ocupat, mai sunt 2 disponibile.</>}
+                        ? <>🎁 <span className="font-semibold">+ Fotocabina sau videobooth-ul, doar una dintre ele, gratuit</span> pentru voi, pentru că ați venit prin recomandarea cuiva.</>
+                        : <>🎁 <span className="font-semibold">+ Fotocabina sau videobooth-ul, doar una dintre ele, gratuit</span> dacă rezervați până pe 30 octombrie. Locuri rămase: {photoboothOffer.remaining} din {photoboothOffer.totalSlots}.</>}
                     </p>
                   )}
-                  {!free && <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție — scrie-ne.</p>}
+                  {!free && <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție — scrieți-ne.</p>}
 
                   <a
                     href={waLink(waText)}
@@ -922,13 +865,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                     onClick={() => trackClick("click_whatsapp", free ? "avail_ok" : "avail_no")}
                     className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-green-400"
                   >
-                    <WhatsAppIcon /> {free ? "Primește oferta pe WhatsApp" : "Întreabă pe WhatsApp"}
+                    <WhatsAppIcon /> {free ? "Primiți oferta pe WhatsApp" : "Întrebați pe WhatsApp"}
                   </a>
-                  <p className="mt-1 text-center text-[11px] text-neutral-500">Mesajul cu data ta e deja scris — doar apeși Trimite.</p>
+                  <p className="mt-1 text-center text-[11px] text-neutral-500">Mesajul cu data voastră e deja scris — doar apăsați Trimite.</p>
 
                   {/* Phone field shown right away — one tap less than the old "Lasă-ne numărul" toggle. */}
                   <form onSubmit={handleFormSubmit} onFocus={trackFormStart} data-live-track="off" className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
-                    <p className="text-xs text-neutral-400">sau lasă numărul și te sunăm noi:</p>
+                    <p className="text-xs text-neutral-400">sau lăsați numărul și vă sunăm noi:</p>
                     <input
                       type="tel"
                       required
@@ -940,13 +883,13 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                       onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
                       className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
                     />
-                    {formStatus === "error" && <p className="text-sm text-red-400">A apărut o eroare. Încearcă din nou sau scrie-ne pe WhatsApp.</p>}
+                    {formStatus === "error" && <p className="text-sm text-red-400">A apărut o eroare. Încercați din nou sau scrieți-ne pe WhatsApp.</p>}
                     <button
                       type="submit"
                       disabled={formStatus === "sending" || !form.phone}
                       className="w-full rounded-xl border border-amber-500/50 bg-amber-500/10 py-3 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-500/20 disabled:opacity-50"
                     >
-                      {formStatus === "sending" ? "Se trimite…" : "Sunați-mă"}
+                      {formStatus === "sending" ? "Se trimite…" : "Vreau să mă sunați"}
                     </button>
                   </form>
                 </div>
@@ -956,7 +899,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             {formStatus === "sent" && (
               <div className="mt-4 rounded-xl border border-green-700/40 bg-green-900/30 p-6 text-center">
                 <p className="mb-1 text-2xl">✓</p>
-                <p className="text-sm font-medium text-green-300">Am primit numărul tău!</p>
+                <p className="text-sm font-medium text-green-300">Am primit numărul vostru!</p>
                 <p className="mt-1 text-xs text-neutral-400">Te contactăm în curând pentru {formatDateRo(form.eventDate)}.</p>
               </div>
             )}
@@ -1020,27 +963,27 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       <section id="oferta" className="py-24 px-6 bg-neutral-900 border-t border-neutral-800 scroll-mt-6">
         <div className="max-w-xl mx-auto text-center">
           <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Următorul pas</p>
-          <h2 className="text-3xl sm:text-4xl font-light text-white mb-3">Hai să vedem dacă data ta e liberă.</h2>
-          <p className="text-neutral-400 text-sm mb-8 leading-relaxed">Verifică disponibilitatea în 5 secunde sau scrie-ne direct.</p>
+          <h2 className="text-3xl sm:text-4xl font-light text-white mb-3">Hai să vedem dacă data voastră e liberă.</h2>
+          <p className="text-neutral-400 text-sm mb-8 leading-relaxed">Verificați data în 5 secunde sau scrieți-ne direct.</p>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <a href={availabilityHref}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
-              Verifică disponibilitatea <ArrowIcon />
+              Verificați data <ArrowIcon />
             </a>
             <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "final_cta")}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
               <WhatsAppIcon />
-              {page.ctaText || "Scrie pe WhatsApp"}
+              {page.ctaText || "Scrieți-ne pe WhatsApp"}
             </a>
           </div>
           <div className="mt-3 flex flex-col sm:flex-row justify-center gap-3">
             <PhoneNumberReveal
               phone={page.phoneNumber}
-              buttonLabel="Sună acum"
-              revealedPrefix="Sună acum — "
+              buttonLabel="Sunați-ne"
+              revealedPrefix="Sunați-ne — "
               context={`campanie ${page.slug} · CTA final`}
               onRevealed={() => trackClick("click_phone", "final_cta")}
               className="inline-flex items-center justify-center gap-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 py-3.5 rounded-xl text-sm border border-neutral-700 transition-all"
@@ -1052,7 +995,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
               rel="noreferrer"
               className="inline-flex items-center justify-center gap-2.5 rounded-xl border border-neutral-700 bg-neutral-800 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-neutral-700"
             >
-              <InstagramIcon /> Vezi-ne pe Instagram
+              <InstagramIcon /> Urmăriți-ne pe Instagram
             </a>
           </div>
 
@@ -1063,12 +1006,12 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             <span className="h-px flex-1 bg-neutral-800" />
           </div>
           <div className="mt-6 rounded-2xl border border-dashed border-amber-700/40 bg-amber-500/[0.06] p-5 text-left sm:p-6">
-            <p className="text-sm font-semibold text-amber-200">📞 Mai simplu: te sunăm noi.</p>
+            <p className="text-sm font-semibold text-amber-200">📞 Mai simplu: vă sunăm noi.</p>
             <p className="mt-1 text-xs leading-relaxed text-neutral-400">
-              Lasă-ne numărul și te sunăm noi.
+              Lăsați-ne numărul și vă sunăm noi.
             </p>
             {formStatus === "sent" ? (
-              <p className="mt-3 text-sm font-medium text-green-300">✓ Am primit numărul tău — te sunăm noi în curând!</p>
+              <p className="mt-3 text-sm font-medium text-green-300">✓ Am primit numărul vostru — vă sunăm noi în curând!</p>
             ) : (
               <form
                 onSubmit={handleFormSubmit}
@@ -1082,7 +1025,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   autoComplete="tel"
                   inputMode="tel"
                   name="phone"
-                  placeholder="Numărul tău"
+                  placeholder="Numărul de telefon"
                   value={form.phone}
                   onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
                   className="flex-1 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
@@ -1092,12 +1035,12 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   disabled={formStatus === "sending" || !form.phone}
                   className="whitespace-nowrap rounded-xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
                 >
-                  {formStatus === "sending" ? "Se trimite…" : "Sună-mă tu"}
+                  {formStatus === "sending" ? "Se trimite…" : "Vreau să mă sunați"}
                 </button>
               </form>
             )}
             {formStatus === "error" && (
-              <p className="mt-2 text-xs text-red-400">A apărut o eroare. Încearcă din nou sau scrie-ne pe WhatsApp.</p>
+              <p className="mt-2 text-xs text-red-400">A apărut o eroare. Încercați din nou sau scrieți-ne pe WhatsApp.</p>
             )}
           </div>
         </div>
@@ -1107,15 +1050,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
       {isLiveChatConfigured() && <ChatWithUs />}
 
-      <div className="py-6 text-center">
-        <p className="text-neutral-700 text-xs">© Ancavisuals · ancavisuals.ro</p>
-        <button
-          type="button"
-          onClick={openCookieSettings}
-          className="mt-2 text-neutral-600 hover:text-neutral-400 text-[11px] underline underline-offset-2 transition-colors"
-        >
-          Setări cookie
-        </button>
+      <div className="py-6 px-4 text-center">
+        <p className="text-neutral-700 text-xs">© {new Date().getFullYear()} Anca Visuals · ancavisuals.ro</p>
+        <LegalIdentity className="mt-2 text-neutral-600" />
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 // Shared Bunny Storage constants used across uploads, album downloads, and stats.
 export const BUNNY_STORAGE_BASE_URL = "https://storage.bunnycdn.com";
 export const BUNNY_STORAGE_ZONE_FALLBACK = "ancavisuals-ro";
+// Migrare (ancavisuals-romania -> ancavisuals-ro): zona veche e folosita ca fallback
+// de citire cand un fisier/album nu se gaseste in zona principala. Vezi [[bunny-zone-migration]].
+export const BUNNY_STORAGE_ZONE_SECONDARY_FALLBACK = "ancavisuals-romania";
 export const BUNNY_ACCESS_KEY_HEADER = "AccessKey";
 
 // Common folder names in Bunny for delivered media.
@@ -41,16 +44,23 @@ export const getBunnyStorageKey = (): string => process.env.BUNNY_STORAGE_KEY ||
 
 export const getBunnyStoragePassword = (): string => process.env.BUNNY_STORAGE_PASSWORD || "";
 
-const buildBunnyStoragePath = (...segments: string[]): string => {
-  const cleanSegments = segments
+// A doua zona, folosita ca fallback de citire in timpul migrarii. Goala pana se completeaza
+// BUNNY_SECOND_STORAGE_KEY in .env — pana atunci fallback-ul e dezactivat automat (no-op).
+export const getBunnyStorageZoneSecondary = (): string =>
+  process.env.BUNNY_STORAGE_ZONE_SECONDARY || BUNNY_STORAGE_ZONE_SECONDARY_FALLBACK;
+
+export const getBunnySecondStorageKey = (): string => process.env.BUNNY_SECOND_STORAGE_KEY || "";
+
+const cleanStorageSegments = (segments: string[]): string[] =>
+  segments
     .map(segment => segment.replace(/^\/+/, "").replace(/\/+$/, ""))
     .filter(Boolean);
 
-  return [getBunnyStorageZone(), ...cleanSegments].join("/");
-};
+export const buildBunnyStorageUrlForZone = (zone: string, ...segments: string[]): string =>
+  `${BUNNY_STORAGE_BASE_URL}/${[zone, ...cleanStorageSegments(segments)].join("/")}`;
 
 export const buildBunnyStorageUrl = (...segments: string[]): string =>
-  `${BUNNY_STORAGE_BASE_URL}/${buildBunnyStoragePath(...segments)}`;
+  buildBunnyStorageUrlForZone(getBunnyStorageZone(), ...segments);
 
 export const buildBunnyDirectoryUrl = (...segments: string[]): string =>
   `${buildBunnyStorageUrl(...segments)}/`;

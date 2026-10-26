@@ -86,3 +86,33 @@ test("the reminder button is disabled without email and phone", async () => {
   mockData([{ ...protocol, status: "sent", eventId: event.id }], [event]);
   expect(await screen.findByRole("button", { name: /fără email \/ telefon/ })).toBeDisabled();
 });
+test("SMS button opens the pop-up with the PV link (?s=sms), sends it and confirms", async () => {
+  const draft = { ...protocol, status: "draft", eventId: event.id, eventDate: "2026-08-23" };
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => ({
+    ok: true,
+    json: async () => init?.method === "POST"
+      ? { ok: true, to: "+40774612043", smsSentAt: new Date().toISOString(), smsSentCount: 1, status: "sent" }
+      : url === "/api/handover" ? { items: [draft] } : { events: [{ ...event, client: { ...event.client, phone: "+40 774 612 043" } }] },
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<MemoryRouter><HandoverListPage /></MemoryRouter>);
+
+  fireEvent.click(await screen.findByRole("button", { name: "💬 SMS" }));
+  const textarea = screen.getByLabelText("Mesaj") as HTMLTextAreaElement;
+  expect(textarea.value).toContain("evenimentul din data de 23 august 2026");
+  expect(textarea.value).toMatch(/\/proces-verbal\/token\?s=sms$/);
+
+  fireEvent.click(screen.getByRole("button", { name: "Trimite SMS" }));
+  expect(await screen.findByText(/SMS trimis la \+40774612043 la ora/)).toBeInTheDocument();
+  const [url, init] = fetchMock.mock.calls.find(([, i]) => i?.method === "POST")!;
+  expect(url).toBe("/api/handover/pv-1/sms");
+  expect(JSON.parse(String(init!.body)).message).toBe(textarea.value.trim());
+});
+
+test("the SMS can't be sent once the PV link is deleted from the text", async () => {
+  mockData([{ ...protocol, eventId: event.id }], [{ ...event, client: { ...event.client, phone: "0774612043" } }]);
+  fireEvent.click(await screen.findByRole("button", { name: "💬 SMS" }));
+  fireEvent.change(screen.getByLabelText("Mesaj"), { target: { value: "Bună ziua!" } });
+  expect(screen.getByRole("button", { name: "Trimite SMS" })).toBeDisabled();
+  expect(screen.getByText("Mesajul trebuie să conțină linkul spre procesul verbal.")).toBeInTheDocument();
+});

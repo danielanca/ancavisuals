@@ -10,7 +10,7 @@ import { reportLeadConversion } from "../services/googleAdsConversion.service";
 import { geolocateIp } from "../utils/geolocateIp";
 import { saveLead, updateLeadEmailStatus } from "../services/leads.service";
 import { getClientIp } from "../utils/ipinfo";
-import { getFreePhotoboothContracts } from "../services/freePhotoboothContracts.service";
+import { FREE_PHOTOBOOTH_SLOTS, getFreePhotoboothContracts } from "../services/freePhotoboothContracts.service";
 
 const router = Router();
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -43,7 +43,9 @@ async function deleteFromBunny(bunnyPath: string): Promise<void> {
 router.get("/olx/free-photobooth-contracts", async (_req: Request, res: Response) => {
   res.setHeader("Cache-Control", "no-store");
   try {
-    res.json({ contracts: await getFreePhotoboothContracts() });
+    const contracts = await getFreePhotoboothContracts();
+    // Remaining slots come from the same list the page shows, so the two can never disagree.
+    res.json({ contracts, totalSlots: FREE_PHOTOBOOTH_SLOTS, remaining: Math.max(0, FREE_PHOTOBOOTH_SLOTS - contracts.length) });
   } catch {
     res.status(503).json({ error: "Lista rezervărilor nu este disponibilă momentan." });
   }
@@ -173,7 +175,7 @@ function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-export const REFERRAL_LEAD_NOTE = "🎁 Venit prin recomandare (utm_source=recomandare): fotocabina + QR code GRATUITE, promise pe pagină.";
+export const REFERRAL_LEAD_NOTE = "🎁 Venit prin recomandare (utm_source=recomandare): fotocabina SAU videobooth-ul (la alegere) GRATUIT + QR code, promise pe pagină.";
 
 // POST /api/campaign/:slug/contact — form submission from landing page
 router.post("/:slug/contact", async (req: Request, res: Response) => {

@@ -8,15 +8,20 @@ import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateHandoverPDF, buildHandoverHTML } from "../services/pdf.generator";
 import { sendHandoverLinkEmail, sendSignedHandoverEmail, sendDownloadReminderEmail } from "../notifications/templates/handoverEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
-import { SignReminderError, sendHandoverSignReminder } from "../services/handoverSignReminder";
+import { SignReminderError, linkedEventClient, sendHandoverSignReminder } from "../services/handoverSignReminder";
+import { notifyHandoverOpenedFromSms } from "../services/handoverOpenedNotification";
+import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from "../notifications/sms";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { APP_BASE_URL } from "../constants/domain";
 import { DEFAULT_DIGITAL_LINK_EXPIRY_DAYS, digitalLinksValidUntil } from "../../shared/handoverDownload";
+import { HANDOVER_SMS_SOURCE } from "../../shared/handoverSignReminder";
 
 const router = Router();
 
 const DEFAULT_COURIER_DELIVERY_DAYS = 7;
 const DEFAULT_MATERIALS_REPORT_WINDOW_DAYS = 7;
+// SMSAPI accepts long messages, but past ~4 parts it's a mistake (and money) — the pop-up text is ~2 parts.
+const MAX_SMS_LENGTH = 640;
 
 // Labels are fine to show before signing ("what you'll receive"), but the actual URLs must stay
 // hidden until after signing — they're delivered by email right after.
@@ -109,6 +114,7 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, 
         sentAt: tsToISO(data.sentAt),
         ...(data.signReminderSentAt ? { signReminderSentAt: tsToISO(data.signReminderSentAt) } : {}),
         ...(data.downloadReminderSentAt ? { downloadReminderSentAt: tsToISO(data.downloadReminderSentAt) } : {}),
+        ...(data.smsSentAt ? { smsSentAt: tsToISO(data.smsSentAt) } : {}),
       };
     });
 
@@ -208,6 +214,20 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
     const doc = snapshot.docs[0];
     const data = doc.data();
 
+    // Opened from the SMS we sent (`?s=sms`): tell the owner, without delaying the page.
+    if (req.query?.s === HANDOVER_SMS_SOURCE) {
+      const ip = getClientIp(req);
+      fetchIpInfo(ip).catch(() => null)
+        .then((info) => notifyHandoverOpenedFromSms({
+          handoverId: doc.id,
+          eventType: String(data.eventType ?? ""),
+          eventDate: String(data.eventDate ?? ""),
+          status: String(data.status ?? ""),
+          geoLabel: [info?.city, info?.country].filter(Boolean).join(", ") || "locație necunoscută",
+        }))
+        .catch((error) => console.error("[handover] SMS open notification failed:", error));
+    }
+
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
     if (data.status === "signed") {
@@ -238,7 +258,7 @@ router.get("/sign/:token", async (req: Request, res: Response) => {
 
     // digitalLinkUrl/digitalLinks URLs are withheld until the client signs — delivered by email right after
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, digitalLinks, ...publicData } = data;
+    const { clientSignatureBase64, clientIp, pdfUrl, digitalLinkUrl, digitalLinks, smsSentTo, ...publicData } = data;
 
     res.json({
       id: doc.id,
@@ -447,6 +467,58 @@ router.post("/:id/reminder", requireFirebaseAuth, requireSupremeAdmin, async (re
     if (error instanceof SignReminderError) return res.status(400).json({ error: error.message });
     console.error("[handover] POST /:id/reminder failed:", error);
     res.status(500).json({ error: "Nu s-a putut trimite reminder-ul." });
+  }
+});
+
+// POST /api/handover/:id/sms — the admin texts the PV link with a message they wrote/checked in the pop-up.
+// body { message } — must contain the PV link; the phone is the linked event's. A draft PV becomes "sent".
+router.post("/:id/sms", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const ref = firestore().collection("materialsHandover").doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: "Proces verbal negăsit." });
+    const handover = doc.data()!;
+
+    const message = String(req.body?.message ?? "").trim();
+    if (!message) return res.status(400).json({ error: "Scrie mesajul SMS-ului." });
+    if (message.length > MAX_SMS_LENGTH) return res.status(400).json({ error: `Mesajul e prea lung (max ${MAX_SMS_LENGTH} caractere).` });
+    if (!message.includes(`/proces-verbal/${handover.token}`)) {
+      return res.status(400).json({ error: "Mesajul trebuie să conțină linkul spre procesul verbal." });
+    }
+
+    const client = await linkedEventClient(ref.id, handover);
+    const phone = normalizeRomanianPhoneNumber(String(client?.phone ?? ""));
+    if (!phone) return res.status(400).json({ error: "Evenimentul asociat nu are număr de telefon." });
+    if (!isSmsConfigured()) return res.status(400).json({ error: "SMS-ul nu este configurat pe server." });
+
+    try {
+      await sendSms({ to: phone, body: message });
+    } catch (error) {
+      console.error("[handover] POST /:id/sms send failed:", error);
+      return res.status(502).json({ error: `SMS-ul nu a putut fi trimis: ${error instanceof Error ? error.message : "eroare necunoscută"}` });
+    }
+
+    const sentAt = Timestamp.now();
+    const smsSentCount = (typeof handover.smsSentCount === "number" ? handover.smsSentCount : 0) + 1;
+    const becameSent = handover.status === "draft";
+    await ref.update({
+      smsSentAt: sentAt,
+      smsSentCount,
+      smsSentTo: phone,
+      ...(becameSent ? { status: "sent", sentAt } : {}),
+    });
+
+    res.json({
+      ok: true,
+      to: phone,
+      smsSentAt: sentAt.toDate().toISOString(),
+      smsSentCount,
+      status: becameSent ? "sent" : handover.status,
+      ...(becameSent ? { sentAt: sentAt.toDate().toISOString() } : {}),
+    });
+  } catch (error) {
+    console.error("[handover] POST /:id/sms failed:", error);
+    res.status(500).json({ error: "Nu s-a putut trimite SMS-ul." });
   }
 });
 

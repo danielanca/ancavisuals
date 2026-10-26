@@ -11,7 +11,7 @@ export default function PhotobookPromo() {
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">Amintirile voastre, pe hârtie</p>
           <h2 className="mt-3 font-serif text-3xl leading-tight sm:text-5xl">Fotocartea sau cutia voastră</h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-[#5c5348] sm:text-base">
-            Cele mai frumoase fotografii merită să rămână cu voi și după ce ecranul se stinge — într-o fotocarte elegantă sau într-o cutie pentru amintiri.
+            Cele mai frumoase fotografii merită să rămână cu voi și după ce ecranul se stinge — într-o fotocarte elegantă sau într-o cutie pentru amintiri. O adăugați din configurator, la „Album foto”.
           </p>
         </div>
 

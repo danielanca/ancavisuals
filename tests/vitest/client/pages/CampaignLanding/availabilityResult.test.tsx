@@ -1,5 +1,5 @@
 /*
- * Purpose: after "Verifică disponibilitatea" the visitor gets a concrete next step —
+ * Purpose: after "Verificați data" the visitor gets a concrete next step —
  * starting price, a WhatsApp message prefilled with their date, the phone field
  * visible right away — and no date is preselected for them.
  */
@@ -31,7 +31,8 @@ const page: CampaignPage = {
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true,
-    json: async () => (String(url).includes("booked-dates") ? { dates: [`${nextYear}-07-10`, `${nextYear}-07-24`] } : {}),
+    json: async () => (String(url).includes("booked-dates") ? { dates: [`${nextYear}-07-10`, `${nextYear}-07-24`] }
+      : String(url).includes("free-photobooth-contracts") ? { contracts: [], totalSlots: 5, remaining: 2 } : {}),
   })));
   // Everything counts as on screen, so the sections that render on scroll (LazySection) render.
   vi.stubGlobal("IntersectionObserver", class {
@@ -67,15 +68,15 @@ describe("availability result", () => {
   test("no date is preselected and a free date shows price, prefilled WhatsApp and phone field", async () => {
     render(<MemoryRouter><CampaignLandingPage page={availabilityPage} /></MemoryRouter>);
 
-    const check = screen.getByRole("button", { name: "Alege data evenimentului" });
+    const check = screen.getByRole("button", { name: "Alegeți data evenimentului" });
     expect(check).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Anul"), { target: { value: String(nextYear) } });
     fireEvent.change(screen.getByLabelText("Luna"), { target: { value: "6" } });
     fireEvent.change(screen.getByLabelText("Ziua"), { target: { value: "18" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verifică disponibilitatea" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verificați data" }));
 
-    expect(await screen.findByText(`🎉 Data ta, 18 iulie ${nextYear}, e liberă!`)).toBeInTheDocument();
+    expect(await screen.findByText(`🎉 Data voastră, 18 iulie ${nextYear}, e liberă!`)).toBeInTheDocument();
     // The price configurator above shows prices too — look only at the availability result.
     const availability = within(document.getElementById("verifica-data")!);
     expect(availability.getByText("950 €")).toBeInTheDocument();
@@ -83,15 +84,16 @@ describe("availability result", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(screen.queryByText(/evenimente rezervate|eveniment rezervat/)).not.toBeInTheDocument();
 
-    // Free-photobooth promo (until 2026-10-30) shows for weddings while it lasts.
+    // Free-photobooth promo (until 2026-10-30) shows for weddings while the server confirms free slots.
     if (Date.now() < new Date("2026-10-30T23:59:59").getTime()) {
-      expect(screen.getByText("+ Fotocabina e gratuită")).toBeInTheDocument();
+      expect(await screen.findByText("+ Fotocabina sau videobooth-ul, doar una dintre ele, gratuit")).toBeInTheDocument();
+      expect(screen.getByText(/Locuri rămase: 2 din 5/)).toBeInTheDocument();
     }
 
-    const wa = screen.getByRole("link", { name: /Primește oferta pe WhatsApp/ });
+    const wa = screen.getByRole("link", { name: /Primiți oferta pe WhatsApp/ });
     expect(decodeURIComponent(wa.getAttribute("href") ?? "")).toContain(`data de 18 iulie ${nextYear} e liberă`);
     expect(wa.getAttribute("href")).toContain("wa.me/40745469907");
-    expect(screen.getByRole("button", { name: "Sunați-mă" })).toBeInTheDocument();
+    expect(within(screen.getByPlaceholderText("Telefon sau WhatsApp").closest("form")!).getByRole("button", { name: "Vreau să mă sunați" })).toBeInTheDocument();
   });
 
   test("a christening shows the christening starting price", async () => {
@@ -100,7 +102,7 @@ describe("availability result", () => {
     fireEvent.change(screen.getByLabelText("Anul"), { target: { value: String(nextYear) } });
     fireEvent.change(screen.getByLabelText("Luna"), { target: { value: "6" } });
     fireEvent.change(screen.getByLabelText("Ziua"), { target: { value: "18" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verifică disponibilitatea" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verificați data" }));
 
     const availability = within(document.getElementById("verifica-data")!);
     expect(await availability.findByText("250 €")).toBeInTheDocument();
@@ -114,7 +116,7 @@ describe("availability result", () => {
     // The guide (and every promo) comes after the configurator, not before the price.
     const configurator = document.getElementById("configurator-data") ?? document.querySelector("[id^='configurator']");
     if (configurator) expect(configurator.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.queryByText(/Fotocabina e gratuită/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fotocabina sau videobooth-ul, doar una dintre ele, gratuit/)).not.toBeInTheDocument();
     unmount();
 
     render(<MemoryRouter><CampaignLandingPage page={{ ...page, slug: "botez" }} /></MemoryRouter>);

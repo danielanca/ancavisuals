@@ -41,6 +41,7 @@ async function loadHandoverRouter() {
   const sendHandoverReminderEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendDownloadReminderEmailMock = vi.fn().mockResolvedValue(undefined);
   const sendSmsMock = vi.fn().mockResolvedValue(undefined);
+  const notifyOpenedMock = vi.fn().mockResolvedValue(undefined);
 
   const collectionMock = vi.fn(() => ({
     add: addMock,
@@ -90,6 +91,15 @@ async function loadHandoverRouter() {
     normalizeRomanianPhoneNumber: (value: string) => (value.trim() ? `+40${value.trim().replace(/^0/, "")}` : null),
   }));
 
+  vi.doMock("src/server/services/handoverOpenedNotification", () => ({
+    notifyHandoverOpenedFromSms: notifyOpenedMock,
+  }));
+
+  vi.doMock("src/server/utils/ipinfo", async () => ({
+    ...(await vi.importActual<typeof import("src/server/utils/ipinfo")>("src/server/utils/ipinfo")),
+    fetchIpInfo: vi.fn().mockResolvedValue({ city: "Turda", country: "RO" }),
+  }));
+
   vi.doMock("src/server/constants/firebase", () => ({
     FIREBASE_STORAGE_BUCKET: "test-bucket",
   }));
@@ -129,6 +139,8 @@ async function loadHandoverRouter() {
     sendDownloadReminderEmailMock,
     sendHandoverReminderEmailMock,
     sendSmsMock,
+    notifyOpenedMock,
+    postSms: getHandler("post", "/:id/sms"),
     postReminder: getHandler("post", "/:id/reminder"),
     postDownloadReminder: getHandler("post", "/:id/download-reminder"),
     postCreate: getHandler("post", "/"),
@@ -616,6 +628,60 @@ describe("handover.routes", () => {
         expect(res.status).toHaveBeenCalledWith(400);
       }
       expect(updateMock).not.toHaveBeenCalled();
+    });
+  });
+  describe("PV sent by SMS from the admin pop-up", () => {
+    const draft = { status: "draft", token: "token-1", eventType: "Nuntă", eventDate: "2026-08-23", eventId: "event-1" };
+    const withEvent = (data: Record<string, unknown>, client: Record<string, unknown>) => async (id: string) =>
+      id === "event-1" ? { exists: true, data: () => ({ client }) } : { exists: true, data: () => data };
+    const message = "Bună ziua! Semnați aici: https://ancavisuals.ro/proces-verbal/token-1?s=sms";
+
+    test("texts the admin's message to the event's phone and marks a draft as sent", async () => {
+      const { postSms, docGetMock, updateMock, sendSmsMock } = await loadHandoverRouter();
+      docGetMock.mockImplementation(withEvent(draft, { phone: "0774612043" }));
+      const res = createMockResponse();
+
+      await postSms({ params: { id: "pv-1" }, body: { message: `  ${message}  ` } }, res);
+
+      expect(sendSmsMock).toHaveBeenCalledWith({ to: "+40774612043", body: message });
+      expect(updateMock.mock.calls[0][1]).toMatchObject({ smsSentCount: 1, smsSentTo: "+40774612043", status: "sent" });
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true, to: "+40774612043", status: "sent", smsSentCount: 1 }));
+    });
+
+    test("refuses a message without the PV link, an event without phone, and reports a failed send", async () => {
+      const { postSms, docGetMock, updateMock, sendSmsMock } = await loadHandoverRouter();
+      docGetMock.mockImplementation(withEvent(draft, { phone: "0774612043" }));
+      let res = createMockResponse();
+      await postSms({ params: { id: "pv-1" }, body: { message: "Bună ziua!" } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      docGetMock.mockImplementation(withEvent(draft, {}));
+      res = createMockResponse();
+      await postSms({ params: { id: "pv-1" }, body: { message } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      docGetMock.mockImplementation(withEvent(draft, { phone: "0774612043" }));
+      sendSmsMock.mockRejectedValueOnce(new Error("no credit"));
+      res = createMockResponse();
+      await postSms({ params: { id: "pv-1" }, body: { message } }, res);
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    test("opening the link with ?s=sms notifies the owner; a normal open doesn't", async () => {
+      const { getPublicSign, whereGetMock, notifyOpenedMock } = await loadHandoverRouter();
+      whereGetMock.mockResolvedValue({ empty: false, docs: [{ id: "pv-1", data: () => ({ ...draft, status: "sent", smsSentTo: "+40774612043" }) }] });
+
+      let res = createMockResponse();
+      await getPublicSign({ params: { token: "token-1" }, query: {} }, res);
+      await flushPromises();
+      expect(notifyOpenedMock).not.toHaveBeenCalled();
+
+      res = createMockResponse();
+      await getPublicSign({ params: { token: "token-1" }, query: { s: "sms" }, ip: "1.2.3.4", headers: {}, socket: {} }, res);
+      await flushPromises();
+      expect(notifyOpenedMock).toHaveBeenCalledWith({ handoverId: "pv-1", eventType: "Nuntă", eventDate: "2026-08-23", status: "sent", geoLabel: "Turda, RO" });
+      expect(res.json.mock.calls[0][0]).not.toHaveProperty("smsSentTo");
     });
   });
 });

@@ -7,15 +7,12 @@ import {
   nightEventApplies,
   parseNightEventAnswer,
 } from "../../shared/contractNightEvent";
+import { LEGAL_ENTITY } from "../../shared/legalEntity";
 import puppeteer from "puppeteer";
 
 // Provider details — fixed
 const PRESTATOR = {
-  name: "ANCA DANIEL EMANUEL PFA",
-  cui: "45044473",
-  address: "Turda, jud. Cluj, Str. Plopilor, Nr. 3, bl. L1, sc. C, ap. 26",
-  phone: "0745-469-907",
-  email: "ancadaniel1994@gmail.com",
+  ...LEGAL_ENTITY,
   iban: "RO65 REVO 0000 3283 4355 4544",
   bank: "Revolut",
   representative: "ANCA DANIEL-EMANUEL",

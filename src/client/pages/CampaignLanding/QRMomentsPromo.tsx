@@ -28,10 +28,10 @@ export default function QRMomentsPromo({ whatsappHref, onCta }: QRMomentsPromoPr
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#d9c19a]">Inclus în pachetul de nuntă</p>
           <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">QR Code Moments</h2>
           <p className="mt-4 text-base leading-[1.38] text-[#d8d0c4] sm:leading-relaxed">
-            Vine inclus în prețul nunții: un singur cod QR, iar invitații pot trimite poze, video și mesaje vocale direct de pe telefon — fără aplicație și fără cont complicat.
+            Nu e un cadou separat: vine inclus în pachetul de nuntă. Un singur cod QR, iar invitații pot trimite poze, video și mesaje vocale direct de pe telefon — fără aplicație și fără cont complicat.
           </p>
           <div className="mt-5 inline-flex items-center rounded-full bg-[#d9c19a] px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#2f2a24] sm:px-4 sm:text-xs sm:tracking-[0.16em]">
-            Inclus în preț
+            Inclus în pachet
           </div>
           <ul className="mt-6 grid gap-2.5 text-sm sm:grid-cols-2">
             {[
@@ -56,7 +56,7 @@ export default function QRMomentsPromo({ whatsappHref, onCta }: QRMomentsPromoPr
             Vreau QR Code Moments
             <span aria-hidden="true">→</span>
           </a>
-          <p className="mt-3 text-xs text-[#d8d0c4]/75">Îți explicăm cum funcționează și îl pregătim pentru evenimentul vostru.</p>
+          <p className="mt-3 text-xs text-[#d8d0c4]/75">Vă explicăm cum funcționează și îl pregătim pentru evenimentul vostru.</p>
         </div>
       </div>
     </section>

@@ -11,6 +11,7 @@ describe("PhotobookPromo", () => {
     expect(screen.getByAltText("Fotocarte cu fotografiile evenimentului")).toHaveAttribute("src", "https://ancavisuals.b-cdn.net/resources/fotocarte.jpg");
     expect(screen.getByAltText("Cutie pentru păstrarea fotocărții și amintirilor")).toHaveAttribute("src", "https://ancavisuals.b-cdn.net/resources/cutie.jpg");
 
+    expect(screen.queryByText(/gratuit/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

@@ -3,14 +3,18 @@ import { listFiles, checkFileExists } from "./bunny.service.js";
 import {
   BUNNY_DEFAULT_ARCHIVE_NAME,
   BUNNY_ACCESS_KEY_HEADER,
-  buildBunnyDirectoryUrl,
+  buildBunnyStorageUrlForZone,
+  getBunnySecondStorageKey,
   getBunnyStorageKey,
+  getBunnyStorageZone,
+  getBunnyStorageZoneSecondary,
 } from "../constants/bunny.js";
 import { firestore } from "../firestore.js";
 import { isShortVideoObject } from "../../shared/albumShortVideo.js";
 import { FieldValue } from "firebase-admin/firestore";
 import type { Album } from "./../../client/pages/MediaDownload/AlbumTypes.js";
 
+const storageZone = getBunnyStorageZone();
 const storageKey = getBunnyStorageKey();
 const FIRESTORE_CACHE_COL = "album_index";
 const FIRESTORE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 oră
@@ -117,12 +121,21 @@ export async function resolveAlbumSlug(requested: string): Promise<string> {
 }
 
 // ── Bunny helpers ─────────────────────────────────────────────────────────────
+// Migrare in curs: incearca zona principala, apoi zona secundara (fallback no-op
+// pana se completeaza BUNNY_SECOND_STORAGE_KEY in .env).
 async function checkAlbumExists(slug: string): Promise<boolean> {
   try {
-    const res = await fetch(buildBunnyDirectoryUrl(encodeURIComponent(slug)), {
-      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
-    });
-    return res.ok;
+    const primaryUrl = `${buildBunnyStorageUrlForZone(storageZone, encodeURIComponent(slug))}/`;
+    const res = await fetch(primaryUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
+    if (res.ok) return true;
+
+    const secondaryZone = getBunnyStorageZoneSecondary();
+    const secondaryKey = getBunnySecondStorageKey();
+    if (!secondaryKey || secondaryZone === storageZone) return false;
+
+    const secondaryUrl = `${buildBunnyStorageUrlForZone(secondaryZone, encodeURIComponent(slug))}/`;
+    const secondaryRes = await fetch(secondaryUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: secondaryKey } });
+    return secondaryRes.ok;
   } catch {
     return false;
   }

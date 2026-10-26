@@ -64,9 +64,9 @@ export function offerToCampaign(offer: Offer): CampaignPage {
   const portfolioSections = photoSections.length ? photoSections : offer.serviceSections;
   return {
     slug: offer.slug,
-    title: "Pachet foto-video pentru nunta ta",
-    subtitle: "Echipă foto-video pentru nunți în Transilvania, cu peste 50 de evenimente fotografiate și filmate.",
-    ctaText: "Scrie-ne pe WhatsApp",
+    title: "Fotografii și film de nuntă, fără rigiditate și fără surprize la preț.",
+    subtitle: "Peste 50 de nunți și evenimente, cu aceeași echipă: soț și soție. Aflați prețul în 30 de secunde și vedeți dacă data voastră mai e liberă.",
+    ctaText: "Scrieți-ne pe WhatsApp",
     whatsappNumber: "+40745469907",
     phoneNumber: "+40745469907",
     // The hero photo (also what stays while the hero clip downloads): the first light photo —
@@ -571,7 +571,7 @@ export default function OfertaPage() {
         </div>
 
         <div className="mt-12 text-center">
-          <p className="text-neutral-700 text-xs">© Ancavisuals · ancavisuals.ro</p>
+          <p className="text-neutral-700 text-xs">© {new Date().getFullYear()} Anca Visuals · ancavisuals.ro</p>
         </div>
       </div>
     </div>

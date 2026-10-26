@@ -110,7 +110,7 @@ export default function CampaignVideoPlayer({ src, poster, label, variant = "gol
     if (!video.paused) { video.pause(); return; }
     if (!trackedRef.current) {
       trackedRef.current = true;
-      sendLiveEvent("video_played", { label: label ?? "Vezi-ne la lucru" });
+      sendLiveEvent("video_played", { label: label ?? "Vedeți-ne la lucru" });
     }
     setStarted(true);
     void ensureSource(video).then(() => video.play()).catch(() => setPlaying(false));
@@ -175,7 +175,7 @@ export default function CampaignVideoPlayer({ src, poster, label, variant = "gol
           <BigPlay variant={variant} />
           {!started && (
             <span className="text-xs font-medium uppercase tracking-[0.25em] text-white/80">
-              {mono ? "Play" : "Apasă pentru play"}
+              {mono ? "Play" : "Apăsați pentru play"}
             </span>
           )}
         </button>

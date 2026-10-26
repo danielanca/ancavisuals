@@ -10,13 +10,14 @@ import LazySection from "../CampaignLanding/LazySection";
 import SectionSkeleton from "../CampaignLanding/SectionSkeleton";
 import FramedVideoSection from "../CampaignLanding/FramedVideoSection";
 import { CampaignVideoPlayer, PortfolioParallaxGallery } from "../CampaignLanding/lazyParts";
-import { PROMO_DEADLINE, daysInMonth, formatDateRo, galleryOriginals, galleryRatios, isEmbedVideoUrl, isHeavyPhoto, toIso, type CampaignPage } from "../CampaignLanding/CampaignLandingPage";
+import { daysInMonth, formatDateRo, galleryOriginals, galleryRatios, isEmbedVideoUrl, isHeavyPhoto, toIso, type CampaignPage } from "../CampaignLanding/CampaignLandingPage";
 import { offerToCampaign, type Offer } from "../OfertaPage";
 import { measureOaiq } from "../../utils/oaiq";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
 import { fireAdsLeadConversion, fireAdsOlxConfiguratorConversion } from "../../utils/googleAds";
 import { getLandingMeta } from "../../utils/sessionAttribution";
 import { useReferral } from "../../utils/referral";
+import { isPromoOpen, remainingSlotsNote, useFreePhotoboothOffer } from "../CampaignLanding/freePhotoboothOffer";
 import { stableVh } from "../../utils/stableViewport";
 import ChatWithUs from "../../features/chat/components/ChatWithUs";
 import { isLiveChatConfigured } from "../../features/chat/components/LiveChat";
@@ -50,7 +51,8 @@ const ContactPage = () => {
   const [form, setForm] = useState({ eventType: "Nuntă", eventDate: "", location: "" });
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const referral = useReferral();
-  const photoboothFree = referral || Date.now() < PROMO_DEADLINE;
+  const photoboothOffer = useFreePhotoboothOffer();
+  const photoboothFree = referral || isPromoOpen(photoboothOffer, Date.now());
 
   useEffect(() => {
     loadOfferPage().then(setPage).catch(() => setPage(null));
@@ -176,6 +178,9 @@ const ContactPage = () => {
         waLink={waLink}
         onWhatsAppClick={(position) => measureOaiq("click_whatsapp", { cta_position: position, page_path: PAGE_PATH })}
         photoboothFree={photoboothFree}
+        photoboothNote={referral
+          ? "Ai venit prin recomandare: fotocabina și QR code-ul sunt gratuite"
+          : remainingSlotsNote(photoboothOffer)}
         dateParts={dateParts}
         onDatePart={setDatePart}
         eventDate={form.eventDate}

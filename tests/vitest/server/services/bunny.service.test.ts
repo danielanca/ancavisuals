@@ -13,6 +13,11 @@ async function loadBunnyService() {
     getBunnyStorageKey: () => "test-key",
     buildBunnyDirectoryUrl: (...segments: string[]) =>
       `https://storage.bunnycdn.com/test-zone/${segments.filter(Boolean).join("/")}/`,
+    buildBunnyStorageUrlForZone: (zone: string, ...segments: string[]) =>
+      `https://storage.bunnycdn.com/${[zone, ...segments.filter(Boolean)].join("/")}`,
+    // No second key: the secondary-zone read fallback stays off.
+    getBunnyStorageZoneSecondary: () => "test-zone-old",
+    getBunnySecondStorageKey: () => "",
   }));
 
   vi.doMock("dotenv", () => ({ default: { config: vi.fn() } }));
@@ -114,11 +119,11 @@ describe("bunny.service", () => {
       expect(await checkPreviewExist("nunta-2026")).toBe(false);
     });
 
-    test("returns false when response is not a plain array (Objects-wrapped)", async () => {
+    test("returns true for an Objects-wrapped response with files (same parsing as listFiles)", async () => {
       vi.stubGlobal("fetch", vi.fn().mockReturnValue(okFetch({ Objects: [{ ObjectName: "x.jpg" }] })));
       const { checkPreviewExist } = await loadBunnyService();
 
-      expect(await checkPreviewExist("nunta-2026")).toBe(false);
+      expect(await checkPreviewExist("nunta-2026")).toBe(true);
     });
   });
 });

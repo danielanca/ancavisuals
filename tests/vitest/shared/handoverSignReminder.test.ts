@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { nextAutoSignReminderAt, signReminderSmsText } from "src/shared/handoverSignReminder";
+import { handoverSmsLink, handoverSmsText, nextAutoSignReminderAt, signReminderSmsText } from "src/shared/handoverSignReminder";
 
 describe("nextAutoSignReminderAt", () => {
   test("3 days after the PV was sent, then 3 days after the last reminder", () => {
@@ -16,4 +16,18 @@ describe("nextAutoSignReminderAt", () => {
 test("SMS text greets as the event's team and says the materials come right after signing", () => {
   expect(signReminderSmsText({ eventDate: "2026-08-08", link: "L", automatedLabel: "AUTO" }))
     .toBe("Bună ziua! Suntem echipa foto-video de la evenimentul din data de 8 august 2026. Materialele vă așteaptă: semnați procesul verbal de predare și le primiți imediat: L\n\nAUTO");
+});
+
+test("the SMS link carries ?s=sms so opening it can be reported", () => {
+  expect(handoverSmsLink("https://ancavisuals.ro/", "tok")).toBe("https://ancavisuals.ro/proces-verbal/tok?s=sms");
+});
+
+test("pop-up SMS text depends on whether the PV is signed and whether there's a digital link", () => {
+  const greeting = "Bună ziua! Suntem echipa foto-video de la evenimentul din data de 23 august 2026.";
+  expect(handoverSmsText({ eventDate: "2026-08-23", link: "L", signed: false, includeDigitalLink: true }))
+    .toBe(`${greeting} Materialele sunt gata: semnați procesul verbal de predare și le primiți imediat: L`);
+  expect(handoverSmsText({ eventDate: "2026-08-23", link: "L", signed: false, includeDigitalLink: false }))
+    .toBe(`${greeting} Vă rugăm să semnați procesul verbal de predare a materialelor: L`);
+  expect(handoverSmsText({ eventDate: "2026-08-23", link: "L", signed: true, includeDigitalLink: true }))
+    .toBe(`${greeting} Aici găsiți procesul verbal semnat și materialele: L`);
 });

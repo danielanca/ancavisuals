@@ -10,7 +10,7 @@ import { sendHandoverReminderEmail } from "../notifications/templates/handoverEm
 import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from "../notifications/sms";
 import { APP_BASE_URL } from "../constants/domain";
 import { AUTOMATED_MESSAGE_LABEL } from "../../shared/albumUpdates";
-import { nextAutoSignReminderAt, signReminderSmsText } from "../../shared/handoverSignReminder";
+import { handoverSmsLink, nextAutoSignReminderAt, signReminderSmsText } from "../../shared/handoverSignReminder";
 
 export interface SignReminderResult {
   emailed: boolean;
@@ -28,7 +28,8 @@ function tsToISO(value: unknown): string | null {
   return null;
 }
 
-async function linkedEventClient(handoverId: string, handover: DocumentData): Promise<{ email?: string; phone?: string } | null> {
+/** The client of the event linked to this PV (the phone only lives there). */
+export async function linkedEventClient(handoverId: string, handover: DocumentData): Promise<{ email?: string; phone?: string } | null> {
   const db = firestore();
   try {
     if (handover.eventId) {
@@ -63,7 +64,7 @@ export async function sendHandoverSignReminder(
       : "Clientul nu are nici email, nici telefon.");
   }
 
-  const link = `${APP_BASE_URL}/proces-verbal/${handover.token}`;
+  const link = handoverSmsLink(APP_BASE_URL, handover.token);
   if (wantEmail) {
     await sendHandoverReminderEmail({ to: email!, token: handover.token, eventType: handover.eventType, eventDate: handover.eventDate, baseUrl: APP_BASE_URL });
   }

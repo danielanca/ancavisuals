@@ -1,12 +1,14 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
+export const ABOUT_PHOTO_URL = "https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FDespreNoi%2FPoze-218.jpg?alt=media&token=c515b80e-3026-420b-bf4f-d05e850548ed";
+
 export default function AboutSummary() {
   return (
     <section id="despre-noi" data-track-section="despre noi" className="bg-neutral-950 px-6 py-16 text-white sm:py-24" aria-labelledby="about-summary-title">
       <div className="mx-auto grid max-w-5xl items-center gap-8 md:grid-cols-2 md:gap-14">
         <img
-          src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FDespreNoi%2FPoze-218.jpg?alt=media&token=c515b80e-3026-420b-bf4f-d05e850548ed"
+          src={ABOUT_PHOTO_URL}
           alt="Dani și Estera, echipa Anca Visuals"
           loading="lazy"
           decoding="async"

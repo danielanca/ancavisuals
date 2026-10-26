@@ -30,6 +30,17 @@ describe("eventConfigurator", () => {
     expect(quote.total).toBe(950 + 30);
   });
 
+  it("lets the couple pick the videobooth instead of the photo booth as the promo gift", () => {
+    const videoOnly = buildQuote({ event: "nunta", service: "foto_video", extras: ["videobooth"], guestTier: 0 }, prices, { photoboothFree: true });
+    expect(videoOnly.lines.find((l) => l.label === EXTRAS.videobooth.label)?.waived).toBe(true);
+    expect(videoOnly.total).toBe(950);
+    // Both picked: only the first one is free, the other is paid.
+    const both = buildQuote({ event: "nunta", service: "foto_video", extras: ["videobooth", "fotocabina"], guestTier: 0 }, prices, { photoboothFree: true });
+    expect(both.lines.find((l) => l.label === EXTRAS.videobooth.label)?.waived).toBe(true);
+    expect(both.lines.find((l) => l.label === EXTRAS.fotocabina.label)?.waived).toBeFalsy();
+    expect(both.total).toBe(950 + prices.fotocabina);
+  });
+
   it("asks for the guest count only at weddings and corporate events", () => {
     const quote = (event: "botez" | "majorat" | "corporate") =>
       buildQuote({ event, service: "foto", extras: ["fotocabina"], guestTier: 2 }, prices).total;

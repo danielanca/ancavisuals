@@ -5,11 +5,12 @@ import Breadcrumb from "../Breadcrumb";
 import useAuth from "../../auth/useAuth";
 import HandoverActionMenu from "./HandoverActionMenu";
 import EditHandoverModal from "./EditHandoverModal";
+import HandoverSmsModal, { type HandoverSmsResult } from "./HandoverSmsModal";
 import { getPublicAppOrigin } from "./publicOrigin";
 import { openAuthedInNewTab } from "../../providers/authFetch";
 import { whatsappUrl } from "../../whatsappUrl";
 import { daysUntil, digitalLinksValidUntil } from "../../../../../shared/handoverDownload";
-import { AUTO_SIGN_REMINDER_INTERVAL_DAYS, AUTO_SIGN_REMINDER_MAX, nextAutoSignReminderAt } from "../../../../../shared/handoverSignReminder";
+import { AUTO_SIGN_REMINDER_INTERVAL_DAYS, AUTO_SIGN_REMINDER_MAX, handoverSmsLink, handoverSmsText, nextAutoSignReminderAt } from "../../../../../shared/handoverSignReminder";
 
 interface HandoverItem {
   id: string;
@@ -39,6 +40,8 @@ interface HandoverItem {
   signReminderChannels?: string[];
   autoSignReminder?: boolean;
   autoSignReminderCount?: number;
+  smsSentAt?: string | null;
+  smsSentCount?: number;
 }
 
 interface LinkedEvent {
@@ -96,6 +99,7 @@ const HandoverListPage: React.FC = () => {
   type PendingAction = { type: "delete" | "send"; id: string; label: string } | null;
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [editingItem, setEditingItem] = useState<HandoverItem | null>(null);
+  const [smsTarget, setSmsTarget] = useState<{ item: HandoverItem; phone: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/handover")
@@ -255,6 +259,13 @@ const HandoverListPage: React.FC = () => {
     showToast("Proces verbal actualizat.");
   };
 
+  const handleSmsSent = (id: string, result: HandoverSmsResult) => {
+    setItems((prev) => prev.map((it) => (it.id === id
+      ? { ...it, status: result.status, smsSentAt: result.smsSentAt, smsSentCount: result.smsSentCount, ...(result.sentAt ? { sentAt: result.sentAt } : {}) }
+      : it)));
+    showToast(`SMS trimis la ${result.to}.`);
+  };
+
   const confirmAction = (type: "delete" | "send", id: string, label: string) => {
     setPendingAction({ type, id, label });
   };
@@ -385,6 +396,13 @@ const HandoverListPage: React.FC = () => {
                             className="px-2 py-0.5 rounded-md bg-green-700/60 hover:bg-green-600/70 text-white transition-colors">
                             WhatsApp
                           </a>}
+                          <button type="button" onClick={() => setSmsTarget({ item, phone: event.client!.phone! })}
+                            className="px-2 py-0.5 rounded-md border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 transition-colors">
+                            💬 SMS
+                          </button>
+                        </span>}
+                        {item.smsSentAt && <span className="text-sky-400">
+                          SMS trimis: {formatDate(item.smsSentAt)}{(item.smsSentCount ?? 0) > 1 && ` · ${item.smsSentCount}×`}
                         </span>}
                         <span>Creat: {formatDate(item.createdAt)}</span>
                         {item.signedAt && <span>Semnat: {formatDate(item.signedAt)}</span>}
@@ -477,6 +495,23 @@ const HandoverListPage: React.FC = () => {
             initialDigitalLinks={editingItem.digitalLinks}
             onSave={handleEditSave}
             onCancel={() => setEditingItem(null)}
+          />
+        )}
+
+        {smsTarget && (
+          <HandoverSmsModal
+            handoverId={smsTarget.item.id}
+            phone={smsTarget.phone}
+            initialMessage={handoverSmsText({
+              eventDate: smsTarget.item.eventDate,
+              link: handoverSmsLink(getPublicAppOrigin(), smsTarget.item.token),
+              signed: smsTarget.item.status === "signed",
+              includeDigitalLink: smsTarget.item.includeDigitalLink !== false,
+            })}
+            requiredLink={`/proces-verbal/${smsTarget.item.token}`}
+            accessToken={auth.accessToken}
+            onSent={(result) => handleSmsSent(smsTarget.item.id, result)}
+            onClose={() => setSmsTarget(null)}
           />
         )}
 

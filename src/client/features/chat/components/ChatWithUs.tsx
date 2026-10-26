@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { loadTidio, openLiveChat, subscribeToLiveChatStatus, type LiveChatStatus } from "./LiveChat";
+import { loadTidio, openLiveChat } from "./LiveChat";
 import { sendLiveEvent } from "../../../utils/liveEvent";
 import { greetingFor, subscribeToVisitorPlan, type VisitorPlan } from "../configuratorOffer";
 
@@ -8,16 +8,14 @@ const whatsappUrl = (text: string) => "https://wa.me/40745469907?text=" + encode
 const WHATSAPP_URL = whatsappUrl("");
 
 const STYLES = `
-  @keyframes cwuPing { 0% { transform: scale(1); opacity: .7; } 80%, 100% { transform: scale(2.4); opacity: 0; } }
   @keyframes cwuDot { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
   @keyframes cwuIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   @keyframes cwuScan { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-  .cwu-ping { animation: cwuPing 1.8s cubic-bezier(0,0,.2,1) infinite; }
   .cwu-dot { animation: cwuDot 1.2s ease-in-out infinite; }
   .cwu-in { animation: cwuIn .3s ease-out both; }
   .cwu-scan { animation: cwuScan 5s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) {
-    .cwu-ping, .cwu-dot, .cwu-scan, .cwu-in { animation: none; }
+    .cwu-dot, .cwu-scan, .cwu-in { animation: none; }
   }
 `;
 
@@ -38,13 +36,12 @@ function TypingBubble() {
   );
 }
 
-/** An incoming bubble; only the first of a series has the little tail, as in WhatsApp. */
-function IncomingBubble({ text, time, tail }: { text: string; time: string; tail: boolean }) {
+/** An incoming bubble; only the first of a series has the little tail, as in WhatsApp. No clock time: it is a fixed message, not a live one. */
+function IncomingBubble({ text, tail }: { text: string; tail: boolean }) {
   return (
     <div className={`cwu-in relative ml-2 max-w-[92%] rounded-lg px-3 pb-2 pt-2 shadow-sm ${tail ? "rounded-tl-none" : ""}`} style={{ background: WA.bubbleIn }}>
       {tail && <span aria-hidden="true" className="absolute -left-2 top-0 h-0 w-0 border-r-[8px] border-t-[8px] border-r-transparent border-t-transparent" style={{ borderRightColor: WA.bubbleIn }} />}
-      <p className="pr-10 text-sm leading-normal" style={{ color: WA.text }}>{withWhatsAppBold(text)}</p>
-      <span suppressHydrationWarning className="absolute bottom-1 right-2 text-[10px]" style={{ color: WA.muted }}>{time}</span>
+      <p className="text-sm leading-normal" style={{ color: WA.text }}>{withWhatsAppBold(text)}</p>
     </div>
   );
 }
@@ -63,7 +60,6 @@ const WA = {
   bubbleIn: "#ffffff",
   text: "#111b21",
   muted: "#667781",
-  dayChip: "#ffffff",
   footer: "#f0f2f5",
   input: "#ffffff",
   green: "#00a884",
@@ -76,7 +72,7 @@ const WA_WALLPAPER = `radial-gradient(circle at 1px 1px, rgba(0,0,0,.06) 1px, tr
  * Sending is a real wa.me link (Enter clicks it too), so it is tracked like every other WhatsApp
  * click — live panel, contact email and the Google Ads contact conversion.
  */
-function WhatsAppPreview({ isOffline }: { isOffline: boolean }) {
+function WhatsAppPreview() {
   const [draft, setDraft] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
   // The offer built in the price configurator (if any), added to the message only on request.
@@ -122,7 +118,6 @@ function WhatsAppPreview({ isOffline }: { isOffline: boolean }) {
       input?.setSelectionRange(start + emoji.length, start + emoji.length);
     });
   };
-  const time = new Intl.DateTimeFormat("ro-RO", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Bucharest" }).format(new Date());
   return (
     <>
     <div className="-mx-4 mt-8 w-[calc(100%+2rem)] overflow-hidden shadow-2xl sm:rounded-lg shadow-black/60 sm:mx-0 sm:w-full sm:max-w-sm" style={{ background: WA_WALLPAPER }}>
@@ -145,8 +140,8 @@ function WhatsAppPreview({ isOffline }: { isOffline: boolean }) {
           </span>
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-medium leading-tight">Anca Visuals (Estera)</p>
-          <p className="text-xs leading-tight text-white/80">{isOffline ? "răspundem în curând" : "online"}</p>
+          <p className="truncate text-[15px] font-medium leading-tight">Anca Visuals</p>
+          <p className="text-xs leading-tight text-white/80">Estera și Dani</p>
         </div>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" className="shrink-0 text-white" role="img" aria-label="WhatsApp">
           <path d={WHATSAPP_LOGO_PATH} />
@@ -156,10 +151,9 @@ function WhatsAppPreview({ isOffline }: { isOffline: boolean }) {
       {/* Conversation */}
       {/* Tall like a phone screen, with the empty space a real conversation has below the message. */}
       <div ref={conversationRef} className="h-[26rem] overflow-hidden px-3 pb-4 pt-4 sm:h-[30rem]">
-        <p suppressHydrationWarning className="mx-auto mb-3 w-fit rounded-md px-2.5 py-1 text-[11px] shadow-sm" style={{ background: WA.dayChip, color: WA.muted }}>AZI, {time}</p>
         <div className="flex flex-col gap-2" aria-live="polite">
-          {chatStep >= 1 && <IncomingBubble text={greetingFor(plan)} time={time} tail />}
-          {chatStep >= 3 && <IncomingBubble text={QR_MOMENTS_MESSAGE} time={time} tail={false} />}
+          {chatStep >= 1 && <IncomingBubble text={greetingFor(plan)} tail />}
+          {chatStep >= 3 && <IncomingBubble text={QR_MOMENTS_MESSAGE} tail={false} />}
           {(chatStep === 0 || chatStep === 2) && <TypingBubble />}
         </div>
       </div>
@@ -278,12 +272,9 @@ function FrameCorners() {
 
 /** "Povestiți-ne despre ziua voastră" — end-of-page invitation that opens the Tidio chat (its own launcher is hidden). */
 export default function ChatWithUs() {
-  // Tidio's operator status (online when the Tidio app on the phone is active). Tidio is
-  // loaded hidden only when this card is about to scroll into view — not with the page —
-  // and its window opens only on click. Until Tidio answers, the card shows "online".
-  const [status, setStatus] = useState<LiveChatStatus | null>(null);
+  // No "online" status: Tidio is loaded hidden only when this card is about to scroll into
+  // view — not with the page — and its window opens only on click.
   const sectionRef = useRef<HTMLElement | null>(null);
-  useEffect(() => subscribeToLiveChatStatus(setStatus), []);
   useEffect(() => {
     const node = sectionRef.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
@@ -295,7 +286,6 @@ export default function ChatWithUs() {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  const isOffline = status === "offline";
 
   const [opening, setOpening] = useState(false);
   // On the owner's own device (admin / localhost) Tidio stays off; say so instead of a dead button.
@@ -328,20 +318,8 @@ export default function ChatWithUs() {
         <div className="grid gap-10 px-4 py-10 sm:grid-cols-[1fr_auto] sm:items-center sm:px-12 sm:py-12">
           <div>
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="flex h-11 w-11 items-center justify-center border border-white/40 text-xs font-light tracking-[0.2em] text-white">AV</div>
-                <span className="absolute -bottom-1 -right-1 flex h-2.5 w-2.5">
-                  {!isOffline && <span className="cwu-ping absolute inline-flex h-full w-full bg-green-400" />}
-                  <span className={`relative inline-flex h-2.5 w-2.5 ${isOffline ? "bg-neutral-500" : "bg-green-500"}`} />
-                </span>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.2em] text-white">Echipa Anca Visuals</p>
-                <p className={`mt-1 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.2em] ${isOffline ? "text-neutral-500" : "text-green-400"}`}>
-                  <span className={`h-1.5 w-1.5 ${isOffline ? "bg-neutral-500" : "bg-green-400"}`} />
-                  {isOffline ? "Suntem offline" : "Suntem online"}
-                </p>
-              </div>
+              <div className="flex h-11 w-11 items-center justify-center border border-white/40 text-xs font-light tracking-[0.2em] text-white">AV</div>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white">Echipa Anca Visuals</p>
             </div>
 
             {/* Same type as "Video scurt" on /media: thin uppercase, one font; the second line only steps down in tone. */}
@@ -350,13 +328,11 @@ export default function ChatWithUs() {
               <span className="block text-neutral-400">despre ziua voastră</span>
             </h2>
             <p className="mt-3 text-xs uppercase tracking-[0.2em] text-neutral-500">
-              [ {isOffline
-                ? "Lăsați-ne un mesaj — vă răspundem imediat ce revenim online."
-                : "Vă răspundem acum — de obicei în câteva minute."} ]
+              [ Scrie-ne aici sau pe WhatsApp. Estera sau Dani îți răspund de obicei în 1–2 ore. ]
             </p>
 
             {/* Mini chat preview in WhatsApp's dark look: typing dots, then the greeting. */}
-            <WhatsAppPreview isOffline={isOffline} />
+            <WhatsAppPreview />
           </div>
 
           <div className="flex flex-col gap-3 sm:min-w-[240px]">

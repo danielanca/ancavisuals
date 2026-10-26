@@ -24,8 +24,8 @@ describe("public free photobooth contracts", () => {
       base,
     ]);
     expect(await getFreePhotoboothContracts()).toEqual([
-      { maskedName: "Ma***** Xu*****", city: "Sibiu", signedAt: "2026-10-12T08:00:00.000Z" },
-      { maskedName: "Ma***** Xu*****", city: "Sibiu", signedAt: "2026-10-11T08:00:00.000Z" },
+      { maskedName: "Ma****a Xu****u", city: "Sibiu", signedAt: "2026-10-12T08:00:00.000Z" },
+      { maskedName: "Ma****a Xu****u", city: "Sibiu", signedAt: "2026-10-11T08:00:00.000Z" },
     ]);
     expect(collection).toHaveBeenCalledWith("contracts");
     expect(where).toHaveBeenCalledWith("status", "==", "signed");
@@ -36,16 +36,19 @@ describe("public free photobooth contracts", () => {
       { ...base, status: "draft" }, { ...base, status: "anulat" },
       { ...base, privateClient: true }, { ...base, clientType: "PJ" },
       { ...base, services: [{ label: "Fotocabină", price: 0, gratuit: false }] },
-      { ...base, services: [{ label: "VideoBooth 360", gratuit: true }] },
       { ...base, signedAt: "bad" }, { ...base, signedAt: null },
       { ...base, clientName: " " }, { ...base, services: null },
     ]);
     expect(await getFreePhotoboothContracts()).toEqual([]);
   });
+  it("counts a free videobooth too: the couple picks the photo booth or the videobooth", async () => {
+    records([{ ...base, services: [{ label: "Video Cabină 360 / VideoBooth", gratuit: true }] }]);
+    expect(await getFreePhotoboothContracts()).toHaveLength(1);
+  });
   it("handles custom booth labels, missing city and short names without exposing them fully", async () => {
     records([{ ...base, clientName: "A Li Ana-Maria", clientCity: null, services: [{ label: "PhotoBooth", gratuit: true }] }]);
     expect(await getFreePhotoboothContracts()).toEqual([
-      { maskedName: "* L* An*******", city: "", signedAt: "2026-10-12T08:00:00.000Z" },
+      { maskedName: "* L* An******a", city: "", signedAt: "2026-10-12T08:00:00.000Z" },
     ]);
   });
 });
