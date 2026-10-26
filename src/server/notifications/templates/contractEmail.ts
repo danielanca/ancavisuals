@@ -1,5 +1,6 @@
 import { mailer } from "../mailer";
 import { adminUser, emailAuth } from "../../constants/credentials";
+import { APP_BASE_URL } from "../../constants/domain";
 
 const EMAIL_HEADER = `
   <div style="text-align: center; margin-bottom: 24px;">
@@ -73,40 +74,213 @@ interface SignedContractEmailOptions {
   clientName: string;
   pdfUrl: string;
   hasPdf?: boolean;
+  /** Extra details shown only in the admin copy. */
+  admin?: SignedContractAdminDetails;
+}
+
+export interface SignedContractAdminDetails {
+  contractId?: string;
+  clientPhone?: string;
+  eventLocation?: string;
+  priceTotal?: number;
+  priceAdvance?: number;
+  currency?: string;
+  signedAt?: string;
+  signedFrom?: string;
+}
+
+// Signed-contract emails (owner, 2026-10-25): square, monochrome "ancavisuals style" (no rounded
+// corners, no gold/green). The client gets a warm "cream & ink" letter,
+// the admin a compact summary card with the details and quick actions. Table layout + inline
+// styles only, so Gmail / Outlook / Apple Mail render them the same.
+const INK = "#2f2a24";
+const CREAM = "#f6f2ea";
+const MUTED = "#7a7065";
+const ACCENT = "#7a7065";
+const SERIF = "Georgia, 'Times New Roman', serif";
+const SANS = "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function whatsappUrl(phone: string): string | null {
+  const digits = phone.trim().replace(/[^\d+]/g, "").replace(/^\+/, "");
+  if (digits.startsWith("0") && digits.length >= 10) return `https://wa.me/40${digits.slice(1)}`;
+  if (digits.length >= 7) return `https://wa.me/${digits}`;
+  return null;
+}
+
+function formatMoney(amount: number, currency: string): string {
+  return `${amount.toLocaleString("ro-RO")} ${currency}`;
+}
+
+function formatRoDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString("ro-RO", { timeZone: "Europe/Bucharest", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function button(href: string, label: string, variant: "dark" | "light" = "dark", size: "large" | "small" = "large"): string {
+  const colors = variant === "dark"
+    ? `background:${INK};color:${CREAM};border:1px solid ${INK};`
+    : `background:#ffffff;color:${INK};border:1px solid #d9d2c5;`;
+  const box = size === "large" ? "padding:16px 32px;font-size:13px;" : "padding:12px 18px;font-size:11px;margin:0 8px 8px 0;";
+  return `<a href="${escapeHtml(href)}" style="display:inline-block;${colors}${box}font-family:${SANS};font-weight:700;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;white-space:nowrap;">${label}</a>`;
+}
+
+function detailRows(rows: Array<[string, string]>): string {
+  return rows.map(([label, value], index) => `
+    <tr>
+      <td style="padding:13px 0;${index ? "border-top:1px solid #ece6db;" : ""}font-family:${SANS};font-size:13px;color:${MUTED};width:38%;vertical-align:top;">${label}</td>
+      <td style="padding:13px 0;${index ? "border-top:1px solid #ece6db;" : ""}font-family:${SANS};font-size:14px;color:${INK};font-weight:600;vertical-align:top;">${value}</td>
+    </tr>`).join("");
+}
+
+/** Cream page, white letter, brand header — shared by the client-facing signed-contract emails. */
+function clientLetter({ preheader, eyebrow, title, intro, details, note, cta }: {
+  preheader: string;
+  eyebrow: string;
+  title: string;
+  intro: string;
+  details: Array<[string, string]>;
+  note: string;
+  cta: string;
+}): string {
+  return `<!doctype html>
+<html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:${CREAM};">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};">
+    <tr><td align="center" style="padding:36px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+        <tr><td align="center" style="padding:0 0 28px;">
+          <div style="font-family:${SERIF};font-size:22px;letter-spacing:6px;color:${INK};">ANCA VISUALS</div>
+          <div style="font-family:${SANS};font-size:10px;letter-spacing:3px;color:${MUTED};margin-top:6px;text-transform:uppercase;">Fotografie &amp; Videografie</div>
+        </td></tr>
+        <tr><td style="background:#ffffff;padding:44px 36px;border:1px solid ${INK};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center">
+              <div style="width:52px;height:52px;line-height:52px;background:${INK};color:${CREAM};font-size:26px;text-align:center;font-family:${SANS};">&#10003;</div>
+              <div style="font-family:${SANS};font-size:11px;font-weight:700;letter-spacing:3px;color:${ACCENT};text-transform:uppercase;margin-top:22px;">${eyebrow}</div>
+              <h1 style="font-family:${SERIF};font-size:30px;line-height:1.25;font-weight:400;color:${INK};margin:10px 0 0;">${title}</h1>
+            </td></tr>
+            <tr><td style="padding-top:22px;font-family:${SANS};font-size:15px;line-height:1.7;color:#4a4239;text-align:center;">${intro}</td></tr>
+            <tr><td style="padding-top:28px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};border:1px solid #e3dccf;">
+                <tr><td style="padding:6px 22px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${detailRows(details)}</table>
+                </td></tr>
+              </table>
+            </td></tr>
+            <tr><td align="center" style="padding-top:32px;">${cta}</td></tr>
+            <tr><td style="padding-top:22px;font-family:${SANS};font-size:13px;line-height:1.6;color:${MUTED};text-align:center;">${note}</td></tr>
+          </table>
+        </td></tr>
+        <tr><td align="center" style="padding:28px 12px 0;font-family:${SANS};font-size:12px;line-height:1.7;color:${MUTED};">
+          Aveți întrebări? Răspundeți direct la acest email.<br/>
+          <span style="color:#a89e91;">Anca Visuals &nbsp;·&nbsp; <a href="https://ancavisuals.ro" style="color:#a89e91;text-decoration:none;">ancavisuals.ro</a></span>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function signedContractClientHtml(options: SignedContractEmailOptions, formattedDate: string): string {
+  const { eventType, clientName, pdfUrl, hasPdf = true } = options;
+  return clientLetter({
+    preheader: `Contractul pentru ${escapeHtml(eventType)} din ${formattedDate} este semnat.`,
+    eyebrow: "Contract semnat",
+    title: "Vă mulțumim!",
+    intro: `${clientName ? `Bună ziua, ${escapeHtml(clientName)}!<br/>` : ""}Contractul pentru <strong style="color:${INK};">${escapeHtml(eventType)}</strong> a fost semnat cu succes. Data este rezervată și ne bucurăm să fim alături de voi.`,
+    details: [
+      ["Eveniment", escapeHtml(eventType)],
+      ["Data", formattedDate],
+      ["Semnat de", escapeHtml(clientName)],
+    ],
+    cta: button(pdfUrl, hasPdf ? "Descarcă contractul (PDF)" : "Vezi contractul semnat"),
+    note: hasPdf
+      ? "Linkul este permanent: îl puteți deschide oricând. Vă recomandăm să păstrați o copie a contractului."
+      : "PDF-ul se generează chiar acum și va fi disponibil în câteva minute la același link.",
+  });
+}
+
+function signedContractAdminHtml(options: SignedContractEmailOptions, formattedDate: string): string {
+  const { to, eventType, clientName, pdfUrl, hasPdf = true, admin = {} } = options;
+  const currency = admin.currency || "RON";
+  const phone = admin.clientPhone?.trim() ?? "";
+  const whatsapp = phone ? whatsappUrl(phone) : null;
+  const linkStyle = `color:${INK};text-decoration:underline;text-decoration-color:#cfc6b6;`;
+
+  const rows: Array<[string, string]> = [
+    ["Email", `<a href="mailto:${escapeHtml(to)}" style="${linkStyle}">${escapeHtml(to)}</a>`],
+    ...(phone ? [["Telefon", `<a href="tel:${escapeHtml(phone)}" style="${linkStyle}">${escapeHtml(phone)}</a>`] as [string, string]] : []),
+    ...(admin.eventLocation ? [["Locație", escapeHtml(admin.eventLocation)] as [string, string]] : []),
+    ...(admin.priceTotal ? [["Total", formatMoney(admin.priceTotal, currency)] as [string, string]] : []),
+    ...(admin.priceAdvance ? [["Avans", formatMoney(admin.priceAdvance, currency)] as [string, string]] : []),
+    ...(admin.signedAt ? [["Semnat la", formatRoDateTime(admin.signedAt)] as [string, string]] : []),
+    ...(admin.signedFrom ? [["Semnat din", escapeHtml(admin.signedFrom)] as [string, string]] : []),
+  ];
+
+  const actions = [
+    button(pdfUrl, hasPdf ? "Descarcă PDF" : "Vezi contractul", "dark", "small"),
+    ...(admin.contractId ? [button(`${APP_BASE_URL}/admin/contracts/${encodeURIComponent(admin.contractId)}/edit`, "Deschide în admin", "light", "small")] : []),
+    ...(whatsapp ? [button(whatsapp, "WhatsApp client", "light", "small")] : []),
+  ].join("");
+
+  return `<!doctype html>
+<html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1efeb;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(clientName)} a semnat contractul — ${escapeHtml(eventType)}, ${formattedDate}.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1efeb;">
+    <tr><td align="center" style="padding:28px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border:1px solid ${INK};">
+        <tr><td style="background:${INK};padding:22px 28px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td style="font-family:${SERIF};font-size:15px;letter-spacing:4px;color:${CREAM};">ANCA VISUALS</td>
+            <td align="right"><span style="display:inline-block;background:${CREAM};color:${INK};font-family:${SANS};font-size:11px;font-weight:700;letter-spacing:2px;padding:6px 12px;">&#10003; SEMNAT</span></td>
+          </tr></table>
+        </td></tr>
+        <tr><td style="padding:28px 28px 8px;">
+          <div style="font-family:${SANS};font-size:12px;font-weight:700;letter-spacing:2px;color:${ACCENT};text-transform:uppercase;">Contract nou semnat</div>
+          <h1 style="font-family:${SERIF};font-size:26px;line-height:1.3;font-weight:400;color:${INK};margin:8px 0 0;">${escapeHtml(clientName)}</h1>
+          <div style="font-family:${SANS};font-size:14px;color:${MUTED};margin-top:4px;">${escapeHtml(eventType)} · ${formattedDate}</div>
+        </td></tr>
+        <tr><td style="padding:12px 28px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${detailRows(rows)}</table>
+        </td></tr>
+        <tr><td style="padding:20px 20px 20px 28px;">
+          <div>${actions}</div>
+          ${hasPdf ? "" : `<p style="font-family:${SANS};font-size:12px;color:#b45309;margin:14px 0 0;">PDF-ul nu s-a generat încă; linkul duce la pagina contractului.</p>`}
+        </td></tr>
+      </table>
+      <div style="font-family:${SANS};font-size:11px;color:#a39a8d;margin-top:14px;">Clientul a primit separat emailul de confirmare.</div>
+    </td></tr>
+  </table>
+</body></html>`;
 }
 
 export async function sendSignedContractEmail(options: SignedContractEmailOptions): Promise<void> {
-  const { to, eventType, eventDate, clientName, pdfUrl, hasPdf = true } = options;
+  const { to, eventType, eventDate, clientName } = options;
   const formattedDate = formatRoDate(eventDate);
-
-  const buttonLabel = hasPdf ? "Descarcă Contractul PDF" : "Vezi Contractul Semnat";
-  const bodyText = hasPdf
-    ? "Puteți descărca contractul semnat accesând butonul de mai jos. Link-ul este permanent și poate fi accesat oricând."
-    : "Contractul a fost semnat. PDF-ul se generează — îl puteți accesa în curând accesând link-ul de mai jos.";
-
-  const html = emailWrap(`
-    <p style="color: #333; margin-bottom: 12px;">
-      Contractul pentru evenimentul <strong>${eventType}</strong> din <strong>${formattedDate}</strong>
-      a fost semnat cu succes de <strong>${clientName}</strong>.
-    </p>
-    <p style="color: #555; margin-bottom: 28px;">${bodyText}</p>
-    <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${pdfUrl}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">${buttonLabel}</a>
-    </div>
-  `);
 
   await mailer.sendMail({
     from: emailAuth.email,
     to,
     subject: `Contract semnat — ${eventType} ${formattedDate}`,
-    html,
+    html: signedContractClientHtml(options, formattedDate),
   });
 
   await mailer.sendMail({
     from: emailAuth.email,
     to: adminUser.email,
     subject: `[Admin] Contract semnat — ${eventType} ${formattedDate} — ${clientName}`,
-    html,
+    html: signedContractAdminHtml(options, formattedDate),
   });
 }
 
@@ -114,21 +288,21 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
 export async function sendFullySignedContractEmail(options: SignedContractEmailOptions): Promise<void> {
   const { to, eventType, eventDate, clientName, pdfUrl, hasPdf = true } = options;
   const formattedDate = formatRoDate(eventDate);
-  const html = emailWrap(`
-    <p style="color: #333; margin-bottom: 12px;">Bună ziua${clientName ? `, ${clientName}` : ""},</p>
-    <p style="color: #333; margin-bottom: 12px;">
-      Contractul pentru evenimentul <strong>${eventType}</strong> din <strong>${formattedDate}</strong>
-      a fost semnat și de <strong>Anca Visuals</strong>. Este acum <strong>semnat de ambele părți</strong>.
-    </p>
-    <p style="color: #555; margin-bottom: 28px;">
-      ${hasPdf
-        ? "Mai jos găsiți varianta finală a contractului, cu ambele semnături. Vă recomandăm să o păstrați."
-        : "Varianta finală, cu ambele semnături, se generează — o puteți accesa în curând din link-ul de mai jos."}
-    </p>
-    <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${pdfUrl}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">${hasPdf ? "Descarcă contractul final" : "Vezi contractul"}</a>
-    </div>
-  `);
+  const html = clientLetter({
+    preheader: `Contractul pentru ${escapeHtml(eventType)} din ${formattedDate} este semnat de ambele părți.`,
+    eyebrow: "Semnat de ambele părți",
+    title: "Contractul final este gata",
+    intro: `${clientName ? `Bună ziua, ${escapeHtml(clientName)}!<br/>` : ""}Contractul pentru <strong style="color:${INK};">${escapeHtml(eventType)}</strong> a fost semnat și de Anca Visuals, deci este acum semnat de ambele părți.`,
+    details: [
+      ["Eveniment", escapeHtml(eventType)],
+      ["Data", formattedDate],
+      ["Semnături", "Client · Anca Visuals"],
+    ],
+    cta: button(pdfUrl, hasPdf ? "Descarcă contractul final" : "Vezi contractul"),
+    note: hasPdf
+      ? "Aceasta este varianta finală, cu ambele semnături. Vă recomandăm să o păstrați."
+      : "Varianta finală se generează chiar acum și va fi disponibilă în câteva minute la același link.",
+  });
 
   await mailer.sendMail({
     from: emailAuth.email,

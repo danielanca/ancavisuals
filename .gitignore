@@ -49,3 +49,5 @@ dist/**/*
 src/server/diniubire_servicekey.json
 .env
 .env.local
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

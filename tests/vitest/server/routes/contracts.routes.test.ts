@@ -374,6 +374,7 @@ describe("contracts.routes", () => {
         clientName: "Ion Popescu",
         pdfUrl: "https://storage.example.com/contract.pdf",
         hasPdf: true,
+        admin: expect.objectContaining({ contractId: "contract-1", clientPhone: "0712345678" }),
       });
     });
 

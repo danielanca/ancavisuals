@@ -270,56 +270,6 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/campaign/guide-lead — Ghidul Mirilor unlocked with an email or a phone (any page).
-// Saved as a lead + one email to the owner; nothing is sent to the visitor's address (public form).
-router.post("/guide-lead", async (req: Request, res: Response) => {
-  const { email: rawEmail, phone: rawPhone, page: rawPage } = (req.body ?? {}) as { email?: unknown; phone?: unknown; page?: unknown };
-  const email = typeof rawEmail === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail.trim()) ? rawEmail.trim().toLowerCase().slice(0, 200) : "";
-  const phoneDigits = typeof rawPhone === "string" ? rawPhone.replace(/\D/g, "") : "";
-  const phone = phoneDigits.length >= 9 && phoneDigits.length <= 15 ? String(rawPhone).trim().slice(0, 40) : "";
-  if (!email && !phone) { res.status(400).json({ error: "Email sau telefon invalid." }); return; }
-  const page = typeof rawPage === "string" && rawPage.startsWith("/") ? rawPage.slice(0, 120) : "/";
-  const message = `📘 A cerut Ghidul Mirilor (${page})${email ? ` · email: ${email}` : ""}`;
-
-  const leadId = await saveLead({
-    source: "guide",
-    phone,
-    message,
-    details: { email: email || null, page },
-    ip: getClientIp(req) ?? "",
-    userAgent: String(req.headers["user-agent"] ?? ""),
-  });
-
-  let emailSent = false;
-  try {
-    const { sendEmail } = await import("../notifications/mailer.js");
-    const { adminUser } = await import("../constants/credentials.js");
-    const whatsappLink = phone ? whatsappUrl(phone) : null;
-    await sendEmail({
-      source: "lead",
-      ...(leadId ? { leadId } : {}),
-      to: adminUser.email,
-      subject: `📘 Ghidul Mirilor cerut — ${email || phone}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
-          <h2 style="color:#111;margin:0 0 20px;">Cineva a cerut Ghidul Mirilor</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            ${email ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Email</td><td style="color:#111;font-weight:600;">${escapeHtml(email)}</td></tr>` : ""}
-            ${phone ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${escapeHtml(phone)}${whatsappLink ? ` &nbsp;<a href="${whatsappLink}" style="display:inline-block;background:#25d366;color:#fff;text-decoration:none;font-weight:600;padding:4px 10px;border-radius:6px;font-size:13px;">💬 WhatsApp</a>` : ""}</td></tr>` : ""}
-            <tr><td style="padding:8px 0;color:#666;">Pagina</td><td style="color:#6d28d9;">${escapeHtml(page)}</td></tr>
-          </table>
-          <p style="color:#666;font-size:13px;margin-top:16px;">Ghidul s-a deschis direct pe site. E un contact cald: probabil își organizează nunta.</p>
-        </div>
-      `,
-    });
-    emailSent = true;
-  } catch (emailError) {
-    console.error("[campaign] guide lead email failed (lead is still saved):", emailError);
-  }
-  await updateLeadEmailStatus(leadId, emailSent ? "sent" : "failed", emailSent ? undefined : "eroare SMTP");
-  res.json({ ok: true });
-});
-
 // ─── ADMIN: CRUD ──────────────────────────────────────────────────────────────
 
 router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {

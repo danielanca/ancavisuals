@@ -96,3 +96,42 @@ describe("contractEmail helpers", () => {
     });
   });
 });
+
+describe("signed contract email designs", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  const options = {
+    to: "client@example.com",
+    eventType: "Nuntă",
+    eventDate: "2027-08-27",
+    clientName: "Boncz <Iulia>",
+    pdfUrl: "https://storage.example.com/c.pdf",
+    admin: { contractId: "abc123", clientPhone: "0712 345 678", priceTotal: 9500, priceAdvance: 2000, currency: "RON" },
+  };
+
+  test("the client gets the letter without the admin-only details, with the name escaped", async () => {
+    const { sendSignedContractEmail, sendMailMock } = await buildModule();
+    await sendSignedContractEmail(options);
+    const html = sendMailMock.mock.calls[0][0].html as string;
+    expect(html).toContain("Vă mulțumim!");
+    expect(html).toContain("Descarcă contractul (PDF)");
+    expect(html).toContain("Boncz &lt;Iulia&gt;");
+    expect(html).not.toContain("<Iulia>");
+    expect(html).not.toContain("9.500");
+    expect(html).not.toContain("/admin/contracts/");
+  });
+
+  test("the admin gets the summary card with contact, money and quick actions", async () => {
+    const { sendSignedContractEmail, sendMailMock } = await buildModule();
+    await sendSignedContractEmail(options);
+    const html = sendMailMock.mock.calls[1][0].html as string;
+    expect(html).toContain("mailto:client@example.com");
+    expect(html).toContain("https://wa.me/40712345678");
+    expect(html).toContain("/admin/contracts/abc123/edit");
+    expect(html).toContain("9.500 RON");
+    expect(html).toContain("2.000 RON");
+  });
+});

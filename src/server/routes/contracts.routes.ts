@@ -10,7 +10,7 @@ import { FIREBASE_STORAGE_BUCKET } from "../constants/firebase";
 import { generateContractPDF, buildContractHTML } from "../services/pdf.generator";
 import { generateInvoicePDF, generateInvoiceXML } from "../services/invoice.generator";
 import type { InvoiceData } from "../services/invoice.generator";
-import { sendContractLinkEmail, sendSignedContractEmail, sendFullySignedContractEmail, sendContractDeletedEmail, sendContractReminderEmail } from "../notifications/templates/contractEmail";
+import { sendContractLinkEmail, sendSignedContractEmail, sendFullySignedContractEmail, sendContractDeletedEmail, sendContractReminderEmail, type SignedContractAdminDetails } from "../notifications/templates/contractEmail";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { expandEventDates } from "../utils/expandEventDates";
@@ -998,7 +998,22 @@ async function generateAndSendPDF(contract: Record<string, unknown>): Promise<vo
     clientName: contract.clientName as string,
     pdfUrl: pdfUrl ?? fallbackUrl,
     hasPdf: pdfUrl !== null,
+    admin: signedContractAdminDetails(contract),
   });
+}
+
+function signedContractAdminDetails(contract: Record<string, unknown>): SignedContractAdminDetails {
+  const geo = (contract.clientGeo ?? {}) as { city?: string; country?: string };
+  return {
+    contractId: contract.id ? String(contract.id) : undefined,
+    clientPhone: contract.clientPhone ? String(contract.clientPhone) : undefined,
+    eventLocation: contract.eventLocation ? String(contract.eventLocation) : undefined,
+    priceTotal: Number(contract.priceTotal) || undefined,
+    priceAdvance: Number(contract.priceAdvance) || undefined,
+    currency: contract.currency ? String(contract.currency) : undefined,
+    signedAt: tsToISO(contract.signedAt) ?? undefined,
+    signedFrom: [geo.city, geo.country].filter(Boolean).join(", ") || undefined,
+  };
 }
 
 // GET /api/contracts/invoice-next-number — preview next auto-generated invoice number

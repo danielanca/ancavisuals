@@ -85,7 +85,6 @@ async function loadRouter() {
     postContact: ((handler: Handler) => (req: any, res: any) => handler({ headers: {}, ...req }, res))(getHandler("post", "/:slug/contact")),
     router,
     postInteraction: getHandler("post", "/:slug/interaction"),
-    postGuideLead: ((handler: Handler) => (req: any, res: any) => handler({ headers: {}, ...req }, res))(getHandler("post", "/guide-lead")),
     getGeoCity: getHandler("get", "/geo-city"),
     getFreeBooth: getHandler("get", "/olx/free-photobooth-contracts"),
     contractsGet,
@@ -269,31 +268,6 @@ describe("campaign.routes — public landing-page flow", () => {
       const route = router.stack.find((e: any) => e.route?.path === "/:slug/contact-click");
       expect(route).toBeUndefined();
       expect(reportContactClickConversion).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("POST /guide-lead (Ghidul Mirilor)", () => {
-    test("saves an email lead and emails only the owner", async () => {
-      const { postGuideLead, sendEmail } = await loadRouter();
-      const { saveLead } = await import("src/server/services/leads.service");
-      const res = createMockResponse();
-      await postGuideLead({ body: { email: " Ana@Mail.ro ", page: "/oferta/olx" } }, res);
-      expect(saveLead).toHaveBeenCalledWith(expect.objectContaining({ source: "guide", phone: "", details: { email: "ana@mail.ro", page: "/oferta/olx" } }));
-      expect(sendEmail).toHaveBeenCalledTimes(1);
-      expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: "admin@test.ro", subject: "📘 Ghidul Mirilor cerut — ana@mail.ro" });
-      expect(res.json).toHaveBeenCalledWith({ ok: true });
-    });
-
-    test("accepts a phone, refuses anything else", async () => {
-      const { postGuideLead } = await loadRouter();
-      const ok = createMockResponse();
-      await postGuideLead({ body: { phone: "0712 345 678", page: "/" } }, ok);
-      expect(ok.json).toHaveBeenCalledWith({ ok: true });
-      for (const body of [{}, { email: "ana" }, { phone: "123" }]) {
-        const res = createMockResponse();
-        await postGuideLead({ body }, res);
-        expect(res.status).toHaveBeenCalledWith(400);
-      }
     });
   });
 

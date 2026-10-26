@@ -1012,7 +1012,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {/* ── GHIDUL MIRILOR — la final, ca lead magnet (email / telefon / WhatsApp) ── */}
       {WEDDING_GUIDE_SLUGS.has(page.slug) && (
         <LazySection height={stableVh(70)}>
-          <WeddingGuideLeadMagnet book={<GuideBook />} pagePath={`/oferta/${page.slug}`} whatsappNumber={page.whatsappNumber} />
+          <WeddingGuideLeadMagnet book={<GuideBook />} pagePath={`/oferta/${page.slug}`} />
         </LazySection>
       )}
 
