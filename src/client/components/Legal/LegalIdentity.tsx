@@ -6,9 +6,9 @@ import { openCookieSettings } from "../../utils/cookieConsent";
 // Who the visitor is paying (Legea 365/2002): firm identity + legal links. Shared by the main
 // Footer and the /oferta/:slug footer. Phone is left out on purpose — it stays behind
 // PhoneNumberReveal so phone_revealed tracking keeps working.
-const LegalIdentity = ({ className = "" }: { className?: string }) => {
+const LegalIdentity = ({ className = "", light = false }: { className?: string; light?: boolean }) => {
   const { name, cui, regCom, address, email } = LEGAL_ENTITY;
-  const linkClass = "underline underline-offset-2 hover:text-white transition-colors";
+  const linkClass = `underline underline-offset-2 ${light ? "hover:text-black" : "hover:text-white"} transition-colors`;
 
   return (
     <div className={`text-[11px] leading-relaxed ${className}`}>

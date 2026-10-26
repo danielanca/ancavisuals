@@ -30,12 +30,12 @@ describe("GuideBook", () => {
     act(() => { fire(true); vi.advanceTimersByTime(600); });
     expect(book().className).toContain("guide-book--open");
 
-    act(() => { vi.advanceTimersByTime(450 + 9 * 70 + 300); });
-    expect(bold()).toEqual(["01Primii pași"]);
+    act(() => { vi.advanceTimersByTime(450 + 10 * 70 + 300); });
+    expect(bold()).toEqual(["01Fotograful"]);
     act(() => { vi.advanceTimersByTime(650); });
-    expect(bold()).toEqual(["02Furnizorii și ordinea rezervărilor"]);
+    expect(bold()).toEqual(["02Videograful"]);
 
-    act(() => { vi.advanceTimersByTime(650 * 8); });
+    act(() => { vi.advanceTimersByTime(650 * 9); });
     expect(bold()).toEqual([]);
     expect(book().className).not.toContain("guide-book--open");
 

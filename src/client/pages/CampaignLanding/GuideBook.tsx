@@ -1,20 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-
-// The real table of contents of Ghidul-Mirilor.pdf.
-const CHAPTERS = [
-  "Primii pași",
-  "Furnizorii și ordinea rezervărilor",
-  "Actele pentru cununie",
-  "Calendarul, lună cu lună",
-  "Lista miresei & a mirelui",
-  "Desfășurătorul zilei",
-  "Sfaturi pentru poze și film",
-  "Trusa de urgență",
-  "După nuntă",
-];
+import { GUIDE_CHAPTERS, GUIDE_PAGES_LABEL } from "../WeddingGuide/guideContent";
 
 const CHAPTER_STEP_MS = 650;
-const PAGES_IN_MS = 450 + CHAPTERS.length * 70 + 300; // cover swing + contents fading in
+const pagesInMs = (chapters: number) => 450 + chapters * 70 + 300; // cover swing + contents fading in
 const REOPEN_AFTER_MS = 15_000;
 
 const STYLES = `
@@ -37,8 +25,8 @@ const STYLES = `
   /* Pushed just behind the cover so a full turn shows the inside cover as the back, not the page. */
   .guide-book__page { transform: translateZ(-2px); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   @media (max-width: 1024px), (hover: none), (pointer: coarse) {
-    /* Mobile/tablet: keep the decorative book closed — do not reveal the contents. */
-    .guide-book__body, .guide-book--open .guide-book__body { animation: none !important; transform: translateY(0) rotate(-2deg) !important; }
+    /* Mobile/tablet: the book stays closed (contents never revealed) and just floats (owner, 2026-10-26). */
+    .guide-book__body, .guide-book--open .guide-book__body { animation: guideBookFloat 5s ease-in-out infinite !important; transform: translateY(0) rotate(-2deg); }
     .guide-book--open .guide-book__cover { transform: rotateY(0deg) !important; }
     .guide-book--open .guide-book__page li { opacity: 0; transform: translateX(-6px); }
   }
@@ -55,7 +43,14 @@ const STYLES = `
 const STATIC_BOOK_QUERY = "(max-width: 1024px), (hover: none), (pointer: coarse)";
 
 /** Decorative book: on desktop opens on its own while in view (or on hover), walks its contents, closes, repeats every 15s. On desktop a click opens it right away or restarts the walk; it never downloads (only the section's button does). */
-export default function GuideBook() {
+export default function GuideBook({
+  chapters = GUIDE_CHAPTERS,
+  pagesLabel = GUIDE_PAGES_LABEL,
+}: {
+  /** The guide's table of contents, shown on the first page. */
+  chapters?: string[];
+  pagesLabel?: string;
+} = {}) {
   const ref = useRef<HTMLButtonElement>(null);
   const [hovered, setHovered] = useState(false);
   const [inView, setInView] = useState(false);
@@ -94,8 +89,8 @@ export default function GuideBook() {
     const later = (fn: () => void, ms: number) => { timers.push(window.setTimeout(fn, ms)); };
     const run = () => {
       setOpen(true);
-      let at = PAGES_IN_MS;
-      CHAPTERS.forEach((_, i) => { later(() => setActiveChapter(i), at); at += CHAPTER_STEP_MS; });
+      let at = pagesInMs(chapters.length);
+      chapters.forEach((_, i) => { later(() => setActiveChapter(i), at); at += CHAPTER_STEP_MS; });
       later(() => {
         setActiveChapter(-1);
         if (!hoveredRef.current) setOpen(false);
@@ -104,7 +99,7 @@ export default function GuideBook() {
     };
     run();
     return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [active, clicks]);
+  }, [active, clicks, chapters]);
 
   return (
     <button
@@ -123,14 +118,14 @@ export default function GuideBook() {
         <div className="guide-book__page absolute inset-0 rounded-r-lg bg-[#fffdf8] px-5 py-6 text-left shadow-[0_25px_50px_-12px_rgba(47,42,36,0.45)] ring-1 ring-[#2f2a24]/10">
           <p className="text-[9px] uppercase tracking-[0.3em] text-[#8a6d3b]">Cuprins</p>
           <ol className="mt-3 space-y-1.5">
-            {CHAPTERS.map((chapter, i) => (
+            {chapters.map((chapter, i) => (
               <li key={chapter} className={`flex gap-2 text-[11px] leading-tight text-[#2f2a24] ${activeChapter === i ? "font-bold" : ""}`} style={{ transitionDelay: open ? `${450 + i * 70}ms` : "0ms" }}>
                 <span className={`w-4 shrink-0 font-serif ${activeChapter === i ? "text-[#8a6d3b]" : "text-[#b8955a]"}`}>{String(i + 1).padStart(2, "0")}</span>
                 <span>{chapter}</span>
               </li>
             ))}
           </ol>
-          <p className="absolute bottom-4 left-5 right-5 border-t border-[#b8955a]/40 pt-2 text-[10px] font-semibold text-[#8a6d3b]">15 pagini · PDF gratuit</p>
+          <p className="absolute bottom-4 left-5 right-5 border-t border-[#b8955a]/40 pt-2 text-[10px] font-semibold text-[#8a6d3b]">{pagesLabel}</p>
         </div>
 
         {/* Cover: front face + inside of the cover */}

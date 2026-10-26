@@ -1,17 +1,18 @@
 import React from "react";
 import { sendLiveEvent } from "../../utils/liveEvent";
 import { measureOaiq } from "../../utils/oaiq";
+import { GUIDE_PDF_FILE, GUIDE_PDF_PATH, GUIDE_PDF_URL } from "../WeddingGuide/guideContent";
 
 // Ghidul Mirilor (owner, 2026-10-25): opens directly, no email/phone asked. Shown at the END of
 // the page — before the price it was one more "free gift" that diluted the offer and delayed "cât costă?".
-export const WEDDING_GUIDE_URL = "https://ancavisuals.b-cdn.net/offers-assets/pdfs/Ghidul-Mirilor.pdf";
+export const WEDDING_GUIDE_URL = GUIDE_PDF_URL;
 const WEDDING_GUIDE_HIGHLIGHTS = [
-  "În ce ordine rezervați furnizorii",
-  "Actele pentru cununia civilă și religioasă",
-  "Calendarul organizării, lună cu lună",
-  "Desfășurătorul zilei nunții",
-  "Sfaturi pentru poze și film frumoase",
-  "Trusa de urgență pentru ziua nunții",
+  "Fotograful și videograful: ce să cereți",
+  "Fotocabina, cabina 360 și QR Moments",
+  "Sala și meniul: clauzele din contract",
+  "DJ, formație și cine coordonează ziua",
+  "49 de mărturii reale ale mirilor",
+  "Lista de verificare, de bifat împreună",
 ];
 
 export default function WeddingGuideLeadMagnet({
@@ -24,7 +25,7 @@ export default function WeddingGuideLeadMagnet({
   pagePath: string;
 }) {
   const trackOpen = () => {
-    sendLiveEvent("guide_downloaded", { label: "Ghidul Mirilor", meta: { file: "Ghidul-Mirilor.pdf", page: pagePath } });
+    sendLiveEvent("guide_downloaded", { label: "Ghidul Mirilor", meta: { file: GUIDE_PDF_FILE, page: pagePath } });
     measureOaiq("guide_downloaded", { page_path: pagePath });
   };
 
@@ -34,10 +35,13 @@ export default function WeddingGuideLeadMagnet({
         {book}
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">PDF · 15 pagini</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#8a6d3b]">PDF · 30 de pagini</p>
           <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">Ghidul Mirilor</h2>
           <p className="mt-4 text-base leading-relaxed text-[#5c5348]">
-            Tot ce ne-ar fi plăcut să știe toți mirii de la început, adunat din zecile de nunți la care am fost alături de cupluri.
+            Tot ce ne-ar fi plăcut să știe toți mirii de la început, adunat din zecile de nunți la care am fost alături de cupluri,
+            plus răspunsurile mirilor care au trecut deja prin asta.{" "}
+            {/* Internal link to the guide's own page — helps it rank for „ghidul mirilor pdf". */}
+            <a href={GUIDE_PDF_PATH} className="underline underline-offset-4 hover:text-[#2f2a24]">Vedeți ce conține</a>
           </p>
           <ul className="mt-6 grid gap-2.5 text-sm sm:grid-cols-2">
             {WEDDING_GUIDE_HIGHLIGHTS.map((item) => (

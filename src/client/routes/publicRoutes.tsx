@@ -11,6 +11,7 @@ const opts = (ssr: boolean) => ({ ssr, fallback: loader });
 // The city hubs render on the server for Google but download only when opened (ssrLazy).
 const CitiesHubPage = ssrLazy("cities-hub", () => import("../pages/Hubs/CitiesHubPage"));
 const ServiceHubPage = ssrLazy("service-hub", () => import("../pages/Hubs/ServiceHubPage"));
+const WeddingGuidePdfPage = ssrLazy("wedding-guide-pdf", () => import("../pages/WeddingGuide/WeddingGuidePdfPage"));
 
 const HomePage = loadable(() => import("../pages/Homepage/HomePage"), opts(true));
 const AboutPage = loadable(() => import("../pages/About/AboutPage"), opts(true));
@@ -114,6 +115,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/terms",
     layout: null,
     component: TermsPage,
+  },
+  {
+    path: "/ghidul-mirilor-pdf",
+    layout: null,
+    component: WeddingGuidePdfPage,
   },
   {
     path: "/copyright",

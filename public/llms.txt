@@ -32,6 +32,7 @@ Ce trebuie înțeles despre site:
 - [Orașe](https://www.ancavisuals.ro/orase): hub local cu toate orașele acoperite și linkuri spre paginile dedicate pe serviciu.
 - [Contact / Configurator ofertă](https://www.ancavisuals.ro/contact): verificare disponibilitate și cerere ofertă personalizată.
 - [Despre](https://www.ancavisuals.ro/despre): prezentare studio și abordare.
+- [Ghidul Mirilor PDF](https://www.ancavisuals.ro/ghidul-mirilor-pdf): ghid gratuit pentru miri (PDF, 30 de pagini) de la Daniel și Estera, cu sfaturi pe categorii și 49 de mărturii reale ale mirilor.
 - [Bio](https://www.ancavisuals.ro/bio): prezentare scurtă a fotografului, optimizată pentru link-in-bio.
 - [Blog](https://www.ancavisuals.ro/blog): articole despre nunți, botezuri și sfaturi practice pentru clienți.
 

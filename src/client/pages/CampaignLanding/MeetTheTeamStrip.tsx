@@ -1,25 +1,24 @@
 import React from "react";
-import { ABOUT_PHOTO_URL } from "../About/AboutSummary";
 
 // Short "who you'd work with" band right under the hero (owner audit, 2026-10-26): the couple
 // story used to show up only ~15 screens down, after the configurator. Full story stays below.
-// Window over the 2000×3000 photo: x 47–92%, y 15–52% (both heads and shoulders).
-const FACES_CROP: React.CSSProperties = { width: "222%", left: "-104%", top: "-40%" };
+// The About photo (2000×3000, 3.5 MB) pre-cropped on our faces, 256×320 WebP (~13 KB). Linking the
+// original here made PageSpeed mobile LCP 22.8 s — it ate the throttled bandwidth right after the hero.
+export const FACES_PHOTO_URL = "/images/dani-estera-fete.webp";
 
 export default function MeetTheTeamStrip() {
   return (
     <section data-track-section="cine suntem" className="border-y border-neutral-800 bg-neutral-950 px-6 py-8 text-white sm:py-10" aria-labelledby="meet-team-title">
       <div className="mx-auto flex max-w-3xl items-center gap-5 sm:gap-8">
-        {/* Zoomed on our faces: the photo is a 2:3 full-length shot, too small here to read faces otherwise. */}
-        <div className="relative aspect-[4/5] w-24 shrink-0 overflow-hidden sm:w-32">
-          <img
-            src={ABOUT_PHOTO_URL}
-            alt="Dani și Estera, echipa Anca Visuals"
-            decoding="async"
-            className="absolute max-w-none"
-            style={FACES_CROP}
-          />
-        </div>
+        <img
+          src={FACES_PHOTO_URL}
+          alt="Dani și Estera, echipa Anca Visuals"
+          width={256}
+          height={320}
+          loading="lazy"
+          decoding="async"
+          className="aspect-[4/5] w-24 shrink-0 object-cover sm:w-32"
+        />
         <div>
           <h2 id="meet-team-title" className="text-lg font-light leading-snug sm:text-xl">
             Suntem Dani (video) și Estera (foto), soț și soție.
