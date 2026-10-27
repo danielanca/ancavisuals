@@ -11,6 +11,7 @@ type LinkPhoto = { fileName: string; previewUrl: string };
 type LinkData = { albumSlug: string; title: string; label: string; photos: LinkPhoto[] };
 type Destination = "instagram" | "media_assets";
 type StoredVisitor = { visitorId: string; name: string };
+type IdentifiedVisitor = StoredVisitor & { viewedCount: number };
 
 const PAGE_SIZE = 60;
 const PROGRESS_INTERVAL_MS = 5000;
@@ -59,6 +60,16 @@ async function postJson(url: string, body: unknown) {
   return data;
 }
 
+/** The name works as a username: if someone already used it on this link, we continue as them. */
+async function identifyVisitor(token: string, name: string, visitorId: string): Promise<IdentifiedVisitor> {
+  try {
+    const result = await postJson(`/api/proposal-links/${encodeURIComponent(token)}/visitor`, { name, visitorId });
+    return { visitorId: String(result.visitorId || visitorId), name: String(result.name || name), viewedCount: Number(result.viewedCount) || 0 };
+  } catch {
+    return { visitorId, name, viewedCount: 0 };
+  }
+}
+
 export default function ProposalLinkPage() {
   const { token = "" } = useParams();
   const [data, setData] = useState<LinkData | null>(null);
@@ -73,6 +84,9 @@ export default function ProposalLinkPage() {
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
   const [completed, setCompleted] = useState(false);
+  // How many photos they had already seen, to scroll back there once (null = nothing to resume).
+  const [resumeAt, setResumeAt] = useState<number | null>(null);
+  const [resumedFrom, setResumedFrom] = useState(0);
 
   const maxSeenRef = useRef(0);
   const reportedRef = useRef(-1);
@@ -81,8 +95,22 @@ export default function ProposalLinkPage() {
   const [ratios, setRatios] = useState<Record<string, number>>({});
   const gridRef = useRef<HTMLDivElement | null>(null);
 
+  const enter = useCallback((next: IdentifiedVisitor) => {
+    const stored = { visitorId: next.visitorId, name: next.name };
+    writeVisitor(token, stored);
+    setVisitor(stored);
+    setResumedFrom(0);
+    if (next.viewedCount > 0) {
+      maxSeenRef.current = Math.max(maxSeenRef.current, next.viewedCount);
+      setResumeAt(next.viewedCount);
+      setResumedFrom(next.viewedCount);
+    }
+  }, [token]);
+
   useEffect(() => {
-    setVisitor(readVisitor(token));
+    const stored = readVisitor(token);
+    setVisitor(stored);
+    if (stored) identifyVisitor(token, stored.name, stored.visitorId).then(enter);
     fetch(`/api/proposal-links/${encodeURIComponent(token)}`)
       .then(async response => {
         if (response.status === 404) throw new Error("Linkul nu mai este activ. Cere unul nou de la Daniel.");
@@ -91,7 +119,23 @@ export default function ProposalLinkPage() {
       })
       .then(setData)
       .catch((error: Error) => setLoadError(error.message));
-  }, [token]);
+  }, [token, enter]);
+
+  // Back where they left off: load enough pages, then bring that photo into view.
+  useEffect(() => {
+    if (resumeAt === null || !data || !visitor) return;
+    const index = Math.min(resumeAt, data.photos.length) - 1;
+    if (index < 0) {
+      setResumeAt(null);
+      return;
+    }
+    if (visibleCount <= index) {
+      setVisibleCount(Math.ceil((index + 1) / PAGE_SIZE) * PAGE_SIZE);
+      return;
+    }
+    gridRef.current?.querySelector(`[data-index="${index}"]`)?.scrollIntoView?.({ block: "center" });
+    setResumeAt(null);
+  }, [resumeAt, data, visitor, visibleCount]);
 
   useEffect(() => {
     if (!visitor) return;
@@ -154,13 +198,12 @@ export default function ProposalLinkPage() {
     return () => { if (node) observerRef.current?.unobserve(node); };
   }, [visibleCount, visitor, data]);
 
-  const startSession = (event: React.FormEvent) => {
+  const startSession = async (event: React.FormEvent) => {
     event.preventDefault();
     const name = nameInput.trim().replace(/\s+/g, " ");
     if (!name) return;
-    const next = { visitorId: visitor?.visitorId ?? readVisitor(token)?.visitorId ?? newVisitorId(), name };
-    writeVisitor(token, next);
-    setVisitor(next);
+    const localId = visitor?.visitorId ?? readVisitor(token)?.visitorId ?? newVisitorId();
+    enter(await identifyVisitor(token, name, localId));
   };
 
   const toggle = (fileName: string) => {
@@ -277,6 +320,11 @@ export default function ProposalLinkPage() {
           Atinge pozele care îți plac, apoi „Trimite”. Când ai terminat de răsfoit, apasă „Am terminat”.
           {" "}<button type="button" onClick={() => { setNameInput(visitor.name); setVisitor(null); }} style={{ background: "none", border: "none", color: GOLD, padding: 0, fontSize: "13px", cursor: "pointer" }}>Schimbă numele</button>
         </p>
+        {resumedFrom > 0 && !completed && (
+          <p style={{ marginTop: "10px", color: GOLD, fontSize: "13px" }}>
+            Bine ai revenit! Continui de la poza {Math.min(resumedFrom, photos.length)} din {photos.length}.
+          </p>
+        )}
         {completed && (
           <div style={{ marginTop: "12px", padding: "12px 14px", background: "#052e16", border: "1px solid #166534", borderRadius: "8px", color: "#4ade80", fontSize: "13px" }}>
             ✓ Gata, mulțumesc mult! Selecția ta a ajuns la Daniel. Poți reveni oricând pe link ca să mai adaugi poze.

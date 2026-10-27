@@ -157,9 +157,9 @@ describe("proposal links", () => {
     await handler("post", "/admin")({ body: { albumSlug: ALBUM.slug, label: "Salomeea", reviewerId: "salomeea" }, firebaseEmail: "admin@test.com" }, created);
     const link = created.json.mock.calls[0][0].link;
     expect(link.reviewerId).toBe("salomeea");
-    for (const visitorId of ["visitor-123", "visitor-456"]) {
+    for (const [visitorId, name] of [["visitor-123", "Daniel"], ["visitor-456", "Estera"]]) {
       await handler("post", "/:token/proposals")({ params: { token: link.token }, body: {
-        name: "Daniel", reviewerId: "daniel", visitorId, fileNames: ["IMG_1.jpg"], destinations: ["instagram", "media_assets"],
+        name, reviewerId: "daniel", visitorId, fileNames: ["IMG_1.jpg"], destinations: ["instagram", "media_assets"],
       } }, createMockResponse());
     }
     const proposals = [...fake.col("instagramProposals").values()];
@@ -189,7 +189,7 @@ describe("proposal links", () => {
       body: { name: "  Ana  Maria ", visitorId: "visitor-123", fileNames: ["IMG_1.webp", "IMG_9.webp"], destinations: ["instagram", "media_assets"] },
     }, res);
 
-    expect(res.json).toHaveBeenCalledWith({ ok: true, added: 1, updated: 0 });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true, added: 1, updated: 0 }));
     const proposals = Array.from(fake.col("instagramProposals").values());
     expect(proposals).toHaveLength(1);
     expect(proposals[0]).toMatchObject({
@@ -293,5 +293,62 @@ describe("proposal links", () => {
     expect(listed.status).toBe("in_progress");
     expect(listed.visitors[0]).toMatchObject({ name: "Ana", proposedCount: 1 });
     expect(listed.photos).toEqual([{ fileName: "IMG_1.jpg", previewUrl: ALBUM.photos[0], proposedBy: "Ana" }]);
+  });
+  test("the name is a username: the same name on another phone continues where it left off", async () => {
+    const { fake, handler, createLink } = await loadRouter();
+    const link = await createLink();
+    await handler("post", "/:token/progress")({ params: { token: link.token }, body: { name: "Salomeea", visitorId: "phone-aaaa", viewedCount: 616 } }, createMockResponse());
+    await handler("post", "/:token/proposals")({
+      params: { token: link.token },
+      body: { name: "Salomeea", visitorId: "phone-aaaa", fileNames: ["IMG_1.jpg"], destinations: ["instagram"] },
+    }, createMockResponse());
+
+    // Another browser, different casing/diacritics → same visitor, with how far they got.
+    const login = createMockResponse();
+    await handler("post", "/:token/visitor")({ params: { token: link.token }, body: { name: "salomeea", visitorId: "laptop-bbbb" } }, login);
+    expect(login.json).toHaveBeenCalledWith({ visitorId: "phone-aaaa", name: "Salomeea", viewedCount: 616 });
+
+    // Even an old page sending its own id is folded into the existing visitor.
+    await handler("post", "/:token/progress")({ params: { token: link.token }, body: { name: "Salomeea", visitorId: "laptop-bbbb", viewedCount: 700 } }, createMockResponse());
+    await handler("post", "/:token/proposals")({
+      params: { token: link.token },
+      body: { name: "Salomeea", visitorId: "laptop-bbbb", fileNames: ["IMG_2.jpg"], destinations: ["instagram"] },
+    }, createMockResponse());
+    const visitors = fake.col("proposalLinks").get(link.token)!.visitors;
+    expect(Object.keys(visitors)).toEqual(["phone-aaaa"]);
+    expect(visitors["phone-aaaa"]).toMatchObject({ viewedCount: 700, proposedCount: 2 });
+
+    const proposals = createMockResponse();
+    await handler("get", "/:token/proposals")({ params: { token: link.token }, query: { visitorId: "phone-aaaa" } }, proposals);
+    expect(proposals.json.mock.calls[0][0].fileNames.sort()).toEqual(["IMG_1", "IMG_2"]);
+  });
+
+  test("a new name from a browser already used by someone else starts a new visitor", async () => {
+    const { handler, createLink } = await loadRouter();
+    const link = await createLink();
+    await handler("post", "/:token/progress")({ params: { token: link.token }, body: { name: "Ana", visitorId: "phone-aaaa", viewedCount: 10 } }, createMockResponse());
+
+    const res = createMockResponse();
+    await handler("post", "/:token/visitor")({ params: { token: link.token }, body: { name: "Maria", visitorId: "phone-aaaa" } }, res);
+    const result = res.json.mock.calls[0][0];
+    expect(result.visitorId).not.toBe("phone-aaaa");
+    expect(result).toMatchObject({ name: "Maria", viewedCount: 0 });
+  });
+
+  test("admin listing shows older same-name duplicates as one person", async () => {
+    const { fake, handler, createLink } = await loadRouter();
+    const link = await createLink();
+    const doc = fake.col("proposalLinks").get(link.token)!;
+    doc.visitors = {
+      "id-one-aaaa": { name: "Salomeea", viewedCount: 616, proposedCount: 3 },
+      "id-two-bbbb": { name: "Salomeea", viewedCount: 1279, proposedCount: 200 },
+      "id-three-cc": { name: "Estera", viewedCount: 141, proposedCount: 0 },
+    };
+
+    const res = createMockResponse();
+    await handler("get", "/admin")({ query: { albumSlug: "8august2026" } }, res);
+    const [listed] = res.json.mock.calls[0][0].links;
+    expect(listed.visitors).toHaveLength(2);
+    expect(listed.visitors.find((v: any) => v.name === "Salomeea")).toMatchObject({ id: "id-two-bbbb", viewedCount: 1279, proposedCount: 203 });
   });
 });

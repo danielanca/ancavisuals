@@ -124,7 +124,7 @@ function serializeLink(link: ProposalLink, photos: { fileName: string; previewUr
     status: linkProgressStatus(link),
     completedAt: toIso(link.completedAt),
     totalPhotos: link.totalPhotos ?? 0,
-    visitors: Object.entries(link.visitors ?? {}).map(([id, visitor]) => ({
+    visitors: mergeVisitorsByName(link.visitors ?? {}).map(({ id, ...visitor }) => ({
       id,
       name: visitor.name ?? "",
       viewedCount: visitor.viewedCount ?? 0,
@@ -156,6 +156,47 @@ async function advanceLinkTask(taskId: string | null | undefined, status: "doing
 
 function cleanVisitorName(name: unknown): string {
   return String(name ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_NAME_LENGTH);
+}
+
+/** The name is the visitor's username on a link (owner, 2026-10-27): „salomeea” = „Salomeea”. */
+const nameKey = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Ids already registered under this name on the link, the furthest along first. */
+function visitorIdsForName(link: Pick<ProposalLink, "visitors">, name: string): string[] {
+  const key = nameKey(name);
+  return Object.entries(link.visitors ?? {})
+    .filter(([, visitor]) => visitor.name && nameKey(visitor.name) === key)
+    .sort(([, a], [, b]) => (b.viewedCount ?? 0) - (a.viewedCount ?? 0))
+    .map(([id]) => id);
+}
+
+/** Same name on another phone / browser → continue that visitor instead of starting a new one. */
+export function resolveVisitorId(link: Pick<ProposalLink, "visitors">, name: string, visitorId: string): string {
+  return visitorIdsForName(link, name)[0] ?? visitorId;
+}
+
+/** Older duplicates (same name, different ids, before names were usernames) shown as one person. */
+function mergeVisitorsByName(visitors: Record<string, VisitorProgress>) {
+  const latest = (a?: Timestamp | null, b?: Timestamp | null) =>
+    !a ? b : !b ? a : (a.toDate().getTime() >= b.toDate().getTime() ? a : b);
+  const byName = new Map<string, { id: string } & VisitorProgress>();
+  for (const [id, visitor] of Object.entries(visitors)) {
+    const key = nameKey(visitor.name ?? id);
+    const current = byName.get(key);
+    if (!current) {
+      byName.set(key, { id, ...visitor });
+      continue;
+    }
+    const lead = (visitor.viewedCount ?? 0) > (current.viewedCount ?? 0) ? { id, name: visitor.name } : { id: current.id, name: current.name };
+    byName.set(key, {
+      ...lead,
+      viewedCount: Math.max(current.viewedCount ?? 0, visitor.viewedCount ?? 0),
+      proposedCount: (current.proposedCount ?? 0) + (visitor.proposedCount ?? 0),
+      lastSeenAt: latest(current.lastSeenAt, visitor.lastSeenAt) ?? undefined,
+      completedAt: latest(current.completedAt, visitor.completedAt) ?? null,
+    });
+  }
+  return Array.from(byName.values());
 }
 
 // ── Admin ────────────────────────────────────────────────────────────────────
@@ -324,11 +365,14 @@ router.get("/:token/proposals", async (req: Request, res: Response) => {
       res.status(404).json({ error: "link_not_found" });
       return;
     }
-    const snapshot = await firestore().collection(PROPOSALS_COLLECTION)
+    const name = link.visitors?.[visitorId]?.name;
+    const ids = Array.from(new Set([visitorId, ...(name ? visitorIdsForName(link, name) : [])]));
+    const snapshots = await Promise.all(ids.map(id => firestore().collection(PROPOSALS_COLLECTION)
       .where("albumSlug", "==", link.albumSlug)
-      .where("proposedByUid", "==", `link:${link.token}:${visitorId}`)
-      .get();
-    res.json({ fileNames: snapshot.docs.map(doc => mediaKey(String(doc.data().fileName ?? ""))) });
+      .where("proposedByUid", "==", `link:${link.token}:${id}`)
+      .get()));
+    const fileNames = new Set(snapshots.flatMap(snapshot => snapshot.docs.map(doc => mediaKey(String(doc.data().fileName ?? "")))));
+    res.json({ fileNames: Array.from(fileNames) });
   } catch (error) {
     console.error("[proposal-links] GET /:token/proposals failed:", error);
     res.status(500).json({ error: "Nu am putut încărca propunerile." });
@@ -344,7 +388,7 @@ router.post("/:token/proposals", async (req: Request, res: Response) => {
     destinations?: unknown;
   };
   const cleanName = cleanVisitorName(name);
-  const cleanVisitorId = String(visitorId ?? "");
+  let cleanVisitorId = String(visitorId ?? "");
   const normalizedDestinations = normalizeDestinations(destinations);
   const requestedKeys = Array.isArray(fileNames)
     ? Array.from(new Set(fileNames.map(value => mediaKey(String(value))))).slice(0, MAX_FILES_PER_SUBMIT)
@@ -378,6 +422,7 @@ router.post("/:token/proposals", async (req: Request, res: Response) => {
       res.status(404).json({ error: "album_not_found" });
       return;
     }
+    cleanVisitorId = resolveVisitorId(link, cleanName, cleanVisitorId);
 
     // Same photoUrl shape as the logged-in flow: the original when it exists, else the preview.
     const urlByKey = new Map<string, string>();
@@ -441,44 +486,16 @@ router.post("/:token/proposals", async (req: Request, res: Response) => {
     }, { merge: true });
     await batch.commit();
     await advanceLinkTask(link.taskId, "doing");
-    res.json({ ok: true, added, updated });
+    res.json({ ok: true, added, updated, visitorId: cleanVisitorId });
   } catch (error) {
     console.error("[proposal-links] POST /:token/proposals failed:", error);
     res.status(500).json({ error: "Nu am putut trimite propunerile." });
   }
 });
 
-// POST /:token/progress — the visitor started / scrolled further through the album
-router.post("/:token/progress", async (req: Request, res: Response) => {
-  const { name, visitorId, viewedCount } = req.body as { name?: string; visitorId?: string; viewedCount?: number };
-  const cleanName = cleanVisitorName(name);
-  const cleanVisitorId = String(visitorId ?? "");
-  if (!cleanName || !isSafeVisitorId(cleanVisitorId)) {
-    res.status(400).json({ error: "Date invalide." });
-    return;
-  }
-  try {
-    const link = await readActiveLink(req.params.token);
-    if (!link) {
-      res.status(404).json({ error: "link_not_found" });
-      return;
-    }
-    const previous = link.visitors?.[cleanVisitorId];
-    const viewed = Math.max(previous?.viewedCount ?? 0, Math.max(0, Math.floor(Number(viewedCount) || 0)));
-    const now = Timestamp.now();
-    await firestore().collection(LINKS_COLLECTION).doc(link.token).set({
-      visitors: { [cleanVisitorId]: { name: cleanName, viewedCount: viewed, lastSeenAt: now, ...(previous?.startedAt ? {} : { startedAt: now }) } },
-    }, { merge: true });
-    await advanceLinkTask(link.taskId, "doing");
-    res.json({ ok: true });
-  } catch (error) {
-    console.error("[proposal-links] POST /:token/progress failed:", error);
-    res.status(500).json({ error: "Nu am putut salva progresul." });
-  }
-});
-
-// POST /:token/complete — the visitor says they are done choosing
-router.post("/:token/complete", async (req: Request, res: Response) => {
+// POST /:token/visitor — „log in” with a name: an existing visitor with that name continues
+// where they left off (their id + how far they got); otherwise the browser's own id is kept.
+router.post("/:token/visitor", async (req: Request, res: Response) => {
   const { name, visitorId } = req.body as { name?: string; visitorId?: string };
   const cleanName = cleanVisitorName(name);
   const cleanVisitorId = String(visitorId ?? "");
@@ -492,6 +509,63 @@ router.post("/:token/complete", async (req: Request, res: Response) => {
       res.status(404).json({ error: "link_not_found" });
       return;
     }
+    const [match] = visitorIdsForName(link, cleanName);
+    // A new name from a browser whose id already belongs to someone else („Schimbă numele”): new person.
+    const resolvedId = match ?? (link.visitors?.[cleanVisitorId]?.name ? randomBytes(12).toString("base64url") : cleanVisitorId);
+    const existing = link.visitors?.[resolvedId];
+    res.json({ visitorId: resolvedId, name: existing?.name ?? cleanName, viewedCount: existing?.viewedCount ?? 0 });
+  } catch (error) {
+    console.error("[proposal-links] POST /:token/visitor failed:", error);
+    res.status(500).json({ error: "Nu am putut verifica numele." });
+  }
+});
+
+// POST /:token/progress — the visitor started / scrolled further through the album
+router.post("/:token/progress", async (req: Request, res: Response) => {
+  const { name, visitorId, viewedCount } = req.body as { name?: string; visitorId?: string; viewedCount?: number };
+  const cleanName = cleanVisitorName(name);
+  let cleanVisitorId = String(visitorId ?? "");
+  if (!cleanName || !isSafeVisitorId(cleanVisitorId)) {
+    res.status(400).json({ error: "Date invalide." });
+    return;
+  }
+  try {
+    const link = await readActiveLink(req.params.token);
+    if (!link) {
+      res.status(404).json({ error: "link_not_found" });
+      return;
+    }
+    cleanVisitorId = resolveVisitorId(link, cleanName, cleanVisitorId);
+    const previous = link.visitors?.[cleanVisitorId];
+    const viewed = Math.max(previous?.viewedCount ?? 0, Math.max(0, Math.floor(Number(viewedCount) || 0)));
+    const now = Timestamp.now();
+    await firestore().collection(LINKS_COLLECTION).doc(link.token).set({
+      visitors: { [cleanVisitorId]: { name: cleanName, viewedCount: viewed, lastSeenAt: now, ...(previous?.startedAt ? {} : { startedAt: now }) } },
+    }, { merge: true });
+    await advanceLinkTask(link.taskId, "doing");
+    res.json({ ok: true, visitorId: cleanVisitorId });
+  } catch (error) {
+    console.error("[proposal-links] POST /:token/progress failed:", error);
+    res.status(500).json({ error: "Nu am putut salva progresul." });
+  }
+});
+
+// POST /:token/complete — the visitor says they are done choosing
+router.post("/:token/complete", async (req: Request, res: Response) => {
+  const { name, visitorId } = req.body as { name?: string; visitorId?: string };
+  const cleanName = cleanVisitorName(name);
+  let cleanVisitorId = String(visitorId ?? "");
+  if (!cleanName || !isSafeVisitorId(cleanVisitorId)) {
+    res.status(400).json({ error: "Date invalide." });
+    return;
+  }
+  try {
+    const link = await readActiveLink(req.params.token);
+    if (!link) {
+      res.status(404).json({ error: "link_not_found" });
+      return;
+    }
+    cleanVisitorId = resolveVisitorId(link, cleanName, cleanVisitorId);
     const now = Timestamp.now();
     await firestore().collection(LINKS_COLLECTION).doc(link.token).set({
       completedAt: link.completedAt ?? now,
