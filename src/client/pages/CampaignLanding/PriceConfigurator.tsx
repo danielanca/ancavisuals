@@ -443,7 +443,7 @@ export default function PriceConfigurator({
           <h2 className="mt-5 text-4xl font-normal uppercase leading-tight tracking-[0.05em] sm:text-5xl">
             Aflați prețul
             <br />
-            <span className="text-2xl text-neutral-400 sm:text-3xl">[în 30 de secunde]</span>
+            <span className="text-2xl text-neutral-500 sm:text-3xl">[în 30 de secunde]</span>
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-neutral-600 sm:text-base">
             Alegeți evenimentul, data și ce vă doriți. Verificăm calendarul și calculăm prețul pe loc — fără formular, fără număr de telefon.
@@ -866,7 +866,7 @@ export default function PriceConfigurator({
                   onClick={() => onWhatsAppClick("configurator")}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-7 flex items-center justify-center gap-2.5 rounded-full [text-wrap:balance] bg-green-500 px-4 py-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-white transition-colors hover:bg-green-400 sm:px-6 sm:text-xs sm:tracking-[0.18em]"
+                  className="mt-7 flex items-center justify-center gap-2.5 rounded-full [text-wrap:balance] bg-green-700 px-4 py-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-white transition-colors hover:bg-green-600 sm:px-6 sm:text-xs sm:tracking-[0.18em]"
                 >
                   <WhatsAppIcon />
                   Trimiteți pe WhatsApp

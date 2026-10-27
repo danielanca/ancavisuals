@@ -95,16 +95,23 @@ export interface CampaignGalleryItem {
   height?: number;
   /** The full-resolution file when `url` is its compressed copy (offer photos): opens on click. */
   originalUrl?: string;
+  /** Small WebP (max 800 px) for the gallery tile; `url` stays for big uses (film poster, click). */
+  thumbUrl?: string;
 }
+
+/** What a gallery tile loads: the small thumbnail when the photo has one. */
+export const galleryTileUrl = (item: CampaignGalleryItem) => item.thumbUrl ?? item.url;
 
 /** Each photo's width / height by URL, for PortfolioParallaxGallery's `ratios`. */
 export function galleryRatios(items: CampaignGalleryItem[]): Record<string, number> {
-  return Object.fromEntries(items.filter((item) => item.width && item.height).map((item) => [item.url, item.width! / item.height!]));
+  return Object.fromEntries(items.filter((item) => item.width && item.height).map((item) => [galleryTileUrl(item), item.width! / item.height!]));
 }
 
 /** Each photo's original by URL, for PortfolioParallaxGallery's `originals`. */
 export function galleryOriginals(items: CampaignGalleryItem[]): Record<string, string> {
-  return Object.fromEntries(items.filter((item) => item.originalUrl).map((item) => [item.url, item.originalUrl!]));
+  return Object.fromEntries(items
+    .filter((item) => item.originalUrl || item.thumbUrl)
+    .map((item) => [galleryTileUrl(item), item.originalUrl ?? item.url]));
 }
 
 export { isHeavyPhoto } from "../../../shared/media/photoWeight";
@@ -293,7 +300,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     () => (isAdmin ? deviceGalleryItems : deviceGalleryItems.filter((item) => !isHeavyPhoto(item.sizeBytes))),
     [deviceGalleryItems, isAdmin],
   );
-  const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
+  const galleryImageUrls = useMemo(() => galleryItems.map(galleryTileUrl), [galleryItems]);
   const galleryImageRatios = useMemo(() => galleryRatios(galleryItems), [galleryItems]);
   const galleryImageOriginals = useMemo(() => galleryOriginals(galleryItems), [galleryItems]);
   const galleryWarnings = useMemo(() => {
@@ -527,7 +534,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           <div className="hidden sm:flex flex-col sm:flex-row gap-3">
             <a
               href={availabilityHref}
-              className="inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-7 py-4 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-green-900/40"
+              className="inline-flex items-center justify-center gap-2.5 bg-green-700 hover:bg-green-600 text-white font-semibold px-7 py-4 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-green-900/40"
             >
               Verificați data <ArrowIcon />
             </a>
@@ -647,9 +654,9 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           downloaded (only while this section is on screen) ── */}
       {(page.heroClipUrl || galleryImageUrls.length > 1) && (
         <section className="relative flex min-h-[calc(var(--stable-vh,1vh)*30)] items-end overflow-hidden bg-neutral-950 text-white sm:min-h-[calc(var(--stable-vh,1vh)*90)] lg:mx-auto lg:my-12 lg:h-[min(90vh,760px)] lg:min-h-0 lg:max-w-[1280px] lg:shadow-2xl lg:shadow-black/50">
-          {(galleryImageUrls[1] || page.heroImageUrl) && (
+          {(galleryItems[1]?.url || page.heroImageUrl) && (
             <img
-              src={galleryImageUrls[1] || page.heroImageUrl}
+              src={galleryItems[1]?.url || page.heroImageUrl}
               alt="Cuplu fotografiat de Anca Visuals în ziua nunții"
               loading="lazy"
               decoding="async"
@@ -824,7 +831,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                   target="_blank"
                   rel="noreferrer"
                   onClick={() => trackClick("click_whatsapp", "availability")}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-600"
                 >
                   <WhatsAppIcon /> Scrieți-ne pe WhatsApp
                 </a>
@@ -863,7 +870,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => trackClick("click_whatsapp", free ? "avail_ok" : "avail_no")}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-green-400"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-green-600"
                   >
                     <WhatsAppIcon /> {free ? "Primiți oferta pe WhatsApp" : "Întrebați pe WhatsApp"}
                   </a>
@@ -968,12 +975,12 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
 
           <div className="flex flex-col sm:flex-row gap-3">
             <a href={availabilityHref}
-              className="flex-1 inline-flex items-center justify-center gap-2.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-2.5 bg-white hover:bg-neutral-200 text-neutral-950 font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
               Verificați data <ArrowIcon />
             </a>
             <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "final_cta")}
-              className="flex-1 inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-2.5 bg-green-700 hover:bg-green-600 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
               <WhatsAppIcon />
               {page.ctaText || "Scrieți-ne pe WhatsApp"}
@@ -1002,7 +1009,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           {/* ── CALLBACK REQUEST — pentru cei care nu au chef să scrie/sune ── */}
           <div className="mt-8 flex items-center gap-3 text-neutral-700">
             <span className="h-px flex-1 bg-neutral-800" />
-            <span className="text-[11px] uppercase tracking-[0.2em]">sau</span>
+            <span className="text-[11px] uppercase tracking-[0.2em] text-neutral-400">sau</span>
             <span className="h-px flex-1 bg-neutral-800" />
           </div>
           <div className="mt-6 rounded-2xl border border-dashed border-amber-700/40 bg-amber-500/[0.06] p-5 text-left sm:p-6">
@@ -1051,8 +1058,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       {isLiveChatConfigured() && <ChatWithUs />}
 
       <div className="py-6 px-4 text-center">
-        <p className="text-neutral-700 text-xs">© {new Date().getFullYear()} Anca Visuals · ancavisuals.ro</p>
-        <LegalIdentity className="mt-2 text-neutral-600" />
+        <p className="text-neutral-400 text-xs">© {new Date().getFullYear()} Anca Visuals · ancavisuals.ro</p>
+        <LegalIdentity className="mt-2 text-neutral-400" />
       </div>
     </div>
   );

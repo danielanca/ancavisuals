@@ -18,6 +18,8 @@ type OfferAsset = {
   url: string;
   label: string;
   displayUrl?: string;
+  /** Small WebP (max 800 px) for gallery tiles. */
+  thumbUrl?: string;
   alt?: string;
   /** Size of the shown file, from the server (unknown = undefined). */
   sizeBytes?: number;
@@ -51,7 +53,7 @@ export type Offer = {
   heroVideo?: OfferHeroVideo;
 };
 
-const toGalleryItem = (asset: OfferAsset) => ({ url: asset.displayUrl ?? asset.url, bunnyPath: asset.id, sizeBytes: asset.sizeBytes, width: asset.width, height: asset.height, originalUrl: asset.displayUrl && asset.displayUrl !== asset.url ? asset.url : undefined });
+const toGalleryItem = (asset: OfferAsset) => ({ url: asset.displayUrl ?? asset.url, thumbUrl: asset.thumbUrl, bunnyPath: asset.id, sizeBytes: asset.sizeBytes, width: asset.width, height: asset.height, originalUrl: asset.displayUrl && asset.displayUrl !== asset.url ? asset.url : undefined });
 
 /** The template section whose photos make the portfolio gallery of /oferta/olx. */
 export const PORTFOLIO_SECTION_ID = "photo";

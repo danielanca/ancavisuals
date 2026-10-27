@@ -10,7 +10,7 @@ import LazySection from "../CampaignLanding/LazySection";
 import SectionSkeleton from "../CampaignLanding/SectionSkeleton";
 import FramedVideoSection from "../CampaignLanding/FramedVideoSection";
 import { CampaignVideoPlayer, PortfolioParallaxGallery } from "../CampaignLanding/lazyParts";
-import { daysInMonth, formatDateRo, galleryOriginals, galleryRatios, isEmbedVideoUrl, isHeavyPhoto, toIso, type CampaignPage } from "../CampaignLanding/CampaignLandingPage";
+import { daysInMonth, formatDateRo, galleryOriginals, galleryRatios, galleryTileUrl, isEmbedVideoUrl, isHeavyPhoto, toIso, type CampaignPage } from "../CampaignLanding/CampaignLandingPage";
 import { offerToCampaign, type Offer } from "../OfertaPage";
 import { measureOaiq } from "../../utils/oaiq";
 import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
@@ -73,7 +73,7 @@ const ContactPage = () => {
       : (page.galleryDesktop?.length ? page.galleryDesktop : page.gallery);
     return items.filter((item) => !isHeavyPhoto(item.sizeBytes));
   }, [page, isMobile]);
-  const galleryImageUrls = useMemo(() => galleryItems.map((item) => item.url), [galleryItems]);
+  const galleryImageUrls = useMemo(() => galleryItems.map(galleryTileUrl), [galleryItems]);
   const galleryImageRatios = useMemo(() => galleryRatios(galleryItems), [galleryItems]);
   const galleryImageOriginals = useMemo(() => galleryOriginals(galleryItems), [galleryItems]);
 

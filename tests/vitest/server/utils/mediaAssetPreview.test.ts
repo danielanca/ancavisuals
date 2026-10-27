@@ -20,6 +20,19 @@ test("stores a genuine WebP beside even a small JPEG, with no reference to its a
   expect((await sharp(original).metadata()).format).toBe("jpeg");
 });
 
+test("also stores a small gallery thumbnail (max 800 px WebP) beside the preview", async () => {
+  const original = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: "#c9a96e" } }).jpeg().toBuffer();
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+  vi.stubGlobal("fetch", fetchMock);
+  const preview = await createMediaAssetPreview(original, "image/jpeg", "offers-assets/photo/example.jpg");
+  expect(preview.thumbBunnyPath).toBe("offers-assets/photo/example.thumb.webp");
+  expect(preview.thumbUrl).toContain("/offers-assets/photo/example.thumb.webp");
+  const [, request] = fetchMock.mock.calls[1];
+  const meta = await sharp(request.body).metadata();
+  expect(meta.format).toBe("webp");
+  expect(Math.max(meta.width!, meta.height!)).toBe(800);
+});
+
 test("a WebP input uses a distinct path so its existing copy is preserved", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
   const original = await sharp({ create: { width: 10, height: 10, channels: 3, background: "white" } }).webp().toBuffer();

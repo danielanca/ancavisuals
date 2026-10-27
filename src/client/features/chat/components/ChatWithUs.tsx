@@ -28,7 +28,7 @@ const CHAT_STEPS_MS = [900, 2500, 1800];
 /** WhatsApp's "typing…" bubble. */
 function TypingBubble() {
   return (
-    <div className="cwu-in ml-2 inline-flex w-fit items-center gap-1 rounded-lg rounded-tl-none px-3 py-3 shadow-sm" style={{ background: WA.bubbleIn }} aria-label="scrie…">
+    <div className="cwu-in ml-2 inline-flex w-fit items-center gap-1 rounded-lg rounded-tl-none px-3 py-3 shadow-sm" style={{ background: WA.bubbleIn }} role="status" aria-label="scrie…">
       <span className="cwu-dot h-1.5 w-1.5 rounded-full" style={{ background: WA.muted }} />
       <span className="cwu-dot h-1.5 w-1.5 rounded-full" style={{ background: WA.muted, animationDelay: "150ms" }} />
       <span className="cwu-dot h-1.5 w-1.5 rounded-full" style={{ background: WA.muted, animationDelay: "300ms" }} />
@@ -141,7 +141,7 @@ function WhatsAppPreview() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-medium leading-tight">Anca Visuals</p>
-          <p className="text-xs leading-tight text-white/80">Estera și Dani</p>
+          <p className="text-xs leading-tight text-white">Estera și Dani</p>
         </div>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" className="shrink-0 text-white" role="img" aria-label="WhatsApp">
           <path d={WHATSAPP_LOGO_PATH} />
@@ -327,7 +327,7 @@ export default function ChatWithUs() {
               Povestiți-ne
               <span className="block text-neutral-400">despre ziua voastră</span>
             </h2>
-            <p className="mt-3 text-xs uppercase tracking-[0.2em] text-neutral-500">
+            <p className="mt-3 text-xs uppercase tracking-[0.2em] text-neutral-400">
               [ Scrie-ne aici sau pe WhatsApp. Estera sau Dani îți răspund de obicei în 1–2 ore. ]
             </p>
 

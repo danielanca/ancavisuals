@@ -368,3 +368,13 @@ html:has(input:focus, select:focus, textarea:focus) {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Zoom-ul nu mai e blocat în viewport (accesibilitate, PageSpeed). iOS face însă zoom singur pe
+   un câmp cu font sub 16px când îl atingi — doar pe iOS (WebKit tactil) câmpurile au minim 16px. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}

@@ -373,7 +373,7 @@ export default function MediaAssetsAdminPage() {
       });
       const data = await readJsonResponse<{ fixed?: number; skipped?: number; total?: number; error?: string }>(response);
       if (!response.ok) throw new Error(data.error ?? "Nu am putut optimiza importurile.");
-      setReprocessSummary(`${data.fixed ?? 0} din ${data.total ?? 0} asset-uri au primit o copie WebP separata.${data.skipped ? ` ${data.skipped} au fost sarite.` : ""}`);
+      setReprocessSummary(`${data.fixed ?? 0} din ${data.total ?? 0} asset-uri au primit copia WebP / miniatura pentru galerie.${data.skipped ? ` ${data.skipped} au fost sarite.` : ""}`);
       await loadAssets();
     } catch (reprocessError) {
       setError(reprocessError instanceof Error ? reprocessError.message : String(reprocessError));

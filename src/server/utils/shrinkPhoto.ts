@@ -40,5 +40,22 @@ export async function shrinkPhoto(
   }
 }
 
+// Gallery tiles are ~300–450 CSS px wide; 800 px stays sharp on 2× screens.
+const THUMB_EDGE_PX = 800;
+
+/** A small WebP only for showing a photo in a gallery (PageSpeed: 1600 px files shown at ~300 px). Null when sharp cannot read it. */
+export async function thumbPhoto(buffer: Buffer): Promise<Buffer | null> {
+  try {
+    return await sharp(buffer)
+      .rotate()
+      .resize({ width: THUMB_EDGE_PX, height: THUMB_EDGE_PX, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 72 })
+      .toBuffer();
+  } catch (error) {
+    console.warn("[thumbPhoto] could not make a thumbnail:", error);
+    return null;
+  }
+}
+
 /** `photo.jpg` → `photo.webp` once shrunk. */
 export const webpName = (name: string) => name.replace(/\.[^.]+$/, "") + ".webp";

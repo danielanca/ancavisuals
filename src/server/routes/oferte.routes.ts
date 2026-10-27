@@ -29,7 +29,7 @@ import { loadAlbum } from "../services/album.service";
 import { generateRomanianAlt } from "../lib/imageAlt";
 import { remoteImageInfos } from "../utils/remoteFileSize";
 import { shrinkPhoto, webpName } from "../utils/shrinkPhoto";
-import { createMediaAssetPreview } from "../utils/mediaAssetPreview";
+import { createMediaAssetPreview, createMediaAssetThumb } from "../utils/mediaAssetPreview";
 import { invalidateEmailMarketingFooterCache } from "../notifications/emailMarketingFooter";
 
 const router = Router();
@@ -689,7 +689,7 @@ router.post("/admin/media-assets/reprocess-originals", requireFirebaseAuth, requ
     const snapshot = await firestore().collection("offer_media_assets").get();
     const candidates = snapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as StoredOfferMediaAsset))
-      .filter(asset => asset.kind === "image" && asset.bunnyPath && !asset.previewUrl);
+      .filter(asset => asset.kind === "image" && asset.bunnyPath && (!asset.previewUrl || !asset.thumbUrl));
 
     let fixed = 0;
     let skipped = 0;
@@ -697,6 +697,15 @@ router.post("/admin/media-assets/reprocess-originals", requireFirebaseAuth, requ
     for (let offset = 0; offset < candidates.length; offset += 4) {
       await Promise.all(candidates.slice(offset, offset + 4).map(async asset => {
         try {
+          if (asset.previewUrl) {
+            // Has its WebP already — only the gallery thumbnail is missing; made from the lighter preview.
+            const { buffer } = await downloadRemoteAsset(asset.previewUrl);
+            const thumb = await createMediaAssetThumb(buffer, asset.bunnyPath!);
+            if (!thumb.thumbUrl) { skipped++; return; }
+            await firestore().collection("offer_media_assets").doc(asset.id).update(thumb);
+            fixed++;
+            return;
+          }
           // Read the independent asset copy, so deleted source albums do not matter.
           const { buffer, contentType } = await downloadRemoteAsset(asset.url);
           const preview = await createMediaAssetPreview(buffer, contentType, asset.bunnyPath!);

@@ -16,6 +16,9 @@ export type OfferMediaAsset = {
   bunnyPath?: string;
   previewBunnyPath?: string;
   previewUrl?: string;
+  /** Small WebP (max 800 px) for gallery tiles; the preview/original still open on click. */
+  thumbBunnyPath?: string;
+  thumbUrl?: string;
   label: string;
   createdAt?: string;
   sourceAlbumSlug?: string;
@@ -172,6 +175,7 @@ type OfferShowcaseAsset = {
   url: string;
   label: string;
   displayUrl?: string;
+  thumbUrl?: string;
 };
 
 export type OfferShowcaseService = OfferServiceDefinition & {
@@ -242,7 +246,7 @@ export function mergeOfferShowcase(
 ): OfferShowcaseService[] {
   const showcaseMap = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   const toShowcaseAssets = (assets: OfferMediaAsset[]): OfferShowcaseAsset[] =>
-    assets.map(asset => ({ id: asset.id, kind: asset.kind, url: asset.url, label: asset.label, displayUrl: asset.displayUrl }));
+    assets.map(asset => ({ id: asset.id, kind: asset.kind, url: asset.url, label: asset.label, displayUrl: asset.displayUrl, thumbUrl: asset.thumbUrl }));
 
   return OFFER_SERVICES.map(service => {
     const entry = showcaseMap[service.id];

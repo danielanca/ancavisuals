@@ -374,7 +374,7 @@ export default function AncaChat() {
             ))}
             {(loading || thinking) && (
               <div className="flex justify-start items-end gap-2">
-                <div className="bg-neutral-800 px-4 py-3 rounded-xl flex items-center gap-1" aria-label="Anca scrie un mesaj">
+                <div className="bg-neutral-800 px-4 py-3 rounded-xl flex items-center gap-1" role="status" aria-label="Anca scrie un mesaj">
                   <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "0ms", animationDuration: "900ms" }} />
                   <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "150ms", animationDuration: "900ms" }} />
                   <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: "300ms", animationDuration: "900ms" }} />
