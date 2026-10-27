@@ -235,7 +235,7 @@ router.post("/:eventId/notify", requireFirebaseAuth, requireSupremeAdmin, async 
         const normalizedPhone = normalizeRomanianPhoneNumber(guest.phone);
         if (normalizedPhone) {
           try {
-            await sendSms({ to: normalizedPhone, body: buildSmsBody(guest.name, photoLink) });
+            await sendSms({ to: normalizedPhone, body: buildSmsBody(guest.name, photoLink), log: { source: "photobooth", event: albumSlug, recipientName: guest.name } });
             smsSent++;
           } catch (smsError) {
             console.error(`[photobooth] SMS failed for ${guest.phone}:`, smsError);

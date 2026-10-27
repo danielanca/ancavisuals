@@ -6,15 +6,18 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import BurstPhotosNotice from "../../components/Media/BurstPhotosNotice";
 
 type LinkPhoto = { fileName: string; previewUrl: string };
-type LinkData = { albumSlug: string; title: string; label: string; photos: LinkPhoto[] };
+type LinkData = { albumSlug: string; title: string; label: string; personName?: string; photos: LinkPhoto[] };
 type Destination = "instagram" | "media_assets";
 type StoredVisitor = { visitorId: string; name: string };
 type IdentifiedVisitor = StoredVisitor & { viewedCount: number };
 
 const PAGE_SIZE = 60;
 const PROGRESS_INTERVAL_MS = 5000;
+const ANCHOR_MS = 4000;
+const HIGHLIGHT_MS = 6000;
 const GOLD = "#c9a96e";
 // Rânduri justificate: fiecare poză își păstrează aspect ratio-ul real (citit la încărcare),
 // iar rândul se întinde pe toată lățimea. Până se încarcă, presupunem 3:2.
@@ -87,6 +90,8 @@ export default function ProposalLinkPage() {
   // How many photos they had already seen, to scroll back there once (null = nothing to resume).
   const [resumeAt, setResumeAt] = useState<number | null>(null);
   const [resumedFrom, setResumedFrom] = useState(0);
+  const [resumeHighlight, setResumeHighlight] = useState<number | null>(null);
+  const anchorRef = useRef<{ index: number; until: number } | null>(null);
 
   const maxSeenRef = useRef(0);
   const reportedRef = useRef(-1);
@@ -117,7 +122,10 @@ export default function ProposalLinkPage() {
         if (!response.ok) throw new Error("Nu am putut încărca albumul.");
         return response.json() as Promise<LinkData>;
       })
-      .then(setData)
+      .then(result => {
+        setData(result);
+        if (result.personName) setNameInput(previous => previous || result.personName!);
+      })
       .catch((error: Error) => setLoadError(error.message));
   }, [token, enter]);
 
@@ -134,8 +142,30 @@ export default function ProposalLinkPage() {
       return;
     }
     gridRef.current?.querySelector(`[data-index="${index}"]`)?.scrollIntoView?.({ block: "center" });
+    anchorRef.current = { index, until: Date.now() + ANCHOR_MS };
+    setResumeHighlight(index);
     setResumeAt(null);
   }, [resumeAt, data, visitor, visibleCount]);
+
+  // Photos above keep loading after the jump and change their row heights; hold the resumed photo in
+  // place until they settle — unless the person starts scrolling on their own.
+  useEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor || Date.now() > anchor.until) return;
+    gridRef.current?.querySelector(`[data-index="${anchor.index}"]`)?.scrollIntoView?.({ block: "center" });
+  }, [ratios]);
+
+  useEffect(() => {
+    if (resumeHighlight === null) return;
+    const release = () => { anchorRef.current = null; };
+    const events = ["wheel", "touchstart", "keydown", "mousedown"] as const;
+    events.forEach(name => window.addEventListener(name, release, { passive: true }));
+    const timer = window.setTimeout(() => setResumeHighlight(null), HIGHLIGHT_MS);
+    return () => {
+      events.forEach(name => window.removeEventListener(name, release));
+      window.clearTimeout(timer);
+    };
+  }, [resumeHighlight]);
 
   useEffect(() => {
     if (!visitor) return;
@@ -313,6 +343,11 @@ export default function ProposalLinkPage() {
 
   return (
     <div style={{ ...page, paddingBottom: "140px" }}>
+      {resumeHighlight !== null && (
+        <div role="status" style={{ position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 30, maxWidth: "calc(100% - 32px)", padding: "10px 16px", background: "#111", border: `1px solid ${GOLD}`, borderRadius: "999px", color: "#fff", fontSize: "13px", textAlign: "center", boxShadow: "0 8px 24px rgba(0,0,0,.5)" }}>
+          Bine ai revenit! Continui de la poza <strong style={{ color: GOLD }}>{resumeHighlight + 1}</strong> din {photos.length}.
+        </div>
+      )}
       <header style={{ padding: "20px 16px 12px", maxWidth: "1200px", margin: "0 auto" }}>
         <p style={{ color: GOLD, fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", margin: 0 }}>{data.title}</p>
         <h1 style={{ fontSize: "20px", fontWeight: 700, margin: "6px 0 4px", color: "#fff" }}>Salut, {visitor.name}!</h1>
@@ -320,6 +355,7 @@ export default function ProposalLinkPage() {
           Atinge pozele care îți plac, apoi „Trimite”. Când ai terminat de răsfoit, apasă „Am terminat”.
           {" "}<button type="button" onClick={() => { setNameInput(visitor.name); setVisitor(null); }} style={{ background: "none", border: "none", color: GOLD, padding: 0, fontSize: "13px", cursor: "pointer" }}>Schimbă numele</button>
         </p>
+        <div style={{ marginTop: "12px" }}><BurstPhotosNotice /></div>
         {resumedFrom > 0 && !completed && (
           <p style={{ marginTop: "10px", color: GOLD, fontSize: "13px" }}>
             Bine ai revenit! Continui de la poza {Math.min(resumedFrom, photos.length)} din {photos.length}.
@@ -339,7 +375,7 @@ export default function ProposalLinkPage() {
           const isSelected = selected.has(key);
           const ratio = ratios[photo.fileName] ?? DEFAULT_RATIO;
           return (
-            <div key={photo.fileName} ref={observe} data-index={index} style={{ position: "relative", flexGrow: ratio, flexBasis: `${ratio * ROW_HEIGHT}px`, aspectRatio: String(ratio), background: "#151515", borderRadius: "4px", overflow: "hidden" }}>
+            <div key={photo.fileName} ref={observe} data-index={index} style={{ position: "relative", flexGrow: ratio, flexBasis: `${ratio * ROW_HEIGHT}px`, aspectRatio: String(ratio), background: "#151515", borderRadius: "4px", overflow: "hidden", outline: resumeHighlight === index ? `3px solid ${GOLD}` : "none", outlineOffset: "-3px", transition: "outline-color .4s" }}>
               <button
                 type="button"
                 onClick={() => toggle(photo.fileName)}

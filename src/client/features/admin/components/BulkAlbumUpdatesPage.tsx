@@ -4,9 +4,11 @@
  * in its "Noutăți despre album" log and its own messages (email / SMS automatically, WhatsApp as
  * one-tap links here and in one email). Uses the same templates as the album-page composer.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "./Breadcrumb";
 import useAuth from "../auth/useAuth";
+import { appendDictation, useSpeechToText } from "../../../hooks/useSpeechToText";
 import {
   ALBUM_UPDATE_KINDS,
   ALBUM_UPDATE_META,
@@ -37,6 +39,26 @@ const todayIso = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+// The message the owner wrote or edited, kept across reloads; "previous" = the one a template replaced.
+const DRAFT_KEY = "bulkAlbumUpdates:draft";
+const PREVIOUS_KEY = "bulkAlbumUpdates:previous";
+type Draft = { text: string; templateId: string };
+
+function readStored(key: string): Draft | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? "null") as Draft | null;
+    return value && typeof value.text === "string" && value.text.trim() ? value : null;
+  } catch {
+    return null;
+  }
+}
+function writeStored(key: string, value: Draft | null) {
+  try {
+    if (value) localStorage.setItem(key, JSON.stringify(value));
+    else localStorage.removeItem(key);
+  } catch { /* private mode: the draft just isn't kept */ }
+}
+
 const formatDay = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
@@ -51,12 +73,16 @@ export default function BulkAlbumUpdatesPage() {
   const [query, setQuery] = useState("");
   const [period, setPeriod] = useState<Period>("past");
 
-  const [templateId, setTemplateId] = useState("delay-volume");
+  const [restoredDraft] = useState(() => readStored(DRAFT_KEY));
+  const [templateId, setTemplateId] = useState(restoredDraft?.templateId ?? "delay-volume");
   const [deliverable, setDeliverable] = useState<Deliverable>("photos");
   const [estimateDate, setEstimateDate] = useState("");
   const [delayDays, setDelayDays] = useState("");
   const [kind, setKind] = useState<AlbumUpdateKind>("delay");
-  const [text, setText] = useState("");
+  const [text, setText] = useState(restoredDraft?.text ?? "");
+  // The template text last put in the box; once the box differs, the owner's text is never overwritten silently.
+  const [appliedText, setAppliedText] = useState("");
+  const [previous, setPrevious] = useState<Draft | null>(() => readStored(PREVIOUS_KEY));
   const [sendTo, setSendTo] = useState({ email: true, sms: true, whatsapp: true });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,12 +90,60 @@ export default function BulkAlbumUpdatesPage() {
   const [adminEmailed, setAdminEmailed] = useState(false);
 
   const template = templateId ? findAlbumUpdateTemplate(templateId) : undefined;
+  const templateText = template ? template.build({ deliverable, date: estimateDate || undefined, delayDays: Number(delayDays) || undefined }) : "";
+  const edited = text.trim() !== "" && text !== appliedText;
 
   useEffect(() => {
-    if (!template) return;
-    setKind(template.kind);
-    setText(template.build({ deliverable, date: estimateDate || undefined, delayDays: Number(delayDays) || undefined }));
-  }, [template, deliverable, estimateDate, delayDays]);
+    if (template) setKind(template.kind);
+  }, [template]);
+
+  // A new date / deliverable refreshes the template text only while the owner hasn't changed it.
+  useEffect(() => {
+    if (!template || edited) return;
+    setText(templateText);
+    setAppliedText(templateText);
+  }, [template, templateText, edited]);
+
+  useEffect(() => {
+    writeStored(DRAFT_KEY, edited ? { text, templateId } : null);
+  }, [edited, text, templateId]);
+
+  const textRef = useRef(text);
+  textRef.current = text;
+  const dictation = useSpeechToText((spoken) => {
+    const next = appendDictation(textRef.current, spoken);
+    textRef.current = next;
+    setText(next);
+  });
+
+  /** Puts the template text in the box; the owner's own text is asked about first and kept as "previous". */
+  const applyTemplate = (id: string, nextText: string, label: string) => {
+    if (edited) {
+      if (!window.confirm(`Ai scris deja un mesaj. Îl înlocuiesc cu șablonul „${label}”?\n\nTextul tău rămâne salvat și îl poți recupera cu „↩ Recuperează mesajul meu”.`)) return;
+      const saved = { text, templateId };
+      setPrevious(saved);
+      writeStored(PREVIOUS_KEY, saved);
+    }
+    setTemplateId(id);
+    setText(nextText);
+    setAppliedText(nextText);
+  };
+
+  const pickTemplate = (id: string) => {
+    const picked = findAlbumUpdateTemplate(id);
+    if (!picked || id === templateId && !edited) return;
+    applyTemplate(id, picked.build({ deliverable, date: estimateDate || undefined, delayDays: Number(delayDays) || undefined }), picked.title);
+  };
+
+  const restorePrevious = () => {
+    if (!previous) return;
+    if (edited && !window.confirm("Înlocuiesc mesajul din casetă cu mesajul tău salvat?")) return;
+    setTemplateId(previous.templateId);
+    setText(previous.text);
+    setAppliedText("");
+    setPrevious(null);
+    writeStored(PREVIOUS_KEY, null);
+  };
 
   const load = useCallback(async () => {
     if (!auth.accessToken) return;
@@ -140,6 +214,8 @@ export default function BulkAlbumUpdatesPage() {
       const data = (await res.json().catch(() => ({}))) as { results?: BulkResult[]; adminEmailed?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? `Eroare ${res.status}`);
       setResults(data.results ?? []);
+      setAppliedText(text);
+      writeStored(DRAFT_KEY, null);
       setAdminEmailed(Boolean(data.adminEmailed));
       setSelected(new Set());
       void load();
@@ -156,7 +232,12 @@ export default function BulkAlbumUpdatesPage() {
     <div className="mx-auto max-w-6xl space-y-5">
       <Breadcrumb />
       <div>
-        <h1 className="text-2xl font-light tracking-tight text-white">Noutăți în masă</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h1 className="text-2xl font-light tracking-tight text-white">Noutăți în masă</h1>
+          <Link to="/admin/sms-log" className="border border-neutral-700 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:border-white hover:text-white">
+            📤 SMS-uri trimise
+          </Link>
+        </div>
         <p className="mt-1 text-sm text-neutral-500">
           Bifează albumele clienților și trimite-le aceeași noutate, de exemplu că mai durează puțin pozele, videoclipul sau albumul.
           Apare în „Noutăți despre album” la fiecare și pleacă pe canalele alese.
@@ -240,7 +321,7 @@ export default function BulkAlbumUpdatesPage() {
                   key={t.id}
                   type="button"
                   aria-pressed={templateId === t.id}
-                  onClick={() => setTemplateId(t.id)}
+                  onClick={() => pickTemplate(t.id)}
                   className={`border px-2.5 py-1.5 text-xs ${templateId === t.id ? "border-white bg-neutral-800 font-bold text-white" : "border-neutral-700 text-neutral-400 hover:border-neutral-500"}`}
                 >
                   {t.title}
@@ -249,7 +330,11 @@ export default function BulkAlbumUpdatesPage() {
               <button
                 type="button"
                 aria-pressed={templateId === ""}
-                onClick={() => { setTemplateId(""); setText(""); }}
+                onClick={() => {
+                  // Keeps a message the owner wrote; only an untouched template text is cleared.
+                  if (!edited) { setText(""); setAppliedText(""); }
+                  setTemplateId("");
+                }}
                 className={`border border-dashed px-2.5 py-1.5 text-xs ${templateId === "" ? "border-white text-white" : "border-neutral-700 text-neutral-400"}`}
               >
                 ✏️ Scriu eu
@@ -289,10 +374,52 @@ export default function BulkAlbumUpdatesPage() {
           </div>
           {datePast && <p role="alert" className="text-xs text-red-400">Data e în trecut. Verifică anul.</p>}
 
-          <label className="block text-xs text-neutral-400">
-            Mesajul <span className="text-neutral-600">(același pentru toți; poți să-l modifici)</span>
-            <textarea className={`${input} mt-1 min-h-[120px]`} maxLength={ALBUM_UPDATE_TEXT_MAX} value={text} onChange={(e) => setText(e.target.value)} />
-          </label>
+          <div>
+            <div className="flex items-end justify-between gap-2">
+              <label htmlFor="bulk-update-text" className="text-xs text-neutral-400">
+                Mesajul <span className="text-neutral-600">(același pentru toți; poți să-l modifici)</span>
+              </label>
+              {dictation.supported && (
+                <button
+                  type="button"
+                  onClick={dictation.toggle}
+                  aria-pressed={dictation.listening}
+                  aria-label={dictation.listening ? "Oprește dictarea" : "Dictează mesajul"}
+                  title={dictation.listening ? "Oprește dictarea" : "Dictează (vorbește în română)"}
+                  className={`flex shrink-0 items-center gap-1.5 border px-2.5 py-1 text-xs ${
+                    dictation.listening ? "animate-pulse border-red-500 bg-red-500/20 text-red-300" : "border-neutral-700 text-neutral-300 hover:border-white hover:text-white"
+                  }`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="9" y="2" width="6" height="12" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="17" x2="12" y2="22" />
+                  </svg>
+                  {dictation.listening ? "Oprește" : "Dictează"}
+                </button>
+              )}
+            </div>
+            <textarea id="bulk-update-text" data-text-assist="ai-only" className={`${input} mt-1 min-h-[120px]`} maxLength={ALBUM_UPDATE_TEXT_MAX} value={text} onChange={(e) => setText(e.target.value)} />
+            {dictation.listening && (
+              <p className="mt-1 text-xs text-red-300" aria-live="polite">
+                Te ascult… {dictation.interim && <span className="italic text-neutral-400">{dictation.interim}</span>}
+              </p>
+            )}
+            {dictation.error && <p className="mt-1 text-xs text-red-400">{dictation.error}</p>}
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+              {edited && <span className="text-neutral-500">✓ Mesajul tău e salvat în browser.</span>}
+              {edited && template && templateText !== text && (
+                <button type="button" onClick={() => applyTemplate(templateId, templateText, template.title)} className="text-neutral-400 underline hover:text-white">
+                  Pune textul șablonului{estimateDate ? " cu data aleasă" : ""}
+                </button>
+              )}
+              {previous && (
+                <button type="button" onClick={restorePrevious} className="text-neutral-400 underline hover:text-white">
+                  ↩ Recuperează mesajul meu
+                </button>
+              )}
+            </div>
+          </div>
 
           <fieldset className="border border-neutral-800 p-2">
             <legend className="px-1 text-xs text-neutral-400">Unde trimit noutatea</legend>
@@ -326,6 +453,9 @@ export default function BulkAlbumUpdatesPage() {
             {adminEmailed && <span className="ml-2 text-xs font-normal normal-case tracking-normal text-neutral-400">· ți-am trimis pe email și linkurile de WhatsApp</span>}
           </h2>
           {results.some((r) => r.smsSkipped) && <p className="mt-1 text-xs text-amber-300">SMS-urile nu au plecat: lipsește SMSAPI_TOKEN în .env.</p>}
+          {results.some((r) => r.sent?.sms) && (
+            <Link to="/admin/sms-log" className="mt-1 inline-block text-xs text-neutral-400 underline hover:text-white">Vezi SMS-urile trimise →</Link>
+          )}
           <ul className="mt-2 space-y-2">
             {results.map((r) => (
               <li key={r.slug} className="border border-neutral-900 p-2 text-sm">

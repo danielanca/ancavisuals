@@ -44,6 +44,10 @@ const NOISE_PATTERNS = [
   /__gCrWeb/,
   // Crypto-wallet scripts injected by the browser (Brave on iPhone); the site never uses it.
   /window\.ethereum/,
+  // Facebook / Instagram in-app browser (Android): its own logger scripts (iabjs://) fail when
+  // the app closes the page — "Error invoking postMessage: Java object is gone".
+  /iabjs:\/\//,
+  /Java object is gone/,
 ];
 
 export function isNoiseError(message: string, stack = ""): boolean {

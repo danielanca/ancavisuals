@@ -73,7 +73,7 @@ export async function sendHandoverSignReminder(
   let smsError: string | null = null;
   if (wantSms) {
     try {
-      await sendSms({ to: phone!, body: signReminderSmsText({ eventDate: handover.eventDate, link, automatedLabel: AUTOMATED_MESSAGE_LABEL }) });
+      await sendSms({ to: phone!, body: signReminderSmsText({ eventDate: handover.eventDate, link, automatedLabel: AUTOMATED_MESSAGE_LABEL }), log: { source: "handover-reminder", event: `${handover.eventType ?? "eveniment"} ${handover.eventDate ?? ""}`.trim(), recipientName: handover.clientName || null } });
       smsSent = true;
     } catch (error) {
       console.error("[handover] sign reminder SMS failed:", error);

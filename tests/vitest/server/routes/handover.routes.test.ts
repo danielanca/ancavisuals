@@ -602,7 +602,7 @@ describe("handover.routes", () => {
 
       expect(sendHandoverReminderEmailMock).not.toHaveBeenCalled();
       expect(sendSmsMock).toHaveBeenCalledTimes(2);
-      expect(sendSmsMock.mock.calls[0][0]).toEqual({ to: "+40712345678", body: expect.stringContaining("https://ancavisuals.ro/proces-verbal/token-1") });
+      expect(sendSmsMock.mock.calls[0][0]).toEqual({ to: "+40712345678", body: expect.stringContaining("https://ancavisuals.ro/proces-verbal/token-1"), log: expect.objectContaining({ source: "handover-reminder" }) });
       expect(sendSmsMock.mock.calls[0][0].body).toContain("evenimentul din data de 8 august 2026");
       expect(updateMock.mock.calls[0][1]).toMatchObject({ signReminderCount: 2, signReminderChannels: ["sms"] });
     });
@@ -643,7 +643,7 @@ describe("handover.routes", () => {
 
       await postSms({ params: { id: "pv-1" }, body: { message: `  ${message}  ` } }, res);
 
-      expect(sendSmsMock).toHaveBeenCalledWith({ to: "+40774612043", body: message });
+      expect(sendSmsMock).toHaveBeenCalledWith({ to: "+40774612043", body: message, log: expect.objectContaining({ source: "handover-sms" }) });
       expect(updateMock.mock.calls[0][1]).toMatchObject({ smsSentCount: 1, smsSentTo: "+40774612043", status: "sent" });
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true, to: "+40774612043", status: "sent", smsSentCount: 1 }));
     });

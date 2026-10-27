@@ -147,6 +147,8 @@ export interface CampaignPage {
 
 interface CampaignLandingPageProps {
   page: CampaignPage;
+  /** "preview": only hero + portfolio + configurator, no header, chat or footer — shown under another page (/ghidul-mirilor-pdf). */
+  variant?: "full" | "preview";
 }
 
 function WhatsAppIcon() {
@@ -188,7 +190,8 @@ function ArrowIcon() {
 
 export { PROMO_DEADLINE };
 
-export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
+export default function CampaignLandingPage({ page, variant = "full" }: CampaignLandingPageProps) {
+  const full = variant === "full";
   const location = useLocation();
   const showReviewDemo = page.slug === "olx" && new URLSearchParams(location.search).get("recenzii-demo") === "1";
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
@@ -424,10 +427,11 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
+    <div className={`${full ? "min-h-screen " : ""}bg-neutral-950 text-white`}>
       <style>{`@keyframes promoRainbow { 0%, 24.99% { color: #ef4444; } 25%, 49.99% { color: #facc15; } 50%, 74.99% { color: #22c55e; } 75%, 99.99% { color: #3b82f6; } } .promo-rainbow-text { animation: promoRainbow 2.8s steps(1, end) infinite; }`}</style>
       {adminNotice && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full border border-amber-300/40 bg-neutral-900/95 px-4 py-2 text-xs font-semibold text-amber-200 shadow-xl shadow-black/30">Ești admin — notificările sunt dezactivate.</div>}
 
+      {full && (
       <header className="absolute top-0 inset-x-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
           <Link to="/" className="text-xs tracking-[0.28em] uppercase font-bold sm:font-medium text-white">Anca Visuals</Link>
@@ -439,6 +443,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           </a>
         </div>
       </header>
+      )}
 
       {/* ── HERO ───────────────────────────────────────────────────── */}
       <section id="acasa" className="relative min-h-[calc(var(--stable-vh,1vh)*85)] flex items-end overflow-hidden">
@@ -557,7 +562,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
       </section>
 
       {/* ── CINE SUNTEM — banda scurtă cu noi, imediat după hero; povestea completă e mai jos (AboutSummary) ── */}
-      {page.slug === "olx" && <MeetTheTeamStrip />}
+      {full && page.slug === "olx" && <MeetTheTeamStrip />}
 
       {/* ── PORTFOLIO — rămâne sus, imediat după hero ── */}
       {(galleryItems.length > 0 || (SHOW_GALLERY_EDIT_LINK && showAdminTools)) && (
@@ -623,6 +628,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         />
       )}
 
+      {/* The preview (under /ghidul-mirilor-pdf) stops at the configurator. */}
+      {full && (<>
       {/* ── DUPĂ PREȚ: un singur bloc „Ce primiți” (QR Moments, fotocabina-bonus, fotocartea, lista de rezervări).
            Erau trei secțiuni separate, fiecare cu stilul și butonul ei — oferta părea de bazar, nu premium. */}
       {page.slug === "olx" && (
@@ -1061,6 +1068,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         <p className="text-neutral-400 text-xs">© {new Date().getFullYear()} Anca Visuals · ancavisuals.ro</p>
         <LegalIdentity className="mt-2 text-neutral-400" />
       </div>
+      </>)}
     </div>
   );
 }

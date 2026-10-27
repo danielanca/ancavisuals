@@ -466,6 +466,7 @@ async function processBroadcastJob(args: {
                 weddingName,
                 message,
               }),
+              log: { source: "wedding-hub-broadcast", event: weddingName, recipientName: plan.guestName },
             });
             smsSent += 1;
             await writeBroadcastDeliveryLog(database, {

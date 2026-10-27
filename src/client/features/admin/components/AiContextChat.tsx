@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { appendDictation, useSpeechToText } from "../../../hooks/useSpeechToText";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -32,7 +33,7 @@ interface AiContextChatProps {
 
 type Tone = "neutral" | "green";
 // "green" = the site's green (the share cards / WhatsApp actions: #22c55e, #166534, #0f2a18).
-const TONES: Record<Tone, { box: string; divider: string; title: string; icon: string; user: string; assistant: string; input: string; send: string; muted: string }> = {
+const TONES: Record<Tone, { box: string; divider: string; title: string; icon: string; user: string; assistant: string; input: string; send: string; mic: string; muted: string }> = {
   neutral: {
     box: "border-neutral-800 bg-neutral-900",
     divider: "border-neutral-800",
@@ -42,6 +43,7 @@ const TONES: Record<Tone, { box: string; divider: string; title: string; icon: s
     assistant: "bg-neutral-800 text-neutral-200",
     input: "border-neutral-700 bg-neutral-800 focus:border-neutral-500",
     send: "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30",
+    mic: "border-neutral-700 bg-neutral-800 text-neutral-400 hover:border-neutral-500 hover:text-white",
     muted: "text-neutral-500",
   },
   green: {
@@ -53,6 +55,7 @@ const TONES: Record<Tone, { box: string; divider: string; title: string; icon: s
     assistant: "bg-[#14361f] text-green-50",
     input: "border-[#166534] bg-[#0b1f12] placeholder:text-green-200/40 focus:border-[#22c55e]",
     send: "bg-[#22c55e] font-semibold text-[#06210f] hover:bg-[#4ade80]",
+    mic: "border-[#166534] bg-[#0b1f12] text-green-200/70 hover:border-[#22c55e] hover:text-green-50",
     muted: "text-green-200/60",
   },
 };
@@ -90,6 +93,14 @@ const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, tit
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  // Dictarea adaugă fiecare frază confirmată la ce e deja scris; trimiterea rămâne manuală.
+  const inputRef = React.useRef(input);
+  inputRef.current = input;
+  const dictation = useSpeechToText((text) => {
+    const next = appendDictation(inputRef.current, text);
+    inputRef.current = next;
+    setInput(next);
+  });
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -98,6 +109,7 @@ const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, tit
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
+    dictation.stop();
     const nextMessages = [...messages, { role: "user" as const, content: text }];
     setMessages(nextMessages);
     setInput("");
@@ -177,6 +189,12 @@ const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, tit
           </div>
 
           {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+          {dictation.error && <p className="mt-2 text-xs text-red-400">{dictation.error}</p>}
+          {dictation.listening && (
+            <p className={`mt-2 text-xs ${colors.muted}`} aria-live="polite">
+              Te ascult… {dictation.interim && <span className="italic">{dictation.interim}</span>}
+            </p>
+          )}
 
           <div className="mt-3 flex gap-2">
             <input
@@ -185,8 +203,27 @@ const AiContextChat: React.FC<AiContextChatProps> = ({ context, accessToken, tit
               onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }}
               placeholder={placeholder}
               disabled={loading}
-              className={`flex-1 rounded-lg border px-3 py-2 text-sm text-white focus:outline-none disabled:opacity-50 ${colors.input}`}
+              className={`min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm text-white focus:outline-none disabled:opacity-50 ${colors.input}`}
             />
+            {dictation.supported && (
+              <button
+                type="button"
+                onClick={dictation.toggle}
+                disabled={loading}
+                aria-pressed={dictation.listening}
+                aria-label={dictation.listening ? "Oprește dictarea" : "Dictează"}
+                title={dictation.listening ? "Oprește dictarea" : "Dictează (vorbește în română)"}
+                className={`flex shrink-0 items-center justify-center rounded-lg border px-3 transition-colors disabled:opacity-40 ${
+                  dictation.listening ? "animate-pulse border-red-500 bg-red-500/20 text-red-300" : colors.mic
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="9" y="2" width="6" height="12" rx="3" />
+                  <path d="M5 10a7 7 0 0 0 14 0" />
+                  <line x1="12" y1="17" x2="12" y2="22" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void send()}

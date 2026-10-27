@@ -4,6 +4,8 @@
  * the account default is used without it). The account lives on portal.smsapi.ro, so the API host
  * is api.smsapi.ro (a .ro token is rejected by api.smsapi.com with error 101); SMSAPI_BASE_URL overrides it.
  */
+import { logSms, type SmsLogContext } from "../services/smsLog.service";
+
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID ?? "";
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN ?? "";
 const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER ?? "";
@@ -15,6 +17,8 @@ const SMSAPI_BASE_URL = (process.env.SMSAPI_BASE_URL || "https://api.smsapi.ro")
 export interface SendSmsOptions {
   to: string;
   body: string;
+  /** Shown in /admin/sms-log next to the message. */
+  log?: SmsLogContext;
 }
 
 const smsapiConfigured = () => Boolean(SMSAPI_TOKEN);
@@ -73,16 +77,20 @@ export function normalizeRomanianPhoneNumber(value: string): string | null {
   return `+${digits}`;
 }
 
-export async function sendSms({ to, body }: SendSmsOptions): Promise<void> {
+export async function sendSms({ to, body, log }: SendSmsOptions): Promise<void> {
   if (!isSmsConfigured()) {
     throw new Error("SMS nu este configurat pe server.");
   }
   const text = toSmsText(body);
-  if (smsapiConfigured()) {
-    await sendViaSmsapi(to, text);
-    return;
+  const provider = smsapiConfigured() ? "smsapi" : "twilio";
+  try {
+    if (provider === "smsapi") await sendViaSmsapi(to, text);
+    else await sendViaTwilio(to, text);
+  } catch (error) {
+    await logSms({ ...log, to, text, provider, status: "failed", error: error instanceof Error ? error.message : String(error) });
+    throw error;
   }
-  await sendViaTwilio(to, text);
+  await logSms({ ...log, to, text, provider, status: "sent" });
 }
 
 async function sendViaSmsapi(to: string, message: string): Promise<void> {

@@ -3,6 +3,7 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import { archiveLead, deleteLead, getLeads } from "../services/leads.service.js";
 import { EMAIL_LOG_MAX_LIST, getEmailLog, getEmailLogEntry } from "../services/emailLog.service.js";
 import { getInboxSyncState, syncEmailInbox } from "../services/emailInbox.service.js";
+import { getSmsLog } from "../services/smsLog.service.js";
 
 const router = express.Router();
 
@@ -79,6 +80,16 @@ router.get("/email-log/:id", requireFirebaseAuth, requireSupremeAdmin, async (re
   } catch (error) {
     console.error("[email-log] GET /email-log/:id failed:", error);
     res.status(500).json({ error: "Nu s-a putut încărca emailul." });
+  }
+});
+
+// GET /api/admin/sms-log — every SMS the site sent (or failed to send), newest first, for /admin/sms-log.
+router.get("/sms-log", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    res.json({ sms: await getSmsLog() });
+  } catch (error) {
+    console.error("[sms-log] GET /sms-log failed:", error);
+    res.status(500).json({ error: "Nu s-a putut încărca jurnalul de SMS-uri." });
   }
 });
 

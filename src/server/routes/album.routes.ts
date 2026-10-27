@@ -308,7 +308,7 @@ router.post("/:slug/print-reminder", requireFirebaseAuth, requireSupremeAdmin, e
         }).then(() => { result.emailed++; }, (error) => console.error("[album] print reminder email failed:", error));
       }
       if (wantSms && smsReady && recipient.phone) {
-        try { await sendSms({ to: recipient.phone, body: message("sms") }); result.smsSent++; }
+        try { await sendSms({ to: recipient.phone, body: message("sms"), log: { source: "print-selection-reminder", event: slug, recipientName: recipient.name } }); result.smsSent++; }
         catch (error) { result.smsFailed++; console.error("[album] print reminder SMS failed:", error); }
       }
       if (recipient.phone) result.whatsapp.push({ name: recipient.name, url: whatsappReminderUrl(recipient.phone, message("wa")) });

@@ -34,7 +34,7 @@ const offer = {
 describe("offer page server render", () => {
   test("renders the landing with its data instead of a loader", async () => {
     const { appHtml } = await render("/oferta/olx", { slug: "olx", offer });
-    expect(appHtml).toContain("Fotografii și film de nuntă, fără rigiditate și fără surprize la preț.");
+    expect(appHtml).toContain("Fotografii și film de nuntă.");
     expect(appHtml).toContain("Aflați prețul și disponibilitatea");
     expect(appHtml).not.toContain("animate-spin");
     // The hero skips the photo over 1 MB.

@@ -10,6 +10,8 @@ import { generateRomanianAlt } from "../lib/imageAlt";
 import { createMediaAssetPreview } from "../utils/mediaAssetPreview";
 
 import { photoVoteKey, reviewerFromEmail } from "../../shared/media/proposalConsensus";
+import { albumCoverage, listPhotoReviewers } from "../services/photoReviewers.service";
+import { loadAlbum } from "../services/album.service";
 
 const router = express.Router();
 const COLLECTION = "instagramProposals";
@@ -206,13 +208,14 @@ router.post("/", requireFirebaseAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    const accountReviewer = reviewerFromEmail(authReq.firebaseEmail, await listPhotoReviewers());
     const docRef = await db.collection(COLLECTION).add({
       albumSlug,
       photoUrl,
       fileName,
       proposedBy: authReq.firebaseEmail,
       proposedByUid: authReq.firebaseUid,
-      ...(reviewerFromEmail(authReq.firebaseEmail) ? { reviewerId: reviewerFromEmail(authReq.firebaseEmail) } : {}),
+      ...(accountReviewer ? { reviewerId: accountReviewer } : {}),
       proposedAt: Timestamp.now(),
       status: "pending",
       destinations: normalizedDestinations,
@@ -246,6 +249,63 @@ router.get("/showcase", async (_req: Request, res: Response) => {
     res.json({ photos: all.slice(0, 12) });
   } catch (error) {
     res.status(500).json({ error: String(error) });
+  }
+});
+
+type ConsensusRow = {
+  id: string; albumSlug: string; proposedAt: string; photoUrl: string; fileName?: string;
+  proposedBy?: string; proposedVia?: string; reviewerId?: string;
+} & Record<string, unknown>;
+const fileKey = (fileName: string) => fileName.replace(/\.[^.]+$/, "");
+const fileNameOf = (url: string) => {
+  try { return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? ""); } catch { return url.split("?")[0].split("/").pop() ?? ""; }
+};
+
+// GET /admin/consensus?albumSlug= — one album's votes for the common selection: who voted, how far
+// each person got (to score a photo only among those who saw it) and each photo's place in the album.
+// Without albumSlug: the album with the latest vote. Must be before /album/:slug.
+router.get("/admin/consensus", requireFirebaseAuth, requireEsteraOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const [snapshot, reviewers] = await Promise.all([db.collection(COLLECTION).get(), listPhotoReviewers()]);
+    const all = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return { ...data, id: doc.id, proposedAt: (data.proposedAt as Timestamp | undefined)?.toDate?.().toISOString() ?? "" } as ConsensusRow;
+    });
+    const latestBySlug = new Map<string, string>();
+    for (const proposal of all) {
+      if (proposal.albumSlug && (latestBySlug.get(proposal.albumSlug) ?? "") <= proposal.proposedAt) latestBySlug.set(proposal.albumSlug, proposal.proposedAt);
+    }
+    const albums = [...latestBySlug.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([slug]) => slug);
+    const albumSlug = String(req.query.albumSlug ?? "") || albums[0] || "";
+    if (!albumSlug) {
+      res.json({ albums, albumSlug: null, proposals: [], reviewers, coverage: { total: 0, seen: {} } });
+      return;
+    }
+
+    const [album, linksSnap] = await Promise.all([
+      loadAlbum(albumSlug).catch(() => null),
+      db.collection("proposalLinks").where("albumSlug", "==", albumSlug).get(),
+    ]);
+    const photoOrder = new Map((album?.photos ?? []).map((url, index) => [fileKey(fileNameOf(url)), index]));
+    const proposals = all.filter(proposal => proposal.albumSlug === albumSlug).map(proposal => {
+      const index = photoOrder.get(fileKey(String(proposal.fileName ?? "")));
+      return {
+        ...proposal,
+        originalPhotoUrl: originalPhotoUrl(proposal.photoUrl),
+        previewPhotoUrl: previewPhotoUrl(proposal.photoUrl),
+        ...(index !== undefined ? { photoIndex: index } : {}),
+      };
+    });
+    const accountReviewers = [...new Set(proposals
+      .filter(proposal => proposal.proposedVia !== "link")
+      .map(proposal => proposal.reviewerId || reviewerFromEmail(String(proposal.proposedBy ?? ""), reviewers))
+      .filter((id): id is string => Boolean(id)))];
+    const coverage = albumCoverage(album?.photos.length ?? 0, linksSnap.docs.map(doc => doc.data()), accountReviewers, reviewers);
+    res.json({ albums, albumSlug, proposals, reviewers: reviewers.map(({ id, name }) => ({ id, name })), coverage });
+  } catch (error) {
+    console.error("[instagram-proposals] GET /admin/consensus failed:", error);
+    res.status(500).json({ error: "Nu am putut încărca voturile." });
   }
 });
 

@@ -74,6 +74,8 @@ export const SEARCH_ITEMS: SearchItem[] = [
   { label: "Echipamente", path: "/admin/echipamente", category: "Sistem", icon: "🎛️", keywords: "echipamente camera obiectiv gear" },
   { label: "Wedding Hub", path: "/admin/wedding-hub", category: "Sistem", icon: "💍", keywords: "nunta invitati rsvp plan mese" },
   { label: "Colaborator", path: "/colaborator", category: "Sistem", icon: "🤝", keywords: "echipa colaborator acces extern" },
+  { label: "Update-uri", path: "/admin/updates", category: "Sistem", icon: "🗒️", keywords: "update uri changelog noutati ce am adaugat schimbari modificari nou site jurnal versiuni" },
+  { label: "SMS-uri trimise", path: "/admin/sms-log", category: "Sistem", icon: "📤", keywords: "sms log jurnal trimise outbound mesaje clienti telefon numar ora smsapi esuate" },
   { label: "Email log", path: "/admin/email-log", category: "Sistem", icon: "📧", keywords: "email log logs emailuri mailuri jurnal trimise primite raspunsuri inbox mesaje notificari smtp" },
   { label: "Erori server", path: "/admin/errors", category: "Sistem", icon: "🐛", keywords: "logs erori bugs debug" },
   { label: "Health Tracker", path: "/admin/sanatate", category: "Sistem", icon: "❤️", keywords: "sanatate greutate pasi mancare calorii health" },

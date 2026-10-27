@@ -4,7 +4,7 @@
  * progress (photos browsed / proposed / done) and see the photos they picked.
  */
 import React, { useCallback, useEffect, useState } from "react";
-import { PHOTO_REVIEWERS, type PhotoReviewerId } from "../../../shared/media/proposalConsensus";
+import { nameKey, type PhotoReviewer, type PhotoReviewerId } from "../../../shared/media/proposalConsensus";
 
 type LinkVisitor = {
   id: string;
@@ -25,6 +25,9 @@ type ProposalLink = {
   status: "not_started" | "in_progress" | "completed";
   completedAt: string | null;
   totalPhotos: number;
+  reminderCount?: number;
+  lastReminderAt?: string | null;
+  lastReminderChannels?: string[];
   visitors: LinkVisitor[];
   photos: { fileName: string; previewUrl: string; proposedBy: string }[];
 };
@@ -37,6 +40,39 @@ const STATUS_STYLE: Record<ProposalLink["status"], { label: string; background: 
   completed: { label: "Finalizat", background: "#14532d", color: "#86efac" },
 };
 
+const inputStyle: React.CSSProperties = { padding: "8px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ddd", fontSize: "13px", minWidth: 0 };
+const smallButton: React.CSSProperties = { padding: "5px 10px", background: "transparent", border: "1px solid #333", borderRadius: "6px", color: "#ccc", fontSize: "11px", cursor: "pointer" };
+const NEW_PERSON = "__new__";
+
+/** Name + email + phone of one person; used for a new person and to edit an existing one. */
+function ReviewerForm({ initial, saving, onSave, onCancel }: {
+  initial: Partial<PhotoReviewer>;
+  saving: boolean;
+  onSave: (values: { name: string; email: string; phone: string }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initial.name ?? "");
+  const [email, setEmail] = useState(initial.email ?? "");
+  const [phone, setPhone] = useState(initial.phone ?? "");
+  return (
+    <form
+      aria-label="Profilul persoanei"
+      onSubmit={event => { event.preventDefault(); onSave({ name, email, phone }); }}
+      style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "8px", padding: "10px", border: "1px solid #2a2a2a", borderRadius: "8px", background: "#0d0d0d" }}
+    >
+      <input aria-label="Nume" value={name} onChange={event => setName(event.target.value)} maxLength={60} placeholder="Nume" required style={inputStyle} />
+      <input aria-label="Email" type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="Email (pentru reminder)" style={inputStyle} />
+      <input aria-label="Telefon" type="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="Telefon (SMS reminder)" style={inputStyle} />
+      <div style={{ display: "flex", gap: "6px" }}>
+        <button type="submit" disabled={saving || !name.trim()} style={{ ...smallButton, background: GOLD, border: "none", color: "#111", fontWeight: 700, fontSize: "12px", padding: "8px 12px" }}>
+          {saving ? "Se salvează..." : "Salvează"}
+        </button>
+        <button type="button" onClick={onCancel} style={{ ...smallButton, fontSize: "12px" }}>Renunță</button>
+      </div>
+    </form>
+  );
+}
+
 const formatDate = (value: string | null) =>
   value ? new Date(value).toLocaleString("ro-RO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
@@ -44,6 +80,11 @@ export default function ProposalLinksPanel({ slug, accessToken }: { slug: string
   const [links, setLinks] = useState<ProposalLink[]>([]);
   const [label, setLabel] = useState("");
   const [reviewerId, setReviewerId] = useState<PhotoReviewerId | "">("");
+  const [reviewers, setReviewers] = useState<PhotoReviewer[]>([]);
+  const [editing, setEditing] = useState<"new" | "edit" | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [reminding, setReminding] = useState<string | null>(null);
+  const [reminderNote, setReminderNote] = useState<{ token: string; text: string; ok: boolean } | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -59,6 +100,57 @@ export default function ProposalLinksPanel({ slug, accessToken }: { slug: string
   }, [slug, accessToken]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetch("/api/proposal-links/admin/reviewers", { headers: { Authorization: `Bearer ${accessToken}` } })
+      .then(response => response.json())
+      .then((data: { reviewers?: PhotoReviewer[] }) => setReviewers(data.reviewers ?? []))
+      .catch(() => {});
+  }, [accessToken]);
+
+  const selectedReviewer = reviewers.find(person => person.id === reviewerId);
+
+  const saveProfile = async (values: { name: string; email: string; phone: string }) => {
+    setSavingProfile(true);
+    setError(null);
+    try {
+      const isNew = editing === "new";
+      const response = await fetch(isNew ? "/api/proposal-links/admin/reviewers" : `/api/proposal-links/admin/reviewers/${encodeURIComponent(reviewerId)}`, {
+        method: isNew ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify(values),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Nu am putut salva persoana.");
+      const saved = data.reviewer as PhotoReviewer;
+      setReviewers(previous => previous.some(person => person.id === saved.id)
+        ? previous.map(person => (person.id === saved.id ? saved : person))
+        : [...previous, saved]);
+      setReviewerId(saved.id);
+      setEditing(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const remind = async (link: ProposalLink) => {
+    setReminding(link.token);
+    setReminderNote(null);
+    try {
+      const response = await fetch(`/api/proposal-links/admin/${link.token}/reminder`, { method: "POST", headers: authHeaders });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Nu am putut trimite reminderul.");
+      const channels = (data.channels as string[]).map(channel => (channel === "sms" ? "SMS" : "email")).join(" + ");
+      setReminderNote({ token: link.token, ok: true, text: `✓ Reminder trimis pe ${channels}.` });
+      load();
+    } catch (err) {
+      setReminderNote({ token: link.token, ok: false, text: (err as Error).message });
+    } finally {
+      setReminding(null);
+    }
+  };
 
   const absoluteUrl = (url: string) => `${window.location.origin}${url}`;
 
@@ -79,7 +171,7 @@ export default function ProposalLinksPanel({ slug, accessToken }: { slug: string
       const response = await fetch("/api/proposal-links/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ albumSlug: slug, label: reviewerId ? PHOTO_REVIEWERS.find(person => person.id === reviewerId)!.name : label, ...(reviewerId ? { reviewerId } : {}) }),
+        body: JSON.stringify({ albumSlug: slug, label: selectedReviewer ? selectedReviewer.name : label, ...(selectedReviewer ? { reviewerId } : {}) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Nu am putut genera linkul.");
@@ -105,28 +197,62 @@ export default function ProposalLinksPanel({ slug, accessToken }: { slug: string
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
 
-      <p style={{ color: "#aaa", fontSize: "12px", margin: 0 }}>Pentru selecția comună, generează un link personal pentru fiecare dintre voi. Alegerile din cont și din linkul personal se numără o singură dată.</p>
+      <p style={{ color: "#aaa", fontSize: "12px", margin: 0 }}>
+        Pentru selecția comună, alege persoana și generează-i linkul personal. Cine nu parcurge toate pozele primește automat un reminder
+        (email + SMS din profil) la 4 ore după ce s-a oprit — cel mult o dată pe zi, de 3 ori.
+      </p>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-        <select aria-label="Persoana pentru linkul de selecție" value={reviewerId} onChange={event => setReviewerId(event.target.value as PhotoReviewerId | "")} style={{ padding: "8px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ddd", fontSize: "13px" }}>
-          <option value="">Altă persoană</option>{PHOTO_REVIEWERS.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
+        <select
+          aria-label="Persoana pentru linkul de selecție"
+          value={editing === "new" ? NEW_PERSON : reviewerId}
+          onChange={event => {
+            if (event.target.value === NEW_PERSON) { setEditing("new"); return; }
+            setEditing(null);
+            setReviewerId(event.target.value);
+          }}
+          style={{ ...inputStyle, flex: "0 1 200px" }}
+        >
+          <option value="">Altă persoană (fără profil)</option>
+          {reviewers.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
+          <option value={NEW_PERSON}>＋ Persoană nouă…</option>
         </select>
-        <input
-          disabled={Boolean(reviewerId)}
-          value={reviewerId ? PHOTO_REVIEWERS.find(person => person.id === reviewerId)!.name : label}
-          onChange={event => setLabel(event.target.value)}
-          maxLength={60}
-          placeholder="Pentru cine? (ex: Soția)"
-          style={{ flex: "1 1 220px", padding: "8px 12px", background: "#111", border: "1px solid #333", borderRadius: "6px", color: "#ddd", fontSize: "13px" }}
-        />
+        {!selectedReviewer && editing !== "new" && (
+          <input
+            value={label}
+            onChange={event => setLabel(event.target.value)}
+            maxLength={60}
+            placeholder="Pentru cine? (ex: Soția)"
+            aria-label="Eticheta linkului"
+            style={{ ...inputStyle, flex: "1 1 200px" }}
+          />
+        )}
         <button
           type="button"
           onClick={create}
-          disabled={creating}
-          style={{ padding: "8px 14px", background: GOLD, border: "none", borderRadius: "6px", color: "#111", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+          disabled={creating || editing !== null}
+          style={{ padding: "8px 14px", background: GOLD, border: "none", borderRadius: "6px", color: "#111", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: editing !== null ? 0.5 : 1 }}
         >
           {creating ? "Se generează..." : "Generează și copiază link"}
         </button>
       </div>
+      {selectedReviewer && editing === null && (
+        <p style={{ color: "#999", fontSize: "12px", margin: 0 }}>
+          {selectedReviewer.email || <span style={{ color: "#f59e0b" }}>fără email</span>}
+          {" · "}
+          {selectedReviewer.phone || <span style={{ color: "#f59e0b" }}>fără telefon</span>}
+          {" · "}
+          <button type="button" onClick={() => setEditing("edit")} style={{ background: "none", border: "none", padding: 0, color: GOLD, fontSize: "12px", cursor: "pointer" }}>Editează profilul</button>
+        </p>
+      )}
+      {editing && (
+        <ReviewerForm
+          key={editing === "new" ? NEW_PERSON : reviewerId}
+          initial={editing === "edit" ? selectedReviewer ?? {} : {}}
+          saving={savingProfile}
+          onSave={saveProfile}
+          onCancel={() => setEditing(null)}
+        />
+      )}
       {error && <p style={{ color: "#f87171", fontSize: "12px", margin: 0 }}>{error}</p>}
 
       {links.map(link => {
@@ -167,6 +293,23 @@ export default function ProposalLinksPanel({ slug, accessToken }: { slug: string
                 </div>
               );
             })}
+
+            {/* Reminder until the link's own person says „Am terminat” (someone else finishing doesn't count). */}
+            {link.reviewerId && !link.visitors.some(visitor => visitor.completedAt && nameKey(visitor.name) === nameKey(link.label)) && (
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <button type="button" onClick={() => remind(link)} disabled={reminding === link.token || !link.active} style={smallButton}>
+                  {reminding === link.token ? "Se trimite..." : "⏰ Trimite reminder acum"}
+                </button>
+                <span style={{ color: "#777", fontSize: "11px" }}>
+                  {link.lastReminderAt
+                    ? `Ultimul reminder: ${formatDate(link.lastReminderAt)}${link.lastReminderChannels?.length ? ` (${link.lastReminderChannels.map(channel => (channel === "sms" ? "SMS" : "email")).join(" + ")})` : ""} · ${link.reminderCount ?? 1}×`
+                    : "Niciun reminder încă"}
+                </span>
+                {reminderNote?.token === link.token && (
+                  <span role="status" style={{ color: reminderNote.ok ? "#4ade80" : "#f87171", fontSize: "11px" }}>{reminderNote.text}</span>
+                )}
+              </div>
+            )}
 
             {link.photos.length > 0 && (
               <>

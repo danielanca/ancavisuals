@@ -121,4 +121,67 @@ router.post("/guide", async (req: Request, res: Response) => {
   }
 });
 
+// „✨ Înfrumusețează” din bara de text a adminului (AdminTextAssist): textul dictat sau scris în
+// grabă devine text curat, natural, în română — fără să schimbe ce spune. `format: "html"` =
+// editorul de clauze (HTML simplu cu placeholdere {{...}}).
+export const POLISH_TEXT_MAX = 12_000;
+
+export const POLISH_INSTRUCTIONS = `Primești un text scris sau dictat (speech-to-text) de administratorul AncaVisuals (fotograf/videograf de nuntă din România). Rescrie-l curat, ca și cum l-ar fi scris un om atent, în română:
+- corectează greșelile de dictare (cuvinte auzite greșit, repetiții, „ăă”), gramatica, punctuația și diacriticele;
+- împarte în propoziții și paragrafe firești; păstrează tonul autorului (cald cu clienții, precis în contracte);
+- păstrează EXACT sensul, faptele, numele, datele, sumele, numerele de telefon, linkurile și orice placeholder de forma {{nume}} sau [ceva]; nu adăuga informații, promisiuni, saluturi sau semnături care nu există;
+- scrie natural, nu ca un AI: fără clișee („Sperăm că acest mesaj vă găsește bine”), fără exagerări, fără liniuțe lungi (—), fără liste sau titluri dacă originalul nu le are;
+- dacă e o clauză de contract: formulare juridică clară și precisă, în persoana a treia („Prestatorul”, „Beneficiarul”), fără ambiguități;
+- dacă textul e deja bun, schimbă cât mai puțin.
+Răspunde DOAR cu textul final, fără explicații, ghilimele sau comentarii.`;
+
+const POLISH_HTML_RULE = `Textul este HTML dintr-un editor (paragrafe <p>, <strong>, liste <ul><li>, <br>, eventual elemente cu atribute style). Păstrează structura și toate etichetele/atributele; modifică doar textul dintre ele. Răspunde cu HTML-ul final, fără blocuri de cod.`;
+
+router.post("/polish", async (req: Request, res: Response) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    res.status(500).json({ error: "Lipsește ANTHROPIC_API_KEY din .env." });
+    return;
+  }
+  const text = typeof req.body?.text === "string" ? req.body.text : "";
+  if (!text.trim()) {
+    res.status(400).json({ error: "Nu există text de înfrumusețat." });
+    return;
+  }
+  if (text.length > POLISH_TEXT_MAX) {
+    res.status(400).json({ error: "Textul e prea lung pentru înfrumusețare." });
+    return;
+  }
+  const html = req.body?.format === "html";
+  const field = typeof req.body?.field === "string" ? req.body.field.slice(0, 120).trim() : "";
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-opus-5-5",
+      max_tokens: 8192,
+      output_config: { effort: "low" },
+      system: [{ type: "text", text: html ? `${POLISH_INSTRUCTIONS}\n\n${POLISH_HTML_RULE}` : POLISH_INSTRUCTIONS, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: `${field ? `Câmpul: ${field}\n\n` : ""}<text>\n${text}\n</text>` }],
+    });
+    if (response.stop_reason === "refusal") {
+      res.status(422).json({ error: "AI-ul nu a putut prelucra acest text." });
+      return;
+    }
+    const polished = response.content
+      .filter((block): block is Anthropic.TextBlock => block.type === "text")
+      .map((block) => block.text)
+      .join("")
+      .replace(/^```(?:html)?\s*|\s*```$/g, "")
+      .replace(/^<text>\s*|\s*<\/text>$/g, "")
+      .trim();
+    if (!polished) {
+      res.status(502).json({ error: "AI-ul nu a întors niciun text." });
+      return;
+    }
+    res.json({ text: polished });
+  } catch (error) {
+    console.error("[admin-ai-assistant] polish failed:", error);
+    res.status(500).json({ error: "Textul nu a putut fi înfrumusețat." });
+  }
+});
+
 export default router;

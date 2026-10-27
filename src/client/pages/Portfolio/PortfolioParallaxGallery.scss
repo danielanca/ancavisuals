@@ -27,6 +27,257 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
+// Song banner under the subtitle (PortfolioMusic): wide on desktop, square, monochrome, hairline.
+// Phones: play + text on one row, the progress bar under them. Desktop: one long row.
+.ppg-music {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "play copy"
+    "progress progress";
+  align-items: center;
+  column-gap: 1.1rem;
+  row-gap: 0.9rem;
+  width: 100%;
+  max-width: 64rem;
+  margin-top: 2rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+  text-align: left;
+
+  @media (min-width: 1024px) {
+    grid-template-columns: auto minmax(0, 1fr) minmax(16rem, 0.9fr);
+    grid-template-areas: "play copy progress";
+    column-gap: 1.75rem;
+    padding: 1.1rem 1.75rem 1.1rem 1.1rem;
+  }
+}
+
+.ppg-music-play {
+  grid-area: play;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border: 1px solid #fff;
+  background: #fff;
+  color: #0a0a0a;
+  transition: background 0.25s, color 0.25s, transform 0.25s;
+
+  svg {
+    margin-left: 2px; // the triangle looks centred
+  }
+
+  // Idle: a square ring breathes out of the button, inviting the click.
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    animation: ppg-music-ring 2.4s ease-out infinite;
+    pointer-events: none;
+  }
+
+  &:hover {
+    transform: scale(1.04);
+  }
+
+  &[aria-pressed="true"] {
+    background: transparent;
+    color: #fff;
+
+    svg { margin-left: 0; }
+    &::after { animation: none; opacity: 0; }
+  }
+}
+
+@keyframes ppg-music-ring {
+  0% { transform: scale(1); opacity: 0.8; }
+  70%, 100% { transform: scale(1.35); opacity: 0; }
+}
+
+.ppg-music-copy {
+  grid-area: copy;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.ppg-music-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.ppg-music-song {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #fff;
+
+  @media (min-width: 1024px) {
+    font-size: 1.2rem;
+  }
+}
+
+.ppg-music-artist {
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ppg-music-text {
+  font-size: 0.8rem;
+  font-weight: 300;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.ppg-music-progress {
+  grid-area: progress;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ppg-music-time {
+  flex: none;
+  min-width: 2.4rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.55);
+
+  &:last-of-type { text-align: right; }
+}
+
+.ppg-music-volume {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 6.5rem;
+  margin-left: 0.5rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.7);
+
+  svg { flex: none; width: 16px; height: 16px; }
+  .ppg-music-bar { min-width: 0; }
+}
+
+// Thin line, filled up to where the song is; a small square handle to jump around.
+.ppg-music-bar {
+  --ppg-progress: 0%;
+  flex: 1;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+
+  &:disabled { cursor: default; }
+
+  &::-webkit-slider-runnable-track {
+    height: 2px;
+    background: linear-gradient(to right, #fff var(--ppg-progress), rgba(255, 255, 255, 0.18) var(--ppg-progress));
+  }
+
+  &::-moz-range-track {
+    height: 2px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  &::-moz-range-progress {
+    height: 2px;
+    background: #fff;
+  }
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    margin-top: -4px;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+  }
+
+  &::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+  }
+
+  &:disabled::-webkit-slider-thumb { opacity: 0; }
+  &:disabled::-moz-range-thumb { opacity: 0; }
+}
+
+// Three small bars that move while the song plays.
+.ppg-music-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+
+  i {
+    width: 2px;
+    height: 100%;
+    background: currentColor;
+    animation: ppg-music-bar 1.1s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+
+  i:nth-child(2) { animation-delay: -0.4s; }
+  i:nth-child(3) { animation-delay: -0.8s; }
+}
+
+@keyframes ppg-music-bar {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppg-music-bars i { animation: none; transform: scaleY(0.6); }
+  .ppg-music-play::after { animation: none; opacity: 0; }
+}
+
+// Speaker button once the banner is out of view (portaled to <body>).
+.ppg-music-float {
+  position: fixed;
+  left: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 10, 10, 0.85);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  animation: ppg-music-in 0.3s ease-out;
+
+  &:hover {
+    border-color: #fff;
+  }
+}
+
+@keyframes ppg-music-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
 .ppg-wrap {
   padding: 0 6vw;
 }

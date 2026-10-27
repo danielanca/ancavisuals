@@ -78,6 +78,7 @@ import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
 import { startAlbumPromisesCron } from "./src/server/cron/albumPromises.cron";
 import { startHandoverSignReminderCron } from "./src/server/cron/handoverSignReminder.cron";
+import { startProposalLinkReminderCron } from "./src/server/cron/proposalLinkReminder.cron";
 import { startErrorsCron } from "./src/server/cron/errors.cron";
 import { startRemindersCron } from "./src/server/cron/reminders.cron";
 import { startAlbumZipCheckCron } from "./src/server/cron/albumZipCheck.cron";
@@ -286,6 +287,7 @@ async function createServer() {
   startPostEventBackupCron();
   startAlbumPromisesCron();
   startHandoverSignReminderCron();
+  startProposalLinkReminderCron();
   startErrorsCron();
   startRemindersCron();
   startAlbumZipCheckCron();

@@ -14,3 +14,4 @@ Nu duplica aici contextul tehnic, comenzile, capcanele sau change log-ul dacă e
 3. Fă schimbarea
 4. Rulează validările relevante menționate în `AI_MEMORY.md`
 5. Dacă ai adăugat context reutilizabil sau ai rezolvat o capcană reală, actualizează `AI_MEMORY.md`
+6. Adaugă o intrare sus în `src/shared/adminChangelog.ts` pentru orice schimbare livrată (apare în admin la „Update-uri”, `/admin/updates`)

@@ -62,6 +62,13 @@ async function loadInstagramProposalsRouter() {
     requireEsteraOrAdmin: (_req: any, _res: any, next: any) => next(),
   }));
 
+  // Profiles: the built-in defaults (Daniel, Estera, Salomeea), nothing saved in Firestore.
+  vi.doMock("src/server/services/photoReviewers.service", async () => {
+    const { PHOTO_REVIEWERS } = await import("src/shared/media/proposalConsensus");
+    return { listPhotoReviewers: async () => [...PHOTO_REVIEWERS], albumCoverage: () => ({ total: 0, seen: {} }) };
+  });
+  vi.doMock("src/server/services/album.service", () => ({ loadAlbum: async () => null }));
+
   vi.doMock("firebase-admin/firestore", () => ({
     Timestamp: {
       now: () => ({ toDate: () => new Date("2026-04-28T10:00:00.000Z") }),

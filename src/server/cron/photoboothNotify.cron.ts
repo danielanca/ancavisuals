@@ -116,7 +116,7 @@ async function runPhotoboothNotify() {
         if (guest.phone && isSmsConfigured()) {
           const normalized = normalizeRomanianPhoneNumber(guest.phone as string);
           if (normalized) {
-            sendSms({ to: normalized, body: buildSmsBody(guestName, galleryUrl) }).catch(() => {});
+            sendSms({ to: normalized, body: buildSmsBody(guestName, galleryUrl), log: { source: "photobooth", event: albumSlug, recipientName: guestName } }).catch(() => {});
           }
         }
 

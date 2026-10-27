@@ -332,6 +332,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Statistici contact", path: "/admin/statistici-contact" },
         { label: "Lead-uri & emailuri", path: "/admin/leads" },
         { label: "Email log", path: "/admin/email-log" },
+        { label: "SMS-uri trimise", path: "/admin/sms-log" },
       ],
     },
     {
@@ -348,6 +349,16 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Wedding Hub", path: "/admin/wedding-hub" },
         { label: "Erori server", path: "/admin/errors", badge: unseenErrors },
       ],
+    },
+    {
+      key: "updates",
+      label: "Update-uri",
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="9" />
+        </svg>
+      ),
+      items: [{ label: "Ce am adăugat nou", path: "/admin/updates" }],
     },
   ];
 

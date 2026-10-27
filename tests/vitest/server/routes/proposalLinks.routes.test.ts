@@ -60,6 +60,7 @@ function createFakeFirestore() {
         return { id };
       },
       where: (field: string, op: string, value: unknown) => query(name, []).where(field, op, value),
+      get: () => query(name, []).get(),
     }),
     batch: () => {
       const ops: (() => Promise<void>)[] = [];
@@ -113,6 +114,12 @@ async function loadRouter() {
   }));
   const sendViaFunnel = vi.fn(async () => {});
   vi.doMock("src/server/notifications/emailFunnel", () => ({ sendViaFunnel }));
+  const sendSms = vi.fn(async () => {});
+  vi.doMock("src/server/notifications/sms", async () => ({
+    ...(await vi.importActual<typeof import("src/server/notifications/sms")>("src/server/notifications/sms")),
+    isSmsConfigured: () => true,
+    sendSms,
+  }));
   vi.doMock("src/server/constants/credentials", () => ({ adminUser: { email: "owner@test.com" } }));
   vi.doMock("firebase-admin/firestore", () => ({
     Timestamp: { now: () => ({ toDate: () => new Date("2026-10-02T10:00:00.000Z") }) },
@@ -132,7 +139,13 @@ async function loadRouter() {
     return res.json.mock.calls[0][0].link as { token: string; url: string; taskId: string };
   };
 
-  return { fake, handler, createLink, sendViaFunnel };
+  return { fake, handler, createLink, sendViaFunnel, sendSms };
+}
+
+async function createLinkFor(handler: (method: string, path: string) => Handler, reviewerId: string | undefined): Promise<string> {
+  const res = createMockResponse();
+  await handler("post", "/admin")({ body: { albumSlug: ALBUM.slug, label: "Prieten", ...(reviewerId ? { reviewerId } : {}) }, firebaseEmail: "admin@test.com" }, res);
+  return res.json.mock.calls[0][0].link.token;
 }
 
 describe("proposal links", () => {
@@ -151,23 +164,24 @@ describe("proposal links", () => {
     expect(task.title).toContain("8august2026");
   });
 
-  test("personal reviewer identity is assigned by admin and cannot be overridden by a visitor", async () => {
+  test("personal link: the visitor can't pick an identity, but another profile's own name counts as that person", async () => {
     const { fake, handler } = await loadRouter();
     const created = createMockResponse();
-    await handler("post", "/admin")({ body: { albumSlug: ALBUM.slug, label: "Salomeea", reviewerId: "salomeea" }, firebaseEmail: "admin@test.com" }, created);
+    await handler("post", "/admin")({ body: { albumSlug: ALBUM.slug, label: "Altceva", reviewerId: "salomeea" }, firebaseEmail: "admin@test.com" }, created);
     const link = created.json.mock.calls[0][0].link;
     expect(link.reviewerId).toBe("salomeea");
-    for (const [visitorId, name] of [["visitor-123", "Daniel"], ["visitor-456", "Estera"]]) {
-      await handler("post", "/:token/proposals")({ params: { token: link.token }, body: {
-        name, reviewerId: "daniel", visitorId, fileNames: ["IMG_1.jpg"], destinations: ["instagram", "media_assets"],
-      } }, createMockResponse());
-    }
+    expect(link.label).toBe("Salomeea");
+    const propose = (visitorId: string, name: string, fileName: string) => handler("post", "/:token/proposals")({ params: { token: link.token }, body: {
+      name, reviewerId: "daniel", visitorId, fileNames: [fileName], destinations: ["instagram", "media_assets"],
+    } }, createMockResponse());
+    await propose("visitor-123", "Salo", "IMG_1.jpg"); // a nickname → still the link's person
+    await propose("visitor-456", "Estera", "IMG_2.jpg"); // Estera opened Salomeea's link with her own name
     const proposals = [...fake.col("instagramProposals").values()];
-    expect(proposals).toHaveLength(2);
-    for (const proposal of proposals) {
-      expect(proposal.reviewerId).toBe("salomeea");
-      expect(proposal.selectionDestinations).toEqual(["instagram", "media_assets"]);
-    }
+    expect(proposals.map(proposal => [proposal.fileName, proposal.reviewerId])).toEqual([
+      ["IMG_1.jpg", "salomeea"],
+      ["IMG_2.jpg", "estera"],
+    ]);
+    for (const proposal of proposals) expect(proposal.selectionDestinations).toEqual(["instagram", "media_assets"]);
   });
 
   test("invalid reviewer identity does not create a link or task", async () => {
@@ -350,5 +364,61 @@ describe("proposal links", () => {
     const [listed] = res.json.mock.calls[0][0].links;
     expect(listed.visitors).toHaveLength(2);
     expect(listed.visitors.find((v: any) => v.name === "Salomeea")).toMatchObject({ id: "id-two-bbbb", viewedCount: 1279, proposedCount: 203 });
+  });
+  test("profiles: add a new person, edit email/phone, invalid data is refused", async () => {
+    const { handler } = await loadRouter();
+    const created = createMockResponse();
+    await handler("post", "/admin/reviewers")({ body: { name: " Ana  Maria ", email: "Ana@Test.com", phone: "0745 123 456" } }, created);
+    expect(created.status).toHaveBeenCalledWith(201);
+    expect(created.json.mock.calls[0][0].reviewer).toEqual({ id: "ana-maria", name: "Ana Maria", email: "ana@test.com", phone: "+40745123456" });
+
+    const edited = createMockResponse();
+    await handler("patch", "/admin/reviewers/:id")({ params: { id: "salomeea" }, body: { name: "Salomeea", email: "salo@test.com", phone: "0722000111" } }, edited);
+    expect(edited.json.mock.calls[0][0].reviewer).toMatchObject({ id: "salomeea", phone: "+40722000111" });
+
+    const listed = createMockResponse();
+    await handler("get", "/admin/reviewers")({}, listed);
+    const people = listed.json.mock.calls[0][0].reviewers;
+    expect(people.map((person: any) => person.id)).toEqual(["daniel", "estera", "salomeea", "ana-maria"]);
+    expect(people.find((person: any) => person.id === "salomeea").email).toBe("salo@test.com");
+
+    for (const body of [{ name: "" }, { name: "X", email: "nu-e-email" }, { name: "X", phone: "123" }]) {
+      const bad = createMockResponse();
+      await handler("post", "/admin/reviewers")({ body }, bad);
+      expect(bad.status).toHaveBeenCalledWith(400);
+    }
+    // A link can now be made for the new person.
+    const link = createMockResponse();
+    await handler("post", "/admin")({ body: { albumSlug: ALBUM.slug, reviewerId: "ana-maria" }, firebaseEmail: "admin@test.com" }, link);
+    expect(link.json.mock.calls[0][0].link).toMatchObject({ reviewerId: "ana-maria", label: "Ana Maria" });
+  });
+
+  test("reminder now: email + SMS from the profile, with where the person left off", async () => {
+    const { fake, handler, sendViaFunnel, sendSms } = await loadRouter();
+    await handler("patch", "/admin/reviewers/:id")({ params: { id: "estera" }, body: { name: "Estera", email: "estera@test.com", phone: "0745123456" } }, createMockResponse());
+    const created = createMockResponse();
+    await handler("post", "/admin")({ body: { albumSlug: ALBUM.slug, reviewerId: "estera" }, firebaseEmail: "admin@test.com" }, created);
+    const { token } = created.json.mock.calls[0][0].link;
+    fake.col("proposalLinks").get(token)!.totalPhotos = 1279;
+    await handler("post", "/:token/progress")({ params: { token }, body: { name: "Estera", visitorId: "visitor-123", viewedCount: 141 } }, createMockResponse());
+
+    const res = createMockResponse();
+    await handler("post", "/admin/:token/reminder")({ params: { token } }, res);
+    expect(res.json).toHaveBeenCalledWith({ ok: true, channels: ["email", "sms"], errors: [] });
+    expect(sendSms).toHaveBeenCalledWith({ to: "+40745123456", body: expect.stringContaining("Ai ajuns la poza 141 din 1279"), log: expect.objectContaining({ source: "proposal-link-reminder" }) });
+    expect((sendSms.mock.calls[0] as any)[0].body).toContain(`https://ancavisuals.ro/propune/${token}`);
+    expect(sendViaFunnel).toHaveBeenCalledWith(expect.objectContaining({ to: "estera@test.com", source: "proposal-link:reminder" }));
+    expect(fake.col("proposalLinks").get(token)).toMatchObject({ reminderCount: 1, lastReminderChannels: ["email", "sms"] });
+
+    // Generic link (no person) or a person without contact → clear error, nothing sent.
+    const generic = await createLinkFor(handler, undefined);
+    const noPerson = createMockResponse();
+    await handler("post", "/admin/:token/reminder")({ params: { token: generic } }, noPerson);
+    expect(noPerson.status).toHaveBeenCalledWith(400);
+    const salomeea = await createLinkFor(handler, "salomeea");
+    const noContact = createMockResponse();
+    await handler("post", "/admin/:token/reminder")({ params: { token: salomeea } }, noContact);
+    expect(noContact.status).toHaveBeenCalledWith(400);
+    expect(noContact.json.mock.calls[0][0].error).toContain("Salomeea nu are email sau telefon");
   });
 });

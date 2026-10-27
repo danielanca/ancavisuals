@@ -492,7 +492,7 @@ router.post("/:id/sms", requireFirebaseAuth, requireSupremeAdmin, async (req: Re
     if (!isSmsConfigured()) return res.status(400).json({ error: "SMS-ul nu este configurat pe server." });
 
     try {
-      await sendSms({ to: phone, body: message });
+      await sendSms({ to: phone, body: message, log: { source: "handover-sms", event: `${handover.eventType ?? "eveniment"} ${handover.eventDate ?? ""}`.trim(), recipientName: handover.clientName || null } });
     } catch (error) {
       console.error("[handover] POST /:id/sms send failed:", error);
       return res.status(502).json({ error: `SMS-ul nu a putut fi trimis: ${error instanceof Error ? error.message : "eroare necunoscută"}` });

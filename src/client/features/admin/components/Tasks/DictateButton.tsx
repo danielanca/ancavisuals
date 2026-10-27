@@ -23,7 +23,8 @@ export default function DictateField({
   });
 
   return (
-    <div className="space-y-1">
+    // Has its own mic: the admin text bar (AdminTextAssist) only adds the AI button here.
+    <div className="space-y-1" data-text-assist="ai-only">
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">{children}</div>
         {supported && (

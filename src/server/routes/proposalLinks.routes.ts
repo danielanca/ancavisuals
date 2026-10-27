@@ -14,7 +14,9 @@ import { normalizeOfferServiceIds } from "../../shared/offers/offerServices";
 import { sendViaFunnel } from "../notifications/emailFunnel";
 import { adminUser } from "../constants/credentials";
 
-import { isPhotoReviewerId, type PhotoReviewerId } from "../../shared/media/proposalConsensus";
+import { isPhotoReviewerId, linkVisitorReviewer, type PhotoReviewerId } from "../../shared/media/proposalConsensus";
+import { listPhotoReviewers, savePhotoReviewer } from "../services/photoReviewers.service";
+import { sendProposalLinkReminder } from "../services/proposalLinkReminder";
 
 const router = express.Router();
 const LINKS_COLLECTION = "proposalLinks";
@@ -48,6 +50,9 @@ type ProposalLink = {
   totalPhotos?: number;
   visitors?: Record<string, VisitorProgress>;
   completedAt?: Timestamp | null;
+  reminderCount?: number;
+  lastReminderAt?: Timestamp | null;
+  lastReminderChannels?: string[];
 };
 
 /** Relative path; the admin UI prefixes the current origin when copying. */
@@ -124,6 +129,9 @@ function serializeLink(link: ProposalLink, photos: { fileName: string; previewUr
     status: linkProgressStatus(link),
     completedAt: toIso(link.completedAt),
     totalPhotos: link.totalPhotos ?? 0,
+    reminderCount: link.reminderCount ?? 0,
+    lastReminderAt: toIso(link.lastReminderAt),
+    lastReminderChannels: link.lastReminderChannels ?? [],
     visitors: mergeVisitorsByName(link.visitors ?? {}).map(({ id, ...visitor }) => ({
       id,
       name: visitor.name ?? "",
@@ -249,10 +257,16 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Requ
     mediaAssetServiceIds?: string[];
     reviewerId?: PhotoReviewerId;
   };
-  if (reviewerId !== undefined && !isPhotoReviewerId(reviewerId)) {
+  const reviewers = await listPhotoReviewers().catch(() => null);
+  if (!reviewers) {
+    res.status(500).json({ error: "Nu am putut încărca persoanele." });
+    return;
+  }
+  if (reviewerId !== undefined && !isPhotoReviewerId(reviewerId, reviewers)) {
     res.status(400).json({ error: "Persoană de selecție invalidă." });
     return;
   }
+  const reviewer = reviewers.find(person => person.id === reviewerId);
   const requestedSlug = albumSlug?.trim() ?? "";
   if (!requestedSlug) {
     res.status(400).json({ error: "albumSlug este obligatoriu." });
@@ -261,7 +275,8 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Requ
   try {
     const canonical = await resolveAlbumSlug(requestedSlug);
     const serviceIds = normalizeOfferServiceIds(mediaAssetServiceIds);
-    const cleanLabel = cleanVisitorName(label);
+    // A personal link is named after the profile, whatever the form sent.
+    const cleanLabel = reviewer ? reviewer.name : cleanVisitorName(label);
     const token = randomBytes(16).toString("base64url");
     const now = Timestamp.now();
     const db = firestore();
@@ -300,6 +315,81 @@ router.post("/admin", requireFirebaseAuth, requireSupremeAdmin, async (req: Requ
   } catch (error) {
     console.error("[proposal-links] POST /admin failed:", error);
     res.status(500).json({ error: "Nu am putut genera linkul." });
+  }
+});
+
+// GET /admin/reviewers — the people who choose photos (name, email, phone for reminders)
+router.get("/admin/reviewers", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
+  try {
+    res.json({ reviewers: await listPhotoReviewers() });
+  } catch (error) {
+    console.error("[proposal-links] GET /admin/reviewers failed:", error);
+    res.status(500).json({ error: "Nu am putut încărca persoanele." });
+  }
+});
+
+// POST /admin/reviewers — a new person; PATCH /admin/reviewers/:id — change name / email / phone
+router.post("/admin/reviewers", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const saved = await savePhotoReviewer(null, req.body ?? {});
+    if ("error" in saved) {
+      res.status(400).json(saved);
+      return;
+    }
+    res.status(201).json({ reviewer: saved });
+  } catch (error) {
+    console.error("[proposal-links] POST /admin/reviewers failed:", error);
+    res.status(500).json({ error: "Nu am putut salva persoana." });
+  }
+});
+
+router.patch("/admin/reviewers/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const saved = await savePhotoReviewer(String(req.params.id), req.body ?? {});
+    if ("error" in saved) {
+      res.status(400).json(saved);
+      return;
+    }
+    res.json({ reviewer: saved });
+  } catch (error) {
+    console.error("[proposal-links] PATCH /admin/reviewers failed:", error);
+    res.status(500).json({ error: "Nu am putut salva persoana." });
+  }
+});
+
+// POST /admin/:token/reminder — remind the link's person now (email + SMS from their profile)
+router.post("/admin/:token/reminder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const { token } = req.params;
+  if (!isSafeToken(token)) {
+    res.status(400).json({ error: "Token invalid." });
+    return;
+  }
+  try {
+    const snap = await firestore().collection(LINKS_COLLECTION).doc(token).get();
+    const link = snap.exists ? snap.data() as ProposalLink : null;
+    if (!link) {
+      res.status(404).json({ error: "Linkul nu există." });
+      return;
+    }
+    const reviewers = await listPhotoReviewers();
+    const reviewer = reviewers.find(person => person.id === link.reviewerId);
+    if (!reviewer) {
+      res.status(400).json({ error: "Linkul nu e al unei persoane din listă — alege persoana când creezi linkul." });
+      return;
+    }
+    if (!reviewer.email && !reviewer.phone) {
+      res.status(400).json({ error: `${reviewer.name} nu are email sau telefon în profil.` });
+      return;
+    }
+    const result = await sendProposalLinkReminder(link, reviewer, false, reviewers);
+    if (result.channels.length === 0) {
+      res.status(502).json({ error: "Reminderul nu a putut fi trimis.", details: result.errors });
+      return;
+    }
+    res.json({ ok: true, channels: result.channels, errors: result.errors });
+  } catch (error) {
+    console.error("[proposal-links] POST /admin/:token/reminder failed:", error);
+    res.status(500).json({ error: "Nu am putut trimite reminderul." });
   }
 });
 
@@ -345,7 +435,8 @@ router.get("/:token", async (req: Request, res: Response) => {
     if (link.totalPhotos !== photos.length) {
       firestore().collection(LINKS_COLLECTION).doc(link.token).update({ totalPhotos: photos.length }).catch(() => {});
     }
-    res.json({ albumSlug: link.albumSlug, title: album.title, label: link.label, photos });
+    // Personal links: the person's name, to fill in the name field for them.
+    res.json({ albumSlug: link.albumSlug, title: album.title, label: link.label, ...(link.reviewerId ? { personName: link.label } : {}), photos });
   } catch (error) {
     console.error("[proposal-links] GET /:token failed:", error);
     res.status(500).json({ error: "Nu am putut încărca albumul." });
@@ -430,6 +521,7 @@ router.post("/:token/proposals", async (req: Request, res: Response) => {
     for (const url of album.originalPhoto) urlByKey.set(mediaKey(fileNameFromUrl(url)), url);
 
     const proposedByUid = `link:${link.token}:${cleanVisitorId}`;
+    const voteReviewerId = link.reviewerId ? linkVisitorReviewer(link.reviewerId, cleanName, await listPhotoReviewers()) : undefined;
     const mediaAssetServiceIds = normalizedDestinations.includes("media_assets") ? link.mediaAssetServiceIds : [];
     const db = firestore();
     const existing = await db.collection(PROPOSALS_COLLECTION)
@@ -449,7 +541,7 @@ router.post("/:token/proposals", async (req: Request, res: Response) => {
         const data = current.data();
         batch.update(current.ref, {
           proposedBy: cleanName,
-          ...(link.reviewerId ? { reviewerId: link.reviewerId } : {}),
+          ...(voteReviewerId ? { reviewerId: voteReviewerId } : {}),
           selectionDestinations: Array.from(new Set([...(data.selectionDestinations ?? data.destinations ?? []), ...normalizedDestinations])),
           destinations: Array.from(new Set([...(data.destinations ?? []), ...normalizedDestinations])),
           mediaAssetServiceIds: normalizeOfferServiceIds([...(data.mediaAssetServiceIds ?? []), ...mediaAssetServiceIds]),
@@ -467,7 +559,7 @@ router.post("/:token/proposals", async (req: Request, res: Response) => {
         proposedVia: "link",
         proposalLinkToken: link.token,
         proposalLinkLabel: link.label,
-        ...(link.reviewerId ? { reviewerId: link.reviewerId } : {}),
+        ...(voteReviewerId ? { reviewerId: voteReviewerId } : {}),
         proposedAt: Timestamp.now(),
         status: "pending",
         destinations: normalizedDestinations,

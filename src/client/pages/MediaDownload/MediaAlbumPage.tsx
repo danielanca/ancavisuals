@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, useCallback, type Poi
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import useAuth from "../../features/admin/auth/useAuth";
 import BunnyPhotoGallery from "../Portfolio/BunnyPhotoGallery";
+import BurstPhotosNotice from "../../components/Media/BurstPhotosNotice";
 import ProposalLinksPanel from "./ProposalLinksPanel";
 import PrintSelectionGuide from "./PrintSelectionGuide";
 import PrintSelectionLink from "./PrintSelectionLink";
@@ -1635,6 +1636,7 @@ export default function MediaAlbumPage() {
 
         {auth.authorise && mode === "none" && igProposeMode && (
           <div style={{ margin: "0 0 12px", padding: "12px 14px", background: "#0d0d1f", border: "1px solid #3730a3", borderRadius: "8px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <BurstPhotosNotice />
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ color: "#a5b4fc", fontSize: "12px", fontWeight: 600, marginRight: "4px" }}>Destinație:</span>
               {(["instagram", "media_assets"] as const).map((destination) => {

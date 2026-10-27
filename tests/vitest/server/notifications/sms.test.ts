@@ -1,11 +1,15 @@
 // @vitest-environment node
 /*
  * Purpose: SMS provider choice (SMSAPI when its token is set, Twilio otherwise), SMSAPI's
- * "200 with an error body" failures, and the GSM-only text that keeps SMS cheap.
+ * "200 with an error body" failures, the GSM-only text that keeps SMS cheap, and the copy
+ * of every SMS saved for /admin/sms-log.
  */
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-const ENV_KEYS = ["SMSAPI_TOKEN", "SMSAPI_SENDER", "SMSAPI_BASE_URL", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER"];
+const logSms = vi.fn();
+vi.mock("src/server/services/smsLog.service", () => ({ logSms }));
+
+const ENV_KEYS = ["SMSAPI_TOKEN", "SMS_API_KEY", "SMSAPI_SENDER", "SMSAPI_BASE_URL", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER"];
 
 async function loadSms(env: Record<string, string>) {
   vi.resetModules();
@@ -16,6 +20,7 @@ async function loadSms(env: Record<string, string>) {
 
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
+  logSms.mockReset();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -61,4 +66,18 @@ test("toSmsText keeps line breaks and strips what forces Unicode", async () => {
   const { toSmsText } = await loadSms({});
   expect(toSmsText("📅 Estimare (15 noiembrie):  Ți-am trimis „albumul”…\n\nAlbumul: https://x.ro/media/a"))
     .toBe('Estimare (15 noiembrie): Ti-am trimis "albumul"...\n\nAlbumul: https://x.ro/media/a');
+});
+
+test("logs every SMS with the text that left and who it was for, failures included", async () => {
+  const sms = await loadSms({ SMSAPI_TOKEN: "tok" });
+  fetchMock.mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify({ count: 1 }) });
+  await sms.sendSms({ to: "+40745123456", body: "Pozele sunt gata — mulțumim!", log: { source: "album-update", event: "25iulie2026", recipientName: "Ana" } });
+  expect(logSms).toHaveBeenLastCalledWith({
+    to: "+40745123456", text: "Pozele sunt gata - multumim!", provider: "smsapi", status: "sent",
+    source: "album-update", event: "25iulie2026", recipientName: "Ana",
+  });
+
+  fetchMock.mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify({ error: 103, message: "Not enough points" }) });
+  await expect(sms.sendSms({ to: "+40745123456", body: "x" })).rejects.toThrow(/SMSAPI 103/);
+  expect(logSms).toHaveBeenLastCalledWith(expect.objectContaining({ to: "+40745123456", status: "failed", error: expect.stringMatching(/Not enough points/) }));
 });

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import AdminSidebar from "./AdminSidebar";
+import AdminTextAssist from "./AdminTextAssist";
 
 const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -26,6 +27,7 @@ const AdminLayout: React.FC = () => {
 
         <Outlet />
       </div>
+      <AdminTextAssist />
     </div>
   );
 };

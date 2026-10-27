@@ -11,6 +11,7 @@ import { installGalleryScrollRefresh, refreshGalleryScroll } from "../../utils/g
 import "./PortfolioParallaxGallery.scss";
 import { GALLERY_MAX_PHOTOS } from "./galleryLimits";
 import { galleryBlocks } from "./galleryLayout";
+import PortfolioMusic from "./PortfolioMusic";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
@@ -460,6 +461,7 @@ export default function PortfolioParallaxGallery({
           Portofoliu
         </h1>
         <p className="ppg-subtitle">Emoția rămâne, imaginea o păstrează.</p>
+        <PortfolioMusic />
       </div>
 
       {loading ? (

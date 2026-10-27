@@ -66,7 +66,7 @@ export function offerToCampaign(offer: Offer): CampaignPage {
   const portfolioSections = photoSections.length ? photoSections : offer.serviceSections;
   return {
     slug: offer.slug,
-    title: "Fotografii și film de nuntă, fără rigiditate și fără surprize la preț.",
+    title: "Fotografii și film de nuntă.",
     subtitle: "Peste 50 de nunți și evenimente, cu aceeași echipă: soț și soție. Aflați prețul în 30 de secunde și vedeți dacă data voastră mai e liberă.",
     ctaText: "Scrieți-ne pe WhatsApp",
     whatsappNumber: "+40745469907",

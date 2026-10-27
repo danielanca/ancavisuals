@@ -33,6 +33,8 @@ describe("errorCategories", () => {
     expect(isNoiseError("x", "at chrome-extension://abc/content.js:1")).toBe(true);
     // Brave's built-in crypto wallet script on iPhone (no window.ethereum there).
     expect(isNoiseError("TypeError: undefined is not an object (evaluating 'window.ethereum.selectedAddress = undefined')")).toBe(true);
+    // Facebook / Instagram in-app browser on Android, closing the page.
+    expect(isNoiseError("Uncaught Error: Error invoking postMessage: Java object is gone", "at sendDataToNative (iabjs://navigation_performance_logger_android:1:11722)")).toBe(true);
     expect(isNoiseError("TypeError: a is undefined")).toBe(false);
   });
 });

@@ -32,6 +32,8 @@ const AnalyticsPage = loadable(() => import("../features/admin/components/Analyt
 const LiveVisitorsPage = loadable(() => import("../features/admin/components/LiveVisitorsPage"), opts);
 const LeadsPage = loadable(() => import("../features/admin/components/LeadsPage"), opts);
 const EmailLogPage = loadable(() => import("../features/admin/components/EmailLogPage"), opts);
+const SmsLogPage = loadable(() => import("../features/admin/components/SmsLogPage"), opts);
+const ChangelogPage = loadable(() => import("../features/admin/components/ChangelogPage"), opts);
 const ContactStatsPage = loadable(() => import("../features/admin/components/ContactStatsPage"), opts);
 const StartingPricesPage = loadable(() => import("../features/admin/components/StartingPricesPage"), opts);
 const ImageOptimizerPage = loadable(() => import("../features/admin/components/ImageOptimizerPage"), opts);
@@ -107,6 +109,8 @@ export const adminRoutes = [
       <Route path="/admin/live" element={<LiveVisitorsPage />} />
       <Route path="/admin/leads" element={<LeadsPage />} />
       <Route path="/admin/email-log" element={<EmailLogPage />} />
+      <Route path="/admin/sms-log" element={<SmsLogPage />} />
+      <Route path="/admin/updates" element={<ChangelogPage />} />
       <Route path="/admin/statistici-contact" element={<ContactStatsPage />} />
       <Route path="/admin/preturi" element={<StartingPricesPage />} />
       <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />

@@ -78,6 +78,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHei
       </div>
       {sourceMode ? (
         <textarea
+          data-text-assist="off"
           aria-label={label}
           value={sourceValue}
           onChange={(e) => setSourceValue(e.target.value)}

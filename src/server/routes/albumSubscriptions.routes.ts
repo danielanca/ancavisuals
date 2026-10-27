@@ -536,7 +536,7 @@ async function publishAlbumUpdate(slug: string, body: PublishBody, { emailAdminW
       if (phoneChannels.includes("sms") && subscriber.phone) {
         if (!smsReady) smsSkipped = true;
         else {
-          try { await sendSms({ to: subscriber.phone, body: `${smsMessage}\nDezabonare: ${unsubscribeUrl(subscriber.unsubscribeToken)}` }); sent.sms++; }
+          try { await sendSms({ to: subscriber.phone, body: `${smsMessage}\nDezabonare: ${unsubscribeUrl(subscriber.unsubscribeToken)}`, log: { source: "album-update", event: slug, recipientName: subscriber.name ?? null } }); sent.sms++; }
           catch (error) { sent.failed++; console.error("[albumUpdates] SMS failed:", error instanceof Error ? error.message : error); }
         }
       }

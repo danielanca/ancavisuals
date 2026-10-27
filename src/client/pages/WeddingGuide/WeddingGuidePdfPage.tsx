@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import Footer from "../../components/Navbar/Footer";
 import SeoPageHead from "../../components/SEO/SeoPageHead";
 import GuideBook from "../CampaignLanding/GuideBook";
+import LazySection from "../CampaignLanding/LazySection";
+import SectionSkeleton from "../CampaignLanding/SectionSkeleton";
+import { stableVh } from "../../utils/stableViewport";
 import { FACES_PHOTO_URL } from "../CampaignLanding/MeetTheTeamStrip";
 import { sendLiveEvent } from "../../utils/liveEvent";
 import { measureOaiq } from "../../utils/oaiq";
@@ -11,6 +14,9 @@ import { WWW_ORIGIN } from "../../utils/address";
 import { GUIDE_CHAPTERS, GUIDE_PDF_FILE, GUIDE_PDF_PATH, GUIDE_PDF_URL } from "./guideContent";
 
 export { GUIDE_CHAPTERS, GUIDE_PDF_PATH, GUIDE_PDF_URL };
+
+// The offer under the guide downloads only when the visitor scrolls near it.
+const GuideOfferPreview = React.lazy(() => import("./GuideOfferPreview"));
 
 // /ghidul-mirilor-pdf (owner, 2026-10-26): a preview of the new guide, then the download.
 // Built to rank for „ghidul mirilor", „ghidul mirilor pdf", „ghid pentru miri".
@@ -183,6 +189,13 @@ export default function WeddingGuidePdfPage() {
             </div>
           </div>
         </section>
+
+        {/* ── Our offer, at the very bottom: hero, portfolio, configurator (owner, 2026-10-27) ── */}
+        <LazySection height={stableVh(85)}>
+          <React.Suspense fallback={<SectionSkeleton height={stableVh(85)} />}>
+            <GuideOfferPreview />
+          </React.Suspense>
+        </LazySection>
       </main>
 
       <Footer light />

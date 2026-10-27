@@ -2170,7 +2170,7 @@ router.post('/admin/:eventSlug/couple-sms', requireFirebaseAuth, requireSupremeA
       result.manual.push({ name: recipient.name, url: smsLink(recipient.phone, state.message) });
       if (!smsReady) continue;
       try {
-        await sendSms({ to: recipient.phone, body: state.message });
+        await sendSms({ to: recipient.phone, body: state.message, log: { source: "qr-couple-sms", event: eventSlug, recipientName: recipient.name } });
         result.smsSent += 1;
       } catch (error) {
         result.smsFailed += 1;

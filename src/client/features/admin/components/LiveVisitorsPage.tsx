@@ -157,6 +157,8 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
       return `🖼️ A apăsat „Vezi mai multe poze” în galerie${ev.label ? ` (${ev.label})` : ""}.`;
     case "gallery_seen_all":
       return `🖼️ S-a uitat la toate pozele din galerie${ev.label ? ` (${ev.label})` : ""}.`;
+    case "portfolio_music_played":
+      return `🎵 A pornit melodia de la portofoliu.`;
     case "video_played":
       return `▶️ A dat play pe video${ev.label ? ` „${ev.label}”` : ""}.`;
     case "configurator_service_selected":
