@@ -50,6 +50,7 @@ const FeedbackAdminPage = loadable(() => import("../features/feedback/FeedbackAd
 const CollaboratorPage = loadable(() => import("../features/collaborator/CollaboratorPage"), opts);
 const AccountsPage = loadable(() => import("../features/admin/components/AccountsPage"), opts);
 const PhotoConsensusAdminPage = loadable(() => import("../features/admin/components/PhotoConsensusAdminPage"), opts);
+const AlbumProposalCoveragePage = loadable(() => import("../features/admin/components/AlbumProposalCoveragePage"), opts);
 const InstagramProposalsAdminPage = loadable(() => import("../features/admin/components/InstagramProposalsAdminPage"), opts);
 const OferteAdminPage = loadable(() => import("../features/admin/components/OferteAdminPage"), opts);
 // The admin shell (sidebar, search) loads with the admin, not with every public page.
@@ -130,6 +131,7 @@ export const adminRoutes = [
       <Route path="/colaborator" element={<CollaboratorPage />} />
       <Route path="/admin/accounts" element={<AccountsPage />} />
       <Route path="/admin/instagram-proposals/selectie-comuna" element={<PhotoConsensusAdminPage />} />
+      <Route path="/admin/instagram-proposals/albume" element={<AlbumProposalCoveragePage />} />
       <Route path="/admin/instagram-proposals" element={<InstagramProposalsAdminPage />} />
       <Route path="/admin/oferte" element={<OferteAdminPage />} />
       <Route path="/admin/media-assets" element={<MediaAssetsAdminPage />} />

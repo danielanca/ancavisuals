@@ -71,6 +71,8 @@ export interface ClientEvent {
   postEventBackupProofUrl?: string | null;
   postEventBackupProofName?: string | null;
   delivery?: EventDelivery;
+  /** Email reminders set from "Deadline livrare" (a memento each). */
+  deliveryReminders?: { photo?: { at: string; mementoId: string }; video?: { at: string; mementoId: string } };
   progress?: EventProgress;
 }
 

@@ -281,7 +281,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         </svg>
       ),
       items: [
-        { label: "Propuneri Media", path: "/admin/instagram-proposals", badge: pendingProposals, children: [{ label: "Selecție comună", path: "/admin/instagram-proposals/selectie-comuna" }] },
+        { label: "Propuneri Media", path: "/admin/instagram-proposals", badge: pendingProposals, children: [{ label: "Selecție comună", path: "/admin/instagram-proposals/selectie-comuna" }, { label: "Albume cu puține propuneri", path: "/admin/instagram-proposals/albume" }] },
         { label: "Swipe Test", path: "/admin/swipe-proposals" },
         { label: "Media Assets", path: "/admin/media-assets" },
         { label: "QR Moments", path: "/admin/qr-moments" },

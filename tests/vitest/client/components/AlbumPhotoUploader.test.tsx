@@ -62,6 +62,24 @@ describe("local album preview uploads", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/1 previzualizări vor fi generate pe server/)).toBeTruthy();
   });
+  test("when no preview works locally it stops within the first few photos and says why", async () => {
+    vi.mocked(createAlbumPreview).mockRejectedValue(new Error("browserul nu a putut porni generatorul de WebP"));
+    const done = vi.fn();
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    pick(container, Array.from({ length: 30 }, (_, i) => photo(`p${i}.jpg`)));
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    // 2 encoders in parallel: it gives up after 4 failures, at most one more already started.
+    expect(vi.mocked(createAlbumPreview).mock.calls.length).toBeLessThanOrEqual(5);
+    expect(screen.getByRole("alert")).toHaveTextContent("Previzualizările WebP nu se pot face pe calculatorul tău (browserul nu a putut porni generatorul de WebP). Le face serverul");
+  });
+  test("step 2 shows the server's progress once its preview job is ahead", async () => {
+    const done = vi.fn();
+    const { container, rerender } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    pick(container, [photo()]);
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    rerender(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} serverPreviews={{ done: 10, total: 1598 }} />);
+    expect(screen.getByText(/serverul generează: 10\/1598 în photos_preview\//)).toBeTruthy();
+  });
   test("falls back when preview upload is rejected", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ name: "DSC_001.jpg" }) })
       .mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false });
@@ -222,10 +240,16 @@ describe("local album preview uploads", () => {
   test("can hand a failed ZIP over to the server", async () => {
     vi.mocked(buildAlbumZip).mockRejectedValueOnce(new Error("disk read failed"));
     const done = vi.fn();
-    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    const serverProcessing = vi.fn();
+    fetchMock.mockImplementation(async (url: string) => url.includes("/process-album")
+      ? { ok: true, json: async () => ({ ok: true, slug: "album", status: "started" }) }
+      : { ok: true, json: async () => ({ name: url.includes("preview") ? "DSC_001.webp" : "DSC_001.jpg" }) });
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} onServerProcessing={serverProcessing} />);
     pick(container, [photo()]);
-    fireEvent.click(await screen.findByText("Lasă serverul să facă ZIP-ul"));
-    expect(done).toHaveBeenCalledOnce();
+    fireEvent.click(await screen.findByText("Continuă pe server și refă ZIP-ul"));
+    await waitFor(() => expect(serverProcessing).toHaveBeenCalledOnce());
+    expect(done).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.some(([url]) => url.includes("/process-album"))).toBe(true);
   });
 });
 

@@ -28,6 +28,7 @@ const LABELS: Record<string, string> = {
   pagina: "Pagină specială",
   "instagram-proposals": "Propuneri Media",
   "selectie-comuna": "Selecție comună",
+  albume: "Albume cu puține propuneri",
   "image-optimizer": "Optimizare Poze",
   moderare: "Moderare",
   "livrare-preview": "Livrare preview",

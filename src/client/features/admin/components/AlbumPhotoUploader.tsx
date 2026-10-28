@@ -14,7 +14,15 @@ interface AlbumPhotoUploaderProps {
   accessToken: string;
   /** Chemat după originale + WebP + photos.zip. Repară pe server doar ce lipsește (preview-uri, ZIP). */
   onComplete?: () => void;
+  /** Progress of the server's preview job ("Procesează album"), shown in step 2 too. */
+  serverPreviews?: { done: number; total: number } | null;
+  /** Starts the durable server-side preview + ZIP recovery flow without closing this uploader. */
+  onServerProcessing?: () => void;
 }
+
+// After this many local previews without a single success, the browser stops trying and the
+// server makes them: the owner learns within seconds, not after 1598 × 60 s (owner, 2026-10-28).
+export const PREVIEW_GIVE_UP_AFTER = 4;
 
 type OriginalStatus = "pending" | "active" | "done" | "error";
 type PreviewStatus = "pending" | "active" | "done" | "fallback";
@@ -68,7 +76,7 @@ async function runPool(indices: number[], signal: AbortSignal, task: (index: num
   return failed.sort((a, b) => a - b);
 }
 
-export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, onComplete }: AlbumPhotoUploaderProps) {
+export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, onComplete, serverPreviews, onServerProcessing }: AlbumPhotoUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRun = useRef<AbortController | null>(null);
   // Canonical Bunny names of originals already uploaded from this selection; a retry never re-sends them.
@@ -82,6 +90,8 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
   const [zip, setZip] = useState<ZipState>({ stage: "idle", done: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
   const [automaticRetry, setAutomaticRetry] = useState(false);
+  /** Why local previews stopped (the server makes the rest), shown at once. */
+  const [previewGaveUp, setPreviewGaveUp] = useState<string | null>(null);
   const [resumeNote, setResumeNote] = useState<string | null>(null);
   const [progressRefresh, setProgressRefresh] = useState(0);
   // Pace of this run, for the upload speed and the time left: bytes of originals sent since the
@@ -124,18 +134,24 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     }
   };
 
-  const uploadPreview = async (file: File, name: string, signal: AbortSignal): Promise<boolean> => {
+  /** null = done; otherwise why it failed. */
+  const uploadPreview = async (file: File, name: string, signal: AbortSignal): Promise<string | null> => {
+    let preview: Blob;
     try {
-      const preview = await createAlbumPreview(file, signal);
+      preview = await createAlbumPreview(file, signal);
+    } catch (err) {
+      return err instanceof Error && err.message ? err.message : "generarea WebP a eșuat";
+    }
+    try {
       const uploaded = await uploadRequest(uploadUrl(`/api/admin/events/${eventId}/upload-photo-preview?name=${encodeURIComponent(name)}`), {
         method: "POST",
         headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "image/webp" },
         body: preview,
         signal,
       });
-      return uploaded.ok;
+      return uploaded.ok ? null : `serverul a respins preview-ul (${uploaded.status})`;
     } catch {
-      return false;
+      return "preview-ul nu a putut fi urcat (conexiune)";
     }
   };
 
@@ -195,20 +211,35 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     const indices = sourceRows
       .map((_, index) => (uploadedNames.current.has(index) && !uploadedPreviews.current.has(index) ? index : -1))
       .filter((index) => index >= 0);
+    let attempts = 0;
+    let successes = 0;
+    let gaveUp = false;
     const pass = (list: number[], final: boolean) => runPool(list, controller.signal, async (index) => {
-      updateRow(index, { preview: "active" });
-      const ok = await uploadPreview(sourceRows[index].file, uploadedNames.current.get(index)!, controller.signal);
-      if (!controller.signal.aborted) {
-        updateRow(index, { preview: ok ? "done" : final ? "fallback" : "pending" });
-        if (ok) {
-          uploadedPreviews.current.add(index);
-          pace.current.previewsDone += 1;
-        }
+      // Nothing works locally: hand every remaining preview to the server right away.
+      if (gaveUp) {
+        updateRow(index, { preview: "fallback" });
+        return true;
       }
-      return ok;
+      updateRow(index, { preview: "active" });
+      const failure = await uploadPreview(sourceRows[index].file, uploadedNames.current.get(index)!, controller.signal);
+      if (controller.signal.aborted) return false;
+      attempts += 1;
+      if (!failure) {
+        successes += 1;
+        updateRow(index, { preview: "done" });
+        uploadedPreviews.current.add(index);
+        pace.current.previewsDone += 1;
+        return true;
+      }
+      if (!gaveUp && successes === 0 && attempts >= PREVIEW_GIVE_UP_AFTER) {
+        gaveUp = true;
+        setPreviewGaveUp(failure);
+      }
+      updateRow(index, { preview: final || gaveUp ? "fallback" : "pending" });
+      return gaveUp;
     });
     const failed = await pass(indices, false);
-    if (failed.length && !controller.signal.aborted) {
+    if (failed.length && !gaveUp && !controller.signal.aborted) {
       setAutomaticRetry(true);
       await pass(failed, true);
       setAutomaticRetry(false);
@@ -279,6 +310,7 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     setError(null);
     setRunning(true);
     setZip({ stage: "idle", done: 0, total: 0 });
+    setPreviewGaveUp(null);
     targets.forEach((i) => updateRow(i, { original: "pending" }));
 
     pace.current = { ...pace.current, originalsStart: Date.now(), originalsBytes: 0, previewsDone: 0 };
@@ -321,10 +353,25 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     if (result !== "error") onComplete?.();
   };
 
-  const zipOnServer = () => {
-    setZip({ stage: "skipped", done: 0, total: 0, message: "ZIP-ul va fi generat pe server după procesarea preview-urilor." });
-    setPhase("done");
-    onComplete?.();
+  const zipOnServer = async () => {
+    if (activeRun.current) return;
+    setError(null);
+    setZip({ stage: "skipped", done: 0, total: 0, message: "Serverul continuă procesarea și va reface photos.zip după preview-uri." });
+    setPhase("zip");
+    try {
+      const response = await uploadRequest(`/api/admin/events/${eventId}/process-album`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const data = await response.json() as { ok?: boolean; error?: string };
+      if (!response.ok || !data.ok) throw new Error(data.error ?? `Procesarea serverului a eșuat (${response.status}).`);
+      setPhase("stopped");
+      onServerProcessing?.();
+    } catch (err) {
+      setZip({ stage: "error", done: 0, total: 0, message: err instanceof Error ? err.message : String(err) });
+      setPhase("stopped");
+    }
   };
 
   const fetchExistingPhotos = async (files: File[]): Promise<{ uploaded: string[]; withPreview: string[] }> => {
@@ -402,6 +449,9 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
   const previewsDone = rows.filter((r) => r.preview === "done").length;
   const previewFallbacks = rows.filter((r) => r.preview === "fallback").length;
   const previewTotal = total - originalsFailed;
+  // The server's "Procesează album" job, once running, is what moves the previews forward.
+  // Whichever is further along: the browser's own previews or the server's job.
+  const serverPreviewsShown = Boolean(serverPreviews && serverPreviews.total > 0 && serverPreviews.done >= previewsDone);
 
   const seconds = (since: number) => (since ? Math.max(0, (now - since) / 1000) : 0);
   const originalsSeconds = phase === "originals" ? seconds(pace.current.originalsStart) : Math.max(0, (pace.current.previewsStart - pace.current.originalsStart) / 1000);
@@ -428,8 +478,14 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     if (step === "zip" && zip.stage === "skipped") return "skipped";
     if (step === "originals" && originalsFailed > 0 && !running) return "error";
     if (phase === step && running) return "active";
-    if (phase === "done") return "done";
-    if (phase === "stopped") return step === "zip" ? "pending" : "done";
+    if (step === "originals" && total > 0 && originalsDone === total) return "done";
+    if (step === "previews") {
+      const serverDone = serverPreviews && serverPreviews.total > 0 && serverPreviews.done >= serverPreviews.total;
+      if (previewTotal > 0 && previewsDone + previewFallbacks >= previewTotal || serverDone) return "done";
+      if (serverPreviewsShown) return "active";
+    }
+    if (step === "zip" && zip.stage === "done") return "done";
+    if (phase === "stopped" && step === "zip") return "pending";
     return order.indexOf(step) < order.indexOf(phase) ? "done" : "pending";
   };
 
@@ -454,8 +510,10 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     },
     {
       key: "previews" as const, label: "Previzualizări WebP", eta: estimate.previews,
-      detail: `${previewsDone}/${previewTotal} generate și urcate în photos_preview/${automaticRetry && phase === "previews" ? " · reîncercare automată" : ""}`,
-      pct: percent(previewsDone + previewFallbacks, previewTotal),
+      detail: serverPreviewsShown
+        ? `serverul generează: ${serverPreviews!.done}/${serverPreviews!.total} în photos_preview/`
+        : `${previewsDone}/${previewTotal} generate și urcate în photos_preview/${automaticRetry && phase === "previews" ? " · reîncercare automată" : ""}${previewFallbacks ? ` · ${previewFallbacks} le face serverul` : ""}`,
+      pct: serverPreviewsShown ? percent(serverPreviews!.done, serverPreviews!.total) : percent(previewsDone + previewFallbacks, previewTotal),
     },
     {
       key: "zip" as const, label: "photos.zip", eta: estimate.zip,
@@ -535,7 +593,12 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
           Ține pagina deschisă și calculatorul treaz până după photos.zip. WebP: maximum {ALBUM_PREVIEW_MAX_WIDTH.toLocaleString("ro-RO")} px lățime.
         </p>
       )}
-      {previewFallbacks > 0 && <p className="text-xs text-amber-400">{previewFallbacks} previzualizări vor fi generate pe server după încărcarea tuturor originalelor.</p>}
+      {previewGaveUp && (
+        <p role="alert" className="text-xs text-amber-400">
+          Previzualizările WebP nu se pot face pe calculatorul tău ({previewGaveUp}). Le face serverul: pornește singur după încărcare, iar progresul apare la pasul 2.
+        </p>
+      )}
+      {!previewGaveUp && previewFallbacks > 0 && <p className="text-xs text-amber-400">{previewFallbacks} previzualizări vor fi generate pe server după încărcarea tuturor originalelor.</p>}
       {phase === "done" && !running && <p className="text-xs text-emerald-400">Gata. Serverul verifică acum doar ce lipsește (preview-uri eșuate) — primești email când termină.</p>}
 
       {originalsFailed > 0 && !running && (
@@ -561,10 +624,10 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
             Reîncearcă photos.zip
           </button>
           <button
-            onClick={zipOnServer}
+            onClick={() => void zipOnServer()}
             className="text-xs text-neutral-500 hover:text-neutral-300 border border-neutral-800 hover:border-neutral-600 rounded-lg px-3 py-1.5 transition-colors"
           >
-            Lasă serverul să facă ZIP-ul
+            Continuă pe server și refă ZIP-ul
           </button>
         </div>
       )}

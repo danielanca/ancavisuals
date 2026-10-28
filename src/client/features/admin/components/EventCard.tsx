@@ -14,6 +14,7 @@ import MultiFileDropZone from "./MultiFileDropZone";
 import PhotoboothUploader from "./PhotoboothUploader";
 import AlbumPhotoUploader from "./AlbumPhotoUploader";
 import AlbumUploadProgressAlert from "./AlbumUploadProgressAlert";
+import DeliveryDeadlineActions, { type DeliveryKind, type DeliveryReminder } from "./DeliveryDeadlineActions";
 import AlbumShortVideoManager from "./AlbumShortVideoManager";
 import AlbumLongVideoLinkManager from "./AlbumLongVideoLinkManager";
 import ConfirmModal from "./ConfirmModal";
@@ -296,6 +297,20 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     } finally {
       setPhotoboothGalleryCreating(false);
     }
+  };
+
+  const [deliveryReminders, setDeliveryReminders] = useState(event.deliveryReminders ?? {});
+  const saveDeliveryReminder = async (kind: DeliveryKind, reminder: DeliveryReminder | null) => {
+    const updated = { ...deliveryReminders };
+    if (reminder) updated[kind] = reminder;
+    else delete updated[kind];
+    setDeliveryReminders(updated);
+    onUpdated?.({ deliveryReminders: updated });
+    await fetch(`/api/admin/events/${event.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deliveryReminders: updated }),
+    });
   };
 
   const toggleDelivery = async (key: keyof EventDelivery) => {
@@ -1114,6 +1129,17 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                       )}
                     </div>
 
+                    {/* Right under "Procesează album", so pressing it visibly does something. */}
+                    {processReconnecting && <p role="status" className="mt-2 text-xs text-amber-300">Progresul live s-a întrerupt. Reconectare automată… Procesarea pe server continuă independent de pagină.</p>}
+                    {processing && processProgress?.total ? <p className="mt-2 text-xs text-neutral-400">Previzualizări generate: {processProgress.done}/{processProgress.total}</p> : null}
+                    {processLog.length > 0 && (
+                      <div className="mt-2 bg-neutral-950 border border-neutral-800 rounded-lg p-3 max-h-40 overflow-y-auto">
+                        {processLog.map((line, i) => (
+                          <p key={i} className="text-xs font-mono text-neutral-300 leading-5">{line}</p>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Inside the uploader when it is open; here it warns even with the upload area closed. */}
                     {!showAlbumUploader && event.id && (
                       <AlbumUploadProgressAlert eventId={event.id} accessToken={auth.auth.accessToken} />
@@ -1125,6 +1151,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                         albumSlug={albumSlug}
                         accessToken={auth.auth.accessToken}
                         onComplete={() => { setShowAlbumUploader(false); handleProcessAlbum(); }}
+                        onServerProcessing={handleProcessAlbum}
+                        serverPreviews={processing ? processProgress : null}
                       />
                     )}
 
@@ -1173,16 +1201,6 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                             <button type="button" onClick={() => setNotifyWhatsapp([])} aria-label="Ascunde linkurile WhatsApp" className="px-1.5 text-xs text-neutral-500 hover:text-white">✕</button>
                           </div>
                         )}
-                      </div>
-                    )}
-
-                    {processReconnecting && <p role="status" className="mt-2 text-xs text-amber-300">Progresul live s-a întrerupt. Reconectare automată… Procesarea pe server continuă independent de pagină.</p>}
-                    {processing && processProgress?.total ? <p className="mt-2 text-xs text-neutral-400">Previzualizări generate: {processProgress.done}/{processProgress.total}</p> : null}
-                    {processLog.length > 0 && (
-                      <div className="mt-2 bg-neutral-950 border border-neutral-800 rounded-lg p-3 max-h-40 overflow-y-auto">
-                        {processLog.map((line, i) => (
-                          <p key={i} className="text-xs font-mono text-neutral-300 leading-5">{line}</p>
-                        ))}
                       </div>
                     )}
 
@@ -1385,6 +1403,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
               };
 
               if (photoDone && videoDone) return null;
+              const eventName = [event.client?.fullName, event.typeLabel || event.type].filter(Boolean).join(" · ");
 
               return (
                 <div className="border-t border-neutral-800 pt-3 space-y-2.5">
@@ -1402,6 +1421,16 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           style={{ width: `${photoProgress * 100}%` }}
                         />
                       </div>
+                      <DeliveryDeadlineActions
+                        kind="photo"
+                        done={photoDone}
+                        overdue={photoRemaining < 0}
+                        eventName={eventName}
+                        eventDate={String(eventDate)}
+                        reminder={deliveryReminders.photo}
+                        onToggleDone={() => void toggleDelivery("allPhotosEdited")}
+                        onReminderSaved={(reminder) => void saveDeliveryReminder("photo", reminder)}
+                      />
                     </div>
                   )}
 
@@ -1417,6 +1446,16 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           style={{ width: `${videoProgress * 100}%` }}
                         />
                       </div>
+                      <DeliveryDeadlineActions
+                        kind="video"
+                        done={videoDone}
+                        overdue={videoRemaining < 0}
+                        eventName={eventName}
+                        eventDate={String(eventDate)}
+                        reminder={deliveryReminders.video}
+                        onToggleDone={() => void toggleDelivery("longVideoEdited")}
+                        onReminderSaved={(reminder) => void saveDeliveryReminder("video", reminder)}
+                      />
                     </div>
                   )}
                 </div>

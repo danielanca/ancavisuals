@@ -31,6 +31,7 @@ export const SEARCH_ITEMS: SearchItem[] = [
   { label: "Prețuri de pornire", path: "/admin/preturi", category: "Contracte & Oferte", icon: "🏷️", keywords: "preturi pret pornire configurator sezon weekend date ocupate pret fix disponibila din nou calendar preturi" },
   // Media
   { label: "Selecție comună de poze", path: "/admin/instagram-proposals/selectie-comuna", category: "Media", icon: "📸", keywords: "poze comune similare voturi daniel estera salomeea" },
+  { label: "Albume cu puține propuneri", path: "/admin/instagram-proposals/albume", category: "Media", icon: "📉", keywords: "albume putine propuneri instagram media assets lipsa insuficiente poze propuse lista albume fara propuneri minim" },
   { label: "Propuneri Media", path: "/admin/instagram-proposals", category: "Media", icon: "📸", keywords: "instagram propuneri poze social" },
   { label: "Media Assets", path: "/admin/media-assets", category: "Media", icon: "🗂️", keywords: "assets imagini fisiere resurse" },
   { label: "QR Moments", path: "/admin/qr-moments", category: "Media", icon: "🔲", keywords: "qr cod scanare moment" },

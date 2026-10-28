@@ -20,6 +20,57 @@ export type ChangelogEntry = {
 
 export const ADMIN_CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-10-28-album-upload-zip-recovery",
+    at: "2026-10-28T21:23",
+    emoji: "📦",
+    title: "Upload album: ZIP-ul poate fi reluat sau refăcut pe server",
+    summary: "Dacă încărcarea photos.zip se întrerupe, poți încerca din nou sau poți continua procesarea pe server fără să reiei pozele.",
+    details: [
+      "Pasul WebP rămâne în așteptare până când există preview-uri reale; nu mai apare verde cu 0 poze generate.",
+      "Butonul „Continuă pe server și refă ZIP-ul” pornește explicit procesarea durabilă, iar serverul reface photos.zip după preview-uri.",
+      "Butonul „Reîncearcă photos.zip” reconstruiește și reîncarcă arhiva din selecția deja urcată.",
+    ],
+    links: [{ label: "Evenimente", path: "/admin/events" }],
+  },
+  {
+    id: "2026-10-28-album-proposal-coverage",
+    at: "2026-10-28T21:18",
+    emoji: "📉",
+    title: "Lista albumelor cu puține propuneri",
+    summary: "O pagină nouă la Propuneri Media arată albumele care n-au încă destule poze propuse pentru Instagram sau Media Assets, cele mai goale primele.",
+    details: [
+      "Pentru fiecare album: câte poze sunt propuse pentru Instagram și Media Assets față de minim, cine a propus deja și când a fost ultima propunere.",
+      "Minimul îl alegi sus (implicit 10 și 10). Poți filtra doar lipsă Instagram sau doar lipsă Media Assets.",
+      "Butoane spre album, ca să propui direct, și spre Selecție comună.",
+    ],
+    links: [{ label: "Albume cu puține propuneri", path: "/admin/instagram-proposals/albume" }, { label: "Propuneri Media", path: "/admin/instagram-proposals" }],
+  },
+  {
+    id: "2026-10-28-delivery-deadline-actions",
+    at: "2026-10-28T21:15",
+    emoji: "⏰",
+    title: "„Livrat” și reminder pe email la deadline-ul de livrare",
+    summary: "Pe cardul evenimentului, sub fiecare bară din „Deadline livrare” (foto și video), ai o bifă „Livrat” și, când termenul e depășit, butonul „⏰ Reminder”.",
+    details: [
+      "Bifa „Livrat” marchează pozele (Toate pozele editate) sau videoul lung ca livrate, iar bara dispare.",
+      "„⏰ Reminder” te întreabă peste câte zile (mâine, 2, 3, 7 sau orice număr) și în ziua aceea primești email dimineața.",
+      "Reminderul apare și în Mementouri. Dacă bifezi „Livrat” înainte, reminderul se închide singur.",
+    ],
+    links: [{ label: "Mementouri", path: "/admin/mementos" }],
+  },
+  {
+    id: "2026-10-28-album-upload-previews-fail-fast",
+    at: "2026-10-28T21:10",
+    emoji: "🖼️",
+    title: "Upload album: preview-urile WebP nu mai blochează, iar progresul serverului apare sus",
+    summary: "Dacă preview-urile WebP nu se pot face pe calculatorul tău, uploaderul se oprește după primele 4 poze, îți spune motivul și lasă serverul să le facă. Înainte, fiecare poză putea aștepta 60 de secunde și ecranul arăta 0/1598.",
+    details: [
+      "O poză care nu iese în 20 de secunde (nu 60) e considerată eșuată.",
+      "Când serverul generează preview-urile („Procesează album”), progresul lui apare și la pasul „2. Previzualizări WebP” din uploader.",
+      "Mesajele de la „Procesează album” apar acum chiar sub buton, nu jos, după abonați.",
+    ],
+  },
+  {
     id: "2026-10-28-landing-loading-skeleton",
     at: "2026-10-28T20:40",
     emoji: "⏳",

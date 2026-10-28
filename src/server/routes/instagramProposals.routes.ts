@@ -12,6 +12,7 @@ import { createMediaAssetPreview } from "../utils/mediaAssetPreview";
 import { photoVoteKey, reviewerFromEmail } from "../../shared/media/proposalConsensus";
 import { albumCoverage, listPhotoReviewers } from "../services/photoReviewers.service";
 import { loadAlbum } from "../services/album.service";
+import { albumProposalCoverage, type AlbumForCoverage } from "../../shared/media/albumProposalCoverage";
 
 const router = express.Router();
 const COLLECTION = "instagramProposals";
@@ -310,6 +311,42 @@ router.get("/admin/consensus", requireFirebaseAuth, requireEsteraOrAdmin, async 
 });
 
 // GET /admin/all — all proposals across all albums (admin only) — must be before /album/:slug
+// GET /admin/album-coverage — per album of a confirmed/finished event: how many distinct photos were
+// proposed for Instagram and for Media Assets (page /admin/instagram-proposals/albume).
+router.get("/admin/album-coverage", requireFirebaseAuth, requireEsteraOrAdmin, async (_req: Request, res: Response) => {
+  try {
+    const db = firestore();
+    const [events, proposals] = await Promise.all([
+      db.collection("adminEvents").select("albumSlug", "status", "eventDate", "type", "typeLabel", "client").get(),
+      db.collection(COLLECTION).select("albumSlug", "fileName", "destinations", "status", "reviewerId", "proposedBy", "proposedAt").get(),
+    ]);
+    const albums = new Map<string, AlbumForCoverage>();
+    for (const doc of events.docs) {
+      const data = doc.data();
+      const slug = typeof data.albumSlug === "string" ? data.albumSlug.trim() : "";
+      if (!slug || !["confirmat", "finalizat"].includes(String(data.status))) continue;
+      const eventDate = data.eventDate instanceof Timestamp ? data.eventDate.toDate().toISOString() : typeof data.eventDate === "string" ? data.eventDate : null;
+      const name = [data.client?.fullName, data.typeLabel || data.type].filter(Boolean).join(" · ") || slug;
+      if (!albums.has(slug)) albums.set(slug, { slug, name, eventDate });
+    }
+    const coverage = albumProposalCoverage([...albums.values()], proposals.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        albumSlug: String(data.albumSlug ?? ""),
+        fileName: String(data.fileName ?? ""),
+        destinations: Array.isArray(data.destinations) ? data.destinations.map(String) : undefined,
+        status: typeof data.status === "string" ? data.status : undefined,
+        by: typeof data.reviewerId === "string" ? data.reviewerId : typeof data.proposedBy === "string" ? data.proposedBy : undefined,
+        proposedAt: data.proposedAt instanceof Timestamp ? data.proposedAt.toDate().toISOString() : undefined,
+      };
+    }));
+    res.json({ albums: coverage });
+  } catch (error) {
+    console.error("[instagram-proposals] album coverage failed:", error);
+    res.status(500).json({ error: "Nu am putut calcula propunerile pe albume." });
+  }
+});
+
 router.get("/admin/all", requireFirebaseAuth, requireEsteraOrAdmin, async (_req: Request, res: Response) => {
   try {
     const db = firestore();
