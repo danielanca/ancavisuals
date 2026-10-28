@@ -3,7 +3,7 @@
  * asks first and keeps the old text recoverable, a new date doesn't overwrite it, the draft survives a
  * reload (localStorage) — and the mic dictates into the message.
  */
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import BulkAlbumUpdatesPage from "src/client/features/admin/components/BulkAlbumUpdatesPage";
@@ -84,5 +84,28 @@ describe("BulkAlbumUpdatesPage composer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dictează mesajul" }));
     act(() => FakeRecognition.last!.onresult({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: "pozele vin mâine" } }] }));
     expect(message().value).toBe("Pozele vin mâine");
+  });
+
+  test("shows exactly what the client gets, without the unsubscribe link unless ticked", async () => {
+    const album = { slug: "08august2026", clients: ["Ana", "Ion"], eventDate: "2026-08-08", subscribers: 2, lastUpdate: null };
+    const preview = { emailSubject: "[Mesaj automat] ⏳ Termen actualizat", emailHtml: "<p>Bună ziua!</p>", sms: "Buna ziua! Mai dureaza putin.", smsParts: 1, whatsapp: "Bună ziua! ⏳ Mai durează puțin." };
+    const fetchMock = vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("updates-preview") ? preview : { albums: [album] }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    renderPage();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Selectează Ana & Ion" }));
+
+    expect(await screen.findByText(/\[Mesaj automat\] ⏳ Termen actualizat/, {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(screen.getByTitle("Emailul clientului")).toHaveAttribute("srcdoc", expect.stringContaining("<p>Bună ziua!</p>"));
+    const previewBody = () => JSON.parse(fetchMock.mock.calls.filter(([url]) => url.includes("updates-preview")).at(-1)![1].body);
+    expect(previewBody()).toEqual(expect.objectContaining({ slug: "08august2026", unsubscribeLink: false }));
+
+    fireEvent.click(screen.getByRole("tab", { name: "SMS" }));
+    expect(screen.getByTestId("preview-sms")).toHaveTextContent("Buna ziua! Mai dureaza putin.");
+    expect(screen.getByText(/1 SMS de abonat/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "WhatsApp" }));
+    expect(screen.getByTestId("preview-whatsapp")).toHaveTextContent("Bună ziua! ⏳ Mai durează puțin.");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Adaugă linkul de dezabonare/ }));
+    await waitFor(() => expect(previewBody().unsubscribeLink).toBe(true), { timeout: 2000 });
   });
 });

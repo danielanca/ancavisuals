@@ -82,10 +82,23 @@ export default function AncaVisualsPromo({ compact = false, desktopColumns = 2 }
   const stripTickRef = useRef(0);
   useEffect(() => { stripTickRef.current = stripTick; }, [stripTick]);
 
+  // The strip only rotates while it is on screen and the tab is open: otherwise it kept
+  // downloading 18 new photos every 10 s for nobody (owner, 2026-10-28).
+  const stripRef = useRef<HTMLDivElement>(null);
+  const stripOnScreen = useRef(false);
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") { stripOnScreen.current = true; return; }
+    const observer = new IntersectionObserver(([entry]) => { stripOnScreen.current = Boolean(entry?.isIntersecting); });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isMobile, showcasePhotos.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (compact || isMobile || showcasePhotos.length <= STRIP_SIZE) return;
     let cancelled = false;
     const interval = window.setInterval(() => {
+      if (!stripOnScreen.current || document.visibilityState === "hidden") return;
       const nextTick = stripTickRef.current + 1;
       const nextUrls = Array.from(
         { length: STRIP_SIZE },
@@ -183,7 +196,7 @@ export default function AncaVisualsPromo({ compact = false, desktopColumns = 2 }
                 100% { opacity: 0.75; transform: scale(1); filter: blur(0) saturate(1); }
               }
             `}</style>
-            <div style={{ display: "flex", gap: "3px", flexWrap: "nowrap", padding: 0, overflow: "hidden" }}>
+            <div ref={stripRef} style={{ display: "flex", gap: "3px", flexWrap: "nowrap", padding: 0, overflow: "hidden" }}>
               {stripPhotos.map((url, i) => (
                 <div key={`${i}-${stripTick}`} style={{ flex: "1 1 0", minWidth: 0, aspectRatio: "1 / 1", overflow: "hidden", position: "relative" }}>
                   <HeavyPhotoFlag bytes={heavy[url]} />

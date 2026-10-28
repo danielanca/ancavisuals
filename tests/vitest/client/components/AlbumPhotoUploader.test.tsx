@@ -16,12 +16,18 @@ vi.mock("src/client/features/admin/providers/loadFirebaseAuth", () => ({
 const fetchMock = vi.fn();
 const sessionFetchMock = vi.fn();
 const zipCheckMock = vi.fn();
+const progressMock = vi.fn();
+const existingMock = vi.fn();
 const pick = (container: HTMLElement, files: File[]) => fireEvent.change(container.querySelector("input")!, { target: { files } });
 const photo = (name = "DSC 001.jpg") => new File(["original"], name, { type: "image/jpeg" });
 beforeEach(() => {
   sessionFetchMock.mockReset().mockResolvedValue({ ok: true, json: async () => ({ sessionId: "11111111-1111-1111-1111-111111111111" }) });
   zipCheckMock.mockReset().mockResolvedValue({ ok: true, json: async () => ({ ok: true, complete: true }) });
-  vi.stubGlobal("fetch", (url: string, options: unknown) => url.includes("upload-session") ? sessionFetchMock(url, options)
+  progressMock.mockReset().mockResolvedValue({ ok: true, json: async () => ({ progress: null }) });
+  existingMock.mockReset().mockResolvedValue({ ok: true, json: async () => ({ uploaded: [], withPreview: [] }) });
+  vi.stubGlobal("fetch", (url: string, options: unknown) => url.includes("upload-progress") ? progressMock(url, options)
+    : url.includes("upload-session") ? sessionFetchMock(url, options)
+    : url.includes("album-photos/existing") ? existingMock(url, options)
     : url.includes("album-zip/check") ? zipCheckMock(url, options) : fetchMock(url, options));
   vi.mocked(buildAlbumZip).mockReset().mockResolvedValue(new Blob(["zip"], { type: "application/zip" }));
   vi.mocked(uploadAlbumZip).mockReset().mockResolvedValue({ ok: true, status: 200 });
@@ -222,3 +228,72 @@ describe("local album preview uploads", () => {
     expect(done).toHaveBeenCalledOnce();
   });
 });
+
+describe("upload progress after a closed page", () => {
+  const progress = (pending: string[], expected = 3, lastActivityAt = Date.now() - 60 * 60_000) => ({
+    ok: true,
+    json: async () => ({ progress: { slug: "album", expected, uploaded: expected - pending.length, pending, startedAt: lastActivityAt - 60_000, lastActivityAt, finishedAt: null } }),
+  });
+
+  test("warns how many photos arrived out of how many, and which are missing", async () => {
+    progressMock.mockResolvedValue(progress(["c.jpg", "d.jpg"], 5));
+    render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" />);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Upload neterminat: 3 din 5 poze încărcate. Mai trebuie încărcate 2.");
+    expect(alert.textContent).toContain("selectează din nou toate cele 5 de poze");
+    expect(alert.textContent).toContain("d.jpg");
+    expect(progressMock.mock.calls[0][0]).toBe("/api/admin/events/e1/upload-progress");
+  });
+
+  test("picking the same photos again uploads only the missing ones and keeps the total", async () => {
+    progressMock.mockResolvedValue(progress(["c.jpg"]));
+    existingMock.mockResolvedValue({ ok: true, json: async () => ({ uploaded: ["a.jpg", "b.jpg"], withPreview: [] }) });
+    fetchMock.mockImplementation(async (url: string) => ({ ok: true, json: async () => ({ name: decodeURIComponent(url.split("name=")[1]) }) }));
+    const done = vi.fn();
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    await screen.findByRole("alert");
+    pick(container, [photo("a.jpg"), photo("b.jpg"), photo("c.jpg")]);
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    expect(JSON.parse(sessionFetchMock.mock.calls[0][1].body)).toEqual({ files: ["c.jpg"], resume: true });
+    const originals = fetchMock.mock.calls.map(([url]) => url as string).filter((url) => url.includes("/upload-photo?"));
+    expect(originals).toHaveLength(1);
+    expect(originals[0]).toContain("name=c.jpg");
+    expect(screen.getByText(/2 poze sunt deja în Bunny și sunt sărite; se încarcă restul de 1/)).toBeTruthy();
+    expect(vi.mocked(buildAlbumZip).mock.calls[0][0].map((entry: { name: string }) => entry.name)).toEqual(["a.jpg", "b.jpg", "c.jpg"]);
+  });
+
+  test("photos already in Bunny (same name and size) are skipped, and so are their existing previews", async () => {
+    existingMock.mockResolvedValue({ ok: true, json: async () => ({ uploaded: ["a.jpg", "b.jpg"], withPreview: ["a.jpg"] }) });
+    fetchMock.mockImplementation(async (url: string) => ({ ok: true, json: async () => ({ name: decodeURIComponent(url.split("name=")[1]) }) }));
+    const done = vi.fn();
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    pick(container, [photo("a.jpg"), photo("b.jpg"), photo("c.jpg")]);
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    expect(JSON.parse(existingMock.mock.calls[0][1].body)).toEqual({ files: [{ name: "a.jpg", size: 8 }, { name: "b.jpg", size: 8 }, { name: "c.jpg", size: 8 }] });
+    const urls = fetchMock.mock.calls.map(([url]) => url as string);
+    expect(urls.filter((url) => url.includes("/upload-photo?")).map((url) => url.split("name=")[1])).toEqual(["c.jpg"]);
+    expect(urls.filter((url) => url.includes("upload-photo-preview")).map((url) => url.split("name=")[1]).sort()).toEqual(["b.jpg", "c.jpg"]);
+    expect(screen.getByText(/2 poze sunt deja în Bunny și sunt sărite \(1 au și preview\)/)).toBeTruthy();
+  });
+
+  test("everything already uploaded: no originals step, straight to previews and photos.zip", async () => {
+    existingMock.mockResolvedValue({ ok: true, json: async () => ({ uploaded: ["a.jpg"], withPreview: ["a.jpg"] }) });
+    const done = vi.fn();
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" onComplete={done} />);
+    pick(container, [photo("a.jpg")]);
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    expect(sessionFetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(uploadAlbumZip).toHaveBeenCalledOnce();
+  });
+
+  test("a different selection starts a new batch", async () => {
+    progressMock.mockResolvedValue(progress(["c.jpg"]));
+    const { container } = render(<AlbumPhotoUploader eventId="e1" albumSlug="album" accessToken="old" />);
+    await screen.findByRole("alert");
+    pick(container, [photo("x.jpg")]);
+    await waitFor(() => expect(sessionFetchMock).toHaveBeenCalled());
+    expect(JSON.parse(sessionFetchMock.mock.calls[0][1].body)).toEqual({ files: ["x.jpg"], resume: false });
+  });
+});
+

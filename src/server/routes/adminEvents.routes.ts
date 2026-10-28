@@ -31,13 +31,14 @@ import { APP_BASE_URL } from "../constants/domain";
 import { normalizeEventVideoLink } from "../../shared/eventVideoLink";
 import { sanitizeAlbumPhotoName as sanitizePhotoName } from "../../shared/albumPhotoName";
 import { ALBUM_ZIP_PHOTO_EXT, albumZipManifest } from "../../shared/albumZipManifest";
-import { beginAlbumUpload, recordAlbumUploadSuccess, touchAlbumUpload, notifyIncompleteAlbumUpload } from "../services/albumUploadNotifications";
+import { beginAlbumUpload, clearAlbumUploadProgress, getAlbumUploadProgress, recordAlbumUploadSuccess, touchAlbumUpload, notifyIncompleteAlbumUpload } from "../services/albumUploadNotifications";
 import {
   beginAlbumZipRun, endAlbumZipRun, enqueueAlbumZipJob, getAlbumZipJob, listAlbumZipJobs,
   removeAlbumZipJob, updateAlbumZipJob, createAlbumZipJob, getAlbumZipInMemoryJob,
   appendAlbumZipLog, setAlbumZipProgress, finishAlbumZipJob, errorAlbumZipJob, serializeAlbumZipJob,
 } from "../services/albumZipProcessingJobs.js";
 import { logActivityOnce } from "../services/activity.service";
+import { ALBUM_PREVIEW_MAX_WIDTH } from "../../shared/albumPreview";
 
 const bunnyAgent = new https.Agent({ rejectUnauthorized: false });
 
@@ -647,10 +648,33 @@ router.post("/events/:id/upload-session", requireFirebaseAuth, requireSupremeAdm
     if (!doc.exists) return res.status(404).json({ error: "Eveniment inexistent." });
     const slug = doc.data()?.albumSlug as string | undefined;
     if (!slug) return res.status(400).json({ error: "Eveniment fără album." });
-    const sessionId = await beginAlbumUpload(req.params.id, slug, names);
+    const sessionId = await beginAlbumUpload(req.params.id, slug, names, req.body?.resume === true);
     return res.json({ ok: true, sessionId });
   } catch {
     return res.status(503).json({ error: "Nu s-a putut activa monitorizarea uploadului." });
+  }
+});
+
+// GET /api/admin/events/:id/upload-progress — the last batch: how many photos should have been
+// uploaded, which ones are still missing (survives a closed page; see albumUploadProgress).
+router.get("/events/:id/upload-progress", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const progress = await getAlbumUploadProgress(req.params.id);
+    if (!progress) return res.json({ progress: null });
+    return res.json({ progress: { ...progress, uploaded: progress.expected - progress.pending.length } });
+  } catch (error) {
+    console.error("[adminEvents] upload-progress failed:", error);
+    return res.status(500).json({ error: "Nu s-a putut citi progresul uploadului." });
+  }
+});
+
+router.delete("/events/:id/upload-progress", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    await clearAlbumUploadProgress(req.params.id);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminEvents] upload-progress delete failed:", error);
+    return res.status(500).json({ error: "Nu s-a putut șterge progresul." });
   }
 });
 
@@ -774,6 +798,45 @@ async function listAlbumZipOriginals(slug: string): Promise<string[]> {
   const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean }[];
   return entries.filter((entry) => !entry.IsDirectory && ALBUM_ZIP_PHOTO_EXT.test(entry.ObjectName)).map((entry) => entry.ObjectName);
 }
+
+async function listBunnyFolder(slug: string, folder: string): Promise<Map<string, number>> {
+  const listRes = await nodeFetch(buildBunnyDirectoryUrl(slug, folder), {
+    headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, agent: bunnyAgent, signal: AbortSignal.timeout(120_000),
+  });
+  if (listRes.status === 404) return new Map();
+  if (!listRes.ok) throw new Error(`Nu pot lista folderul ${folder} din Bunny (${listRes.status}).`);
+  const entries = await listRes.json() as { ObjectName: string; IsDirectory: boolean; Length: number }[];
+  return new Map(entries.filter((entry) => !entry.IsDirectory).map((entry) => [entry.ObjectName, entry.Length]));
+}
+
+// POST /api/admin/events/:id/album-photos/existing — { files: [{ name, size }] } → which originals are
+// already in Bunny with the same size (skip the upload) and which already have a WebP preview.
+// Same name but another size = an interrupted or different photo, so it is uploaded again.
+router.post("/events/:id/album-photos/existing", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  const files: unknown = req.body?.files;
+  if (!Array.isArray(files) || !files.length || files.length > 3000 ||
+      files.some((file) => typeof file?.name !== "string" || !Number.isFinite(file?.size))) {
+    return res.status(400).json({ error: "Lista de fotografii este invalidă." });
+  }
+  try {
+    const doc = await firestore().collection("adminEvents").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Eveniment inexistent." });
+    const slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Eveniment fără album." });
+    const [originals, previews] = await Promise.all([listBunnyFolder(slug, BUNNY_PHOTOS_FOLDER), listBunnyFolder(slug, "photos_preview")]);
+    const uploaded: string[] = [];
+    const withPreview: string[] = [];
+    for (const file of files as { name: string; size: number }[]) {
+      const name = sanitizePhotoName(file.name);
+      if (originals.get(name) !== file.size) continue;
+      uploaded.push(name);
+      if (previews.has(name.replace(/\.[^.]+$/, ".webp"))) withPreview.push(name);
+    }
+    return res.json({ uploaded, withPreview });
+  } catch (error) {
+    return res.status(502).json({ error: String(error instanceof Error ? error.message : error) });
+  }
+});
 
 // The browser builds photos.zip only when it holds every original in Bunny; otherwise the server ZIP job does it.
 router.post("/events/:id/album-zip/check", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
@@ -1412,7 +1475,7 @@ async function runAlbumProcessing(slug: string): Promise<void> {
         stage = "convert";
         const webpBuffer = await sharp(buffer)
           .timeout({ seconds: 60 })
-          .resize({ width: 1400, withoutEnlargement: true })
+          .resize({ width: ALBUM_PREVIEW_MAX_WIDTH, withoutEnlargement: true })
           .webp({ quality: 72 })
           .toBuffer();
 

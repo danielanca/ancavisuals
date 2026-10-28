@@ -9,7 +9,7 @@ import { APP_BASE_URL } from "../constants/domain";
 import { logActivity, getNotificationSettings } from "../services/activity.service.js";
 import crypto from "node:crypto";
 import { listOpenPromises, markPromiseDone } from "../services/albumPromises";
-import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from "../notifications/sms";
+import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms, smsParts, toSmsText } from "../notifications/sms";
 import { albumNotificationUrl, type NotificationChannel } from "../../shared/albumNotificationSource";
 import {
   ALBUM_UPDATE_META,
@@ -249,7 +249,34 @@ router.post("/notify/:slug", requireFirebaseAuth, requireSupremeAdmin, async (re
       return;
     }
 
-    const emails = snapshot.docs.map((doc) => (doc.data() as { email: string }).email);
+    // Phone-only subscribers (SMS / WhatsApp) have email: null — they get album news, not this email.
+    const subscribers = snapshot.docs.map((doc) => doc.data() as SubscriberDoc);
+    const emails = subscribers
+      .filter((subscriber) => channelsOf(subscriber).includes("email") && isValidEmail(subscriber.email))
+      .map((subscriber) => (subscriber.email as string).trim());
+    // Without an email: an automatic SMS, plus a ready WhatsApp message the admin sends from their own phone.
+    const phoneOnly = subscribers.filter((subscriber) => !emails.includes((subscriber.email ?? "").trim()) && subscriber.phone);
+    const photosUpdate = { kind: "photos" as const, text: "Am adăugat poze noi în album.", estimateDate: null };
+    const smsText = albumUpdateMessage(photosUpdate, albumNotificationUrl(BASE_URL, slug, "sms", "nou"), slug);
+    const waText = albumUpdateMessage(photosUpdate, albumNotificationUrl(BASE_URL, slug, "wa", "nou"), slug);
+    const smsReady = isSmsConfigured();
+    const sms = { sent: 0, failed: 0, skipped: phoneOnly.length > 0 && !smsReady };
+    if (smsReady) {
+      for (const subscriber of phoneOnly) {
+        try {
+          await sendSms({ to: subscriber.phone as string, body: smsText, log: { source: "album-notify", event: slug, recipientName: subscriber.name ?? null } });
+          sms.sent++;
+        } catch (error) {
+          sms.failed++;
+          console.error("[album-subscriptions] notify SMS failed:", error instanceof Error ? error.message : error);
+        }
+      }
+    }
+    const whatsapp: WhatsappRecipient[] = phoneOnly.map((subscriber) => ({
+      name: subscriber.name ?? null,
+      phone: subscriber.phone as string,
+      link: `https://wa.me/${(subscriber.phone as string).replace(/\D/g, "")}?text=${encodeURIComponent(waText)}`,
+    }));
 
     await Promise.all(
       emails.map((email) =>
@@ -275,9 +302,10 @@ router.post("/notify/:slug", requireFirebaseAuth, requireSupremeAdmin, async (re
       )
     );
 
-    res.json({ ok: true, sent: emails.length });
+    res.json({ ok: true, sent: emails.length, ...(phoneOnly.length > 0 ? { sms, whatsapp } : {}) });
   } catch (error) {
-    res.status(500).json({ error: String(error) });
+    console.error("[album-subscriptions] notify failed:", error);
+    res.status(500).json({ error: "Nu am putut trimite emailurile." });
   }
 });
 
@@ -432,10 +460,10 @@ export function subscribeConfirmationEmail(
     </div>`;
 }
 
-function albumUpdateEmail(update: AlbumUpdate, slug: string, subscriber: SubscriberDoc): string {
+function albumUpdateEmail(update: AlbumUpdate, slug: string, subscriber: SubscriberDoc, unsubscribeLink: boolean): string {
   const meta = ALBUM_UPDATE_META[update.kind];
   const clickUrl = `${BASE_URL}/api/album-subscriptions/click/${encodeURIComponent(slug)}?email=${encodeURIComponent(subscriber.email ?? "")}`;
-  const stop = unsubscribeUrl(subscriber.unsubscribeToken);
+  const stop = unsubscribeLink ? unsubscribeUrl(subscriber.unsubscribeToken) : "";
   return `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff;">
       <p style="color:#ddd;font-size:15px;line-height:1.6;margin:0 0 16px;">${escHtml(messageGreeting(slug))}</p>
@@ -447,6 +475,23 @@ function albumUpdateEmail(update: AlbumUpdate, slug: string, subscriber: Subscri
       <p style="color:#999;font-size:12px;margin:0 0 8px;">${AUTOMATED_MESSAGE_LABEL}</p>
       <p style="color:#555;font-size:12px;">Ai primit acest mesaj pentru că te-ai abonat la noutățile albumului <em>${escHtml(slug)}</em>. Pentru întrebări, scrie-ne pe WhatsApp la ${CONTACT_PHONE_DISPLAY}.${stop ? ` <a href="${stop}" style="color:#777;">Dezabonare</a>` : ""}</p>
     </div>`;
+}
+
+/**
+ * Everything one subscriber receives for an update, built once for sending and for the
+ * admin preview, so the preview is exactly what goes out. `sms` is already the GSM text
+ * the provider gets (no diacritics / emoji). The unsubscribe link is optional (owner,
+ * 2026-10-28: bulk news go out without it unless ticked).
+ */
+export function albumUpdateMessages(update: AlbumUpdate, slug: string, subscriber: SubscriberDoc, { unsubscribeLink }: { unsubscribeLink: boolean }) {
+  const messageFor = (channel: NotificationChannel) => albumUpdateMessage(update, albumNotificationUrl(BASE_URL, slug, channel, "nou"), slug);
+  const stop = unsubscribeLink ? unsubscribeUrl(subscriber.unsubscribeToken) : "";
+  return {
+    emailSubject: `[Mesaj automat] ${ALBUM_UPDATE_META[update.kind].emoji} ${ALBUM_UPDATE_META[update.kind].label} — de la fotograful evenimentului tău (Anca Visuals)`,
+    emailHtml: albumUpdateEmail(update, slug, subscriber, unsubscribeLink),
+    sms: toSmsText(stop ? `${messageFor("sms")}\nDezabonare: ${stop}` : messageFor("sms")),
+    whatsapp: messageFor("wa"),
+  };
 }
 
 type WhatsappRecipient = { name: string | null; phone: string; link: string };
@@ -483,7 +528,7 @@ export function whatsappAdminEmail(slug: string, message: string, recipients: Wh
     </div>`;
 }
 
-type PublishBody = { kind?: unknown; text?: unknown; estimateDate?: unknown; notify?: unknown; phoneDelivery?: unknown; email?: unknown };
+type PublishBody = { kind?: unknown; text?: unknown; estimateDate?: unknown; notify?: unknown; phoneDelivery?: unknown; email?: unknown; unsubscribeLink?: unknown };
 type PublishOutcome = { status: number; body: Record<string, unknown> };
 
 /**
@@ -496,6 +541,8 @@ async function publishAlbumUpdate(slug: string, body: PublishBody, { emailAdminW
   const kind = parseAlbumUpdateKind(body.kind);
   const phoneDelivery = parsePhoneDelivery(body.phoneDelivery);
   const emailSubscribers = body.email !== false;
+  // The album page still sends the link; "Noutăți în masă" sends false unless the owner ticks it.
+  const unsubscribeLink = body.unsubscribeLink !== false;
   const text = typeof body.text === "string" ? body.text.trim() : "";
   const estimateDate = kind && kindHasDate(kind) ? parseEstimateDate(body.estimateDate) : null;
   if (!ALBUM_SLUG.test(slug) || !kind) return { status: 400, body: { error: "Album sau tip de noutate invalid." } };
@@ -518,25 +565,24 @@ async function publishAlbumUpdate(slug: string, body: PublishBody, { emailAdminW
 
   if (body.notify === true) {
     // Each channel gets its own link (`?s=sms-nou` / `?s=wa-nou`) so an open tells where it came from.
-    const messageFor = (channel: NotificationChannel) => albumUpdateMessage(update, albumNotificationUrl(BASE_URL, slug, channel, "nou"), slug);
-    message = messageFor("wa");
-    const smsMessage = messageFor("sms");
+    message = albumUpdateMessages(update, slug, {} as SubscriberDoc, { unsubscribeLink }).whatsapp;
     const snapshot = await db.collection(COLLECTION).where("albumSlug", "==", slug).get();
     const smsReady = isSmsConfigured();
     await Promise.all(snapshot.docs.map(async (doc) => {
       const subscriber = doc.data() as SubscriberDoc;
       const channels = channelsOf(subscriber);
       const phoneChannels = phoneChannelsFor(channels, phoneDelivery);
+      const messages = albumUpdateMessages(update, slug, subscriber, { unsubscribeLink });
       if (emailSubscribers && channels.includes("email") && subscriber.email) {
         try {
-          await sendEmail({ to: subscriber.email, subject: `[Mesaj automat] ${ALBUM_UPDATE_META[kind].emoji} ${ALBUM_UPDATE_META[kind].label} — de la fotograful evenimentului tău (Anca Visuals)`, html: albumUpdateEmail(update, slug, subscriber) });
+          await sendEmail({ to: subscriber.email, subject: messages.emailSubject, html: messages.emailHtml });
           sent.email++;
         } catch { sent.failed++; }
       }
       if (phoneChannels.includes("sms") && subscriber.phone) {
         if (!smsReady) smsSkipped = true;
         else {
-          try { await sendSms({ to: subscriber.phone, body: `${smsMessage}\nDezabonare: ${unsubscribeUrl(subscriber.unsubscribeToken)}`, log: { source: "album-update", event: slug, recipientName: subscriber.name ?? null } }); sent.sms++; }
+          try { await sendSms({ to: subscriber.phone, body: messages.sms, log: { source: "album-update", event: slug, recipientName: subscriber.name ?? null } }); sent.sms++; }
           catch (error) { sent.failed++; console.error("[albumUpdates] SMS failed:", error instanceof Error ? error.message : error); }
         }
       }
@@ -576,6 +622,25 @@ router.post("/updates/:slug", requireFirebaseAuth, requireSupremeAdmin, async (r
     console.error("[album-updates] post failed:", error);
     res.status(500).json({ error: "Nu am putut publica noutatea." });
   }
+});
+
+// POST /updates-preview — exactly what one subscriber of this album would get, on every channel,
+// before anything is saved or sent (the bulk panel shows it under the message).
+router.post("/updates-preview", requireFirebaseAuth, requireSupremeAdmin, (req: Request, res: Response) => {
+  const body = (req.body ?? {}) as PublishBody & { slug?: unknown };
+  const slug = typeof body.slug === "string" ? body.slug : "";
+  const kind = parseAlbumUpdateKind(body.kind);
+  const text = typeof body.text === "string" ? body.text.trim() : "";
+  if (!ALBUM_SLUG.test(slug) || !kind) {
+    res.status(400).json({ error: "Album sau tip de noutate invalid." });
+    return;
+  }
+  const estimateDate = kindHasDate(kind) ? parseEstimateDate(body.estimateDate) : null;
+  const update: AlbumUpdate = { id: "previzualizare", kind, text, estimateDate, createdAt: null };
+  // A sample subscriber: the real email / unsubscribe code differ per person, nothing else does.
+  const sample: SubscriberDoc = { albumSlug: slug, email: "client@exemplu.ro", unsubscribeToken: "cod-personal" };
+  const messages = albumUpdateMessages(update, slug, sample, { unsubscribeLink: body.unsubscribeLink !== false });
+  res.json({ ...messages, smsParts: smsParts(messages.sms) });
 });
 
 const BULK_MAX_ALBUMS = 60;

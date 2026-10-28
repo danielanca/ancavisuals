@@ -1,7 +1,9 @@
 import { createContext, useContext } from "react";
+import type { PriceBook } from "../../shared/pricing/configuratorPrices";
 
 /** Data the server already loaded for this page (see src/server/ssr/initialData.ts). */
-export type InitialData = { slug: string; campaign?: Record<string, unknown>; offer?: Record<string, unknown> };
+// `priceBook`: the /admin/preturi prices, for pages that show them in the first HTML (city pages).
+export type InitialData = { slug: string; campaign?: Record<string, unknown>; offer?: Record<string, unknown>; priceBook?: PriceBook };
 
 declare global {
   interface Window { __INITIAL_DATA__?: InitialData }

@@ -3,6 +3,7 @@ import { DEFAULT_STARTING_PRICES, normalizeStartingPrices, type StartingPrices }
 import { DEFAULT_PRICE_BOOK, toPriceBook, type PriceBook } from "../../shared/pricing/configuratorPrices";
 import { normalizeDatePrices, normalizeSeasons, type DatePrice, type PriceSeason } from "../../shared/pricing/seasonalPricing";
 import { normalizeYearPrices, type YearPrices } from "../../shared/pricing/yearPricing";
+import { useInitialData } from "../ssr/initialData";
 
 interface Pricing { book: PriceBook; seasons: PriceSeason[]; datePrices: DatePrice[]; yearPrices: YearPrices }
 const DEFAULT_PRICING: Pricing = { book: DEFAULT_PRICE_BOOK, seasons: [], datePrices: [], yearPrices: {} };
@@ -31,7 +32,9 @@ export function useStartingPrices(): StartingPrices {
 
 /** Starting prices + the configurator's prices (/oferta/olx), all from /admin/preturi. */
 export function usePriceBook(): PriceBook {
-  return usePrices(({ book }) => book, DEFAULT_PRICE_BOOK);
+  // The server's prices when it rendered the page (city pages), so the first HTML is already right.
+  const fromServer = useInitialData()?.priceBook;
+  return usePrices(({ book }) => book, fromServer ?? DEFAULT_PRICE_BOOK);
 }
 
 /** Seasons from /admin/preturi (empty = the same prices all year). */

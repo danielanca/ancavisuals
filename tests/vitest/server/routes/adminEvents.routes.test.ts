@@ -237,6 +237,7 @@ async function loadRouter() {
     postUploadPhoto: getHandler("post", "/events/:id/upload-photo"),
     postUploadPreview: getHandler("post", "/events/:id/upload-photo-preview"),
     postAlbumZipCheck: getHandler("post", "/events/:id/album-zip/check"),
+    postExistingPhotos: getHandler("post", "/events/:id/album-photos/existing"),
     postUploadAlbumZip: getHandler("post", "/events/:id/upload-album-zip"),
     postUploadSession: getHandler("post", "/events/:id/upload-session"),
     updateUploadSession: getHandler("post", "/events/:id/upload-session/:sessionId"),
@@ -946,7 +947,7 @@ describe("adminEvents routes", () => {
       const { postUploadSession, uploadNotifications } = await loadRouter();
       const res = createMockResponse();
       await postUploadSession({ params: { id: "ev-1" }, body: { files: ["DSC 001.jpg", "two.png"] } }, res);
-      expect(uploadNotifications.beginAlbumUpload).toHaveBeenCalledWith("ev-1", "nunta-ion-maria", ["DSC_001.jpg", "two.png"]);
+      expect(uploadNotifications.beginAlbumUpload).toHaveBeenCalledWith("ev-1", "nunta-ion-maria", ["DSC_001.jpg", "two.png"], false);
       expect(res.json).toHaveBeenCalledWith({ ok: true, sessionId: "11111111-1111-1111-1111-111111111111" });
     });
     test("rejects invalid, excessive and duplicate manifests", async () => {
@@ -1073,6 +1074,28 @@ describe("adminEvents routes", () => {
       await postAlbumZipCheck({ params: { id: "ev-1" }, body: { files: ["a.jpg", "b.JPG"] } }, res);
       expect(nodeFetchMock.mock.calls[0][0]).toContain("nunta-ion-maria/photos/");
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ complete: false, missing: ["c.jpg"], missingCount: 1, extra: [] }));
+    });
+
+    test("existing photos: same name and size count as uploaded; a different size is uploaded again", async () => {
+      const { postExistingPhotos, nodeFetchMock } = await loadRouter();
+      nodeFetchMock
+        .mockResolvedValueOnce({ ok: true, json: async () => [{ ObjectName: "a.jpg", IsDirectory: false, Length: 100 }, { ObjectName: "b.jpg", IsDirectory: false, Length: 50 }] })
+        .mockResolvedValueOnce({ ok: true, json: async () => [{ ObjectName: "a.webp", IsDirectory: false, Length: 9 }] });
+      const res = createMockResponse();
+      await postExistingPhotos({ params: { id: "ev-1" }, body: { files: [{ name: "a.jpg", size: 100 }, { name: "b.jpg", size: 99 }, { name: "c.jpg", size: 1 }] } }, res);
+      expect(nodeFetchMock.mock.calls[0][0]).toContain("nunta-ion-maria/photos/");
+      expect(nodeFetchMock.mock.calls[1][0]).toContain("nunta-ion-maria/photos_preview/");
+      expect(res.json).toHaveBeenCalledWith({ uploaded: ["a.jpg"], withPreview: ["a.jpg"] });
+    });
+
+    test("existing photos: a missing preview folder just means no previews yet", async () => {
+      const { postExistingPhotos, nodeFetchMock } = await loadRouter();
+      nodeFetchMock
+        .mockResolvedValueOnce({ ok: true, json: async () => [{ ObjectName: "a.jpg", IsDirectory: false, Length: 100 }] })
+        .mockResolvedValueOnce({ ok: false, status: 404 });
+      const res = createMockResponse();
+      await postExistingPhotos({ params: { id: "ev-1" }, body: { files: [{ name: "a.jpg", size: 100 }] } }, res);
+      expect(res.json).toHaveBeenCalledWith({ uploaded: ["a.jpg"], withPreview: [] });
     });
 
     test("check confirms a selection that matches the album exactly", async () => {

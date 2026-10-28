@@ -1,3 +1,4 @@
+import type { NextFunction, Request, Response } from "express";
 const DATAFORSEO_ROMANIA_LOCATION_CODE = 2642;
 
 export type JsonRecord = Record<string, unknown>;
@@ -11,6 +12,56 @@ export function dataforSeoCredentials(): string | null {
 }
 
 export class KeywordIdeasError extends Error {}
+
+// Below this a paid call (~$0.01–0.10) may already be refused; we say "no credit" instead of
+// spending a request and showing a cryptic failure (owner, 2026-10-28).
+export const DATAFORSEO_MIN_BALANCE_USD = 0.1;
+const BALANCE_CACHE_MS = 60_000;
+let balanceCache: { at: number; balance: number } | null = null;
+
+/** Account balance in USD (free call, cached a minute); null when it can't be read. */
+export async function fetchDataForSeoBalance(credentials: string, now = Date.now()): Promise<number | null> {
+  if (balanceCache && now - balanceCache.at < BALANCE_CACHE_MS) return balanceCache.balance;
+  try {
+    const response = await fetch("https://api.dataforseo.com/v3/appendix/user_data", {
+      headers: { Authorization: `Basic ${credentials}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const payload = await response.json() as JsonRecord;
+    const task = asRecord(Array.isArray(payload.tasks) ? payload.tasks[0] : null);
+    const money = asRecord(asRecord(Array.isArray(task.result) ? task.result[0] : null).money);
+    if (!response.ok || typeof money.balance !== "number") return null;
+    balanceCache = { at: now, balance: money.balance };
+    return money.balance;
+  } catch {
+    return null; // can't tell: let the real call try
+  }
+}
+
+export function resetDataForSeoBalanceCache(): void {
+  balanceCache = null;
+}
+
+const usd = (value: number) => `${value < 0 ? "−" : ""}$${Math.abs(value).toFixed(2).replace(".", ",")}`;
+
+/** "Nu avem credit…" when the DataForSEO balance can't pay for a request; null when it can (or is unknown). */
+export async function dataForSeoNoCreditMessage(): Promise<string | null> {
+  const credentials = dataforSeoCredentials();
+  if (!credentials) return null;
+  const balance = await fetchDataForSeoBalance(credentials);
+  if (balance === null || balance >= DATAFORSEO_MIN_BALANCE_USD) return null;
+  return `Nu avem credit în DataForSEO (sold ${usd(balance)}), așa că nu pot aduce datele. Alimentează contul pe app.dataforseo.com, apoi încearcă din nou.`;
+}
+
+/** Express guard for routes that spend DataForSEO credit; `applies` limits it (e.g. provider=dataforseo). */
+export function requireDataForSeoCredit(applies: (req: Request) => boolean = () => true) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!applies(req)) return next();
+    const message = await dataForSeoNoCreditMessage();
+    if (message) return res.status(402).json({ error: message, noCredit: true });
+    next();
+  };
+}
 
 function asRecord(value: unknown): JsonRecord {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};

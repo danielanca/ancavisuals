@@ -794,30 +794,32 @@ const CreateContractPage: React.FC = () => {
                     ? convertAmount(parsed, currency, eurRate)
                     : "";
                   return (
-                    <div key={i} className="flex gap-2 items-center">
+                    <div key={i} className="flex flex-wrap items-center gap-2">
                       <input
                         type="text"
                         value={s.label}
                         onChange={(e) => setCustomServices((prev) => prev.map((cs, ci) => ci === i ? { ...cs, label: e.target.value } : cs))}
                         placeholder="Denumire serviciu"
-                        className="flex-1 bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500"
+                        className="min-w-0 basis-full sm:basis-0 flex-1 bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500"
                       />
-                      {conversion && <span className="text-xs text-neutral-500 shrink-0">{conversion}</span>}
-                      <input
-                        type="text"
-                        value={s.priceRaw}
-                        onChange={(e) => setCustomServices((prev) => prev.map((cs, ci) => ci === i ? { ...cs, priceRaw: e.target.value } : cs))}
-                        placeholder="Preț / GRATUIT"
-                        className={`w-28 rounded-lg px-3 py-2 text-sm text-right focus:outline-none transition-colors ${
-                          isMissing
-                            ? "bg-red-500/20 border border-red-500/50 text-red-300"
-                            : isGratuit
-                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
-                            : "bg-neutral-800 border border-neutral-600 text-neutral-100 focus:border-emerald-500"
-                        }`}
-                      />
-                      <span className="text-xs text-neutral-500">{currency}</span>
-                      <button type="button" onClick={() => removeCustomService(i)} className="text-neutral-500 hover:text-red-400 text-xl shrink-0">×</button>
+                      <div className="ml-auto flex shrink-0 items-center gap-2">
+                        {conversion && <span className="text-xs text-neutral-500 shrink-0">{conversion}</span>}
+                        <input
+                          type="text"
+                          value={s.priceRaw}
+                          onChange={(e) => setCustomServices((prev) => prev.map((cs, ci) => ci === i ? { ...cs, priceRaw: e.target.value } : cs))}
+                          placeholder="Preț / GRATUIT"
+                          className={`w-28 rounded-lg px-3 py-2 text-sm text-right focus:outline-none transition-colors ${
+                            isMissing
+                              ? "bg-red-500/20 border border-red-500/50 text-red-300"
+                              : isGratuit
+                              ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                              : "bg-neutral-800 border border-neutral-600 text-neutral-100 focus:border-emerald-500"
+                          }`}
+                        />
+                        <span className="text-xs text-neutral-500">{currency}</span>
+                        <button type="button" onClick={() => removeCustomService(i)} className="text-neutral-500 hover:text-red-400 text-xl shrink-0">×</button>
+                      </div>
                     </div>
                   );
                 })}

@@ -18,8 +18,10 @@ import eventRouter from "./src/server/routes/event.routes";
 import qrMomentRouter from "./src/server/routes/QRMoment.routes";
 import assistantChatRouter from "./src/server/routes/assistantChat.routes";
 import adminCalendarRouter from "./src/server/routes/adminCalendar.routes";
+import familyCalendarRouter from "./src/server/routes/familyCalendar.routes";
 import publicBookedDatesRouter from "./src/server/routes/publicBookedDates.routes";
-import { startingPricesAdminRouter, startingPricesPublicRouter } from "./src/server/routes/startingPrices.routes";
+import { getPriceBook, getYearPrices, startingPricesAdminRouter, startingPricesPublicRouter } from "./src/server/routes/startingPrices.routes";
+import { withLivePrices } from "./src/shared/pricing/publicPriceList";
 import { uploadOriginCors } from "./src/server/middleware/uploadOriginCors";
 import adminEventsRouter, { startAlbumProcessingQueue } from "./src/server/routes/adminEvents.routes";
 import { startAlbumUploadNotifications } from "./src/server/services/albumUploadNotifications";
@@ -64,6 +66,9 @@ import weddingRemindersRouter from "./src/server/routes/weddingReminders.routes"
 import oferteRouter from "./src/server/routes/oferte.routes";
 import seoGeneratorRouter from "./src/server/routes/seoGenerator.routes";
 import seoRadarRouter from "./src/server/routes/seoRadar.routes";
+import seoAutoPostsRouter from "./src/server/routes/seoAutoPosts.routes";
+import { adminSeoPagesRouter, publicSeoPagesRouter } from "./src/server/routes/seoLandingPages.routes";
+import { runSeoAutoPostsIfDue } from "./src/server/services/seoAutoPosts.service";
 import adsRadarRouter from "./src/server/routes/adsRadar.routes";
 import campaignRouter from "./src/server/routes/campaign.routes";
 import activityRouter from "./src/server/routes/activity.routes";
@@ -73,6 +78,7 @@ import photoCollectionsRouter from "./src/server/routes/photoCollections.routes"
 import photoboothRouter from "./src/server/routes/photobooth.routes";
 import { startMementosCron } from "./src/server/cron/mementos.cron";
 import { startClientTasksCron } from "./src/server/cron/clientTasks.cron";
+import { startContractBankTransferCron } from "./src/server/cron/contractBankTransfer.cron";
 import { startAnalyticsCron } from "./src/server/cron/analytics.cron";
 import { startAlbumRetentionCron } from "./src/server/cron/albumRetention.cron";
 import { startPostEventBackupCron } from "./src/server/cron/postEventBackupReminder.cron";
@@ -87,6 +93,7 @@ import { startReverseChargeVatCron } from "./src/server/cron/reverseChargeVat.cr
 import { startPhotoboothNotifyCron } from "./src/server/cron/photoboothNotify.cron";
 import { startSeoRadarWeeklyScanCron } from "./src/server/cron/seoRadarWeeklyScan.cron";
 import { startEmailInboxCron } from "./src/server/cron/emailInbox.cron";
+import { startFamilyCalendarWeeklyCron } from "./src/server/cron/familyCalendarWeekly.cron";
 import adminAiAssistantRouter from "./src/server/routes/adminAiAssistant.routes";
 import financeAssistantRouter from "./src/server/routes/financeAssistant.routes";
 import reviewsRouter from "./src/server/routes/reviews.routes";
@@ -205,7 +212,21 @@ async function createServer() {
   // --- Static assets from /public ---
   const assetsDir = resolve('public');
   const requestHandler = express.static(assetsDir);
-  
+
+  // llms.txt (what ChatGPT & co. read about us): the hand-written file, with its price
+  // block always taken from /admin/preturi. Falls back to the static file on any error.
+  app.get("/llms.txt", async (_req, res, next) => {
+    try {
+      const [text, book, yearPrices] = await Promise.all([
+        fs.readFile(path.join(assetsDir, "llms.txt"), "utf-8"),
+        getPriceBook(),
+        getYearPrices(),
+      ]);
+      res.type("text/plain; charset=utf-8").set("Cache-Control", "public, max-age=300").send(withLivePrices(text, book, yearPrices));
+    } catch {
+      next();
+    }
+  });
   app.use(requestHandler);
   app.use('/public', requestHandler);
   app.use(API_ROUTE_PREFIXES.album, albumRouter);
@@ -217,6 +238,7 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.assistant, assistantChatRouter);
   app.use(API_ROUTE_PREFIXES.admin, adminCalendarRouter);
   app.use("/api/booked-dates", publicBookedDatesRouter);
+  app.use("/api/family-calendar", familyCalendarRouter);
   app.use("/api/starting-prices", startingPricesPublicRouter);
   app.use("/api/admin/starting-prices", startingPricesAdminRouter);
   app.use(API_ROUTE_PREFIXES.admin, adminEventsRouter);
@@ -231,6 +253,9 @@ async function createServer() {
   app.use(API_ROUTE_PREFIXES.admin, accountsRouter);
   app.use("/api/admin/seo", seoGeneratorRouter);
   app.use("/api/admin/seo-radar", seoRadarRouter);
+  app.use("/api/admin/seo-auto-posts", seoAutoPostsRouter);
+  app.use("/api/admin/seo-pages", adminSeoPagesRouter);
+  app.use("/api/seo-pages", publicSeoPagesRouter);
   app.use("/api/admin/ads-radar", adsRadarRouter);
   app.use("/api/campaign", campaignRouter);
   app.use("/api/analytics", analyticsPublicRouter);
@@ -282,6 +307,7 @@ async function createServer() {
   generateSitemapFromDb().catch(error => console.error("[sitemap] Startup generation failed:", error));
   startMementosCron();
   startClientTasksCron();
+  startContractBankTransferCron();
   startAnalyticsCron();
   startAlbumRetentionCron();
   startPostEventBackupCron();
@@ -296,6 +322,13 @@ async function createServer() {
   startLiveVisitorsSweeper();
   startReverseChargeVatCron();
   startSeoRadarWeeklyScanCron();
+  startFamilyCalendarWeeklyCron();
+  // After a deploy: 1–2 AI articles for the SEO Radar "Absent" keywords, if the last run is a week old.
+  if (process.env.NODE_ENV === "production") {
+    setTimeout(() => {
+      runSeoAutoPostsIfDue("după deploy").catch((error) => console.error("[seo-auto-posts] startup run failed:", error));
+    }, 2 * 60_000).unref();
+  }
   startEmailInboxCron();
 
   if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · album promises · handover sign reminders · errors · collaborator invites · photobooth notify · reverse-charge VAT · seo radar weekly scan");

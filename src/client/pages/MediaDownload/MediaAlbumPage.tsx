@@ -10,6 +10,7 @@ import type { PhotoVote } from "../../../shared/media/proposalConsensus";
 import styles from "./MediaAlbumPage.module.scss";
 import type { Album } from "./AlbumTypes";
 import AlbumNotFound from "./AlbumNotFound";
+import EmptyAlbumNotice from "./EmptyAlbumNotice";
 import AlbumPager from "../Portfolio/AlbumPager";
 import DeliveryForm from './DeliveryForm';
 import DeliveryAddressModal, { type DeliveryAddress } from "../DeliveryAddress/AddressList";
@@ -1211,9 +1212,13 @@ export default function MediaAlbumPage() {
       : <AlbumNotFound />;
   }
 
-  // ── DIAGNOSTIC PANEL — vizibil clientei când pozele nu apar ───────────────
-  const hasNoPhotos = !album.photos?.length;
-  const showDiagnostic = hasNoPhotos || !!imageLoadError;
+  // Nothing in the album yet (owner, 2026-10-28): visitors get a plain explanation — photos not
+  // uploaded yet, or a wrong link — with no consent pop-up. A signed-in admin sees the page, to upload.
+  const isEmptyAlbum = !album.photos?.length && !album.featured?.length && !album.shortvideo && !album.longvideo;
+  if (isEmptyAlbum && !isAdmin && !auth.authorise) return <EmptyAlbumNotice slug={slug ?? ""} />;
+
+  // ── DIAGNOSTIC PANEL — the album has photos but they fail to load ─────────
+  const showDiagnostic = !!imageLoadError;
   const DiagnosticPanel = showDiagnostic ? (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9999, background: "#0a0a0a",
@@ -1224,44 +1229,9 @@ export default function MediaAlbumPage() {
       <p style={{ color: "#fff", fontSize: 18, fontWeight: 700, margin: "0 0 10px" }}>
         Pozele nu se pot încărca momentan
       </p>
-      <p style={{ color: "#aaa", fontSize: 14, margin: "0 0 24px", lineHeight: 1.6, maxWidth: 380 }}>
-        Facem un screenshot la acest ecran și trimitem fotografului — el va rezolva problema.
+      <p style={{ color: "#aaa", fontSize: 14, margin: 0, lineHeight: 1.6, maxWidth: 380 }}>
+        Am fost anunțați automat și ne uităm. Reîncărcați pagina peste câteva minute.
       </p>
-      <div style={{ background: "#111", border: "1px solid #333", borderRadius: 12, padding: "16px 20px", maxWidth: 420, width: "100%", textAlign: "left" }}>
-        <p style={{ color: "#888", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 10px" }}>Detalii eroare (screenshot)</p>
-        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
-          <span style={{ color: "#555" }}>Album:</span> {slug}
-        </p>
-        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
-          <span style={{ color: "#555" }}>Titlu:</span> {album.title}
-        </p>
-        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
-          <span style={{ color: "#555" }}>Poze în server:</span> {album.photos?.length ?? 0}
-        </p>
-        {imageLoadError && (
-          <p style={{ color: "#f87171", fontSize: 12, margin: "0 0 5px" }}>
-            <span style={{ color: "#555" }}>Eroare imagine:</span> {imageLoadError}
-          </p>
-        )}
-        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
-          <span style={{ color: "#555" }}>Featured:</span> {album.featured?.length ?? 0}
-        </p>
-        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
-          <span style={{ color: "#555" }}>URL:</span> {typeof window !== "undefined" ? window.location.href : ""}
-        </p>
-        <p style={{ color: "#ccc", fontSize: 12, margin: "0 0 5px" }}>
-          <span style={{ color: "#555" }}>Browser:</span> {typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : ""}
-        </p>
-        <p style={{ color: "#ccc", fontSize: 12, margin: 0 }}>
-          <span style={{ color: "#555" }}>Ora:</span> {new Date().toLocaleString("ro-RO")}
-        </p>
-      </div>
-      <button
-        onClick={() => { /* Allow dismiss to still see page */ (document.getElementById("diagnostic-overlay") as HTMLElement | null)?.remove(); }}
-        style={{ marginTop: 20, padding: "10px 24px", background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, color: "#666", fontSize: 13, cursor: "pointer" }}
-      >
-        Încearcă totuși să accesezi albumul
-      </button>
     </div>
   ) : null;
 
@@ -1294,7 +1264,7 @@ export default function MediaAlbumPage() {
     <div className={styles.page}>
       <div className={styles.container}>
 
-        {slug && typeof window !== "undefined" && window.location.hostname !== "localhost" && (
+        {slug && !isEmptyAlbum && typeof window !== "undefined" && window.location.hostname !== "localhost" && (
           <MediaConsentModal
             slug={slug}
             retention={album?.retention ?? null}

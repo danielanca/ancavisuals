@@ -69,3 +69,23 @@ export async function getBnrYearRates(year: number, currency: Currency): Promise
   }
   return out;
 }
+
+// The latest published rate (today's after BNR publishes, ~13:00; before that the previous
+// business day's, which is the one in force) — for amounts a client pays now, e.g. the contract
+// bank-transfer email. A short cache, so a fresh rate shows up minutes after it is published.
+const BNR_DAILY_FEED = "https://curs.bnr.ro/nbrfxrates.xml";
+const DAILY_CACHE_TTL_MS = 10 * 60 * 1000;
+let dailyCache: { rates: Map<string, DateRates>; fetchedAt: number } | null = null;
+
+export async function getBnrLatestRate(currency: Currency): Promise<{ rate: number; date: string }> {
+  if (!dailyCache || Date.now() - dailyCache.fetchedAt >= DAILY_CACHE_TTL_MS) {
+    const res = await fetch(BNR_DAILY_FEED);
+    if (!res.ok) throw new BnrRateError(`BNR daily feed HTTP ${res.status}`);
+    dailyCache = { rates: parseYearXml(await res.text()), fetchedAt: Date.now() };
+  }
+  for (const [date, entry] of dailyCache.rates) {
+    const rate = entry[currency];
+    if (rate !== undefined) return { rate, date };
+  }
+  throw new BnrRateError(`No ${currency} rate in the BNR daily feed`);
+}

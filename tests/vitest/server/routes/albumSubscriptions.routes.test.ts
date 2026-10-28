@@ -78,6 +78,15 @@ async function loadRouter() {
     adminUser: { email: "ancadaniel1994@gmail.com" },
   }));
 
+  // Never a real SMS: .env holds a live SMSAPI key.
+  const sendSmsMock = vi.fn().mockResolvedValue(undefined);
+  let smsConfigured = false;
+  vi.doMock("src/server/notifications/sms", async () => ({
+    ...(await vi.importActual<typeof import("src/server/notifications/sms")>("src/server/notifications/sms")),
+    isSmsConfigured: () => smsConfigured,
+    sendSms: sendSmsMock,
+  }));
+
   vi.doMock("src/server/constants/domain", () => ({
     APP_BASE_URL: "https://example.com",
   }));
@@ -92,7 +101,7 @@ async function loadRouter() {
     handlers[`${method.toUpperCase()} ${path}`] = layer.route?.stack[layer.route.stack.length - 1]?.handle;
   }
 
-  return { handlers, addMock, getMock, whereMock, collectionMock, subscribeExistingCheck };
+  return { handlers, addMock, getMock, whereMock, collectionMock, subscribeExistingCheck, sendSmsMock, enableSms: () => { smsConfigured = true; } };
 }
 
 describe("albumSubscriptions.routes", () => {
@@ -340,6 +349,37 @@ describe("albumSubscriptions.routes", () => {
       expect(res.json).toHaveBeenCalledWith({ ok: true, sent: 2 });
     });
 
+    test("phone-only subscribers (email: null) get SMS + a ready WhatsApp message, not a crash", async () => {
+      const { handlers, getMock } = await loadRouter();
+      const { sendEmail } = await import("src/server/notifications/mailer") as any;
+      const res = createMockResponse();
+      getMock.mockResolvedValueOnce({ empty: false, docs: [
+        { data: () => ({ email: "ana@test.com", channels: ["email", "sms"] }) },
+        { data: () => ({ email: null, phone: "+40745123456", channels: ["whatsapp"] }) },
+      ] });
+      await handlers["POST /notify/:slug"]({ params: { slug: "nunta-ana" } }, res);
+      expect(sendEmail).toHaveBeenCalledTimes(1);
+      expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "ana@test.com" }));
+      const payload = res.json.mock.calls[0][0];
+      expect(payload).toEqual(expect.objectContaining({ ok: true, sent: 1 }));
+      // No SMS provider in tests: the SMS is reported as skipped; WhatsApp comes back ready to send.
+      expect(payload.sms).toEqual({ sent: 0, failed: 0, skipped: true });
+      expect(payload.whatsapp).toHaveLength(1);
+      expect(payload.whatsapp[0].link).toMatch(/^https:\/\/wa\.me\/40745123456\?text=/);
+      expect(decodeURIComponent(payload.whatsapp[0].link)).toContain("📸 Poze noi: Am adăugat poze noi în album.");
+      expect(decodeURIComponent(payload.whatsapp[0].link)).toContain("/media/nunta-ana?s=wa-nou");
+    });
+
+    test("phone-only subscribers get an automatic SMS when SMS is set up", async () => {
+      const { handlers, getMock, sendSmsMock, enableSms } = await loadRouter();
+      enableSms();
+      const res = createMockResponse();
+      getMock.mockResolvedValueOnce({ empty: false, docs: [{ data: () => ({ email: null, phone: "+40745123456", name: "Ion", channels: ["sms"] }) }] });
+      await handlers["POST /notify/:slug"]({ params: { slug: "nunta-ana" } }, res);
+      expect(sendSmsMock).toHaveBeenCalledWith(expect.objectContaining({ to: "+40745123456", body: expect.stringContaining("/media/nunta-ana?s=sms-nou") }));
+      expect(res.json.mock.calls[0][0]).toEqual(expect.objectContaining({ sent: 0, sms: { sent: 1, failed: 0, skipped: false } }));
+    });
+
     test("returns sent:0 when no subscribers", async () => {
       const { handlers, getMock } = await loadRouter();
       const notify = handlers["POST /notify/:slug"];
@@ -463,6 +503,48 @@ describe("albumSubscriptions.routes", () => {
       expect(adminEmails[0][0].subject).toContain("De trimis pe WhatsApp (2) — noutate la 2 albume");
       expect(adminEmails[0][0].html).toContain("/media/botez-maria");
       expect(payload.adminEmailed).toBe(true);
+    });
+
+    test("bulk without the unsubscribe link: the email goes out without it", async () => {
+      const { handlers, getMock, addMock } = await loadRouter();
+      const { sendEmail } = await import("src/server/notifications/mailer");
+      addMock.mockResolvedValue({ id: "upd", update: vi.fn().mockResolvedValue(undefined) });
+      getMock.mockResolvedValue({ empty: false, docs: [
+        { data: () => ({ email: "ana@test.com", phone: "+40745123456", channels: ["email", "sms"], unsubscribeToken: "tok123" }) },
+      ] });
+      const res = createMockResponse();
+      await handlers["POST /updates-bulk"]({ body: { slugs: ["nunta-ana"], kind: "delay", text: "Mai durează puțin.", notify: true, unsubscribeLink: false } }, res);
+      const clientEmail = sendEmail.mock.calls.find(([opts]: [{ to: string }]) => opts.to === "ana@test.com")[0];
+      expect(clientEmail.html).not.toContain("/stop/");
+      expect(clientEmail.html).not.toContain("Dezabonare");
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    test("preview: the exact email, SMS and WhatsApp text, with or without the unsubscribe link", async () => {
+      const { handlers, addMock } = await loadRouter();
+      const res = createMockResponse();
+      await handlers["POST /updates-preview"]({ body: { slug: "08august2026", kind: "delay", text: "Mai durează puțin.", estimateDate: "2099-11-15", unsubscribeLink: false } }, res);
+      const preview = res.json.mock.calls[0][0];
+      expect(preview.emailSubject).toMatch(/^\[Mesaj automat\] ⏳ Termen actualizat/);
+      expect(preview.emailHtml).toContain("Bună ziua! Suntem echipa foto-video de la evenimentul din data de 8 august 2026.");
+      expect(preview.emailHtml).toContain("15 noiembrie 2099");
+      expect(preview.emailHtml).not.toContain("Dezabonare");
+      expect(preview.sms).not.toContain("Dezabonare");
+      expect(preview.sms).toContain("Mai dureaza putin."); // the GSM text the provider gets
+      expect(preview.sms).not.toMatch(/\p{Extended_Pictographic}/u);
+      expect(preview.whatsapp).toContain("⏳ Termen actualizat (15 noiembrie 2099): Mai durează puțin.");
+      expect(preview.smsParts).toBeGreaterThanOrEqual(1);
+      expect(addMock).not.toHaveBeenCalled(); // nothing saved, nothing sent
+
+      const res2 = createMockResponse();
+      await handlers["POST /updates-preview"]({ body: { slug: "08august2026", kind: "delay", text: "Mai durează puțin.", unsubscribeLink: true } }, res2);
+      const withLink = res2.json.mock.calls[0][0];
+      expect(withLink.emailHtml).toContain('href="https://example.com/api/album-subscriptions/stop/cod-personal"');
+      expect(withLink.sms).toContain("\nDezabonare: https://example.com/api/album-subscriptions/stop/cod-personal");
+
+      const res3 = createMockResponse();
+      await handlers["POST /updates-preview"]({ body: { slug: "../rau", kind: "delay", text: "x" } }, res3);
+      expect(res3.status).toHaveBeenCalledWith(400);
     });
 
     test("bulk: no album chosen, or an invalid message, publishes nothing", async () => {

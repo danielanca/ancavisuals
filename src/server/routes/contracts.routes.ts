@@ -11,13 +11,13 @@ import { generateContractPDF, buildContractHTML } from "../services/pdf.generato
 import { generateInvoicePDF, generateInvoiceXML } from "../services/invoice.generator";
 import type { InvoiceData } from "../services/invoice.generator";
 import { sendContractLinkEmail, sendSignedContractEmail, sendFullySignedContractEmail, sendContractDeletedEmail, sendContractReminderEmail, type SignedContractAdminDetails } from "../notifications/templates/contractEmail";
+import { BANK_TRANSFER, BANK_TRANSFER_EMAIL_DELAY_MS, paysByBankTransfer } from "../services/contractBankTransfer";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { expandEventDates } from "../utils/expandEventDates";
 import { APP_BASE_URL } from "../constants/domain";
 
 const router = Router();
-const BANK_TRANSFER = "Transfer bancar";
 const BOOKED_EVENT_STATUSES = new Set(["confirmat", "finalizat"]);
 
 function tsToISO(value: unknown): string | null {
@@ -498,6 +498,9 @@ router.post("/sign/:token", async (req: Request, res: Response) => {
         org: ipInfo?.org ?? "",
       },
       ...nightFields,
+      // Bank transfer: the payment details email goes out 4 minutes after the signed-contract
+      // email (owner), from the contractBankTransfer cron — so a restart does not lose it.
+      ...(paysByBankTransfer(contract) ? { bankTransferEmailDueAt: new Date(signedAt.toMillis() + BANK_TRANSFER_EMAIL_DELAY_MS).toISOString() } : {}),
     });
 
     // Generate PDF and send email in background — don't block the response

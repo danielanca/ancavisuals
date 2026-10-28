@@ -13,6 +13,7 @@ import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
 import PhotoboothUploader from "./PhotoboothUploader";
 import AlbumPhotoUploader from "./AlbumPhotoUploader";
+import AlbumUploadProgressAlert from "./AlbumUploadProgressAlert";
 import AlbumShortVideoManager from "./AlbumShortVideoManager";
 import AlbumLongVideoLinkManager from "./AlbumLongVideoLinkManager";
 import ConfirmModal from "./ConfirmModal";
@@ -98,6 +99,8 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [notifying, setNotifying] = useState(false);
   const [notifyResult, setNotifyResult] = useState<string | null>(null);
+  // Subscribers with only a phone: one-tap WhatsApp messages the admin sends from their own account.
+  const [notifyWhatsapp, setNotifyWhatsapp] = useState<{ name: string | null; phone: string; link: string }[]>([]);
   const [delivery, setDelivery] = useState<EventDelivery>(event.delivery ?? {});
   const [albumNotFoundInBunny, setAlbumNotFoundInBunny] = useState(false);
   const [photoboothGuests, setPhotoboothGuests] = useState<{ id: string; name: string; email: string | null; phone: string | null; notified: boolean }[]>([]);
@@ -180,14 +183,24 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
     if (!albumSlug) return;
     setNotifying(true);
     setNotifyResult(null);
+    setNotifyWhatsapp([]);
     try {
       const response = await fetch(`/api/album-subscriptions/notify/${encodeURIComponent(albumSlug)}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
       });
-      const data = (await response.json()) as { sent?: number; error?: string };
-      setNotifyResult(data.error ? `Eroare: ${data.error}` : `Notificat ${data.sent ?? 0} abonat(i)`);
-      setTimeout(() => setNotifyResult(null), 4000);
+      const data = (await response.json()) as {
+        sent?: number; error?: string;
+        sms?: { sent: number; failed: number; skipped: boolean };
+        whatsapp?: { name: string | null; phone: string; link: string }[];
+      };
+      const parts = [`Email: ${data.sent ?? 0}`];
+      if (data.sms) {
+        parts.push(data.sms.skipped ? "SMS: neconfigurat" : `SMS: ${data.sms.sent}${data.sms.failed ? ` (${data.sms.failed} eșuate)` : ""}`);
+      }
+      setNotifyResult(data.error ? `Eroare: ${data.error}` : parts.join(" · "));
+      setNotifyWhatsapp(data.whatsapp ?? []);
+      setTimeout(() => setNotifyResult(null), data.sms || data.error ? 10000 : 4000);
     } catch {
       setNotifyResult("Eroare la trimitere.");
       setTimeout(() => setNotifyResult(null), 3000);
@@ -1085,20 +1098,6 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           </>
                         ) : "⚙️ Procesează album"}
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleCreateFolders(); }}
-                        disabled={folderCreating}
-                        className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
-                      >
-                        {folderCreating ? (
-                          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-                        ) : (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                          </svg>
-                        )}
-                        Creează folder Bunny
-                      </button>
                       {import.meta.env.VITE_BUNNY_STORAGE_ZONE_ID && (
                         <a
                           href={`https://dash.bunny.net/storage/${import.meta.env.VITE_BUNNY_STORAGE_ZONE_ID}/file-manager?path=${albumSlug}&page=1`}
@@ -1113,12 +1112,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           Deschide în Bunny
                         </a>
                       )}
-                      {folderResult && (
-                        <span className={`text-xs ${folderResult.ok ? "text-emerald-400" : "text-red-400"}`}>
-                          {folderResult.msg}
-                        </span>
-                      )}
                     </div>
+
+                    {/* Inside the uploader when it is open; here it warns even with the upload area closed. */}
+                    {!showAlbumUploader && event.id && (
+                      <AlbumUploadProgressAlert eventId={event.id} accessToken={auth.auth.accessToken} />
+                    )}
 
                     {showAlbumUploader && event.id && albumSlug && (
                       <AlbumPhotoUploader
@@ -1134,7 +1133,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
 
                     {/* Album subscribers */}
                     {subscriberCount !== null && (
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
                         <span className="inline-flex items-center gap-1 text-xs text-neutral-400">
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
@@ -1161,7 +1160,18 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           </button>
                         )}
                         {notifyResult && (
-                          <span className="text-xs text-emerald-400 animate-pulse">{notifyResult}</span>
+                          <span role="status" className={`text-xs ${notifyResult.startsWith("Eroare") ? "text-red-400" : "text-emerald-400"}`}>{notifyResult}</span>
+                        )}
+                        {notifyWhatsapp.length > 0 && (
+                          <div className="flex w-full flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-xs text-neutral-400">Doar cu telefon, trimite și pe WhatsApp (mesajul e gata scris):</span>
+                            {notifyWhatsapp.map((w) => (
+                              <a key={w.phone} href={w.link} target="_blank" rel="noreferrer" className="rounded-lg bg-[#25D366] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#1ebe5b]">
+                                WhatsApp → {w.name || w.phone}
+                              </a>
+                            ))}
+                            <button type="button" onClick={() => setNotifyWhatsapp([])} aria-label="Ascunde linkurile WhatsApp" className="px-1.5 text-xs text-neutral-500 hover:text-white">✕</button>
+                          </div>
                         )}
                       </div>
                     )}

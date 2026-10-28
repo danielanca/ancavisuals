@@ -10,6 +10,8 @@ interface NavItem {
   label: string;
   path: string;
   badge?: number;
+  /** Shown in a green box so it stands out in the menu. */
+  highlight?: boolean;
   children?: { label: string; path: string }[];
 }
 
@@ -247,7 +249,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       ),
       items: [
         { label: "Calendar", path: "/admin/calendar" },
-        { label: "Taskuri clienți", path: "/admin/taskuri" },
+        { label: "Calendar pentru Estera", path: "/admin/calendar-familie" },
+        { label: "Task-uri", path: "/admin/taskuri", highlight: true },
         { label: "Mementouri", path: "/admin/mementos", badge: urgentMementos },
         { label: "Moderare albume", path: "/admin/moderare", badge: pendingModeration },
         { label: "Livrare preview", path: "/admin/livrare-preview", badge: overduePreviews },
@@ -319,6 +322,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
         { label: "Colecții poze", path: "/admin/colectii" },
         { label: "Generator SEO", path: "/admin/seo-generator" },
         { label: "SEO Radar", path: "/admin/seo-radar" },
+        { label: "Pagini speciale SEO", path: "/admin/seo-radar/pagina" },
         { label: "Ads Radar", path: "/admin/ads-radar" },
         { label: "Pagini SEO", path: "/admin/seo-pages" },
         { label: "Blog", path: "/admin/blog" },
@@ -558,7 +562,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
                             <button
                               onClick={() => handleNavItem(item.path)}
                               className={`flex-1 flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors ${
-                                active
+                                item.highlight
+                                  ? `border border-emerald-500/40 ${active ? "bg-emerald-500/25 text-emerald-200" : "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"}`
+                                  : active
                                   ? "bg-violet-500/15 text-violet-400"
                                   : "text-neutral-400 hover:bg-neutral-800/80 hover:text-white"
                               }`}

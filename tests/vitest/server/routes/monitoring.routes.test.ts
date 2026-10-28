@@ -171,6 +171,16 @@ describe("monitoring.routes", () => {
       );
     });
 
+    test("a stale-deploy JS file (even on a QR page) is neither stored nor emailed", async () => {
+      const { postClientError, captureClientError, sendEmailMock } = await loadMonitoringRouter({ ip: "1.2.3.4" });
+      const res = createMockResponse();
+      await postClientError({ body: { message: "Unhandled Promise Rejection: Importing a module script failed.", stack: "", page: "/qr-moments/27septembrie2026" }, headers: { "user-agent": "Mozilla/5.0 (iPhone)" } }, res);
+      await Promise.resolve();
+      expect(res.json).toHaveBeenCalledWith({ ok: true, ignored: true });
+      expect(captureClientError).not.toHaveBeenCalled();
+      expect(sendEmailMock).not.toHaveBeenCalled();
+    });
+
     test("errors from outside Europe are saved for /admin/errors but send no email", async () => {
       const { postClientError, captureClientError, sendEmailMock } = await loadMonitoringRouter({
         ip: "1.2.3.4",

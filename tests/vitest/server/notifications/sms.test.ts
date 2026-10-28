@@ -4,7 +4,7 @@
  * "200 with an error body" failures, the GSM-only text that keeps SMS cheap, and the copy
  * of every SMS saved for /admin/sms-log.
  */
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const logSms = vi.fn();
 vi.mock("src/server/services/smsLog.service", () => ({ logSms }));
@@ -80,4 +80,16 @@ test("logs every SMS with the text that left and who it was for, failures includ
   fetchMock.mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify({ error: 103, message: "Not enough points" }) });
   await expect(sms.sendSms({ to: "+40745123456", body: "x" })).rejects.toThrow(/SMSAPI 103/);
   expect(logSms).toHaveBeenLastCalledWith(expect.objectContaining({ to: "+40745123456", status: "failed", error: expect.stringMatching(/Not enough points/) }));
+});
+
+describe("smsParts", () => {
+  test("counts GSM parts (160, then 153 each) and Unicode parts (70, then 67)", async () => {
+    const { smsParts } = await import("src/server/notifications/sms");
+    expect(smsParts("a".repeat(160))).toBe(1);
+    expect(smsParts("a".repeat(161))).toBe(2);
+    expect(smsParts("a".repeat(306))).toBe(2);
+    expect(smsParts("€".repeat(80))).toBe(1); // extended GSM chars count twice
+    expect(smsParts("ă".repeat(70))).toBe(1);
+    expect(smsParts("ă".repeat(71))).toBe(2);
+  });
 });

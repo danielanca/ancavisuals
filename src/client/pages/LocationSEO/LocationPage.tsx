@@ -13,29 +13,10 @@ import {
   getCityBySlug,
   getServiceBySlug,
 } from "./locationData";
-import pricesData from "../../../shared/pricing/prices.json";
 import PortfolioGallery from "../Portfolio/PortfolioGallery";
 import ReviewsGrid from "../../components/Reviews/ReviewsGrid";
-
-const photoPackage = pricesData.packages.find(pkg => pkg.id === "photo");
-const videoPackage = pricesData.packages.find(pkg => pkg.id === "video");
-
-if (!photoPackage || !videoPackage) {
-  throw new Error("Missing base photo or video packages.");
-}
-
-const PACKAGES = [
-  ...pricesData.packages.map(pkg => ({
-    title: pkg.title,
-    price: `${pkg.price} EUR`,
-    note: pkg.note,
-  })),
-  {
-    title: "Foto + Video",
-    price: `${photoPackage.price + videoPackage.price} EUR`,
-    note: "Pachet complet recomandat pentru acoperire foto-video.",
-  },
-];
+import { usePriceBook } from "../../hooks/useStartingPrices";
+import { extraPriceLines, priceLinesFor, priceSentence } from "../../../shared/pricing/publicPriceList";
 
 const toMapsSearchUrl = (query: string, cityName: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${query} ${cityName} Romania`)}`;
@@ -55,14 +36,21 @@ const LocationPage: React.FC<Props> = ({
 }) => {
   const city = getCityBySlug(citySlug);
   const service = getServiceBySlug(serviceSlug);
-
+  // /admin/preturi prices; the server already put them in the first HTML.
+  const priceBook = usePriceBook();
 
   if (!city || !service) return <Navigate to="/" replace />;
 
   const isFuneral = service.slug === "inmormantare";
+  const serviceLower = service.name.toLowerCase();
+  const priceLines = priceLinesFor(service.slug, priceBook);
+  const packages = [...priceLines, ...extraPriceLines(priceBook)];
+  const priceSummary = priceSentence(priceLines);
 
-  const title = `Foto video ${service.accusative} ${city.name} | Fotograf și videograf | Anca Visuals`;
-  const metaDescription = `Anca Visuals oferă foto, video și pachete foto-video pentru ${service.accusative} în ${city.name}. Vezi portofoliu, review-uri Google, prețuri orientative și cere o ofertă personalizată.`;
+  // "fotograf <serviciu> <oraș>" is the search that ranked nowhere in SEO Radar while
+  // "foto video …" already ranked, so the title leads with it and keeps "foto video" after.
+  const title = `Fotograf ${serviceLower} ${city.name} și videograf | Foto video | Anca Visuals`;
+  const metaDescription = `Fotograf și videograf pentru ${service.plural} în ${city.name}: Dani și Estera, Anca Visuals. ${isFuneral ? "Documentare discretă, cu respect." : priceSummary} Portofoliu, ${GOOGLE_REVIEW_COUNT} review-uri Google.`;
   const canonicalUrl = `${WWW_ORIGIN}${canonicalPath}`;
   const galleryAltBase = `fotograf video ${service.slug} ${city.slug}`;
   const breadcrumbs = [
@@ -70,7 +58,30 @@ const LocationPage: React.FC<Props> = ({
     { label: "Orașe", to: "/orase" },
     { label: `Foto video ${service.accusative} ${city.name}` },
   ];
+  // Plain facts, answer first: what Google's AI Overviews, ChatGPT and Perplexity quote.
+  const quickFacts = [
+    { label: "Cine", value: "Dani și Estera, Anca Visuals — fotograf și videograf pentru evenimente în toată Transilvania." },
+    { label: "Ce", value: `Fotografie, videografie sau pachet foto-video pentru ${service.plural}.` },
+    { label: "Unde", value: `${city.name} și împrejurimi: ${city.nearbyAreas.join(", ")}.` },
+    { label: "Preț", value: isFuneral ? "Costul îl stabilim la telefon, după durată și localitate." : priceSummary },
+    { label: "Livrare", value: "Între 30 și 60 de zile, pe link online sau pe stick." },
+    { label: "Recenzii", value: `${GOOGLE_REVIEW_COUNT} review-uri pe Google, toate de 5 stele.` },
+  ];
   const faqItems = [
+    {
+      question: `Cât costă un fotograf de ${serviceLower} în ${city.name}?`,
+      answer: isFuneral
+        ? "Costul îl stabilim la telefon sau pe WhatsApp, după durata ceremoniei și localitate."
+        : `${priceSummary} Prețul final depinde de durată și de opțiunile alese.`,
+    },
+    {
+      question: "Cine vine la eveniment?",
+      answer: "Dani și Estera, echipa Anca Visuals, oriunde în Transilvania. Dani se ocupă de video, Estera de fotografie, iar când ziua o cere schimbăm rolurile.",
+    },
+    {
+      question: "În cât timp primim fotografiile și filmul?",
+      answer: "Între 30 și 60 de zile, pe un link online sau pe stick. Pentru urgențe există și varianta de livrare rapidă.",
+    },
     {
       question: `Lucrați pentru ${service.plural} și în ${city.name}, nu doar în oraș?`,
       answer: `Da. Acoperim ${city.name} și zonele apropiate precum ${city.nearbyAreas.join(", ")}.`,
@@ -97,9 +108,15 @@ const LocationPage: React.FC<Props> = ({
       image: `${WWW_ORIGIN}/android-chrome-512x512.png`,
       description: metaDescription,
       telephone: "+40745469907",
+      founder: [
+        { "@type": "Person", name: "Daniel Anca", jobTitle: "Videograf" },
+        { "@type": "Person", name: "Estera", jobTitle: "Fotograf" },
+      ],
       areaServed: [
         { "@type": "City", name: city.name },
         ...city.nearbyAreas.map(area => ({ "@type": "City", name: area })),
+        // We travel to any event in Transylvania: the region, not one home town.
+        { "@type": "AdministrativeArea", name: "Transilvania" },
       ],
       serviceType: [
         "Fotografie eveniment",
@@ -107,7 +124,7 @@ const LocationPage: React.FC<Props> = ({
         "Foto-video eveniment",
         service.nameLong,
       ],
-      priceRange: `${Math.min(...pricesData.packages.map(pkg => pkg.price))} EUR - ${photoPackage.price + videoPackage.price} EUR`,
+      ...(isFuneral ? {} : { priceRange: `${Math.min(...packages.map(pkg => pkg.price))} EUR - ${Math.max(...packages.map(pkg => pkg.price))} EUR` }),
       sameAs: ["https://instagram.com/ancavisuals", "https://tiktok.com/@ancavisuals"],
       aggregateRating: {
         "@type": "AggregateRating",
@@ -164,7 +181,7 @@ const LocationPage: React.FC<Props> = ({
             {city.county} · România · {keywordLabel}
           </p>
           <h1 className="max-w-4xl text-4xl font-light leading-tight md:text-6xl">
-            Foto, video și foto-video pentru {service.accusative} în{" "}
+            Fotograf și videograf pentru {service.plural} în{" "}
             <span className="font-semibold">{city.name}</span>
           </h1>
           <p className="mt-6 max-w-3xl text-base leading-8 text-gray-300 md:text-lg">
@@ -202,6 +219,22 @@ const LocationPage: React.FC<Props> = ({
               Vezi portofoliul
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 pt-16" aria-labelledby="pe-scurt">
+        <div className="border border-white/15 p-6 md:p-8">
+          <h2 id="pe-scurt" className="text-xs uppercase tracking-[0.3em] text-gray-400">
+            Pe scurt: fotograf {serviceLower} {city.name}
+          </h2>
+          <dl className="mt-5 grid gap-x-8 gap-y-3 text-sm leading-7 md:grid-cols-[auto_1fr]">
+            {quickFacts.map(fact => (
+              <React.Fragment key={fact.label}>
+                <dt className="uppercase tracking-[0.18em] text-gray-500">{fact.label}</dt>
+                <dd className="text-gray-200">{fact.value}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
         </div>
       </section>
 
@@ -286,23 +319,26 @@ const LocationPage: React.FC<Props> = ({
         subtitle={`Recenzii reale de la clienți care au lucrat cu noi pentru ${service.plural} și alte evenimente.`}
       />
 
-      <section className="max-w-4xl mx-auto px-6 pb-16">
-        <h2 className="text-2xl font-light tracking-wide text-center mb-10">
-          Pachete disponibile pentru {service.accusative} în {city.name}
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {PACKAGES.map(pkg => (
-            <div
-              key={pkg.title}
-              className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-colors hover:border-white/25"
-            >
-              <h3 className="text-lg font-semibold mb-1">{pkg.title}</h3>
-              <p className="text-2xl font-light text-white mb-2">{pkg.price}</p>
-              <p className="text-sm leading-7 text-gray-400">{pkg.note}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* No price list at funerals: the cost is agreed on the phone. */}
+      {!isFuneral && (
+        <section className="max-w-4xl mx-auto px-6 pb-16">
+          <h2 className="text-2xl font-light tracking-wide text-center mb-10">
+            Pachete disponibile pentru {service.accusative} în {city.name}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {packages.map(pkg => (
+              <div
+                key={pkg.label}
+                className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-colors hover:border-white/25"
+              >
+                <h3 className="text-lg font-semibold mb-1">{pkg.label}</h3>
+                <p className="text-2xl font-light text-white mb-2">de la {pkg.price} EUR</p>
+                <p className="text-sm leading-7 text-gray-400">{pkg.note}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {!isFuneral && (
         <section className="mx-auto max-w-5xl px-6 pb-16">

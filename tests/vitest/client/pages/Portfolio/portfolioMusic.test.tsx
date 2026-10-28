@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 const { sendLiveEventMock } = vi.hoisted(() => ({ sendLiveEventMock: vi.fn() }));
 vi.mock("src/client/utils/liveEvent", () => ({ sendLiveEvent: sendLiveEventMock }));
 
-import PortfolioMusic, { CONFIGURATOR_SHARE, MUSIC_VOLUME, PORTFOLIO_SONG_URL, formatTime } from "src/client/pages/Portfolio/PortfolioMusic";
+import PortfolioMusic, { MUSIC_VOLUME, PORTFOLIO_SONG_URL, formatTime } from "src/client/pages/Portfolio/PortfolioMusic";
 
 const ramps: number[] = [];
 const audios: FakeAudio[] = [];
@@ -95,7 +95,7 @@ describe("portfolio music", () => {
     expect(audios[0].src).toBe(PORTFOLIO_SONG_URL);
     expect(audios[0].play).toHaveBeenCalled();
     expect(ramps.at(-1)).toBe(MUSIC_VOLUME);
-    expect(sendLiveEventMock).toHaveBeenCalledWith("portfolio_music_played");
+    expect(sendLiveEventMock).toHaveBeenCalledWith("portfolio_music_played", { meta: { how: "click" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Oprește melodia/ }));
     expect(ramps.at(-1)).toBe(0);
@@ -108,12 +108,12 @@ describe("portfolio music", () => {
     expect(sendLiveEventMock).toHaveBeenCalledTimes(1);
   });
 
-  test("speaker button only after play and once the banner is off screen", async () => {
-    const { container } = render(<PortfolioMusic />);
+  test("speaker button only after play, in the photos, once the banner is off screen", async () => {
+    const { container } = render(<section className="ppg-section"><PortfolioMusic /></section>);
     const banner = container.querySelector(".ppg-music");
     expect(document.querySelector(".ppg-music-float")).toBeNull();
 
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Pornește melodia/ })));
+    await act(async () => intersect(container.querySelector(".ppg-section"), true));
     expect(document.querySelector(".ppg-music-float")).toBeNull();
 
     intersect(banner, false);
@@ -124,19 +124,6 @@ describe("portfolio music", () => {
 
     intersect(banner, true);
     expect(document.querySelector(".ppg-music-float")).toBeNull();
-  });
-
-  test("goes quieter over the price configurator and back up after it", async () => {
-    const configurator = document.createElement("section");
-    configurator.id = "configurator";
-    document.body.appendChild(configurator);
-    render(<PortfolioMusic />);
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Pornește melodia/ })));
-
-    intersect(configurator, true);
-    expect(ramps.at(-1)).toBeCloseTo(MUSIC_VOLUME * CONFIGURATOR_SHARE);
-    intersect(configurator, false);
-    expect(ramps.at(-1)).toBe(MUSIC_VOLUME);
   });
 
   test("shows the song, its length, and the time as it plays; the bar jumps to a spot", async () => {
@@ -162,17 +149,11 @@ describe("portfolio music", () => {
     expect(formatTime(Number.NaN)).toBe("0:00");
   });
 
-  test("the volume slider changes the level, is remembered, and still goes quieter over the configurator", async () => {
-    const configurator = document.createElement("section");
-    configurator.id = "configurator";
-    document.body.appendChild(configurator);
+  test("the volume slider changes the level and is remembered", async () => {
     const { unmount } = render(<PortfolioMusic />);
     await act(async () => fireEvent.click(screen.getByRole("button", { name: /Pornește melodia/ })));
-
     fireEvent.change(screen.getByRole("slider", { name: "Volum" }), { target: { value: "0.8" } });
     expect(ramps.at(-1)).toBeCloseTo(0.8);
-    intersect(configurator, true);
-    expect(ramps.at(-1)).toBeCloseTo(0.8 * CONFIGURATOR_SHARE);
     unmount();
 
     render(<PortfolioMusic />);
@@ -209,5 +190,56 @@ describe("portfolio music", () => {
       vi.runOnlyPendingTimers();
     });
     expect(screen.getByRole("button", { name: /Pornește melodia/ })).toBeInTheDocument();
+  });
+
+  describe("in the photos", () => {
+    const renderInGallery = () => {
+      const view = render(<section className="ppg-section"><PortfolioMusic /></section>);
+      const section = view.container.querySelector(".ppg-section");
+      return { section };
+    };
+    const activate = (active: boolean) =>
+      Object.defineProperty(navigator, "userActivation", { configurable: true, value: { hasBeenActive: active, isActive: false } });
+    afterEach(() => {
+      delete (navigator as { userActivation?: unknown }).userActivation;
+    });
+
+    test("starts by itself on reaching the photos when the page was already touched, stops on leaving", async () => {
+      activate(true);
+      const { section } = renderInGallery();
+      await act(async () => intersect(section, true));
+      expect(audios).toHaveLength(1);
+      expect(screen.getByRole("button", { name: /Oprește melodia/ })).toBeInTheDocument();
+      expect(sendLiveEventMock).toHaveBeenCalledWith("portfolio_music_played", { meta: { how: "auto" } });
+
+      intersect(section, false);
+      expect(ramps.at(-1)).toBe(0);
+      expect(screen.getByRole("button", { name: /Pornește melodia/ })).toBeInTheDocument();
+
+      await act(async () => intersect(section, true));
+      expect(screen.getByRole("button", { name: /Oprește melodia/ })).toBeInTheDocument();
+    });
+
+    test("not touched yet: downloads nothing, starts on the first tap in the photos", async () => {
+      activate(false);
+      const { section } = renderInGallery();
+      intersect(section, true);
+      expect(audios).toHaveLength(0);
+
+      await act(async () => window.dispatchEvent(new Event("pointerup")));
+      expect(audios).toHaveLength(1);
+      expect(screen.getByRole("button", { name: /Oprește melodia/ })).toBeInTheDocument();
+    });
+
+    test("stopped by the visitor: does not start again by itself", async () => {
+      activate(true);
+      const { section } = renderInGallery();
+      await act(async () => intersect(section, true));
+      fireEvent.click(screen.getByRole("button", { name: /Oprește melodia/ }));
+      intersect(section, false);
+      await act(async () => intersect(section, true));
+      await act(async () => window.dispatchEvent(new Event("pointerup")));
+      expect(screen.getByRole("button", { name: /Pornește melodia/ })).toBeInTheDocument();
+    });
   });
 });

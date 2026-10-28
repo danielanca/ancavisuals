@@ -8,7 +8,7 @@ import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { BOT_UA } from "../utils/botUa";
 import { isNotifiableCountry } from "../utils/geoFilter";
-import { categorizeError, errorFingerprint, isNoiseError, ERROR_CATEGORY_LABELS, type ErrorCategory } from "../../shared/errorCategories";
+import { categorizeError, errorFingerprint, isChunkLoadError, isNoiseError, ERROR_CATEGORY_LABELS, type ErrorCategory } from "../../shared/errorCategories";
 
 const router = Router();
 
@@ -25,7 +25,9 @@ function isExtensionError(message: string, stack: string): boolean {
   return EXTENSION_PATTERNS.some((pattern) => combined.includes(pattern));
 }
 
-function isQrDebugError(message: string, page: string): boolean {
+function isQrDebugError(message: string, page: string, stack = ""): boolean {
+  // A stale-deploy JS file is not an upload problem (it shows under "chunk" in /admin/errors).
+  if (isChunkLoadError(`${message}\n${stack}`)) return false;
   return message.startsWith("[QR DEBUG]") || page.startsWith("/qr-moments/");
 }
 
@@ -312,7 +314,7 @@ router.post("/client-error", async (req: Request, res: Response) => {
     if (admin !== true && NEW_ERROR_EMAIL_CATEGORIES.has(category) && shouldSendNewErrorEmail(errorFingerprint(category, trimmedMessage, page))) {
       sendNewClientErrorEmail(category, trimmedMessage, trimmedStack, page, userAgent, geo).catch(() => {});
     }
-    if (isQrDebugError(message, page) && shouldSendQrDebugEmail(page, ip || undefined)) {
+    if (isQrDebugError(message, page, String(stack)) && shouldSendQrDebugEmail(page, ip || undefined)) {
       sendQrDebugEmail(message, stack, page, ip || undefined, geo).catch(() => {});
     }
     if (isSlowLoadError(message)) {

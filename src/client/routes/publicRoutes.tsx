@@ -26,6 +26,7 @@ const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumP
 const FeedbackPage = loadable(() => import("../features/feedback/FeedbackPage"), opts(false));
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), opts(true));
 const ProposalLinkPage = loadable(() => import("../pages/MediaDownload/ProposalLinkPage"), opts(false));
+const FamilyCalendarPage = loadable(() => import("../pages/FamilyCalendar/FamilyCalendarPage"), opts(false));
 const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerificationPage"), opts(true));
 const InvitationLandingPage = loadable(() => import("../pages/InvitationLanding/InvitationLandingPage"), opts(true));
 const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMomentsPage"), opts(true));
@@ -42,6 +43,7 @@ const HandoverSignPage = loadable(() => import("../pages/Handover/HandoverSignPa
 const PostEventBackupPage = loadable(() => import("../pages/PostEventBackup/PostEventBackupPage"), opts(false));
 const BlogList = loadable(() => import("../pages/Blog/BlogList"), opts(true));
 const BlogPost = loadable(() => import("../pages/Blog/BlogPost"), opts(true));
+const SeoLandingPage = loadable(() => import("../pages/SeoLanding/SeoLandingPage"), opts(true));
 const RevinPage = loadable(() => import("../pages/Revin/RevinPage"), opts(false));
 const GuestInvitationPage = loadable(() => import("../features/wedding-hub/pages/GuestInvitationPage"), opts(false));
 // Imported directly, not loadable: the ad landing (/oferta/olx) renders on the server
@@ -136,6 +138,12 @@ const publicRoutes: publicRoutesType[] = [
     layout: null,
     component: BlogPost,
   },
+  {
+    // Pagini speciale SEO, made with AI in SEO Radar (/admin/seo-radar/pagina).
+    path: "/servicii/:slug",
+    layout: null,
+    component: SeoLandingPage,
+  },
 
   ...SERVICE_HUB_SLUGS.map(serviceSlug => ({
     path: `/foto-video-${serviceSlug}`,
@@ -161,6 +169,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/propune/:token",
     layout: null,
     component: ProposalLinkPage,
+  },
+  {
+    path: "/zile-ocupate",
+    layout: null,
+    component: FamilyCalendarPage,
   },
   {
     path: "/invitatie/:slug",

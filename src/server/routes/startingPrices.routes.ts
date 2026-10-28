@@ -4,6 +4,8 @@ import { firestore } from "../firestore";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { normalizeStartingPrices, STARTING_PRICE_TYPES, type StartingPrices } from "../../shared/pricing/startingPrices";
 import {
+  toPriceBook,
+  type PriceBook,
   CONFIGURATOR_PRICE_FIELDS,
   isValidConfiguratorPrice,
   normalizeConfiguratorPrices,
@@ -56,6 +58,12 @@ export async function getPriceSeasons(): Promise<PriceSeason[]> {
 /** Never throws: no special weekend prices when the read fails. */
 export async function getDatePrices(): Promise<DatePrice[]> {
   return (await readPrices()).datePrices;
+}
+
+/** Never throws: starting + configurator prices together (defaults when the read fails). */
+export async function getPriceBook(): Promise<PriceBook> {
+  const { prices, configurator } = await readPrices();
+  return toPriceBook(prices, configurator);
 }
 
 /** Never throws: no per-year prices (standard prices every year) when the read fails. */

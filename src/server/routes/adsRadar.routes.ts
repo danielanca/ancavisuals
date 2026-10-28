@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
-import { dataforSeoCredentials, fetchKeywordSuggestions, fetchSearchVolumes, KeywordIdeasError, normalizeKeyword, type KeywordSuggestion } from "../lib/dataforseoKeywords";
+import { dataforSeoCredentials, fetchKeywordSuggestions, fetchSearchVolumes, KeywordIdeasError, normalizeKeyword, requireDataForSeoCredit, type KeywordSuggestion } from "../lib/dataforseoKeywords";
 
 const MAX_SEEDS = 5;
 const MAX_VOLUME_KEYWORDS = 20;
 
 const router = Router();
-router.use(requireFirebaseAuth, requireSupremeAdmin);
+router.use(requireFirebaseAuth, requireSupremeAdmin, requireDataForSeoCredit());
 
 // Pornind de la câțiva termeni (servicii, tip eveniment, oraș), interoghează DataForSEO Labs
 // pentru fiecare termen separat și combină rezultatele într-o singură listă de sugestii —

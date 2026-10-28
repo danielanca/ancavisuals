@@ -3,7 +3,7 @@ import { encodeAlbumPreview } from "src/client/features/admin/components/albumPr
 
 afterEach(() => vi.unstubAllGlobals());
 describe("album WebP encoding", () => {
-  test.each([[6000, 4000, 1400, 933], [800, 1200, 800, 1200]])("resizes %s×%s without enlarging and releases the decoded image", async (w, h, width, height) => {
+  test.each([[6000, 4000, 1000, 667], [800, 1200, 800, 1200]])("resizes %s×%s without enlarging and releases the decoded image", async (w, h, width, height) => {
     const close = vi.fn();
     const drawImage = vi.fn();
     const convertToBlob = vi.fn().mockResolvedValue(new Blob(["webp"], { type: "image/webp" }));

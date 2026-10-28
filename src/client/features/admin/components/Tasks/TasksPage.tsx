@@ -364,7 +364,7 @@ export default function TasksPage() {
         <Breadcrumb />
 
         <div>
-          <h1 className="text-2xl font-light tracking-tight">Taskuri clienți</h1>
+          <h1 className="text-2xl font-light tracking-tight">Task-uri</h1>
           <p className="text-sm text-neutral-500 mt-1">Ce ai de făcut, ce ai făcut și ce îți propui azi.</p>
         </div>
 

@@ -10,6 +10,9 @@ describe("errorCategories", () => {
     expect(categorizeError({ message: "[404] /oferta/xyz" })).toBe("not-found");
     expect(categorizeError({ message: "[QR DEBUG] upload failed" })).toBe("qr");
     expect(categorizeError({ message: "TypeError: x", page: "/qr-moments/abc" })).toBe("qr");
+    // Safari, a QR page left open over a deploy: a stale JS file, not an upload problem.
+    expect(categorizeError({ message: "Unhandled Promise Rejection: Importing a module script failed.", page: "/qr-moments/27septembrie2026" })).toBe("chunk");
+    expect(categorizeError({ message: "error loading dynamically imported module: /assets/x.js" })).toBe("chunk");
     expect(categorizeError({ message: "[SLOW LOAD] 9s" })).toBe("slow-load");
     expect(categorizeError({ message: "[IMAGE LOAD FAILED] https://cdn/x.webp" })).toBe("image");
     expect(categorizeError({ message: "Failed to fetch dynamically imported module: /assets/Contact-abc.js" })).toBe("chunk");
@@ -35,6 +38,9 @@ describe("errorCategories", () => {
     expect(isNoiseError("TypeError: undefined is not an object (evaluating 'window.ethereum.selectedAddress = undefined')")).toBe(true);
     // Facebook / Instagram in-app browser on Android, closing the page.
     expect(isNoiseError("Uncaught Error: Error invoking postMessage: Java object is gone", "at sendDataToNative (iabjs://navigation_performance_logger_android:1:11722)")).toBe(true);
+    // A JS file of an older deploy, in every browser's wording.
+    expect(isNoiseError("Unhandled Promise Rejection: Importing a module script failed.")).toBe(true);
+    expect(isNoiseError("TypeError: Failed to fetch dynamically imported module: /assets/Contact-abc.js")).toBe(true);
     expect(isNoiseError("TypeError: a is undefined")).toBe(false);
   });
 });

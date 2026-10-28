@@ -64,6 +64,26 @@ input[type="number"] {
   padding-top: 110px;
 }
 
+/* SectionSkeleton (landing pages): the bar reaches 70% in 3 s, then creeps toward 100% for as
+   long as the section still needs. Pure CSS, so it already moves before the page's JavaScript
+   arrives on a slow connection. */
+@keyframes av-skeleton-fast {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(0.7); }
+}
+@keyframes av-skeleton-slow {
+  from { transform: scaleX(0.7); }
+  to { transform: scaleX(0.97); }
+}
+.av-skeleton-bar {
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: av-skeleton-fast 3s cubic-bezier(0.2, 0.7, 0.3, 1) forwards, av-skeleton-slow 40s cubic-bezier(0.1, 0.6, 0.3, 1) 3s forwards;
+}
+.av-skeleton-bar[data-waiting] {
+  animation-play-state: paused;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

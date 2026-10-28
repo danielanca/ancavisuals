@@ -2,6 +2,24 @@ import React, { useEffect, useRef, useState } from "react";
 import useAuth from "../auth/useAuth";
 import { CITIES } from "../../../pages/LocationSEO/locationData";
 import ConfirmModal from "./ConfirmModal";
+import SeoAutoPostsPanel from "./SeoAutoPostsPanel";
+import { Link } from "react-router-dom";
+
+/** The AI page creator for a keyword where we don't rank (SeoPageCreatorPage). */
+const seoPageCreatorUrl = (keyword: string, city: string) =>
+  `/admin/seo-radar/pagina?keyword=${encodeURIComponent(keyword)}&city=${encodeURIComponent(city === NO_CITY_ROW ? "" : city)}`;
+
+/** A proxy/timeout HTML page instead of JSON becomes a readable message, not "Unexpected token '<'". */
+async function readJsonOrExplain(response: Response): Promise<{ error?: string; [key: string]: unknown }> {
+  const raw = await response.text();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(response.status >= 500 || response.status === 0
+      ? "Serverul n-a primit răspuns la timp de la Google Ads. Încearcă din nou peste câteva minute."
+      : `Răspuns neașteptat de la server (${response.status}).`);
+  }
+}
 
 interface ConfirmDialogState {
   title: string;
@@ -529,7 +547,7 @@ const SeoRadarPage: React.FC = () => {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
       body: JSON.stringify({ keyword: keywordValue }),
     });
-    const data = await response.json();
+    const data = await readJsonOrExplain(response);
     if (!response.ok) throw new Error(data.error || "Nu am putut încărca datele de Ads.");
     return data.insight as AdsInsight;
   };
@@ -540,7 +558,7 @@ const SeoRadarPage: React.FC = () => {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
       body: JSON.stringify({ keyword: keywordValue, bid }),
     });
-    const data = await response.json();
+    const data = await readJsonOrExplain(response);
     if (!response.ok) throw new Error(data.error || "Nu am putut estima bugetul.");
     return data.estimate as AdsBudgetEstimate;
   };
@@ -2758,7 +2776,7 @@ const AdsInsightPanel = ({
           </div>
           <div className="mt-3 flex flex-wrap items-end gap-2">
             <label className="text-xs text-gray-400">
-              Licitație (RON/zi)
+              Licitație maximă pe click (RON)
               <input
                 value={bid}
                 onChange={event => setBid(event.target.value)}
@@ -2990,6 +3008,9 @@ const CoverageDetailPanel = ({
         <div className="ml-auto flex flex-wrap gap-2">
           <button type="button" onClick={() => onRescan(analysis)} disabled={disabled} className="rounded-xl border border-amber-200/50 px-3 py-1.5 text-xs font-medium text-amber-200 disabled:opacity-50">Rescanează</button>
           <button type="button" onClick={() => onView(analysis)} disabled={disabled} className="rounded-xl bg-white px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50">Deschide analiza completă</button>
+          {cell.status === "absent" && (
+            <Link to={seoPageCreatorUrl(analysis.keyword, cell.city)} className="rounded-xl bg-amber-200 px-3 py-1.5 text-xs font-semibold text-black hover:bg-amber-100">🚀 Creează pagină specială</Link>
+          )}
           {cell.status === "absent" && cell.articleCount === 0 && (
             <button type="button" onClick={() => onCreateArticle(analysis)} disabled={disabled} className="rounded-xl border border-emerald-300/50 px-3 py-1.5 text-xs font-medium text-emerald-200 disabled:opacity-50">Creează articol</button>
           )}
@@ -3456,6 +3477,8 @@ const CoverageReport = ({
           </div>
         ))}
       </div>
+
+      <SeoAutoPostsPanel />
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <input
@@ -4009,6 +4032,9 @@ const CoverageListRow = ({
         </button>
         <button type="button" onClick={() => onView(analysis)} disabled={disabled} className="rounded-xl bg-white px-4 py-2 text-xs font-medium text-black disabled:opacity-50">Deschide</button>
         <button type="button" onClick={() => onRescan(analysis)} disabled={disabled || scanning || queued} className="rounded-xl border border-amber-200/50 px-4 py-2 text-xs font-medium text-amber-200 disabled:opacity-50">Rescanează</button>
+        {cell.status === "absent" && (
+          <Link to={seoPageCreatorUrl(analysis.keyword, cell.city)} className="rounded-xl bg-amber-200 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-100">🚀 Creează pagină specială</Link>
+        )}
         {cell.status === "absent" && cell.articleCount === 0 && (
           <button type="button" onClick={() => onCreateArticle(analysis)} disabled={disabled} className="rounded-xl border border-emerald-300/50 px-4 py-2 text-xs font-medium text-emerald-200 disabled:opacity-50">Creează articol</button>
         )}

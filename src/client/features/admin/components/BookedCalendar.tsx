@@ -147,6 +147,13 @@ export default function BookedCalendar() {
             </button>
             <h1 className="text-white text-lg font-semibold tracking-tight">Calendar rezervări</h1>
             <p className="text-neutral-500 text-xs mt-0.5">Zilele marcate cu roșu sunt deja rezervate</p>
+            <button
+              type="button"
+              onClick={() => navigate("/admin/calendar-familie")}
+              className="mt-2 text-xs text-neutral-400 underline hover:text-white"
+            >
+              💞 Calendar pentru Estera →
+            </button>
           </div>
           <div className="flex items-center gap-2">
             <button

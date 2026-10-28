@@ -1,5 +1,6 @@
 import { getPublicCampaignCached } from "../routes/campaign.routes";
 import { getPublicOfferCached } from "../routes/oferte.routes";
+import { getPriceBook } from "../routes/startingPrices.routes";
 import type { InitialData } from "../../client/ssr/initialData";
 
 // Pages that render on the server with their data — the ad landing (/oferta/olx)
@@ -8,6 +9,9 @@ const OFFER_PATH = /^\/(?:oferta|p)\/([^/]+)\/?$/;
 // Has its own static page (FuneralOfferPage).
 const STATIC_OFFER_SLUGS = new Set(["inmormantari"]);
 const MAX_WAIT_MS = 2500;
+// City pages (/foto-video-nunta-turda, /fotograf-botez-sibiu…) show the /admin/preturi prices:
+// in the first HTML, so Google and AI crawlers (no JavaScript) read the current ones.
+const LOCATION_PATH = /^\/(?:foto-video|fotograf|videograf|foto|video)-[a-z0-9-]+\/?$/;
 
 async function load(slug: string): Promise<InitialData | null> {
   const campaign = await getPublicCampaignCached(slug);
@@ -19,10 +23,12 @@ async function load(slug: string): Promise<InitialData | null> {
 /** Data for the page at `path`, or null (the page then loads it in the browser as before). Never throws. */
 export async function loadInitialData(path: string): Promise<InitialData | null> {
   const slug = OFFER_PATH.exec(path)?.[1];
-  if (!slug || STATIC_OFFER_SLUGS.has(slug)) return null;
+  const isLocation = LOCATION_PATH.test(path);
+  if (!isLocation && (!slug || STATIC_OFFER_SLUGS.has(slug))) return null;
   try {
+    // A slow Firestore never holds the page: past MAX_WAIT_MS it renders without the data.
     return await Promise.race([
-      load(decodeURIComponent(slug)),
+      isLocation ? getPriceBook().then((priceBook) => ({ slug: "", priceBook })) : load(decodeURIComponent(slug!)),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), MAX_WAIT_MS)),
     ]);
   } catch (error) {

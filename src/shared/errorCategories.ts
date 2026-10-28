@@ -52,7 +52,18 @@ const NOISE_PATTERNS = [
 
 export function isNoiseError(message: string, stack = ""): boolean {
   const combined = `${message}\n${stack}`;
-  return NOISE_PATTERNS.some((pattern) => pattern.test(combined));
+  // A JS file of an older deploy (owner, 2026-10-28: not the site's fault, do not show it) — the
+  // visitor's page reloads itself once (ChunkErrorBoundary in App.tsx).
+  return NOISE_PATTERNS.some((pattern) => pattern.test(combined)) || isChunkLoadError(combined);
+}
+
+/**
+ * A JS file of an older deploy is gone (the page was open while we deployed). Each browser words
+ * it differently: Chrome "Failed to fetch dynamically imported module", Safari "Importing a module
+ * script failed.", Firefox "error loading dynamically imported module".
+ */
+export function isChunkLoadError(text: string): boolean {
+  return /Loading (CSS )?chunk|dynamically imported module|Importing a module script failed|Unable to preload CSS|ChunkLoadError/i.test(text);
 }
 
 export function categorizeError(input: { message: string; stack?: string; page?: string; source?: string }): ErrorCategory {
@@ -61,11 +72,12 @@ export function categorizeError(input: { message: string; stack?: string; page?:
   const page = input.page ?? "";
   if (input.source === "server") return "server";
   if (message.startsWith("[404]")) return "not-found";
+  const text = `${message}\n${stack}`;
+  // Before "qr": a page left open over a deploy fails the same way on a QR page — it is not an upload problem.
+  if (isChunkLoadError(text)) return "chunk";
   if (message.startsWith("[QR DEBUG]") || page.startsWith("/qr-moments/")) return "qr";
   if (message.startsWith("[SLOW LOAD]")) return "slow-load";
   if (message.startsWith("[IMAGE LOAD FAILED]")) return "image";
-  const text = `${message}\n${stack}`;
-  if (/Loading (CSS )?chunk|dynamically imported module|Importing a module script failed|ChunkLoadError/i.test(text)) return "chunk";
   if (/Minified React error #(418|419|421|422|423|425)|hydrat/i.test(text)) return "hydration";
   if (/Failed to fetch|NetworkError|Load failed|network error|ERR_NETWORK|timeout/i.test(message)) return "network";
   if (message.startsWith("Unhandled Promise Rejection")) return "promise";

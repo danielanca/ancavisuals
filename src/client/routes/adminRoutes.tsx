@@ -34,6 +34,7 @@ const LeadsPage = loadable(() => import("../features/admin/components/LeadsPage"
 const EmailLogPage = loadable(() => import("../features/admin/components/EmailLogPage"), opts);
 const SmsLogPage = loadable(() => import("../features/admin/components/SmsLogPage"), opts);
 const ChangelogPage = loadable(() => import("../features/admin/components/ChangelogPage"), opts);
+const FamilyCalendarAdminPage = loadable(() => import("../features/admin/components/FamilyCalendarAdminPage"), opts);
 const ContactStatsPage = loadable(() => import("../features/admin/components/ContactStatsPage"), opts);
 const StartingPricesPage = loadable(() => import("../features/admin/components/StartingPricesPage"), opts);
 const ImageOptimizerPage = loadable(() => import("../features/admin/components/ImageOptimizerPage"), opts);
@@ -63,6 +64,7 @@ const ShowcaseZoneEditorPage = loadable(() => import("../features/admin/componen
 const MediaLibraryHubPage = loadable(() => import("../features/admin/components/MediaLibraryHubPage"), opts);
 const SeoGeneratorPage = loadable(() => import("../features/admin/components/SeoGeneratorPage"), opts);
 const SeoRadarPage = loadable(() => import("../features/admin/components/SeoRadarPage"), opts);
+const SeoPageCreatorPage = loadable(() => import("../features/admin/components/SeoPageCreatorPage"), opts);
 const AdsRadarPage = loadable(() => import("../features/admin/components/AdsRadarPage"), opts);
 const SeoPagesAdminPage = loadable(() => import("../features/admin/components/SeoPagesAdminPage"), opts);
 const BlogAdminPage = loadable(() => import("../features/admin/components/BlogAdminPage"), opts);
@@ -111,6 +113,7 @@ export const adminRoutes = [
       <Route path="/admin/email-log" element={<EmailLogPage />} />
       <Route path="/admin/sms-log" element={<SmsLogPage />} />
       <Route path="/admin/updates" element={<ChangelogPage />} />
+      <Route path="/admin/calendar-familie" element={<FamilyCalendarAdminPage />} />
       <Route path="/admin/statistici-contact" element={<ContactStatsPage />} />
       <Route path="/admin/preturi" element={<StartingPricesPage />} />
       <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
@@ -136,6 +139,7 @@ export const adminRoutes = [
       <Route path="/admin/showcase/:zoneId" element={<ShowcaseZoneEditorPage />} />
       <Route path="/admin/seo-generator" element={<SeoGeneratorPage />} />
       <Route path="/admin/seo-radar" element={<SeoRadarPage />} />
+      <Route path="/admin/seo-radar/pagina" element={<SeoPageCreatorPage />} />
       <Route path="/admin/ads-radar" element={<AdsRadarPage />} />
       <Route path="/admin/seo-pages" element={<SeoPagesAdminPage />} />
       <Route path="/admin/blog" element={<BlogAdminPage />} />

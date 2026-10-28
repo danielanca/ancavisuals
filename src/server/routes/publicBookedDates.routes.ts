@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { firestore } from "../firestore";
 import { expandEventDates } from "../utils/expandEventDates";
+import { approvedFamilyDays } from "../services/familyTime.service";
 
 const CONFIRMED_STATUSES = new Set(["confirmat", "finalizat"]);
 
@@ -19,6 +20,8 @@ router.get("/", async (_req: Request, res: Response) => {
       if (data.excludeFromCalendar === true || !CONFIRMED_STATUSES.has(data.status)) continue;
       dates.push(...expandEventDates(data));
     }
+    // Days the owner approved for the family (/zile-ocupate) are not offered to clients either.
+    dates.push(...(await approvedFamilyDays()));
 
     res.json({ dates });
   } catch (error) {

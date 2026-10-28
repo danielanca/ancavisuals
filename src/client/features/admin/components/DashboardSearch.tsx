@@ -17,7 +17,7 @@ export const SEARCH_ITEMS: SearchItem[] = [
   { label: "Eveniment nou", path: "/admin/create-event", category: "Evenimente", icon: "➕", keywords: "adauga programare rezervare booking creeaza" },
   { label: "Invitație nuntă", path: "/admin/create-event-wedding", category: "Evenimente", icon: "💌", keywords: "nunta invitatie wedding creeaza" },
   { label: "Mementouri", path: "/admin/mementos", category: "Evenimente", icon: "🔔", keywords: "remindere notificari" },
-  { label: "Taskuri clienți", path: "/admin/taskuri", category: "Evenimente", icon: "✅", keywords: "todo de facut azi progres organizator" },
+  { label: "Task-uri", path: "/admin/taskuri", category: "Evenimente", icon: "✅", keywords: "todo de facut azi progres organizator" },
   { label: "Moderare albume", path: "/admin/moderare", category: "Evenimente", icon: "🖼️", keywords: "album moderat aprobare" },
   { label: "Livrare preview", path: "/admin/livrare-preview", category: "Evenimente", icon: "🚚", keywords: "preview livrare termen intarziat poze trimise clienti" },
   // Contracte & Oferte
@@ -42,6 +42,8 @@ export const SEARCH_ITEMS: SearchItem[] = [
   { label: "Noutăți în masă", path: "/admin/album-updates", category: "Media", icon: "📣", keywords: "noutati album intarziere intarzie mai dureaza estimare termen anunt clienti mai multi grup bulk mesaj sms whatsapp email abonati poze video videoclip album tiparit" },
   { label: "Anunță întârziere la mai mulți clienți", path: "/admin/album-updates", category: "Media", icon: "⏳", keywords: "intarziere delay mai dureaza poze video album clienti grup selecteaza evenimente" },
   // Evenimente
+  { label: "Calendar pentru Estera", path: "/admin/calendar-familie", category: "Evenimente", icon: "💞", keywords: "calendar estera sotie familie nunti evenimente program saptamana an viitor reminder email trimite link google calendar iphone ics abonare preturi lista plan luni zile ocupate concediu cerere timp liber aproba refuza vacanta cod login" },
+  { label: "Cereri de concediu de la Estera", path: "/admin/calendar-familie", category: "Evenimente", icon: "🏡", keywords: "concediu vacanta timp pentru familie cerere estera aproba refuza zile libere rezerva perioada" },
   { label: "Progres Evenimente", path: "/admin/progress", category: "Evenimente", icon: "📋", keywords: "progres editare livrare fotografiere etape status" },
   // Financiar
   { label: "Rezumat financiar", path: "/admin/financial", category: "Financiar", icon: "💰", keywords: "bani venituri cheltuieli profit facturi cheltuieli invoices expenses" },
@@ -58,6 +60,7 @@ export const SEARCH_ITEMS: SearchItem[] = [
   { label: "PDF-uri & Ghiduri", path: "/admin/pdf-resources", category: "Marketing & Web", icon: "📄", keywords: "pdf ghid brosura upload bunny bio link special" },
   { label: "SEO Generator", path: "/admin/seo-generator", category: "Marketing & Web", icon: "🔍", keywords: "seo meta titlu descriere" },
   { label: "SEO Radar", path: "/admin/seo-radar", category: "Marketing & Web", icon: "🛰️", keywords: "seo radar monitorizare ranking pozitii" },
+  { label: "Pagini speciale SEO", path: "/admin/seo-radar/pagina", category: "Marketing & Web", icon: "🚀", keywords: "pagina speciala seo landing creeaza pagina ai cuvant cheie absent nu apar google top indexare servicii" },
   { label: "Pagini SEO", path: "/admin/seo-pages", category: "Marketing & Web", icon: "📄", keywords: "seo pagini landing" },
   { label: "Ads Radar", path: "/admin/ads-radar", category: "Marketing & Web", icon: "📡", keywords: "reclame ads radar campanii publicitate google facebook" },
   { label: "Blog", path: "/admin/blog", category: "Marketing & Web", icon: "✍️", keywords: "articole markdown continut publicare draft" },

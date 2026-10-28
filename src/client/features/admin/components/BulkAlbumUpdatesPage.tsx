@@ -31,6 +31,10 @@ type WhatsappRecipient = { name: string | null; phone: string; link: string };
 type BulkResult = { slug: string; ok: boolean; error?: string; sent?: { email: number; sms: number; failed: number }; whatsapp?: WhatsappRecipient[]; smsSkipped?: boolean };
 
 type Period = "all" | "past" | "upcoming";
+type Channel = "email" | "sms" | "whatsapp";
+type Preview = { emailSubject: string; emailHtml: string; sms: string; smsParts: number; whatsapp: string };
+
+const CHANNEL_LABEL: Record<Channel, string> = { email: "Email", sms: "SMS", whatsapp: "WhatsApp" };
 
 const input = "w-full border border-neutral-700 bg-black px-3 py-2 text-sm text-white outline-none focus:border-white";
 
@@ -84,6 +88,12 @@ export default function BulkAlbumUpdatesPage() {
   const [appliedText, setAppliedText] = useState("");
   const [previous, setPrevious] = useState<Draft | null>(() => readStored(PREVIOUS_KEY));
   const [sendTo, setSendTo] = useState({ email: true, sms: true, whatsapp: true });
+  // Off by default (owner, 2026-10-28): the clients get the news without the "Dezabonare" link.
+  const [unsubscribeLink, setUnsubscribeLink] = useState(false);
+  const [previewSlug, setPreviewSlug] = useState("");
+  const [previewChannel, setPreviewChannel] = useState<Channel>("email");
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BulkResult[] | null>(null);
@@ -188,12 +198,50 @@ export default function BulkAlbumUpdatesPage() {
   const notify = sendTo.email || sendTo.sms || sendTo.whatsapp;
   const selectedRows = (albums ?? []).filter((album) => selected.has(album.slug));
   const subscriberTotal = selectedRows.reduce((sum, album) => sum + album.subscribers, 0);
+  // The preview follows a ticked album (the greeting's date and the album link differ per album).
+  const previewOptions = selectedRows.length ? selectedRows : visible;
+  const previewAlbum = previewOptions.find((album) => album.slug === previewSlug) ?? previewOptions[0];
+  const channels = (Object.keys(CHANNEL_LABEL) as Channel[]).filter((channel) => sendTo[channel]);
+  const shownChannel = channels.includes(previewChannel) ? previewChannel : channels[0];
+  const previewDate = kindHasDate(kind) && estimateDate ? estimateDate : undefined;
+  const previewAlbumSlug = previewAlbum?.slug;
+
+  useEffect(() => {
+    if (!auth.accessToken || !previewAlbumSlug || !text.trim()) {
+      setPreview(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      fetch("/api/album-subscriptions/updates-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify({ slug: previewAlbumSlug, kind, text: text.trim(), estimateDate: previewDate, unsubscribeLink }),
+        signal: controller.signal,
+      })
+        .then(async (res) => {
+          const data = (await res.json().catch(() => ({}))) as Partial<Preview> & { error?: string };
+          if (!res.ok || typeof data.emailHtml !== "string") throw new Error(data.error ?? "Nu am putut pregăti previzualizarea.");
+          setPreview(data as Preview);
+          setPreviewError(null);
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted) setPreviewError(e instanceof Error ? e.message : "Nu am putut pregăti previzualizarea.");
+        });
+    }, 350);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [auth.accessToken, previewAlbumSlug, kind, text, previewDate, unsubscribeLink]);
+
   const canPublish = selected.size > 0 && text.trim().length > 0 && !(dateRequired && !estimateDate) && !datePast && !busy;
 
   const publish = async () => {
     if (!auth.accessToken || !canPublish) return;
     const where = notify ? ` și o trimit pe ${[sendTo.email && "Email", sendTo.sms && "SMS", sendTo.whatsapp && "WhatsApp"].filter(Boolean).join(", ")}` : "";
-    if (!window.confirm(`Public noutatea la ${selected.size} ${selected.size === 1 ? "album" : "albume"}${where}?`)) return;
+    const stop = notify && (sendTo.email || sendTo.sms) ? (unsubscribeLink ? ", cu link de dezabonare" : ", fără link de dezabonare") : "";
+    if (!window.confirm(`Public noutatea la ${selected.size} ${selected.size === 1 ? "album" : "albume"}${where}${stop}?`)) return;
     setBusy(true);
     setError(null);
     setResults(null);
@@ -209,6 +257,7 @@ export default function BulkAlbumUpdatesPage() {
           notify,
           email: sendTo.email,
           phoneDelivery: phoneDeliveryFromChoice(sendTo.sms, sendTo.whatsapp),
+          unsubscribeLink,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { results?: BulkResult[]; adminEmailed?: boolean; error?: string };
@@ -312,7 +361,7 @@ export default function BulkAlbumUpdatesPage() {
         </section>
 
         {/* ── Message ── */}
-        <section aria-label="Mesajul" className="space-y-3 border border-neutral-800 bg-neutral-950 p-3 lg:sticky lg:top-4 lg:self-start">
+        <section aria-label="Mesajul" className="min-w-0 space-y-3 border border-neutral-800 bg-neutral-950 p-3 lg:self-start">
           <div>
             <p className="mb-1.5 text-xs text-neutral-400">Șablon</p>
             <div className="flex flex-wrap gap-1.5">
@@ -432,7 +481,41 @@ export default function BulkAlbumUpdatesPage() {
               ))}
             </div>
             <p className="mt-1 text-[11px] text-neutral-500">Fără nicio bifă, noutatea apare doar în albume, fără mesaje.</p>
+            <label className="mt-2 flex items-start gap-1.5 border-t border-neutral-800 pt-2 text-xs text-neutral-300">
+              <input type="checkbox" className="mt-0.5" checked={unsubscribeLink} onChange={(e) => setUnsubscribeLink(e.target.checked)} />
+              <span>Adaugă linkul de dezabonare <span className="text-neutral-500">(în email și SMS; WhatsApp nu îl are niciodată)</span></span>
+            </label>
           </fieldset>
+
+          {notify && (
+            <div aria-label="Previzualizare" className="space-y-2 border border-neutral-800 p-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-white">👁 Exact ce primește clientul</p>
+                {previewOptions.length > 1 && (
+                  <select aria-label="Previzualizare pentru albumul" className="max-w-full border border-neutral-700 bg-black px-2 py-1 text-xs text-white" value={previewAlbum?.slug ?? ""} onChange={(e) => setPreviewSlug(e.target.value)}>
+                    {previewOptions.map((album) => <option key={album.slug} value={album.slug}>{album.clients.join(" & ") || album.slug}</option>)}
+                  </select>
+                )}
+              </div>
+              <div className="flex" role="tablist" aria-label="Canalul previzualizat">
+                {channels.map((channel) => (
+                  <button key={channel} type="button" role="tab" aria-selected={shownChannel === channel} onClick={() => setPreviewChannel(channel)}
+                    className={`flex-1 border px-2 py-1.5 text-xs font-semibold ${shownChannel === channel ? "border-white bg-white text-black" : "border-neutral-700 text-neutral-300 hover:border-neutral-500"}`}>
+                    {CHANNEL_LABEL[channel]}
+                  </button>
+                ))}
+              </div>
+              {!previewAlbum && <p className="text-xs text-neutral-500">Bifează un album ca să vezi mesajul.</p>}
+              {previewAlbum && !text.trim() && <p className="text-xs text-neutral-500">Scrie mesajul ca să-l vezi aici.</p>}
+              {previewError && <p role="alert" className="text-xs text-red-400">{previewError}</p>}
+              {previewAlbum && text.trim() && preview && <MessagePreview preview={preview} channel={shownChannel} />}
+              {previewAlbum && (
+                <p className="text-[11px] text-neutral-500">
+                  Pentru {previewAlbum.clients.join(" & ") || previewAlbum.slug}. La celelalte albume se schimbă doar data din salut și linkul albumului.
+                </p>
+              )}
+            </div>
+          )}
 
           {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
           <button
@@ -478,6 +561,39 @@ export default function BulkAlbumUpdatesPage() {
             ))}
           </ul>
         </section>
+      )}
+    </div>
+  );
+}
+
+/** One channel's message, as the client sees it: the email in a frame, SMS and WhatsApp as bubbles. */
+function MessagePreview({ preview, channel }: { preview: Preview; channel: Channel }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const fitFrame = () => {
+    const body = frame.current?.contentDocument?.body;
+    if (body && frame.current) frame.current.style.height = `${body.scrollHeight + 16}px`;
+  };
+  if (channel === "email") {
+    return (
+      <div className="space-y-1">
+        <p className="break-words text-xs text-neutral-300"><span className="text-neutral-500">Subiect:</span> {preview.emailSubject}</p>
+        {/* No scripts in the frame; links open in a new tab. */}
+        <iframe ref={frame} title="Emailul clientului" onLoad={fitFrame} sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+          srcDoc={`<base target="_blank"><body style="margin:0;background:#0a0a0a">${preview.emailHtml}</body>`}
+          className="block h-96 w-full border border-neutral-800 bg-[#0a0a0a]" />
+      </div>
+    );
+  }
+  const sms = channel === "sms";
+  return (
+    <div className={sms ? "bg-neutral-900 p-3" : "bg-[#efeae2] p-3"}>
+      <p data-testid={`preview-${channel}`} className={`ml-auto max-w-[92%] whitespace-pre-wrap break-words px-3 py-2 text-[13px] leading-snug ${sms ? "bg-neutral-700 text-white" : "bg-[#d9fdd3] text-[#111b21]"}`}>
+        {sms ? preview.sms : preview.whatsapp}
+      </p>
+      {sms && (
+        <p className="mt-2 text-[11px] text-neutral-400">
+          {preview.sms.length} caractere · {preview.smsParts} {preview.smsParts === 1 ? "SMS" : "SMS-uri"} de abonat. Pleacă fără diacritice și emoji, ca să coste mai puțin.
+        </p>
       )}
     </div>
   );

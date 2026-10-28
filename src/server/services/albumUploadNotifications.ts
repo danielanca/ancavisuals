@@ -20,11 +20,50 @@ interface UploadSession {
   leaseUntil: number;
 }
 
-export async function beginAlbumUpload(eventId: string, slug: string, filenames: string[]): Promise<string> {
+// Durable progress of the latest batch per event (albumUploadProgress/<eventId>): how many photos
+// the owner meant to upload and which still haven't arrived. Unlike the session above it survives
+// a closed page, the 15-minute alert and retries, so the admin can show "500 din 1385" and resume.
+const PROGRESS = "albumUploadProgress";
+const progressRef = (eventId: string) => firestore().collection(PROGRESS).doc(eventId);
+
+export interface AlbumUploadProgress {
+  slug: string;
+  expected: number;
+  pending: string[];
+  startedAt: number;
+  lastActivityAt: number;
+  finishedAt: number | null;
+}
+
+/**
+ * `resume`: the batch continues the previous one for this album (retry of failed photos, or the same
+ * selection picked again after the page closed), so the expected total and start time are kept.
+ */
+export async function beginAlbumUpload(eventId: string, slug: string, filenames: string[], resume = false): Promise<string> {
   const id = randomUUID();
+  const now = Date.now();
   await ref(id).set({ eventId, slug, total: filenames.length, pending: filenames,
-    lastActivityAt: Date.now(), finishRequested: false, leaseUntil: 0 });
+    lastActivityAt: now, finishRequested: false, leaseUntil: 0 });
+  await firestore().runTransaction(async (tx) => {
+    const snapshot = await tx.get(progressRef(eventId));
+    const previous = snapshot.exists ? (snapshot.data() as AlbumUploadProgress) : null;
+    if (resume && previous && previous.slug === slug && previous.pending.length > 0) {
+      tx.set(progressRef(eventId), { ...previous, lastActivityAt: now, finishedAt: null });
+    } else {
+      tx.set(progressRef(eventId), { slug, expected: filenames.length, pending: filenames, startedAt: now, lastActivityAt: now, finishedAt: null } satisfies AlbumUploadProgress);
+    }
+  });
   return id;
+}
+
+export async function getAlbumUploadProgress(eventId: string): Promise<AlbumUploadProgress | null> {
+  const snapshot = await progressRef(eventId).get();
+  return snapshot.exists ? (snapshot.data() as AlbumUploadProgress) : null;
+}
+
+/** "Am rezolvat": the owner dismisses the warning (e.g. finished the upload another way). */
+export async function clearAlbumUploadProgress(eventId: string): Promise<void> {
+  await progressRef(eventId).delete();
 }
 
 // Successful originals are recorded by the server, not inferred from browser counters.
@@ -33,10 +72,19 @@ export async function recordAlbumUploadSuccess(id: string, eventId: string, file
   await firestore().runTransaction(async (tx) => {
     const doc = ref(id);
     const snapshot = await tx.get(doc);
-    if (!snapshot.exists) return;
-    const session = snapshot.data() as UploadSession;
-    if (session.eventId !== eventId) throw new Error("Upload session mismatch");
-    tx.update(doc, { pending: session.pending.filter((name) => name !== filename), lastActivityAt: Date.now() });
+    const progressSnapshot = await tx.get(progressRef(eventId));
+    const now = Date.now();
+    if (snapshot.exists) {
+      const session = snapshot.data() as UploadSession;
+      if (session.eventId !== eventId) throw new Error("Upload session mismatch");
+      tx.update(doc, { pending: session.pending.filter((name) => name !== filename), lastActivityAt: now });
+    }
+    // The progress counts the photo even if the session was already closed by the idle alert.
+    if (progressSnapshot.exists) {
+      const progress = progressSnapshot.data() as AlbumUploadProgress;
+      const pending = progress.pending.filter((name) => name !== filename);
+      tx.update(progressRef(eventId), { pending, lastActivityAt: now, ...(pending.length === 0 ? { finishedAt: now } : {}) });
+    }
   });
 }
 

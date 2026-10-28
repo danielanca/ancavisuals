@@ -142,7 +142,9 @@ function detailRows(rows: Array<[string, string]>): string {
 }
 
 /** Cream page, white letter, brand header — shared by the client-facing signed-contract emails. */
-function clientLetter({ preheader, eyebrow, title, intro, details, note, cta }: {
+function clientLetter({ preheader, eyebrow, title, intro, details, note, cta, icon = "&#10003;" }: {
+  /** The square mark above the title (default: a check). */
+  icon?: string;
   preheader: string;
   eyebrow: string;
   title: string;
@@ -165,7 +167,7 @@ function clientLetter({ preheader, eyebrow, title, intro, details, note, cta }: 
         <tr><td style="background:#ffffff;padding:44px 36px;border:1px solid ${INK};">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr><td align="center">
-              <div style="width:52px;height:52px;line-height:52px;background:${INK};color:${CREAM};font-size:26px;text-align:center;font-family:${SANS};">&#10003;</div>
+              <div style="width:52px;height:52px;line-height:52px;background:${INK};color:${CREAM};font-size:26px;text-align:center;font-family:${SANS};">${icon}</div>
               <div style="font-family:${SANS};font-size:11px;font-weight:700;letter-spacing:3px;color:${ACCENT};text-transform:uppercase;margin-top:22px;">${eyebrow}</div>
               <h1 style="font-family:${SERIF};font-size:30px;line-height:1.25;font-weight:400;color:${INK};margin:10px 0 0;">${title}</h1>
             </td></tr>
@@ -177,7 +179,7 @@ function clientLetter({ preheader, eyebrow, title, intro, details, note, cta }: 
                 </td></tr>
               </table>
             </td></tr>
-            <tr><td align="center" style="padding-top:32px;">${cta}</td></tr>
+            ${cta ? `<tr><td align="center" style="padding-top:32px;">${cta}</td></tr>` : ""}
             <tr><td style="padding-top:22px;font-family:${SANS};font-size:13px;line-height:1.6;color:${MUTED};text-align:center;">${note}</td></tr>
           </table>
         </td></tr>
@@ -281,6 +283,87 @@ export async function sendSignedContractEmail(options: SignedContractEmailOption
     to: adminUser.email,
     subject: `[Admin] Contract semnat — ${eventType} ${formattedDate} — ${clientName}`,
     html: signedContractAdminHtml(options, formattedDate),
+  });
+}
+
+export interface BankTransferEmailOptions {
+  to: string;
+  clientName: string;
+  eventType: string;
+  eventDate: string;
+  beneficiaryName: string;
+  iban: string;
+  /** What to pay now: the advance, or the whole price when the contract has no advance. */
+  amount: number;
+  currency: string;
+  isAdvance: boolean;
+  /** When it is due, as written in the contract (free text). */
+  dueDate?: string;
+  /** Lei for one euro (BNR, today) — shown as the lei equivalent on EUR contracts. */
+  eurRate?: number;
+  /** The day of that BNR rate (YYYY-MM-DD). */
+  eurRateDate?: string;
+}
+
+/** "12.09.2026 - Nuntă": what the client writes as the transfer's description (owner). */
+export function paymentReference(eventDate: string, eventType: string): string {
+  const d = new Date(eventDate);
+  const date = isNaN(d.getTime())
+    ? eventDate
+    : d.toLocaleDateString("ro-RO", { timeZone: "Europe/Bucharest", day: "2-digit", month: "2-digit", year: "numeric" });
+  return `${date} - ${eventType}`.trim();
+}
+
+/**
+ * The name the client types as the transfer's beneficiary: the person, without "PFA" (owner,
+ * 2026-10-28 — the Revolut account is in his name). The contract and invoices keep the full name.
+ */
+export function transferBeneficiaryName(name: string): string {
+  return name.replace(/(^|\s)P\.?F\.?A\.?(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
+}
+
+/** RO49 AAAA 1B31 ... — easier to read and copy than one long run. */
+function groupIban(iban: string): string {
+  return iban.replace(/\s+/g, "").toUpperCase().replace(/(.{4})(?=.)/g, "$1 ");
+}
+
+export function bankTransferEmailHtml(options: BankTransferEmailOptions): string {
+  const { clientName, eventType, eventDate, beneficiaryName, iban, amount, currency, isAdvance, dueDate, eurRate, eurRateDate } = options;
+  const formattedDate = formatRoDate(eventDate);
+  const reference = paymentReference(eventDate, eventType);
+  const beneficiary = transferBeneficiaryName(beneficiaryName);
+  const isEur = currency.toUpperCase() === "EUR";
+  const lei = isEur && eurRate ? Math.round(amount * eurRate) : null;
+  const mono = `font-family:'SFMono-Regular',Menlo,Consolas,monospace;letter-spacing:0.5px;`;
+  const amountText = `${formatMoney(amount, currency)}${lei ? `<br/><span style="font-weight:400;color:${MUTED};font-size:13px;">sau ${formatMoney(lei, "lei")} (curs BNR ${eurRateDate ? `din ${escapeHtml(eurRateDate.split("-").reverse().join("."))}, ` : ""}${eurRate!.toLocaleString("ro-RO", { maximumFractionDigits: 4 })} lei/€)</span>` : ""}`;
+  return clientLetter({
+    icon: "&#8644;",
+    preheader: `Datele pentru plata ${isAdvance ? "avansului" : "contractului"}: ${escapeHtml(beneficiary)}, ${escapeHtml(groupIban(iban))}.`,
+    eyebrow: isAdvance ? "Plata avansului" : "Plata contractului",
+    title: "Datele pentru transfer",
+    intro: `${clientName ? `Bună ziua, ${escapeHtml(clientName)}!<br/>` : ""}Mai jos găsiți contul în care puteți face plata pentru <strong style="color:${INK};">${escapeHtml(eventType)}</strong> din ${formattedDate}.${isAdvance ? " Contractul intră în vigoare la primirea avansului." : ""}`,
+    details: [
+      ["Beneficiar", escapeHtml(beneficiary)],
+      ["IBAN", `<span style="${mono}">${escapeHtml(groupIban(iban))}</span>`],
+      [isAdvance ? "Avans" : "Sumă", amountText],
+      ...(dueDate ? [["Scadent la", escapeHtml(dueDate)] as [string, string]] : []),
+      ["Descriere plată", `<span style="${mono}">${escapeHtml(reference)}</span>`],
+    ],
+    cta: "",
+    note: `${isEur ? "Puteți plăti în euro sau echivalentul în lei, în același cont. " : ""}Vă rugăm să treceți la descriere exact <strong style="color:${INK};">${escapeHtml(reference)}</strong>, ca să găsim plata ușor.`,
+  });
+}
+
+/** After signing, when the contract is paid by bank transfer (owner): where and what to pay — to the client, then a copy to the owner. */
+export async function sendBankTransferEmail(options: BankTransferEmailOptions): Promise<void> {
+  const subject = `Date pentru plată — ${options.eventType} ${formatRoDate(options.eventDate)}`;
+  const html = bankTransferEmailHtml(options);
+  await mailer.sendMail({ from: emailAuth.email, to: options.to, subject, html });
+  await mailer.sendMail({
+    from: emailAuth.email,
+    to: adminUser.email,
+    subject: `[Copie] ${subject} — ${options.clientName} (${options.to})`,
+    html,
   });
 }
 

@@ -2,23 +2,20 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { sendLiveEvent } from "../../utils/liveEvent";
 
-// Background song for the portfolio (owner, 2026-10-27): the visitor presses play under the
-// "Portofoliu" title and it plays softly while they look at the photos — fading in and out,
-// much quieter over the price configurator, with a small speaker button to stop it once the
-// banner is out of view.
+// Background song for the portfolio (owner, 2026-10-27/28): it plays softly while the visitor is
+// in the photos — starting by itself when the browser allows it (or from the play button under
+// the "Portofoliu" title), fading in and out, stopping when they leave the photos or start a
+// video, with a small speaker button to stop it once the banner is out of view.
 export const PORTFOLIO_SONG_URL = "https://ancavisuals.b-cdn.net/custom-download/Ordinary.mp3";
 export const PORTFOLIO_SONG_TITLE = "Ordinary";
 export const PORTFOLIO_SONG_ARTIST = "Alex Warren";
-// Shown before the file loads (nothing is downloaded until play); the real length replaces it.
+// Shown before the file loads (nothing is downloaded before it can play); the real length replaces it.
 const PORTFOLIO_SONG_SECONDS = 187;
 // Soft by default (owner found 0.6 too loud); the visitor can change it with the volume slider.
 export const MUSIC_VOLUME = 0.35;
-/** Over the configurator the song plays at this share of the chosen volume. */
-export const CONFIGURATOR_SHARE = 0.25;
 const VOLUME_STORAGE_KEY = "ppg-music-volume";
 const FADE_IN_S = 2.5;
 const FADE_OUT_S = 1.5;
-const DUCK_S = 1.2;
 const VOLUME_CHANGE_S = 0.15;
 
 function savedVolume(): number {
@@ -161,13 +158,17 @@ export default function PortfolioMusic() {
   const bannerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<SongPlayer | null>(null);
   const playingRef = useRef(false);
-  const overConfiguratorRef = useRef(false);
+  // In the photos (the middle of the screen is inside the gallery section).
+  const inGalleryRef = useRef(false);
+  const [inGallery, setInGallery] = useState(false);
+  // Stopped by the visitor (or by a video): no more starting on its own.
+  const userStoppedRef = useRef(false);
   const pausedByHiddenTabRef = useRef(false);
   const reportedRef = useRef(false);
 
   const [volume, setVolume] = useState(MUSIC_VOLUME);
   const volumeRef = useRef(MUSIC_VOLUME);
-  const targetVolume = () => volumeRef.current * (overConfiguratorRef.current ? CONFIGURATOR_SHARE : 1);
+  const targetVolume = () => volumeRef.current;
 
   // The volume this visitor chose last time (read after mount, so the server HTML matches).
   useEffect(() => {
@@ -186,7 +187,7 @@ export default function PortfolioMusic() {
     }
   }, []);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (how: "click" | "auto" = "click") => {
     // Nothing is downloaded until the first press.
     if (!playerRef.current) {
       const player = new SongPlayer(PORTFOLIO_SONG_URL);
@@ -200,15 +201,16 @@ export default function PortfolioMusic() {
     try {
       await playerRef.current.play(targetVolume());
     } catch {
-      return;
+      return false;
     }
     playingRef.current = true;
     setPlaying(true);
     setStarted(true);
     if (!reportedRef.current) {
       reportedRef.current = true;
-      sendLiveEvent("portfolio_music_played");
+      sendLiveEvent("portfolio_music_played", { meta: { how } });
     }
+    return true;
   }, []);
 
   const stop = useCallback(() => {
@@ -222,7 +224,15 @@ export default function PortfolioMusic() {
     setPosition(seconds);
   }, []);
 
-  const toggle = useCallback(() => (playingRef.current ? stop() : void start()), [start, stop]);
+  const toggle = useCallback(() => {
+    if (playingRef.current) {
+      userStoppedRef.current = true;
+      stop();
+    } else {
+      userStoppedRef.current = false;
+      void start();
+    }
+  }, [start, stop]);
 
   // Leaving the page (another route) stops the song.
   useEffect(() => () => playerRef.current?.destroy(), []);
@@ -235,7 +245,7 @@ export default function PortfolioMusic() {
         stop();
       } else if (!document.hidden && pausedByHiddenTabRef.current) {
         pausedByHiddenTabRef.current = false;
-        void start();
+        if (inGalleryRef.current) void start("auto");
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -246,9 +256,9 @@ export default function PortfolioMusic() {
   // Muted clips (the hero, the package tiles) play on their own and are ignored.
   useEffect(() => {
     const stopForVideo = () => {
-      if (!playingRef.current) return;
+      userStoppedRef.current = true;
       pausedByHiddenTabRef.current = false;
-      stop();
+      if (playingRef.current) stop();
     };
     const onMedia = (event: Event) => {
       const video = event.target;
@@ -269,29 +279,46 @@ export default function PortfolioMusic() {
     };
   }, [stop]);
 
-  // The speaker button shows only after play was pressed and the banner left the screen.
+  // Owner (2026-10-28): the song starts by itself when the visitor reaches the photos and fades
+  // out and stops when they leave them (the configurator included). Browsers only allow sound
+  // after the visitor touched the page — until then the first tap/click/key inside the photos
+  // starts it (scrolling does not count). If they stopped it themselves, it stays stopped.
+  useEffect(() => {
+    const section = bannerRef.current?.closest(".ppg-section");
+    if (!section || typeof IntersectionObserver === "undefined") return;
+    const tryAutoStart = (event?: Event) => {
+      if (!inGalleryRef.current || playingRef.current || userStoppedRef.current || document.hidden) return;
+      // The banner's own buttons handle their click themselves.
+      if (event?.target instanceof Element && event.target.closest(".ppg-music, .ppg-music-float")) return;
+      // Not touched yet = the browser would refuse: wait for a tap instead of downloading the song for nothing.
+      if (!event && navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
+      void start("auto");
+    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        inGalleryRef.current = entry.isIntersecting;
+        setInGallery(entry.isIntersecting);
+        if (entry.isIntersecting) tryAutoStart();
+        else if (playingRef.current) stop();
+      },
+      // "In the photos" = the section covers the middle of the screen.
+      { rootMargin: "-40% 0px -40% 0px" },
+    );
+    observer.observe(section);
+    const gestures = ["pointerup", "touchend", "keydown"] as const;
+    gestures.forEach((type) => window.addEventListener(type, tryAutoStart, { passive: true }));
+    return () => {
+      observer.disconnect();
+      gestures.forEach((type) => window.removeEventListener(type, tryAutoStart));
+    };
+  }, [start, stop]);
+
+  // The speaker button: while the song plays in the photos, once the banner is off screen.
   useEffect(() => {
     const banner = bannerRef.current;
     if (!started || !banner || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(([entry]) => setBannerAway(!entry.isIntersecting));
     observer.observe(banner);
-    return () => observer.disconnect();
-  }, [started]);
-
-  // Over the price configurator (offer pages) the song goes much quieter.
-  useEffect(() => {
-    if (!started || typeof IntersectionObserver === "undefined") return;
-    const configurator = document.getElementById("configurator");
-    if (!configurator) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        overConfiguratorRef.current = entry.isIntersecting;
-        if (playingRef.current) playerRef.current?.fadeTo(targetVolume(), DUCK_S);
-      },
-      // "Over it" = it crosses the middle of the screen.
-      { rootMargin: "-45% 0px -45% 0px" },
-    );
-    observer.observe(configurator);
     return () => observer.disconnect();
   }, [started]);
 
@@ -357,7 +384,7 @@ export default function PortfolioMusic() {
           </label>
         </div>
       </div>
-      {started && bannerAway && typeof document !== "undefined" &&
+      {started && bannerAway && inGallery && typeof document !== "undefined" &&
         createPortal(
           <button
             type="button"

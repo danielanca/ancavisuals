@@ -3,6 +3,7 @@ import type { ChatNode } from "../data/assistantChatData";
 import { CHAT_NODES, FALLBACK_NODE } from "../data/assistantChatData";
 import { firestore } from "../firestore";
 import { expandEventDates } from "../utils/expandEventDates";
+import { approvedFamilyDays } from "../services/familyTime.service";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
 import { renderChatbotLeadTemplate } from "../notifications/templates/chatbotLeadTemplate";
@@ -70,6 +71,8 @@ async function getBookedDates(): Promise<string[]> {
       if (data.excludeFromCalendar === true || !confirmed.has(data.status)) continue;
       dates.push(...expandEventDates(data));
     }
+    // Days approved for the family (/zile-ocupate) are busy for the chatbot too.
+    dates.push(...(await approvedFamilyDays()));
 
     return dates;
   } catch (error) {

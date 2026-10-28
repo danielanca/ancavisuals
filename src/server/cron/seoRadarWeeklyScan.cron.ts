@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { firestore } from "../firestore";
 import { runSeoScan } from "../routes/seoRadar.routes";
 import type { SearchProvider } from "../routes/seoRadar.routes";
+import { runSeoAutoPostsIfDue } from "../services/seoAutoPosts.service";
 
 const LINKED_COLLECTION = "seoRadarLinkedPosts";
 
@@ -37,6 +38,10 @@ async function runWeeklyScan(): Promise<void> {
 export function startSeoRadarWeeklyScanCron(): void {
   // În fiecare luni la 06:00.
   cron.schedule("0 6 * * 1", () => {
-    runWeeklyScan().catch((error) => console.error("[seo-radar-weekly-scan] run failed:", error));
+    runWeeklyScan()
+      .catch((error) => console.error("[seo-radar-weekly-scan] run failed:", error))
+      // With fresh positions: articles for the keywords where we still don't appear.
+      .then(() => (process.env.NODE_ENV === "production" ? runSeoAutoPostsIfDue("luni, după rescanare") : undefined))
+      .catch((error) => console.error("[seo-auto-posts] weekly run failed:", error));
   });
 }

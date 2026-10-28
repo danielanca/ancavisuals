@@ -73,6 +73,25 @@ describe("city pages (download only when opened)", () => {
     expect(bodyEnd).toContain('window.__SSR_LAZY__=["location"]');
   });
 
+  test("lead with \"fotograf\" and a plain-facts summary that search and AI answers can quote", async () => {
+    const { appHtml: rawHtml, head } = await render("/foto-video-nunta-turda");
+    const appHtml = rawHtml.replace(/<!-- -->/g, "");
+    expect(head).toContain("Fotograf nuntă Turda și videograf | Foto video | Anca Visuals");
+    expect(appHtml).toContain("Fotograf și videograf pentru nunți în");
+    expect(appHtml).toContain("Pe scurt: fotograf nuntă Turda");
+    expect(appHtml).toContain("Între 30 și 60 de zile");
+    expect(head).toContain('"name":"Transilvania"');
+    expect(head).not.toContain("addressLocality");
+  });
+
+  test("show the /admin/preturi prices the server loaded, in the first HTML", async () => {
+    const { DEFAULT_PRICE_BOOK } = await import("src/shared/pricing/configuratorPrices");
+    const { appHtml: rawHtml } = await render("/foto-video-nunta-sibiu", { slug: "", priceBook: { ...DEFAULT_PRICE_BOOK, nunta: 1380, nunta_foto: 800 } });
+    const appHtml = rawHtml.replace(/<!-- -->/g, "");
+    expect(appHtml).toContain("Foto + Video de la 1380 EUR, foto de la 800 EUR");
+    expect(appHtml).toContain("de la 1380 EUR");
+  });
+
   test("an unknown address still redirects", async () => {
     const { redirect } = await render("/nu-exista-pagina-asta");
     expect(redirect).toContain("/oferta/olx?notFound=");

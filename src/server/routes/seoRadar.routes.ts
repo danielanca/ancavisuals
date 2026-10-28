@@ -7,7 +7,7 @@ import { jsonrepair } from "jsonrepair";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { requireFirebaseAuth, requireSupremeAdmin, type AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
 import { firestore } from "../firestore.js";
-import { dataforSeoCredentials, fetchKeywordSuggestions, KeywordIdeasError } from "../lib/dataforseoKeywords";
+import { dataForSeoNoCreditMessage, dataforSeoCredentials, fetchKeywordSuggestions, KeywordIdeasError, requireDataForSeoCredit } from "../lib/dataforseoKeywords";
 
 const HISTORY_COLLECTION = "seoRadarSearches";
 const LINKED_COLLECTION = "seoRadarLinkedPosts";
@@ -486,7 +486,11 @@ router.put("/article-plan", async (req, res) => {
   }
 });
 
-router.post("/ads-insight", async (req, res) => {
+// DataForSEO's Google Ads endpoints can hang; past ~100 s Cloudflare answers with an HTML page
+// and the admin saw "Unexpected token '<'". Stop earlier and say so in JSON.
+const ADS_TIMEOUT_MS = 45_000;
+
+router.post("/ads-insight", requireDataForSeoCredit(), async (req, res) => {
   const login = process.env.API_LOGIN_DATAFORSEO;
   const password = process.env.API_DATAFORSEO_PASSWORD;
   if (!login || !password) return res.status(500).json({ error: "Lipsesc API_LOGIN_DATAFORSEO și API_DATAFORSEO_PASSWORD din .env." });
@@ -499,11 +503,11 @@ router.post("/ads-insight", async (req, res) => {
 
   const results = await Promise.allSettled([
     fetch("https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live", {
-      method: "POST", headers,
+      method: "POST", headers, signal: AbortSignal.timeout(ADS_TIMEOUT_MS),
       body: JSON.stringify([{ keywords: [keyword], location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro" }]),
     }).then(r => r.json()),
     fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/search_intent/live", {
-      method: "POST", headers,
+      method: "POST", headers, signal: AbortSignal.timeout(ADS_TIMEOUT_MS),
       body: JSON.stringify([{ keywords: [keyword], language_code: "ro" }]),
     }).then(r => r.json()),
   ]);
@@ -552,7 +556,7 @@ router.post("/ads-insight", async (req, res) => {
   res.json({ insight });
 });
 
-router.post("/ads-budget", async (req, res) => {
+router.post("/ads-budget", requireDataForSeoCredit(), async (req, res) => {
   const login = process.env.API_LOGIN_DATAFORSEO;
   const password = process.env.API_DATAFORSEO_PASSWORD;
   if (!login || !password) return res.status(500).json({ error: "Lipsesc API_LOGIN_DATAFORSEO și API_DATAFORSEO_PASSWORD din .env." });
@@ -568,6 +572,7 @@ router.post("/ads-budget", async (req, res) => {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Basic ${credentials}` },
       body: JSON.stringify([{ keywords: [keyword], location_code: DATAFORSEO_ROMANIA_LOCATION_CODE, language_code: "ro", bid, match: "exact" }]),
+      signal: AbortSignal.timeout(ADS_TIMEOUT_MS),
     });
     const payload = await response.json() as JsonRecord;
     const tasks = payload.tasks;
@@ -584,7 +589,8 @@ router.post("/ads-budget", async (req, res) => {
     });
   } catch (error) {
     console.error("[seo-radar] ads-budget error:", error);
-    res.status(502).json({ error: "Nu am putut estima bugetul de Ads." });
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    res.status(502).json({ error: timedOut ? "Google Ads (prin DataForSEO) n-a răspuns la timp. Încearcă din nou peste câteva minute." : "Nu am putut estima bugetul de Ads." });
   }
 });
 
@@ -664,7 +670,7 @@ export async function runSeoScan(keyword: string, city: string, provider: Search
   };
 }
 
-router.post("/search", async (req, res) => {
+router.post("/search", requireDataForSeoCredit(req => req.body?.provider === "dataforseo"), async (req, res) => {
   const provider: SearchProvider = req.body?.provider === "dataforseo" ? "dataforseo" : "serpapi";
   const keyword = String(req.body?.keyword || "").trim();
   const city = String(req.body?.city || "").trim();
@@ -867,7 +873,7 @@ router.post("/diacritics", async (req, res) => {
   }
 });
 
-router.post("/keyword-alternatives", async (req, res) => {
+router.post("/keyword-alternatives", requireDataForSeoCredit(), async (req, res) => {
   const credentials = dataforSeoCredentials();
   if (!credentials) return res.status(500).json({ error: "Lipsesc API_LOGIN_DATAFORSEO și API_DATAFORSEO_PASSWORD din .env." });
 
@@ -902,6 +908,9 @@ async function searchSerpApi(keyword: string, city: string, apiKey: string): Pro
 }
 
 async function searchDataForSeo(keyword: string, city: string): Promise<{ payload: JsonRecord; metadata: JsonRecord }> {
+  // Also covers the weekly scan cron, which doesn't go through the route guard.
+  const noCredit = await dataForSeoNoCreditMessage();
+  if (noCredit) throw new Error(noCredit);
   const credentials = Buffer.from(`${process.env.API_LOGIN_DATAFORSEO}:${process.env.API_DATAFORSEO_PASSWORD}`).toString("base64");
   const locationCode = await resolveDataForSeoLocation(city, credentials);
   const response = await fetch("https://api.dataforseo.com/v3/serp/google/organic/live/advanced", {

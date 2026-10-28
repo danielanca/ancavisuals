@@ -1,7 +1,9 @@
+import { ALBUM_PREVIEW_MAX_WIDTH } from "../../../../shared/albumPreview";
+
 export async function encodeAlbumPreview(file: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   try {
-    const width = Math.min(1400, bitmap.width);
+    const width = Math.min(ALBUM_PREVIEW_MAX_WIDTH, bitmap.width);
     const height = Math.max(1, Math.round(bitmap.height * width / bitmap.width));
     const canvas = new OffscreenCanvas(width, height);
     const context = canvas.getContext("2d");

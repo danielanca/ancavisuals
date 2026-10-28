@@ -4,6 +4,9 @@ import { albumZipManifestHash, buildAlbumZip, uploadAlbumZip } from "./albumZip"
 import { loadFirebaseAuth } from "../providers/loadFirebaseAuth";
 import { sanitizeAlbumPhotoName } from "../../../../shared/albumPhotoName";
 import { uploadUrl } from "../../../utils/address";
+import AlbumUploadProgressAlert, { fetchAlbumUploadProgress, incompleteUpload } from "./AlbumUploadProgressAlert";
+import { ALBUM_PREVIEW_MAX_WIDTH } from "../../../../shared/albumPreview";
+import { estimateAlbumUpload, formatDuration, formatSpeed } from "./albumUploadEstimate";
 
 interface AlbumPhotoUploaderProps {
   eventId: string;
@@ -79,6 +82,18 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
   const [zip, setZip] = useState<ZipState>({ stage: "idle", done: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
   const [automaticRetry, setAutomaticRetry] = useState(false);
+  const [resumeNote, setResumeNote] = useState<string | null>(null);
+  const [progressRefresh, setProgressRefresh] = useState(0);
+  // Pace of this run, for the upload speed and the time left: bytes of originals sent since the
+  // originals step started, previews done since theirs started, and when the ZIP stage changed.
+  const pace = useRef({ originalsStart: 0, originalsBytes: 0, previewsStart: 0, previewsDone: 0, zipStageStart: 0 });
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 2000);
+    return () => clearInterval(timer);
+  }, [running]);
+  useEffect(() => { pace.current.zipStageStart = Date.now(); }, [zip.stage]);
 
   const updateRow = (index: number, patch: Partial<Row>) =>
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -102,6 +117,7 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
       if (!res.ok) return false;
       const data = await res.json() as { name: string };
       uploadedNames.current.set(index, data.name);
+      pace.current.originalsBytes += file.size;
       return true;
     } catch {
       return false;
@@ -124,12 +140,13 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
   };
 
   /** Phase 1: originals → {slug}/photos/, monitored by a server session that emails if the batch is abandoned. */
-  const runOriginals = async (sourceRows: Row[], targets: number[], controller: AbortController): Promise<number> => {
+  const runOriginals = async (sourceRows: Row[], targets: number[], controller: AbortController, resume: boolean): Promise<number> => {
+    if (!targets.length) return 0;
     let sessionId: string;
     try {
       const response = await uploadRequest(`/api/admin/events/${eventId}/upload-session`, {
         method: "POST", headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ files: targets.map((index) => sourceRows[index].file.name) }), signal: controller.signal,
+        body: JSON.stringify({ files: targets.map((index) => sourceRows[index].file.name), resume }), signal: controller.signal,
       });
       const data = await response.json() as { sessionId?: string };
       if (!response.ok || !data.sessionId) throw new Error("Monitoring unavailable");
@@ -183,7 +200,10 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
       const ok = await uploadPreview(sourceRows[index].file, uploadedNames.current.get(index)!, controller.signal);
       if (!controller.signal.aborted) {
         updateRow(index, { preview: ok ? "done" : final ? "fallback" : "pending" });
-        if (ok) uploadedPreviews.current.add(index);
+        if (ok) {
+          uploadedPreviews.current.add(index);
+          pace.current.previewsDone += 1;
+        }
       }
       return ok;
     });
@@ -244,13 +264,15 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
 
   const finishRun = (controller: AbortController) => {
     activeRun.current = null;
+    setProgressRefresh((value) => value + 1);
     if (controller.signal.aborted) return false;
     setRunning(false);
     setAutomaticRetry(false);
     return true;
   };
 
-  const runQueue = async (sourceRows: Row[], targets: number[]) => {
+  /** `resume`: continues the album's last batch (server keeps its expected total). */
+  const runQueue = async (sourceRows: Row[], targets: number[], resume = false) => {
     if (activeRun.current) return;
     const controller = new AbortController();
     activeRun.current = controller;
@@ -259,10 +281,12 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     setZip({ stage: "idle", done: 0, total: 0 });
     targets.forEach((i) => updateRow(i, { original: "pending" }));
 
+    pace.current = { ...pace.current, originalsStart: Date.now(), originalsBytes: 0, previewsDone: 0 };
     setPhase("originals");
-    const failedOriginals = await runOriginals(sourceRows, targets, controller);
+    const failedOriginals = await runOriginals(sourceRows, targets, controller, resume);
     if (controller.signal.aborted) return void finishRun(controller);
 
+    pace.current.previewsStart = Date.now();
     setPhase("previews");
     await runPreviews(sourceRows, controller);
     if (controller.signal.aborted) return void finishRun(controller);
@@ -303,7 +327,17 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     onComplete?.();
   };
 
-  const pick = (fileList: FileList | File[]) => {
+  const fetchExistingPhotos = async (files: File[]): Promise<{ uploaded: string[]; withPreview: string[] }> => {
+    const response = await uploadRequest(`/api/admin/events/${eventId}/album-photos/existing`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ files: files.map((file) => ({ name: file.name, size: file.size })) }),
+    });
+    if (!response.ok) throw new Error(`Verificarea pozelor existente a eșuat (${response.status}).`);
+    return response.json() as Promise<{ uploaded: string[]; withPreview: string[] }>;
+  };
+
+  const pick = async (fileList: FileList | File[]) => {
     if (activeRun.current) return;
     const picked = Array.from(fileList).filter(isAlbumPhoto);
     if (picked.length === 0) {
@@ -318,24 +352,47 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
     const next = picked.map<Row>((file) => ({ file, original: "pending", preview: "pending" }));
     uploadedNames.current = new Map();
     uploadedPreviews.current = new Set();
+    setResumeNote(null);
+
+    // The page closed mid-upload and the same photos are picked again: skip the ones the server
+    // already confirmed. Only for the exact same selection (same count, every missing photo in it).
+    const names = picked.map((file) => sanitizeAlbumPhotoName(file.name));
+    const previous = incompleteUpload(await fetchAlbumUploadProgress(eventId, accessToken).catch(() => null));
+    const missing = new Set(previous?.pending ?? []);
+    const resume = Boolean(previous && previous.slug === albumSlug && picked.length === previous.expected && [...missing].every((name) => names.includes(name)));
+    // Photos already in Bunny with the same size (and their WebP previews) are skipped.
+    const existing = await fetchExistingPhotos(picked).catch(() => null);
+    if (activeRun.current) return;
+    const already = new Set(existing?.uploaded ?? (resume ? names.filter((name) => !missing.has(name)) : []));
+    const previewed = new Set(existing?.withPreview ?? []);
+    const targets: number[] = [];
+    names.forEach((name, index) => {
+      if (!already.has(name)) return void targets.push(index);
+      next[index] = { ...next[index], original: "done", preview: previewed.has(name) ? "done" : "pending" };
+      uploadedNames.current.set(index, name);
+      if (previewed.has(name)) uploadedPreviews.current.add(index);
+    });
+    if (targets.length < picked.length) {
+      setResumeNote(`${picked.length - targets.length} poze sunt deja în Bunny și sunt sărite${previewed.size ? ` (${previewed.size} au și preview)` : ""}; se încarcă restul de ${targets.length}.`);
+    }
     setRows(next);
-    void runQueue(next, next.map((_, i) => i));
+    void runQueue(next, targets, resume);
   };
 
   const retryFailed = () => {
     const failed = rows.map((r, i) => (r.original === "error" ? i : -1)).filter((i) => i >= 0);
-    if (failed.length) void runQueue(rows, failed);
+    if (failed.length) void runQueue(rows, failed, true);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragging(false);
-    if (e.dataTransfer.files.length) pick(e.dataTransfer.files);
+    if (e.dataTransfer.files.length) void pick(e.dataTransfer.files);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) pick(e.target.files);
+    if (e.target.files?.length) void pick(e.target.files);
     e.target.value = "";
   };
 
@@ -345,6 +402,25 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
   const previewsDone = rows.filter((r) => r.preview === "done").length;
   const previewFallbacks = rows.filter((r) => r.preview === "fallback").length;
   const previewTotal = total - originalsFailed;
+
+  const seconds = (since: number) => (since ? Math.max(0, (now - since) / 1000) : 0);
+  const originalsSeconds = phase === "originals" ? seconds(pace.current.originalsStart) : Math.max(0, (pace.current.previewsStart - pace.current.originalsStart) / 1000);
+  const zipUploadPace = zip.stage === "uploading" ? { bytes: zip.done, seconds: seconds(pace.current.zipStageStart) } : null;
+  const estimate = estimateAlbumUpload({
+    concurrency: CONCURRENCY,
+    uploadPace: pace.current.originalsBytes > 0 ? { bytes: pace.current.originalsBytes, seconds: originalsSeconds } : zipUploadPace,
+    originalsRemainingBytes: rows.reduce((sum, r) => sum + (r.original === "done" || r.original === "error" ? 0 : r.file.size), 0),
+    previewsRemaining: Math.max(0, previewTotal - previewsDone - previewFallbacks),
+    previewPace: phase === "previews" ? { done: pace.current.previewsDone, seconds: seconds(pace.current.previewsStart) } : null,
+    zipBytes: rows.reduce((sum, r) => sum + r.file.size, 0),
+    zip: {
+      stage: zip.stage === "building" || zip.stage === "uploading" || zip.stage === "verifying" || zip.stage === "done" || zip.stage === "idle" ? zip.stage : "other",
+      done: zip.done, total: zip.total, seconds: seconds(pace.current.zipStageStart),
+    },
+  });
+  const finishAt = estimate.total !== null
+    ? new Intl.DateTimeFormat("ro-RO", { hour: "2-digit", minute: "2-digit" }).format(new Date(now + estimate.total * 1000))
+    : null;
 
   const stepState = (step: "originals" | "previews" | "zip"): "pending" | "active" | "done" | "error" | "skipped" => {
     const order = ["originals", "previews", "zip"];
@@ -372,17 +448,17 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
 
   const steps = [
     {
-      key: "originals" as const, label: "Originale",
+      key: "originals" as const, label: "Originale", eta: estimate.originals,
       detail: `${originalsDone}/${total} în ${albumSlug}/photos/${automaticRetry && phase === "originals" ? " · reîncercare automată" : ""}${originalsFailed ? ` · ${originalsFailed} eșuate` : ""}`,
       pct: percent(originalsDone + originalsFailed, total),
     },
     {
-      key: "previews" as const, label: "Previzualizări WebP",
+      key: "previews" as const, label: "Previzualizări WebP", eta: estimate.previews,
       detail: `${previewsDone}/${previewTotal} generate și urcate în photos_preview/${automaticRetry && phase === "previews" ? " · reîncercare automată" : ""}`,
       pct: percent(previewsDone + previewFallbacks, previewTotal),
     },
     {
-      key: "zip" as const, label: "photos.zip",
+      key: "zip" as const, label: "photos.zip", eta: estimate.zip,
       detail: zipDetail,
       pct: zip.stage === "done" || zip.stage === "verifying" ? 100 : percent(zip.done, zip.total),
     },
@@ -395,6 +471,7 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
 
   return (
     <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <AlbumUploadProgressAlert eventId={eventId} accessToken={accessToken} refreshKey={progressRefresh} hideWhileRunning={running} />
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
@@ -423,7 +500,12 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
                 <div className="flex items-baseline gap-2 text-xs">
                   <span className={`w-3 text-center ${tone[state]}`} aria-hidden>{icon[state]}</span>
                   <span className={state === "pending" ? "text-neutral-500" : "text-neutral-200"}>{index + 1}. {step.label}</span>
-                  <span className={`ml-auto text-right ${state === "error" ? "text-red-400" : state === "skipped" ? "text-amber-400" : "text-neutral-400"}`}>{step.detail}</span>
+                  {/* All three run in this browser tab. */}
+                  <span className="border border-neutral-700 px-1.5 text-[10px] uppercase tracking-wide text-neutral-500">pagina deschisă</span>
+                  <span className={`ml-auto text-right ${state === "error" ? "text-red-400" : state === "skipped" ? "text-amber-400" : "text-neutral-400"}`}>
+                    {step.detail}
+                    {running && (state === "active" || state === "pending") && step.eta !== null && <span className="text-neutral-500"> · ~{formatDuration(step.eta)}</span>}
+                  </span>
                 </div>
                 {state !== "skipped" && (
                   <div className="ml-5 bg-neutral-800 rounded-full h-1.5">
@@ -436,10 +518,23 @@ export default function AlbumPhotoUploader({ eventId, albumSlug, accessToken, on
               </li>
             );
           })}
+          <li className="flex items-baseline gap-2 text-xs">
+            <span className="w-3 text-center text-neutral-600" aria-hidden>○</span>
+            <span className="text-neutral-500">4. Verificare pe server (preview-uri lipsă, email)</span>
+            <span className="border border-emerald-800 px-1.5 text-[10px] uppercase tracking-wide text-emerald-500">poți închide</span>
+          </li>
         </ol>
       )}
 
-      {running && <p className="text-xs text-neutral-400">Ține pagina deschisă și calculatorul treaz până termină. WebP: maximum 1.400 px lățime.</p>}
+      {resumeNote && <p className="text-xs text-sky-300">{resumeNote}</p>}
+      {running && (
+        <p className="text-xs text-neutral-400">
+          {estimate.bytesPerSecond !== null && estimate.total !== null
+            ? `Upload măsurat: ${formatSpeed(estimate.bytesPerSecond)} · pașii 1–3 gata în ~${formatDuration(estimate.total)} (pe la ${finishAt}). `
+            : "Se măsoară viteza de upload… "}
+          Ține pagina deschisă și calculatorul treaz până după photos.zip. WebP: maximum {ALBUM_PREVIEW_MAX_WIDTH.toLocaleString("ro-RO")} px lățime.
+        </p>
+      )}
       {previewFallbacks > 0 && <p className="text-xs text-amber-400">{previewFallbacks} previzualizări vor fi generate pe server după încărcarea tuturor originalelor.</p>}
       {phase === "done" && !running && <p className="text-xs text-emerald-400">Gata. Serverul verifică acum doar ce lipsește (preview-uri eșuate) — primești email când termină.</p>}
 

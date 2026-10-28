@@ -47,6 +47,23 @@ export function toSmsText(body: string): string {
     .trim();
 }
 
+const GSM_BASIC = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+const GSM_EXTENDED = "^{}\\[~]|€\f";
+
+/** How many SMS parts a text costs: 160 / 153 GSM characters per part, 70 / 67 if anything isn't GSM. */
+export function smsParts(text: string): number {
+  let units = 0;
+  for (const char of text) {
+    if (GSM_BASIC.includes(char)) units += 1;
+    else if (GSM_EXTENDED.includes(char)) units += 2;
+    else {
+      const length = [...text].length;
+      return length <= 70 ? 1 : Math.ceil(length / 67);
+    }
+  }
+  return units <= 160 ? 1 : Math.ceil(units / 153);
+}
+
 export function normalizeRomanianPhoneNumber(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;

@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useState, Component } from "react";
+import { isChunkLoadError } from "../shared/errorCategories";
 
 // ── Chunk Error Boundary ──────────────────────────────────────────────────────
 // After a new deployment, cached index.js tries to load old chunk hashes that
@@ -8,11 +9,8 @@ const CHUNK_RELOAD_KEY = "__chunk_reload__";
 
 function isChunkError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  return (
-    error.message.includes("Failed to fetch dynamically imported module") ||
-    error.message.includes("Unable to preload CSS") ||
-    error.name === "ChunkLoadError"
-  );
+  // Safari says "Importing a module script failed." — it used to get the error screen, not the reload.
+  return isChunkLoadError(error.message) || error.name === "ChunkLoadError";
 }
 
 class ChunkErrorBoundary extends Component<
@@ -91,7 +89,7 @@ const HIDE_LIVE_CHAT_PREFIXES = [
   "/azi",
   "/brief-client",
   "/admin", "/login", "/colaborator",
-  "/media", "/album", "/backup", "/share", "/propune", "/delivery-address",
+  "/media", "/album", "/backup", "/share", "/propune", "/delivery-address", "/zile-ocupate",
   "/qr-moments", "/qr-code",
   "/fotocabina", "/galerie-fotocabina",
   "/invitatie", "/invite", "/wedding-hub",
@@ -100,7 +98,7 @@ const HIDE_LIVE_CHAT_PREFIXES = [
   // Owner, 2026-10-26: the guide page has no contact block or chat at all.
   "/ghidul-mirilor-pdf",
 ];
-const HIDE_CHAT_PREFIXES = ["/ghidul-mirilor-pdf", "/azi", "/brief-client", "/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup", "/bio"];
+const HIDE_CHAT_PREFIXES = ["/zile-ocupate", "/ghidul-mirilor-pdf", "/azi", "/brief-client", "/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup", "/bio"];
 
 export const App = () => {
   const location = useLocation();

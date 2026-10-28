@@ -134,4 +134,52 @@ describe("signed contract email designs", () => {
     expect(html).toContain("9.500 RON");
     expect(html).toContain("2.000 RON");
   });
+
+  describe("bank transfer details", () => {
+    const base = {
+      to: "client@example.com", clientName: "Ion Popescu", eventType: "Nuntă", eventDate: "2026-09-12",
+      beneficiaryName: "ANCA DANIEL EMANUEL PFA", iban: "ro49aaaa1b31007593840000", amount: 500, currency: "EUR", isAdvance: true,
+    };
+
+    test("description is 'date - service'", async () => {
+      const { paymentReference } = await buildModule();
+      expect(paymentReference("2026-09-12", "Nuntă")).toBe("12.09.2026 - Nuntă");
+      expect(paymentReference("2026-05-03", "Botez")).toBe("03.05.2026 - Botez");
+    });
+
+    test("shows beneficiary, grouped IBAN, advance, lei equivalent and the description; sends to the client, then a copy to the owner", async () => {
+      const { sendBankTransferEmail, bankTransferEmailHtml, sendMailMock } = await buildModule();
+      const html = bankTransferEmailHtml({ ...base, eurRate: 4.98, eurRateDate: "2026-10-28", dueDate: "15.11.2026" });
+      expect(html).toContain("ANCA DANIEL EMANUEL");
+      expect(html).not.toContain("PFA");
+      expect(html).toContain("RO49 AAAA 1B31 0075 9384 0000");
+      expect(html).toContain("Avans");
+      expect(html).toContain("500 EUR");
+      expect(html).toContain(`${(2490).toLocaleString("ro-RO")} lei`);
+      expect(html).toContain("curs BNR din 28.10.2026");
+      expect(html).toContain("15.11.2026");
+      expect(html).toContain("12.09.2026 - Nuntă");
+      expect(html).toContain("euro sau echivalentul în lei");
+
+      await sendBankTransferEmail(base);
+      expect(sendMailMock).toHaveBeenCalledTimes(2);
+      expect(sendMailMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ to: "client@example.com", subject: expect.stringContaining("Date pentru plată") }));
+      expect(sendMailMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ to: "admin@ancavisuals.ro", subject: expect.stringContaining("[Copie] Date pentru plată") }));
+    });
+
+    test("the beneficiary is the person, without PFA", async () => {
+      const { transferBeneficiaryName } = await buildModule();
+      expect(transferBeneficiaryName("ANCA DANIEL EMANUEL PFA")).toBe("ANCA DANIEL EMANUEL");
+      expect(transferBeneficiaryName("PFA Anca Daniel Emanuel")).toBe("Anca Daniel Emanuel");
+      expect(transferBeneficiaryName("ANCA DANIEL EMANUEL P.F.A.")).toBe("ANCA DANIEL EMANUEL");
+      expect(transferBeneficiaryName("ANCA DANIEL EMANUEL")).toBe("ANCA DANIEL EMANUEL");
+    });
+
+    test("RON contract: no lei line, no euro note", async () => {
+      const { bankTransferEmailHtml } = await buildModule();
+      const html = bankTransferEmailHtml({ ...base, currency: "RON", amount: 2500 });
+      expect(html).not.toContain("curs BNR");
+      expect(html).not.toContain("euro sau echivalentul");
+    });
+  });
 });

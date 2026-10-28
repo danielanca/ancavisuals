@@ -378,6 +378,38 @@ describe("contracts.routes", () => {
       });
     });
 
+    describe("bank transfer details email after signing", () => {
+      const signWith = async (contract: Record<string, unknown>) => {
+        const loaded = await loadContractsRouter();
+        loaded.whereGetMock.mockResolvedValue({
+          empty: false,
+          docs: [{ id: "contract-1", data: () => ({ token: "token-1", status: "sent", eventType: "Nuntă", eventDate: "2026-09-12", clientEmail: "client@example.com", ...contract }) }],
+        });
+        await loaded.postPublicSign({
+          params: { token: "token-1" }, ip: "10.0.0.1", headers: {}, socket: {},
+          body: { clientName: "Ion Popescu", clientEmail: "client@example.com", clientIdSeries: "AB123456", clientSignatureBase64: "data:image/png;base64,abc", nightEvent: "nu" },
+        }, createMockResponse());
+        const [, payload] = loaded.updateMock.mock.calls[0];
+        return payload;
+      };
+
+      test("transfer: schedules the payment email 4 minutes after signing", async () => {
+        const payload = await signWith({ paymentMethod: "Transfer bancar" });
+        const signedAt = payload.signedAt.toMillis();
+        expect(Date.parse(payload.bankTransferEmailDueAt) - signedAt).toBe(4 * 60_000);
+      });
+
+      test("no payment method saved counts as transfer (the default)", async () => {
+        const payload = await signWith({});
+        expect(payload.bankTransferEmailDueAt).toEqual(expect.any(String));
+      });
+
+      test("cash: nothing scheduled", async () => {
+        const payload = await signWith({ paymentMethod: "Cash" });
+        expect(payload).not.toHaveProperty("bankTransferEmailDueAt");
+      });
+    });
+
     test("POST /sign/:token stores company details completed by the client", async () => {
       const { postPublicSign, whereGetMock, updateMock } = await loadContractsRouter();
       const res = createMockResponse();

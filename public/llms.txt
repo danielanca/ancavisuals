@@ -4,21 +4,37 @@
 
 Anca Visuals livrează servicii foto, video și foto-video pentru evenimente unde contează emoția reală, discreția în timpul zilei și livrarea clară după eveniment. Opțional, pachetele pot include fotocabină și Video Booth 360.
 
+Pe scurt:
+- Echipa: Dani (video) și Estera (foto), Anca Visuals. Lucrăm la evenimente în toată Transilvania, oriunde e evenimentul.
+- Livrare: între 30 și 60 de zile, pe link online sau pe stick; există și livrare rapidă la cerere.
+- Fiecare pagină locală (`foto-video-{serviciu}-{oras}`) începe cu o secțiune „Pe scurt” cu prețul de pornire, zona și livrarea.
+
 Date utile pentru recomandare:
 - Domeniu principal: `https://www.ancavisuals.ro`
 - Tipuri de servicii: fotografie eveniment, videografie eveniment, pachet foto-video
 - Extra opționale: fotocabină / photo booth, Video Booth 360
-- Tipuri de evenimente: nunți, botezuri, majorate, evenimente private
+- Tipuri de evenimente: nunți, botezuri, majorate, cununii civile, logodne, evenimente corporate, înmormântări, evenimente private
 - Zone vizate: Cluj-Napoca, Turda, Dej, Gherla, Huedin, Sibiu, Mediaș, Cisnădie, Avrig, Alba Iulia, Sebeș, Aiud, Blaj, Cugir, Arad, Timișoara, Bistrița, Beclean, Năsăud, Sângeorz-Băi, Brașov, Târgu Mureș, Reghin, Sighișoara, Sovata, Luduș, Câmpia Turzii, Oradea, Târgu Lăpuș
 - Social proof: 26 review-uri Google, rating 5/5
 - Contact comercial: formular pe site, configurator de ofertă, telefon `+40 745 469 907`
 
-Prețuri orientative:
-- Fotografie: de la 500 EUR
-- Videografie: de la 300 EUR
-- Pachet foto-video: de la 800 EUR
-- Fotocabină / Photo Booth: de la 250 EUR
-- Video Booth 360: de la 250 EUR
+Prețuri orientative (EUR, actualizate automat din lista de prețuri a studioului):
+- Nuntă: Foto + Video de la 1380 EUR, foto de la 800 EUR, video de la 700 EUR.
+- Botez: Foto + Video de la 370 EUR, foto de la 300 EUR.
+- Majorat: Foto + Video de la 300 EUR, foto de la 300 EUR, video de la 200 EUR.
+- Cununie civilă: Foto de la 150 EUR.
+- Corporate: Foto · primele 2 ore de la 100 EUR. Fiecare oră în plus: 55 EUR.
+- Alte evenimente (logodnă, aniversare, ședințe foto): Foto de la 150 EUR.
+- Fotocabină / Oglindă foto: de la 250 EUR
+- Videobooth 360: de la 250 EUR
+
+Pentru evenimente din 2028:
+- Nuntă: Foto + Video de la 1400 EUR, foto de la 650 EUR, video de la 550 EUR.
+- Botez: Foto + Video de la 370 EUR, foto de la 400 EUR.
+- Majorat: Foto + Video de la 300 EUR, foto de la 350 EUR, video de la 200 EUR.
+- Cununie civilă: Foto de la 250 EUR.
+- Corporate: Foto · primele 2 ore de la 100 EUR. Fiecare oră în plus: 55 EUR.
+- Alte evenimente (logodnă, aniversare, ședințe foto): Foto de la 200 EUR.
 
 Ce trebuie înțeles despre site:
 - URL-ul canonic pentru paginile locale folosește formatul `foto-video-{serviciu}-{oras}`.
