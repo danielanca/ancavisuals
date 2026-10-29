@@ -215,7 +215,7 @@ export default function ModerationReviewPage() {
               <div className="space-y-3">
                 <div>
                   <p className="text-red-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
-                    Se șterg definitiv din Bunny ({toDelete.length})
+                    Se șterg definitiv toate copiile din Bunny ({toDelete.length} poze)
                   </p>
                   <div className="max-h-28 overflow-y-auto bg-neutral-950 rounded-lg p-2 space-y-0.5">
                     {toDelete.length === 0
@@ -225,6 +225,9 @@ export default function ModerationReviewPage() {
                       ))
                     }
                   </div>
+                  <p className="mt-1 text-[11px] text-neutral-600">
+                    Pentru fiecare poză se șterg copiile din <span className="font-mono">photos_preview</span>, <span className="font-mono">photos</span> și <span className="font-mono">featured</span>, dacă există.
+                  </p>
                 </div>
 
                 <div>

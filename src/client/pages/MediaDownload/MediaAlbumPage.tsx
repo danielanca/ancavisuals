@@ -14,7 +14,7 @@ import EmptyAlbumNotice from "./EmptyAlbumNotice";
 import AlbumPager from "../Portfolio/AlbumPager";
 import DeliveryForm from './DeliveryForm';
 import DeliveryAddressModal, { type DeliveryAddress } from "../DeliveryAddress/AddressList";
-import PhotoLightbox from "./PhotoLightbox";
+import PortfolioLightbox from "../Portfolio/PortfolioLightbox";
 import OnboardingWizard, { ONBOARDING_STORAGE_KEY } from "./Onboardingwizard";
 import MediaConsentModal, { MediaRetentionReminder } from "./MediaConsentModal";
 import AncaLoader from "../../components/UI/AncaLoader";
@@ -1309,17 +1309,18 @@ export default function MediaAlbumPage() {
 
 
         {lightboxIndex !== null && lightboxPhotos.length > 0 && album?.photos && (
-          <PhotoLightbox
-            photos={lightboxPhotos}
-            currentIndex={lightboxIndex}
-            onClose={closeLightbox}
-            onNext={() => setLightboxIndex((prev) => (prev !== null ? Math.min(lightboxPhotos.length - 1, prev + 1) : 0))}
-            onPrev={() => setLightboxIndex((prev) => (prev !== null ? Math.max(0, prev - 1) : 0))}
+          <PortfolioLightbox
+            open={lightboxIndex !== null}
+            index={lightboxIndex}
+            close={closeLightbox}
+            slides={lightboxPhotos.map((src) => ({ src }))}
+            glows={album.photos}
+            isMobile={typeof window !== "undefined" && window.innerWidth < 640}
+            swipeHint={true}
+            downloadHint={true}
             selectedPrint={selectedPrint}
             onTogglePrint={(fileName) => dispatch({ type: "TOGGLE_PHOTO", mode: "print", name: fileName })}
             getFileName={(src, index) => fileNameFromUrl(album.photos[index] ?? src)}
-            protectImages={true}
-            onProtectedContextMenu={showImageSaveWarning}
           />
         )}
 

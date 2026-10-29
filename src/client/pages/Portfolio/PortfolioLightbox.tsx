@@ -1,4 +1,5 @@
-import Lightbox, { useController, useLightboxState } from "yet-another-react-lightbox";
+import Lightbox, { ImageSlide, useController, useLightboxState, type RenderSlideProps, type SlotStyles } from "yet-another-react-lightbox";
+import { useEffect, useLayoutEffect, useState } from "react";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import "./PortfolioLightbox.scss";
@@ -18,9 +19,44 @@ type Props = {
   isMobile: boolean;
   /** First photo opened in this visit: a short "swipe" hint on phones. */
   swipeHint: boolean;
+  selectedPrint?: Set<string>;
+  onTogglePrint?: (fileName: string) => void;
+  getFileName?: (src: string, index: number) => string;
+  downloadHint?: boolean;
 };
 
 const pad = (value: number) => String(value).padStart(2, "0");
+
+const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+// A mobile page can overflow its layout viewport (399px) while only 366px is
+// visible. Fixed right:0 then clips controls. Size the portal to the visual viewport.
+function useVisibleViewport(open: boolean) {
+  const [bounds, setBounds] = useState<SlotStyles["root"]>();
+  useBrowserLayoutEffect(() => {
+    if (!open) return;
+    const viewport = window.visualViewport;
+    const update = () => setBounds({
+      position: "fixed",
+      left: viewport?.offsetLeft ?? 0,
+      top: viewport?.offsetTop ?? 0,
+      width: viewport?.width ?? document.documentElement.clientWidth,
+      height: viewport?.height ?? window.innerHeight,
+      right: "auto",
+      bottom: "auto",
+    });
+    update();
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    return () => {
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+  return bounds;
+}
 
 function Chevron({ left }: { left?: boolean }) {
   return (
@@ -43,13 +79,40 @@ const lowEndDevice = () => typeof navigator !== "undefined" && ((navigator as Na
 
 /** Drawn inside the viewer: the glow behind the photo, the counter and (on phones) the arrows. */
 
-function ViewerChrome({ swipeHint, glows }: { swipeHint: boolean; glows?: string[] }) {
+function ViewerChrome({
+  swipeHint,
+  glows,
+  selectedPrint,
+  onTogglePrint,
+  getFileName,
+  downloadHint,
+}: {
+  swipeHint: boolean;
+  glows?: string[];
+  selectedPrint?: Set<string>;
+  onTogglePrint?: (fileName: string) => void;
+  getFileName?: (src: string, index: number) => string;
+  downloadHint?: boolean;
+}) {
   const { currentIndex, slides } = useLightboxState();
   const { prev, next } = useController();
   const src = lowEndDevice() ? undefined : glows?.[currentIndex];
+  const currentSrc = slides[currentIndex]?.src ?? "";
+  const currentFileName = getFileName ? getFileName(currentSrc, currentIndex) : currentSrc;
+  const isInPrint = selectedPrint?.has(currentFileName) ?? false;
   return (
     <>
       {src && <div key={src} className="ppl-glow" style={{ backgroundImage: `url("${src}")` }} aria-hidden="true" />}
+      <div className="ppl-brand" aria-label="Anca Visuals">
+        <span className="ppl-brand__strong">Anca</span>
+        <span className="ppl-brand__light">Visuals</span>
+      </div>
+      <button type="button" className="ppl-side-step ppl-side-step--prev" onClick={() => prev()} disabled={currentIndex === 0} aria-label="Poza anterioară">
+        <Chevron left />
+      </button>
+      <button type="button" className="ppl-side-step ppl-side-step--next" onClick={() => next()} disabled={currentIndex >= slides.length - 1} aria-label="Poza următoare">
+        <Chevron />
+      </button>
       <div className="ppl-bar">
         <button type="button" className="ppl-step" onClick={() => prev()} disabled={currentIndex === 0} aria-label="Poza anterioară">
           <Chevron left />
@@ -62,13 +125,61 @@ function ViewerChrome({ swipeHint, glows }: { swipeHint: boolean; glows?: string
         <button type="button" className="ppl-step" onClick={() => next()} disabled={currentIndex >= slides.length - 1} aria-label="Poza următoare">
           <Chevron />
         </button>
+        {onTogglePrint && <button
+          type="button"
+          className={`ppl-print${isInPrint ? " ppl-print--active" : ""}`}
+          onClick={() => onTogglePrint(currentFileName)}
+          aria-label={isInPrint ? "Elimină din imprimare" : "Adaugă la imprimare"}
+          title={isInPrint ? "Elimină din imprimare" : "Adaugă la imprimare"}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9" />
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
+          <span>{isInPrint ? "Elimină" : "Imprimă"}</span>
+        </button>}
       </div>
       {swipeHint && <span className="ppl-hint" aria-hidden="true">Glisează pentru următoarea</span>}
+      {downloadHint && currentIndex === 0 && <div className="ppl-download-hint" aria-live="polite">
+        <span>DESCĂRCAȚI POZELE FOLOSIND BUTONUL</span>
+        <strong aria-hidden="true">↓</strong>
+      </div>}
     </>
   );
 }
 
-export default function PortfolioLightbox({ open, index, close, slides, glows, isMobile, swipeHint }: Props) {
+function ViewerSlide({ slide, offset, rect, downloadHint }: RenderSlideProps & { downloadHint: boolean }) {
+  const { currentIndex } = useLightboxState();
+  const blur = downloadHint && currentIndex === 0 && offset === 0;
+  return <ImageSlide
+    slide={slide}
+    offset={offset}
+    rect={rect}
+    imageProps={blur ? { className: "ppl-first-blur-image" } : undefined}
+  />;
+}
+
+export default function PortfolioLightbox({ open, index, close, slides, glows, isMobile, swipeHint, selectedPrint, onTogglePrint, getFileName, downloadHint = false }: Props) {
+  const viewportBounds = useVisibleViewport(open);
+  const [mobileLayout, setMobileLayout] = useState(isMobile);
+
+  useEffect(() => {
+    const updateLayout = () => {
+      const matches = typeof window.matchMedia === "function"
+        ? window.matchMedia("(max-width: 639px)").matches
+        : isMobile || window.innerWidth < 640;
+      setMobileLayout(matches);
+    };
+    updateLayout();
+    window.addEventListener("resize", updateLayout, { passive: true });
+    window.addEventListener("orientationchange", updateLayout, { passive: true });
+    return () => {
+      window.removeEventListener("resize", updateLayout);
+      window.removeEventListener("orientationchange", updateLayout);
+    };
+  }, []);
+
   return (
     <Lightbox
       open={open}
@@ -77,7 +188,8 @@ export default function PortfolioLightbox({ open, index, close, slides, glows, i
       slides={slides}
       plugins={[Zoom]}
       className="ppl"
-      carousel={{ finite: true, padding: isMobile ? 0 : 56, spacing: "12%" }}
+      styles={{ root: viewportBounds }}
+      carousel={{ finite: true, padding: mobileLayout ? 0 : 56, spacing: "12%" }}
       controller={{ closeOnPullDown: true, closeOnBackdropClick: true }}
       zoom={{ maxZoomPixelRatio: 2, scrollToZoom: false }}
       animation={{ swipe: 320, fade: 300 }}
@@ -87,7 +199,15 @@ export default function PortfolioLightbox({ open, index, close, slides, glows, i
         iconNext: () => <Chevron />,
         iconClose: () => <CloseIcon />,
         buttonZoom: () => null,
-        controls: () => <ViewerChrome swipeHint={swipeHint && isMobile} glows={glows} />,
+        slide: (props) => <ViewerSlide {...props} downloadHint={downloadHint} />,
+        controls: () => <ViewerChrome
+            swipeHint={swipeHint && mobileLayout}
+            glows={glows}
+            selectedPrint={selectedPrint}
+            onTogglePrint={onTogglePrint}
+            getFileName={getFileName}
+            downloadHint={downloadHint}
+          />,
       }}
     />
   );

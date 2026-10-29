@@ -20,6 +20,48 @@ export type ChangelogEntry = {
 
 export const ADMIN_CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-10-29-viewer-visible-viewport",
+    at: "2026-10-29T23:23",
+    emoji: "📱",
+    title: "Controalele fotografiilor rămân în ecran pe mobil",
+    summary: "Săgeata dreaptă și X-ul se poziționează în zona vizibilă a telefonului, inclusiv când pagina albumului depășește lățimea ecranului.",
+    details: ["Vizualizatorul își adaptează dimensiunile la rotație și deplasarea zonei vizibile. Bara de jos și controalele pătrate folosesc același cadru."],
+  },
+  {
+    id: "2026-10-29-lightbox-ancavisuals-brand",
+    at: "2026-10-29T23:19",
+    emoji: "✦",
+    title: "Brand AncaVisuals în vizualizatorul foto",
+    summary: "Vizualizatorul fullscreen afișează discret brandul AncaVisuals în colțul de sus.",
+    details: ["La deschiderea unei fotografii, logo-ul folosește aceeași formă Anca + Visuals ca identitatea site-ului și rămâne vizibil inclusiv pe telefon."],
+    links: [{ label: "Moderare albume", path: "/admin/moderare" }],
+  },
+  {
+    id: "2026-10-29-album-swipe-download-hint",
+    at: "2026-10-29T23:13",
+    emoji: "👆",
+    title: "Vizualizarea pozelor are swipe și instrucțiune de descărcare",
+    summary: "În album pozele se pot schimba prin swipe ca în Oferta OLX, iar prima poză explică unde se află butonul de imprimare/descărcare.",
+    details: [
+      "Pe telefon poți glisa stânga-dreapta între poze, cu aceeași tranziție fluidă din Oferta OLX.",
+      "Prima fotografie apare blurată și indică butonul verde de jos pentru imprimare/descărcare.",
+    ],
+    links: [{ label: "Moderare albume", path: "/admin/moderare" }],
+  },
+  {
+    id: "2026-10-29-moderation-delete-all-copies",
+    at: "2026-10-29T22:58",
+    emoji: "🗑️",
+    title: "Moderarea șterge explicit toate copiile pozei",
+    summary: "La confirmarea ștergerii, poza este eliminată din photos_preview, photos și featured, dacă există. Mesajul de confirmare arată acum clar acest lucru.",
+    details: [
+      "Chiar dacă propunerea are numele WebP, serverul caută și șterge originalul JPG/PNG cu același nume.",
+      "Dacă o listare Bunny nu arată originalul sau vine din zona veche de storage, serverul încearcă și căile canonice ale copiilor, iar copiile lipsă sunt ignorate.",
+      "Propunerile noi venite din galerie sunt salvate ca nume JPG, chiar dacă fotografia afișată este WebP.",
+    ],
+    links: [{ label: "Moderare albume", path: "/admin/moderare" }],
+  },
+  {
     id: "2026-10-29-site-down-plyr-ssr",
     at: "2026-10-29T22:30",
     emoji: "🚑",

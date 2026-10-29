@@ -7,6 +7,14 @@
 
   background: #050505; // the portal itself; the photo's glow sits on it
 
+  .yarl__container { background: transparent; }
+  .yarl__carousel,
+  .yarl__toolbar,
+  .ppl-bar,
+  .ppl-side-step,
+  .ppl-hint,
+  .ppl-download-hint { z-index: 1; }
+
   // Square hairline buttons, on a dark glass so they read on light photos too.
   .yarl__button {
     display: flex;
@@ -27,7 +35,17 @@
   }
 
   .yarl__toolbar {
-    padding: 14px;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    z-index: 6;
+    padding: 0;
+  }
+
+  .yarl__toolbar .yarl__button {
+    width: 42px;
+    height: 42px;
+    border-radius: 0;
+    background: rgba(8, 8, 8, 0.72);
   }
 
   .yarl__navigation_prev { left: 20px; }
@@ -70,7 +88,7 @@
   right: -10%;
   bottom: -10%;
   left: -10%;
-  z-index: -1;
+  z-index: 0;
   background-position: center;
   background-size: cover;
   // Blurred from the small gallery copy, not the original: cheap even on older phones.
@@ -78,6 +96,29 @@
   transform: translateZ(0); // its own layer, so swiping does not redraw the blur
   animation: ppl-glow-in 0.6s ease-out;
   pointer-events: none;
+}
+
+.ppl-first-blur-image {
+  filter: blur(11px);
+  transform: scale(1.015);
+}
+
+.ppl-brand {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 6;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+
+  &__strong { font-weight: 700; color: #fff; }
+  &__light { font-weight: 300; color: rgba(255, 255, 255, 0.72); }
 }
 
 @keyframes ppl-glow-in {
@@ -92,8 +133,37 @@
   display: flex;
   align-items: center;
   transform: translateX(-50%);
+  z-index: 4;
+  max-width: calc(100% - 16px);
+  overflow: visible;
 
-  > * + * { margin-left: 1rem; } // not `gap`: older iPhones (iOS < 14.5) ignore it in flex
+  > * + * { margin-left: 0.55rem; } // not `gap`: older iPhones (iOS < 14.5) ignore it in flex
+}
+
+.ppl-side-step {
+  display: none;
+  position: absolute;
+  top: 50%;
+  z-index: 5;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 0;
+  background: rgba(8, 8, 8, 0.38);
+  color: rgba(255, 255, 255, 0.9);
+  transform: translateY(-50%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  -webkit-tap-highlight-color: transparent;
+
+  svg { width: 22px; height: 22px; }
+  &:active { transform: translateY(-50%) scale(0.94); }
+  &:disabled { opacity: 0.25; }
+  &--prev { left: max(16px, env(safe-area-inset-left)); }
+  &--next { right: max(16px, env(safe-area-inset-right)); }
 }
 
 .ppl-count {
@@ -119,8 +189,29 @@
   background: rgba(255, 255, 255, 0.4);
 }
 
+.ppl-print {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(10, 10, 10, 0.45);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  -webkit-tap-highlight-color: transparent;
+
+  svg { width: 19px; height: 19px; flex: 0 0 auto; }
+  span + span { margin-left: 0.35rem; }
+  &--active { border-color: #39c56b; background: rgba(25, 125, 65, 0.7); color: #fff; }
+}
+
 .ppl-step {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 48px;
@@ -136,12 +227,8 @@
   &:active { transform: scale(0.94); }
   &:disabled { opacity: 0.25; }
 
-  @media (max-width: 639px) {
-    display: inline-flex;
-  }
-
   @media (orientation: landscape) and (max-height: 500px) {
-    display: none;
+    display: inline-flex;
   }
 }
 
@@ -164,12 +251,92 @@
   pointer-events: none;
 }
 
+.ppl-download-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 78px);
+  z-index: 2;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.6rem 0.9rem 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(10, 10, 10, 0.7);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: center;
+  white-space: normal;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: ppl-download-hint 4s ease-out forwards;
+
+  strong {
+    margin-top: 0.25rem;
+    color: #39c56b;
+    font-size: 1.8rem;
+    line-height: 0.8;
+  }
+}
+
+@keyframes ppl-download-hint {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+
 @keyframes ppl-hint {
   0% { opacity: 0; transform: translate(-50%, 6px); }
   12%, 30% { opacity: 1; transform: translate(-50%, 0); }
   45% { opacity: 1; transform: translate(calc(-50% - 10px), 0); }
   60%, 80% { opacity: 1; transform: translate(-50%, 0); }
   100% { opacity: 0; transform: translate(-50%, 0); }
+}
+
+@media (max-width: 639px) {
+  .ppl-bar {
+    position: absolute;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    max-width: calc(100% - 24px);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .ppl-side-step { display: inline-flex; }
+  .ppl-bar .ppl-step { display: none; }
+  .ppl-count {
+    min-height: 44px;
+    padding: 0 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(8, 8, 8, 0.72);
+  }
+  .ppl-print {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    border-radius: 0;
+    background: rgba(8, 8, 8, 0.72);
+  }
+  .ppl-step { flex: 0 0 44px; width: 44px; height: 44px; }
+  .ppl-count { letter-spacing: 0.12em; }
+  .ppl-count-line { margin: 0 0.35rem; width: 14px; }
+  .ppl-hint {
+    top: max(72px, env(safe-area-inset-top) + 54px);
+    bottom: auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .ppl-print span:last-child { display: none; }
+  .ppl-print { min-width: 42px; padding: 0 0.35rem; justify-content: center; }
+  .ppl-bar > * + * { margin-left: 0.3rem; }
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
@@ -184,4 +351,5 @@
 @media (prefers-reduced-motion: reduce) {
   .ppl-glow { animation: none; }
   .ppl-hint { animation: none; opacity: 0; }
+  .ppl-download-hint { animation: none; }
 }

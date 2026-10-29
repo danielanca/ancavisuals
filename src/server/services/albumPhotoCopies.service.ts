@@ -8,9 +8,12 @@ import {
   BUNNY_ACCESS_KEY_HEADER,
   BUNNY_PHOTOS_FOLDER,
   BUNNY_PREVIEW_FOLDER,
-  buildBunnyDirectoryUrl,
   buildBunnyStorageUrl,
+  buildBunnyStorageUrlForZone,
   getBunnyStorageKey,
+  getBunnySecondStorageKey,
+  getBunnyStorageZone,
+  getBunnyStorageZoneSecondary,
 } from "../constants/bunny";
 
 /** In the order a photo is shown from: the light WebP first, then the original. */
@@ -20,15 +23,27 @@ export type AlbumListing = Record<(typeof PHOTO_FOLDERS)[number], string[]>;
 
 export const photoBaseName = (file: string) => file.replace(/\.[^./]+$/, "").toLowerCase();
 
-async function listFolder(slug: string, folder: string): Promise<string[]> {
-  const response = await fetch(buildBunnyDirectoryUrl(slug, folder), { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() } });
+async function listFolderInZone(zone: string, key: string, slug: string, folder: string): Promise<string[]> {
+  const response = await fetch(`${buildBunnyStorageUrlForZone(zone, slug, folder)}/`, { headers: { [BUNNY_ACCESS_KEY_HEADER]: key } });
   if (!response.ok) return [];
   const data = await response.json().catch(() => []) as unknown;
-  const items = Array.isArray(data) ? data : [];
+  const items = Array.isArray(data)
+    ? data
+    : data && typeof data === "object" && Array.isArray((data as { Objects?: unknown[] }).Objects)
+      ? (data as { Objects: unknown[] }).Objects
+      : [];
   return items
     .filter((item): item is { ObjectName: string; IsDirectory?: boolean } => Boolean(item) && typeof (item as { ObjectName?: unknown }).ObjectName === "string")
     .filter((item) => !item.IsDirectory)
     .map((item) => item.ObjectName);
+}
+
+async function listFolder(slug: string, folder: string): Promise<string[]> {
+  const primary = await listFolderInZone(getBunnyStorageZone(), getBunnyStorageKey(), slug, folder);
+  if (primary.length > 0) return primary;
+  const secondaryKey = getBunnySecondStorageKey();
+  if (!secondaryKey || getBunnyStorageZoneSecondary() === getBunnyStorageZone()) return primary;
+  return listFolderInZone(getBunnyStorageZoneSecondary(), secondaryKey, slug, folder);
 }
 
 export async function listAlbumPhotoFolders(slug: string): Promise<AlbumListing> {
@@ -47,6 +62,22 @@ export function photoDisplayPath(listing: AlbumListing, filename: string): strin
   return photoCopies(listing, filename)[0] ?? null;
 }
 
+/**
+ * Bunny normally returns the real extension in the folder listing. Keep the
+ * canonical counterparts too, because an older/incomplete listing may expose
+ * only the WebP name while the original JPG is still present.
+ */
+function photoDeletePaths(listing: AlbumListing, filename: string): string[] {
+  const base = filename.replace(/\.[^./]+$/, "");
+  const listed = photoCopies(listing, filename);
+  const canonical = [
+    ...["webp"].map((extension) => `${BUNNY_PREVIEW_FOLDER}/${base}.${extension}`),
+    ...["jpg", "jpeg", "png", "webp"].map((extension) => `${BUNNY_PHOTOS_FOLDER}/${base}.${extension}`),
+    ...["jpg", "jpeg", "png", "webp"].map((extension) => `featured/${base}.${extension}`),
+  ];
+  return Array.from(new Set([...listed, ...canonical]));
+}
+
 export type DeleteResult = {
   /** Photos with no file left (deleted now, or already gone). */
   deleted: string[];
@@ -62,13 +93,24 @@ export async function deletePhotoCopies(slug: string, filenames: string[], listi
   const result: DeleteResult = { deleted: [], failed: [], filesRemoved: 0 };
   for (const filename of filenames) {
     let ok = true;
-    for (const path of photoCopies(files, filename)) {
-      const response = await fetch(buildBunnyStorageUrl(slug, ...path.split("/").map(encodeURIComponent)), {
+    for (const path of photoDeletePaths(files, filename)) {
+      const encodedPath = [slug, ...path.split("/").map(encodeURIComponent)];
+      const response = await fetch(buildBunnyStorageUrl(...encodedPath), {
         method: "DELETE",
         headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() },
       });
       if (response.ok) result.filesRemoved += 1;
-      else if (response.status !== 404) {
+      else if (response.status === 404 && getBunnySecondStorageKey() && getBunnyStorageZoneSecondary() !== getBunnyStorageZone()) {
+        const secondaryResponse = await fetch(buildBunnyStorageUrlForZone(getBunnyStorageZoneSecondary(), ...encodedPath), {
+          method: "DELETE",
+          headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnySecondStorageKey() },
+        });
+        if (secondaryResponse.ok) result.filesRemoved += 1;
+        else if (secondaryResponse.status !== 404) {
+          console.error(`[album-photo] Bunny delete failed for ${slug}/${path} in secondary zone: ${secondaryResponse.status}`);
+          ok = false;
+        }
+      } else if (response.status !== 404) {
         console.error(`[album-photo] Bunny delete failed for ${slug}/${path}: ${response.status}`);
         ok = false;
       }

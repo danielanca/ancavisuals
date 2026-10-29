@@ -26,6 +26,11 @@ const isSafeFilename = (name: string) => {
   return BUNNY_IMAGE_FILE_PATTERN.test(name);
 };
 
+// The gallery displays the lightweight WebP, but moderation refers to the original photo.
+// Store the canonical original name for new submissions; old WebP submissions are still
+// resolved by albumPhotoCopies.service through their basename.
+const canonicalModerationFilename = (name: string) => name.replace(/\.webp$/i, ".jpg");
+
 const isSafeSlug = (slug: string) => /^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug);
 
 // GET /api/moderare/albums — list all Bunny folders (albums) for moderator panel
@@ -66,7 +71,7 @@ router.post("/submit", requireFirebaseAuth, async (req: Request, res: Response) 
     res.status(400).json({ error: "no_photos" });
     return;
   }
-  const safePhotos = photos.filter(isSafeFilename);
+  const safePhotos = Array.from(new Set(photos.filter(isSafeFilename).map(canonicalModerationFilename)));
   if (safePhotos.length === 0) {
     res.status(400).json({ error: "no_valid_photos" });
     return;
@@ -148,7 +153,7 @@ router.get("/pending", requireFirebaseAuth, requireSupremeAdmin, async (_req: Re
       }
       const entry = albumMap.get(slug)!;
       entry.submissionIds.push(doc.id);
-      (data.photos as string[]).forEach((photo) => entry.photos.add(photo));
+      (data.photos as string[]).forEach((photo) => entry.photos.add(canonicalModerationFilename(photo)));
       entry.moderatorEmails.add(data.moderatorEmail as string);
       const createdAt =
         data.createdAt instanceof Timestamp
@@ -208,7 +213,7 @@ router.post("/review", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
     return;
   }
 
-  const safeToDelete = (photosToDelete ?? []).filter(isSafeFilename);
+  const safeToDelete = Array.from(new Set((photosToDelete ?? []).filter(isSafeFilename).map(canonicalModerationFilename)));
 
   try {
     // Every file of each photo: photos_preview (WebP) AND photos (the original) — owner, 2026-10-29.
@@ -228,7 +233,7 @@ router.post("/review", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
       const doc = await db.collection("moderationSubmissions").doc(submissionId).get();
       if (doc.exists) {
         const data = doc.data()!;
-        (data.photos as string[]).forEach((photo) => allProposedPhotos.add(photo));
+        (data.photos as string[]).forEach((photo) => allProposedPhotos.add(canonicalModerationFilename(photo)));
         moderatorEmails.add(data.moderatorEmail as string);
       }
     }
