@@ -4,10 +4,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import {
   BUNNY_ACCESS_KEY_HEADER,
-  BUNNY_PHOTOS_FOLDER,
-  BUNNY_PREVIEW_FOLDER,
   BUNNY_IMAGE_FILE_PATTERN,
-  buildBunnyStorageUrl,
   buildBunnyDirectoryUrl,
   getBunnyStorageKey,
 } from "../constants/bunny";
@@ -16,6 +13,8 @@ import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireF
 import type { AuthenticatedRequest } from "../middleware/requireFirebaseAuth";
 import { sendModerationSubmittedEmail, sendModerationResultEmail } from "../notifications/templates/moderationTemplate";
 import { adminUser } from "../constants/credentials";
+import { deletePhotoCopies, listAlbumPhotoFolders, photoDisplayPath } from "../services/albumPhotoCopies.service";
+import { invalidateAlbumCache } from "../services/album.service";
 
 const router = Router();
 const storageKey = getBunnyStorageKey();
@@ -28,14 +27,6 @@ const isSafeFilename = (name: string) => {
 };
 
 const isSafeSlug = (slug: string) => /^[a-z0-9][a-z0-9-_]{0,120}$/i.test(slug);
-
-async function hasPreviewFolder(slug: string): Promise<boolean> {
-  const previewUrl = buildBunnyDirectoryUrl(slug, BUNNY_PREVIEW_FOLDER);
-  const response = await fetch(previewUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey } });
-  if (!response.ok) return false;
-  const data = await response.json() as unknown[];
-  return Array.isArray(data) && data.length > 0;
-}
 
 // GET /api/moderare/albums — list all Bunny folders (albums) for moderator panel
 router.get("/albums", requireFirebaseAuth, async (_req: Request, res: Response) => {
@@ -170,11 +161,17 @@ router.get("/pending", requireFirebaseAuth, requireSupremeAdmin, async (_req: Re
 
     const albums = await Promise.all(
       Array.from(albumMap.entries()).map(async ([slug, entry]) => {
-        const folder = (await hasPreviewFolder(slug)) ? BUNNY_PREVIEW_FOLDER : BUNNY_PHOTOS_FOLDER;
-        const photosWithUrls = Array.from(entry.photos).map((filename) => ({
-          filename,
-          signedUrl: signBunnyUrl(`/${slug}/${folder}/${encodeURIComponent(filename)}`),
-        }));
+        // Each photo from whichever file of it still exists (the WebP preview, else the original
+        // .jpg): a proposal for Picture-0001.webp must still show when only photos/Picture-0001.jpg is left.
+        const listing = await listAlbumPhotoFolders(slug);
+        const photosWithUrls = Array.from(entry.photos).map((filename) => {
+          const path = photoDisplayPath(listing, filename);
+          return {
+            filename,
+            signedUrl: path ? signBunnyUrl(`/${slug}/${path.split("/").map(encodeURIComponent).join("/")}`) : "",
+            missing: !path,
+          };
+        });
         return {
           albumSlug: slug,
           submissionIds: entry.submissionIds,
@@ -214,21 +211,14 @@ router.post("/review", requireFirebaseAuth, requireSupremeAdmin, async (req: Req
   const safeToDelete = (photosToDelete ?? []).filter(isSafeFilename);
 
   try {
-    const folder = (await hasPreviewFolder(albumSlug)) ? BUNNY_PREVIEW_FOLDER : BUNNY_PHOTOS_FOLDER;
-
-    const successfullyDeleted: string[] = [];
-    for (const filename of safeToDelete) {
-      const deleteUrl = buildBunnyStorageUrl(albumSlug, folder, encodeURIComponent(filename));
-      const deleteResponse = await fetch(deleteUrl, {
-        method: "DELETE",
-        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
-      });
-      if (deleteResponse.ok) {
-        successfullyDeleted.push(filename);
-      } else {
-        console.error(`[moderare] Bunny delete failed for ${filename}: ${deleteResponse.status}`);
-      }
+    // Every file of each photo: photos_preview (WebP) AND photos (the original) — owner, 2026-10-29.
+    const { deleted: successfullyDeleted, failed } = await deletePhotoCopies(albumSlug, safeToDelete);
+    if (failed.length > 0) {
+      // Nothing is marked reviewed while a photo is still there: the admin can press again.
+      res.status(502).json({ error: `Bunny nu a putut șterge: ${failed.join(", ")}. Încearcă din nou.`, deleted: successfullyDeleted.length });
+      return;
     }
+    if (successfullyDeleted.length > 0) await invalidateAlbumCache(albumSlug);
 
     const db = firestore();
     const allProposedPhotos = new Set<string>();

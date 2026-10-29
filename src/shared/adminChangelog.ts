@@ -34,9 +34,10 @@ export const ADMIN_CHANGELOG: ChangelogEntry[] = [
     id: "2026-10-29-album-photo-delete-both-folders",
     at: "2026-10-29T19:30",
     emoji: "🗑️",
-    title: "Ștergerea unei poze din album o șterge acum de tot",
+    title: "Ștergerea unei poze (din album și din Propuneri de moderare) o șterge acum de tot",
     summary: "Când ștergi o poză din albumul clientului (/media/…), se șterge acum atât din photos_preview (WebP), cât și din photos (originalul), plus din featured, dacă există acolo. Înainte se ștergea doar previzualizarea, iar albumul se reîncărca din cache, așa că poza părea că rămâne.",
     details: [
+      "Propuneri de moderare: „Confirmă ștergerea” șterge acum și din photos_preview, și din photos. Pozele se văd chiar dacă a rămas doar originalul .jpg; cele care nu mai există deloc apar cu „Nu mai există pe server”. Dacă Bunny refuză o ștergere, propunerea nu mai e marcată ca rezolvată, ca să poți încerca din nou.",
       "Poza dispare și din selecția de print a clientului.",
       "O eroare la ștergere nu te mai scoate din modul admin al albumului; vezi motivul în clar.",
       "photos.zip nu se reface singur: dacă poza era în arhivă, rămâne acolo până refaci ZIP-ul.",

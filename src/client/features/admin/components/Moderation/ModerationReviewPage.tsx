@@ -6,6 +6,8 @@ import Breadcrumb from "../Breadcrumb";
 type ProposedPhoto = {
   filename: string;
   signedUrl: string;
+  /** No file of this photo is left on the server (preview or original). */
+  missing?: boolean;
 };
 
 type AlbumProposal = {
@@ -149,7 +151,7 @@ export default function ModerationReviewPage() {
               </div>
 
               <div className="p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                {album.photos.map(({ filename, signedUrl }) => {
+                {album.photos.map(({ filename, signedUrl, missing }) => {
                   const isSelectedForDeletion = deletionSet.has(filename);
                   return (
                     <button
@@ -160,13 +162,20 @@ export default function ModerationReviewPage() {
                       style={{ borderColor: isSelectedForDeletion ? "#ef4444" : "#1f1f1f" }}
                       title={filename}
                     >
-                      <img
-                        src={signedUrl}
-                        alt={filename}
-                        className="w-full aspect-square object-cover block"
-                        style={{ opacity: isSelectedForDeletion ? 1 : 0.3 }}
-                        loading="lazy"
-                      />
+                      {missing || !signedUrl ? (
+                        <div className="flex w-full aspect-square flex-col items-center justify-center bg-neutral-900 p-2 text-center text-[11px] leading-snug text-neutral-500">
+                          <span className="font-mono">{filename}</span>
+                          <span className="mt-1">Nu mai există pe server</span>
+                        </div>
+                      ) : (
+                        <img
+                          src={signedUrl}
+                          alt={filename}
+                          className="w-full aspect-square object-cover block"
+                          style={{ opacity: isSelectedForDeletion ? 1 : 0.3 }}
+                          loading="lazy"
+                        />
+                      )}
                       {isSelectedForDeletion && (
                         <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
                           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
