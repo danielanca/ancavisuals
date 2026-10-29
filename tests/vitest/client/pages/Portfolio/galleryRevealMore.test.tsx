@@ -166,6 +166,14 @@ describe("gallery: a click shows the photo bigger", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Deschide fotografia" })[1]);
     expect(document.querySelector('.yarl__slide_current img')?.getAttribute("src")).toBe("https://cdn.test/p1-original.jpg");
   });
+
+  test("on a phone it opens the light gallery copy, not the heavy original", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+    const list = photos(3);
+    render(<PortfolioParallaxGallery images={list} originals={{ [list[1]]: "https://cdn.test/p1-original.jpg" }} />);
+    fireEvent.click(document.querySelector('[data-photo-index="1"] button')!);
+    expect(document.querySelector('.yarl__slide_current img')?.getAttribute("src")).toBe(list[1]);
+  });
 });
 
 describe("gallery: batches while scrolling fast", () => {
@@ -192,5 +200,33 @@ describe("gallery: batches while scrolling fast", () => {
     act(() => watcher.callback([passed], {} as IntersectionObserver));
     expect(document.querySelectorAll(".ppg-item img").length).toBe(24);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("gallery: tap hint on the first portrait photos", () => {
+  test("blurs the first two portrait photos (not the landscape ones) until one is opened, which also starts the song", () => {
+    render(<PortfolioParallaxGallery images={photos(5)} />);
+    const img = (index: number) => document.querySelector<HTMLImageElement>(`[data-photo-index="${index}"] img`)!;
+    const load = (index: number, width: number, height: number) => {
+      Object.defineProperty(img(index), "naturalWidth", { configurable: true, value: width });
+      Object.defineProperty(img(index), "naturalHeight", { configurable: true, value: height });
+      fireEvent.load(img(index));
+    };
+    const hinted = () => [...document.querySelectorAll(".ppg-tap-hint")].map((hint) => hint.closest("[data-photo-index]")?.getAttribute("data-photo-index"));
+
+    load(1, 800, 1200);
+    expect(hinted()).toEqual([]); // the first photo's shape is not known yet
+    load(0, 1200, 800);
+    load(2, 1200, 800);
+    load(3, 800, 1200);
+    load(4, 800, 1200);
+    expect(hinted()).toEqual(["1", "3"]);
+
+    const songStart = vi.fn();
+    window.addEventListener("ppg-music-start", songStart);
+    fireEvent.click(document.querySelector('[data-photo-index="3"] button')!);
+    expect(songStart).toHaveBeenCalledTimes(1);
+    expect(hinted()).toEqual([]);
+    window.removeEventListener("ppg-music-start", songStart);
   });
 });

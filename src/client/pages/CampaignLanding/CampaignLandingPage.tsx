@@ -356,7 +356,8 @@ export default function CampaignLandingPage({ page, variant = "full" }: Campaign
   const referral = useReferral();
   // Free-slot count comes from the signed contracts listed further down — never hardcoded.
   const photoboothOffer = useFreePhotoboothOffer();
-  const photoboothFree = referral || isPromoOpen(photoboothOffer, now);
+  // Referrals no longer get a free booth (owner, 2026-10-29); only a public promo could turn it on again.
+  const photoboothFree = isPromoOpen(photoboothOffer, now);
   // What is ticked in the configurator — "Ce primiți" lists exactly that.
   const [packageSelection, setPackageSelection] = useState<PackageSelection>();
   const trackQrMomentsInterest = () => {

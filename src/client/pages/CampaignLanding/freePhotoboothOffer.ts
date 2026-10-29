@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 // old spin-the-wheel countdown. Honest scarcity: shared end date for everyone.
 export const PROMO_DEADLINE = new Date("2026-10-30T23:59:59").getTime();
 
+/**
+ * Owner, 2026-10-29: the free photo booth / videobooth offer is off for now (both cost 200 €).
+ * Off = no "gratuit" badge or note, no list of contracts signed with it, nothing fetched.
+ * Turn it back on here (with a new PROMO_DEADLINE) when the offer returns.
+ */
+export const FREE_PHOTOBOOTH_PROMO_ON = false;
+
 export interface FreePhotoboothReservation { maskedName: string; city: string; signedAt: string }
 
 export interface FreePhotoboothOffer {
@@ -23,6 +30,7 @@ export function useFreePhotoboothOffer(): FreePhotoboothOffer {
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    if (!FREE_PHOTOBOOTH_PROMO_ON) return;
     const controller = new AbortController();
     setFailed(false);
     fetch("/api/campaign/olx/free-photobooth-contracts", { signal: controller.signal })
@@ -53,7 +61,7 @@ export function useFreePhotoboothOffer(): FreePhotoboothOffer {
 
 /** The public promo is on only while the deadline hasn't passed AND the server confirms free slots are left. */
 export function isPromoOpen(offer: Pick<FreePhotoboothOffer, "remaining">, now: number): boolean {
-  return now < PROMO_DEADLINE && (offer.remaining ?? 0) > 0;
+  return FREE_PHOTOBOOTH_PROMO_ON && now < PROMO_DEADLINE && (offer.remaining ?? 0) > 0;
 }
 
 export function remainingSlotsNote(offer: Pick<FreePhotoboothOffer, "remaining" | "totalSlots">): string {

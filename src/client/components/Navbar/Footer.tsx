@@ -49,7 +49,6 @@ const Footer = ({ light = false }: { light?: boolean }) => {
               <span>Foto Cabină</span>
               <span>Video Cabină</span>
               <span>QR Moments</span>
-              <span>Album Gratuit</span>
             </div>
             <p>© {new Date().getFullYear()} AncaVisuals Film Photography. All rights reserved.</p>
             <p>Licensed and insured professional photographer serving worldwide.</p>

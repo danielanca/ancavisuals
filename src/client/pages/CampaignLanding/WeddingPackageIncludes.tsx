@@ -1,6 +1,6 @@
 import React from "react";
 import FreePhotoboothContracts from "./FreePhotoboothContracts";
-import { remainingSlotsNote, type FreePhotoboothOffer } from "./freePhotoboothOffer";
+import { FREE_PHOTOBOOTH_PROMO_ON, remainingSlotsNote, type FreePhotoboothOffer } from "./freePhotoboothOffer";
 import type { PackageSelection } from "./PriceConfigurator";
 import { EXTRAS, SERVICES, eventByKey } from "../../../shared/pricing/eventConfigurator";
 
@@ -79,7 +79,7 @@ export default function WeddingPackageIncludes({ offer, now, referral, whatsappH
           <span aria-hidden="true">→</span>
         </a>
 
-        {!referral && <FreePhotoboothContracts offer={offer} now={now} />}
+        {!referral && FREE_PHOTOBOOTH_PROMO_ON && <FreePhotoboothContracts offer={offer} now={now} />}
       </div>
     </section>
   );

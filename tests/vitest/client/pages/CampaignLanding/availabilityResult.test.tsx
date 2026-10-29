@@ -84,11 +84,9 @@ describe("availability result", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(screen.queryByText(/evenimente rezervate|eveniment rezervat/)).not.toBeInTheDocument();
 
-    // Free-photobooth promo (until 2026-10-30) shows for weddings while the server confirms free slots.
-    if (Date.now() < new Date("2026-10-30T23:59:59").getTime()) {
-      expect(await screen.findByText("+ Fotocabina sau videobooth-ul, doar una dintre ele, gratuit")).toBeInTheDocument();
-      expect(screen.getByText(/Locuri rămase: 2 din 5/)).toBeInTheDocument();
-    }
+    // No free booth since 2026-10-29 (owner): no gift line, no slot count, even with slots on the server.
+    expect(screen.queryByText(/doar una dintre ele, gratuit/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Locuri rămase/)).not.toBeInTheDocument();
 
     const wa = screen.getByRole("link", { name: /Primiți oferta pe WhatsApp/ });
     expect(decodeURIComponent(wa.getAttribute("href") ?? "")).toContain(`data de 18 iulie ${nextYear} e liberă`);

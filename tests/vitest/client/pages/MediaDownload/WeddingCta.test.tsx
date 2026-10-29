@@ -12,7 +12,8 @@ test("asks guests whether they're getting married or know someone who is", () =>
   expect(screen.getByRole("heading", { name: "Urmează o nuntă?" })).toBeInTheDocument();
   expect(screen.getByText("💍 Urmează să fii mire sau mireasă?")).toBeInTheDocument();
   expect(screen.getByText("👫 Cunoști pe cineva care se căsătorește?")).toBeInTheDocument();
-  expect(screen.getByText("🎁 Prin recomandarea ta primesc fotocabina gratuită, împreună cu QR code.")).toBeInTheDocument();
+  expect(screen.getByText("🎁 Acum: fotocabina toată ziua la 200 € în loc de 450 €, plus QR code inclus.")).toBeInTheDocument();
+  expect(screen.queryByText(/gratuit/)).toBeNull(); // no free booth since 2026-10-29
 });
 
 test("'Verifică data' opens the offer at the date check and is logged as contact intent", () => {
@@ -27,6 +28,6 @@ test("'Verifică data' opens the offer at the date check and is logged as contac
 test("the recommendation opens WhatsApp's contact picker with a ready message and the offer link", () => {
   const url = referralWhatsappUrl("https://ancavisuals.ro");
   expect(url.startsWith("https://wa.me/?text=")).toBe(true);
-  expect(decodeURIComponent(url)).toContain("Bună! Vă recomand AncaVisuals dacă doriți fotograf și videograf la nuntă, plus fotocabina gratuită împreună cu QR code:");
+  expect(decodeURIComponent(url)).toContain("Bună! Vă recomand AncaVisuals dacă doriți fotograf și videograf la nuntă. Acum au fotocabina toată ziua la 200 € în loc de 450 €");
   expect(decodeURIComponent(url)).toContain("https://ancavisuals.ro/oferta?utm_source=recomandare");
 });

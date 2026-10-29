@@ -52,7 +52,8 @@ const ContactPage = () => {
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const referral = useReferral();
   const photoboothOffer = useFreePhotoboothOffer();
-  const photoboothFree = referral || isPromoOpen(photoboothOffer, Date.now());
+  // Referrals no longer get a free booth (owner, 2026-10-29); only a public promo could turn it on again.
+  const photoboothFree = isPromoOpen(photoboothOffer, Date.now());
 
   useEffect(() => {
     loadOfferPage().then(setPage).catch(() => setPage(null));

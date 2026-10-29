@@ -684,6 +684,13 @@ export default function PriceConfigurator({
                               <span className="text-xs text-neutral-400 line-through decoration-red-500/70 decoration-2">{formatAmount(extraPrice(key, prices))} €</span>
                               <span className="text-lg font-bold text-amber-600">0 €</span>
                             </span>
+                          ) : extra.listPrice && extra.listPrice > extraPrice(key, prices) ? (
+                            // The booth offer: all day for 200 € instead of 450 €.
+                            <span className="flex flex-col items-end leading-tight">
+                              <span className="text-xs text-neutral-400 line-through decoration-red-500/70 decoration-2">{formatAmount(extra.listPrice)} €</span>
+                              <span className="font-semibold">+{formatAmount(extraPrice(key, prices))} €</span>
+                              <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Ofertă</span>
+                            </span>
                           ) : extra.variants && !on ? (
                             <span className="font-semibold"><span className="font-normal text-neutral-500">de la</span> +{formatAmount(extraPrice(key, prices))} €</span>
                           ) : (

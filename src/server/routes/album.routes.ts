@@ -7,6 +7,7 @@ import { ALBUM_VIDEO_KINDS, normalizeVideoLink, type AlbumVideoLinks } from "../
 import { getAlbumStats } from "../services/albumStats.service";
 import { invalidateAlbumCache, loadAlbum, resolveAlbumSlug } from "../services/album.service";
 import nodeFetch from "node-fetch";
+import sharp from "sharp";
 import { PassThrough, Transform } from "node:stream";
 import { randomUUID } from "node:crypto";
 import { BUNNY_ACCESS_KEY_HEADER, buildBunnyDirectoryUrl, buildBunnyStorageUrl, getBunnyStorageKey } from "../constants/bunny";
@@ -144,6 +145,46 @@ router.post("/:slug/report-error", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[album] report-error failed:", error);
     res.status(500).json({ error: String(error) });
+  }
+});
+
+// GET /api/album/:slug/preview.jpg — the image WhatsApp & co. show under an album link
+// (og:image, see ssr/mediaOg.ts): the album's first photo as a small 1200×630 JPEG, stable URL
+// (CDN links are signed for 1 h). Kept in memory per album + first photo.
+const ALBUM_PREVIEW_CACHE_MAX = 50;
+/** 1200×630. A portrait photo keeps its upper part (faces), not the middle (a dress, hands). */
+export async function albumPreviewJpeg(input: Buffer): Promise<Buffer> {
+  const upright = await sharp(input).rotate().toBuffer({ resolveWithObject: true });
+  const { width, height } = upright.info;
+  const image = sharp(upright.data);
+  if (height > width) {
+    const scaledHeight = Math.round(height * 1200 / width);
+    const top = Math.max(0, Math.min(scaledHeight - 630, Math.round(scaledHeight * 0.3 - 315)));
+    image.resize(1200).extract({ left: 0, top, width: 1200, height: 630 });
+  } else {
+    image.resize(1200, 630, { fit: "cover", position: "attention" });
+  }
+  return image.jpeg({ quality: 78, mozjpeg: true }).toBuffer();
+}
+const albumPreviewCache = new Map<string, Buffer>();
+router.get("/:slug/preview.jpg", async (req: Request, res: Response) => {
+  try {
+    const slug = await resolveAlbumSlug(String(req.params.slug || ""));
+    const album = await loadAlbum(slug);
+    const first = album?.photos[0] ?? album?.featured[0];
+    if (!first) return res.status(404).end();
+    const key = `${slug}|${first.split("?")[0]}`;
+    let image = albumPreviewCache.get(key);
+    if (!image) {
+      const source = await fetch(first, { signal: AbortSignal.timeout(20_000) });
+      if (!source.ok) return res.status(404).end();
+      image = await albumPreviewJpeg(Buffer.from(await source.arrayBuffer()));
+      if (albumPreviewCache.size >= ALBUM_PREVIEW_CACHE_MAX) albumPreviewCache.delete(albumPreviewCache.keys().next().value as string);
+      albumPreviewCache.set(key, image);
+    }
+    return res.status(200).set({ "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400" }).end(image);
+  } catch {
+    return res.status(404).end();
   }
 });
 

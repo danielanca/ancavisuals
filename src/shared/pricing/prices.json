@@ -27,9 +27,9 @@
     {
       "id": "photobooth",
       "title": "Fotocabina / Photo Booth",
-      "price": 250,
+      "price": 200,
       "type": "photo",
-      "note": "Foto cabina pe perioada evenimentului.",
+      "note": "Toată ziua · ofertă: 200 € în loc de 450 €.",
       "recommended": false,
       "participantTiers": [
         { "label": "Sub 200 persoane",    "max": 200,             "extra": 0,  "extraNote": "Prețul include toată materia primă necesară (hârtie foto, consumabile) pentru până la 200 de participanți." },
@@ -40,9 +40,9 @@
     {
       "id": "videobooth",
       "title": "Video Cabina 360 / VideoBooth 360",
-      "price": 250,
+      "price": 200,
       "type": "photo",
-      "note": "Video cabina pe perioada evenimentului.",
+      "note": "Toată ziua · ofertă: 200 € în loc de 450 €.",
       "recommended": true
     }
   ],

@@ -112,13 +112,13 @@ describe("campaign.routes — public landing-page flow", () => {
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
 
-    test("a lead from a recommendation link is flagged: free photobooth + QR code in subject and message", async () => {
+    test("a lead from a recommendation link is flagged: the recommender's photo session in subject and message", async () => {
       const { postContact, sendEmail } = await loadRouter();
       const res = createMockResponse();
       await postContact({ params: { slug: "olx" }, body: { phone: "0745469907", message: "• Foto", referral: true } }, res);
       const mail = sendEmail.mock.calls[0][0];
       expect(mail.subject).toMatch(/^🎁 RECOMANDARE · /);
-      expect(mail.html).toContain("fotocabina SAU videobooth-ul (la alegere) GRATUIT + QR code");
+      expect(mail.html).toContain("primește ședința foto gratuită după ce semnează contractul");
       expect(mail.html).toContain("• Foto");
     });
 

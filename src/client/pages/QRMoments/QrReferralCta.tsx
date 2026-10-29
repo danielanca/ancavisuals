@@ -1,7 +1,7 @@
 /*
  * Purpose: the referral CTA of the QR Moments guest page — the same block as at the end of the
- * "au vizualizat" email (`renderReferralCta` in server/notifications/qrViewEmailAd.ts): the couple
- * they recommend gets the photo booth free, the guest a photo session (terms: /terms#recomandare).
+ * "au vizualizat" email (`renderReferralCta` in server/notifications/qrViewEmailAd.ts): the guest
+ * gets a photo session once the couple signs (terms: /terms#recomandare). No free booth since 2026-10-29.
  */
 import { useId } from "react";
 import { sendLiveEvent } from "../../utils/liveEvent";
@@ -16,7 +16,7 @@ export default function QrReferralCta() {
       <p className="text-[10px] uppercase tracking-[0.24em] text-neutral-400">Recomandă-ne</p>
       <h2 id={titleId} className="mt-2 text-xl font-semibold leading-snug text-white">Cunoști pe cineva care se căsătorește? 💍</h2>
       <p className="mt-2 text-sm leading-relaxed text-neutral-200">
-        Trimite-le acest mesaj. Ei primesc <strong className="text-white">fotocabina gratuit</strong> la nunta lor.
+        Trimite-le acest mesaj. Acum au <strong className="text-white">fotocabina toată ziua la 200 € în loc de 450 €</strong>.
       </p>
       <p className="mt-1 text-sm leading-relaxed text-neutral-200">
         Iar tu primești <strong className="text-white">o ședință foto gratuită</strong> 📸

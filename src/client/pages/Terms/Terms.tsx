@@ -207,7 +207,6 @@ const Terms = () => {
             </p>
             <ul className="space-y-3">
               {[
-                "Persoanele recomandate primesc fotocabina gratuit, inclusă în contractul încheiat cu Anca Visuals pentru evenimentul lor.",
                 "Persoana care a făcut recomandarea primește o ședință foto gratuită doar după ce persoanele recomandate semnează contractul cu Anca Visuals.",
                 "Costul deplasării la locația ședinței foto se achită de beneficiarul ședinței (persoana care a făcut recomandarea).",
                 "Ca să știm de la cine vine recomandarea, persoanele recomandate trebuie să ne spună numele tău înainte de semnarea contractului.",

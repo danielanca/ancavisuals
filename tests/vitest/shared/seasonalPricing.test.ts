@@ -56,8 +56,8 @@ describe("seasonal pricing", () => {
     const selection = { event: "nunta" as const, service: "foto_video" as const, extras: ["videobooth" as const], guestTier: 0 };
     const standard = buildQuote(selection, DEFAULT_PRICE_BOOK).total;
     const august = buildQuote(selection, seasonalPriceBook(DEFAULT_PRICE_BOOK, seasons, "nunta", 8)).total;
-    expect(standard).toBe(950 + 250);
-    expect(august).toBe(1140 + 300);
+    expect(standard).toBe(950 + 200);
+    expect(august).toBe(1140 + 240);
   });
 
   test("detects whether the date matters and reads months from ISO dates", () => {

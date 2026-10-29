@@ -27,7 +27,8 @@ describe("QR Moments 'au vizualizat' email", () => {
 
   test("the referral link is the photo booth recommendation, without the guest's name", () => {
     const text = decodeURIComponent(referralWhatsAppUrl().split("text=")[1]);
-    expect(text).toContain("fotocabina gratuită");
+    expect(text).toContain("fotocabina toată ziua la 200 € în loc de 450 €");
+    expect(text).not.toContain("gratuit");
     expect(text).not.toContain("recomandat");
     expect(text).toContain("/oferta?utm_source=recomandare");
   });

@@ -9,7 +9,7 @@ import { sendLiveEvent } from "../../utils/liveEvent";
 export const OFFER_PATH = "/oferta?utm_source=share&utm_medium=guest#verifica-data";
 
 export function referralWhatsappUrl(origin: string): string {
-  const text = `Bună! Vă recomand AncaVisuals dacă doriți fotograf și videograf la nuntă, plus fotocabina gratuită împreună cu QR code: ${origin}/oferta?utm_source=recomandare`;
+  const text = `Bună! Vă recomand AncaVisuals dacă doriți fotograf și videograf la nuntă. Acum au fotocabina toată ziua la 200 € în loc de 450 €, iar QR code-ul e inclus: ${origin}/oferta?utm_source=recomandare`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
@@ -50,7 +50,7 @@ export default function WeddingCta() {
             Recomandă-ne pe WhatsApp →
           </a>
           <p className="mt-3 border border-dashed border-[#22c55e] px-3 py-2 text-center text-sm font-semibold text-[#4ade80]">
-            🎁 Prin recomandarea ta primesc fotocabina gratuită, împreună cu QR code.
+            🎁 Acum: fotocabina toată ziua la 200 € în loc de 450 €, plus QR code inclus.
           </p>
         </div>
       </div>

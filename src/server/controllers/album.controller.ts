@@ -149,7 +149,38 @@ export async function postPrintSelection(req: Request, res: Response) {
   return res.json({ ok: true, count: clean.length });
 }
 
-/** Admin only: the route requires a signed-in supreme admin (see album.routes). */
+/** "photos_preview/Picture-0100.webp" from a signed album URL (…/{slug}/photos_preview/Picture-0100.webp?token=…). */
+function albumStoragePath(slug: string, signedUrl: string): string | null {
+  try {
+    const parts = new URL(signedUrl).pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    return parts[0] === slug && parts.length >= 3 ? parts.slice(1).join("/") : null;
+  } catch {
+    return null;
+  }
+}
+
+const baseName = (file: string) => file.replace(/\.[^./]+$/, "").toLowerCase();
+
+/**
+ * Every copy of one photo in the album: the WebP the page shows (photos_preview), the original
+ * (photos, often .jpg next to a .webp preview) and a featured copy — matched by name without the
+ * extension. Without the album list (cache gone) it falls back to the same name in both folders.
+ */
+function photoCopies(slug: string, filename: string, album: { photos?: string[]; originalPhoto?: string[]; featured?: string[] } | null): string[] {
+  const wanted = baseName(filename);
+  const fromAlbum = [...(album?.photos ?? []), ...(album?.originalPhoto ?? []), ...(album?.featured ?? [])]
+    .map((url) => albumStoragePath(slug, url))
+    .filter((path): path is string => Boolean(path) && baseName(path!.split("/").pop()!) === wanted);
+  const fallback = [`${BUNNY_PREVIEW_FOLDER}/${filename}`, `${BUNNY_PHOTOS_FOLDER}/${filename}`];
+  return Array.from(new Set(fromAlbum.length ? fromAlbum : fallback));
+}
+
+/**
+ * Admin only: the route requires a signed-in supreme admin (see album.routes). Deletes every copy
+ * of the photo from Bunny — photos_preview AND photos (owner, 2026-10-29: it used to delete only
+ * the preview, leaving the original, and reloaded the album from the stale cache, so the photo
+ * stayed). photos.zip is not rebuilt here.
+ */
 export async function deletePhoto(req: Request, res: Response) {
   const slug = String(req.params.slug || "");
   const { filename } = req.body;
@@ -166,29 +197,34 @@ export async function deletePhoto(req: Request, res: Response) {
     const exists = await albumExists(slug);
     if (!exists) return res.status(404).json({ error: "album_not_found" });
 
-    const photoPath = await checkPreviewExist(slug);
-    const deleteUrl = buildBunnyStorageUrl(slug, photoPath, encodeURIComponent(filename));
-
-    const deleteResponse = await fetch(deleteUrl, {
-      method: "DELETE",
-      headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
-    });
-
-    if (!deleteResponse.ok) {
-      console.error("Bunny delete failed:", deleteResponse.status);
-      return res.status(500).json({ error: "failed_to_delete_file" });
+    const copies = photoCopies(slug, filename, await loadAlbum(slug));
+    let deleted = 0;
+    for (const path of copies) {
+      const deleteResponse = await fetch(buildBunnyStorageUrl(slug, ...path.split("/").map(encodeURIComponent)), {
+        method: "DELETE",
+        headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+      });
+      if (deleteResponse.ok) deleted += 1;
+      else if (deleteResponse.status !== 404) {
+        console.error("Bunny delete failed:", deleteResponse.status, path);
+        return res.status(500).json({ error: "failed_to_delete_file" });
+      }
     }
+    if (deleted === 0) return res.status(404).json({ error: "photo_not_found" });
 
+    const wanted = baseName(filename);
     const currentPrint = await readPrintSelection(slug);
-    const updatedPrint = currentPrint.filter((f: string) => f !== filename);
+    const updatedPrint = currentPrint.filter((f: string) => baseName(f) !== wanted);
     if (updatedPrint.length !== currentPrint.length) {
       await savePrintSelection(slug, updatedPrint);
     }
 
-    invalidateAlbumCache(slug);
+    // Awaited: otherwise the reload below can still find the old Firestore copy, with the photo.
+    await invalidateAlbumCache(slug);
     const album = await loadAlbum(slug);
     if (!album) return res.status(500).json({ error: "failed_to_reload_album" });
 
+    const photoPath = await checkPreviewExist(slug);
     const saved = await readPrintSelection(slug);
     const clean = Array.from(new Set(saved.filter(isSafeFile)));
     const print = clean.map((f: string) => signBunnyUrl(`/${slug}/${photoPath}/${f}`));

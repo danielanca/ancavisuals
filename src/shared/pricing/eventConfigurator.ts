@@ -67,9 +67,7 @@ export const CONFIGURATOR_EVENTS: ConfiguratorEvent[] = [
     included: ["Galerie online privată"],
     extras: ["fotocabina", "videobooth", "album"],
     askGuests: false,
-    // Owner, 2026-10-03: at majorate the photo booth OR the videobooth is free — one of them.
-    giftOneOf: ["fotocabina", "videobooth"],
-    giftNote: "Cadou la majorat: fotocabina sau videobooth-ul, la alegere",
+    // The majorat gift (photo booth OR videobooth free, owner 2026-10-03) ended on 2026-10-29: no free booth anywhere.
   },
   {
     key: "corporate",
@@ -94,9 +92,15 @@ export const SERVICES: { key: ServiceKey; label: string; note: string }[] = [
 
 export interface ExtraVariant { label: string; priceKey: ConfiguratorPriceKey }
 
-export const EXTRAS: Record<ExtraKey, { label: string; note: string; priceKey: ConfiguratorPriceKey; variants?: ExtraVariant[] }> = {
-  fotocabina: { label: "Fotocabină / Oglindă foto", note: "Poze printate pe loc pentru invitați", priceKey: "fotocabina" },
-  videobooth: { label: "Videobooth 360", note: "Clipuri video 360° cu invitații, gata de trimis pe telefon", priceKey: "videobooth" },
+/**
+ * Owner, 2026-10-29: the booths are an offer — all day for 200 € instead of 450 €. The 450 € is
+ * only shown struck through next to the real price (which comes from /admin/preturi).
+ */
+export const BOOTH_FULL_DAY_LIST_PRICE = 450;
+
+export const EXTRAS: Record<ExtraKey, { label: string; note: string; priceKey: ConfiguratorPriceKey; variants?: ExtraVariant[]; listPrice?: number }> = {
+  fotocabina: { label: "Fotocabină / Oglindă foto", note: "Toată ziua · poze printate pe loc pentru invitați", priceKey: "fotocabina", listPrice: BOOTH_FULL_DAY_LIST_PRICE },
+  videobooth: { label: "Videobooth 360", note: "Toată ziua · clipuri video 360° cu invitații, gata de trimis pe telefon", priceKey: "videobooth", listPrice: BOOTH_FULL_DAY_LIST_PRICE },
   album: { label: "Album foto", note: "100 de poze pe hârtie foto premium", priceKey: "album" },
   // Owner, 2026-10-03: at weddings the album is a retro box or a photo book.
   album_nunta: {

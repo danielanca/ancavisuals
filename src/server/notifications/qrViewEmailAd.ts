@@ -101,17 +101,17 @@ export function renderOfferAd(photos: string[], eventType: QrEventType): string 
 
 /** Same message and link as "Recomandă-ne pe WhatsApp" on /share pages. */
 export function referralWhatsAppUrl(): string {
-  const text = `Bună! Vă recomand AncaVisuals dacă doriți fotograf și videograf la nuntă, plus fotocabina gratuită împreună cu QR code: ${APP_BASE_URL}/oferta?utm_source=recomandare`;
+  const text = `Bună! Vă recomand AncaVisuals dacă doriți fotograf și videograf la nuntă. Acum au fotocabina toată ziua la 200 € în loc de 450 €, iar QR code-ul e inclus: ${APP_BASE_URL}/oferta?utm_source=recomandare`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
-/** "Trimite-l cuiva care se căsătorește": the couple gets the photo booth free, the guest a photo session. */
+/** "Trimite-l cuiva care se căsătorește": the guest gets a photo session once the couple signs (no free booth since 2026-10-29). */
 export function renderReferralCta(): string {
   return `
     <div style="max-width:560px;margin:18px auto 0;background:#111111;padding:24px 20px;font-family:Arial,Helvetica,sans-serif;color:#ffffff;">
       <p style="margin:0 0 10px;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:#a3a3a3;">Recomandă-ne</p>
       <h2 style="margin:0 0 10px;font-size:20px;line-height:1.3;font-weight:600;color:#ffffff;">Cunoști pe cineva care se căsătorește? 💍</h2>
-      <p style="margin:0 0 8px;font-size:14px;line-height:1.55;color:#e5e5e5;">Trimite-le acest mesaj. Ei primesc <strong style="color:#ffffff;">fotocabina gratuit</strong> la nunta lor.</p>
+      <p style="margin:0 0 8px;font-size:14px;line-height:1.55;color:#e5e5e5;">Trimite-le acest mesaj. Acum au <strong style="color:#ffffff;">fotocabina toată ziua la 200 € în loc de 450 €</strong>.</p>
       <p style="margin:0 0 18px;font-size:14px;line-height:1.55;color:#e5e5e5;">Iar tu primești <strong style="color:#ffffff;">o ședință foto gratuită</strong> 📸</p>
       <a href="${escapeAttribute(referralWhatsAppUrl())}" style="display:inline-block;background:#ffffff;color:#111111;padding:13px 24px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;">Trimite pe WhatsApp →</a>
       <p style="margin:14px 0 0;font-size:11px;color:#a3a3a3;">Se aplică <a href="${APP_BASE_URL}/terms#recomandare" style="color:#ffffff;text-decoration:underline;">termeni și condiții</a>.</p>

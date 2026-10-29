@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 const { sendLiveEventMock } = vi.hoisted(() => ({ sendLiveEventMock: vi.fn() }));
 vi.mock("src/client/utils/liveEvent", () => ({ sendLiveEvent: sendLiveEventMock }));
 
-import PortfolioMusic, { MUSIC_VOLUME, PORTFOLIO_SONG_URL, formatTime } from "src/client/pages/Portfolio/PortfolioMusic";
+import PortfolioMusic, { MUSIC_VOLUME, PORTFOLIO_MUSIC_START_EVENT, PORTFOLIO_SONG_URL, formatTime } from "src/client/pages/Portfolio/PortfolioMusic";
 
 const ramps: number[] = [];
 const audios: FakeAudio[] = [];
@@ -108,12 +108,25 @@ describe("portfolio music", () => {
     expect(sendLiveEventMock).toHaveBeenCalledTimes(1);
   });
 
+  test("opening one of the first photos starts the song, unless the visitor stopped it", async () => {
+    render(<PortfolioMusic />);
+    await act(async () => window.dispatchEvent(new Event(PORTFOLIO_MUSIC_START_EVENT)));
+    expect(audios).toHaveLength(1);
+    expect(sendLiveEventMock).toHaveBeenCalledWith("portfolio_music_played", { meta: { how: "photo" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Oprește melodia/ }));
+    audios[0].play.mockClear();
+    await act(async () => window.dispatchEvent(new Event(PORTFOLIO_MUSIC_START_EVENT)));
+    expect(audios[0].play).not.toHaveBeenCalled();
+  });
+
   test("speaker button only after play, in the photos, once the banner is off screen", async () => {
     const { container } = render(<section className="ppg-section"><PortfolioMusic /></section>);
     const banner = container.querySelector(".ppg-music");
     expect(document.querySelector(".ppg-music-float")).toBeNull();
 
     await act(async () => intersect(container.querySelector(".ppg-section"), true));
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Pornește melodia/ })));
     expect(document.querySelector(".ppg-music-float")).toBeNull();
 
     intersect(banner, false);
@@ -198,48 +211,77 @@ describe("portfolio music", () => {
       const section = view.container.querySelector(".ppg-section");
       return { section };
     };
-    const activate = (active: boolean) =>
-      Object.defineProperty(navigator, "userActivation", { configurable: true, value: { hasBeenActive: active, isActive: false } });
-    afterEach(() => {
-      delete (navigator as { userActivation?: unknown }).userActivation;
+    let focused = true;
+    beforeEach(() => {
+      focused = true;
+      vi.spyOn(document, "hasFocus").mockImplementation(() => focused);
     });
+    afterEach(() => vi.restoreAllMocks());
+    const play = () => act(async () => fireEvent.click(screen.getByRole("button", { name: /Pornește melodia/ })));
+    const isPlaying = () => screen.queryByRole("button", { name: /Oprește melodia/ }) !== null;
 
-    test("starts by itself on reaching the photos when the page was already touched, stops on leaving", async () => {
-      activate(true);
+    test("never starts by itself on reaching the photos or on a tap (they may be listening to something else)", async () => {
       const { section } = renderInGallery();
       await act(async () => intersect(section, true));
-      expect(audios).toHaveLength(1);
-      expect(screen.getByRole("button", { name: /Oprește melodia/ })).toBeInTheDocument();
-      expect(sendLiveEventMock).toHaveBeenCalledWith("portfolio_music_played", { meta: { how: "auto" } });
+      await act(async () => window.dispatchEvent(new Event("pointerup")));
+      expect(audios).toHaveLength(0);
+      expect(isPlaying()).toBe(false);
+    });
 
+    test("once chosen: stops on leaving the photos, comes back on returning", async () => {
+      const { section } = renderInGallery();
+      await act(async () => intersect(section, true));
+      await play();
       intersect(section, false);
       expect(ramps.at(-1)).toBe(0);
-      expect(screen.getByRole("button", { name: /Pornește melodia/ })).toBeInTheDocument();
+      expect(isPlaying()).toBe(false);
 
       await act(async () => intersect(section, true));
-      expect(screen.getByRole("button", { name: /Oprește melodia/ })).toBeInTheDocument();
+      expect(isPlaying()).toBe(true);
+      expect(sendLiveEventMock).toHaveBeenCalledWith("portfolio_music_played", { meta: { how: "click" } });
     });
 
-    test("not touched yet: downloads nothing, starts on the first tap in the photos", async () => {
-      activate(false);
+    test("another window or app pauses it; coming back resumes it", async () => {
       const { section } = renderInGallery();
-      intersect(section, true);
-      expect(audios).toHaveLength(0);
+      await act(async () => intersect(section, true));
+      await play();
 
-      await act(async () => window.dispatchEvent(new Event("pointerup")));
-      expect(audios).toHaveLength(1);
-      expect(screen.getByRole("button", { name: /Oprește melodia/ })).toBeInTheDocument();
+      focused = false;
+      act(() => {
+        window.dispatchEvent(new Event("blur"));
+        vi.runOnlyPendingTimers();
+      });
+      expect(isPlaying()).toBe(false);
+
+      focused = true;
+      await act(async () => window.dispatchEvent(new Event("focus")));
+      expect(isPlaying()).toBe(true);
+    });
+
+    test("another tab pauses it; coming back resumes it", async () => {
+      const { section } = renderInGallery();
+      await act(async () => intersect(section, true));
+      await play();
+      const setHidden = (hidden: boolean) => Object.defineProperty(document, "hidden", { configurable: true, value: hidden });
+
+      setHidden(true);
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+      expect(isPlaying()).toBe(false);
+
+      setHidden(false);
+      await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+      expect(isPlaying()).toBe(true);
+      delete (document as { hidden?: boolean }).hidden;
     });
 
     test("stopped by the visitor: does not start again by itself", async () => {
-      activate(true);
       const { section } = renderInGallery();
       await act(async () => intersect(section, true));
+      await play();
       fireEvent.click(screen.getByRole("button", { name: /Oprește melodia/ }));
       intersect(section, false);
       await act(async () => intersect(section, true));
-      await act(async () => window.dispatchEvent(new Event("pointerup")));
-      expect(screen.getByRole("button", { name: /Pornește melodia/ })).toBeInTheDocument();
+      expect(isPlaying()).toBe(false);
     });
   });
 });

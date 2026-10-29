@@ -12,11 +12,11 @@ describe("eventConfigurator", () => {
     }
   });
 
-  it("matches the /oferta/olx wedding packages (950 / 1200 / 1450)", () => {
+  it("wedding: 950 €, each booth 200 € (owner, 2026-10-29) → 1150 / 1350", () => {
     const base = { event: "nunta" as const, service: "foto_video" as const, guestTier: 0 };
     expect(buildQuote({ ...base, extras: [] }, prices).total).toBe(950);
-    expect(buildQuote({ ...base, extras: ["fotocabina"] }, prices).total).toBe(1200);
-    expect(buildQuote({ ...base, extras: ["fotocabina", "videobooth"] }, prices).total).toBe(1450);
+    expect(buildQuote({ ...base, extras: ["fotocabina"] }, prices).total).toBe(1150);
+    expect(buildQuote({ ...base, extras: ["fotocabina", "videobooth"] }, prices).total).toBe(1350);
   });
 
   it("follows starting prices edited in /admin/preturi", () => {
@@ -45,8 +45,8 @@ describe("eventConfigurator", () => {
     const quote = (event: "botez" | "majorat" | "corporate") =>
       buildQuote({ event, service: "foto", extras: ["fotocabina"], guestTier: 2 }, prices).total;
     expect(quote("botez")).toBe(prices.botez + prices.fotocabina);
-    // Majorat: no guest supplement (and the booth is its gift).
-    expect(quote("majorat")).toBe(prices.majorat);
+    // Majorat: no guest supplement.
+    expect(quote("majorat")).toBe(prices.majorat + prices.fotocabina);
     expect(quote("corporate")).toBe(100 + prices.fotocabina + 60);
   });
 
@@ -75,17 +75,14 @@ describe("eventConfigurator", () => {
     expect(buildQuote({ event: "botez", service: "foto", extras: ["album_nunta"], guestTier: 0 }, prices).total).toBe(250);
   });
 
-  it("majorat: the photo booth or the videobooth is free — only one of them", () => {
-    const at = (extras: ("fotocabina" | "videobooth")[]) =>
-      buildQuote({ event: "majorat", service: "foto", extras, guestTier: 0 }, prices).total;
-    expect(at(["fotocabina"])).toBe(prices.majorat);
-    expect(at(["videobooth"])).toBe(prices.majorat);
-    expect(at(["fotocabina", "videobooth"])).toBe(prices.majorat + prices.videobooth);
-    // The gift stays on the one picked first.
-    const both = buildQuote({ event: "majorat", service: "foto", extras: ["videobooth", "fotocabina"], guestTier: 0 }, prices);
-    expect(both.lines.find((l) => l.waived)?.label).toBe(EXTRAS.videobooth.label);
-    // No gift at a christening.
-    expect(buildQuote({ event: "botez", service: "foto", extras: ["fotocabina"], guestTier: 0 }, prices).total).toBe(250 + prices.fotocabina);
+  it("no free booth anywhere since 2026-10-29: each booth is paid, majorat included", () => {
+    const at = (event: "majorat" | "nunta" | "botez", extras: ("fotocabina" | "videobooth")[]) =>
+      buildQuote({ event, service: "foto", extras, guestTier: 0 }, prices);
+    expect(at("majorat", ["fotocabina", "videobooth"]).total).toBe(prices.majorat + prices.fotocabina + prices.videobooth);
+    expect(at("majorat", ["fotocabina", "videobooth"]).lines.some((l) => l.waived)).toBe(false);
+    expect(at("botez", ["fotocabina"]).total).toBe(250 + prices.fotocabina);
+    expect(EXTRAS.fotocabina.listPrice).toBe(450);
+    expect(EXTRAS.videobooth.listPrice).toBe(450);
   });
 
   it("wedding album: retro box 60 € or photo book 100 €", () => {

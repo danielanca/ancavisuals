@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { sendLiveEvent } from "../../utils/liveEvent";
 
-// Background song for the portfolio (owner, 2026-10-27/28): it plays softly while the visitor is
-// in the photos — starting by itself when the browser allows it (or from the play button under
-// the "Portofoliu" title), fading in and out, stopping when they leave the photos or start a
-// video, with a small speaker button to stop it once the banner is out of view.
+// Background song for the portfolio (owner, 2026-10-27/29): it plays softly while the visitor is
+// in the photos and on the page — started only by them (the play button under the "Portofoliu"
+// title, or opening one of the first photos), fading in and out, pausing in another tab/window,
+// stopping when they leave the photos or start a video, with a small speaker button to stop it
+// once the banner is out of view.
 export const PORTFOLIO_SONG_URL = "https://ancavisuals.b-cdn.net/custom-download/Ordinary.mp3";
 export const PORTFOLIO_SONG_TITLE = "Ordinary";
 export const PORTFOLIO_SONG_ARTIST = "Alex Warren";
@@ -17,6 +18,8 @@ const VOLUME_STORAGE_KEY = "ppg-music-volume";
 const FADE_IN_S = 2.5;
 const FADE_OUT_S = 1.5;
 const VOLUME_CHANGE_S = 0.15;
+/** Sent (inside the click) by the blurred "tap to see it full screen" photos: opening one starts the song. */
+export const PORTFOLIO_MUSIC_START_EVENT = "ppg-music-start";
 
 function savedVolume(): number {
   try {
@@ -161,9 +164,12 @@ export default function PortfolioMusic() {
   // In the photos (the middle of the screen is inside the gallery section).
   const inGalleryRef = useRef(false);
   const [inGallery, setInGallery] = useState(false);
+  // Started by the visitor (play button or a photo): only then may it come back by itself.
+  const chosenRef = useRef(false);
   // Stopped by the visitor (or by a video): no more starting on its own.
   const userStoppedRef = useRef(false);
-  const pausedByHiddenTabRef = useRef(false);
+  // Paused because they went to another tab, window or app.
+  const pausedAwayRef = useRef(false);
   const reportedRef = useRef(false);
 
   const [volume, setVolume] = useState(MUSIC_VOLUME);
@@ -187,7 +193,7 @@ export default function PortfolioMusic() {
     }
   }, []);
 
-  const start = useCallback(async (how: "click" | "auto" = "click") => {
+  const start = useCallback(async (how: "click" | "auto" | "photo" = "click") => {
     // Nothing is downloaded until the first press.
     if (!playerRef.current) {
       const player = new SongPlayer(PORTFOLIO_SONG_URL);
@@ -230,26 +236,53 @@ export default function PortfolioMusic() {
       stop();
     } else {
       userStoppedRef.current = false;
+      chosenRef.current = true;
       void start();
     }
   }, [start, stop]);
 
+  // Opening one of the first photos starts the song too (owner, 2026-10-29), unless they stopped it.
+  useEffect(() => {
+    const onPhoto = () => {
+      if (playingRef.current || userStoppedRef.current) return;
+      chosenRef.current = true;
+      void start("photo");
+    };
+    window.addEventListener(PORTFOLIO_MUSIC_START_EVENT, onPhoto);
+    return () => window.removeEventListener(PORTFOLIO_MUSIC_START_EVENT, onPhoto);
+  }, [start]);
+
   // Leaving the page (another route) stops the song.
   useEffect(() => () => playerRef.current?.destroy(), []);
 
-  // Another tab or a locked screen: fade out, and come back when they return.
+  // Owner (2026-10-29): it plays only while they are on the page — another tab, another window or
+  // app, or a locked screen fades it out; it comes back when they return to the photos.
   useEffect(() => {
-    const onVisibility = () => {
-      if (document.hidden && playingRef.current) {
-        pausedByHiddenTabRef.current = true;
-        stop();
-      } else if (!document.hidden && pausedByHiddenTabRef.current) {
-        pausedByHiddenTabRef.current = false;
-        if (inGalleryRef.current) void start("auto");
-      }
+    const onAway = () => {
+      if (!playingRef.current) return;
+      pausedAwayRef.current = true;
+      stop();
     };
+    // Back in the tab is enough (some phones only give the page focus again after a tap).
+    const onBack = (event?: Event) => {
+      if (document.hidden || !pausedAwayRef.current) return;
+      if (event?.type === "focus" && !document.hasFocus()) return;
+      pausedAwayRef.current = false;
+      if (inGalleryRef.current && !userStoppedRef.current) void start("auto");
+    };
+    const onVisibility = () => (document.hidden ? onAway() : onBack());
+    // Focus going into an embedded film is handled below (it stops the song for good).
+    const onBlur = () => setTimeout(() => {
+      if (!(document.activeElement instanceof HTMLIFrameElement) && !document.hasFocus()) onAway();
+    }, 0);
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onBack);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onBack);
+    };
   }, [start, stop]);
 
   // A video with sound starts (owner): the song stops for good — it does not come back by itself.
@@ -257,7 +290,7 @@ export default function PortfolioMusic() {
   useEffect(() => {
     const stopForVideo = () => {
       userStoppedRef.current = true;
-      pausedByHiddenTabRef.current = false;
+      pausedAwayRef.current = false;
       if (playingRef.current) stop();
     };
     const onMedia = (event: Event) => {
@@ -279,38 +312,27 @@ export default function PortfolioMusic() {
     };
   }, [stop]);
 
-  // Owner (2026-10-28): the song starts by itself when the visitor reaches the photos and fades
-  // out and stops when they leave them (the configurator included). Browsers only allow sound
-  // after the visitor touched the page — until then the first tap/click/key inside the photos
-  // starts it (scrolling does not count). If they stopped it themselves, it stays stopped.
+  // Owner (2026-10-29): the song only starts when the visitor chooses it (play, or opening one of
+  // the first photos) — never on any tap, so music they already listen to is not cut off. It
+  // plays while they are in the photos: leaving them fades it out, coming back brings it back.
   useEffect(() => {
     const section = bannerRef.current?.closest(".ppg-section");
     if (!section || typeof IntersectionObserver === "undefined") return;
-    const tryAutoStart = (event?: Event) => {
-      if (!inGalleryRef.current || playingRef.current || userStoppedRef.current || document.hidden) return;
-      // The banner's own buttons handle their click themselves.
-      if (event?.target instanceof Element && event.target.closest(".ppg-music, .ppg-music-float")) return;
-      // Not touched yet = the browser would refuse: wait for a tap instead of downloading the song for nothing.
-      if (!event && navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
-      void start("auto");
-    };
     const observer = new IntersectionObserver(
       ([entry]) => {
         inGalleryRef.current = entry.isIntersecting;
         setInGallery(entry.isIntersecting);
-        if (entry.isIntersecting) tryAutoStart();
-        else if (playingRef.current) stop();
+        if (!entry.isIntersecting) {
+          if (playingRef.current) stop();
+        } else if (chosenRef.current && !userStoppedRef.current && !playingRef.current && !document.hidden) {
+          void start("auto");
+        }
       },
       // "In the photos" = the section covers the middle of the screen.
       { rootMargin: "-40% 0px -40% 0px" },
     );
     observer.observe(section);
-    const gestures = ["pointerup", "touchend", "keydown"] as const;
-    gestures.forEach((type) => window.addEventListener(type, tryAutoStart, { passive: true }));
-    return () => {
-      observer.disconnect();
-      gestures.forEach((type) => window.removeEventListener(type, tryAutoStart));
-    };
+    return () => observer.disconnect();
   }, [start, stop]);
 
   // The speaker button: while the song plays in the photos, once the banner is off screen.

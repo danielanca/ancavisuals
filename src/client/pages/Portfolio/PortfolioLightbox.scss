@@ -1,0 +1,187 @@
+// Full-screen photo viewer (PortfolioLightbox): square, monochrome, hairline.
+.ppl {
+  --yarl__color_backdrop: transparent;
+  --yarl__button_filter: none;
+  --yarl__color_button: rgba(255, 255, 255, 0.85);
+  --yarl__color_button_disabled: rgba(255, 255, 255, 0.2);
+
+  background: #050505; // the portal itself; the photo's glow sits on it
+
+  // Square hairline buttons, on a dark glass so they read on light photos too.
+  .yarl__button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(10, 10, 10, 0.35);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: border-color 0.2s, background 0.2s;
+
+    @media (hover: hover) {
+      &:hover { border-color: #fff; background: rgba(10, 10, 10, 0.6); }
+    }
+  }
+
+  .yarl__toolbar {
+    padding: 14px;
+  }
+
+  .yarl__navigation_prev { left: 20px; }
+  .yarl__navigation_next { right: 20px; }
+  .yarl__navigation_prev,
+  .yarl__navigation_next {
+    width: 52px;
+    height: 52px;
+  }
+
+  // Phones: no arrows over the photo — they are under it, next to the counter, and the photo
+  // keeps clear of the close button and of that bar (nothing covers it).
+  @media (max-width: 639px) {
+    .yarl__navigation_prev,
+    .yarl__navigation_next { display: none; }
+
+    .yarl__slide {
+      padding: 72px 0 calc(max(18px, env(safe-area-inset-bottom)) + 66px);
+    }
+  }
+
+  // A phone held sideways: little height, so the photo takes it all, the arrows go back to the
+  // sides and only the counter stays at the bottom.
+  @media (orientation: landscape) and (max-height: 500px) {
+    .yarl__navigation_prev,
+    .yarl__navigation_next { display: flex; }
+    .yarl__navigation_prev { left: max(10px, env(safe-area-inset-left)); }
+    .yarl__navigation_next { right: max(10px, env(safe-area-inset-right)); }
+
+    .yarl__slide {
+      padding: 8px 72px;
+    }
+  }
+}
+
+// The photo's own colours, blurred and dimmed, filling the screen behind it.
+.ppl-glow {
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  bottom: -10%;
+  left: -10%;
+  z-index: -1;
+  background-position: center;
+  background-size: cover;
+  // Blurred from the small gallery copy, not the original: cheap even on older phones.
+  filter: blur(32px) saturate(1.2) brightness(0.45);
+  transform: translateZ(0); // its own layer, so swiping does not redraw the blur
+  animation: ppl-glow-in 0.6s ease-out;
+  pointer-events: none;
+}
+
+@keyframes ppl-glow-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ppl-bar {
+  position: absolute;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  transform: translateX(-50%);
+
+  > * + * { margin-left: 1rem; } // not `gap`: older iPhones (iOS < 14.5) ignore it in flex
+}
+
+.ppl-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.25rem;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.55);
+
+  strong {
+    font-weight: 600;
+    color: #fff;
+  }
+}
+
+.ppl-count-line {
+  margin: 0 0.6rem;
+  width: 22px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.ppl-step {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(10, 10, 10, 0.4);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.2s, opacity 0.2s, transform 0.15s;
+
+  &:active { transform: scale(0.94); }
+  &:disabled { opacity: 0.25; }
+
+  @media (max-width: 639px) {
+    display: inline-flex;
+  }
+
+  @media (orientation: landscape) and (max-height: 500px) {
+    display: none;
+  }
+}
+
+// "Swipe for the next one": shown once, then fades away.
+.ppl-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 64px);
+  padding: 0.45rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(10, 10, 10, 0.5);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #fff;
+  transform: translateX(-50%);
+  animation: ppl-hint 3.6s ease-in-out forwards;
+  pointer-events: none;
+}
+
+@keyframes ppl-hint {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  12%, 30% { opacity: 1; transform: translate(-50%, 0); }
+  45% { opacity: 1; transform: translate(calc(-50% - 10px), 0); }
+  60%, 80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .ppl-bar { bottom: 8px; }
+  .ppl-count {
+    padding: 0.35rem 0.6rem;
+    background: rgba(10, 10, 10, 0.45);
+  }
+  .ppl-hint { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppl-glow { animation: none; }
+  .ppl-hint { animation: none; opacity: 0; }
+}

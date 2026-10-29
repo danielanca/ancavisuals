@@ -175,7 +175,7 @@ function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-export const REFERRAL_LEAD_NOTE = "🎁 Venit prin recomandare (utm_source=recomandare): fotocabina SAU videobooth-ul (la alegere) GRATUIT + QR code, promise pe pagină.";
+export const REFERRAL_LEAD_NOTE = "🎁 Venit prin recomandare (utm_source=recomandare): cine i-a recomandat primește ședința foto gratuită după ce semnează contractul (fotocabina NU mai e gratuită din 2026-10-29).";
 
 // POST /api/campaign/:slug/contact — form submission from landing page
 router.post("/:slug/contact", async (req: Request, res: Response) => {

@@ -28,6 +28,7 @@ const createMockResponse = () => {
 
 const loadAlbumController = async () => {
   const loadAlbumMock = vi.fn();
+  const invalidateAlbumCacheMock = vi.fn().mockResolvedValue(undefined);
   const readPrintSelectionMock = vi.fn();
   const savePrintSelectionMock = vi.fn();
   const saveDeliveryAddressMock = vi.fn();
@@ -72,7 +73,7 @@ const loadAlbumController = async () => {
 
   vi.doMock("src/server/services/album.service", () => ({
     loadAlbum: loadAlbumMock,
-    invalidateAlbumCache: vi.fn(),
+    invalidateAlbumCache: invalidateAlbumCacheMock,
   }));
 
   vi.doMock("src/server/services/printSelection.store", () => ({
@@ -115,6 +116,7 @@ const loadAlbumController = async () => {
   return {
     module,
     loadAlbumMock,
+    invalidateAlbumCacheMock,
     readPrintSelectionMock,
     savePrintSelectionMock,
     saveDeliveryAddressMock,
@@ -331,24 +333,57 @@ describe("album.controller", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "album_not_found" });
   });
 
+  const albumWith = (...paths: string[]) => ({
+    photos: paths.filter((p) => p.startsWith("photos_preview/")).map((p) => `https://ancavisuals.b-cdn.net/demo/${p}?token=x`),
+    originalPhoto: paths.filter((p) => p.startsWith("photos/")).map((p) => `https://ancavisuals.b-cdn.net/demo/${p}?token=x`),
+    featured: paths.filter((p) => p.startsWith("featured/")).map((p) => `https://ancavisuals.b-cdn.net/demo/${p}?token=x`),
+  });
+
+  test("deletePhoto deletes the preview AND the original (different extensions), then reloads a fresh album", async () => {
+    const { module, loadAlbumMock, invalidateAlbumCacheMock, readPrintSelectionMock, savePrintSelectionMock } = await loadAlbumController();
+    const res = createMockResponse();
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") return { ok: true, status: 200 };
+      if (url.includes("photos_preview")) return { ok: true, json: async () => [{ ObjectName: "b.webp" }] };
+      return { ok: true, status: 200 };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const order: string[] = [];
+    invalidateAlbumCacheMock.mockImplementation(async () => { order.push("invalidate"); });
+    loadAlbumMock
+      .mockResolvedValueOnce(albumWith("photos_preview/a.webp", "photos_preview/b.webp", "photos/a.jpg", "photos/b.jpg"))
+      .mockImplementationOnce(async () => { order.push("reload"); return albumWith("photos_preview/b.webp", "photos/b.jpg"); });
+    readPrintSelectionMock.mockResolvedValue(["a.webp", "b.webp"]);
+
+    await module.deletePhoto({ params: { slug: "demo" }, body: { filename: "a.webp" } }, res);
+
+    const deleted = fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE").map(([url]) => url);
+    expect(deleted).toEqual(["https://bunny.storage/demo/photos_preview/a.webp", "https://bunny.storage/demo/photos/a.jpg"]);
+    expect(savePrintSelectionMock).toHaveBeenCalledWith("demo", ["b.webp"]);
+    expect(order).toEqual(["invalidate", "reload"]);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  test("deletePhoto: a copy already missing (404) is fine; nothing found at all is photo_not_found", async () => {
+    const { module, loadAlbumMock } = await loadAlbumController();
+    const res = createMockResponse();
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => (init?.method === "DELETE" ? { ok: false, status: 404 } : { ok: true, status: 200 })));
+    loadAlbumMock.mockResolvedValue(null);
+
+    await module.deletePhoto({ params: { slug: "demo" }, body: { filename: "a.webp" } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: "photo_not_found" });
+  });
+
   test("deletePhoto returns failed_to_delete_file when Bunny deletion fails", async () => {
-    const { module } = await loadAlbumController();
+    const { module, loadAlbumMock } = await loadAlbumController();
     const res = createMockResponse();
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ status: 200, ok: true })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue([{ ObjectName: "thumb.jpg", IsDirectory: false }]),
-      })
-      .mockResolvedValueOnce({ ok: false, status: 500 });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => (init?.method === "DELETE" ? { ok: false, status: 500 } : { ok: true, status: 200 })));
+    loadAlbumMock.mockResolvedValue(albumWith("photos_preview/a.webp", "photos/a.jpg"));
 
-    await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "a.jpg" } },
-      res,
-    );
+    await module.deletePhoto({ params: { slug: "demo" }, body: { filename: "a.webp" } }, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: "failed_to_delete_file" });
@@ -358,22 +393,11 @@ describe("album.controller", () => {
   test("deletePhoto returns failed_to_reload_album when the album cannot be reloaded", async () => {
     const { module, readPrintSelectionMock, loadAlbumMock } = await loadAlbumController();
     const res = createMockResponse();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ status: 200, ok: true })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue([{ ObjectName: "thumb.jpg", IsDirectory: false }]),
-      })
-      .mockResolvedValueOnce({ ok: true, status: 200 });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200 })));
     readPrintSelectionMock.mockResolvedValue(["a.jpg"]);
-    loadAlbumMock.mockResolvedValue(null);
+    loadAlbumMock.mockResolvedValueOnce(albumWith("photos/a.jpg")).mockResolvedValueOnce(null);
 
-    await module.deletePhoto(
-      { params: { slug: "demo" }, body: { filename: "a.jpg" } },
-      res,
-    );
+    await module.deletePhoto({ params: { slug: "demo" }, body: { filename: "a.jpg" } }, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: "failed_to_reload_album" });
@@ -383,14 +407,12 @@ describe("album.controller", () => {
     const { module, readPrintSelectionMock, savePrintSelectionMock, loadAlbumMock, signBunnyUrlMock } =
       await loadAlbumController();
     const res = createMockResponse();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ status: 200, ok: true })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue([{ ObjectName: "thumb.jpg", IsDirectory: false }]),
-      })
-      .mockResolvedValueOnce({ ok: true, status: 200 });
+    // Root check, the deletes (no album list → the same name in both folders), then the preview check.
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") return { ok: true, status: 200 };
+      if (url.includes("photos_preview")) return { ok: true, json: async () => [{ ObjectName: "thumb.jpg", IsDirectory: false }] };
+      return { ok: true, status: 200 };
+    });
     vi.stubGlobal("fetch", fetchMock);
     readPrintSelectionMock
       .mockResolvedValueOnce(["a.jpg", "b.png"])

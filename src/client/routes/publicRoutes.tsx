@@ -13,15 +13,18 @@ const CitiesHubPage = ssrLazy("cities-hub", () => import("../pages/Hubs/CitiesHu
 const ServiceHubPage = ssrLazy("service-hub", () => import("../pages/Hubs/ServiceHubPage"));
 const WeddingGuidePdfPage = ssrLazy("wedding-guide-pdf", () => import("../pages/WeddingGuide/WeddingGuidePdfPage"));
 
-const HomePage = loadable(() => import("../pages/Homepage/HomePage"), opts(true));
-const AboutPage = loadable(() => import("../pages/About/AboutPage"), opts(true));
-const Portfolio = loadable(() => import("../pages/Portfolio/Portfolio"), opts(true));
+// These are the main acquisition pages. They must be rendered in the first HTML response:
+// loadable() renders its fallback during SSR, while ssrLazy preloads the module on the server
+// and tells the browser to load the same module before hydration.
+const HomePage = ssrLazy("home", () => import("../pages/Homepage/HomePage"));
+const AboutPage = ssrLazy("about", () => import("../pages/About/AboutPage"));
+const Portfolio = ssrLazy("portfolio", () => import("../pages/Portfolio/Portfolio"));
 function OfertaIndexRedirect() {
   const { search, hash } = useLocation(); // keep ?gclid=… / #verifica-data
   return <Navigate to={`/oferta/olx${search}${hash}`} replace />;
 }
 
-const ContactPage = loadable(() => import("../pages/Contact/ContactPage"), opts(true));
+const ContactPage = ssrLazy("contact", () => import("../pages/Contact/ContactPage"));
 const MediaAlbumPage = loadable(() => import("../pages/MediaDownload/MediaAlbumPage"), opts(true));
 const FeedbackPage = loadable(() => import("../features/feedback/FeedbackPage"), opts(false));
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), opts(true));

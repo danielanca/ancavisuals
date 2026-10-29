@@ -104,6 +104,7 @@ import healthRouter from "./src/server/routes/health.routes";
 import { initialDataScript, loadInitialData } from "./src/server/ssr/initialData";
 import { shareOgFor } from "./src/server/ssr/shareOg";
 import { proposalOgFor } from "./src/server/ssr/proposalOg";
+import { mediaOgFor } from "./src/server/ssr/mediaOg";
 import type { InitialData } from "./src/client/ssr/initialData";
 
 // Shared HTTP defaults used by both local development and the production server.
@@ -450,6 +451,8 @@ async function createServer() {
       htmlTemplate = await shareOgFor(htmlTemplate, new URL(url, "http://localhost").pathname);
       // /propune/<token>: "ai fost invitată să alegi pozele pentru Instagram și site".
       htmlTemplate = await proposalOgFor(htmlTemplate, new URL(url, "http://localhost").pathname);
+      // /media/<slug>: "Album poze · 8 august 2026" + the album's first photo.
+      htmlTemplate = await mediaOgFor(htmlTemplate, new URL(url, "http://localhost").pathname);
       const html = htmlTemplate
         .replace(`<!--app-html-->`, appHtml)
         .replace(`<!--head-->`, head + "\n" + cssAssets)

@@ -36,6 +36,9 @@ const SUPPRESS_UC_PREFIXES = ["/admin", "/media"];
 
 const UC_HOST_ID = "usercentrics-cmp-ui";
 const UC_HIDE_STYLE_ID = "uc-hide-privacy-button";
+const HOTJAR_SCRIPT_ID = "hotjar-script";
+const OPENAI_PIXEL_SCRIPT_ID = "openai-pixel-script";
+let marketingScriptsStarted = false;
 
 // The floating fingerprint button lives inside Usercentrics' shadow DOM, so a
 // stylesheet in <head> can't reach it — the rule has to go into the shadow root.
@@ -92,6 +95,55 @@ const readMarketingConsent = async (): Promise<boolean | undefined> => {
   return undefined;
 };
 
+const isHotjarExcludedPath = (pathname: string) =>
+  ["/admin", "/media", "/qr-moments", "/qr-code", "/blog"].some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+
+type OaiqQueue = ((...args: unknown[]) => void) & { q?: unknown[][] };
+
+/** Hotjar and the OpenAI Pixel are marketing/measurement scripts: load neither before consent. */
+const startConsentGatedMarketing = () => {
+  if (marketingScriptsStarted || typeof window === "undefined" || typeof document === "undefined") return;
+  if (LOCAL_HOSTS.has(window.location.hostname)) return;
+  if (window.location.pathname.startsWith("/admin")) return;
+  marketingScriptsStarted = true;
+
+  let hotjarIgnored = false;
+  try { hotjarIgnored = localStorage.getItem("av_ignore_hotjar") === "1"; } catch { /* privacy mode */ }
+  if (!isHotjarExcludedPath(window.location.pathname) && !hotjarIgnored) {
+    const hotjar = window as typeof window & { hj?: (...args: unknown[]) => void; _hjSettings?: { hjid: number; hjsv: number } };
+    hotjar.hj = hotjar.hj || ((...args: unknown[]) => {
+      (hotjar.hj as unknown as { q?: unknown[] }).q ??= [];
+      (hotjar.hj as unknown as { q: unknown[] }).q.push(args);
+    });
+    hotjar._hjSettings = { hjid: 6491925, hjsv: 6 };
+    const script = document.createElement("script");
+    script.id = HOTJAR_SCRIPT_ID;
+    script.async = true;
+    script.src = `https://static.hotjar.com/c/hotjar-${hotjar._hjSettings.hjid}.js?sv=${hotjar._hjSettings.hjsv}`;
+    document.head.appendChild(script);
+  }
+
+  if (!document.getElementById(OPENAI_PIXEL_SCRIPT_ID)) {
+    const pixelWindow = window as typeof window & { oaiq?: OaiqQueue };
+    if (!pixelWindow.oaiq) {
+      const queue = ((...args: unknown[]) => { queue.q?.push(args); }) as OaiqQueue;
+      queue.q = [];
+      pixelWindow.oaiq = queue;
+    }
+    const script = document.createElement("script");
+    script.id = OPENAI_PIXEL_SCRIPT_ID;
+    script.async = true;
+    script.src = "https://bzrcdn.openai.com/sdk/oaiq.min.js";
+    script.onload = () => {
+      pixelWindow.oaiq?.("init", { pixelId: "EfkfFdccMQc1Dj6pmG7pva", debug: true });
+      pixelWindow.oaiq?.("measure", "page_viewed", { type: "contents" });
+    };
+    document.head.appendChild(script);
+  }
+};
+
 // Anonymous banner stats (/admin/analytics) — only the action is sent, no ids.
 const reportConsentAction = async (ucType: string) => {
   const action = UC_EVENT_TO_CONSENT_ACTION[ucType];
@@ -106,9 +158,23 @@ const reportConsentAction = async (ucType: string) => {
 };
 
 const setupUcConsentListener = () => {
+  window.addEventListener("UC_UI_INITIALIZED", () => {
+    void readMarketingConsent().then((consent) => {
+      if (consent === true) startConsentGatedMarketing();
+    });
+  }, { once: true });
   window.addEventListener("UC_UI_CMP_EVENT", (event: Event) => {
     const detail = (event as CustomEvent<{ type: string }>).detail;
-    if (detail?.type) void reportConsentAction(detail.type);
+    if (detail?.type) {
+      void reportConsentAction(detail.type);
+      if (detail.type === "ACCEPT_ALL") {
+        startConsentGatedMarketing();
+      } else if (detail.type === "SAVE") {
+        void readMarketingConsent().then((consent) => {
+          if (consent === true) startConsentGatedMarketing();
+        });
+      }
+    }
   });
 };
 

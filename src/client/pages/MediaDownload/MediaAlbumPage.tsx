@@ -927,7 +927,7 @@ export default function MediaAlbumPage() {
   const deletePhoto = async (signedUrl: string) => {
     if (!slug || !isAdmin) return;
     const fileName = fileNameFromUrl(signedUrl);
-    if (!window.confirm(`ȘTERGI DEFINITIV POZA:\n\n"${fileName}"\n\n• Fișierul va fi șters fizic de pe server\n• Va dispărea din toate secțiunile\n• Acțiunea este IREVERSEBILĂ!\n\nConfirmi?`)) return;
+    if (!window.confirm(`ȘTERGI DEFINITIV POZA:\n\n"${fileName}"\n\n• Se șterge de pe server și din photos_preview, și din photos (originalul)\n• Va dispărea din toate secțiunile\n• Acțiunea este IREVERSEBILĂ!\n\nConfirmi?`)) return;
     try {
       const response = await fetch(`/api/album/${slug}/delete-photo`, {
         method: "POST",
@@ -936,12 +936,20 @@ export default function MediaAlbumPage() {
       });
       if (response.ok) {
         setAlbum(await response.json());
-      } else {
-        const error = await response.json().catch(() => ({}));
-        alert(error.error || "Acces interzis sau eroare la ștergere.");
+      } else if (response.status === 401 || response.status === 403) {
+        alert("Acces interzis: intră în cont ca admin ca să ștergi poze.");
         setIsAdmin(false);
         setAdminKey("");
         localStorage.removeItem(`adminKey_${slug}`);
+      } else {
+        // Any other failure keeps the admin mode: the photo can be tried again.
+        const error = await response.json().catch(() => ({})) as { error?: string };
+        const reasons: Record<string, string> = {
+          photo_not_found: "Poza nu mai există pe server (poate a fost ștearsă deja). Reîncarcă pagina.",
+          failed_to_delete_file: "Bunny nu a putut șterge poza. Încearcă din nou.",
+          failed_to_reload_album: "Poza s-a șters, dar albumul nu s-a putut reîncărca. Reîncarcă pagina.",
+        };
+        alert(reasons[error.error ?? ""] ?? `Eroare la ștergere (${error.error ?? response.status}).`);
       }
     } catch {
       alert("Eroare de conexiune.");

@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
-import Lightbox from "yet-another-react-lightbox";
-import "yet-another-react-lightbox/styles.css";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import { buildSeoImageAlt } from "../../utils/imageAltLabel";
@@ -11,7 +9,8 @@ import { installGalleryScrollRefresh, refreshGalleryScroll } from "../../utils/g
 import "./PortfolioParallaxGallery.scss";
 import { GALLERY_MAX_PHOTOS } from "./galleryLimits";
 import { galleryBlocks } from "./galleryLayout";
-import PortfolioMusic from "./PortfolioMusic";
+import PortfolioMusic, { PORTFOLIO_MUSIC_START_EVENT } from "./PortfolioMusic";
+import PortfolioLightbox from "./PortfolioLightbox";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
@@ -79,6 +78,17 @@ export default function PortfolioParallaxGallery({
   const [zoneOriginals, setZoneOriginals] = useState<Record<string, string>>({});
   const originals = originalsProp ?? zoneOriginals;
   const [lightboxIndex, setLightboxIndex] = useState(-1);
+  // The first photos stay blurred with "tap to see it full screen" until the visitor opens one (owner, 2026-10-29).
+  const [openedOne, setOpenedOne] = useState(false);
+  // The viewer's "swipe" hint only the first time a photo is opened.
+  const [openedBefore, setOpenedBefore] = useState(false);
+  const openPhoto = (index: number) => {
+    setOpenedBefore(openedOne);
+    setLightboxIndex(index);
+    setOpenedOne(true);
+    // Still inside the click, so the browser lets the song start.
+    window.dispatchEvent(new Event(PORTFOLIO_MUSIC_START_EVENT));
+  };
   const [columnCount, setColumnCount] = useState(() =>
     getColumnCount(typeof window !== "undefined" ? window.innerWidth : 1280)
   );
@@ -326,11 +336,38 @@ export default function PortfolioParallaxGallery({
   }, [parking, columnCount]);
 
   // Laid out once for ALL photos (not only the open ones), so a photo never moves when more open.
-  const lightboxSlides = useMemo(() => pool.slice(0, limit).map((src) => ({ src: originals[src] ?? src })), [pool, limit, originals]);
+  const lightboxGlows = useMemo(() => pool.slice(0, limit), [pool, limit]);
+  // Phones open the gallery copy (1400px WebP, ~0.2 MB — sharper than any phone screen) instead of
+  // the original JPG (2–4 MB each, and the viewer preloads the neighbours): fast on mobile data,
+  // and no blank photos on older iPhones that run out of memory. Computers get the original.
+  const lightboxSlides = useMemo(
+    () => {
+      // Short side, so a phone held sideways (844 × 390) counts as a phone too.
+      const phone = isMobile || (typeof window !== "undefined" && Math.min(window.innerWidth, window.innerHeight) < 640);
+      return pool.slice(0, limit).map((src) => ({ src: phone ? src : originals[src] ?? src }));
+    },
+    [pool, limit, originals, isMobile],
+  );
   const blocks = useMemo(() => galleryBlocks(pool.map((src) => ratios?.[src]), columnCount), [pool, ratios, columnCount]);
   // Blocks = rows of columns broken by full-width photos (phones, with very wide photos).
   const spanning = blocks.some((block) => block.kind === "wide");
   const knownRatio = (src: string) => (ratios?.[src] ? String(ratios[src]) : undefined);
+  // Width / height of the photos drawn so far (the portfolio page has no saved sizes).
+  const [drawnRatios, setDrawnRatios] = useState<Record<number, number>>({});
+  const noteRatio = useCallback((index: number, ratio: number) => {
+    setDrawnRatios((current) => (current[index] === ratio ? current : { ...current, [index]: ratio }));
+  }, []);
+  // The tap hint goes on the first two portrait photos (owner: not on the landscape ones). It
+  // waits for every earlier photo's shape, so it never jumps from one photo to another.
+  const tapHintPhotos = useMemo(() => {
+    const found = new Set<number>();
+    for (let index = 0; index < Math.min(visible.length, limit) && found.size < TAP_HINT_PHOTOS; index += 1) {
+      const ratio = ratios?.[pool[index]] ?? drawnRatios[index];
+      if (!ratio) break;
+      if (ratio < PORTRAIT_BELOW) found.add(index);
+    }
+    return found;
+  }, [visible.length, limit, ratios, pool, drawnRatios]);
 
   useEffect(() => {
     if (!titleRef.current) return;
@@ -442,13 +479,19 @@ export default function PortfolioParallaxGallery({
             {warnings[src]}
           </span>
         )}
-        <button type="button" className="ppg-trigger" onClick={() => setLightboxIndex(index)} aria-label="Deschide fotografia">
+        <button type="button" className="ppg-trigger" onClick={() => openPhoto(index)} aria-label="Deschide fotografia">
           <FadeInImage
             src={src}
             // Its shape while it loads (or is redrawn after parking), so its place never moves.
             ratio={parkedRatios.current.get(index) ?? knownRatio(src)}
             alt={catalogAlt ? catalogAlt(src, buildSeoImageAlt(altBase, index)) : buildSeoImageAlt(altBase, index)}
+            onRatio={(ratio) => noteRatio(index, ratio)}
           />
+          {tapHintPhotos.has(index) && !openedOne && (
+            <span className="ppg-tap-hint" aria-hidden="true">
+              <span className="ppg-tap-hint-text"><strong>Apasă pe poză</strong><span>o vezi pe tot ecranul</span></span>
+            </span>
+          )}
         </button>
       </div>
     );
@@ -512,11 +555,14 @@ export default function PortfolioParallaxGallery({
           </div>
           <div ref={endRef} className="ppg-spacer" aria-hidden="true" />
           {/* The photos opened so far (not the blurred ones), each at its original resolution. */}
-          <Lightbox
+          <PortfolioLightbox
             open={lightboxIndex >= 0}
             index={lightboxIndex}
             close={() => setLightboxIndex(-1)}
             slides={lightboxSlides}
+            glows={lightboxGlows}
+            isMobile={isMobile}
+            swipeHint={!openedBefore}
           />
         </>
       )}
@@ -524,14 +570,20 @@ export default function PortfolioParallaxGallery({
   );
 }
 
+const TAP_HINT_PHOTOS = 2;
+const PORTRAIT_BELOW = 0.95;
+
 /**
  * Photos fade in once loaded instead of popping in (no blur, no zoom). One already in
  * the browser cache just shows up. No requestAnimationFrame: it is paused in background
  * tabs and the photos would stay invisible.
  */
-function FadeInImage({ src, alt, ratio }: { src: string; alt: string; ratio?: string }) {
+function FadeInImage({ src, alt, ratio, onRatio }: { src: string; alt: string; ratio?: string; onRatio?: (ratio: number) => void }) {
   const [shown, setShown] = useState(false);
-  const show = () => setShown(true);
+  const show = (img?: HTMLImageElement | null) => {
+    setShown(true);
+    if (img?.naturalWidth && img.naturalHeight) onRatio?.(img.naturalWidth / img.naturalHeight);
+  };
   return (
     <img
       src={src}
@@ -544,10 +596,11 @@ function FadeInImage({ src, alt, ratio }: { src: string; alt: string; ratio?: st
       style={ratio ? { aspectRatio: `auto ${ratio}` } : undefined}
       ref={(img) => {
         // Cached images can finish before React attaches onLoad.
-        if (img?.complete && img.naturalWidth && !shown) show();
+        if (img?.complete && img.naturalWidth && !shown) show(img);
       }}
-      onLoad={show}
-      onError={show}
+      onLoad={(event) => show(event.currentTarget)}
+      // A broken photo never gets the hint, and the ones after it still can.
+      onError={() => { setShown(true); onRatio?.(1); }}
     />
   );
 }
