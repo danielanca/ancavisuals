@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import Plyr from "plyr";
+// Plyr is loaded in the browser only (in the effect below): on Node 21+ `navigator` exists, so
+// plyr thinks it runs in a browser and touches `document` as soon as it is imported — that took
+// the whole site down once the homepage started rendering on the server (2026-10-29).
+import type Plyr from "plyr";
 import "plyr/dist/plyr.css";
 import "./video.css";
 
@@ -16,31 +19,37 @@ type PlyrWithPoster = Plyr & {
 const VideoPreview: React.FC<VideoPreviewProps> = ({ src, poster, previewTime = 3 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerRef = useRef<Plyr | null>(null);
+  // Read when plyr finishes loading (it arrives after the poster effect may already have run).
+  const posterRef = useRef(poster);
+  posterRef.current = poster;
 
   const [computedPoster, setComputedPoster] = useState<string | undefined>(poster);
 
   // 1) Initialize Plyr
   useEffect(() => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
 
     let player: Plyr | null = null;
+    let cancelled = false;
 
-    try {
-      player = new Plyr(videoRef.current, {
-        controls: ["play", "progress", "current-time", "mute", "volume", "settings", "fullscreen"],
-        settings: ["quality", "speed"],
+    import("plyr")
+      .then(({ default: PlyrPlayer }) => {
+        if (cancelled) return;
+        player = new PlyrPlayer(video, {
+          controls: ["play", "progress", "current-time", "mute", "volume", "settings", "fullscreen"],
+          settings: ["quality", "speed"],
+        });
+        if (posterRef.current) (player as PlyrWithPoster).poster = posterRef.current;
+        playerRef.current = player;
+      })
+      .catch((err) => {
+        console.error("[VideoPreview] Plyr init FAILED:", err);
       });
 
-      playerRef.current = player;
-      console.log("[VideoPreview] Plyr init OK");
-    } catch (err) {
-      console.error("[VideoPreview] Plyr init FAILED:", err);
-    }
-
     return () => {
-      if (player) {
-        player.destroy();
-      }
+      cancelled = true;
+      player?.destroy();
       playerRef.current = null;
     };
   }, [src]);

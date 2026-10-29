@@ -20,6 +20,17 @@ export type ChangelogEntry = {
 
 export const ADMIN_CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-10-29-site-down-plyr-ssr",
+    at: "2026-10-29T22:30",
+    emoji: "🚑",
+    title: "Reparat: tot site-ul dădea eroarea „document is not defined”",
+    summary: "După ce paginile Acasă, Despre, Portofoliu și Contact au început să fie randate pe server, playerul video de pe pagina principală (plyr) se încărca și el pe server și cădea, iar asta oprea toate paginile. Acum playerul se încarcă doar în browser.",
+    details: [
+      "Pe server rulează Node 22, care are „navigator”; plyr credea că e într-un browser și căuta „document”.",
+      "Un test nou verifică acum că pagina principală se poate încărca pe server fără browser.",
+    ],
+  },
+  {
     id: "2026-10-29-album-photo-delete-both-folders",
     at: "2026-10-29T19:30",
     emoji: "🗑️",
