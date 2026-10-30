@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
-import { google } from "googleapis";
+// The standalone Search Console client: the full "googleapis" package added ~3.4M lines of types
+// and pushed tsc past its 2 GB build heap.
+import { auth as googleAuth, webmasters as searchConsole } from "@googleapis/webmasters";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth.js";
 
 const router = Router();
@@ -11,7 +13,7 @@ function getAuth() {
   const base64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
   if (!base64) throw new Error("FIREBASE_SERVICE_ACCOUNT_BASE64 not set");
   const serviceAccount = JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
-  return new google.auth.GoogleAuth({
+  return new googleAuth.GoogleAuth({
     credentials: serviceAccount,
     scopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
   });
@@ -26,7 +28,7 @@ router.get("/search-console/queries", requireFirebaseAuth, requireSupremeAdmin, 
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
     const auth = getAuth();
-    const webmasters = google.webmasters({ version: "v3", auth });
+    const webmasters = searchConsole({ version: "v3", auth });
 
     const [queriesRes, pagesRes] = await Promise.all([
       webmasters.searchanalytics.query({

@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
+    "@googleapis/webmasters": "9.0.1",
     "@loadable/component": "^5.16.3",
     "@types/heic-convert": "^2.1.0",
     "@types/marked": "^5.0.2",
@@ -69,7 +70,6 @@
     "firebase-admin": "^12.7.0",
     "font-awesome": "^4.7.0",
     "framer-motion": "^12.18.1",
-    "googleapis": "^173.0.0",
     "gray-matter": "^4.0.3",
     "gsap": "^3.15.0",
     "heic-convert": "^2.1.0",
