@@ -1,6 +1,6 @@
 // @vitest-environment node
 /*
- * Purpose: Estera's login to /zile-ocupate — only her email gets a code; the code and the email's
+ * Purpose: Estera's login to /zile-ocupate — only her email and the owner's get a code; the code and the email's
  * login link work once, expire after 10 minutes and lock after 5 wrong tries; sessions last 90 days.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -89,6 +89,21 @@ describe("family calendar login", () => {
 
     for (let i = 2; i < 6; i++) await auth.requestFamilyLoginCode("estera@example.com", NOW + i * 60_000);
     expect(await auth.requestFamilyLoginCode("estera@example.com", NOW + 10 * 60_000)).toEqual({ ok: false, reason: "too-many" });
+  });
+
+  test("the owner signs in with their own email; each email keeps its own code", async () => {
+    await auth.requestFamilyLoginCode("estera@example.com", NOW);
+    const esteraCode = sentCode();
+    expect(await auth.requestFamilyLoginCode("AncaDaniel1994@gmail.com", NOW + 1000)).toEqual({ ok: true });
+    expect(sendEmail.mock.calls.at(-1)![0].to).toBe("ancadaniel1994@gmail.com");
+    const ownerCode = sentCode();
+    const ownerMagic = sentMagic();
+    if (ownerCode !== esteraCode) {
+      expect((await auth.verifyFamilyLogin({ email: "ancadaniel1994@gmail.com", code: esteraCode }, NOW + 2000)).ok).toBe(false);
+    }
+    expect((await auth.verifyFamilyLogin({ email: "estera@example.com", code: esteraCode }, NOW + 3000)).ok).toBe(true);
+    expect((await auth.verifyFamilyLogin({ magic: ownerMagic }, NOW + 4000)).ok).toBe(true);
+    expect((await auth.verifyFamilyLogin({ magic: ownerMagic }, NOW + 5000)).ok).toBe(false);
   });
 
   test("signing out everywhere ends every session; cookies are httpOnly", async () => {

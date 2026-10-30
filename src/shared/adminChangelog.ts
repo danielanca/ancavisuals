@@ -20,6 +20,15 @@ export type ChangelogEntry = {
 
 export const ADMIN_CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-10-30-family-calendar-owner-login",
+    at: "2026-10-30T10:25",
+    emoji: "🔑",
+    title: "Te poți loga și tu în Zile ocupate",
+    summary: "Pe /zile-ocupate merge acum și emailul tău (ancadaniel1994@gmail.com): primești codul pe email și vezi exact ce vede Estera.",
+    details: ["Fiecare email are codul lui, deci dacă cereți amândoi cod în același timp nu se anulează unul pe altul. „Deconectează de pe toate dispozitivele” te deconectează și pe tine."],
+    links: [{ label: "Zile ocupate", path: "/zile-ocupate" }],
+  },
+  {
     id: "2026-10-29-viewer-visible-viewport",
     at: "2026-10-29T23:23",
     emoji: "📱",

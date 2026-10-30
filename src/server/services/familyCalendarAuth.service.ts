@@ -1,6 +1,6 @@
 /*
  * Purpose: login for the family calendar (/zile-ocupate). Only the calendar's email (Estera's, set in
- * /admin/calendar-familie) can sign in, with a 6-digit one-time code sent by email or the
+ * /admin/calendar-familie) and the owner's email can sign in, each with a 6-digit one-time code sent by email or the
  * "Intră direct" button in the same email. No passwords, so nothing to reset. A login gives a
  * 90-day session in an httpOnly cookie; only hashes of codes and sessions are stored.
  */
@@ -18,12 +18,23 @@ const MAX_ATTEMPTS = 5;
 const RESEND_AFTER_MS = 45_000;
 const MAX_CODES_PER_HOUR = 6;
 
-const LOGIN_DOC = () => firestore().collection("settings").doc("familyCalendarLogin");
+const OWNER_EMAIL = "ancadaniel1994@gmail.com";
+
 const SESSIONS = () => firestore().collection("familyCalendarSessions");
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const sameHash = (a: string, b: string) => a.length === b.length && timingSafeEqual(new Uint8Array(Buffer.from(a)), new Uint8Array(Buffer.from(b)));
 export const normalizeEmail = (email: unknown) => (typeof email === "string" ? email.trim().toLowerCase() : "");
+
+/** Who may sign in: the calendar's email first (its login doc keeps the original id), then the owner. */
+async function allowedEmails(): Promise<string[]> {
+  const recipient = normalizeEmail((await getFamilyCalendarSettings()).recipientEmail);
+  return recipient === OWNER_EMAIL ? [recipient] : [recipient, OWNER_EMAIL];
+}
+
+// Each email has its own pending code, so asking for one doesn't cancel the other person's.
+const loginDoc = (email: string, index: number) =>
+  firestore().collection("settings").doc(index === 0 ? "familyCalendarLogin" : `familyCalendarLogin_${sha256(email).slice(0, 16)}`);
 
 type LoginState = { codeHash?: string; magicHash?: string; expiresAt?: number; attempts?: number; sentAt?: number[] };
 
@@ -31,9 +42,11 @@ export type RequestCodeResult = { ok: true } | { ok: false; reason: "wrong-email
 
 /** Emails a new code (and a one-click login link) when `email` is the calendar's email. */
 export async function requestFamilyLoginCode(email: unknown, now = Date.now()): Promise<RequestCodeResult> {
-  const settings = await getFamilyCalendarSettings();
-  if (normalizeEmail(email) !== normalizeEmail(settings.recipientEmail)) return { ok: false, reason: "wrong-email" };
-  const state = ((await LOGIN_DOC().get()).data() ?? {}) as LoginState;
+  const to = normalizeEmail(email);
+  const index = (await allowedEmails()).indexOf(to);
+  if (index < 0) return { ok: false, reason: "wrong-email" };
+  const ref = loginDoc(to, index);
+  const state = ((await ref.get()).data() ?? {}) as LoginState;
   const recent = (state.sentAt ?? []).filter((at) => now - at < 3_600_000);
   const last = recent[recent.length - 1];
   if (last && now - last < RESEND_AFTER_MS) return { ok: false, reason: "too-soon", retryInMs: RESEND_AFTER_MS - (now - last) };
@@ -41,9 +54,9 @@ export async function requestFamilyLoginCode(email: unknown, now = Date.now()): 
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const magic = randomBytes(24).toString("base64url");
-  await LOGIN_DOC().set({ codeHash: sha256(code), magicHash: sha256(magic), expiresAt: now + CODE_TTL_MS, attempts: 0, sentAt: [...recent, now] });
+  await ref.set({ codeHash: sha256(code), magicHash: sha256(magic), expiresAt: now + CODE_TTL_MS, attempts: 0, sentAt: [...recent, now] });
   const { subject, html } = familyLoginEmail(code, `${APP_BASE_URL}${FAMILY_CALENDAR_PAGE}?intra=${magic}`);
-  await sendEmail({ to: settings.recipientEmail, subject, html, source: "family-calendar-login" });
+  await sendEmail({ to, subject, html, source: "family-calendar-login" });
   return { ok: true };
 }
 
@@ -51,19 +64,32 @@ export type VerifyResult = { ok: true; session: string } | { ok: false; reason: 
 
 /** Checks a typed code or the email's login link (each works once); success → a new session. */
 export async function verifyFamilyLogin(input: { email?: unknown; code?: unknown; magic?: unknown }, now = Date.now()): Promise<VerifyResult> {
-  const ref = LOGIN_DOC();
+  const emails = await allowedEmails();
+  const magic = typeof input.magic === "string" && input.magic ? input.magic : "";
+  // The email's button carries no address: find whose pending link it is.
+  let ref = loginDoc(emails[0], 0);
+  if (magic) {
+    for (const [index, email] of emails.entries()) {
+      const candidate = loginDoc(email, index);
+      const magicHash = ((await candidate.get()).data() as LoginState | undefined)?.magicHash;
+      if (magicHash && sameHash(sha256(magic), magicHash)) { ref = candidate; break; }
+    }
+  } else {
+    const index = emails.indexOf(normalizeEmail(input.email));
+    if (index < 0) return { ok: false, reason: "invalid" };
+    ref = loginDoc(emails[index], index);
+  }
   const state = ((await ref.get()).data() ?? {}) as LoginState;
   if (!state.codeHash || !state.expiresAt) return { ok: false, reason: "invalid" };
   if (now > state.expiresAt) return { ok: false, reason: "expired" };
   if ((state.attempts ?? 0) >= MAX_ATTEMPTS) return { ok: false, reason: "too-many" };
 
   let valid = false;
-  if (typeof input.magic === "string" && input.magic) {
-    valid = Boolean(state.magicHash) && sameHash(sha256(input.magic), state.magicHash!);
+  if (magic) {
+    valid = Boolean(state.magicHash) && sameHash(sha256(magic), state.magicHash!);
   } else {
-    const settings = await getFamilyCalendarSettings();
     const code = typeof input.code === "string" ? input.code.replace(/\D/g, "") : "";
-    valid = normalizeEmail(input.email) === normalizeEmail(settings.recipientEmail) && code.length === 6 && sameHash(sha256(code), state.codeHash);
+    valid = code.length === 6 && sameHash(sha256(code), state.codeHash);
   }
   if (!valid) {
     await ref.set({ attempts: (state.attempts ?? 0) + 1 }, { merge: true });
