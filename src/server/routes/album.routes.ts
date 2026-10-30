@@ -1,3 +1,4 @@
+import { adminEmail, brandEmail, emailButton } from "../notifications/templates/emailBrand";
 import { Router } from "express";
 import express from "express";
 import type { Request, Response } from "express";
@@ -86,6 +87,49 @@ router.get("/admin/list", requireFirebaseAuth, requireSupremeAdmin, async (req: 
   }
 });
 
+export function albumViewErrorEmail(input: {
+  slug: string; errorMessage?: string; photosCount?: number | null; pageUrl?: string; location: string; ip: string; userAgent?: string; timestamp?: string;
+}): { subject: string; html: string } {
+  const { slug, errorMessage, photosCount, pageUrl, location, ip, userAgent, timestamp } = input;
+  const isSlowLoad = errorMessage?.includes("8 secunde");
+  const subject = isSlowLoad
+    ? `🐢 Album lent (>8s) — /${slug}`
+    : `⚠️ Eroare album: clientă nu vede pozele — /${slug}`;
+  const headerColor = isSlowLoad ? "#d97706" : "#dc2626";
+  const headerText = isSlowLoad ? "🐢 Încărcare lentă album" : "⚠️ Eroare vizualizare album";
+  const subText = isSlowLoad
+    ? "Un vizitator a așteptat mai mult de 8 secunde să se încarce albumul."
+    : "Un vizitator nu a putut vedea pozele din album.";
+
+  return {
+    subject,
+    html: `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <h2 style="color:${headerColor};margin:0 0 8px;">${headerText}</h2>
+        <p style="color:#666;font-size:13px;margin:0 0 20px;">${subText}</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:7px 0;color:#888;width:140px;">Album</td><td style="color:#111;font-weight:600;">/${slug}</td></tr>
+          ${!isSlowLoad ? `<tr><td style="padding:7px 0;color:#888;">Poze pe server</td><td style="color:#111;">${photosCount ?? "necunoscut"}</td></tr>` : ""}
+          <tr><td style="padding:7px 0;color:#888;">Problemă</td><td style="color:${headerColor};">${errorMessage ?? "Imagini inaccesibile"}</td></tr>
+          <tr><td style="padding:7px 0;color:#888;">URL</td><td style="color:#4f46e5;word-break:break-all;">${pageUrl ?? "—"}</td></tr>
+          <tr><td style="padding:7px 0;color:#888;">Locație IP</td><td style="color:#111;">${location}</td></tr>
+          <tr><td style="padding:7px 0;color:#888;">IP</td><td style="color:#999;font-size:11px;">${ip}</td></tr>
+          <tr><td style="padding:7px 0;color:#888;">Device</td><td style="color:#555;font-size:11px;word-break:break-all;">${(userAgent ?? "—").slice(0, 120)}</td></tr>
+          <tr><td style="padding:7px 0;color:#888;">Ora</td><td style="color:#111;">${timestamp ?? new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
+        </table>
+        ${isSlowLoad
+          ? `<div style="margin-top:20px;padding:12px 16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;">
+              <p style="color:#92400e;font-size:12px;margin:0;">Verifică serverul / Bunny CDN. Albumul poate fi prea mare sau conexiunea clientei e slabă.</p>
+             </div>`
+          : `<div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+              <p style="color:#991b1b;font-size:12px;margin:0;">Verifică folderul Bunny: <strong>${slug}/photos_preview/</strong> și <strong>${slug}/photos/</strong></p>
+             </div>`
+        }
+      </div>
+    `,
+  };
+}
+
 // POST /api/album/:slug/report-error — trimite email admin când un client nu poate vedea pozele sau albumul e lent
 router.post("/:slug/report-error", async (req: Request, res: Response) => {
   try {
@@ -102,44 +146,7 @@ router.post("/:slug/report-error", async (req: Request, res: Response) => {
     const ipInfo = await fetchIpInfo(ip).catch(() => null);
     const location = [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(Boolean).join(", ") || "—";
 
-    const isSlowLoad = errorMessage?.includes("8 secunde");
-    const subject = isSlowLoad
-      ? `🐢 Album lent (>8s) — /${slug}`
-      : `⚠️ Eroare album: clientă nu vede pozele — /${slug}`;
-    const headerColor = isSlowLoad ? "#d97706" : "#dc2626";
-    const headerText = isSlowLoad ? "🐢 Încărcare lentă album" : "⚠️ Eroare vizualizare album";
-    const subText = isSlowLoad
-      ? "Un vizitator a așteptat mai mult de 8 secunde să se încarce albumul."
-      : "Un vizitator nu a putut vedea pozele din album.";
-
-    await sendEmail({
-      to: ADMIN_EMAIL,
-      subject,
-      html: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-          <h2 style="color:${headerColor};margin:0 0 8px;">${headerText}</h2>
-          <p style="color:#666;font-size:13px;margin:0 0 20px;">${subText}</p>
-          <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <tr><td style="padding:7px 0;color:#888;width:140px;">Album</td><td style="color:#111;font-weight:600;">/${slug}</td></tr>
-            ${!isSlowLoad ? `<tr><td style="padding:7px 0;color:#888;">Poze pe server</td><td style="color:#111;">${photosCount ?? "necunoscut"}</td></tr>` : ""}
-            <tr><td style="padding:7px 0;color:#888;">Problemă</td><td style="color:${headerColor};">${errorMessage ?? "Imagini inaccesibile"}</td></tr>
-            <tr><td style="padding:7px 0;color:#888;">URL</td><td style="color:#4f46e5;word-break:break-all;">${pageUrl ?? "—"}</td></tr>
-            <tr><td style="padding:7px 0;color:#888;">Locație IP</td><td style="color:#111;">${location}</td></tr>
-            <tr><td style="padding:7px 0;color:#888;">IP</td><td style="color:#999;font-size:11px;">${ip}</td></tr>
-            <tr><td style="padding:7px 0;color:#888;">Device</td><td style="color:#555;font-size:11px;word-break:break-all;">${(userAgent ?? "—").slice(0, 120)}</td></tr>
-            <tr><td style="padding:7px 0;color:#888;">Ora</td><td style="color:#111;">${timestamp ?? new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
-          </table>
-          ${isSlowLoad
-            ? `<div style="margin-top:20px;padding:12px 16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;">
-                <p style="color:#92400e;font-size:12px;margin:0;">Verifică serverul / Bunny CDN. Albumul poate fi prea mare sau conexiunea clientei e slabă.</p>
-               </div>`
-            : `<div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
-                <p style="color:#991b1b;font-size:12px;margin:0;">Verifică folderul Bunny: <strong>${slug}/photos_preview/</strong> și <strong>${slug}/photos/</strong></p>
-               </div>`
-          }
-        </div>
-      `,
-    });
+    await sendEmail({ to: ADMIN_EMAIL, ...albumViewErrorEmail({ slug, errorMessage, photosCount, pageUrl, location, ip, userAgent, timestamp }) });
 
     res.json({ ok: true });
   } catch (error) {
@@ -222,6 +229,18 @@ router.get("/:slug/print-selection/notify", async (req: Request, res: Response) 
   }
 });
 
+export function printSelectionDoneEmail(slug: string, count: number): { subject: string; html: string } {
+  return {
+    subject: `🖨️ Selecție imprimare finalizată — ${slug}`,
+    html: adminEmail({
+      eyebrow: "Album · Imprimare",
+      title: "Clientul a terminat selecția pentru imprimare",
+      rows: [["Album", slug], ["Fotografii alese", count]],
+      button: { href: `https://ancavisuals.ro/media/${encodeURIComponent(slug)}?select=print`, label: "Deschide selecția" },
+    }),
+  };
+}
+
 router.post("/:slug/print-selection/notify", async (req: Request, res: Response) => {
   try {
     const slug = String(req.params.slug || "");
@@ -238,13 +257,7 @@ router.post("/:slug/print-selection/notify", async (req: Request, res: Response)
     await sendEmail({
       to: ADMIN_EMAIL,
       source: "print-selection",
-      subject: `🖨️ Selecție imprimare finalizată — ${slug}`,
-      html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-        <h2 style="color:#111;margin:0 0 16px;">Clientul a finalizat selecția pentru imprimare</h2>
-        <p style="color:#444;">Au fost alese <strong>${items.length}</strong> fotografii pentru imprimare.</p>
-        <p style="color:#444;">Album: <strong>${slug}</strong></p>
-        <p style="margin-top:24px;"><a href="https://ancavisuals.ro/media/${encodeURIComponent(slug)}?select=print" style="color:#8a6d3b;font-weight:600;">Deschide selecția fotografiilor</a></p>
-      </div>`,
+      ...printSelectionDoneEmail(slug, items.length),
     });
     await ref.set({ lastNotifiedAt: now, count: items.length }, { merge: true });
     return res.json({ ok: true, count: items.length, lastNotifiedAt: now, nextAllowedAt: now + PRINT_NOTIFY_COOLDOWN_MS });
@@ -256,6 +269,16 @@ router.post("/:slug/print-selection/notify", async (req: Request, res: Response)
 
 // Admin → client: "alege pozele pentru album". Recipients = the client(s) of every event linked
 // to this album; email + SMS go out automatically, WhatsApp comes back as wa.me links.
+export function printReminderEmail(message: string, emailUrl: string): { subject: string; html: string } {
+  return {
+    subject: "[Mesaj automat] Alege pozele pentru albumul tău",
+    html: brandEmail(`
+      ${message.split("\n\n").map((p) => `<p style="color:#111;font-size:15px;line-height:1.6;margin:0 0 14px;">${escapeHtml(p).replace(escapeHtml(emailUrl), "").trim()}</p>`).join("")}
+      ${emailButton(emailUrl, "Alege pozele pentru album")}
+    `),
+  };
+}
+
 const printReminderRef = (slug: string) => firestore().collection("printSelectionReminders").doc(slug);
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
@@ -341,11 +364,7 @@ router.post("/:slug/print-reminder", requireFirebaseAuth, requireSupremeAdmin, e
         await sendEmail({
           to: recipient.email,
           source: "print-selection-reminder",
-          subject: "[Mesaj automat] Alege pozele pentru albumul tău",
-          html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-            ${message("email").split("\n\n").map((p) => `<p style="color:#333;">${escapeHtml(p).replace(escapeHtml(emailUrl), "")}</p>`).join("")}
-            <p style="margin-top:24px;"><a href="${emailUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 20px;text-decoration:none;font-weight:600;">Alege pozele pentru album</a></p>
-          </div>`,
+          ...printReminderEmail(message("email"), emailUrl),
         }).then(() => { result.emailed++; }, (error) => console.error("[album] print reminder email failed:", error));
       }
       if (wantSms && smsReady && recipient.phone) {
@@ -364,6 +383,19 @@ router.post("/:slug/print-reminder", requireFirebaseAuth, requireSupremeAdmin, e
 });
 // POST /:slug/zip-request — a client found no "download all" ZIP and asks for it. Emails the
 // admin at most once per album every 6 h (repeated clicks only refresh the inbox entry).
+export function zipRequestEmail(slug: string, count: number): { subject: string; html: string } {
+  return {
+    subject: `📦 Albumul ${slug} nu are ZIP-ul gata de descărcare`,
+    html: adminEmail({
+      eyebrow: "Album · ZIP",
+      title: "Un client vrea să descarce toate pozele",
+      rows: [["Album", slug], ["Cereri", count]],
+      note: "Albumul nu are încă arhiva photos.zip. Clientul a apăsat „Anunță fotograful” din album.",
+      button: { href: `https://ancavisuals.ro/media/${encodeURIComponent(slug)}`, label: "Deschide albumul" },
+    }),
+  };
+}
+
 const ZIP_REQUEST_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 router.post("/:slug/zip-request", async (req: Request, res: Response) => {
   const slug = String(req.params.slug || "");
@@ -381,7 +413,6 @@ router.post("/:slug/zip-request", async (req: Request, res: Response) => {
     await ref.set({ lastRequestedAt: now, count, ...(recentlyNotified ? {} : { lastNotifiedAt: now }) }, { merge: true });
     if (recentlyNotified) return res.json({ ok: true, alreadyNotified: true });
 
-    const albumUrl = `https://ancavisuals.ro/media/${encodeURIComponent(slug)}`;
     await logActivity({
       type: "album_zip",
       title: `📦 Client cere ZIP-ul — ${slug}`,
@@ -392,13 +423,7 @@ router.post("/:slug/zip-request", async (req: Request, res: Response) => {
     await sendEmail({
       to: ADMIN_EMAIL,
       source: "album-zip-request",
-      subject: `📦 Albumul ${slug} nu are ZIP-ul gata de descărcare`,
-      html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-        <h2 style="color:#111;margin:0 0 16px;">Un client vrea să descarce toate pozele</h2>
-        <p style="color:#444;">Albumul <strong>${slug}</strong> nu are încă arhiva ZIP cu toate pozele (<code>photos.zip</code>).</p>
-        <p style="color:#444;">Clientul a apăsat „Anunță fotograful” din album${count > 1 ? ` (cerere nr. ${count})` : ""}.</p>
-        <p style="margin-top:24px;"><a href="${albumUrl}" style="color:#8a6d3b;font-weight:600;">Deschide albumul</a></p>
-      </div>`,
+      ...zipRequestEmail(slug, count),
     });
     return res.json({ ok: true });
   } catch (error) {

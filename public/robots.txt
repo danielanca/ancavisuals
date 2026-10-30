@@ -6,6 +6,7 @@ Disallow: /media/
 Disallow: /propune/
 Disallow: /admin/
 Disallow: /contract/
+Disallow: /copiaza
 
 Sitemap: https://www.ancavisuals.ro/sitemap.xml
 Sitemap: https://www.ancavisuals.ro/image-sitemap.xml

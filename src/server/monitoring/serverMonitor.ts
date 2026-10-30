@@ -72,14 +72,14 @@ export function captureClientError(
   saveError("error", message, "client", stack, page, ip, geo, extra).catch(() => {});
 }
 
-async function sendCrashEmail(message: string): Promise<void> {
+export async function sendCrashEmail(message: string): Promise<void> {
   try {
     await sendEmail({
       to: adminUser.email,
-      subject: "[AncaVisuals] 🔴 CRASH pe server",
+      subject: "[AncaVisuals] 🔴 Serverul a căzut",
       html: `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-          <h2 style="color:#dc2626;">🔴 Server crash</h2>
+          <h2 style="color:#dc2626;">🔴 Serverul a căzut</h2>
           <pre style="background:#1f1f1f;color:#f87171;padding:16px;border-radius:8px;font-size:12px;overflow:auto;white-space:pre-wrap;">${message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
         </div>
       `,

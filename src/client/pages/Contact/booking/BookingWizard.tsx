@@ -8,6 +8,7 @@ import pricesData from "../../../../shared/pricing/prices.json";
 import { safeTrigger, BOOKING_TO } from "./utils/api";
 import { normalizePackages } from "./utils/normalize";
 import { formatDate } from "./utils/time";
+import { buildHtmlFinal, buildQuickLeadHtml } from "../../../../shared/leadEmails";
 import type { Step, EventType, Errors } from "./types";
 import { fireAdsLeadConversion } from "../../../utils/googleAds";
 import { getLandingMeta } from "../../../utils/sessionAttribution";
@@ -39,37 +40,6 @@ const getDurationInfo = (startTime: string, endTime: string) => {
   const hours = Math.round((mins / 60) * 10) / 10;
   return { hours, overnight };
 };
-
-const buildHtmlFinal = (args: {
-  selectedFormattedDate: string;
-  eventType: string;
-  fullName: string;
-  phone: string;
-  location: string;
-  startTime: string;
-  endTime: string;
-  overnight: boolean;
-  durationHours: number | null;
-  totalPrice: number;
-  selectedPackages: string[];
-  showCustom: boolean;
-  photo: boolean;
-  video: boolean;
-}) => `
-  <h2>Cerere nouă</h2>
-  <ul>
-    <li><b>Data:</b> ${args.selectedFormattedDate}</li>
-    <li><b>Eveniment:</b> ${args.eventType}</li>
-    <li><b>Nume:</b> ${args.fullName}</li>
-    <li><b>Telefon:</b> ${args.phone}</li>
-    <li><b>Locație:</b> ${args.location}</li>
-    <li><b>Interval:</b> ${args.startTime} – ${args.endTime}${args.overnight ? " (peste miezul nopții)" : ""}</li>
-    <li><b>Durată estimată:</b> ${args.durationHours ?? "-"} h</li>
-    <li><b>Pachete selectate:</b> ${args.selectedPackages.join(", ") || "-"}</li>
-    ${args.showCustom ? `<li><b>Custom:</b> foto=${args.photo ? "da" : "nu"}, video=${args.video ? "da" : "nu"}</li>` : ""}
-    <li><b>Preț estimativ:</b> ${Number(args.totalPrice).toLocaleString("ro-RO")} EUR</li>
-  </ul>
-`;
 
 /* ------------------ Cookie helpers ------------------ */
 
@@ -176,17 +146,7 @@ export default function BookingWizard() {
           gclid: landing?.gclid,
           wbraid: landing?.wbraid,
           gbraid: landing?.gbraid,
-          html: `
-            <h2>Lead rapid din configurator</h2>
-            <ul>
-              <li><b>Data (selectată până acum):</b> ${selectedFormattedDate}</li>
-              <li><b>Eveniment:</b> ${eventType}</li>
-              <li><b>Nume:</b> ${fullName}</li>
-              <li><b>Telefon:</b> ${phone}</li>
-              <li><b>A acceptat salvarea datelor:</b> DA</li>
-            </ul>
-            <p><i>Acest lead a fost trimis la finalul pasului 3 (contact), chiar dacă utilizatorul nu a finalizat configuratorul.</i></p>
-          `,
+          html: buildQuickLeadHtml({ selectedFormattedDate, eventType, fullName, phone }),
           booking: {
             date: selectedFormattedDate,
             eventType,

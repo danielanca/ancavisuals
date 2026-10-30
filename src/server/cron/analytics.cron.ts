@@ -15,6 +15,75 @@ function parseDevice(ua: string): string {
   return mobile ? "Mobile" : "Desktop";
 }
 
+export function weeklyAnalyticsEmail(input: {
+  weekLabel: string; totalViews: number; uniqueSessions: number; topPages: [string, number][]; topCities: [string, number][]; deviceCount: Record<string, number>;
+}): { subject: string; html: string } {
+  const { weekLabel, totalViews, uniqueSessions, topPages, topCities, deviceCount } = input;
+  const pagesHtml = topPages
+    .map(([page, count], i) => `
+      <tr>
+        <td style="padding:8px 0;color:#e5e7eb;font-family:monospace;font-size:13px;">${i + 1}. ${page}</td>
+        <td style="padding:8px 0;text-align:right;color:#a78bfa;font-weight:600;">${count}</td>
+      </tr>`)
+    .join("");
+
+  const citiesHtml = topCities
+    .map(([city, count]) => `
+      <tr>
+        <td style="padding:6px 0;color:#e5e7eb;font-size:13px;">${city}</td>
+        <td style="padding:6px 0;text-align:right;color:#6b7280;font-size:13px;">${count} vizite</td>
+      </tr>`)
+    .join("");
+
+  const devicesHtml = Object.entries(deviceCount)
+    .sort(([, a], [, b]) => b - a)
+    .map(([device, count]) => `
+      <tr>
+        <td style="padding:6px 0;color:#e5e7eb;font-size:13px;">${device}</td>
+        <td style="padding:6px 0;text-align:right;color:#6b7280;font-size:13px;">${count}</td>
+      </tr>`)
+    .join("");
+  return {
+    subject: `📊 Raport săptămânal AncaVisuals — ${weekLabel}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#111;color:#e5e7eb;">
+        <h2 style="color:#a78bfa;margin:0 0 4px;">📊 Raport Săptămânal</h2>
+        <p style="color:#6b7280;font-size:13px;margin:0 0 24px;">${weekLabel}</p>
+
+        <div style="display:flex;gap:16px;margin-bottom:28px;">
+          <div style="flex:1;background:#1f1f1f;border:1px solid #2d2d2d;border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:28px;font-weight:700;color:#a78bfa;">${totalViews}</div>
+            <div style="color:#9ca3af;font-size:12px;margin-top:4px;">Pagini vizualizate</div>
+          </div>
+          <div style="flex:1;background:#1f1f1f;border:1px solid #2d2d2d;border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:28px;font-weight:700;color:#34d399;">${uniqueSessions}</div>
+            <div style="color:#9ca3af;font-size:12px;margin-top:4px;">Vizitatori unici</div>
+          </div>
+        </div>
+
+        <h3 style="color:#f3f4f6;font-size:14px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Top Pagini</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          ${pagesHtml}
+        </table>
+
+        <h3 style="color:#f3f4f6;font-size:14px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Top Orașe</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          ${citiesHtml}
+        </table>
+
+        <h3 style="color:#f3f4f6;font-size:14px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Dispozitive</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
+          ${devicesHtml}
+        </table>
+
+        <p style="color:#4b5563;font-size:12px;border-top:1px solid #1f2937;padding-top:16px;margin:0;">
+          AncaVisuals Admin · Raport generat automat în fiecare luni la 09:00
+        </p>
+      </div>
+    `,
+  };
+}
+
 export async function sendWeeklyAnalyticsSummary() {
   try {
     const db = firestore();
@@ -63,70 +132,9 @@ export async function sendWeeklyAnalyticsSummary() {
 
     const weekLabel = `${weekStart.toLocaleDateString("ro-RO", { day: "2-digit", month: "short" })} – ${now.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" })}`;
 
-    const pagesHtml = topPages
-      .map(([page, count], i) => `
-        <tr>
-          <td style="padding:8px 0;color:#e5e7eb;font-family:monospace;font-size:13px;">${i + 1}. ${page}</td>
-          <td style="padding:8px 0;text-align:right;color:#a78bfa;font-weight:600;">${count}</td>
-        </tr>`)
-      .join("");
-
-    const citiesHtml = topCities
-      .map(([city, count]) => `
-        <tr>
-          <td style="padding:6px 0;color:#e5e7eb;font-size:13px;">${city}</td>
-          <td style="padding:6px 0;text-align:right;color:#6b7280;font-size:13px;">${count} vizite</td>
-        </tr>`)
-      .join("");
-
-    const devicesHtml = Object.entries(deviceCount)
-      .sort(([, a], [, b]) => b - a)
-      .map(([device, count]) => `
-        <tr>
-          <td style="padding:6px 0;color:#e5e7eb;font-size:13px;">${device}</td>
-          <td style="padding:6px 0;text-align:right;color:#6b7280;font-size:13px;">${count}</td>
-        </tr>`)
-      .join("");
-
     await sendEmail({
       to: ADMIN_EMAIL,
-      subject: `📊 Raport săptămânal AncaVisuals — ${weekLabel}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#111;color:#e5e7eb;">
-          <h2 style="color:#a78bfa;margin:0 0 4px;">📊 Raport Săptămânal</h2>
-          <p style="color:#6b7280;font-size:13px;margin:0 0 24px;">${weekLabel}</p>
-
-          <div style="display:flex;gap:16px;margin-bottom:28px;">
-            <div style="flex:1;background:#1f1f1f;border:1px solid #2d2d2d;border-radius:12px;padding:16px;text-align:center;">
-              <div style="font-size:28px;font-weight:700;color:#a78bfa;">${totalViews}</div>
-              <div style="color:#9ca3af;font-size:12px;margin-top:4px;">Page Views</div>
-            </div>
-            <div style="flex:1;background:#1f1f1f;border:1px solid #2d2d2d;border-radius:12px;padding:16px;text-align:center;">
-              <div style="font-size:28px;font-weight:700;color:#34d399;">${uniqueSessions}</div>
-              <div style="color:#9ca3af;font-size:12px;margin-top:4px;">Vizitatori Unici</div>
-            </div>
-          </div>
-
-          <h3 style="color:#f3f4f6;font-size:14px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Top Pagini</h3>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-            ${pagesHtml}
-          </table>
-
-          <h3 style="color:#f3f4f6;font-size:14px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Top Orașe</h3>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-            ${citiesHtml}
-          </table>
-
-          <h3 style="color:#f3f4f6;font-size:14px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Dispozitive</h3>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
-            ${devicesHtml}
-          </table>
-
-          <p style="color:#4b5563;font-size:12px;border-top:1px solid #1f2937;padding-top:16px;margin:0;">
-            AncaVisuals Admin · Raport generat automat în fiecare luni la 09:00
-          </p>
-        </div>
-      `,
+      ...weeklyAnalyticsEmail({ weekLabel, totalViews, uniqueSessions, topPages, topCities, deviceCount }),
     });
 
     console.log(`[analytics cron] Weekly summary trimis: ${totalViews} views, ${uniqueSessions} sesiuni`);

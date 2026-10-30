@@ -7,6 +7,7 @@ import { seasonalStartingPrice } from "../../../shared/pricing/seasonalPricing";
 import { startingPricesForDate } from "../../../shared/pricing/yearPricing";
 import { reportAvailabilityCheck } from "../../utils/liveEvent";
 import { destination } from "../../utils/address";
+import { buildBioCallbackHtml } from "../../../shared/leadEmails";
 
 const PHONE = "0745469907";
 const PHONE_DISPLAY = "0745 469 907";
@@ -185,13 +186,7 @@ const BioPage: React.FC = () => {
           url: "/bio",
           browserVersion: navigator.userAgent,
           subject: `Vreau să fiu contactat — ${callbackPhone}`,
-          html: `
-            <h2>Cerere de apel din /bio</h2>
-            <ul>
-              <li><b>Telefon:</b> ${callbackPhone}</li>
-            </ul>
-            <p><i>Persoana a cerut să fie sunată, din pagina /bio.</i></p>
-          `,
+          html: buildBioCallbackHtml(callbackPhone),
           booking: { phone: callbackPhone },
         }),
       });

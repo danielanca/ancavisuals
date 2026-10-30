@@ -3,6 +3,7 @@
  * /zile-ocupate needs a login (familyCalendarAuth.service.ts); only the calendar-app feed uses the
  * secret token in settings/familyCalendar, which the admin can replace. The email invites Estera
  * to the page with the coming weeks; the Monday cron (when turned on) sends her the week's plan.
+ * The helper (Salomeea) has her own email, the events she's assigned to and her own feed token.
  */
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { firestore } from "../firestore";
@@ -11,14 +12,15 @@ import { APP_BASE_URL } from "../constants/domain";
 import { ESTERA_EMAIL } from "../middleware/requireFirebaseAuth";
 import { sendEmail } from "../notifications/mailer";
 import {
-  addDays, eventEmoji, eventsBetween, eventTitle, FAMILY_CALENDAR_PAGE, formatEur, mondayOf,
-  type FamilyCalendarEvent,
+  addDays, eventEmoji, eventsBetween, eventTitle, FAMILY_CALENDAR_PAGE, formatEur, helperEvents, mondayOf,
+  type FamilyCalendarEvent, type FamilyCalendarViewer,
 } from "../../shared/familyCalendar";
 
 const SETTINGS_DOC = () => firestore().collection("settings").doc("familyCalendar");
 const CONFIRMED_STATUSES = new Set(["confirmat", "finalizat"]);
 /** Past events stay visible this long, so the list also shows what was just done. */
 const HISTORY_DAYS = 90;
+export const SALOMEEA_EMAIL = "salomeeamitre602@gmail.com";
 
 export type FamilyCalendarSettings = {
   token: string;
@@ -26,6 +28,16 @@ export type FamilyCalendarSettings = {
   weeklyEmail: boolean;
   lastEmailAt: string | null;
   lastWeeklyEmailWeek: string | null;
+  /** The helper's own calendar-app feed: only her events, no prices. */
+  helperToken: string;
+  helperEmail: string;
+  /** adminEvents ids the helper works at. */
+  helperEventIds: string[];
+  /** "+40…" or "": SMS for login codes, assignments and reminders. */
+  recipientPhone: string;
+  helperPhone: string;
+  /** Email + SMS a week and a day before each event (Estera: all, the helper: hers). On unless turned off. */
+  reminders: boolean;
 };
 
 const newToken = () => randomBytes(18).toString("base64url");
@@ -39,31 +51,42 @@ export async function getFamilyCalendarSettings(): Promise<FamilyCalendarSetting
     weeklyEmail: data.weeklyEmail === true,
     lastEmailAt: typeof data.lastEmailAt === "string" ? data.lastEmailAt : null,
     lastWeeklyEmailWeek: typeof data.lastWeeklyEmailWeek === "string" ? data.lastWeeklyEmailWeek : null,
+    helperToken: typeof data.helperToken === "string" && data.helperToken ? data.helperToken : newToken(),
+    helperEmail: typeof data.helperEmail === "string" && data.helperEmail ? data.helperEmail : SALOMEEA_EMAIL,
+    helperEventIds: Array.isArray(data.helperEventIds) ? data.helperEventIds.filter((id: unknown): id is string => typeof id === "string") : [],
+    recipientPhone: typeof data.recipientPhone === "string" ? data.recipientPhone : "",
+    helperPhone: typeof data.helperPhone === "string" ? data.helperPhone : "",
+    reminders: data.reminders !== false,
   };
-  if (data.token !== settings.token) await ref.set({ token: settings.token }, { merge: true });
+  if (data.token !== settings.token || data.helperToken !== settings.helperToken) {
+    await ref.set({ token: settings.token, helperToken: settings.helperToken }, { merge: true });
+  }
   return settings;
 }
 
-export async function updateFamilyCalendarSettings(update: Partial<Omit<FamilyCalendarSettings, "token">>): Promise<void> {
+export async function updateFamilyCalendarSettings(update: Partial<Omit<FamilyCalendarSettings, "token" | "helperToken">>): Promise<void> {
   await SETTINGS_DOC().set(update, { merge: true });
 }
 
 /** A new secret link; the old one (and calendars subscribed to it) stop working. */
-export async function rotateFamilyCalendarToken(): Promise<string> {
+export async function rotateFamilyCalendarToken(viewer: FamilyCalendarViewer = "family"): Promise<string> {
   const token = newToken();
-  await SETTINGS_DOC().set({ token }, { merge: true });
+  await SETTINGS_DOC().set({ [viewer === "helper" ? "helperToken" : "token"]: token }, { merge: true });
   return token;
 }
 
-export async function isFamilyCalendarToken(candidate: string): Promise<boolean> {
+/** Whose feed a token opens: Estera's (everything), the helper's, or nobody's. */
+export async function familyCalendarTokenViewer(candidate: string): Promise<FamilyCalendarViewer | null> {
   const data = (await SETTINGS_DOC().get()).data();
-  const token = typeof data?.token === "string" ? data.token : "";
-  if (!token || !candidate || candidate.length > 128) return false;
+  if (!candidate || candidate.length > 128) return null;
   const digest = (value: string) => new Uint8Array(createHash("sha256").update(value).digest());
-  return timingSafeEqual(digest(candidate), digest(token));
+  const matches = (token: unknown) => typeof token === "string" && token !== "" && timingSafeEqual(digest(candidate), digest(token));
+  if (matches(data?.token)) return "family";
+  if (matches(data?.helperToken)) return "helper";
+  return null;
 }
 
-const todayInRomania = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Bucharest" });
+export const todayInRomania = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Bucharest" });
 
 /** Confirmed events from HISTORY_DAYS ago onwards, with the location from the linked contract. */
 export async function loadFamilyCalendarEvents(today = todayInRomania()): Promise<FamilyCalendarEvent[]> {
@@ -98,14 +121,14 @@ export async function loadFamilyCalendarEvents(today = todayInRomania()): Promis
 
 // --- Email (monochrome, square, like the other client emails) ---
 
-const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-const formatDays = (dates: readonly string[]) => {
+export const formatDays = (dates: readonly string[]) => {
   const format = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
   return dates.length > 1 ? `${format(dates[0])} – ${format(dates[dates.length - 1])}` : format(dates[0]);
 };
 
-function eventRowsHtml(events: readonly FamilyCalendarEvent[]): string {
+function eventRowsHtml(events: readonly FamilyCalendarEvent[], withPrice = true): string {
   if (events.length === 0) return `<p style="color:#666;font-size:14px;margin:0;">Niciun eveniment.</p>`;
   return events.map((event) => `
     <tr>
@@ -113,9 +136,9 @@ function eventRowsHtml(events: readonly FamilyCalendarEvent[]): string {
         <strong style="text-transform:capitalize;">${escapeHtml(formatDays(event.dates))}</strong><br/>
         ${eventEmoji(event.type)} ${escapeHtml(eventTitle(event))}${event.location ? `<br/><span style="color:#666;">${escapeHtml(event.location)}</span>` : ""}
       </td>
-      <td style="padding:10px 0;border-bottom:1px solid #e5e5e5;font-size:14px;color:#111;text-align:right;vertical-align:top;white-space:nowrap;">
+      ${withPrice ? `<td style="padding:10px 0;border-bottom:1px solid #e5e5e5;font-size:14px;color:#111;text-align:right;vertical-align:top;white-space:nowrap;">
         ${event.total !== null ? escapeHtml(formatEur(event.total)) : "—"}
-      </td>
+      </td>` : ""}
     </tr>`).join("");
 }
 
@@ -156,6 +179,31 @@ export async function sendFamilyCalendarEmail({ weekly = false, to }: { weekly?:
     ? { lastWeeklyEmailWeek: mondayOf(today), lastEmailAt: new Date().toISOString() }
     : { lastEmailAt: new Date().toISOString(), recipientEmail: recipient });
   return { to: recipient, events: events.length };
+}
+
+/** The helper's invitation: how to sign in and the events she's assigned to, no prices. */
+export function helperCalendarEmail(input: { email: string; events: readonly FamilyCalendarEvent[]; today: string }): { subject: string; html: string } {
+  const upcoming = input.events.filter((event) => event.dates[event.dates.length - 1] >= input.today);
+  const html = `
+  <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;background:#fff;color:#111;">
+    <p style="font-size:12px;letter-spacing:3px;margin:0 0 24px;color:#111;">ANCA VISUALS</p>
+    <h1 style="font-size:22px;font-weight:normal;margin:0 0 12px;">Bună, Salomeea!</h1>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 20px;">Pe ancavisuals.ro/zile-ocupate vezi oricând evenimentele la care lucrezi cu noi, ca un calendar sau ca o listă. După ce intri, le poți adăuga și în calendarul din telefon.</p>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 20px;">Ca să intri, scrii emailul tău (<strong>${escapeHtml(input.email)}</strong>) și primești pe email un cod de 6 cifre. Nu ai nevoie de parolă.</p>
+    <a href="${escapeHtml(`${APP_BASE_URL}${FAMILY_CALENDAR_PAGE}`)}" style="display:inline-block;margin:0 0 8px;padding:12px 18px;font-size:14px;font-weight:bold;text-decoration:none;background:#111;color:#fff;">Deschide calendarul</a>
+    <h2 style="font-size:13px;letter-spacing:2px;text-transform:uppercase;margin:28px 0 4px;">Evenimentele tale</h2>
+    <table style="width:100%;border-collapse:collapse;">${eventRowsHtml(upcoming, false)}</table>
+  </div>`;
+  return { subject: "Calendarul evenimentelor tale", html };
+}
+
+export async function sendHelperCalendarEmail(): Promise<{ to: string; events: number }> {
+  const settings = await getFamilyCalendarSettings();
+  const today = todayInRomania();
+  const events = helperEvents(await loadFamilyCalendarEvents(today), settings.helperEventIds);
+  const { subject, html } = helperCalendarEmail({ email: settings.helperEmail, events, today });
+  await sendEmail({ to: settings.helperEmail, subject, html, source: "family-calendar-helper" });
+  return { to: settings.helperEmail, events: events.filter((event) => event.dates[event.dates.length - 1] >= today).length };
 }
 
 /** Monday cron: the week's plan, once per week, only when the admin turned it on. */

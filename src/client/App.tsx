@@ -89,7 +89,7 @@ const HIDE_LIVE_CHAT_PREFIXES = [
   "/azi",
   "/brief-client",
   "/admin", "/login", "/colaborator",
-  "/media", "/album", "/backup", "/share", "/propune", "/delivery-address", "/zile-ocupate",
+  "/media", "/album", "/backup", "/share", "/propune", "/delivery-address", "/zile-ocupate", "/copiaza",
   "/qr-moments", "/qr-code",
   "/fotocabina", "/galerie-fotocabina",
   "/invitatie", "/invite", "/wedding-hub",
@@ -98,7 +98,7 @@ const HIDE_LIVE_CHAT_PREFIXES = [
   // Owner, 2026-10-26: the guide page has no contact block or chat at all.
   "/ghidul-mirilor-pdf",
 ];
-const HIDE_CHAT_PREFIXES = ["/zile-ocupate", "/ghidul-mirilor-pdf", "/azi", "/brief-client", "/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup", "/bio"];
+const HIDE_CHAT_PREFIXES = ["/zile-ocupate", "/copiaza", "/ghidul-mirilor-pdf", "/azi", "/brief-client", "/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup", "/bio"];
 
 export const App = () => {
   const location = useLocation();

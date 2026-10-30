@@ -452,6 +452,33 @@ router.post("/:slug/view", async (req: Request, res: Response) => {
   }
 });
 
+export function offerDownloadedEmail(input: { slug: string; clientName?: string; time: string; ip: string; downloads: number }): { subject: string; html: string } {
+  const { slug, clientName, time, ip, downloads } = input;
+  return {
+    subject: `⬇️ Oferta /${slug} a fost descărcată`,
+    html: `
+      <div style="font-family:Arial,sans-serif;background:#0a0a0a;padding:32px 16px;color:#f5f5f5;">
+        <div style="max-width:480px;margin:0 auto;border:1px solid #262626;border-radius:16px;padding:28px;background:#111;">
+          <p style="color:#34d399;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;margin:0 0 14px;">Ancavisuals · Oferte</p>
+          <h1 style="font-size:22px;font-weight:400;margin:0 0 22px;color:#fff;">PDF Descărcat!</h1>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <tr><td style="color:#666;padding:6px 0;">Slug</td><td style="color:#fff;padding:6px 0;font-weight:600;">/${slug}</td></tr>
+            ${clientName ? `<tr><td style="color:#666;padding:6px 0;">Client</td><td style="color:#fff;padding:6px 0;">${clientName}</td></tr>` : ""}
+            <tr><td style="color:#666;padding:6px 0;">Ora</td><td style="color:#fff;padding:6px 0;">${time}</td></tr>
+            <tr><td style="color:#666;padding:6px 0;">IP</td><td style="color:#aaa;padding:6px 0;font-size:12px;">${ip}</td></tr>
+            <tr><td style="color:#666;padding:6px 0;">Total descărcări</td><td style="color:#34d399;padding:6px 0;font-weight:700;">${downloads}</td></tr>
+          </table>
+          <div style="margin-top:22px;">
+            <a href="${APP_BASE_URL}/admin/oferte" style="display:inline-block;background:#059669;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+              Deschide admin
+            </a>
+          </div>
+        </div>
+      </div>
+    `,
+  };
+}
+
 // POST /api/oferte/:slug/download
 router.post("/:slug/download", async (req: Request, res: Response) => {
   try {
@@ -470,27 +497,7 @@ router.post("/:slug/download", async (req: Request, res: Response) => {
 
     await sendEmail({
       to: adminUser.email,
-      subject: `⬇️ Oferta /${slug} a fost descărcată`,
-      html: `
-        <div style="font-family:Arial,sans-serif;background:#0a0a0a;padding:32px 16px;color:#f5f5f5;">
-          <div style="max-width:480px;margin:0 auto;border:1px solid #262626;border-radius:16px;padding:28px;background:#111;">
-            <p style="color:#34d399;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;margin:0 0 14px;">Ancavisuals · Oferte</p>
-            <h1 style="font-size:22px;font-weight:400;margin:0 0 22px;color:#fff;">PDF Descărcat!</h1>
-            <table style="width:100%;border-collapse:collapse;font-size:14px;">
-              <tr><td style="color:#666;padding:6px 0;">Slug</td><td style="color:#fff;padding:6px 0;font-weight:600;">/${slug}</td></tr>
-              ${offer.clientName ? `<tr><td style="color:#666;padding:6px 0;">Client</td><td style="color:#fff;padding:6px 0;">${offer.clientName}</td></tr>` : ""}
-              <tr><td style="color:#666;padding:6px 0;">Ora</td><td style="color:#fff;padding:6px 0;">${time}</td></tr>
-              <tr><td style="color:#666;padding:6px 0;">IP</td><td style="color:#aaa;padding:6px 0;font-size:12px;">${ip}</td></tr>
-              <tr><td style="color:#666;padding:6px 0;">Total descărcări</td><td style="color:#34d399;padding:6px 0;font-weight:700;">${newCount}</td></tr>
-            </table>
-            <div style="margin-top:22px;">
-              <a href="${APP_BASE_URL}/admin/oferte" style="display:inline-block;background:#059669;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
-                Deschide admin
-              </a>
-            </div>
-          </div>
-        </div>
-      `,
+      ...offerDownloadedEmail({ slug, clientName: offer.clientName, time, ip, downloads: newCount }),
     });
 
     res.json({ ok: true });

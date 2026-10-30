@@ -63,6 +63,8 @@ const ADMIN_ONLY: [string, string, string, string?][] = [
   ["src/server/routes/adminCalendar.routes", "patch", "/family-calendar"],
   ["src/server/routes/adminCalendar.routes", "post", "/family-calendar/rotate"],
   ["src/server/routes/adminCalendar.routes", "post", "/family-calendar/send-email"],
+  ["src/server/routes/adminCalendar.routes", "post", "/family-calendar/send-helper-email"],
+  ["src/server/routes/adminCalendar.routes", "post", "/family-calendar/message"],
   ["src/server/routes/adminCalendar.routes", "post", "/family-calendar/sign-out-all"],
   ["src/server/routes/adminCalendar.routes", "get", "/family-time"],
   ["src/server/routes/adminCalendar.routes", "post", "/family-time/:id/decision"],

@@ -13,7 +13,7 @@ const events = [
   { id: "w2", dates: ["2027-06-12", "2027-06-13"], type: "Nuntă", clientName: "Elena", location: "", total: null, status: "confirmat" },
 ];
 const familyTime = [{ id: "f1", startDate: "2026-11-02", endDate: "2026-11-03", note: "Munte", status: "approved", createdAt: "2026-10-20T10:00:00Z", decidedAt: null, reply: "" }];
-const data = { events, familyTime, icsUrl: "https://ancavisuals.ro/api/family-calendar/tok/calendar.ics", generatedAt: "" };
+const data = { viewer: "family", events, familyTime, icsUrl: "https://ancavisuals.ro/api/family-calendar/tok/calendar.ics", generatedAt: "" };
 const ok = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body });
 
 beforeEach(() => {
@@ -42,10 +42,10 @@ test("not signed in: email → code (pasted from the clipboard) → calendar", a
   Object.defineProperty(navigator, "clipboard", { value: { readText: async () => "Codul tău: 123456" }, configurable: true });
 
   renderPage();
-  fireEvent.change(await screen.findByLabelText("Emailul tău"), { target: { value: "estera.pop97@gmail.com" } });
+  fireEvent.change(await screen.findByLabelText("Emailul sau telefonul tău"), { target: { value: "estera.pop97@gmail.com" } });
   fireEvent.click(screen.getByRole("button", { name: "Trimite-mi codul" }));
   expect(await screen.findByText(/Ți-am trimis un cod de 6 cifre pe estera\.pop97@gmail\.com/)).toBeInTheDocument();
-  expect(screen.getByLabelText("Codul din email")).toHaveAttribute("autocomplete", "one-time-code");
+  expect(screen.getByLabelText("Codul primit")).toHaveAttribute("autocomplete", "one-time-code");
 
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "📋 Lipește" })); });
   expect(await screen.findByRole("heading", { name: "Octombrie 2026" })).toBeInTheDocument();
@@ -98,4 +98,25 @@ test("calendar shows approved family days; a free day can be asked for, with a w
   const sent = fetchMock.mock.calls.find(([url]) => url === "/api/family-calendar/family-time")!;
   expect(JSON.parse(String(sent[1]!.body))).toEqual({ startDate: "2026-10-30", endDate: "2026-11-01", note: "Ziua mamei" });
   expect(within(section).getByText("✓ Aprobat")).toBeInTheDocument();
+});
+
+test("Salomeea (helper) sees her events without prices and can't ask for family time", async () => {
+  const helperData = { viewer: "helper", events: [{ ...events[1], total: null }], familyTime: [], icsUrl: data.icsUrl, generatedAt: "" };
+  vi.stubGlobal("fetch", vi.fn(async () => ok(helperData)));
+  renderPage();
+  expect(await screen.findByText("Evenimentele la care lucrezi cu noi.")).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Timp pentru familie" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "📋 Listă" }));
+  const list = screen.getByRole("region", { name: "Listă" });
+  expect(within(list).getByText("Nuntă · Ana & Ion")).toBeInTheDocument();
+  expect(within(list).queryByText("—")).not.toBeInTheDocument();
+  expect(within(list).queryByText(/€|EUR/)).not.toBeInTheDocument();
+});
+
+test("a phone number gets the code by SMS", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => (url === "/api/family-calendar/login/request" ? ok({ ok: true, channel: "sms" }) : ok({ error: "Intră" }, 401))));
+  renderPage();
+  fireEvent.change(await screen.findByLabelText("Emailul sau telefonul tău"), { target: { value: "0722 123 456" } });
+  fireEvent.click(screen.getByRole("button", { name: "Trimite-mi codul" }));
+  expect(await screen.findByText("Ți-am trimis prin SMS un cod de 6 cifre la 0722 123 456. E valabil 10 minute.")).toBeInTheDocument();
 });

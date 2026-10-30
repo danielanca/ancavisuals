@@ -1,21 +1,17 @@
+import { brandEmail, emailButton } from "../notifications/templates/emailBrand";
 import cron from "node-cron";
 import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
 import { sendEmail } from "../notifications/mailer";
 import { APP_BASE_URL } from "../constants/domain";
 
-function buildReminderEmailHtml(title: string, message: string): string {
-  return `
-    <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#fdf9f5;border-radius:12px;border:1px solid #e8d9c8;">
-      <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#b07d5c;">Wedding Hub · AncaVisuals</p>
-      <h1 style="margin:0 0 20px;font-size:20px;font-weight:400;color:#2f2a26;line-height:1.35;">${title}</h1>
-      <p style="margin:0 0 28px;font-size:15px;color:#5a4a3e;line-height:1.65;">${message}</p>
-      <hr style="border:none;border-top:1px solid #e3d0bf;margin:0 0 20px;">
-      <p style="margin:0;font-size:11px;color:#b09882;">
-        Accesează <a href="${APP_BASE_URL}/wedding-hub/reminders" style="color:#b07d5c;">Wedding Hub</a> pentru a gestiona notificările.
-      </p>
-    </div>
-  `;
+export function buildReminderEmailHtml(title: string, message: string): string {
+  return brandEmail(`
+    <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#666;margin:0 0 8px;">Wedding Hub · Reminder</div>
+    <h1 style="font-size:24px;font-weight:400;line-height:1.3;color:#111;margin:0 0 18px;">${title}</h1>
+    <p style="font-size:15px;line-height:1.65;color:#111;margin:0;padding:16px 18px;border-left:2px solid #111;background:#f5f5f5;">${message}</p>
+    ${emailButton(`${APP_BASE_URL}/wedding-hub/reminders`, "Deschide Wedding Hub")}
+  `);
 }
 
 async function processWedding(

@@ -61,7 +61,7 @@ function buildReminderSubject(args: {
   return `🛟 Backup media · ${args.reminderDate} · #${args.reminderIndex} · ${args.eventName}`;
 }
 
-async function sendBackupReminderEmail(args: {
+export async function sendBackupReminderEmail(args: {
   eventName: string;
   eventDateLabel: string;
   reminderLabel: string;

@@ -1,15 +1,19 @@
 /*
  * Purpose: login for the family calendar (/zile-ocupate). Only the calendar's email (Estera's, set in
- * /admin/calendar-familie) and the owner's email can sign in, each with a 6-digit one-time code sent by email or the
- * "Intră direct" button in the same email. No passwords, so nothing to reset. A login gives a
+ * /admin/calendar-familie), the owner's and the helper's (Salomeea, who only sees her events) can
+ * sign in, each with a 6-digit one-time code sent by email or the
+ * "Intră direct" button in the same email. Estera and the helper can also type their phone number
+ * (set in the admin): the code then comes by SMS. No passwords, so nothing to reset. A login gives a
  * 90-day session in an httpOnly cookie; only hashes of codes and sessions are stored.
  */
+import { copyIcon, copyPageUrl } from "../notifications/templates/emailBrand";
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "crypto";
 import { firestore } from "../firestore";
 import { APP_BASE_URL } from "../constants/domain";
 import { sendEmail } from "../notifications/mailer";
+import { isSmsConfigured, normalizeRomanianPhoneNumber, sendSms } from "../notifications/sms";
 import { getFamilyCalendarSettings } from "./familyCalendar.service";
-import { FAMILY_CALENDAR_PAGE } from "../../shared/familyCalendar";
+import { FAMILY_CALENDAR_PAGE, type FamilyCalendarViewer } from "../../shared/familyCalendar";
 
 export const FAMILY_SESSION_COOKIE = "fc_session";
 export const CODE_TTL_MS = 10 * 60_000;
@@ -26,10 +30,17 @@ const sha256 = (value: string) => createHash("sha256").update(value).digest("hex
 const sameHash = (a: string, b: string) => a.length === b.length && timingSafeEqual(new Uint8Array(Buffer.from(a)), new Uint8Array(Buffer.from(b)));
 export const normalizeEmail = (email: unknown) => (typeof email === "string" ? email.trim().toLowerCase() : "");
 
-/** Who may sign in: the calendar's email first (its login doc keeps the original id), then the owner. */
-async function allowedEmails(): Promise<string[]> {
-  const recipient = normalizeEmail((await getFamilyCalendarSettings()).recipientEmail);
-  return recipient === OWNER_EMAIL ? [recipient] : [recipient, OWNER_EMAIL];
+type Account = { email: string; phone: string; viewer: FamilyCalendarViewer };
+
+/** Who may sign in: the calendar's email first (its login doc keeps the original id), the owner, the helper. */
+async function allowedAccounts(): Promise<Account[]> {
+  const settings = await getFamilyCalendarSettings();
+  const accounts: Account[] = [
+    { email: normalizeEmail(settings.recipientEmail), phone: settings.recipientPhone, viewer: "family" },
+    { email: OWNER_EMAIL, phone: "", viewer: "family" },
+    { email: normalizeEmail(settings.helperEmail), phone: settings.helperPhone, viewer: "helper" },
+  ];
+  return accounts.filter((account, index) => account.email && accounts.findIndex((other) => other.email === account.email) === index);
 }
 
 // Each email has its own pending code, so asking for one doesn't cancel the other person's.
@@ -38,14 +49,24 @@ const loginDoc = (email: string, index: number) =>
 
 type LoginState = { codeHash?: string; magicHash?: string; expiresAt?: number; attempts?: number; sentAt?: number[] };
 
-export type RequestCodeResult = { ok: true } | { ok: false; reason: "wrong-email" | "too-soon" | "too-many"; retryInMs?: number };
+/** Whose account a typed email or phone number is (-1: nobody's). */
+function findAccount(accounts: readonly Account[], login: unknown): { index: number; byPhone: boolean } {
+  const email = normalizeEmail(login);
+  const byEmail = accounts.findIndex((account) => account.email === email);
+  if (byEmail >= 0 || email.includes("@")) return { index: byEmail, byPhone: false };
+  const phone = normalizeRomanianPhoneNumber(email);
+  return { index: phone ? accounts.findIndex((account) => account.phone === phone) : -1, byPhone: true };
+}
 
-/** Emails a new code (and a one-click login link) when `email` is the calendar's email. */
-export async function requestFamilyLoginCode(email: unknown, now = Date.now()): Promise<RequestCodeResult> {
-  const to = normalizeEmail(email);
-  const index = (await allowedEmails()).indexOf(to);
+export type RequestCodeResult = { ok: true; channel: "email" | "sms" } | { ok: false; reason: "wrong-email" | "too-soon" | "too-many"; retryInMs?: number };
+
+/** Sends a new code (by email with a one-click login link, or by SMS for a phone number) to an allowed account. */
+export async function requestFamilyLoginCode(login: unknown, now = Date.now()): Promise<RequestCodeResult> {
+  const accounts = await allowedAccounts();
+  const { index, byPhone } = findAccount(accounts, login);
   if (index < 0) return { ok: false, reason: "wrong-email" };
-  const ref = loginDoc(to, index);
+  const account = accounts[index];
+  const ref = loginDoc(account.email, index);
   const state = ((await ref.get()).data() ?? {}) as LoginState;
   const recent = (state.sentAt ?? []).filter((at) => now - at < 3_600_000);
   const last = recent[recent.length - 1];
@@ -55,30 +76,34 @@ export async function requestFamilyLoginCode(email: unknown, now = Date.now()): 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const magic = randomBytes(24).toString("base64url");
   await ref.set({ codeHash: sha256(code), magicHash: sha256(magic), expiresAt: now + CODE_TTL_MS, attempts: 0, sentAt: [...recent, now] });
+  if (byPhone && isSmsConfigured()) {
+    await sendSms({ to: account.phone, body: `Anca Visuals: codul tau pentru calendar este ${code}. E valabil 10 minute.`, log: { source: "family-calendar-login" } });
+    return { ok: true, channel: "sms" };
+  }
   const { subject, html } = familyLoginEmail(code, `${APP_BASE_URL}${FAMILY_CALENDAR_PAGE}?intra=${magic}`);
-  await sendEmail({ to, subject, html, source: "family-calendar-login" });
-  return { ok: true };
+  await sendEmail({ to: account.email, subject, html, source: "family-calendar-login" });
+  return { ok: true, channel: "email" };
 }
 
-export type VerifyResult = { ok: true; session: string } | { ok: false; reason: "invalid" | "expired" | "too-many" };
+export type VerifyResult = { ok: true; session: string; viewer: FamilyCalendarViewer } | { ok: false; reason: "invalid" | "expired" | "too-many" };
 
 /** Checks a typed code or the email's login link (each works once); success → a new session. */
 export async function verifyFamilyLogin(input: { email?: unknown; code?: unknown; magic?: unknown }, now = Date.now()): Promise<VerifyResult> {
-  const emails = await allowedEmails();
+  const accounts = await allowedAccounts();
   const magic = typeof input.magic === "string" && input.magic ? input.magic : "";
   // The email's button carries no address: find whose pending link it is.
-  let ref = loginDoc(emails[0], 0);
+  let index = 0;
   if (magic) {
-    for (const [index, email] of emails.entries()) {
-      const candidate = loginDoc(email, index);
-      const magicHash = ((await candidate.get()).data() as LoginState | undefined)?.magicHash;
-      if (magicHash && sameHash(sha256(magic), magicHash)) { ref = candidate; break; }
+    for (const [candidate, account] of accounts.entries()) {
+      const magicHash = ((await loginDoc(account.email, candidate).get()).data() as LoginState | undefined)?.magicHash;
+      if (magicHash && sameHash(sha256(magic), magicHash)) { index = candidate; break; }
     }
   } else {
-    const index = emails.indexOf(normalizeEmail(input.email));
+    index = findAccount(accounts, input.email).index;
     if (index < 0) return { ok: false, reason: "invalid" };
-    ref = loginDoc(emails[index], index);
   }
+  const { email, viewer } = accounts[index];
+  const ref = loginDoc(email, index);
   const state = ((await ref.get()).data() ?? {}) as LoginState;
   if (!state.codeHash || !state.expiresAt) return { ok: false, reason: "invalid" };
   if (now > state.expiresAt) return { ok: false, reason: "expired" };
@@ -98,22 +123,24 @@ export async function verifyFamilyLogin(input: { email?: unknown; code?: unknown
   // Used once: neither the code nor the link works again.
   await ref.set({ codeHash: null, magicHash: null, expiresAt: null, attempts: 0 }, { merge: true });
   const session = randomBytes(32).toString("base64url");
-  await SESSIONS().doc(sha256(session)).set({ createdAt: now, expiresAt: now + SESSION_TTL_MS });
-  return { ok: true, session };
+  await SESSIONS().doc(sha256(session)).set({ createdAt: now, expiresAt: now + SESSION_TTL_MS, viewer });
+  return { ok: true, session, viewer };
 }
 
-export async function familySessionValid(session: string | undefined, now = Date.now()): Promise<boolean> {
-  if (!session || session.length > 100) return false;
+/** Who a session belongs to, or null when it's missing or expired. Sessions from before the helper are Estera's. */
+export async function familySessionViewer(session: string | undefined, now = Date.now()): Promise<FamilyCalendarViewer | null> {
+  if (!session || session.length > 100) return null;
   const doc = await SESSIONS().doc(sha256(session)).get();
   const expiresAt = Number(doc.data()?.expiresAt);
-  return doc.exists && Number.isFinite(expiresAt) && now < expiresAt;
+  if (!doc.exists || !Number.isFinite(expiresAt) || now >= expiresAt) return null;
+  return doc.data()?.viewer === "helper" ? "helper" : "family";
 }
 
 export async function endFamilySession(session: string | undefined): Promise<void> {
   if (session && session.length <= 100) await SESSIONS().doc(sha256(session)).delete();
 }
 
-/** Signs Estera out everywhere (admin: "Deconectează-o de pe toate dispozitivele"). */
+/** Signs everyone (Estera, the helper, the owner's email login) out everywhere. */
 export async function endAllFamilySessions(): Promise<number> {
   const snapshot = await SESSIONS().get();
   await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()));
@@ -143,7 +170,7 @@ export function familyLoginEmail(code: string, loginUrl: string): { subject: str
     <p style="font-size:12px;letter-spacing:3px;margin:0 0 24px;">ANCA VISUALS</p>
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Codul tău pentru calendarul evenimentelor:</p>
     <p style="font-family:'Courier New',monospace;font-size:34px;font-weight:bold;letter-spacing:6px;margin:0 0 8px;padding:16px;border:2px solid #111;text-align:center;user-select:all;">${code}</p>
-    <p style="font-size:13px;color:#666;margin:0 0 24px;">Ține apăsat pe cod ca să-l copiezi. E valabil 10 minute.</p>
+    <p style="font-size:13px;color:#666;margin:0 0 24px;">${copyIcon(copyPageUrl([["Cod", code]], "Cod")).replace("margin-left:8px;", "margin:0 8px 0 0;")}sau ține apăsat pe cod ca să-l copiezi. E valabil 10 minute.</p>
     <p style="font-size:15px;margin:0 0 12px;">Sau intră direct, fără cod:</p>
     <a href="${loginUrl}" style="display:inline-block;padding:14px 22px;background:#111;color:#fff;font-size:15px;font-weight:bold;text-decoration:none;">Intră în calendar</a>
     <p style="font-size:12px;color:#999;margin:28px 0 0;">Dacă nu tu ai cerut codul, ignoră emailul. Nimeni nu poate intra fără el.</p>

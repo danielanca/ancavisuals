@@ -5,6 +5,7 @@ import { logEmail, updateEmailLog } from "../services/emailLog.service";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { emailAuth } from "../constants/credentials";
 import { appendEmailFooters } from "./emailMarketingFooter";
+import { toMonochromeEmail } from "./emailMonochrome";
 
 // Paid Zoho Workplace/Mail plans serve SMTP from smtppro.zoho.eu (not
 // smtp.zoho.eu, which is what the free plan's docs point to) — see the
@@ -82,7 +83,9 @@ export async function sendEmail({ to, subject, html, from, source, leadId }: Sen
   await recordEmailDelivery(id, { to, subject, status: "pending", attempts: 0,
     transport: testEmailMode && testTransport ? "test" : "production", createdAt: new Date().toISOString() });
   // The log keeps the HTML exactly as the recipient gets it (with the footers), for the full preview in /admin/email-log.
-  const sentHtml = await appendEmailFooters(html, to);
+  // Every email goes out black & white with square corners, whatever colours its template used
+  // (the footers are already monochrome and must not be flipped with a dark-theme body).
+  const sentHtml = await appendEmailFooters(toMonochromeEmail(html), to);
   const logId = await logEmail({ to, subject, html: sentHtml, status: "pending", deliveryId: id, ...(source ? { source } : {}), ...(leadId ? { leadId } : {}) });
   for (let attempt = 1; attempt <= 3; attempt++) {
     await recordEmailDelivery(id, { attempts: attempt });

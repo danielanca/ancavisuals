@@ -1,3 +1,4 @@
+import { adminEmail, emailList } from "../notifications/templates/emailBrand";
 import { createAnthropicClient } from "../lib/anthropicClient";
 import type { Request, Response } from "express";
 import { Router, raw } from "express";
@@ -1352,13 +1353,66 @@ const escapeEmailHtml = (value: string) =>
 
 function failuresHtml(failures: PhotoFailure[]): string {
   if (failures.length === 0) return "";
-  const items = failures.slice(0, MAX_FAILURES_IN_EMAIL)
-    .map((f) => `<li><strong>${escapeEmailHtml(f.file)}</strong>: ${escapeEmailHtml(f.reason)}</li>`).join("");
-  const more = failures.length > MAX_FAILURES_IN_EMAIL ? `<li>+ încă ${failures.length - MAX_FAILURES_IN_EMAIL}</li>` : "";
+  const items = failures.slice(0, MAX_FAILURES_IN_EMAIL).map((f) => `<strong>${escapeEmailHtml(f.file)}</strong>: ${escapeEmailHtml(f.reason)}`);
+  if (failures.length > MAX_FAILURES_IN_EMAIL) items.push(`+ încă ${failures.length - MAX_FAILURES_IN_EMAIL}`);
   const permanent = failures.some((f) => f.permanent)
-    ? "<p><strong>Reîncercarea automată nu rezolvă fișierele corupte sau lipsă</strong> — reîncarcă originalele respective din admin.</p>"
+    ? "<p style=\"margin:12px 0 0;\"><strong>Reîncercarea automată nu rezolvă fișierele corupte sau lipsă</strong> — reîncarcă originalele respective din admin.</p>"
     : "";
-  return `<p>De ce nu s-au procesat:</p><ul>${items}${more}</ul>${permanent}`;
+  return `<p style="margin:0 0 8px;">De ce nu s-au procesat:</p>${emailList(items)}${permanent}`;
+}
+
+export function previewProcessingProblemEmail(slug: string, job?: DurableAlbumJob): { subject: string; html: string } {
+  return {
+    subject: `⚠️ Procesare incompletă: ${slug}`,
+    html: adminEmail({
+      eyebrow: "Album · Previzualizări",
+      title: "Procesare incompletă",
+      rows: [
+        ["Album", slug],
+        ["Generate", job?.initialized ? `${job.progress.done} / ${job.progress.total}` : null],
+        ["Rămase", job?.initialized ? job.pendingPhotos.length : null],
+      ],
+      extra: failuresHtml(job?.failures ?? []),
+      note: "Generarea previzualizărilor nu este încă finalizată. Jobul este păstrat pentru reîncercare automată.",
+      button: { href: `${APP_BASE_URL}/admin/album-health`, label: "Verifică progresul" },
+    }),
+  };
+}
+
+export function previewProcessedEmail(slug: string, done: number, alreadyExisting: number, failedAttempts: number): { subject: string; html: string } {
+  return {
+    subject: `✅ Preview procesat: ${slug}`,
+    html: adminEmail({
+      eyebrow: "Album · Previzualizări",
+      title: "Previzualizările sunt gata",
+      rows: [["Album", slug], ["Generate", done], ["Existau deja", alreadyExisting], ["Încercări reluate", failedAttempts || null]],
+      button: { href: `${APP_BASE_URL}/media/${slug}`, label: "Vezi galeria" },
+    }),
+  };
+}
+
+export function zipUpdatedEmail(slug: string, photoCount: number): { subject: string; html: string } {
+  return {
+    subject: `✅ ZIP actualizat: ${slug}`,
+    html: adminEmail({
+      eyebrow: "Album · ZIP",
+      title: "ZIP-ul a fost regenerat și verificat",
+      rows: [["Album", slug], ["Poze în ZIP", photoCount]],
+      button: { href: `${APP_BASE_URL}/media/${slug}`, label: "Deschide albumul" },
+    }),
+  };
+}
+
+export function zipFailedEmail(slug: string, message: string): { subject: string; html: string } {
+  return {
+    subject: `⚠️ ZIP neregenerat: ${slug}`,
+    html: adminEmail({
+      eyebrow: "Album · ZIP",
+      title: "Regenerarea ZIP-ului a eșuat",
+      rows: [["Album", slug], ["Eroare", escapeEmailHtml(message)]],
+      note: "Jobul va fi reîncercat automat.",
+    }),
+  };
 }
 
 // Background processing function — Firestore keeps pending filenames so interrupted
@@ -1368,12 +1422,7 @@ async function notifyAlbumProcessingProblem(slug: string, job?: DurableAlbumJob)
   try {
     await sendEmail({
       to: adminUser.email,
-      subject: `⚠️ Procesare incompletă: ${slug}`,
-      html: `<p>Generarea previzualizărilor nu este încă finalizată.</p>
-        ${job?.initialized ? `<p>${job.progress.done}/${job.progress.total} generate; ${job.pendingPhotos.length} poze rămase.</p>` : ""}
-        ${failuresHtml(job?.failures ?? [])}
-        <p>Jobul este păstrat pentru reîncercare automată.</p>
-        <p><a href="${APP_BASE_URL}/admin/album-health">Verifică progresul în administrare</a></p>`,
+      ...previewProcessingProblemEmail(slug, job),
     });
     await logActivityOnce(`preview-processing-failed:${slug}:${job?.startedAt ?? "unknown"}`, {
       type: "processing_failed",
@@ -1526,10 +1575,7 @@ async function runAlbumProcessing(slug: string): Promise<void> {
     invalidateAlbumCache(slug);
     await sendEmail({
       to: adminUser.email,
-      subject: `✅ Preview procesat: ${slug}`,
-      html: `<p>Folderul <strong>photos_preview</strong> pentru albumul <strong>${slug}</strong> a fost procesat.</p>
-             <p>${done} previzualizări generate, ${latest.alreadyExisting} deja existente${latest.failedAttempts + failedThisAttempt ? `, ${latest.failedAttempts + failedThisAttempt} încercări temporare au eșuat și au fost reluate` : ""}.</p>
-             <p><a href="${APP_BASE_URL}/media/${slug}">Vezi galeria</a></p>`,
+      ...previewProcessedEmail(slug, done, latest.alreadyExisting, latest.failedAttempts + failedThisAttempt),
     });
     await logActivityOnce(`preview-processing-complete:${slug}:${latest.startedAt}`, {
       type: "processing_complete",
@@ -1644,8 +1690,7 @@ async function runAlbumZipProcessing(slug: string): Promise<void> {
     invalidateAlbumCache(slug);
     await sendEmail({
       to: adminUser.email,
-      subject: `✅ ZIP actualizat: ${slug}`,
-      html: `<p><strong>photos.zip</strong> pentru albumul <strong>${slug}</strong> a fost regenerat și verificat.</p><p>${photos.length} poze în ZIP.</p>`,
+      ...zipUpdatedEmail(slug, photos.length),
     });
     await logActivityOnce(`album-zip-complete:${slug}:${job.startedAt}`, {
       type: "album_zip",
@@ -1664,7 +1709,7 @@ async function runAlbumZipProcessing(slug: string): Promise<void> {
       await updateAlbumZipJob(slug, { status: "queued", retryCount, nextAttemptAt: Date.now() + retryDelayMs });
       errorAlbumZipJob(slug, `Retry automat în ${Math.round(retryDelayMs / 1000)} secunde.`);
     }
-    await sendEmail({ to: adminUser.email, subject: `⚠️ ZIP neregenerat: ${slug}`, html: `<p>Regenerarea ZIP-ului pentru <strong>${slug}</strong> a eșuat.</p><p>${message}</p><p>Jobul va fi reîncercat automat.</p>` }).catch(() => {});
+    await sendEmail({ to: adminUser.email, ...zipFailedEmail(slug, message) }).catch(() => {});
     await logActivityOnce(`album-zip-failed:${slug}:${current?.startedAt ?? job.startedAt}`, {
       type: "processing_failed",
       title: `Regenerare ZIP eșuată: ${slug}`,

@@ -1,23 +1,9 @@
 import { mailer } from "../mailer";
+import { brandEmail, copyIcon, copyPageUrl } from "./emailBrand";
 import { adminUser, emailAuth } from "../../constants/credentials";
 import { APP_BASE_URL } from "../../constants/domain";
 
-const EMAIL_HEADER = `
-  <div style="text-align: center; margin-bottom: 24px;">
-    <h2 style="color: #c9a96e; font-weight: 300; letter-spacing: 3px; font-size: 20px; margin: 0;">ANCA VISUALS</h2>
-    <p style="color: #999; font-size: 11px; letter-spacing: 1px; margin: 4px 0 0; text-transform: uppercase;">Fotografie & Videografie</p>
-  </div>
-  <hr style="border: none; border-top: 1px solid #c9a96e; margin: 0 0 28px;" />`;
-
-const EMAIL_FOOTER = `
-  <hr style="border: none; border-top: 1px solid #eee; margin: 28px 0 16px;" />
-  <p style="color: #bbb; font-size: 10px; text-align: center; margin: 0;">
-    Anca Visuals &nbsp;•&nbsp; ancadaniel1994@gmail.com
-  </p>`;
-
-function emailWrap(body: string): string {
-  return `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">${EMAIL_HEADER}${body}${EMAIL_FOOTER}</div>`;
-}
+const emailWrap = brandEmail;
 
 interface ContractLinkEmailOptions {
   to: string;
@@ -44,11 +30,11 @@ export async function sendContractLinkEmail(options: ContractLinkEmailOptions): 
       să completați datele personale și să semnați electronic.
     </p>
     <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Contractul</a>
+      <a href="${link}" style="display:inline-block;background-color:#111;color:#fff;padding:14px 36px;text-decoration:none;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Contractul</a>
     </div>
     <p style="color: #aaa; font-size: 11px; text-align: center;">
       Sau accesați direct:<br/>
-      <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
+      <a href="${link}" style="color: #111; word-break: break-all;">${link}</a>
     </p>
   `);
 
@@ -93,10 +79,10 @@ export interface SignedContractAdminDetails {
 // corners, no gold/green). The client gets a warm "cream & ink" letter,
 // the admin a compact summary card with the details and quick actions. Table layout + inline
 // styles only, so Gmail / Outlook / Apple Mail render them the same.
-const INK = "#2f2a24";
-const CREAM = "#f6f2ea";
-const MUTED = "#7a7065";
-const ACCENT = "#7a7065";
+const INK = "#111";
+const CREAM = "#f5f5f5";
+const MUTED = "#666";
+const ACCENT = "#111";
 const SERIF = "Georgia, 'Times New Roman', serif";
 const SANS = "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
 
@@ -128,7 +114,7 @@ function formatRoDateTime(iso: string): string {
 function button(href: string, label: string, variant: "dark" | "light" = "dark", size: "large" | "small" = "large"): string {
   const colors = variant === "dark"
     ? `background:${INK};color:${CREAM};border:1px solid ${INK};`
-    : `background:#ffffff;color:${INK};border:1px solid #d9d2c5;`;
+    : `background:#ffffff;color:${INK};border:1px solid #ddd;`;
   const box = size === "large" ? "padding:16px 32px;font-size:13px;" : "padding:12px 18px;font-size:11px;margin:0 8px 8px 0;";
   return `<a href="${escapeHtml(href)}" style="display:inline-block;${colors}${box}font-family:${SANS};font-weight:700;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;white-space:nowrap;">${label}</a>`;
 }
@@ -136,8 +122,8 @@ function button(href: string, label: string, variant: "dark" | "light" = "dark",
 function detailRows(rows: Array<[string, string]>): string {
   return rows.map(([label, value], index) => `
     <tr>
-      <td style="padding:13px 0;${index ? "border-top:1px solid #ece6db;" : ""}font-family:${SANS};font-size:13px;color:${MUTED};width:38%;vertical-align:top;">${label}</td>
-      <td style="padding:13px 0;${index ? "border-top:1px solid #ece6db;" : ""}font-family:${SANS};font-size:14px;color:${INK};font-weight:600;vertical-align:top;">${value}</td>
+      <td style="padding:13px 0;${index ? "border-top:1px solid #eee;" : ""}font-family:${SANS};font-size:13px;color:${MUTED};width:38%;vertical-align:top;">${label}</td>
+      <td style="padding:13px 0;${index ? "border-top:1px solid #eee;" : ""}font-family:${SANS};font-size:14px;color:${INK};font-weight:600;vertical-align:top;">${value}</td>
     </tr>`).join("");
 }
 
@@ -171,9 +157,9 @@ function clientLetter({ preheader, eyebrow, title, intro, details, note, cta, ic
               <div style="font-family:${SANS};font-size:11px;font-weight:700;letter-spacing:3px;color:${ACCENT};text-transform:uppercase;margin-top:22px;">${eyebrow}</div>
               <h1 style="font-family:${SERIF};font-size:30px;line-height:1.25;font-weight:400;color:${INK};margin:10px 0 0;">${title}</h1>
             </td></tr>
-            <tr><td style="padding-top:22px;font-family:${SANS};font-size:15px;line-height:1.7;color:#4a4239;text-align:center;">${intro}</td></tr>
+            <tr><td style="padding-top:22px;font-family:${SANS};font-size:15px;line-height:1.7;color:#444;text-align:center;">${intro}</td></tr>
             <tr><td style="padding-top:28px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};border:1px solid #e3dccf;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};border:1px solid #e5e5e5;">
                 <tr><td style="padding:6px 22px;">
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${detailRows(details)}</table>
                 </td></tr>
@@ -185,7 +171,7 @@ function clientLetter({ preheader, eyebrow, title, intro, details, note, cta, ic
         </td></tr>
         <tr><td align="center" style="padding:28px 12px 0;font-family:${SANS};font-size:12px;line-height:1.7;color:${MUTED};">
           Aveți întrebări? Răspundeți direct la acest email.<br/>
-          <span style="color:#a89e91;">Anca Visuals &nbsp;·&nbsp; <a href="https://ancavisuals.ro" style="color:#a89e91;text-decoration:none;">ancavisuals.ro</a></span>
+          <span style="color:#999;">Anca Visuals &nbsp;·&nbsp; <a href="https://ancavisuals.ro" style="color:#999;text-decoration:none;">ancavisuals.ro</a></span>
         </td></tr>
       </table>
     </td></tr>
@@ -217,7 +203,7 @@ function signedContractAdminHtml(options: SignedContractEmailOptions, formattedD
   const currency = admin.currency || "RON";
   const phone = admin.clientPhone?.trim() ?? "";
   const whatsapp = phone ? whatsappUrl(phone) : null;
-  const linkStyle = `color:${INK};text-decoration:underline;text-decoration-color:#cfc6b6;`;
+  const linkStyle = `color:${INK};text-decoration:underline;text-decoration-color:#ccc;`;
 
   const rows: Array<[string, string]> = [
     ["Email", `<a href="mailto:${escapeHtml(to)}" style="${linkStyle}">${escapeHtml(to)}</a>`],
@@ -237,9 +223,9 @@ function signedContractAdminHtml(options: SignedContractEmailOptions, formattedD
 
   return `<!doctype html>
 <html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f1efeb;">
+<body style="margin:0;padding:0;background:#f5f5f5;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(clientName)} a semnat contractul — ${escapeHtml(eventType)}, ${formattedDate}.</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1efeb;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;">
     <tr><td align="center" style="padding:28px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border:1px solid ${INK};">
         <tr><td style="background:${INK};padding:22px 28px;">
@@ -258,10 +244,10 @@ function signedContractAdminHtml(options: SignedContractEmailOptions, formattedD
         </td></tr>
         <tr><td style="padding:20px 20px 20px 28px;">
           <div>${actions}</div>
-          ${hasPdf ? "" : `<p style="font-family:${SANS};font-size:12px;color:#b45309;margin:14px 0 0;">PDF-ul nu s-a generat încă; linkul duce la pagina contractului.</p>`}
+          ${hasPdf ? "" : `<p style="font-family:${SANS};font-size:12px;color:#111;margin:14px 0 0;">PDF-ul nu s-a generat încă; linkul duce la pagina contractului.</p>`}
         </td></tr>
       </table>
-      <div style="font-family:${SANS};font-size:11px;color:#a39a8d;margin-top:14px;">Clientul a primit separat emailul de confirmare.</div>
+      <div style="font-family:${SANS};font-size:11px;color:#999;margin-top:14px;">Clientul a primit separat emailul de confirmare.</div>
     </td></tr>
   </table>
 </body></html>`;
@@ -335,6 +321,14 @@ export function bankTransferEmailHtml(options: BankTransferEmailOptions): string
   const isEur = currency.toUpperCase() === "EUR";
   const lei = isEur && eurRate ? Math.round(amount * eurRate) : null;
   const mono = `font-family:'SFMono-Regular',Menlo,Consolas,monospace;letter-spacing:0.5px;`;
+  // Each "copiază" opens /copiaza with every field, copying the one tapped (emails can't run scripts).
+  const copyFields: [string, string][] = [
+    ["Beneficiar", beneficiary],
+    ["IBAN", iban.replace(/\s+/g, "").toUpperCase()],
+    ["Sumă", String(amount)],
+    ["Descriere", reference],
+  ];
+  const copy = (label: string) => copyIcon(copyPageUrl(copyFields, label));
   const amountText = `${formatMoney(amount, currency)}${lei ? `<br/><span style="font-weight:400;color:${MUTED};font-size:13px;">sau ${formatMoney(lei, "lei")} (curs BNR ${eurRateDate ? `din ${escapeHtml(eurRateDate.split("-").reverse().join("."))}, ` : ""}${eurRate!.toLocaleString("ro-RO", { maximumFractionDigits: 4 })} lei/€)</span>` : ""}`;
   return clientLetter({
     icon: "&#8644;",
@@ -343,11 +337,11 @@ export function bankTransferEmailHtml(options: BankTransferEmailOptions): string
     title: "Datele pentru transfer",
     intro: `${clientName ? `Bună ziua, ${escapeHtml(clientName)}!<br/>` : ""}Mai jos găsiți contul în care puteți face plata pentru <strong style="color:${INK};">${escapeHtml(eventType)}</strong> din ${formattedDate}.${isAdvance ? " Contractul intră în vigoare la primirea avansului." : ""}`,
     details: [
-      ["Beneficiar", escapeHtml(beneficiary)],
-      ["IBAN", `<span style="${mono}">${escapeHtml(groupIban(iban))}</span>`],
-      [isAdvance ? "Avans" : "Sumă", amountText],
+      ["Beneficiar", `${escapeHtml(beneficiary)}${copy("Beneficiar")}`],
+      ["IBAN", `<span style="${mono}">${escapeHtml(groupIban(iban))}</span>${copy("IBAN")}`],
+      [isAdvance ? "Avans" : "Sumă", `${amountText}${copy("Sumă")}`],
       ...(dueDate ? [["Scadent la", escapeHtml(dueDate)] as [string, string]] : []),
-      ["Descriere plată", `<span style="${mono}">${escapeHtml(reference)}</span>`],
+      ["Descriere plată", `<span style="${mono}">${escapeHtml(reference)}</span>${copy("Descriere")}`],
     ],
     cta: "",
     note: `${isEur ? "Puteți plăti în euro sau echivalentul în lei, în același cont. " : ""}Vă rugăm să treceți la descriere exact <strong style="color:${INK};">${escapeHtml(reference)}</strong>, ca să găsim plata ușor.`,
@@ -426,22 +420,21 @@ export async function sendContractDeletedEmail({ contract }: DeletedContractEmai
       <td style="padding: 6px 12px; color: #1a1a1a; font-size: 12px; font-weight: 600;">${value}</td>
     </tr>`).join("");
 
-  const html = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">${EMAIL_HEADER.replace('border-top: 1px solid #c9a96e', 'border-top: 2px solid #ef4444')}
-    <p style="color: #ef4444; font-weight: 700; font-size: 15px; margin-bottom: 6px;">⚠ Contract șters definitiv</p>
+  const html = brandEmail(`
+    <p style="color: #111; font-weight: 700; font-size: 15px; margin-bottom: 6px;">⚠ Contract șters definitiv</p>
     <p style="color: #555; font-size: 13px; margin-bottom: 24px;">
       Acest email conține detaliile contractului șters, pentru arhivă personală.
       Dacă ștergerea a fost accidentală, contactează imediat furnizorul de hosting pentru recuperare din backup.
     </p>
-    <table style="width: 100%; border-collapse: collapse; background: #fafafa; border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
+    <table style="width: 100%; border-collapse: collapse; background: #fafafa; margin-bottom: 20px;">
       <tbody>${tableRows}</tbody>
     </table>
     ${pdfUrl ? `
     <div style="text-align: center; margin: 24px 0;">
-      <a href="${pdfUrl}" style="display:inline-block;background:#c9a96e;color:#fff;padding:12px 28px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:600;letter-spacing:1px;">Descarcă PDF-ul contractului</a>
+      <a href="${pdfUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 28px;text-decoration:none;font-size:13px;font-weight:600;letter-spacing:1px;">Descarcă PDF-ul contractului</a>
       <p style="color: #aaa; font-size: 11px; margin-top: 8px;">Linkul poate expira. Salvează PDF-ul dacă ai nevoie de el.</p>
     </div>` : `<p style="color: #aaa; font-size: 12px; text-align: center;">PDF-ul nu era disponibil pentru acest contract.</p>`}
-    ${EMAIL_FOOTER}
-  </div>`;
+  `);
 
   await mailer.sendMail({
     from: emailAuth.email,
@@ -475,11 +468,11 @@ export async function sendContractReminderEmail(options: ContractReminderEmailOp
       Vă rugăm să accesați link-ul de mai jos pentru a semna contractul. Procesul durează doar câteva minute.
     </p>
     <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Contractul</a>
+      <a href="${link}" style="display:inline-block;background-color:#111;color:#fff;padding:14px 36px;text-decoration:none;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Contractul</a>
     </div>
     <p style="color: #aaa; font-size: 11px; text-align: center;">
       Sau accesați direct:<br/>
-      <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
+      <a href="${link}" style="color: #111; word-break: break-all;">${link}</a>
     </p>
   `);
 

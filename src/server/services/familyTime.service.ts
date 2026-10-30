@@ -64,6 +64,31 @@ const emailWrap = (body: string) =>
 const emailButton = (href: string, label: string) =>
   `<a href="${escapeHtml(href)}" style="display:inline-block;margin-top:16px;padding:12px 18px;background:#111;color:#fff;font-size:14px;font-weight:bold;text-decoration:none;">${label}</a>`;
 
+export function familyTimeRequestEmail(start: string, end: string, note: string, fromEmail: string): { subject: string; html: string } {
+  return {
+    subject: `Estera a cerut timp pentru familie: ${formatRange(start, end)}`,
+    html: emailWrap(`
+      <h1 style="font-size:20px;font-weight:normal;margin:0 0 12px;">Cerere nouă de la Estera</h1>
+      <p style="font-size:15px;margin:0 0 8px;"><strong style="text-transform:capitalize;">${escapeHtml(formatRange(start, end))}</strong></p>
+      ${note ? `<p style="font-size:14px;line-height:1.6;margin:0 0 8px;border-left:3px solid #111;padding-left:10px;">${escapeHtml(note)}</p>` : ""}
+      <p style="font-size:13px;color:#666;margin:0;">De la ${escapeHtml(fromEmail)}. Aprobi sau refuzi din admin.</p>
+      ${emailButton(`${APP_BASE_URL}/admin/calendar-familie`, "Vezi cererea")}`),
+  };
+}
+
+export function familyTimeDecisionEmail(request: Pick<FamilyTimeRequest, "status" | "startDate" | "endDate" | "reply">): { subject: string; html: string } {
+  const approved = request.status === "approved";
+  return {
+    subject: approved ? `Aprobat: ${formatRange(request.startDate, request.endDate)} e pentru familie` : `Cererea pentru ${formatRange(request.startDate, request.endDate)} nu a fost aprobată`,
+    html: emailWrap(`
+      <h1 style="font-size:20px;font-weight:normal;margin:0 0 12px;">${approved ? "Cererea ta a fost aprobată ✓" : "Cererea ta nu a fost aprobată"}</h1>
+      <p style="font-size:15px;margin:0 0 8px;"><strong style="text-transform:capitalize;">${escapeHtml(formatRange(request.startDate, request.endDate))}</strong></p>
+      <p style="font-size:14px;line-height:1.6;margin:0 0 8px;">${approved ? "Zilele sunt rezervate pentru familie și nu se mai pot lua evenimente în ele." : "Zilele rămân disponibile pentru evenimente."}</p>
+      ${request.reply ? `<p style="font-size:14px;line-height:1.6;margin:0;border-left:3px solid #111;padding-left:10px;">${escapeHtml(request.reply)}</p>` : ""}
+      ${emailButton(`${APP_BASE_URL}${FAMILY_CALENDAR_PAGE}`, "Deschide calendarul")}`),
+  };
+}
+
 export async function createFamilyTimeRequest(input: { startDate?: unknown; endDate?: unknown; note?: unknown }, today: string): Promise<CreateFamilyTimeResult> {
   const start = input.startDate;
   const end = input.endDate ?? input.startDate;
@@ -81,13 +106,7 @@ export async function createFamilyTimeRequest(input: { startDate?: unknown; endD
   const { recipientEmail } = await getFamilyCalendarSettings();
   await sendEmail({
     to: OWNER_EMAIL,
-    subject: `Estera a cerut timp pentru familie: ${formatRange(start, end)}`,
-    html: emailWrap(`
-      <h1 style="font-size:20px;font-weight:normal;margin:0 0 12px;">Cerere nouă de la Estera</h1>
-      <p style="font-size:15px;margin:0 0 8px;"><strong style="text-transform:capitalize;">${escapeHtml(formatRange(start, end))}</strong></p>
-      ${note ? `<p style="font-size:14px;line-height:1.6;margin:0 0 8px;border-left:3px solid #111;padding-left:10px;">${escapeHtml(note)}</p>` : ""}
-      <p style="font-size:13px;color:#666;margin:0;">De la ${escapeHtml(recipientEmail)}. Aprobi sau refuzi din admin.</p>
-      ${emailButton(`${APP_BASE_URL}/admin/calendar-familie`, "Vezi cererea")}`),
+    ...familyTimeRequestEmail(start, end, note, recipientEmail),
     source: "family-time-request",
   });
   return { ok: true, request };
@@ -111,16 +130,9 @@ export async function decideFamilyTimeRequest(id: string, status: "approved" | "
   const request = toRequest(id, { ...doc.data(), ...update });
 
   const { recipientEmail } = await getFamilyCalendarSettings();
-  const approved = status === "approved";
   await sendEmail({
     to: recipientEmail,
-    subject: approved ? `Aprobat: ${formatRange(request.startDate, request.endDate)} e pentru familie` : `Cererea pentru ${formatRange(request.startDate, request.endDate)} nu a fost aprobată`,
-    html: emailWrap(`
-      <h1 style="font-size:20px;font-weight:normal;margin:0 0 12px;">${approved ? "Cererea ta a fost aprobată ✓" : "Cererea ta nu a fost aprobată"}</h1>
-      <p style="font-size:15px;margin:0 0 8px;"><strong style="text-transform:capitalize;">${escapeHtml(formatRange(request.startDate, request.endDate))}</strong></p>
-      <p style="font-size:14px;line-height:1.6;margin:0 0 8px;">${approved ? "Zilele sunt rezervate pentru familie și nu se mai pot lua evenimente în ele." : "Zilele rămân disponibile pentru evenimente."}</p>
-      ${request.reply ? `<p style="font-size:14px;line-height:1.6;margin:0;border-left:3px solid #111;padding-left:10px;">${escapeHtml(request.reply)}</p>` : ""}
-      ${emailButton(`${APP_BASE_URL}${FAMILY_CALENDAR_PAGE}`, "Deschide calendarul")}`),
+    ...familyTimeDecisionEmail(request),
     source: "family-time-decision",
   });
   return request;

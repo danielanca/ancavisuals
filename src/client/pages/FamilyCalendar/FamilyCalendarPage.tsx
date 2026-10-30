@@ -3,6 +3,7 @@
  * 6-digit code sent by email (or the email's "Intră în calendar" button, ?intra=…), then sees the
  * confirmed events as a month calendar or a list with each event's date and price, can subscribe
  * in Google Calendar / iPhone, and asks for days kept free for the family (the owner approves).
+ * Salomeea (viewer "helper") signs in the same way and only sees her events: no prices, no family time.
  * Server: /api/family-calendar (familyCalendar.routes.ts), shared: src/shared/familyCalendar.ts.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -60,11 +61,15 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await postJson("/login/request", { email: email.trim() });
+      const { channel } = await postJson("/login/request", { email: email.trim() });
       writeStored(EMAIL_KEY, email.trim());
       setStep("code");
       setCode("");
-      setInfo(`Ți-am trimis un cod de 6 cifre pe ${email.trim()}. E valabil 10 minute.`);
+      setInfo(channel === "sms"
+        ? `Ți-am trimis prin SMS un cod de 6 cifre la ${email.trim()}. E valabil 10 minute.`
+        : email.includes("@")
+          ? `Ți-am trimis un cod de 6 cifre pe ${email.trim()}. E valabil 10 minute.`
+          : "Ți-am trimis un cod de 6 cifre pe email. E valabil 10 minute.");
       window.setTimeout(() => codeRef.current?.focus(), 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Codul nu a putut fi trimis.");
@@ -98,7 +103,7 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
       const text = await navigator.clipboard.readText();
       const digits = text.match(/\d{6}/)?.[0];
       if (!digits) {
-        setError("În clipboard nu e un cod de 6 cifre. Copiază codul din email și apasă din nou.");
+        setError("În clipboard nu e un cod de 6 cifre. Copiază codul primit și apasă din nou.");
         return;
       }
       changeCode(digits);
@@ -115,15 +120,15 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
       <h2 className="text-lg font-semibold">Intră în calendar</h2>
       {step === "email" ? (
         <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void requestCode(); }}>
-          <label htmlFor="family-login-email" className="block text-sm text-neutral-700">Emailul tău</label>
-          <input id="family-login-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={input} />
+          <label htmlFor="family-login-email" className="block text-sm text-neutral-700">Emailul sau telefonul tău</label>
+          <input id="family-login-email" type="text" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required value={email} onChange={(e) => setEmail(e.target.value)} className={input} />
           <button type="submit" disabled={busy || !email.trim()} className={primary}>{busy ? "Se trimite…" : "Trimite-mi codul"}</button>
-          <p className="text-xs text-neutral-500">Nu ai nevoie de parolă: primești pe email un cod pe care îl folosești o singură dată.</p>
+          <p className="text-xs text-neutral-500">Nu ai nevoie de parolă: primești pe email sau prin SMS un cod pe care îl folosești o singură dată.</p>
         </form>
       ) : (
         <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (code.length === 6) void verify(code); }}>
           {info && <p role="status" className="text-sm text-neutral-700">{info}</p>}
-          <label htmlFor="family-login-code" className="block text-sm text-neutral-700">Codul din email</label>
+          <label htmlFor="family-login-code" className="block text-sm text-neutral-700">Codul primit</label>
           <div className="flex gap-2">
             <input
               id="family-login-code"
@@ -144,7 +149,7 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
           <button type="submit" disabled={busy || code.length !== 6} className={primary}>{busy ? "Se verifică…" : "Intră"}</button>
           <div className="flex justify-between text-xs">
             <button type="button" onClick={() => void requestCode()} disabled={busy} className="underline disabled:opacity-50">Trimite alt cod</button>
-            <button type="button" onClick={() => { setStep("email"); setInfo(null); setError(null); }} className="underline">Alt email</button>
+            <button type="button" onClick={() => { setStep("email"); setInfo(null); setError(null); }} className="underline">Alt email sau telefon</button>
           </div>
         </form>
       )}
@@ -155,7 +160,7 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
 
 // --- Calendar pieces ---
 
-function EventRow({ event, today }: { event: FamilyCalendarEvent; today: string }) {
+function EventRow({ event, today, withPrice }: { event: FamilyCalendarEvent; today: string; withPrice: boolean }) {
   const past = event.dates[event.dates.length - 1] < today;
   return (
     <li className={`flex items-start gap-3 border border-neutral-200 bg-white px-4 py-3 ${past ? "opacity-50" : ""}`}>
@@ -165,7 +170,7 @@ function EventRow({ event, today }: { event: FamilyCalendarEvent; today: string 
         <p className="text-sm text-neutral-800">{eventTitle(event)}</p>
         {event.location && <p className="text-xs text-neutral-500">{event.location}</p>}
       </div>
-      <p className="shrink-0 text-sm font-semibold text-neutral-900">{event.total !== null ? formatEur(event.total) : "—"}</p>
+      {withPrice && <p className="shrink-0 text-sm font-semibold text-neutral-900">{event.total !== null ? formatEur(event.total) : "—"}</p>}
     </li>
   );
 }
@@ -417,6 +422,7 @@ export default function FamilyCalendarPage() {
     document.getElementById("timp-familie")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
 
+  const family = data?.viewer !== "helper";
   const selectedFamily = selected ? familyTime.filter((request) => request.status !== "rejected" && inRange(selected, request)) : [];
 
   return (
@@ -426,7 +432,9 @@ export default function FamilyCalendarPage() {
           <div className="space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-neutral-500">Anca Visuals</p>
             <h1 className="text-2xl font-light">Zile ocupate</h1>
-            <p className="text-sm text-neutral-600">Nunțile și celelalte evenimente confirmate, cu data și prețul fiecăruia.</p>
+            <p className="text-sm text-neutral-600">
+              {!data ? "Evenimentele confirmate din calendarul Anca Visuals." : family ? "Nunțile și celelalte evenimente confirmate, cu data și prețul fiecăruia." : "Evenimentele la care lucrezi cu noi."}
+            </p>
           </div>
           {data && <button type="button" onClick={() => void logout()} className="shrink-0 text-xs underline">Ieși</button>}
         </header>
@@ -496,14 +504,14 @@ export default function FamilyCalendarPage() {
                     <p className="text-sm font-semibold capitalize">{formatDay(selected, true)}</p>
                     {(byDay.get(selected) ?? []).length === 0 && selectedFamily.length === 0 && <p className="text-sm text-neutral-500">Liber, niciun eveniment.</p>}
                     {(byDay.get(selected) ?? []).length > 0 && (
-                      <ul className="space-y-2">{byDay.get(selected)!.map((event) => <EventRow key={event.id} event={event} today={today} />)}</ul>
+                      <ul className="space-y-2">{byDay.get(selected)!.map((event) => <EventRow key={event.id} event={event} today={today} withPrice={family} />)}</ul>
                     )}
                     {selectedFamily.map((request) => (
                       <p key={request.id} className="border border-neutral-900 bg-white px-4 py-3 text-sm">
                         🏡 {request.status === "approved" ? "Timp pentru familie" : "Ai cerut ziua asta (așteaptă răspuns)"}{request.note ? ` · ${request.note}` : ""}
                       </p>
                     ))}
-                    {selected >= today && selectedFamily.length === 0 && (
+                    {family && selected >= today && selectedFamily.length === 0 && (
                       <button type="button" onClick={() => askForDay(selected)} className="border border-neutral-900 bg-white px-3 py-2 text-xs font-semibold hover:bg-neutral-900 hover:text-white">
                         🏡 Cere ziua asta pentru familie
                       </button>
@@ -517,7 +525,7 @@ export default function FamilyCalendarPage() {
                   <input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} className="h-4 w-4 accent-neutral-900" />
                   Arată și evenimentele trecute
                 </label>
-                {byMonth.length === 0 && <p className="text-sm text-neutral-500">Niciun eveniment programat.</p>}
+                {byMonth.length === 0 && <p className="text-sm text-neutral-500">{family ? "Niciun eveniment programat." : "Nu ești programată la niciun eveniment încă."}</p>}
                 {byMonth.map(({ month, events: monthEvents }) => {
                   const total = monthEvents.reduce((sum, event) => sum + (event.total ?? 0), 0);
                   return (
@@ -528,14 +536,14 @@ export default function FamilyCalendarPage() {
                           {monthEvents.length === 1 ? "1 eveniment" : `${monthEvents.length} evenimente`}{total > 0 ? ` · ${formatEur(total)}` : ""}
                         </span>
                       </h2>
-                      <ul className="space-y-2">{monthEvents.map((event) => <EventRow key={event.id} event={event} today={today} />)}</ul>
+                      <ul className="space-y-2">{monthEvents.map((event) => <EventRow key={event.id} event={event} today={today} withPrice={family} />)}</ul>
                     </div>
                   );
                 })}
               </section>
             )}
 
-            <FamilyTimeSection events={events} requests={familyTime} prefill={prefill} today={today} onChanged={() => void load().catch(() => undefined)} />
+            {family && <FamilyTimeSection events={events} requests={familyTime} prefill={prefill} today={today} onChanged={() => void load().catch(() => undefined)} />}
 
             <p className="text-xs leading-relaxed text-neutral-500">
               Cu „+ Google Calendar” sau „+ iPhone” evenimentele apar în calendarul din telefon și se actualizează singure.

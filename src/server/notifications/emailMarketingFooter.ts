@@ -46,15 +46,15 @@ function renderFooter(images: string[]): string {
   if (images.length !== 5) return "";
   const photos = images.map(url => `
     <td width="33.33%" valign="middle" style="padding:0 4px;">
-      <img src="${escapeAttribute(url)}" alt="AncaVisuals — fotografie de eveniment" width="135" height="140" style="display:block;width:100%;max-width:135px;height:140px;margin:0 auto;border:0;border-radius:10px;object-fit:contain;background:#fff;">
+      <img src="${escapeAttribute(url)}" alt="AncaVisuals — fotografie de eveniment" width="135" height="140" style="display:block;width:100%;max-width:135px;height:140px;margin:0 auto;border:0;object-fit:contain;background:#fff;">
     </td>`).join("");
   return `
-    <div style="width:100%;max-width:760px;box-sizing:border-box;margin:30px auto 0;padding:22px 18px 20px;background:#f8f2e8;border:1px solid #e8d9c1;border-radius:16px;font-family:Arial,sans-serif;color:#29231d;">
-      <p style="margin:0 0 6px;color:#a66d20;font-size:11px;letter-spacing:3px;font-weight:700;">ANCAVISUALS</p>
-      <h2 style="margin:0 0 15px;color:#29231d;font-size:20px;line-height:1.3;font-weight:700;">Păstrează emoția evenimentului tău</h2>
+    <div style="width:100%;max-width:760px;box-sizing:border-box;margin:30px auto 0;padding:24px 18px 22px;background:#fff;border:1px solid #111;font-family:Arial,sans-serif;color:#111;">
+      <p style="margin:0 0 8px;color:#666;font-size:10px;letter-spacing:4px;">ANCA VISUALS</p>
+      <h2 style="margin:0 0 16px;color:#111;font-size:19px;line-height:1.3;font-weight:400;">Păstrează emoția evenimentului tău</h2>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;table-layout:fixed;"><tr>${photos}</tr></table>
-      <p style="margin:15px 0 12px;color:#685b4c;font-size:12px;line-height:1.6;">${FOOTER_COPY}</p>
-      <a href="https://ancavisuals.ro" style="display:inline-block;padding:10px 18px;background:#d99a35;border-radius:999px;color:#241f1a;text-decoration:none;font-size:13px;font-weight:700;">Descoperă AncaVisuals</a>
+      <p style="margin:16px 0 14px;color:#555;font-size:12px;line-height:1.6;">${FOOTER_COPY}</p>
+      <a href="https://ancavisuals.ro" style="display:inline-block;padding:12px 22px;background:#111;color:#fff;text-decoration:none;font-size:11px;letter-spacing:3px;text-transform:uppercase;">Descoperă AncaVisuals</a>
     </div>`;
 }
 

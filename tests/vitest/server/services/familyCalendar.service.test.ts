@@ -54,11 +54,29 @@ describe("family calendar service", () => {
     const { token, recipientEmail } = await service.getFamilyCalendarSettings();
     expect(recipientEmail).toBe("estera@example.com");
     expect((await service.getFamilyCalendarSettings()).token).toBe(token);
-    expect(await service.isFamilyCalendarToken(token)).toBe(true);
-    expect(await service.isFamilyCalendarToken(`${token}x`)).toBe(false);
+    expect(await service.familyCalendarTokenViewer(token)).toBe("family");
+    expect(await service.familyCalendarTokenViewer(`${token}x`)).toBe(null);
     const fresh = await service.rotateFamilyCalendarToken();
-    expect(await service.isFamilyCalendarToken(token)).toBe(false);
-    expect(await service.isFamilyCalendarToken(fresh)).toBe(true);
+    expect(await service.familyCalendarTokenViewer(token)).toBe(null);
+    expect(await service.familyCalendarTokenViewer(fresh)).toBe("family");
+  });
+
+  test("Salomeea: her own feed token, rotated separately; her invite lists only her events, no prices", async () => {
+    const { token, helperToken, helperEmail } = await service.getFamilyCalendarSettings();
+    expect(helperEmail).toBe("salomeeamitre602@gmail.com");
+    expect(await service.familyCalendarTokenViewer(helperToken)).toBe("helper");
+    const fresh = await service.rotateFamilyCalendarToken("helper");
+    expect(await service.familyCalendarTokenViewer(helperToken)).toBe(null);
+    expect(await service.familyCalendarTokenViewer(fresh)).toBe("helper");
+    expect(await service.familyCalendarTokenViewer(token)).toBe("family");
+
+    await service.updateFamilyCalendarSettings({ helperEventIds: ["baptism"] });
+    const sent = await service.sendHelperCalendarEmail();
+    expect(sent.to).toBe("salomeeamitre602@gmail.com");
+    const { html } = sendEmail.mock.calls[0][0];
+    expect(html).toContain("Maria");
+    expect(html).not.toContain("Ana &amp; Ion");
+    expect(html).not.toMatch(/€|EUR|—/);
   });
 
   test("email: the login page (no secret links), how to sign in, this week's and upcoming events with prices, escaped", async () => {

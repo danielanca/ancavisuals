@@ -93,15 +93,21 @@ router.get("/mementos/server-time", requireFirebaseAuth, requireSupremeAdmin, (_
   res.json({ serverTime: new Date().toISOString() });
 });
 
+export function mementosTestEmail(): { subject: string; html: string } {
+  return {
+    subject: "✅ Test email — Mementouri",
+    html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+      <h2 style="color:#7c3aed;">✅ Email funcționează!</h2>
+      <p style="color:#374151;">Acesta este un email de test trimis din secțiunea Mementouri.</p>
+    </div>`,
+  };
+}
+
 router.post("/mementos/send-test-email", requireFirebaseAuth, requireSupremeAdmin, async (_req: Request, res: Response) => {
   try {
     await sendEmail({
       to: "ancadaniel1994@gmail.com",
-      subject: "✅ Test email — Mementouri",
-      html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
-        <h2 style="color:#7c3aed;">✅ Email funcționează!</h2>
-        <p style="color:#374151;">Acesta este un email de test trimis din secțiunea Mementouri.</p>
-      </div>`,
+      ...mementosTestEmail(),
     });
     res.json({ ok: true });
   } catch (error) {

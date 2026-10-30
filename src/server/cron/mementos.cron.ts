@@ -6,6 +6,39 @@ import { getNextOccurrence } from "../routes/mementos.routes";
 
 const ADMIN_EMAIL = "ancadaniel1994@gmail.com";
 
+export function mementoEmail(input: {
+  title: string; description?: string; category?: string; recurring?: string; daysUntilDue: number; formattedDate: string;
+}): { subject: string; html: string } {
+  const { daysUntilDue, formattedDate, recurring = "none" } = input;
+  const data = { ...input, recurring };
+  const categoryLabel = data.category === "ancavisuals" ? "AncaVisuals" : "Personal";
+  const recurringLabel: Record<string, string> = {
+    weekly: "săptămânal", monthly: "lunar", yearly: "anual",
+  };
+  const recurringText = data.recurring !== "none"
+    ? `<p style="color:#6b7280;font-size:12px;">🔁 Recurent: ${recurringLabel[data.recurring] ?? data.recurring}</p>`
+    : "";
+
+  const reminderText = daysUntilDue > 0
+    ? `Scadent în <strong>${daysUntilDue} ${daysUntilDue === 1 ? "zi" : "zile"}</strong> — ${formattedDate}`
+    : daysUntilDue === 0
+      ? `Scadent <strong>azi</strong> — ${formattedDate}`
+      : `⚠ Depășit — ${formattedDate}`;
+  return {
+    subject: `⏰ Memento: ${data.title}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+        <h2 style="color:#7c3aed;margin-bottom:4px;">⏰ Memento</h2>
+        <p style="color:#6b7280;font-size:13px;margin-top:0;">${categoryLabel}</p>
+        <h3 style="color:#111;font-size:20px;margin:16px 0 8px;">${data.title}</h3>
+        ${data.description ? `<p style="color:#374151;font-size:15px;">${data.description}</p>` : ""}
+        <p style="color:#6b7280;font-size:13px;margin-top:16px;">${reminderText}</p>
+        ${recurringText}
+      </div>
+    `,
+  };
+}
+
 async function checkAndSendMementos() {
   try {
     const db = firestore();
@@ -37,33 +70,9 @@ async function checkAndSendMementos() {
         hour: "2-digit", minute: "2-digit",
       });
 
-      const categoryLabel = data.category === "ancavisuals" ? "AncaVisuals" : "Personal";
-      const recurringLabel: Record<string, string> = {
-        weekly: "săptămânal", monthly: "lunar", yearly: "anual",
-      };
-      const recurringText = data.recurring !== "none"
-        ? `<p style="color:#6b7280;font-size:12px;">🔁 Recurent: ${recurringLabel[data.recurring] ?? data.recurring}</p>`
-        : "";
-
-      const reminderText = daysUntilDue > 0
-        ? `Scadent în <strong>${daysUntilDue} ${daysUntilDue === 1 ? "zi" : "zile"}</strong> — ${formattedDate}`
-        : daysUntilDue === 0
-          ? `Scadent <strong>azi</strong> — ${formattedDate}`
-          : `⚠ Depășit — ${formattedDate}`;
-
       await sendEmail({
         to: ADMIN_EMAIL,
-        subject: `⏰ Memento: ${data.title}`,
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
-            <h2 style="color:#7c3aed;margin-bottom:4px;">⏰ Memento</h2>
-            <p style="color:#6b7280;font-size:13px;margin-top:0;">${categoryLabel}</p>
-            <h3 style="color:#111;font-size:20px;margin:16px 0 8px;">${data.title}</h3>
-            ${data.description ? `<p style="color:#374151;font-size:15px;">${data.description}</p>` : ""}
-            <p style="color:#6b7280;font-size:13px;margin-top:16px;">${reminderText}</p>
-            ${recurringText}
-          </div>
-        `,
+        ...mementoEmail({ title: data.title, description: data.description, category: data.category, recurring: data.recurring, daysUntilDue, formattedDate }),
       });
 
       // If recurring — advance the date and reset; otherwise mark as sent

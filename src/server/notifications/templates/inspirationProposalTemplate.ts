@@ -1,48 +1,27 @@
 import { sendEmail } from "../mailer";
 import { adminUser } from "../../constants/credentials";
 import { APP_BASE_URL } from "../../constants/domain";
+import { brandEmail, emailButton, emailStrong } from "./emailBrand";
 
-const brandHeader = `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">
-    <div style="text-align: center; margin-bottom: 24px;">
-      <h2 style="color: #c9a96e; font-weight: 300; letter-spacing: 3px; font-size: 20px; margin: 0;">ANCA VISUALS</h2>
-      <p style="color: #999; font-size: 11px; letter-spacing: 1px; margin: 4px 0 0; text-transform: uppercase;">Fotografie &amp; Videografie</p>
-    </div>
-    <hr style="border: none; border-top: 1px solid #c9a96e; margin: 0 0 28px;" />
-`;
-
-const brandFooter = `
-    <p style="color: #aaa; font-size: 11px; text-align: center; margin-top: 32px;">Anca Visuals · ancavisuals.ro</p>
-  </div>
-`;
+const paragraph = (text: string) => `<p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">${text}</p>`;
 
 interface ProposalSubmittedOptions {
   proposerEmail: string;
   photoCount: number;
 }
 
-export async function sendInspirationProposalSubmittedEmail(options: ProposalSubmittedOptions): Promise<void> {
-  const { proposerEmail, photoCount } = options;
-  const reviewLink = `${APP_BASE_URL}/admin/inspiration`;
-
-  await sendEmail({
-    to: adminUser.email,
+export function inspirationProposalSubmittedEmail({ proposerEmail, photoCount }: ProposalSubmittedOptions): { subject: string; html: string } {
+  return {
     subject: `[Inspirație] ${photoCount} ${photoCount === 1 ? "poză propusă" : "poze propuse"} de ${proposerEmail}`,
-    html: `
-      ${brandHeader}
-      <p style="color: #333; margin-bottom: 12px;">
-        <strong>${proposerEmail}</strong> a propus
-        <strong>${photoCount} ${photoCount === 1 ? "poză" : "poze"}</strong> pentru galeria de inspirație.
-      </p>
-      <div style="text-align: center; margin: 28px 0;">
-        <a href="${reviewLink}"
-           style="display: inline-block; padding: 14px 32px; background: #c9a96e; color: #fff; text-decoration: none; border-radius: 4px; font-size: 15px; letter-spacing: 1px;">
-          Revizuiește propunerile
-        </a>
-      </div>
-      ${brandFooter}
-    `,
-  });
+    html: brandEmail(`
+      ${paragraph(`${emailStrong(proposerEmail)} a propus ${emailStrong(`${photoCount} ${photoCount === 1 ? "poză" : "poze"}`)} pentru galeria de inspirație.`)}
+      ${emailButton(`${APP_BASE_URL}/admin/inspiration`, "Revizuiește propunerile")}
+    `),
+  };
+}
+
+export async function sendInspirationProposalSubmittedEmail(options: ProposalSubmittedOptions): Promise<void> {
+  await sendEmail({ to: adminUser.email, ...inspirationProposalSubmittedEmail(options) });
 }
 
 interface ProposalReviewOptions {
@@ -52,48 +31,35 @@ interface ProposalReviewOptions {
   rejectionReason: string;
 }
 
-export async function sendInspirationProposalReviewEmail(options: ProposalReviewOptions): Promise<void> {
-  const { to, action, photoUrl, rejectionReason } = options;
+const photo = (photoUrl: string, alt: string) => `
+  <div style="text-align: center; margin: 24px 0;">
+    <img src="${photoUrl}" alt="${alt}" style="max-width: 100%; max-height: 300px; border: 1px solid #111;" />
+  </div>`;
 
+export function inspirationProposalReviewEmail({ action, photoUrl, rejectionReason }: Omit<ProposalReviewOptions, "to">): { subject: string; html: string } {
   if (action === "approve") {
-    await sendEmail({
-      to,
+    return {
       subject: "[Inspirație] Poza ta a fost acceptată! ✓",
-      html: `
-        ${brandHeader}
-        <p style="color: #333; margin-bottom: 16px;">
-          Felicitări! Poza ta propusă a fost <strong style="color: #16a34a;">acceptată</strong> și a fost adăugată în galeria de inspirație.
-        </p>
-        <div style="text-align: center; margin: 20px 0;">
-          <img src="${photoUrl}" alt="Poza acceptată" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 2px solid #16a34a;" />
-        </div>
-        ${brandFooter}
-      `,
-    });
-  } else {
-    const reason = rejectionReason.trim()
-      ? rejectionReason
-      : "Poza nu corespunde stilului galeriei de inspirație.";
-
-    await sendEmail({
-      to,
-      subject: "[Inspirație] Poza ta nu a fost acceptată",
-      html: `
-        ${brandHeader}
-        <p style="color: #333; margin-bottom: 16px;">
-          Din păcate, poza ta propusă nu a fost acceptată în galeria de inspirație.
-        </p>
-        <div style="text-align: center; margin: 20px 0;">
-          <img src="${photoUrl}" alt="Poza respinsă" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 2px solid #dc2626;" />
-        </div>
-        <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;">
-          <p style="color: #991b1b; font-size: 13px; margin: 0;">
-            <strong>Motiv:</strong> ${reason}
-          </p>
-        </div>
-        <p style="color: #555; font-size: 13px;">Poți propune alte poze oricând din secțiunea "Propune Poze".</p>
-        ${brandFooter}
-      `,
-    });
+      html: brandEmail(`
+        ${paragraph(`Felicitări! Poza ta propusă a fost ${emailStrong("acceptată")} și a fost adăugată în galeria de inspirație.`)}
+        ${photo(photoUrl, "Poza acceptată")}
+      `),
+    };
   }
+  const reason = rejectionReason.trim() ? rejectionReason : "Poza nu corespunde stilului galeriei de inspirație.";
+  return {
+    subject: "[Inspirație] Poza ta nu a fost acceptată",
+    html: brandEmail(`
+      ${paragraph("Din păcate, poza ta propusă nu a fost acceptată în galeria de inspirație.")}
+      ${photo(photoUrl, "Poza respinsă")}
+      <p style="color: #111; font-size: 13px; line-height: 1.6; margin: 0 0 16px; padding: 12px 16px; border-left: 2px solid #111; background: #f5f5f5;">
+        <strong>Motiv:</strong> ${reason}
+      </p>
+      <p style="color: #555; font-size: 13px; margin: 0;">Poți propune alte poze oricând din secțiunea „Propune Poze”.</p>
+    `),
+  };
+}
+
+export async function sendInspirationProposalReviewEmail({ to, ...options }: ProposalReviewOptions): Promise<void> {
+  await sendEmail({ to, ...inspirationProposalReviewEmail(options) });
 }

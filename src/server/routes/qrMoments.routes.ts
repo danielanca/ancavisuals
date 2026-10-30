@@ -272,7 +272,7 @@ export async function claimThankYouEmail(
   }
 }
 
-async function sendThankYouEmail(
+export async function sendThankYouEmail(
   guestEmail: string,
   guestName: string,
   message: string,
@@ -378,7 +378,7 @@ export async function sendViewNotificationEmail(
   await sendEmail({ to: guestEmail, ...buildViewNotificationEmail(guestName, hostDisplayName, guestId, thumbnailUrl, mediaLabel, eventType, adPhotos) });
 }
 
-async function sendCommentNotification(
+export async function sendCommentNotification(
   guestEmail: string,
   guestName: string,
   commentText: string,
@@ -461,7 +461,7 @@ function coupleSmsReminderHtml(eventSlug: string): string {
           </div>`;
 }
 
-async function sendUploadNotification(
+export async function sendUploadNotification(
   notificationEmail: string,
   eventSlug: string,
   guestName: string,
@@ -545,6 +545,30 @@ function flushUploadNotification(batchId: string, notificationEmails: string[]):
       console.error(`[qr-moments] upload notification email failed for ${pending.eventSlug} -> ${recipient}:`, error);
     });
   }
+}
+
+export function galleryAccessEmail(input: { coupleLabel: string; uploadLabel: string; galleryUrl: string }): { subject: string; html: string } {
+  const { coupleLabel, uploadLabel, galleryUrl } = input;
+  return {
+    subject: `📸 Acces galerie QR Moments — ${coupleLabel}`,
+    html: `
+      <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
+        <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
+          <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
+          <h2 style="color:#241f1a;margin:0 0 8px;font-size:24px;font-weight:600;">Galeria voastră e gata!</h2>
+          <p style="color:#6b5b4d;margin:0;line-height:1.5;">
+            Aveți acces la galeria evenimentului <strong>${coupleLabel}</strong>, cu ${uploadLabel} încărcate de invitați.
+          </p>
+          <a href="${galleryUrl}" style="display:inline-block;background:#e0a13b;color:#241f1a;padding:12px 26px;border-radius:999px;text-decoration:none;font-weight:700;margin-top:20px;">
+            Deschide galeria
+          </a>
+          <p style="font-size:12px;color:#7b6a5a;margin:18px 0 0;">
+            Link-ul include deja codul de acces, așa că se deschide direct — nu mai trebuie introdus niciun PIN.
+          </p>
+        </div>
+      </div>
+    `,
+  };
 }
 
 async function getGallerySubscriberEmails(eventSlug: string): Promise<string[]> {
@@ -2365,24 +2389,7 @@ router.post('/admin/:eventSlug/send-gallery-email', requireFirebaseAuth, require
 
     await sendEmail({
       to: email,
-      subject: `📸 Acces galerie QR Moments — ${coupleLabel}`,
-      html: `
-        <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
-          <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">
-            <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#b7791f;">QR Moments</p>
-            <h2 style="color:#241f1a;margin:0 0 8px;font-size:24px;font-weight:600;">Galeria voastră e gata!</h2>
-            <p style="color:#6b5b4d;margin:0;line-height:1.5;">
-              Aveți acces la galeria evenimentului <strong>${coupleLabel}</strong>, cu ${uploadLabel} încărcate de invitați.
-            </p>
-            <a href="${galleryUrl}" style="display:inline-block;background:#e0a13b;color:#241f1a;padding:12px 26px;border-radius:999px;text-decoration:none;font-weight:700;margin-top:20px;">
-              Deschide galeria
-            </a>
-            <p style="font-size:12px;color:#7b6a5a;margin:18px 0 0;">
-              Link-ul include deja codul de acces, așa că se deschide direct — nu mai trebuie introdus niciun PIN.
-            </p>
-          </div>
-        </div>
-      `,
+      ...galleryAccessEmail({ coupleLabel, uploadLabel, galleryUrl }),
     });
 
     response.json({ ok: true });

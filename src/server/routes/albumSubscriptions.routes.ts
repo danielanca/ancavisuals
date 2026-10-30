@@ -1,3 +1,4 @@
+import { adminEmail } from "../notifications/templates/emailBrand";
 import express, { type Request, type Response } from "express";
 import { Timestamp } from "firebase-admin/firestore";
 import { firestore } from "../firestore";
@@ -154,21 +155,7 @@ router.post("/subscribe", async (req: Request, res: Response) => {
         if (!settings.email.subscribe) return;
         return sendEmail({
           to: adminUser.email,
-          subject: `🔔 Abonat nou la albumul ${albumSlug}`,
-          html: `
-            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-              <h2 style="color:#111;margin:0 0 16px;">Abonat nou la notificări album</h2>
-              <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                <tr><td style="padding:8px 0;color:#666;width:120px;">Album</td><td style="color:#111;font-weight:600;">${albumSlug}</td></tr>
-                <tr><td style="padding:8px 0;color:#666;">Contact</td><td style="color:#111;font-weight:600;">${escHtml(normalizedEmailForLog)}</td></tr>
-                <tr><td style="padding:8px 0;color:#666;">Canale</td><td style="color:#111;">${channels.map((c) => SUBSCRIBE_CHANNEL_META[c].label).join(", ")}</td></tr>
-                <tr><td style="padding:8px 0;color:#666;">Data</td><td style="color:#111;">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
-              </table>
-              <p style="margin:20px 0 0;">
-                <a href="${BASE_URL}/media/${encodeURIComponent(albumSlug)}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px;">Deschide albumul</a>
-              </p>
-            </div>
-          `,
+          ...newSubscriberAdminEmail(albumSlug, normalizedEmailForLog, channels),
         });
       })
       .catch(() => {});
@@ -206,26 +193,11 @@ router.get("/click/:slug", async (req: Request, res: Response) => {
 
     const location = ipInfo
       ? [ipInfo.city, ipInfo.region, ipInfo.country].filter(Boolean).join(", ")
-      : "unknown";
+      : "necunoscută";
 
     await sendEmail({
       to: adminUser.email,
-      subject: `👀 Subscriber opened album ${slug}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-          <h2 style="color:#111;margin:0 0 16px;">Subscriber clicked "Vezi albumul"</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            <tr><td style="padding:8px 0;color:#666;width:120px;">Album</td><td style="color:#111;font-weight:600;">${slug}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;">Email</td><td style="color:#111;font-weight:600;">${email}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;">Clicked at</td><td style="color:#111;">${clickedAt}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;">IP</td><td style="color:#111;">${ip || "unknown"}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;">Location</td><td style="color:#111;">${location}</td></tr>
-          </table>
-          <p style="margin:20px 0 0;">
-            <a href="${albumUrl}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px;">Open album</a>
-          </p>
-        </div>
-      `,
+      ...subscriberClickEmail({ slug, email, clickedAt, ip, location, albumUrl }),
     });
   } catch {
     // Ignore tracking failures and still redirect the subscriber to the album.
@@ -282,22 +254,7 @@ router.post("/notify/:slug", requireFirebaseAuth, requireSupremeAdmin, async (re
       emails.map((email) =>
         sendEmail({
           to: email,
-          subject: "Poze noi au fost adăugate în albumul tău 📸",
-          html: `
-            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff;">
-              <h1 style="font-size:22px;font-weight:500;margin:0 0 12px;">Fotograful a adăugat poze noi! 🎉</h1>
-              <p style="color:#aaa;font-size:15px;line-height:1.6;margin:0 0 24px;">
-                Albumul <strong style="color:#fff">${slug}</strong> a fost actualizat cu fotografii și/sau videoclipuri noi.
-              </p>
-              <a href="${BASE_URL}/api/album-subscriptions/click/${encodeURIComponent(slug)}?email=${encodeURIComponent(email)}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
-                Vezi albumul →
-              </a>
-              <hr style="border:none;border-top:1px solid #222;margin:32px 0;" />
-              <p style="color:#555;font-size:12px;">
-                Ai primit acest email deoarece te-ai abonat la notificările pentru albumul <em>${slug}</em>.
-              </p>
-            </div>
-          `,
+          ...photosAddedEmail(slug, email),
         })
       )
     );
@@ -438,6 +395,57 @@ router.get("/updates/:slug", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Nu am putut încărca noutățile." });
   }
 });
+
+export function newSubscriberAdminEmail(albumSlug: string, contact: string, channels: SubscribeChannel[]): { subject: string; html: string } {
+  return {
+    subject: `🔔 Abonat nou la albumul ${albumSlug}`,
+    html: adminEmail({
+      eyebrow: "Album · Abonare",
+      title: "Abonat nou la notificările albumului",
+      rows: [
+        ["Album", escHtml(albumSlug)],
+        ["Contact", escHtml(contact)],
+        ["Canale", channels.map((c) => SUBSCRIBE_CHANNEL_META[c].label).join(", ")],
+        ["Data", new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })],
+      ],
+      button: { href: `${BASE_URL}/media/${encodeURIComponent(albumSlug)}`, label: "Deschide albumul" },
+    }),
+  };
+}
+
+export function subscriberClickEmail(input: { slug: string; email: string; clickedAt: string; ip: string; location: string; albumUrl: string }): { subject: string; html: string } {
+  const { slug, email, clickedAt, ip, location, albumUrl } = input;
+  return {
+    subject: `👀 Un abonat a deschis albumul ${slug}`,
+    html: adminEmail({
+      eyebrow: "Album · Abonat",
+      title: "Un abonat a apăsat „Vezi albumul”",
+      rows: [["Album", escHtml(slug)], ["Email", escHtml(email)], ["Deschis la", clickedAt], ["Locație", escHtml(location)], ["IP", escHtml(ip || "necunoscut")]],
+      button: { href: albumUrl, label: "Deschide albumul" },
+    }),
+  };
+}
+
+export function photosAddedEmail(slug: string, email: string): { subject: string; html: string } {
+  return {
+    subject: "Poze noi au fost adăugate în albumul tău 📸",
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff;">
+        <h1 style="font-size:22px;font-weight:500;margin:0 0 12px;">Fotograful a adăugat poze noi! 🎉</h1>
+        <p style="color:#aaa;font-size:15px;line-height:1.6;margin:0 0 24px;">
+          Albumul <strong style="color:#fff">${slug}</strong> a fost actualizat cu fotografii și/sau videoclipuri noi.
+        </p>
+        <a href="${BASE_URL}/api/album-subscriptions/click/${encodeURIComponent(slug)}?email=${encodeURIComponent(email)}" style="display:inline-block;padding:12px 24px;background:#fff;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
+          Vezi albumul →
+        </a>
+        <hr style="border:none;border-top:1px solid #222;margin:32px 0;" />
+        <p style="color:#555;font-size:12px;">
+          Ai primit acest email deoarece te-ai abonat la notificările pentru albumul <em>${slug}</em>.
+        </p>
+      </div>
+    `,
+  };
+}
 
 export function subscribeConfirmationEmail(
   slug: string,

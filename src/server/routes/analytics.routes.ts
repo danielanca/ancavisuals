@@ -85,6 +85,20 @@ const CONTACT_CLICK_LABELS: Record<string, string> = {
   instagram: "📸 Click Instagram",
 };
 
+export function contactClickEmailHtml(input: { title: string; page: string; locationLabel: string; provider: string }): string {
+  const { title, page, locationLabel, provider } = input;
+  return `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#e5e5e5;padding:24px;border-radius:12px">
+      <h2 style="margin:0 0 16px;font-size:20px;color:#fff">${title}</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:6px 0;color:#888">Pagină</td><td style="padding:6px 0">${page}</td></tr>
+        <tr><td style="padding:6px 0;color:#888">Locație</td><td style="padding:6px 0">${locationLabel}</td></tr>
+        <tr><td style="padding:6px 0;color:#888">Provider</td><td style="padding:6px 0">${provider}</td></tr>
+        <tr><td style="padding:6px 0;color:#888">Ora</td><td style="padding:6px 0">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
+      </table>
+    </div>`;
+}
+
 // POST /api/analytics/contact-click
 analyticsPublicRouter.post("/contact-click", async (req: Request, res: Response) => {
   try {
@@ -118,16 +132,7 @@ analyticsPublicRouter.post("/contact-click", async (req: Request, res: Response)
     }).catch(() => {});
 
     // Send email with cooldown — phone clicks are high-intent, always notify
-    const html = `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#e5e5e5;padding:24px;border-radius:12px">
-        <h2 style="margin:0 0 16px;font-size:20px;color:#fff">${title}</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <tr><td style="padding:6px 0;color:#888">Pagină</td><td style="padding:6px 0">${page || "/"}</td></tr>
-          <tr><td style="padding:6px 0;color:#888">Locație</td><td style="padding:6px 0">${locationLabel}</td></tr>
-          <tr><td style="padding:6px 0;color:#888">Provider</td><td style="padding:6px 0">${ipInfo?.org || "—"}</td></tr>
-          <tr><td style="padding:6px 0;color:#888">Ora</td><td style="padding:6px 0">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
-        </table>
-      </div>`;
+    const html = contactClickEmailHtml({ title, page: page || "/", locationLabel, provider: ipInfo?.org || "—" });
 
     const lastClick = contactClickByIp.get(ip);
     if (lastClick && Date.now() - lastClick < CONTACT_CLICK_COOLDOWN_MS) {

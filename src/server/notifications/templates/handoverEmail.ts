@@ -1,22 +1,8 @@
 import { mailer } from "../mailer";
+import { brandEmail } from "./emailBrand";
 import { adminUser, emailAuth } from "../../constants/credentials";
 
-const EMAIL_HEADER = `
-  <div style="text-align: center; margin-bottom: 24px;">
-    <h2 style="color: #c9a96e; font-weight: 300; letter-spacing: 3px; font-size: 20px; margin: 0;">ANCA VISUALS</h2>
-    <p style="color: #999; font-size: 11px; letter-spacing: 1px; margin: 4px 0 0; text-transform: uppercase;">Fotografie & Videografie</p>
-  </div>
-  <hr style="border: none; border-top: 1px solid #c9a96e; margin: 0 0 28px;" />`;
-
-const EMAIL_FOOTER = `
-  <hr style="border: none; border-top: 1px solid #eee; margin: 28px 0 16px;" />
-  <p style="color: #bbb; font-size: 10px; text-align: center; margin: 0;">
-    Anca Visuals &nbsp;•&nbsp; ancadaniel1994@gmail.com
-  </p>`;
-
-function emailWrap(body: string): string {
-  return `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fff;">${EMAIL_HEADER}${body}${EMAIL_FOOTER}</div>`;
-}
+const emailWrap = brandEmail;
 
 function formatRoDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -52,11 +38,11 @@ export async function sendHandoverLinkEmail(options: HandoverLinkEmailOptions): 
       Accesați link-ul de mai jos, citiți documentul și semnați electronic.
     </p>
     <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Procesul Verbal</a>
+      <a href="${link}" style="display:inline-block;background-color:#111;color:#fff;padding:14px 36px;text-decoration:none;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Procesul Verbal</a>
     </div>
     <p style="color: #aaa; font-size: 11px; text-align: center;">
       Sau accesați direct:<br/>
-      <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
+      <a href="${link}" style="color: #111; word-break: break-all;">${link}</a>
     </p>
   `);
 
@@ -99,14 +85,14 @@ export async function sendSignedHandoverEmail(options: SignedHandoverEmailOption
   const digitalLinkBlock = digitalLinks && digitalLinks.length > 0
     ? `
     <div style="text-align: center; margin-bottom: 28px;">
-      ${digitalLinks.map((l) => `<a href="${l.url}" style="display:inline-block;background-color:#1a1a1a;color:#fff;padding:14px 24px;text-decoration:none;border-radius:4px;font-size:14px;font-weight:600;letter-spacing:0.5px;margin:4px;">${l.label}</a>`).join("")}
+      ${digitalLinks.map((l) => `<a href="${l.url}" style="display:inline-block;background-color:#1a1a1a;color:#fff;padding:14px 24px;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:0.5px;margin:4px;">${l.label}</a>`).join("")}
       ${digitalLinkExpiryDays ? `<p style="color: #999; font-size: 12px; margin: 10px 0 0;">Link-urile sunt valabile ${digitalLinkExpiryDays} zile de la data semnării.</p>` : ""}
     </div>`
     : "";
 
   const awbBlock = awb
     ? `
-    <div style="background: #fffbf0; border: 1px solid #e8c840; border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;">
+    <div style="background: #f5f5f5; border: 1px solid #111; padding: 14px 18px; margin-bottom: 28px;">
       <p style="color: #333; font-size: 13px; margin: 0;">
         Coletul fizic a fost expediat prin curier, cu numărul de tracking (AWB): <strong>${awb}</strong>.
         Vă rugăm să urmăriți statusul livrării folosind acest cod pe site-ul curierului.
@@ -121,7 +107,7 @@ export async function sendSignedHandoverEmail(options: SignedHandoverEmailOption
     </p>
     <p style="color: #555; margin-bottom: 28px;">${bodyText}</p>
     <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${pdfUrl}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">${buttonLabel}</a>
+      <a href="${pdfUrl}" style="display:inline-block;background-color:#111;color:#fff;padding:14px 36px;text-decoration:none;font-size:15px;font-weight:600;letter-spacing:1px;">${buttonLabel}</a>
     </div>
     ${digitalLinkBlock}
     ${awbBlock}
@@ -166,11 +152,11 @@ export async function sendHandoverReminderEmail(options: HandoverReminderEmailOp
       iar imediat după semnare primiți materialele de la eveniment.
     </p>
     <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Procesul Verbal</a>
+      <a href="${link}" style="display:inline-block;background-color:#111;color:#fff;padding:14px 36px;text-decoration:none;font-size:15px;font-weight:600;letter-spacing:1px;">Semnează Procesul Verbal</a>
     </div>
     <p style="color: #aaa; font-size: 11px; text-align: center;">
       Sau accesați direct:<br/>
-      <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
+      <a href="${link}" style="color: #111; word-break: break-all;">${link}</a>
     </p>
   `);
 
@@ -217,11 +203,11 @@ export async function sendDownloadReminderEmail(options: DownloadReminderEmailOp
       După descărcare, vă recomandăm să păstrați cel puțin o copie de rezervă (de exemplu pe un hard disk extern sau în cloud).
     </p>
     <div style="text-align: center; margin-bottom: 28px;">
-      <a href="${link}" style="display:inline-block;background-color:#c9a96e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:1px;">Descarcă materialele</a>
+      <a href="${link}" style="display:inline-block;background-color:#111;color:#fff;padding:14px 36px;text-decoration:none;font-size:15px;font-weight:600;letter-spacing:1px;">Descarcă materialele</a>
     </div>
     <p style="color: #aaa; font-size: 11px; text-align: center;">
       Sau accesați direct:<br/>
-      <a href="${link}" style="color: #c9a96e; word-break: break-all;">${link}</a>
+      <a href="${link}" style="color: #111; word-break: break-all;">${link}</a>
     </p>
   `);
 

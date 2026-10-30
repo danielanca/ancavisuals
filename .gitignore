@@ -51,3 +51,5 @@ src/server/diniubire_servicekey.json
 .env.local
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+# Added by code-review-graph
+.code-review-graph/

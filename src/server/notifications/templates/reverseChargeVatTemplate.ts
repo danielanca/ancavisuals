@@ -54,7 +54,7 @@ export function buildReverseChargeVatHtml({ periodLabel, deadlineLabel, taxableB
         <strong style="color:#e04444">${deadlineLabel}</strong>.
       </p>
 
-      <div style="background:#fff;border-left:4px solid #f4d067;border-radius:4px;padding:14px 16px;margin-bottom:16px">
+      <div style="background:#fff;border-left:4px solid #111;border-radius:4px;padding:14px 16px;margin-bottom:16px">
         <p style="margin:0 0 4px;color:#666;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Bază impozabilă</p>
         <p style="margin:0 0 12px;color:#111;font-size:20px;font-weight:700">${fmtRon(taxableBaseRon)}</p>
         <p style="margin:0 0 4px;color:#666;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">TVA estimat (${Math.round(vatRate * 100)}%)</p>

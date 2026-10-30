@@ -1,3 +1,4 @@
+import { adminEmail, emailList } from "../notifications/templates/emailBrand";
 import { randomUUID } from "node:crypto";
 import { firestore } from "../firestore";
 import { sendEmail } from "../notifications/mailer";
@@ -99,6 +100,24 @@ export async function touchAlbumUpload(id: string, eventId: string, finish: bool
   });
 }
 
+export function incompleteUploadEmail(session: Pick<UploadSession, "slug" | "total" | "pending">): { subject: string; html: string } {
+  return {
+    subject: `⚠️ Upload incomplet: ${session.slug} — ${session.pending.length}/${session.total} originale neconfirmate`,
+    html: adminEmail({
+      eyebrow: "Album · Upload",
+      title: "Upload incomplet",
+      rows: [
+        ["Album", html(session.slug)],
+        ["Confirmate", `${session.total - session.pending.length} / ${session.total}`],
+        ["Neconfirmate", session.pending.length],
+      ],
+      extra: `<p style="margin:0 0 8px;">Verifică și reîncarcă fișierele:</p>${emailList(session.pending.map(html))}`,
+      note: "Lipsa confirmării poate apărea și dacă transferul s-a încheiat, dar conexiunea s-a întrerupt înainte de înregistrarea rezultatului.",
+      button: { href: `${APP_BASE_URL}/admin`, label: "Deschide administrarea" },
+    }),
+  };
+}
+
 export async function notifyIncompleteAlbumUpload(id: string, now = Date.now()): Promise<boolean> {
   const session = await firestore().runTransaction(async (tx) => {
     const doc = ref(id);
@@ -115,13 +134,8 @@ export async function notifyIncompleteAlbumUpload(id: string, now = Date.now()):
     if (!adminUser.email) throw new Error("Admin notification email missing");
     await sendEmail({
       to: adminUser.email,
-      subject: `⚠️ Upload incomplet: ${session.slug} — ${session.pending.length}/${session.total} originale neconfirmate`,
       source: "album-upload",
-      html: `<p>Nu s-a confirmat încărcarea tuturor fotografiilor originale în albumul <strong>${html(session.slug)}</strong>.</p>
-        <p>${session.total - session.pending.length}/${session.total} încărcate și confirmate; ${session.pending.length} neconfirmate după reîncercare sau întreruperea uploadului.</p>
-        <p>Verifică și reîncarcă fișierele de mai jos. Lipsa confirmării poate apărea și dacă transferul s-a încheiat, dar conexiunea s-a întrerupt înainte de înregistrarea rezultatului.</p>
-        <ul>${session.pending.map((name) => `<li>${html(name)}</li>`).join("")}</ul>
-        <p><a href="${APP_BASE_URL}/admin">Deschide administrarea evenimentelor</a></p>`,
+      ...incompleteUploadEmail(session),
     });
     await logActivityOnce(`album-upload-incomplete:${id}`, {
       type: "upload_incomplete",

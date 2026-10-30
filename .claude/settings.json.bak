@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "humanizer@humanizer": true,
+    "superpowers@claude-plugins-official": true
+  }
+}

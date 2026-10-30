@@ -11,6 +11,7 @@ import { geolocateIp } from "../utils/geolocateIp";
 import { saveLead, updateLeadEmailStatus } from "../services/leads.service";
 import { getClientIp } from "../utils/ipinfo";
 import { FREE_PHOTOBOOTH_SLOTS, getFreePhotoboothContracts } from "../services/freePhotoboothContracts.service";
+import { leadEmailHtml, leadWhatsappText } from "../../shared/leadEmails";
 
 const router = Router();
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -177,6 +178,31 @@ function escapeHtml(value: unknown): string {
 
 export const REFERRAL_LEAD_NOTE = "🎁 Venit prin recomandare (utm_source=recomandare): cine i-a recomandat primește ședința foto gratuită după ce semnează contractul (fotocabina NU mai e gratuită din 2026-10-29).";
 
+export function landingLeadEmail(input: {
+  referral: boolean; pageTitle: string; subjectTime: string; slug: string; name?: string; phone: string; whatsappLink: string | null;
+  eventType?: string; eventDate?: string; location?: string; message?: string;
+}): { subject: string; html: string } {
+  const { referral, pageTitle, subjectTime, slug, name, phone, eventType, eventDate, location, message } = input;
+  return {
+    subject: `${referral ? "🎁 RECOMANDARE · " : ""}📩 Cerere nouă de pe landing "${pageTitle}" — ${subjectTime}`,
+    html: leadEmailHtml({
+      eyebrow: `${referral ? "Recomandare · " : ""}Cerere nouă · ${pageTitle}`,
+      title: name || "Cerere nouă",
+      subtitle: [eventType, eventDate].filter(Boolean).join(" · ") || undefined,
+      phone,
+      whatsappText: leadWhatsappText({ name, eventType, date: eventDate }),
+      fields: [
+        ["Tip eveniment", eventType],
+        ["Dată eveniment", eventDate],
+        ["Localitate", location],
+        ["Mesaj", message],
+        ["Landing", `/oferta/${slug}`],
+      ],
+      note: referral ? "Venit prin recomandare: cine i-a recomandat primește ședința foto gratuită după semnarea contractului." : undefined,
+    }),
+  };
+}
+
 // POST /api/campaign/:slug/contact — form submission from landing page
 router.post("/:slug/contact", async (req: Request, res: Response) => {
   try {
@@ -227,21 +253,7 @@ router.post("/:slug/contact", async (req: Request, res: Response) => {
         source: "lead",
         ...(leadId ? { leadId } : {}),
         to: adminUser.email,
-        subject: `${referral === true ? "🎁 RECOMANDARE · " : ""}📩 Cerere nouă de pe landing "${pageTitle}" — ${subjectTime}`,
-        html: `
-          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
-            <h2 style="color:#111;margin:0 0 20px;">Cerere nouă — ${pageTitle}</h2>
-            <table style="width:100%;border-collapse:collapse;font-size:14px;">
-              ${name ? `<tr><td style="padding:8px 0;color:#666;width:120px;">Nume</td><td style="color:#111;font-weight:600;">${escapeHtml(name)}</td></tr>` : ""}
-              <tr><td style="padding:8px 0;color:#666;width:120px;">Telefon</td><td style="color:#111;font-weight:600;">${escapeHtml(phone)}${whatsappLink ? ` &nbsp;<a href="${whatsappLink}" style="display:inline-block;background:#25d366;color:#fff;text-decoration:none;font-weight:600;padding:4px 10px;border-radius:6px;font-size:13px;">💬 WhatsApp</a>` : ""}</td></tr>
-              ${eventType ? `<tr><td style="padding:8px 0;color:#666;">Tip eveniment</td><td style="color:#111;">${escapeHtml(eventType)}</td></tr>` : ""}
-              ${eventDate ? `<tr><td style="padding:8px 0;color:#666;">Dată eveniment</td><td style="color:#111;">${escapeHtml(eventDate)}</td></tr>` : ""}
-              ${location ? `<tr><td style="padding:8px 0;color:#666;">Localitate</td><td style="color:#111;">${escapeHtml(location)}</td></tr>` : ""}
-              ${message ? `<tr><td style="padding:8px 0;color:#666;">Mesaj</td><td style="color:#111;">${escapeHtml(message).replace(/\n/g, "<br>")}</td></tr>` : ""}
-              <tr><td style="padding:8px 0;color:#666;">Landing</td><td style="color:#6d28d9;">/oferta/${slug}</td></tr>
-            </table>
-          </div>
-        `,
+        ...landingLeadEmail({ referral: referral === true, pageTitle, subjectTime, slug, name, phone, whatsappLink, eventType, eventDate, location, message }),
       });
       emailSent = true;
     } catch (emailError) {

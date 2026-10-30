@@ -3,6 +3,8 @@
  * as seen by his wife on /zile-ocupate (she signs in with her email and a one-time code): a month
  * view, a list with each event's price and date, and a subscribable .ics feed (secret link) with
  * reminders a week and a day before. Shared by the server (feed + emails) and the page.
+ * The helper (Salomeea) signs in on the same page but only sees the events she's assigned to in
+ * /admin/calendar-familie, without prices or family-time requests.
  */
 
 export type FamilyCalendarEvent = {
@@ -37,13 +39,23 @@ export const FAMILY_TIME_STATUS_LABEL: Record<FamilyTimeRequest["status"], strin
   rejected: "✕ Neaprobat",
 };
 
+/** "family" = Estera / the owner (everything); "helper" = Salomeea (her events, no prices). */
+export type FamilyCalendarViewer = "family" | "helper";
+
 export type FamilyCalendarData = {
+  viewer: FamilyCalendarViewer;
   events: FamilyCalendarEvent[];
   familyTime: FamilyTimeRequest[];
   /** Secret .ics feed for calendar apps (they can't sign in). */
   icsUrl: string;
   generatedAt: string;
 };
+
+/** What the helper sees: only her assigned events, with the price taken out. */
+export function helperEvents(events: readonly FamilyCalendarEvent[], assignedIds: readonly string[]): FamilyCalendarEvent[] {
+  const assigned = new Set(assignedIds);
+  return events.filter((event) => assigned.has(event.id)).map((event) => ({ ...event, total: null }));
+}
 
 /** The page Estera signs in to. */
 export const FAMILY_CALENDAR_PAGE = "/zile-ocupate";

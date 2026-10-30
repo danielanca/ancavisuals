@@ -19,7 +19,7 @@ interface TriggerTemplateData {
 }
 
 function detectSource(referrer: string): { label: string; color: string; emoji: string } {
-  if (!referrer || referrer === "direct") return { label: "Direct / Unknown", color: "#6b7280", emoji: "🔗" };
+  if (!referrer || referrer === "direct") return { label: "Direct / necunoscut", color: "#6b7280", emoji: "🔗" };
   const r = referrer.toLowerCase();
   if (r.includes("instagram.com") || r.includes("l.instagram")) return { label: "Instagram", color: "#e1306c", emoji: "📸" };
   if (r.includes("facebook.com") || r.includes("fb.com") || r.includes("m.facebook")) return { label: "Facebook", color: "#1877f2", emoji: "👍" };
@@ -33,21 +33,21 @@ function detectSource(referrer: string): { label: string; color: string; emoji: 
 }
 
 function parseDevice(ua: string): { device: string; browser: string; os: string } {
-  if (!ua) return { device: "Unknown", browser: "Unknown", os: "Unknown" };
+  if (!ua) return { device: "Necunoscut", browser: "Necunoscut", os: "Necunoscut" };
   const uaLower = ua.toLowerCase();
 
   const device = /mobile|android|iphone|ipad/.test(uaLower)
     ? /ipad/.test(uaLower) ? "Tabletă (iPad)" : "Mobil"
     : "Desktop";
 
-  let browser = "Unknown";
+  let browser = "Necunoscut";
   if (uaLower.includes("edg/")) browser = "Edge";
   else if (uaLower.includes("opr/") || uaLower.includes("opera")) browser = "Opera";
   else if (uaLower.includes("chrome/") && !uaLower.includes("chromium")) browser = "Chrome";
   else if (uaLower.includes("firefox/")) browser = "Firefox";
   else if (uaLower.includes("safari/") && !uaLower.includes("chrome")) browser = "Safari";
 
-  let os = "Unknown";
+  let os = "Necunoscut";
   if (uaLower.includes("windows nt")) os = "Windows";
   else if (uaLower.includes("mac os x") && !uaLower.includes("iphone") && !uaLower.includes("ipad")) os = "macOS";
   else if (uaLower.includes("iphone")) os = "iOS (iPhone)";
@@ -205,7 +205,7 @@ export function renderTriggerTemplate(data: TriggerTemplateData): string {
           <!-- USER AGENT BRUT -->
           <tr>
             <td style="background:#ffffff;padding:16px 32px 28px;">
-              <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;">User Agent</p>
+              <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;">Detalii browser</p>
               <p style="margin:0;font-size:11px;color:#9ca3af;word-break:break-all;line-height:1.6;">${browserVersion}</p>
             </td>
           </tr>

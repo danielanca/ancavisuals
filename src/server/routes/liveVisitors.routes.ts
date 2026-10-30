@@ -1,3 +1,4 @@
+import { adminEmail } from "../notifications/templates/emailBrand";
 import { numberDailyVisitors, visitDayBounds, visitSource, visitSourceLabel } from "../../shared/liveVisits";
 import { summarizeContactStats, type ContactStatsSession } from "../../shared/contactStats";
 import { eventTypeLabel } from "../../shared/eventTypes";
@@ -98,7 +99,7 @@ function shouldEmailEvent(sessionId: string, eventName: string, discriminator = 
   return true;
 }
 
-function buildEventEmail(
+export function buildEventEmail(
   eventName: string,
   session: LiveSession,
   eventBody: Record<string, unknown>,
@@ -528,16 +529,13 @@ const DEVICE_LABEL = { mobile: "telefon", tablet: "tabletă", desktop: "calculat
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
 
-function albumOpenedEmail(slug: string, sourceLabel: string, geoLabel: string, device: keyof typeof DEVICE_LABEL): string {
+export function albumOpenedEmail(slug: string, sourceLabel: string, geoLabel: string, device: keyof typeof DEVICE_LABEL): string {
   const at = new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" });
-  const row = (label: string, value: string) =>
-    `<tr><td style="padding:8px 0;color:#666;width:120px;">${label}</td><td style="color:#111;font-weight:600;">${escapeHtml(value)}</td></tr>`;
-  return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-    <h2 style="color:#111;margin:0 0 16px;">Clientul a deschis albumul din notificare</h2>
-    <table style="width:100%;border-collapse:collapse;font-size:14px;">
-      ${row("Album", slug)}${row("A venit din", sourceLabel)}${row("Când", at)}${row("Locație", geoLabel)}${row("Dispozitiv", DEVICE_LABEL[device] ?? device)}
-    </table>
-    <p style="margin:20px 0 0;color:#666;font-size:13px;">Primești un singur email pe zi pentru fiecare album și sursă.</p>
-    <p style="margin:16px 0 0;"><a href="${APP_BASE_URL}/media/${encodeURIComponent(slug)}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;text-decoration:none;">Deschide albumul</a></p>
-  </div>`;
+  return adminEmail({
+    eyebrow: "Album",
+    title: "Clientul a deschis albumul din notificare",
+    rows: [["Album", escapeHtml(slug)], ["A venit din", escapeHtml(sourceLabel)], ["Când", at], ["Locație", escapeHtml(geoLabel)], ["Dispozitiv", DEVICE_LABEL[device] ?? device]],
+    note: "Primești un singur email pe zi pentru fiecare album și sursă.",
+    button: { href: `${APP_BASE_URL}/media/${encodeURIComponent(slug)}`, label: "Deschide albumul" },
+  });
 }

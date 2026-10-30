@@ -18,7 +18,7 @@ function buildGalleryUrl(albumSlug: string): string {
   return `${APP_BASE_URL}/fotocabina/${albumSlug}/galerie`;
 }
 
-function buildEmailHtml(guestName: string, galleryUrl: string): string {
+export function buildEmailHtml(guestName: string, galleryUrl: string): string {
   return `
     <div style="margin:0;padding:24px;background:#f5f1ea;font-family:Arial,sans-serif;color:#241f1a;">
       <div style="max-width:560px;margin:0 auto;background:#fffdf9;border:1px solid #eadfce;border-radius:18px;padding:28px 24px;box-shadow:0 8px 30px rgba(68,44,16,0.08);">

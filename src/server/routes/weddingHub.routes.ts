@@ -1,3 +1,4 @@
+import { brandEmail } from "../notifications/templates/emailBrand";
 import { createAnthropicClient } from "../lib/anthropicClient";
 import { Router } from "express";
 import type { Request, Response } from "express";
@@ -118,25 +119,21 @@ function renderMultilineText(value: string): string {
   return escapeHtml(value).replace(/\n/g, "<br />");
 }
 
-function buildGuestBroadcastEmailHtml(args: {
+export function buildGuestBroadcastEmailHtml(args: {
   guestName: string;
   weddingName: string;
   subject: string;
   message: string;
 }): string {
-  return `
-    <div style="font-family:Arial,sans-serif;background:#111;padding:24px;color:#f5f5f5;">
-      <div style="max-width:620px;margin:0 auto;border:1px solid #262626;border-radius:16px;padding:24px;background:#171717;">
-        <p style="margin:0 0 6px;color:#fb7185;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;">Wedding Hub</p>
-        <h1 style="margin:0 0 18px;font-size:24px;font-weight:400;color:#fff;">${escapeHtml(args.subject)}</h1>
-        <p style="margin:0 0 16px;color:#e5e5e5;">Salut, ${escapeHtml(args.guestName)}.</p>
-        <div style="border-left:3px solid #fb7185;padding-left:14px;color:#f5f5f5;font-size:15px;line-height:1.7;white-space:normal;">
-          ${renderMultilineText(args.message)}
-        </div>
-        <p style="margin:20px 0 0;color:#737373;font-size:13px;">${escapeHtml(args.weddingName)}</p>
-      </div>
+  return brandEmail(`
+    <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#666;margin:0 0 8px;">Wedding Hub · ${escapeHtml(args.weddingName)}</div>
+    <h1 style="font-size:24px;font-weight:400;line-height:1.3;color:#111;margin:0 0 18px;">${escapeHtml(args.subject)}</h1>
+    <p style="font-size:15px;color:#111;margin:0 0 16px;">Salut, ${escapeHtml(args.guestName)}.</p>
+    <div style="font-size:15px;line-height:1.7;color:#111;padding:16px 18px;border-left:2px solid #111;background:#f5f5f5;">
+      ${renderMultilineText(args.message)}
     </div>
-  `;
+    <p style="font-size:13px;color:#666;margin:20px 0 0;">Cu drag, ${escapeHtml(args.weddingName)}</p>
+  `);
 }
 
 function buildGuestBroadcastSmsBody(args: { guestName: string; message: string; weddingName: string }): string {
@@ -2207,6 +2204,17 @@ router.get("/invite/:token", async (req: Request, res: Response) => {
   }
 });
 
+export function rsvpCoupleEmail(guestName: string, confirmed: boolean, summaryLines: string[]): { subject: string; html: string } {
+  return {
+    subject: `RSVP nou: ${guestName} ${confirmed ? "a confirmat" : "a refuzat"}`,
+    html: brandEmail(`
+      <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#666;margin:0 0 8px;">Wedding Hub · RSVP</div>
+      <h1 style="font-size:24px;font-weight:400;line-height:1.3;color:#111;margin:0 0 18px;">Răspuns nou la invitație</h1>
+      <div style="font-size:14px;line-height:1.6;color:#111;padding:16px 18px;border:1px solid #e5e5e5;background:#fafafa;">${summaryLines.join("")}</div>
+    `),
+  };
+}
+
 // POST /api/wedding-hub/invite/:token/rsvp — submit RSVP (public)
 router.post("/invite/:token/rsvp", async (req: Request, res: Response) => {
   try {
@@ -2353,16 +2361,7 @@ router.post("/invite/:token/rsvp", async (req: Request, res: Response) => {
 
       sendEmail({
         to: weddingData.coupleEmail,
-        subject: `RSVP nou: ${guestName} ${rsvpStatus === "confirmat" ? "a confirmat" : "a refuzat"}`,
-        html: `
-          <div style="font-family:Arial,sans-serif;background:#111;padding:24px;color:#f5f5f5;">
-            <div style="max-width:560px;margin:0 auto;border:1px solid #262626;border-radius:16px;padding:24px;background:#171717;">
-              <p style="margin:0 0 6px;color:#fb7185;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;">Wedding Hub</p>
-              <h1 style="margin:0 0 18px;font-size:24px;font-weight:400;color:#fff;">Răspuns nou la invitație</h1>
-              ${summaryLines.join("")}
-            </div>
-          </div>
-        `,
+        ...rsvpCoupleEmail(guestName, rsvpStatus === "confirmat", summaryLines),
       }).catch((error) => {
         console.error("[wedding-hub] RSVP couple notification email failed:", error);
       });

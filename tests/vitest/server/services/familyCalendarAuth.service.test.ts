@@ -31,6 +31,8 @@ function fakeDb() {
 
 vi.mock("src/server/firestore", () => ({ firestore: () => fakeDb() }));
 vi.mock("src/server/notifications/mailer", () => ({ sendEmail }));
+const sendSms = vi.fn();
+vi.mock("src/server/notifications/sms", async (importOriginal) => ({ ...(await importOriginal<object>()), sendSms, isSmsConfigured: () => true }));
 vi.mock("src/server/middleware/requireFirebaseAuth", () => ({ ESTERA_EMAIL: "estera@example.com" }));
 vi.mock("src/server/constants/domain", () => ({ APP_BASE_URL: "https://ancavisuals.ro" }));
 
@@ -43,13 +45,14 @@ const sentMagic = () => String(sendEmail.mock.calls.at(-1)![0].html).match(/intr
 beforeEach(() => {
   for (const key of Object.keys(store)) delete store[key];
   sendEmail.mockReset();
+  sendSms.mockReset();
 });
 
 describe("family calendar login", () => {
   test("only the calendar's email gets a code (case and spaces don't matter)", async () => {
     expect(await auth.requestFamilyLoginCode("altcineva@example.com", NOW)).toEqual({ ok: false, reason: "wrong-email" });
     expect(sendEmail).not.toHaveBeenCalled();
-    expect(await auth.requestFamilyLoginCode("  Estera@Example.com ", NOW)).toEqual({ ok: true });
+    expect(await auth.requestFamilyLoginCode("  Estera@Example.com ", NOW)).toEqual({ ok: true, channel: "email" });
     const mail = sendEmail.mock.calls[0][0];
     expect(mail.to).toBe("estera@example.com");
     expect(mail.subject).toMatch(/^\d{6} e codul pentru calendar$/);
@@ -64,11 +67,11 @@ describe("family calendar login", () => {
     const result = await auth.verifyFamilyLogin({ email: "estera@example.com", code }, NOW + 60_000);
     expect(result.ok).toBe(true);
     const session = (result as { session: string }).session;
-    expect(await auth.familySessionValid(session, NOW + 89 * 86_400_000)).toBe(true);
-    expect(await auth.familySessionValid(session, NOW + 91 * 86_400_000)).toBe(false);
+    expect(await auth.familySessionViewer(session, NOW + 89 * 86_400_000)).toBe("family");
+    expect(await auth.familySessionViewer(session, NOW + 91 * 86_400_000)).toBe(null);
     expect((await auth.verifyFamilyLogin({ email: "estera@example.com", code }, NOW + 61_000)).ok).toBe(false);
     await auth.endFamilySession(session);
-    expect(await auth.familySessionValid(session, NOW + 120_000)).toBe(false);
+    expect(await auth.familySessionViewer(session, NOW + 120_000)).toBe(null);
   });
 
   test("the email's button signs in without typing the code", async () => {
@@ -94,7 +97,7 @@ describe("family calendar login", () => {
   test("the owner signs in with their own email; each email keeps its own code", async () => {
     await auth.requestFamilyLoginCode("estera@example.com", NOW);
     const esteraCode = sentCode();
-    expect(await auth.requestFamilyLoginCode("AncaDaniel1994@gmail.com", NOW + 1000)).toEqual({ ok: true });
+    expect(await auth.requestFamilyLoginCode("AncaDaniel1994@gmail.com", NOW + 1000)).toEqual({ ok: true, channel: "email" });
     expect(sendEmail.mock.calls.at(-1)![0].to).toBe("ancadaniel1994@gmail.com");
     const ownerCode = sentCode();
     const ownerMagic = sentMagic();
@@ -106,11 +109,31 @@ describe("family calendar login", () => {
     expect((await auth.verifyFamilyLogin({ magic: ownerMagic }, NOW + 5000)).ok).toBe(false);
   });
 
+  test("Salomeea signs in as the helper; Estera and the owner as family", async () => {
+    expect(await auth.requestFamilyLoginCode("salomeeamitre602@gmail.com", NOW)).toEqual({ ok: true, channel: "email" });
+    const helper = await auth.verifyFamilyLogin({ email: "salomeeamitre602@gmail.com", code: sentCode() }, NOW + 1000);
+    expect(helper).toMatchObject({ ok: true, viewer: "helper" });
+    expect(await auth.familySessionViewer((helper as { session: string }).session, NOW + 2000)).toBe("helper");
+    await auth.requestFamilyLoginCode("ancadaniel1994@gmail.com", NOW);
+    expect(await auth.verifyFamilyLogin({ magic: sentMagic() }, NOW + 1000)).toMatchObject({ ok: true, viewer: "family" });
+  });
+
+  test("a saved phone number gets the code by SMS and signs in with it", async () => {
+    store.settings = { familyCalendar: { token: "t", helperToken: "h", helperPhone: "+40722123456" } };
+    expect(await auth.requestFamilyLoginCode("0722 123 456", NOW)).toEqual({ ok: true, channel: "sms" });
+    expect(sendEmail).not.toHaveBeenCalled();
+    const { to, body } = sendSms.mock.calls[0][0];
+    expect(to).toBe("+40722123456");
+    const code = String(body).match(/\d{6}/)![0];
+    expect(await auth.verifyFamilyLogin({ email: "+40 722 123 456", code }, NOW + 1000)).toMatchObject({ ok: true, viewer: "helper" });
+    expect(await auth.requestFamilyLoginCode("0799 999 999", NOW)).toEqual({ ok: false, reason: "wrong-email" });
+  });
+
   test("signing out everywhere ends every session; cookies are httpOnly", async () => {
     await auth.requestFamilyLoginCode("estera@example.com", NOW);
     const { session } = (await auth.verifyFamilyLogin({ magic: sentMagic() }, NOW)) as { session: string };
     expect(await auth.endAllFamilySessions()).toBe(1);
-    expect(await auth.familySessionValid(session, NOW)).toBe(false);
+    expect(await auth.familySessionViewer(session, NOW)).toBe(null);
     expect(auth.sessionCookie("abc", true)).toMatch(/^fc_session=abc; Path=\/api\/family-calendar; HttpOnly; SameSite=Lax; Secure; Max-Age=7776000$/);
     expect(auth.readCookie("a=1; fc_session=xyz; b=2", "fc_session")).toBe("xyz");
   });

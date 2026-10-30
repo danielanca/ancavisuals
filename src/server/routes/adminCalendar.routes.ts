@@ -7,8 +7,11 @@ import { FAMILY_CALENDAR_PAGE, familyCalendarIcsPath } from "../../shared/family
 import { endAllFamilySessions } from "../services/familyCalendarAuth.service";
 import { decideFamilyTimeRequest, deleteFamilyTimeRequest, listFamilyTimeRequests } from "../services/familyTime.service";
 import {
-  getFamilyCalendarSettings, rotateFamilyCalendarToken, sendFamilyCalendarEmail, updateFamilyCalendarSettings,
+  getFamilyCalendarSettings, loadFamilyCalendarEvents, rotateFamilyCalendarToken, sendFamilyCalendarEmail, sendHelperCalendarEmail,
+  updateFamilyCalendarSettings,
 } from "../services/familyCalendar.service";
+import { notifyHelperAssigned, sendFamilyCalendarMessage, type ManualMessageTarget } from "../services/familyCalendarNotify.service";
+import { isSmsConfigured, normalizeRomanianPhoneNumber } from "../notifications/sms";
 
 const CONFIRMED_STATUSES = new Set(["confirmat", "finalizat"]);
 
@@ -51,7 +54,8 @@ router.get("/booked-dates", requireFirebaseAuth, requireSupremeAdmin, async (_re
 });
 
 // --- Calendarul pentru Estera (/admin/calendar-familie): pagina /zile-ocupate (login cu cod pe
-// email), feed-ul .ics cu link secret, emailurile și cererile ei de timp pentru familie ---
+// email), feed-ul .ics cu link secret, emailurile și cererile ei de timp pentru familie; plus
+// Salomeea (helper): emailul ei și evenimentele la care e asignată (le vede fără prețuri) ---
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -63,6 +67,14 @@ async function familyCalendarState() {
     recipientEmail: settings.recipientEmail,
     weeklyEmail: settings.weeklyEmail,
     lastEmailAt: settings.lastEmailAt,
+    helperEmail: settings.helperEmail,
+    helperEventIds: settings.helperEventIds,
+    helperIcsUrl: `${APP_BASE_URL}${familyCalendarIcsPath(settings.helperToken)}`,
+    recipientPhone: settings.recipientPhone,
+    helperPhone: settings.helperPhone,
+    reminders: settings.reminders,
+    smsConfigured: isSmsConfigured(),
+    calendarEvents: await loadFamilyCalendarEvents(),
   };
 }
 
@@ -76,30 +88,55 @@ router.get("/family-calendar", requireFirebaseAuth, requireSupremeAdmin, async (
 });
 
 router.patch("/family-calendar", requireFirebaseAuth, requireSupremeAdmin, async (req, res) => {
-  const { recipientEmail, weeklyEmail } = req.body ?? {};
-  if (recipientEmail !== undefined && (typeof recipientEmail !== "string" || !EMAIL_PATTERN.test(recipientEmail.trim()))) {
+  const { recipientEmail, weeklyEmail, helperEmail, helperEventIds, recipientPhone, helperPhone, reminders } = req.body ?? {};
+  const badEmail = (email: unknown) => email !== undefined && (typeof email !== "string" || !EMAIL_PATTERN.test(email.trim()));
+  if (badEmail(recipientEmail) || badEmail(helperEmail)) {
     res.status(400).json({ error: "Adresa de email nu e validă." });
     return;
   }
-  if (weeklyEmail !== undefined && typeof weeklyEmail !== "boolean") {
-    res.status(400).json({ error: "weeklyEmail trebuie să fie true sau false." });
+  if (helperEventIds !== undefined && (!Array.isArray(helperEventIds) || helperEventIds.length > 1000
+    || !helperEventIds.every((id: unknown) => typeof id === "string" && id.length > 0 && id.length <= 200))) {
+    res.status(400).json({ error: "Lista de evenimente nu e validă." });
+    return;
+  }
+  if ((weeklyEmail !== undefined && typeof weeklyEmail !== "boolean") || (reminders !== undefined && typeof reminders !== "boolean")) {
+    res.status(400).json({ error: "Valoarea trebuie să fie true sau false." });
+    return;
+  }
+  // "" clears the phone; anything else must look like a phone number.
+  const phone = (value: unknown) => (value === undefined ? undefined : typeof value !== "string" ? null : value.trim() === "" ? "" : normalizeRomanianPhoneNumber(value));
+  const [cleanRecipientPhone, cleanHelperPhone] = [phone(recipientPhone), phone(helperPhone)];
+  if (cleanRecipientPhone === null || cleanHelperPhone === null) {
+    res.status(400).json({ error: "Numărul de telefon nu pare corect." });
     return;
   }
   try {
+    const before = helperEventIds !== undefined ? (await getFamilyCalendarSettings()).helperEventIds : [];
     await updateFamilyCalendarSettings({
       ...(recipientEmail !== undefined ? { recipientEmail: recipientEmail.trim() } : {}),
       ...(weeklyEmail !== undefined ? { weeklyEmail } : {}),
+      ...(helperEmail !== undefined ? { helperEmail: helperEmail.trim() } : {}),
+      ...(helperEventIds !== undefined ? { helperEventIds: [...new Set<string>(helperEventIds)] } : {}),
+      ...(cleanRecipientPhone !== undefined ? { recipientPhone: cleanRecipientPhone } : {}),
+      ...(cleanHelperPhone !== undefined ? { helperPhone: cleanHelperPhone } : {}),
+      ...(reminders !== undefined ? { reminders } : {}),
     });
-    res.json(await familyCalendarState());
+    // Newly ticked events: Salomeea hears right away (email + SMS); a failed message doesn't undo the save.
+    const added = helperEventIds !== undefined ? (helperEventIds as string[]).filter((id) => !before.includes(id)) : [];
+    const notified = added.length ? await notifyHelperAssigned(added).catch((e) => {
+      console.error("[adminCalendar] helper assignment notice failed:", e);
+      return null;
+    }) : null;
+    res.json({ ...(await familyCalendarState()), ...(notified ? { notified } : {}) });
   } catch (e) {
     console.error("[adminCalendar] family calendar update failed:", e);
     res.status(500).json({ error: "Nu s-au putut salva setările." });
   }
 });
 
-router.post("/family-calendar/rotate", requireFirebaseAuth, requireSupremeAdmin, async (_req, res) => {
+router.post("/family-calendar/rotate", requireFirebaseAuth, requireSupremeAdmin, async (req, res) => {
   try {
-    await rotateFamilyCalendarToken();
+    await rotateFamilyCalendarToken(req.body?.viewer === "helper" ? "helper" : "family");
     res.json(await familyCalendarState());
   } catch (e) {
     console.error("[adminCalendar] family calendar rotate failed:", e);
@@ -114,6 +151,32 @@ router.post("/family-calendar/send-email", requireFirebaseAuth, requireSupremeAd
   } catch (e) {
     console.error("[adminCalendar] family calendar email failed:", e);
     res.status(500).json({ error: "Emailul nu a putut fi trimis." });
+  }
+});
+
+router.post("/family-calendar/send-helper-email", requireFirebaseAuth, requireSupremeAdmin, async (_req, res) => {
+  try {
+    const sent = await sendHelperCalendarEmail();
+    res.json({ ...sent, ...(await familyCalendarState()) });
+  } catch (e) {
+    console.error("[adminCalendar] helper calendar email failed:", e);
+    res.status(500).json({ error: "Emailul nu a putut fi trimis." });
+  }
+});
+
+router.post("/family-calendar/message", requireFirebaseAuth, requireSupremeAdmin, async (req, res) => {
+  const { to, text, email, sms } = req.body ?? {};
+  const targets = Array.isArray(to) ? to.filter((item): item is ManualMessageTarget => item === "family" || item === "helper") : [];
+  const message = typeof text === "string" ? text.trim() : "";
+  if (targets.length === 0 || !message || message.length > 1000 || (email !== true && sms !== true)) {
+    res.status(400).json({ error: "Alege cui trimiți, pe ce canal, și scrie mesajul (max 1000 de caractere)." });
+    return;
+  }
+  try {
+    res.json({ results: await sendFamilyCalendarMessage({ to: targets, text: message, email: email === true, sms: sms === true }) });
+  } catch (e) {
+    console.error("[adminCalendar] family calendar message failed:", e);
+    res.status(500).json({ error: "Mesajul nu a putut fi trimis." });
   }
 });
 

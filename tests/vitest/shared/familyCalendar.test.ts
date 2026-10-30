@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildFamilyCalendarIcs, eventsBetween, googleCalendarSubscribeUrl, mondayOf, type FamilyCalendarEvent } from "src/shared/familyCalendar";
+import { buildFamilyCalendarIcs, eventsBetween, googleCalendarSubscribeUrl, helperEvents, mondayOf, type FamilyCalendarEvent } from "src/shared/familyCalendar";
 
 const event = (over: Partial<FamilyCalendarEvent> = {}): FamilyCalendarEvent => ({
   id: "ev1", dates: ["2026-11-14"], type: "Nuntă", clientName: "Ana, Ion", location: "Sala; Turda", total: 2500, status: "confirmat", ...over,
@@ -10,6 +10,12 @@ describe("family calendar", () => {
     expect(mondayOf("2026-10-28")).toBe("2026-10-26");
     expect(mondayOf("2026-11-01")).toBe("2026-10-26");
     expect(mondayOf("2026-10-26")).toBe("2026-10-26");
+  });
+
+  test("helperEvents keeps only the assigned events and drops the price", () => {
+    const events = [event({ id: "a" }), event({ id: "b" })];
+    expect(helperEvents(events, ["b"])).toEqual([{ ...events[1], total: null }]);
+    expect(buildFamilyCalendarIcs(helperEvents(events, ["b"]), new Date("2026-10-28T10:00:00Z"))).not.toContain("Preț");
   });
 
   test("eventsBetween keeps events with any day in range, earliest first", () => {

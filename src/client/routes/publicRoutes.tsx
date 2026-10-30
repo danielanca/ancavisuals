@@ -30,6 +30,7 @@ const FeedbackPage = loadable(() => import("../features/feedback/FeedbackPage"),
 const SharePage = loadable(() => import("../pages/MediaDownload/SharePage"), opts(true));
 const ProposalLinkPage = loadable(() => import("../pages/MediaDownload/ProposalLinkPage"), opts(false));
 const FamilyCalendarPage = loadable(() => import("../pages/FamilyCalendar/FamilyCalendarPage"), opts(false));
+const CopyPage = loadable(() => import("../pages/Copy/CopyPage"), opts(false));
 const GuestVerificationPage = loadable(() => import("../pages/GuestVerification/GuestVerificationPage"), opts(true));
 const InvitationLandingPage = loadable(() => import("../pages/InvitationLanding/InvitationLandingPage"), opts(true));
 const QRMomentsPage = loadable(() => import("../pages/QRMoments/QRMomentsPage"), opts(true));
@@ -177,6 +178,11 @@ const publicRoutes: publicRoutesType[] = [
     path: "/zile-ocupate",
     layout: null,
     component: FamilyCalendarPage,
+  },
+  {
+    path: "/copiaza",
+    layout: null,
+    component: CopyPage,
   },
   {
     path: "/invitatie/:slug",

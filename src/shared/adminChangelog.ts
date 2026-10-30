@@ -20,13 +20,55 @@ export type ChangelogEntry = {
 
 export const ADMIN_CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-10-30-family-calendar-sms",
+    at: "2026-10-30T12:30",
+    emoji: "📲",
+    title: "Zile ocupate: telefon, SMS, remindere și mesaje",
+    summary: "Salvezi telefonul Esterei și al Salomeei. Salomeea primește email și SMS când o bifezi la un eveniment. Amândouă primesc reminder cu o săptămână și cu o zi înainte. Le poți scrie oricând un mesaj pe email și/sau SMS.",
+    details: [
+      "Login și cu numărul de telefon: codul vine prin SMS.",
+      "Reminderele pleacă la 9:00, o singură dată pe eveniment. Estera le primește pentru toate evenimentele, Salomeea doar pentru ale ei. Prețul apare doar în emailul Esterei, niciodată în SMS. Se pot opri din secțiunea „Remindere”.",
+    ],
+    links: [{ label: "Calendar pentru Estera", path: "/admin/calendar-familie" }],
+  },
+  {
+    id: "2026-10-30-family-calendar-helper",
+    at: "2026-10-30T11:30",
+    emoji: "👤",
+    title: "Salomeea are și ea calendarul ei în Zile ocupate",
+    summary: "În Calendar pentru Estera bifezi la ce evenimente e asignată Salomeea. Ea intră pe /zile-ocupate cu emailul ei și un cod și vede doar acele evenimente, fără prețuri.",
+    details: [
+      "Nu vede cererile pentru familie și nu poate cere zile. Are linkul ei separat pentru calendarul din telefon, cu doar evenimentele ei.",
+      "„Trimite-i invitația” îi trimite pe email cum intră și lista evenimentelor ei. „Deconectează pe toată lumea” le deconectează și pe Estera, și pe Salomeea.",
+    ],
+    links: [{ label: "Calendar pentru Estera", path: "/admin/calendar-familie" }],
+  },
+  {
+    id: "2026-10-30-all-emails-monochrome",
+    at: "2026-10-30T11:20",
+    emoji: "✉️",
+    title: "Toate emailurile sunt acum alb-negru și pătrățoase",
+    summary: "Orice email trimis de site (clienți, alerte admin, rapoarte, QR Moments, contracte) iese în stilul ancavisuals: alb, text negru, colțuri drepte, fără auriu sau galben.",
+    details: [
+      "Emailurile de alertă cu fundal negru (404, erori, login, rapoarte) sunt întoarse automat pe fundal alb.",
+      "Butoanele aurii sau colorate devin negre, cu text alb; panourile colorate devin gri deschis.",
+      "Footer-ul cu poze de la finalul emailurilor e și el alb-negru, cu buton negru pătrat.",
+      "Toate emailurile pot fi trimise ca test cu date de exemplu: npx tsx scripts/sendEmailPreviews.ts (merg la info@ancavisuals.ro, câte unul la 10 secunde).",
+      "Cererile noi (configurator, lead rapid, /bio, landing) au design nou, cu telefonul mare și butoanele Sună și WhatsApp (mesajul pe WhatsApp e deja scris).",
+      "Emailurile de admin (album deschis, abonați, ZIP, previzualizări, upload incomplet, proces-verbal deschis, album expirat) au același chenar alb-negru.",
+      "În emailul cu datele de plată și la codul de logare din calendar, lângă fiecare valoare e „⧉ copiază”: deschide ancavisuals.ro/copiaza, care copiază valoarea.",
+      "Textele rămase în engleză din emailurile de admin sunt acum în română.",
+    ],
+    links: [{ label: "Jurnal emailuri", path: "/admin/email-log" }],
+  },
+  {
     id: "2026-10-30-family-calendar-owner-login",
     at: "2026-10-30T10:25",
     emoji: "🔑",
     title: "Te poți loga și tu în Zile ocupate",
     summary: "Pe /zile-ocupate merge acum și emailul tău (ancadaniel1994@gmail.com): primești codul pe email și vezi exact ce vede Estera.",
     details: ["Fiecare email are codul lui, deci dacă cereți amândoi cod în același timp nu se anulează unul pe altul. „Deconectează de pe toate dispozitivele” te deconectează și pe tine."],
-    links: [{ label: "Zile ocupate", path: "/zile-ocupate" }],
+    links: [{ label: "Calendar pentru Estera", path: "/admin/calendar-familie" }],
   },
   {
     id: "2026-10-29-viewer-visible-viewport",

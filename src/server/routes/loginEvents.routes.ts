@@ -72,7 +72,7 @@ function maskEmail(email: string): string {
 }
 
 
-function buildEmailHtml(params: {
+export function buildEmailHtml(params: {
   type: "success" | "failure";
   ip: string;
   browser: string;
@@ -89,7 +89,7 @@ function buildEmailHtml(params: {
   const isSuccess = params.type === "success";
   const accentColor = isSuccess ? "#10b981" : "#f59e0b";
   const badgeBg = isSuccess ? "#064e3b" : "#451a03";
-  const badgeText = isSuccess ? "LOGIN SUCCESSFUL" : "LOGIN ATTEMPT ALERT";
+  const badgeText = isSuccess ? "LOGARE REUȘITĂ" : "ÎNCERCARE DE LOGARE";
 
   const rows: [string, string][] = [
     ["Data / Ora", params.timestamp],
@@ -120,7 +120,7 @@ function buildEmailHtml(params: {
       <div style="max-width:520px;margin:0 auto;background:#111111;border:1px solid #222;border-radius:12px;overflow:hidden;">
         <div style="height:4px;background:${accentColor};"></div>
         <div style="padding:24px 24px 16px;">
-          <p style="color:#6b7280;font-size:10px;letter-spacing:2px;text-transform:uppercase;margin:0 0 10px;">AncaVisuals · Admin Security</p>
+          <p style="color:#6b7280;font-size:10px;letter-spacing:2px;text-transform:uppercase;margin:0 0 10px;">AncaVisuals · Securitate admin</p>
           <span style="display:inline-block;background:${badgeBg};border:1px solid ${accentColor};color:${accentColor};font-size:10px;font-weight:700;letter-spacing:1.5px;padding:4px 12px;border-radius:6px;">${badgeText}</span>
         </div>
         <table style="width:100%;border-collapse:collapse;">
@@ -183,8 +183,8 @@ router.post("/login-event", async (req: Request, res: Response) => {
   const deviceShort = `${browser} / ${os}`;
 
   const subject = type === "success"
-    ? `✅ Login Successful — ${deviceShort} — ${locationShort}`
-    : `⚠️ Login Attempt Alert — ${deviceShort} — ${locationShort}`;
+    ? `✅ Logare reușită — ${deviceShort} — ${locationShort}`
+    : `⚠️ Încercare de logare — ${deviceShort} — ${locationShort}`;
 
   const html = buildEmailHtml({
     type,

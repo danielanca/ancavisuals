@@ -89,6 +89,15 @@ router.get("/init", (_req, res) => {
   res.json(CHAT_NODES.get("welcome") ?? FALLBACK_NODE);
 });
 
+export function chatTranscriptEmail(messages: readonly { sender: "bot" | "user"; text: string }[]): { subject: string; html: string } {
+  const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  const transcript = messages.map(message => `<div style="margin:0 0 14px;padding:12px 14px;${message.sender === "user" ? "background:#fff;border:1px solid #111" : "background:#f5f5f5;border:1px solid #f5f5f5"}"><strong>${message.sender === "user" ? "Client" : "Anca Visuals"}</strong><div style="margin-top:5px;white-space:pre-wrap">${escapeHtml(message.text)}</div></div>`).join("");
+  return {
+    subject: "💬 Transcript conversație chatbot Anca Visuals",
+    html: `<h2 style="color:#111">Conversație chatbot încheiată prin inactivitate</h2><p style="color:#555">Clientul nu a mai trimis mesaje timp de 5 minute.</p>${transcript}`,
+  };
+}
+
 router.post("/transcript", async (req, res) => {
   const messages: unknown[] = Array.isArray(req.body?.messages) ? req.body.messages.slice(-100) : [];
   const validMessages = messages.filter((message: unknown): message is { sender: "bot" | "user"; text: string } => {
@@ -99,10 +108,8 @@ router.post("/transcript", async (req, res) => {
   if (!validMessages.some(message => message.sender === "user")) return res.status(400).json({ error: "Conversația nu conține mesaje de la client." });
   if (!adminUser.email) return res.status(503).json({ error: "Emailul administratorului nu este configurat." });
 
-  const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-  const transcript = validMessages.map(message => `<div style="margin:0 0 14px;padding:12px 14px;border-radius:10px;background:${message.sender === "user" ? "#fef3c7" : "#f3f4f6"}"><strong>${message.sender === "user" ? "Client" : "Anca Visuals"}</strong><div style="margin-top:5px;white-space:pre-wrap">${escapeHtml(message.text)}</div></div>`).join("");
   try {
-    await sendEmail({ to: adminUser.email, subject: "💬 Transcript conversație chatbot Anca Visuals", html: `<h2 style="color:#111">Conversație chatbot încheiată prin inactivitate</h2><p style="color:#555">Clientul nu a mai trimis mesaje timp de 5 minute.</p>${transcript}` });
+    await sendEmail({ to: adminUser.email, ...chatTranscriptEmail(validMessages) });
     return res.json({ sent: true });
   } catch (error) {
     console.error("[chatbot] transcript email failed:", error);

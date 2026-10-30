@@ -92,7 +92,7 @@ function shouldSendNotFoundEmail(path: string): boolean {
 const SCANNER_PATH_PATTERN =
   /(\.php|\.aspx?|\.env|\/wp-|xmlrpc|\/\.git|\/vendor\/|\/cgi-bin|phpmyadmin|\/owa\/|wallet\.dat|\/\.aws|\/\.ssh)/i;
 
-async function sendNotFoundEmail(
+export async function sendNotFoundEmail(
   path: string,
   referrer: string,
   userAgent: string,
@@ -125,7 +125,7 @@ async function sendNotFoundEmail(
   });
 }
 
-async function sendSlowLoadEmail(message: string, page: string, ip?: string) {
+export async function sendSlowLoadEmail(message: string, page: string, ip?: string) {
   const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   await sendEmail({
     to: adminUser.email,
@@ -144,7 +144,7 @@ async function sendSlowLoadEmail(message: string, page: string, ip?: string) {
   });
 }
 
-async function sendImageLoadFailedEmail(message: string, stack: string, page: string, ip?: string) {
+export async function sendImageLoadFailedEmail(message: string, stack: string, page: string, ip?: string) {
   const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const url = message.replace("[IMAGE LOAD FAILED] ", "");
   await sendEmail({
@@ -166,25 +166,25 @@ async function sendImageLoadFailedEmail(message: string, stack: string, page: st
   });
 }
 
-async function sendQrDebugEmail(message: string, stack: string, page: string, ip?: string, geo?: { city?: string; region?: string; country?: string }) {
+export async function sendQrDebugEmail(message: string, stack: string, page: string, ip?: string, geo?: { city?: string; region?: string; country?: string }) {
   const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const location = geo ? [geo.city, geo.region, geo.country].filter(Boolean).join(", ") : "";
 
   await sendEmail({
     to: adminUser.email,
-    subject: `[QR DEBUG] Problemă upload pe ${page || "/qr-moments"}`,
+    subject: `[QR Moments] Problemă la încărcare pe ${page || "/qr-moments"}`,
     html: `
       <div style="font-family:sans-serif;max-width:680px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5;border-radius:12px;">
-        <h2 style="color:#f5f5f5;margin-bottom:8px;">QR Moments client debug</h2>
-        <p style="color:#a3a3a3;margin-top:0;"><strong>Page:</strong> ${safe(page || "-")}</p>
+        <h2 style="color:#f5f5f5;margin-bottom:8px;">QR Moments — problemă la încărcare</h2>
+        <p style="color:#a3a3a3;margin-top:0;"><strong>Pagină:</strong> ${safe(page || "-")}</p>
         <p style="color:#a3a3a3;"><strong>IP:</strong> ${safe(ip || "-")}</p>
-        <p style="color:#a3a3a3;"><strong>Geo:</strong> ${safe(location || "-")}</p>
+        <p style="color:#a3a3a3;"><strong>Locație:</strong> ${safe(location || "-")}</p>
         <div style="background:#171717;border:1px solid #262626;border-radius:8px;padding:14px 16px;margin-top:16px;">
-          <p style="margin:0 0 8px;color:#f59e0b;font-weight:600;">Message</p>
+          <p style="margin:0 0 8px;color:#f59e0b;font-weight:600;">Mesaj</p>
           <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:#f5f5f5;">${safe(message)}</pre>
         </div>
         <div style="background:#171717;border:1px solid #262626;border-radius:8px;padding:14px 16px;margin-top:16px;">
-          <p style="margin:0 0 8px;color:#f59e0b;font-weight:600;">Stack / Context</p>
+          <p style="margin:0 0 8px;color:#f59e0b;font-weight:600;">Detalii tehnice</p>
           <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:#d4d4d4;">${safe(stack || "-")}</pre>
         </div>
       </div>
@@ -233,7 +233,7 @@ function shouldSendNewErrorEmail(fingerprint: string): boolean {
   return true;
 }
 
-async function sendNewClientErrorEmail(
+export async function sendNewClientErrorEmail(
   category: ErrorCategory,
   message: string,
   stack: string,

@@ -35,6 +35,24 @@ function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+export function overdueTaskEmail(task: {
+  id: string; title: unknown; clientName?: unknown; plannedFor: unknown; scheduledStart: unknown; end: string; token: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `⏰ Task nefăcut: ${String(task.title ?? "Task")}`,
+    html: `<div style="font-family:sans-serif;max-width:560px;margin:auto;padding:24px">
+      <h2>Task rămas nefăcut</h2>
+      <p>Au trecut cel puțin 2 ore de la sfârșitul intervalului din timeline, dar taskul nu este bifat ca făcut.</p>
+      <h3>${escapeHtml(task.title)}</h3>
+      ${task.clientName ? `<p>Client: ${escapeHtml(task.clientName)}</p>` : ""}
+      <p>Programat: ${escapeHtml(task.plannedFor)} ${escapeHtml(task.scheduledStart)}<br>
+      Sfârșit: ${task.end} (ora Bucureștiului)</p>
+      ${Object.entries(TASK_EMAIL_ACTIONS).map(([action, label]) => `<p><a style="display:inline-block;background:${action === "done" ? "#15803d" : "#171717"};color:white;padding:14px 20px;border-radius:8px;text-decoration:none" href="${escapeHtml(APP_BASE_URL)}/api/task-email-actions/${encodeURIComponent(task.id)}/${action}?token=${task.token}">${label}</a></p>`).join("")}
+      <p><a href="${escapeHtml(APP_BASE_URL)}/admin/taskuri">Deschide taskurile clienților</a></p>
+    </div>`,
+  };
+}
+
 export async function checkOverdueClientTasks(now = new Date()) {
   const db = firestore();
   const snapshot = await db.collection("clientTasks").where("status", "in", ["todo", "doing"]).get();
@@ -64,17 +82,8 @@ export async function checkOverdueClientTasks(now = new Date()) {
         continue;
       }
       await sendViaFunnel({
-        ...email, subject: `⏰ Task nefăcut: ${String(claimed.title ?? "Task")}`,
-        html: `<div style="font-family:sans-serif;max-width:560px;margin:auto;padding:24px">
-          <h2>Task rămas nefăcut</h2>
-          <p>Au trecut cel puțin 2 ore de la sfârșitul intervalului din timeline, dar taskul nu este bifat ca făcut.</p>
-          <h3>${escapeHtml(claimed.title)}</h3>
-          ${claimed.clientName ? `<p>Client: ${escapeHtml(claimed.clientName)}</p>` : ""}
-          <p>Programat: ${escapeHtml(claimed.plannedFor)} ${escapeHtml(claimed.scheduledStart)}<br>
-          Sfârșit: ${schedule.end} (ora Bucureștiului)</p>
-          ${Object.entries(TASK_EMAIL_ACTIONS).map(([action, label]) => `<p><a style="display:inline-block;background:${action === "done" ? "#15803d" : "#171717"};color:white;padding:14px 20px;border-radius:8px;text-decoration:none" href="${escapeHtml(APP_BASE_URL)}/api/task-email-actions/${encodeURIComponent(doc.id)}/${action}?token=${actionToken.token}">${label}</a></p>`).join("")}
-          <p><a href="${escapeHtml(APP_BASE_URL)}/admin/taskuri">Deschide taskurile clienților</a></p>
-        </div>`,
+        ...email,
+        ...overdueTaskEmail({ id: doc.id, title: claimed.title, clientName: claimed.clientName, plannedFor: claimed.plannedFor, scheduledStart: claimed.scheduledStart, end: schedule.end, token: actionToken.token }),
       });
       // The email may already have been acted on while SMTP was completing.
       await db.runTransaction(async tx => {
