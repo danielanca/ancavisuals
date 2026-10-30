@@ -20,6 +20,14 @@ export type ChangelogEntry = {
 
 export const ADMIN_CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-10-30-build-progress",
+    at: "2026-10-30T11:35",
+    emoji: "⏳",
+    title: "Build-ul arată acum progresul",
+    summary: "npm run build spune la ce pas e (1/7 … 7/7), cât durează fiecare și scrie la fiecare 5 secunde că încă rulează, ca să vezi că nu s-a blocat.",
+    details: ["Pasul cel mai lung e verificarea TypeScript (tsc): nu afișează nimic până termină, dar acum vezi „rulează de 45s…”. Dacă un pas pică, build-ul se oprește și spune care."],
+  },
+  {
     id: "2026-10-30-family-calendar-sms",
     at: "2026-10-30T12:30",
     emoji: "📲",
