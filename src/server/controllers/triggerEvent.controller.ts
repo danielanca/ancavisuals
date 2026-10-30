@@ -26,7 +26,7 @@ interface TypeEvent {
   // search keyword captured from the landing URL.
   landingPath?: string;
   keyword?: string;
-  // Populated by BookingWizard for Lead Rapid / full booking submissions
+  // Prebuilt email (e.g. the /bio callback)
   subject?: string;
   html?: string;
   to?: string;

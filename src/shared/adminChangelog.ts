@@ -20,6 +20,38 @@ export type ChangelogEntry = {
 
 export const ADMIN_CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-10-30-fresh-token-pilot",
+    at: "2026-10-30T13:08",
+    emoji: "🔑",
+    title: "Taskuri, lead-uri și vizitatori live: fără „Token invalid”",
+    summary: "Paginile Taskuri, widgetul de lead-uri și Vizitatori live folosesc acum mereu o sesiune de login proaspătă, chiar dacă tabul a stat deschis ore întregi.",
+    details: [
+      "Până acum aceste pagini trimiteau sesiunea ținută de la deschidere, care putea expira după o oră de inactivitate.",
+      "E primul pas: restul paginilor din admin trec la fel, pe rând.",
+    ],
+    links: [{ label: "Taskuri", path: "/admin/taskuri" }],
+  },
+  {
+    id: "2026-10-30-cleanup-unused",
+    at: "2026-10-30T12:55",
+    emoji: "🧹",
+    title: "Curățenie: cod mort și pachete nefolosite scoase",
+    summary: "Am scos din proiect 34 de fișiere pe care nu le mai folosea nimic (vechiul configurator de rezervări, pagini Pricing/Photobooth vechi) și 11 pachete npm nefolosite. Site-ul arată și merge la fel.",
+    details: [
+      "Din git au ieșit și o copie veche a proiectului (35 MB, 75% din repo), cache-ul graphify și un PDF personal; fișierele au rămas pe disc, doar nu mai sunt urmărite.",
+      "Build-ul nu mai generează fișiere .d.ts (12 MB în dist) — o aplicație nu are nevoie de ele.",
+      "html-react-parser e acum dependență normală: pagina de invitație îl folosește și la randarea pe server.",
+    ],
+  },
+  {
+    id: "2026-10-30-family-calendar-rename",
+    at: "2026-10-30T12:45",
+    emoji: "💞",
+    title: "„Calendar pentru Estera” se numește acum „Calendar familie”",
+    summary: "Pagina are și secțiunea Salomeei, așa că numele e acum mai general: în meniu, în căutare, în calendarul de rezervări și în titlul paginii.",
+    links: [{ label: "Calendar familie", path: "/admin/calendar-familie" }],
+  },
+  {
     id: "2026-10-30-build-progress",
     at: "2026-10-30T11:35",
     emoji: "⏳",
@@ -40,19 +72,19 @@ export const ADMIN_CHANGELOG: ChangelogEntry[] = [
       "Login și cu numărul de telefon: codul vine prin SMS.",
       "Reminderele pleacă la 9:00, o singură dată pe eveniment. Estera le primește pentru toate evenimentele, Salomeea doar pentru ale ei. Prețul apare doar în emailul Esterei, niciodată în SMS. Se pot opri din secțiunea „Remindere”.",
     ],
-    links: [{ label: "Calendar pentru Estera", path: "/admin/calendar-familie" }],
+    links: [{ label: "Calendar familie", path: "/admin/calendar-familie" }],
   },
   {
     id: "2026-10-30-family-calendar-helper",
     at: "2026-10-30T11:30",
     emoji: "👤",
     title: "Salomeea are și ea calendarul ei în Zile ocupate",
-    summary: "În Calendar pentru Estera bifezi la ce evenimente e asignată Salomeea. Ea intră pe /zile-ocupate cu emailul ei și un cod și vede doar acele evenimente, fără prețuri.",
+    summary: "În Calendar familie bifezi la ce evenimente e asignată Salomeea. Ea intră pe /zile-ocupate cu emailul ei și un cod și vede doar acele evenimente, fără prețuri.",
     details: [
       "Nu vede cererile pentru familie și nu poate cere zile. Are linkul ei separat pentru calendarul din telefon, cu doar evenimentele ei.",
       "„Trimite-i invitația” îi trimite pe email cum intră și lista evenimentelor ei. „Deconectează pe toată lumea” le deconectează și pe Estera, și pe Salomeea.",
     ],
-    links: [{ label: "Calendar pentru Estera", path: "/admin/calendar-familie" }],
+    links: [{ label: "Calendar familie", path: "/admin/calendar-familie" }],
   },
   {
     id: "2026-10-30-all-emails-monochrome",
@@ -79,7 +111,7 @@ export const ADMIN_CHANGELOG: ChangelogEntry[] = [
     title: "Te poți loga și tu în Zile ocupate",
     summary: "Pe /zile-ocupate merge acum și emailul tău (ancadaniel1994@gmail.com): primești codul pe email și vezi exact ce vede Estera.",
     details: ["Fiecare email are codul lui, deci dacă cereți amândoi cod în același timp nu se anulează unul pe altul. „Deconectează de pe toate dispozitivele” te deconectează și pe tine."],
-    links: [{ label: "Calendar pentru Estera", path: "/admin/calendar-familie" }],
+    links: [{ label: "Calendar familie", path: "/admin/calendar-familie" }],
   },
   {
     id: "2026-10-29-viewer-visible-viewport",
@@ -431,7 +463,7 @@ export const ADMIN_CHANGELOG: ChangelogEntry[] = [
       "Din admin: trimiți invitația pe email, pornești emailul de luni cu planul săptămânii, o deconectezi de peste tot sau faci link nou pentru calendarul din telefon.",
     ],
     links: [
-      { label: "Calendar pentru Estera", path: "/admin/calendar-familie" },
+      { label: "Calendar familie", path: "/admin/calendar-familie" },
       { label: "Calendar", path: "/admin/calendar" },
     ],
   },

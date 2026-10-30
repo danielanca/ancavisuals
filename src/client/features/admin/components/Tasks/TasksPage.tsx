@@ -39,6 +39,9 @@ import {
   suggestForToday,
 } from "./taskStats";
 
+// authFetch (instalat global) pune token-ul Firebase proaspăt pe fiecare cerere /api/.
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
 type Tab = "azi" | "deschise" | "facute";
 
 interface EventOption {
@@ -169,10 +172,6 @@ export default function TasksPage() {
   const [today, setToday] = useState(() => bucharestDay());
   const [nowMin, setNowMin] = useState(() => bucharestMinutes());
 
-  const headers = useCallback(
-    () => ({ "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` }),
-    [auth.accessToken],
-  );
 
   // fetchGetWithRetry face deja 3 încercări; dacă tot eșuează, mai reîncercăm automat
   // de câteva ori (și la revenirea conexiunii) înainte să arătăm eroarea.
@@ -190,7 +189,7 @@ export default function TasksPage() {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     setLoading(true);
-    fetchGetWithRetry("/api/admin/tasks", { headers: { Authorization: `Bearer ${auth.accessToken}` }, signal: controller.signal })
+    fetchGetWithRetry("/api/admin/tasks", { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = (await response.json()) as { tasks: ClientTask[] };
@@ -224,7 +223,7 @@ export default function TasksPage() {
   useEffect(() => {
     if (!auth.accessToken) return;
     const controller = new AbortController();
-    fetchGetWithRetry("/api/admin/events", { headers: { Authorization: `Bearer ${auth.accessToken}` }, signal: controller.signal })
+    fetchGetWithRetry("/api/admin/events", { signal: controller.signal })
       .then((response) => response.json())
       .then((data: { events?: ClientEvent[] }) => {
         if (controller.signal.aborted) return;
@@ -252,7 +251,7 @@ export default function TasksPage() {
 
   async function createTask(body: Partial<ClientTask>) {
     setError(null);
-    const response = await fetch("/api/admin/tasks", { method: "POST", headers: headers(), body: JSON.stringify(body) });
+    const response = await fetch("/api/admin/tasks", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
     const data = (await response.json().catch(() => ({}))) as { task?: ClientTask; error?: string };
     if (!response.ok || !data.task) {
       setError(data.error ?? "Nu am putut salva taskul.");
@@ -266,7 +265,7 @@ export default function TasksPage() {
     setError(null);
     const previous = tasks.find((task) => task.id === id);
     setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, ...patch } : task)));
-    const response = await fetch(`/api/admin/tasks/${id}`, { method: "PATCH", headers: headers(), body: JSON.stringify(patch) });
+    const response = await fetch(`/api/admin/tasks/${id}`, { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify(patch) });
     const data = (await response.json().catch(() => ({}))) as { task?: ClientTask; error?: string };
     if (!response.ok || !data.task) {
       if (previous) setTasks((prev) => prev.map((task) => (task.id === id ? previous : task)));
@@ -283,7 +282,7 @@ export default function TasksPage() {
     const previousOrder = new Map(tasks.map((task) => [task.id, task.dayOrder ?? null]));
     setError(null);
     setTasks((prev) => prev.map((task) => (ids.includes(task.id) ? { ...task, dayOrder: ids.indexOf(task.id) } : task)));
-    const response = await fetch("/api/admin/tasks/reorder", { method: "POST", headers: headers(), body: JSON.stringify({ ids }) }).catch(() => null);
+    const response = await fetch("/api/admin/tasks/reorder", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ ids }) }).catch(() => null);
     if (!response?.ok) {
       setTasks((prev) => prev.map((task) => (previousOrder.has(task.id) ? { ...task, dayOrder: previousOrder.get(task.id) ?? null } : task)));
       setError("Nu am putut salva ordinea.");
@@ -292,7 +291,7 @@ export default function TasksPage() {
 
   async function deleteTask(id: string) {
     if (!window.confirm("Ștergi acest task? Dispare și din statistici.")) return;
-    const response = await fetch(`/api/admin/tasks/${id}`, { method: "DELETE", headers: headers() });
+    const response = await fetch(`/api/admin/tasks/${id}`, { method: "DELETE", headers: JSON_HEADERS });
     if (!response.ok) {
       setError("Nu am putut șterge taskul.");
       return;

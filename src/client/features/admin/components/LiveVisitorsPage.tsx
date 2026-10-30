@@ -257,7 +257,7 @@ export default function LiveVisitorsPage() {
       const params = new URLSearchParams({ date: day, limit: "200", archived: archived ? "1" : "0" });
       if (after) params.set("cursor", after);
       const res = await fetch(`/api/admin/analytics/live/history?${params}`, {
-        headers: { Authorization: `Bearer ${auth.accessToken}` }, signal: controller.signal,
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(res.status === 401 ? "Sesiunea de autentificare a expirat. Reautentifică-te." : "Istoricul nu a putut fi încărcat. Încearcă din nou.");
       const data = await res.json() as { sessions: LiveSession[]; visitorNumbers?: Record<string, number>; nextCursor?: string | null };
@@ -284,7 +284,7 @@ export default function LiveVisitorsPage() {
       controller = new AbortController();
       try {
         const res = await fetch("/api/admin/analytics/live/stream", {
-          headers: { Authorization: `Bearer ${auth.accessToken}` }, signal: controller.signal,
+          signal: controller.signal,
         });
         if (!res.ok || !res.body || !res.headers.get("content-type")?.includes("text/event-stream")) throw new Error("stream unavailable");
         retry = 0;
@@ -382,7 +382,7 @@ export default function LiveVisitorsPage() {
     const id = selected.sessionId;
     try {
       const res = await fetch(`/api/admin/analytics/live/${encodeURIComponent(id)}/archive`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ archived: !archived }),
       });
       if (!res.ok) throw new Error("Arhivarea nu a reușit. Sesiunea a fost păstrată în listă.");

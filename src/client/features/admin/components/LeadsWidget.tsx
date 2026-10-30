@@ -50,7 +50,7 @@ export default function LeadsWidget() {
     setBusyId(lead.id); setActionError("");
     try {
       const res = await fetch(`/api/admin/leads/${encodeURIComponent(lead.id)}/archive`, {
-        method: "PATCH", headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ archived: true }),
       });
       if (!res.ok) throw new Error("Nu s-a putut arhiva lead-ul.");
@@ -61,12 +61,12 @@ export default function LeadsWidget() {
 
   useEffect(() => {
     if (!auth.accessToken) return;
-    fetch("/api/admin/leads", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
+    fetch("/api/admin/leads")
       .then((r) => r.json())
       .then((d) => setLeads((d.leads ?? []).filter((lead: Lead) => !lead.archived)))
       .catch(() => setFailed(true));
     // Funnel errors: an email that failed, or a lead/contact blocked by a filter.
-    fetch("/api/admin/email-log", { headers: { Authorization: `Bearer ${auth.accessToken}` } })
+    fetch("/api/admin/email-log")
       .then((r) => r.json())
       .then((d: { emails?: { status: string; severity?: string; createdAt: string }[] }) =>
         setEmailErrors((d.emails ?? []).filter((e) =>

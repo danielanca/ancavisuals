@@ -23,7 +23,7 @@ const LABELS: Record<string, string> = {
   "email-log": "Email log",
   "sms-log": "SMS-uri trimise",
   updates: "Update-uri",
-  "calendar-familie": "Calendar pentru Estera",
+  "calendar-familie": "Calendar familie",
   "seo-radar": "SEO Radar",
   pagina: "Pagină specială",
   "instagram-proposals": "Propuneri Media",

@@ -1,8 +1,8 @@
 /*
- * Purpose: the emails the owner gets for a new request (booking configurator, quick lead, /bio
- * callback, landing form) — in the ancavisuals style: white, black, square. Each one opens with
- * the person's phone and two ready buttons, "Sună" (tel:) and "WhatsApp" (wa.me with a message
- * already written). Shared because the browser builds some of them and the server the others.
+ * Purpose: the emails the owner gets for a new request (/bio callback, landing form) — in the
+ * ancavisuals style: white, black, square. Each one opens with the person's phone and two ready
+ * buttons, "Sună" (tel:) and "WhatsApp" (wa.me with a message already written). Shared because the
+ * browser builds the /bio one and the server the others.
  */
 
 const OWNER_NAME = "Daniel";
@@ -80,54 +80,7 @@ export function leadEmailHtml({ eyebrow, title, subtitle, phone, whatsappText, f
     </div>`;
 }
 
-/* ---- the booking configurator and /bio (built in the browser, sent through /triggerEvent) ---- */
-
-export const buildHtmlFinal = (args: {
-  selectedFormattedDate: string;
-  eventType: string;
-  fullName: string;
-  phone: string;
-  location: string;
-  startTime: string;
-  endTime: string;
-  overnight: boolean;
-  durationHours: number | null;
-  totalPrice: number;
-  selectedPackages: string[];
-  showCustom: boolean;
-  photo: boolean;
-  video: boolean;
-}) => leadEmailHtml({
-  eyebrow: "Cerere nouă · Configurator",
-  title: args.fullName || "Cerere nouă",
-  subtitle: `${args.eventType} · ${args.selectedFormattedDate}`,
-  phone: args.phone,
-  whatsappText: leadWhatsappText({ name: args.fullName, eventType: args.eventType, date: args.selectedFormattedDate }),
-  fields: [
-    ["Data", args.selectedFormattedDate],
-    ["Eveniment", args.eventType],
-    ["Locație", args.location],
-    ["Interval", `${args.startTime} – ${args.endTime}${args.overnight ? " (peste miezul nopții)" : ""}`],
-    ["Durată estimată", `${args.durationHours ?? "-"} h`],
-    ["Pachete", args.selectedPackages.join(", ") || "-"],
-    ...(args.showCustom ? [["Custom", `foto ${args.photo ? "da" : "nu"}, video ${args.video ? "da" : "nu"}`] as [string, string]] : []),
-    ["Preț estimativ", `${Number(args.totalPrice).toLocaleString("ro-RO")} EUR`],
-  ],
-});
-
-export const buildQuickLeadHtml = (args: { selectedFormattedDate: string; eventType: string; fullName: string; phone: string }) => leadEmailHtml({
-  eyebrow: "Lead rapid · Configurator",
-  title: args.fullName || "Lead rapid",
-  subtitle: `${args.eventType} · ${args.selectedFormattedDate}`,
-  phone: args.phone,
-  whatsappText: leadWhatsappText({ name: args.fullName, eventType: args.eventType, date: args.selectedFormattedDate }),
-  fields: [
-    ["Data (aleasă până acum)", args.selectedFormattedDate],
-    ["Eveniment", args.eventType],
-    ["A acceptat salvarea datelor", "Da"],
-  ],
-  note: "Trimis la finalul pasului 3 (contact), chiar dacă vizitatorul nu a terminat configuratorul.",
-});
+/* ---- /bio (built in the browser, sent through /triggerEvent) ---- */
 
 export const buildBioCallbackHtml = (phone: string) => leadEmailHtml({
   eyebrow: "Cerere de apel · /bio",

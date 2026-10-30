@@ -152,7 +152,7 @@ export default function BookedCalendar() {
               onClick={() => navigate("/admin/calendar-familie")}
               className="mt-2 text-xs text-neutral-400 underline hover:text-white"
             >
-              💞 Calendar pentru Estera →
+              💞 Calendar familie →
             </button>
           </div>
           <div className="flex items-center gap-2">

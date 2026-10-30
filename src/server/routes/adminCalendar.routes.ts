@@ -53,7 +53,7 @@ router.get("/booked-dates", requireFirebaseAuth, requireSupremeAdmin, async (_re
   }
 });
 
-// --- Calendarul pentru Estera (/admin/calendar-familie): pagina /zile-ocupate (login cu cod pe
+// --- Calendar familie (/admin/calendar-familie): pagina /zile-ocupate (login cu cod pe
 // email), feed-ul .ics cu link secret, emailurile și cererile ei de timp pentru familie; plus
 // Salomeea (helper): emailul ei și evenimentele la care e asignată (le vede fără prețuri) ---
 

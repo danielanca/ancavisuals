@@ -43,7 +43,7 @@ export const SEARCH_ITEMS: SearchItem[] = [
   { label: "Noutăți în masă", path: "/admin/album-updates", category: "Media", icon: "📣", keywords: "noutati album intarziere intarzie mai dureaza estimare termen anunt clienti mai multi grup bulk mesaj sms whatsapp email abonati poze video videoclip album tiparit" },
   { label: "Anunță întârziere la mai mulți clienți", path: "/admin/album-updates", category: "Media", icon: "⏳", keywords: "intarziere delay mai dureaza poze video album clienti grup selecteaza evenimente" },
   // Evenimente
-  { label: "Calendar pentru Estera", path: "/admin/calendar-familie", category: "Evenimente", icon: "💞", keywords: "calendar estera salomeea asignata asistent sotie familie nunti evenimente program saptamana an viitor reminder email trimite link google calendar iphone ics abonare preturi lista plan luni zile ocupate concediu cerere timp liber aproba refuza vacanta cod login" },
+  { label: "Calendar familie", path: "/admin/calendar-familie", category: "Evenimente", icon: "💞", keywords: "calendar estera salomeea asignata asistent sotie familie nunti evenimente program saptamana an viitor reminder email trimite link google calendar iphone ics abonare preturi lista plan luni zile ocupate concediu cerere timp liber aproba refuza vacanta cod login" },
   { label: "Cereri de concediu de la Estera", path: "/admin/calendar-familie", category: "Evenimente", icon: "🏡", keywords: "concediu vacanta timp pentru familie cerere estera aproba refuza zile libere rezerva perioada" },
   { label: "Progres Evenimente", path: "/admin/progress", category: "Evenimente", icon: "📋", keywords: "progres editare livrare fotografiere etape status" },
   // Financiar

@@ -53,3 +53,8 @@ src/server/diniubire_servicekey.json
 .playwright-cli/
 # Added by code-review-graph
 .code-review-graph/
+
+# Local tool output / personal files (not project code)
+.claude/worktrees/
+graphify-out/
+output/

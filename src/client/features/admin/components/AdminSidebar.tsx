@@ -249,7 +249,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose }) => {
       ),
       items: [
         { label: "Calendar", path: "/admin/calendar" },
-        { label: "Calendar pentru Estera", path: "/admin/calendar-familie" },
+        { label: "Calendar familie", path: "/admin/calendar-familie" },
         { label: "Task-uri", path: "/admin/taskuri", highlight: true },
         { label: "Mementouri", path: "/admin/mementos", badge: urgentMementos },
         { label: "Moderare albume", path: "/admin/moderare", badge: pendingModeration },

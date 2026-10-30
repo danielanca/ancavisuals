@@ -1,5 +1,5 @@
 /*
- * Purpose: /admin/calendar-familie — "Calendar pentru Estera": her requests for family time
+ * Purpose: /admin/calendar-familie — "Calendar familie": Estera's requests for family time
  * (approve / decline, she gets an email), the invite email to ancavisuals.ro/zile-ocupate (she
  * signs in with her email + a one-time code), the Monday "plan of the week" email, signing her out
  * everywhere and a new secret link for the phone-calendar feed. Also Salomeea (the helper): her
@@ -310,10 +310,10 @@ export default function FamilyCalendarAdminPage() {
     <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
       <Breadcrumb />
       <div>
-        <h1 className="text-2xl font-light tracking-tight text-white">Calendar pentru Estera</h1>
+        <h1 className="text-2xl font-light tracking-tight text-white">Calendar familie</h1>
         <p className="mt-1 text-sm text-neutral-400">
-          Pe ancavisuals.ro/zile-ocupate Estera intră cu emailul ei și un cod primit pe email. Vede evenimentele confirmate
-          (calendar sau listă, cu data și prețul) și îți poate cere zile libere pentru familie.
+          Pe ancavisuals.ro/zile-ocupate Estera intră cu emailul sau telefonul ei și un cod. Vede evenimentele confirmate
+          (calendar sau listă, cu data și prețul) și îți poate cere zile libere pentru familie. Salomeea vede doar evenimentele ei, fără prețuri.
         </p>
       </div>
 
